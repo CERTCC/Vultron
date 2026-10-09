@@ -25,11 +25,32 @@ Per specs/inbox-orchestration.yaml:
 
 from __future__ import annotations
 
-from typing import Any, Literal, Protocol, runtime_checkable
+from enum import StrEnum
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
 from vultron.core.models.events import VultronEvent
+from vultron.core.models.use_case_result import HandlerResult
+from vultron.primitives import NonEmptyString
+
+
+class InboxOutcomeStatus(StrEnum):
+    """What the inbox pipeline did with one payload (IO-01-002).
+
+    - ``PROCESSED`` — dispatched, and the handler applied or correctly skipped it.
+    - ``DEFERRED`` — held for replay: by ``DeferCheckNode`` before dispatch
+      (missing case context), or by the handler after it (UCORG-05-011).
+    - ``REJECTED`` — refused, unparseable, undispatchable, or the dispatch
+      raised.
+
+    This vocabulary belongs to the pipeline. ``DispatchNode`` alone maps a
+    handler's ``HandlerDisposition`` onto it (HP-01-004).
+    """
+
+    PROCESSED = "processed"
+    DEFERRED = "deferred"
+    REJECTED = "rejected"
 
 
 class InboxOutcome(BaseModel):
@@ -38,8 +59,9 @@ class InboxOutcome(BaseModel):
     Per specs/inbox-orchestration.yaml IO-01-001 through IO-01-004.
     """
 
-    status: Literal["processed", "deferred", "rejected"]
+    status: InboxOutcomeStatus
     context_id: str | None = None
+    activity_id: NonEmptyString | None = None
     failure_reason: str | None = None
 
 
@@ -73,8 +95,12 @@ class DispatchAdapter(Protocol):
     Wraps the existing ActivityDispatcher port.  Per IO-03-001.
     """
 
-    def dispatch(self, event: VultronEvent) -> None:
-        """Dispatch a domain event to the appropriate use case."""
+    def dispatch(self, event: VultronEvent) -> HandlerResult:
+        """Dispatch a domain event and return the handler's verdict.
+
+        The ``HandlerResult`` is the only channel from the handler to
+        ``InboxOutcome`` (UCORG-05-010).
+        """
         ...  # pragma: no cover
 
 

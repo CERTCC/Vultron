@@ -14,8 +14,10 @@
 This module defines a Behavior Tree object.
 """
 
+import inspect
 import logging
-from typing import Any, Literal, Type
+from types import TracebackType
+from typing import Any, Literal, Self
 
 from vultron.bt.base.blackboard import Blackboard
 from vultron.bt.base.bt_node import BtNode
@@ -37,12 +39,12 @@ class BehaviorTree:
         bb: the blackboard object
     """
 
-    bbclass: Type[Any] = Blackboard
+    bbclass: type[Any] = Blackboard
 
     def __init__(
         self,
         root: BtNode | None = None,
-        bbclass: Type[Any] | None = None,
+        bbclass: type[Any] | None = None,
     ):
         """
         Initialize the BehaviorTree object.
@@ -62,7 +64,7 @@ class BehaviorTree:
         self._setup: bool = False
 
     # runtime context
-    def __enter__(self) -> "BehaviorTree":
+    def __enter__(self) -> Self:
         """
         Runtime context for the BehaviorTree object.
 
@@ -73,7 +75,10 @@ class BehaviorTree:
         return self
 
     def __exit__(
-        self, exc_type: Exception, exc_val: str, exc_tb: list
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> Literal[False]:
         """
         Runtime context for the BehaviorTree object.
@@ -88,17 +93,15 @@ class BehaviorTree:
         """
         if exc_type is not None:
             # where were we in the tree?
-            import inspect
-
             frm = inspect.trace()[-1]
             obj = frm[0].f_locals["self"]
-            logger.debug(f"Exception in {obj.name}")
+            logger.debug("Exception in %s", obj.name)
             print(obj.name)
 
             while obj.parent is not None:
                 obj = obj.parent
                 print(obj.name)
-                logger.debug(f"parent: {obj.name}")
+                logger.debug("parent: %s", obj.name)
 
             # print(self.root.graph())
 

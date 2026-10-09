@@ -2,13 +2,19 @@
 
 Three kinds of artifact are generated and committed:
 
-- each top-level section **landing page** under ``docs/`` — only the contents
-  listing between the markers, so the hand-written framing survives
+- each section **landing page** under ``docs/`` whose index declares
+  ``contents: generated`` — only the contents listing between the markers, so
+  the hand-written framing survives
   (:mod:`~vultron.metadata.docs.landing_pages`);
 - ``docs/includes/stakeholder_types.md`` — whole file, from the schema
   (:mod:`~vultron.metadata.docs.stakeholder_fragment`);
 - ``notes/site-coverage-matrix.md`` — whole file, from page frontmatter
   (:mod:`~vultron.metadata.docs.coverage_matrix`).
+
+One thing is checked but never written: a section index that declares
+``contents: routing`` must link every member of its section. A missing link
+is a fault the author fixes by hand, so both modes report it and neither
+"repairs" it (DF-11-005's routing-page exemption).
 
 ``--check`` is wired into pre-commit as ``docs-site-sync``;
 ``test_committed_site_artifacts_are_in_sync`` enforces it in CI and is the
@@ -35,14 +41,15 @@ from vultron.metadata.docs.coverage_matrix import (
 )
 from vultron.metadata.docs.landing_pages import (
     WRITE_COMMAND,
-    discover_landing_pages,
+    discover_section_indexes,
+    routing_faults,
     splice_listing,
 )
 from vultron.metadata.docs.stakeholder_fragment import (
     FRAGMENT_PATH,
     render_fragment,
 )
-from vultron.metadata.file_loading import MetadataLoadError
+from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
 
 
 def _read(target: Path) -> str:
@@ -53,27 +60,39 @@ def desired_contents(root: Path) -> dict[str, str]:
     """Return ``{repo-relative path: desired full contents}`` for every artifact.
 
     Raises:
-        FileNotFoundError: If a landing page is missing or empty; its
-            hand-written prose cannot be regenerated.
-        MetadataLoadError: If a listed page is missing or unreadable, a
-            page's declarations do not validate, or a target set is empty
-            (DF-09-009).
+        MetadataLoadError: If a listed page or a landing page is missing,
+            empty, or unreadable (a landing page's hand-written prose cannot
+            be regenerated), a page's declarations do not validate, a
+            group-opening index declares no ``contents:``, or a target set is
+            empty (DF-09-009).
+        MetadataLoadErrors: If a routing index fails to link a member of its
+            section; every missing link is listed.
         ValueError: If a landing page's markers are missing or malformed.
     """
     contents = {
         FRAGMENT_PATH: render_fragment(),
         MATRIX_PATH: render_matrix(measure_coverage(root)),
     }
-    for page in discover_landing_pages(root):
+    indexes = discover_section_indexes(root)
+    faults = [
+        fault
+        for page in indexes.routing
+        for fault in routing_faults(root, page)
+    ]
+    if faults:
+        raise MetadataLoadErrors(
+            faults,
+            summary=(
+                f"{len(faults)} routing-page link(s) missing; add each link "
+                "by hand, nothing is generated for a routing page:"
+            ),
+        )
+    for page in indexes.generated:
+        # A missing or empty landing page was already refused by
+        # discover_section_indexes (landing_pages._page_facts), so the
+        # source read here is non-empty.
         path = f"docs/{page.path}"
-        current = _read(root / path)
-        if not current:
-            raise FileNotFoundError(
-                f"{path} is missing or empty; its generated listing is spliced "
-                "between markers in hand-written prose that cannot be "
-                f"regenerated. Restore the file, then run '{WRITE_COMMAND}'."
-            )
-        contents[path] = splice_listing(current, page)
+        contents[path] = splice_listing(_read(root / path), page)
     return contents
 
 

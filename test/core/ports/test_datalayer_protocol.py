@@ -15,7 +15,7 @@
 
 """Tests for DataLayer protocol conformance (DL-07-002, DL-07-005).
 
-ARCH-13-005 asked for a separate ``ActorScopedDataLayer`` protocol so a
+An earlier requirement asked for a separate ``ActorScopedDataLayer`` protocol so a
 type-checker could police the scope boundary at signature level. ADR-0073 made
 that unnecessary by construction — a DataLayer cannot exist unscoped — so the
 refinement was merged back into ``DataLayer`` and the requirement retired.
@@ -82,9 +82,9 @@ def test_actor_scoped_datalayer_exposes_queue_methods():
         "outbox_list",
         "outbox_pop",
     ):
-        assert callable(
-            getattr(clone, method, None)
-        ), f"clone_for_actor() result missing queue method: {method!r}"
+        assert callable(getattr(clone, method, None)), (
+            f"clone_for_actor() result missing queue method: {method!r}"
+        )
 
 
 def test_base_datalayer_clone_for_actor_return_annotation():

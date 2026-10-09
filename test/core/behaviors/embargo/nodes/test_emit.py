@@ -18,29 +18,21 @@
 from unittest.mock import MagicMock, patch
 
 import py_trees
-import pytest
-
 from py_trees.common import Status
-
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
-from vultron.core.states.em import EM
 
 from test.core.behaviors.embargo.nodes.conftest import (
     CASE_MANAGER_ACTOR,
     make_case_with_manager,
     setup_blackboard,
 )
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
+from vultron.core.states.em import EM
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case_emit1"
 EMBARGO_ID = "https://example.org/cases/case_emit1/embargo_events/e1"
 ACTIVITY_ID = "https://example.org/activities/act1"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _make_concrete(

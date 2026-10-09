@@ -12,6 +12,7 @@ related_notes:
   - notes/case-communication-model.md
   - notes/case-ledger-authority.md
   - notes/sync-ledger-replication.md
+  - notes/case-joining.md
 relevant_packages:
   - vultron/core/behaviors/case
   - vultron/core/models
@@ -109,7 +110,7 @@ case through one of two paths:
 1. **Report-submission path**: the receiver has already processed a
    `Create(VulnerabilityCase)` from the case creator, which establishes the
    local CASE_MANAGER identity before any `Announce` arrives.  The
-   `VultronReportCaseLink.trusted_case_actor_id` field carries the
+   `VultronReportCaseLink.case_manager_id` field carries the
    trusted identity; `_find_case_actor_id()` returns it via path 1.
 2. **Invite/Accept path**: the receiver has processed an inbound
    `InviteActorToCase` from the CASE_MANAGER, which leaves an invite trust
@@ -202,20 +203,30 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
 
 ---
 
-## Late-Joiner Bootstrap: Cascade from `Accept(Invite)`
+## Late-Joiner Bootstrap: Cascade from `Accept(Invite(stub))`
 
-When a new participant accepts an invitation, the `AcceptInviteToCaseUseCase`
-MUST trigger `Announce(VulnerabilityCase)` to the new participant as a cascade.
-This is a BT subtree, not a procedural post-BT call:
+The invitee's participant record already exists when it accepts: the
+CASE_MANAGER created it, inert, when it sent the stub Invite (CM-11-006,
+ADR-0114). When the participant accepts the stub Invite, the
+`AcceptInviteToCaseUseCase` MUST activate that record and trigger
+`Announce(VulnerabilityCase)` and the ledger replay to the participant as a
+cascade (CM-11-008), followed by the full-case Invite queued after the last
+replayed entry (CM-11-010). This is a BT subtree, not a procedural post-BT
+call:
 
 ```python
-# Inside the AcceptInviteToCase BT, after AddParticipantToCase node:
+# Target shape of the AcceptInviteToCase BT (the record is not created here):
 #
 #  SequenceNode
 #    ├── ValidateAcceptInviteNode
-#    ├── AddParticipantToCaseNode
-#    └── AnnounceFullCaseToNewParticipantNode  ← cascade node
+#    ├── ActivateInvitedParticipantNode    ← RM stays RECEIVED (CM-11-001)
+#    ├── AnnounceFullCaseToNewParticipantNode  ← cascade node
+#    └── InviteToFullCaseNode              ← full-case Invite (CM-11-010)
 ```
+
+Node names are illustrative; the inert record is created by
+`CreateInertInviteeParticipantNode` when the stub Invite is sent, and the
+accept-invite tree reuses it. See [case-joining.md](case-joining.md) for the full flow.
 
 `AnnounceFullCaseToNewParticipantNode` reads the current full case from the
 DataLayer and enqueues `Announce(VulnerabilityCase)` to the new participant's
@@ -349,6 +360,17 @@ against a different actor's case replica, producing incorrect state.
   - a `VultronPendingCaseInbox` invite anchor, written by
     `InviteActorToCaseReceivedUseCase` when this receiver processed the invite,
     which covers the late joiner before any replica exists (PCR-03-004 path b).
+    Three trust rules govern when and how the anchor is written
+    (`RecordInviteTrustAnchorNode`, issue #4185):
+    (1) the Invite's `object` must equal the receiving actor — a misaddressed
+    Invite is refused with no record written (AC-1);
+    (2) the anchor binds to the Invite's `actor` id (the named CaseActor), not
+    the transport-level delivering sender — the caller supplies the Invite's own
+    `actor` field (AC-2);
+    (3) a second Invite for the same case naming a *different* CaseActor is
+    refused at WARNING level and the existing anchor is left unchanged (AC-3).
+    Whether the named CaseActor is genuine cannot be verified until actor
+    identity and signatures are in place (#2841).
   Neither answering means **reject**, not accept. The lookup is idempotent and
   safe to call multiple times.
 - The late-joiner bootstrap node belongs in

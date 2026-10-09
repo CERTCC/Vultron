@@ -18,7 +18,7 @@ Tests for as_CaseStatus and as_ParticipantStatus empty-string field validation
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -27,7 +27,6 @@ from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
 )
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
@@ -119,7 +118,7 @@ class TestAs2RoundTripPreservesPublished(unittest.TestCase):
     AS2 and reading it back is that path now, so that is what is asserted.
     """
 
-    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     def test_as2_round_trip_preserves_published(self):
         core = CoreCaseStatus(context=CASE_ID, published=self._FIXED_TIME)
@@ -169,14 +168,13 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
                 rm_state="BOGUS_RM",  # type: ignore[arg-type]
             )
 
-    def test_em_consent_state_unknown_raises_validation_error(self):
-        """as_ParticipantStatus with bogus emConsentState raises ValidationError."""
-        with pytest.raises(ValidationError):
-            as_ParticipantStatus(
-                attributed_to=ACTOR_ID,
-                context=CASE_ID,
-                emConsentState="BOGUS_PEC",  # type: ignore[call-arg]
-            )
+    def test_retired_consent_key_raises_validation_error(self):
+        """A retired scalar-consent key is refused, not silently dropped (ADR-0122)."""
+        for key in ("emConsentState", "em_consent_state", "embargoAdherence"):
+            with self.subTest(key=key), pytest.raises(ValidationError):
+                as_ParticipantStatus.model_validate(
+                    {"attributed_to": ACTOR_ID, "context": CASE_ID, key: "X"}
+                )
 
 
 class TestAs2RoundTripPreservesFields(unittest.TestCase):
@@ -187,7 +185,7 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
     the round-trip is the successor path.
     """
 
-    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     def test_as2_round_trip_preserves_published(self):
         core = CoreParticipantStatus(
@@ -214,13 +212,13 @@ class TestAs2RoundTripPreservesFields(unittest.TestCase):
 
 
 class TestRetiredVfdKeyRejection(unittest.TestCase):
-    """_reject_retired_vfd_keys must raise ValidationError, not a raw
-    VultronProtocolViolationError that escapes Pydantic (issue #2905).
+    """A retired vfd key must raise ValidationError, not escape Pydantic (#2905).
 
-    Pydantic only absorbs ValueError/TypeError/AssertionError from validators.
-    When the validator raised VultronProtocolViolationError (a plain VultronError
-    subclass) the exception escaped model_validate() entirely, crashing the
-    inbox-processing loop rather than being treated as a validation failure.
+    The per-class ``_reject_retired_vfd_keys`` guard these rows were written
+    for is gone (#3921, SDO-03-005): ``extra="forbid"`` alone now refuses the
+    key on direct validation, and the parse edge refuses it by name on inbound
+    data (MV-11-002).  The rows still pin that the refusal is a Pydantic
+    ``ValidationError`` rather than an exception escaping ``model_validate()``.
     """
 
     def test_vfd_state_snake_raises_validation_error(self):
@@ -252,23 +250,6 @@ class TestRetiredVfdKeyRejection(unittest.TestCase):
             attributed_to=ACTOR_ID,
         )
         self.assertEqual(CASE_ID, ps.context)
-
-
-class TestParticipantStatusLegacyPecMigration(unittest.TestCase):
-    """as_ParticipantStatus must coerce legacy emConsentState values (ADR-0091)."""
-
-    def test_no_embargo_em_consent_state_migrates_to_unbound(self):
-        """ADR-0091 renamed NO_EMBARGO → UNBOUND; as_ParticipantStatus must migrate stored legacy emConsentState (issue #3376)."""
-        ps = as_ParticipantStatus.model_validate(
-            {
-                "context": CASE_ID,
-                "attributed_to": ACTOR_ID,
-                "emConsentState": "NO_EMBARGO",
-            }
-        )
-        # The dimension owns the state; ``consent.state`` is where it lands.
-        assert ps.consent is not None
-        self.assertEqual(ps.consent.state, PEC.UNBOUND)
 
 
 if __name__ == "__main__":

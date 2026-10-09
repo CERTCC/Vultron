@@ -16,250 +16,25 @@
 """
 Case setup action nodes for case management behavior trees.
 
-Provides leaf action nodes that set up core case state: persisting the case
-record, assigning attribution, and recording creation events.
+Provides leaf action nodes that set up core case state.
 
-CaseActor identity is published by ``PublishCaseActorIdentityNode`` and provisioned
-by ``EnsureCaseActorHostedNode``, both below.
-
-Composite subtrees (``Sequence``/``Selector`` subclasses) that orchestrate
-these leaf nodes are defined in ``case_setup_tree.py`` at the process-area
-root, per BTND-07-003.
+``EnsureCaseActorHostedNode`` provisions the CaseActor record in the
+co-located store so its inbox answers (CP-04-004).
 
 Per specs/case-management.yaml CM-02 requirements.
 """
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.case_actor_identity import (
+    case_actor_identity,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    PortInformation,
 )
-from vultron.core.models.vultron_types import VultronCase
+from vultron.core.behaviors.store_scope import store_for_actor
+from vultron.core.models.case_actor import CaseActor
 from vultron.errors import VultronAlreadyExistsError
-
-
-class PersistCase(DataLayerActionWithPorts):
-    """
-    Persist a VulnerabilityCase to the DataLayer.
-
-    Creates the case record in DataLayer and stores the case_id in the
-    blackboard for subsequent nodes.
-
-    Per specs/case-management.yaml CM-02-001.
-    """
-
-    def __init__(self, case_obj: VultronCase, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_obj = case_obj
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "case_id": PortInformation(data_type=str, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        try:
-            self.datalayer.save(self.case_obj)
-            self.logger.info(
-                f"{self.name}: Persisted VulnerabilityCase"
-                f" {self.case_obj.id_}"
-            )
-            self._set_output("case_id", self.case_obj.id_)
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error persisting case: {e}")
-            return Status.FAILURE
-
-
-class SetCaseAttributedTo(DataLayerActionWithPorts):
-    """
-    Set VulnerabilityCase.attributed_to to the receiving actor's ID.
-
-    Must run before PersistCase so the stored case already carries the
-    vendor/coordinator owner reference.
-
-    Per specs/case-management.yaml CM-02-008.
-    """
-
-    def __init__(self, case_obj: VultronCase, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_obj = case_obj
-
-    def update(self) -> Status:
-        if self.actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not available")
-            return Status.FAILURE
-
-        self.case_obj.attributed_to = self.actor_id
-        self.logger.debug(
-            f"{self.name}: Set attributed_to={self.actor_id}"
-            f" on case {self.case_obj.id_}"
-        )
-        return Status.SUCCESS
-
-
-class RecordOfferReceivedEventNode(DataLayerActionWithPorts):
-    """Conditionally record offer_received and stage the case object."""
-
-    def __init__(self, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "case_id": PortInformation(data_type=str, required=True),
-    }
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "case_for_creation_events": PortInformation(
-            data_type=object, required=True
-        ),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "case_id": "/case_id",
-            "case_for_creation_events": "/case_for_creation_events",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.case_id_bb: str = self.get_input("case_id")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        case_id = self.case_id_bb
-        if not isinstance(case_id, str):
-            self.logger.error(f"{self.name}: case_id not found in blackboard")
-            return Status.FAILURE
-
-        case, failure = self._require_case(case_id)
-        if failure is not None:
-            return failure  # Regime 1: case must exist (ADR-0087)
-
-        self._set_output("case_for_creation_events", case)
-        return Status.SUCCESS
-
-
-class RecordCaseCreatedEventNode(DataLayerActionWithPorts):
-    """Record case_created event and persist updated case."""
-
-    def __init__(self, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "case_id": PortInformation(data_type=str, required=True),
-        "case_for_creation_events": PortInformation(
-            data_type=object, required=True
-        ),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "case_id": "/case_id",
-            "case_for_creation_events": "/case_for_creation_events",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.case_id_bb: str = self.get_input("case_id")
-        self.case_for_creation_events_bb = self.get_input(
-            "case_for_creation_events"
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case_id = self.case_id_bb
-        if not isinstance(case_id, str):
-            self.logger.error(f"{self.name}: case_id not found in blackboard")
-            return Status.FAILURE
-
-        case = self.case_for_creation_events_bb
-        if case is None:
-            self.logger.error(
-                f"{self.name}: case_for_creation_events missing or invalid"
-            )
-            return Status.FAILURE
-
-        return Status.SUCCESS
-
-
-class PublishCaseActorIdentityNode(DataLayerActionWithPorts):
-    """Publish the CaseActor's identity to the blackboard for downstream nodes.
-
-    Replaces ``ResolveCaseActorUrlsNode``, which derived a *per-case* identity —
-    ``{case_actor_service_url}/actors/case-actor-{slug}`` — and also created a
-    per-case ``VultronCaseActor`` ``Service`` object to go with it. Both were
-    wrong for the same reason: the CaseActor is a participant wearing the
-    `CVDRole.CASE_MANAGER` hat, not a per-case entity, and an identity the sender
-    invents is one no container hosts, so delivery to it 404s permanently
-    (#1872, CP-04-003, BT-10-002).
-
-    This node only *publishes*; it creates nothing. Provisioning the case-actor's
-    record belongs to whoever hosts it — for a co-located case-actor that is
-    ``WritePendingReportCaseLinkNode``, which writes into the case-actor's own
-    store (CP-04-004); for a dedicated container, its own seed config.
-
-    Returns ``FAILURE`` when ``case_actor_service_url`` is unconfigured, rather
-    than falling back to this node's own base URL: a guessed base is how the
-    proposal ends up addressed to an actor that does not exist.
-
-    *case_id* is a required constructor argument rather than an optional
-    blackboard read. ``ResolveCaseActorUrlsNode`` supported both and registered
-    its ``case_id`` key as READ or WRITE accordingly; its only caller always
-    passed the id, so the other arm was never exercised.
-    """
-
-    def __init__(self, case_id: str, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "case_id": PortInformation(data_type=str, required=True),
-        "case_actor_id": PortInformation(data_type=str, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id", "case_actor_id": "/case_actor_id"}
-
-    def update(self) -> Status:
-        from vultron.core.behaviors.case.case_actor_identity import (
-            case_actor_identity,
-        )
-
-        if not self._case_id:
-            self.feedback_message = f"{self.name}: case_id is empty"
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
-
-        case_actor_id = case_actor_identity()
-        if case_actor_id is None:
-            self.feedback_message = (
-                f"{self.name}: case_actor_service_url is not configured"
-                " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
-            )
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
-
-        self._set_output("case_id", self._case_id)
-        self._set_output("case_actor_id", case_actor_id)
-        return Status.SUCCESS
 
 
 class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
@@ -297,14 +72,6 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
 
     def update(self) -> Status:
-        from vultron.core.behaviors.case.case_actor_identity import (
-            case_actor_identity,
-        )
-        from vultron.core.behaviors.store_scope import store_for_actor
-        from vultron.core.models.case_actor import (
-            CaseActor as VultronCaseActor,
-        )
-
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -315,10 +82,10 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
                 f"{self.name}: case_actor_service_url is not configured"
                 " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
-        case_actor = VultronCaseActor(id_=case_actor_id, name="CaseActor")
+        case_actor = CaseActor(id_=case_actor_id, name="CaseActor")
         own_store = store_for_actor(
             self.datalayer, case_actor_id, require_same_authority=True
         )

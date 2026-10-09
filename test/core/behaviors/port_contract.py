@@ -48,8 +48,8 @@ from __future__ import annotations
 import importlib
 import inspect
 import pkgutil
+from collections.abc import Iterable, Iterator
 from types import ModuleType
-from typing import Iterable, Iterator
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -66,7 +66,7 @@ def _reraise_import_error(name: str) -> None:
     """
     # ``walk_packages`` invokes this from inside its ``except`` block, so a bare
     # ``raise`` re-raises the ImportError it was about to discard.
-    raise
+    raise  # noqa: PLE0704
 
 
 def iter_port_node_classes(package: ModuleType) -> Iterator[type]:

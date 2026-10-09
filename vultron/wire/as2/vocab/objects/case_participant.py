@@ -42,7 +42,6 @@ from vultron.core.models.case_participant import (
     ObserverParticipant,
     ReporterParticipant,
     VendorParticipant,
-    VultronParticipant,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
@@ -60,7 +59,6 @@ __all__ = [
     "ObserverParticipant",
     "ReporterParticipant",
     "VendorParticipant",
-    "VultronParticipant",
 ]
 
 as_CaseParticipant = CaseParticipant

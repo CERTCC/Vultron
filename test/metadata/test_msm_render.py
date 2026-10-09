@@ -23,6 +23,7 @@ Covers the AC-6 acceptance criteria:
 
 import pytest
 
+from vultron.core.models.events.base import MessageSemantics
 from vultron.metadata.msm import (
     PAGE_SLUGS,
     MappingStatus,
@@ -34,7 +35,6 @@ from vultron.metadata.msm.render import (
     _render_table_row,
     _wire_form,
 )
-from vultron.core.models.events.base import MessageSemantics
 from vultron.semantic_registry import lookup_entry
 
 # ---------------------------------------------------------------------------
@@ -70,6 +70,19 @@ def test_format_pattern_with_target_qualifier():
 # ---------------------------------------------------------------------------
 # Collapse row — multiple shorthands share one wire form
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("VAM-05-001")
+def test_format_pattern_tuple_context_renders_the_alternatives():
+    """A tuple ``context_`` renders as ``a|b``, not as enum reprs."""
+    entry = lookup_entry(MessageSemantics.CREATE_EMBARGO_EVENT)
+    assert entry is not None and entry.pattern is not None
+    result = _format_pattern(entry.pattern)
+    assert (
+        result
+        == "Create(Event)[context=VulnerabilityCase|VulnerabilityReport]"
+    )
+    assert "VultronObjectType" not in result
 
 
 def test_collapse_row_shorthand_cell():

@@ -5,8 +5,11 @@ description: >
   Adapter category details, outbound activity construction via driven ports,
   DataLayer scope boundaries, and the uniform-HTTP inter-actor delivery model
   (ADR-0042).
+related_specs:
+  - specs/outbox.yaml
 related_notes:
   - notes/architecture-hexagonal.md
+  - notes/outbox.md
   - vultron/core/ports/AGENTS.md
   - vultron/adapters/driven/AGENTS.md
 relevant_packages:
@@ -48,9 +51,11 @@ model autonomous peers and inter-actor delivery bugs surface in-process
 instead of being masked (concern #1723, ADR-0042, `outbox.yaml` OX-12).
 
 - The production default `ActivityEmitter` is the HTTP delivery adapter.
-- CASE_MANAGER canonical-ledger self-delivery (the `cc:`-to-self copy that loops
-  a ledger-authoring entry back to its own inbox, CLP-10-001) is delivered
-  over **HTTP loopback**, using the same path as any other recipient.
+- An activity whose recipient is the sender's own inbox (a participant-role
+  activity addressed to a CASE_MANAGER that is the same actor, CLP-10-001) is
+  delivered over **HTTP loopback**, using the same path as any other recipient.
+  The CASE_MANAGER never mails itself a `cc:` copy of its own emission: the
+  emitting tree commits the ledger entry (ADR-0109).
 - **Application code MUST NOT construct `httpx.ASGITransport` directly**
   (OX-12-003). The only permitted use is FastAPI's `TestClient`, which uses
   `ASGITransport` internally to drive a single app's own endpoints.
@@ -100,6 +105,20 @@ Architectural placeholders exist (tracked in GitHub issue #650):
 Both stubs are transport-only concerns. The core layer must not reference them
 directly; they are driven/driving adapter responsibilities only.
 
+The rule generalizes: **any stub adapter raises `NotImplementedError` when
+instantiated** (OX-10-004, OX-11-004). A docstring-only placeholder imports and constructs cleanly, so a
+caller wired to it fails silently instead of at startup.
+
+### Transport-role naming stays explicit
+
+Delivery adapter module and class names state their transport role:
+`http_delivery.py` / `HttpDeliveryAdapter` is the sole delivery path (ADR-0042),
+and `prod_http_delivery.py` / `ProdHttpDeliveryAdapter` is the signed-remote stub.
+`demo_http_delivery.py` is a deprecated re-export shim left from the #1780 rename;
+import from `http_delivery` instead. A rename of a transport-role adapter changes
+the core ports docs, adapter notes, ADR references and
+`docs/reference/codebase/` pages in the same change.
+
 ### Architecture boundary ratchet test
 
 `test/architecture/test_core_no_adapter_imports.py` enforces core->adapters
@@ -129,7 +148,8 @@ The actor URI used to open a store must be the canonical URI — `actor.id_` —
 a short ID or a bare URL path segment (ARCH-13-003). The URI *selects the store*,
 so a short id opens a different and empty one. Where a request carries a path
 segment, resolve it with `canonical_actor_uri()` before opening anything; that is
-what `get_canonical_actor_dl` does.
+what `get_actor_dl` does (and `get_trigger_dl`, the trigger routes' override
+seam, delegates to it).
 
 ### Crossing to another actor's store
 

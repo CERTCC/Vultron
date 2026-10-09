@@ -1,8 +1,8 @@
 {
-  "id": "urn:uuid:bd067f14-b5d4-4063-a6df-637b3470de7c",
-  "type": "Add",
-  "name": "https://vultron.example/organizations/vendorco Add RECEIVED Vf NONE pxa to https://vultron.example/cases/1/participants/vendor",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Add",
+  "id": "urn:uuid:82e961d3-3f89-47b7-b776-0052f6fda8de",
+  "name": "https://vultron.example/organizations/vendorco Add RECEIVED Vf NONE pxa to https://vultron.example/cases/1/participants/vendor",
   "actor": "https://vultron.example/organizations/vendorco",
   "target": "https://vultron.example/cases/1/participants/vendor",
   "object": {
@@ -30,7 +30,6 @@
       "pxaState": "pxa",
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
     },
-    "embargoAdherence": false,
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

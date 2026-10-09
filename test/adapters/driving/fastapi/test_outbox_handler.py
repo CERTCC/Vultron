@@ -29,6 +29,7 @@ Spec coverage:
 """
 
 import asyncio
+import json
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import MagicMock
@@ -36,6 +37,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.adapters.driving.fastapi import outbox_handler as oh
+from vultron.adapters.outbox_sealed_body import (
+    SealedOutboundBody,
+    sealed_body_id,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -47,8 +52,12 @@ def _make_queue(*ids: str) -> list[str]:
     return list(ids)
 
 
+# Stand-in actor for the resolved-actor default; ``None`` means "not found".
+_STUB_ACTOR = SimpleNamespace()
+
+
 def _mock_dl_with_queue(
-    queue: list[str], actor: SimpleNamespace | None = SimpleNamespace()
+    queue: list[str], actor: SimpleNamespace | None = _STUB_ACTOR
 ) -> MagicMock:
     """Return a MagicMock DataLayer backed by ``queue`` for outbox ops."""
     mock_dl = MagicMock()
@@ -56,7 +65,7 @@ def _mock_dl_with_queue(
     mock_dl.find_actor_by_short_id.return_value = actor
     mock_dl.outbox_list.side_effect = lambda: list(queue)
     mock_dl.outbox_pop.side_effect = lambda: queue.pop(0) if queue else None
-    mock_dl.outbox_append.side_effect = lambda x: queue.append(x)
+    mock_dl.outbox_append.side_effect = queue.append
     # Default: no prior attempts (below MAX_TOTAL_ATTEMPTS), so existing tests
     # retain their retry-and-requeue behaviour unchanged.
     mock_dl.get_outbox_attempt_count.return_value = 0
@@ -246,6 +255,132 @@ def test_outbox_handler_resolves_actor_by_short_id(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Per-pass cap regression tests (OX-13-011) — #3770
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("OX-13-011")
+def test_capped_activity_is_not_attempted_again_in_same_pass(monkeypatch):
+    """A capped activity is not attempted after it hits the per-pass cap.
+
+    AC-2 (#3770): after an activity exceeds MAX_PER_PASS_ATTEMPTS in a pass,
+    any subsequent pop of that activity ID within the same pass MUST NOT
+    trigger a delivery call, MUST NOT increment the attempt counter, and
+    MUST NOT cause a backoff sleep.
+
+    Scenario: bad-1 fails MAX_PER_PASS_ATTEMPTS+1 times and is stalled; when
+    it re-appears in the queue while good-2 is still there, bad-1 is held
+    (no delivery) and good-2 is delivered.
+    """
+    bad_id = "urn:test:ox13011-bad"
+    good_id = "urn:test:ox13011-good"
+    queue = _make_queue(bad_id, good_id)
+    mock_dl = _mock_dl_with_queue(queue)
+    mock_dl.get_outbox_attempt_count.return_value = 0
+
+    delivery_calls: list[str] = []
+
+    async def track_and_raise(actor_id, activity_id, dl, emitter):
+        delivery_calls.append(activity_id)
+        if activity_id == bad_id:
+            raise RuntimeError("bad activity always fails")
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(oh, "handle_outbox_item", track_and_raise)
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    # bad_id should have been attempted exactly MAX_PER_PASS_ATTEMPTS + 1
+    # times and then stalled — not attempted again when re-popped.
+    bad_calls = delivery_calls.count(bad_id)
+    assert bad_calls == oh.MAX_PER_PASS_ATTEMPTS + 1, (
+        f"Expected {oh.MAX_PER_PASS_ATTEMPTS + 1} delivery attempts for bad_id,"
+        f" got {bad_calls}"
+    )
+    # good_id must be delivered
+    assert good_id in delivery_calls
+
+
+@pytest.mark.spec("OX-13-011")
+def test_capped_activity_remains_in_queue_after_pass(monkeypatch):
+    """A capped activity is still in the queue after the drain pass ends.
+
+    AC-4 (#3770): when all remaining items are stalled, the drain loop exits
+    leaving those items enqueued for the next pass, not discarded.
+    """
+    bad_id = "urn:test:ox13011-capped-in-queue"
+    queue = _make_queue(bad_id)
+    mock_dl = _mock_dl_with_queue(queue)
+    mock_dl.get_outbox_attempt_count.return_value = 0
+
+    async def always_raise(actor_id, activity_id, dl, emitter):
+        raise RuntimeError("permanent delivery failure")
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    assert bad_id in queue, (
+        "A stalled (capped) activity must remain in the outbox queue "
+        "after the drain pass ends (OX-13-011)"
+    )
+
+
+@pytest.mark.spec("OX-13-006", "OX-13-011")
+def test_second_bad_activity_does_not_cause_extra_attempts_for_first(
+    monkeypatch,
+):
+    """Out-of-step scenario: first bad activity gets exactly MAX+1 attempts.
+
+    AC-3 (#3770): bad-1 starts failing; bad-2 is added to the queue partway
+    through (simulated by being in the queue at start).  bad-1 gets exactly
+    MAX_PER_PASS_ATTEMPTS+1 delivery attempts and its stored attempt count
+    increases by exactly MAX_PER_PASS_ATTEMPTS+1.  After being stalled, bad-1
+    is NOT attempted again in the same pass even when popped alongside bad-2.
+    """
+    bad1_id = "urn:test:ox13011-bad1"
+    bad2_id = "urn:test:ox13011-bad2"
+    queue = _make_queue(bad1_id, bad2_id)
+    mock_dl = _mock_dl_with_queue(queue)
+    mock_dl.get_outbox_attempt_count.return_value = 0
+
+    # Track set_outbox_attempt_count calls to count stored attempts.
+    stored_counts: dict[str, list[int]] = {bad1_id: [], bad2_id: []}
+
+    def track_set(activity_id, count):
+        if activity_id in stored_counts:
+            stored_counts[activity_id].append(count)
+
+    mock_dl.set_outbox_attempt_count.side_effect = track_set
+
+    async def always_raise(actor_id, activity_id, dl, emitter):
+        raise RuntimeError("delivery failure")
+
+    async def no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    # bad-1's stored attempt count must increase by exactly MAX_PER_PASS_ATTEMPTS+1
+    # (every in-pass attempt increments the persistent counter, then the row stalls).
+    expected = oh.MAX_PER_PASS_ATTEMPTS + 1
+    actual_bad1 = len(stored_counts[bad1_id])
+    assert actual_bad1 == expected, (
+        f"bad-1 should have {expected} stored-count increments, got {actual_bad1}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Per-activity attempt counter + dead-letter (OX-13-001/002/003)
 # ---------------------------------------------------------------------------
 
@@ -424,40 +559,45 @@ def test_processing_outbox_preamble_not_emitted_at_info(monkeypatch, caplog):
 # ---------------------------------------------------------------------------
 
 
-def _make_announce_ledger_activity(ledger_entry_id: str):
-    """Return a SimpleNamespace mimicking an Announce(CaseLedgerEntry) activity."""
-    from types import SimpleNamespace
-
-    ledger_entry = SimpleNamespace(
-        type_="CaseLedgerEntry", id_=ledger_entry_id
+def _make_announce_ledger_activity(
+    ledger_entry_id: str, activity_id: str = "urn:uuid:announce"
+) -> SealedOutboundBody:
+    """Return the sealed body of an Announce(CaseLedgerEntry) activity."""
+    return SealedOutboundBody(
+        id_=sealed_body_id(activity_id),
+        activity_id=activity_id,
+        body=json.dumps(
+            {
+                "id": activity_id,
+                "type": "Announce",
+                "object": {"type": "CaseLedgerEntry", "id": ledger_entry_id},
+            }
+        ),
     )
-    return SimpleNamespace(type_="Announce", object_=ledger_entry)
 
 
 def _mock_dl_for_ox14(
     queue: list[str],
     actor_id: str,
     activity_id: str,
-    activity_obj,
+    sealed: SealedOutboundBody,
 ) -> MagicMock:
-    """Mock DataLayer that returns *actor* for actor_id and *activity_obj* for activity_id."""
-    from types import SimpleNamespace
-
+    """Mock DataLayer: *actor* for actor_id, *sealed* for the activity's body."""
     actor_ns = SimpleNamespace()
     mock_dl = MagicMock()
 
     def _read(obj_id):
         if obj_id == actor_id:
             return actor_ns
-        if obj_id == activity_id:
-            return activity_obj
+        if obj_id == sealed_body_id(activity_id):
+            return sealed
         return None
 
     mock_dl.read.side_effect = _read
     mock_dl.find_actor_by_short_id.return_value = None
     mock_dl.outbox_list.side_effect = lambda: list(queue)
     mock_dl.outbox_pop.side_effect = lambda: queue.pop(0) if queue else None
-    mock_dl.outbox_append.side_effect = lambda x: queue.append(x)
+    mock_dl.outbox_append.side_effect = queue.append
     mock_dl.get_outbox_attempt_count.return_value = oh.MAX_TOTAL_ATTEMPTS - 1
     return mock_dl
 
@@ -476,8 +616,8 @@ def test_dead_letter_includes_ledger_entry_id_for_announce_ledger_activity(
     ledger_entry_id = "urn:case:abc/log/0"
 
     queue = _make_queue(activity_id)
-    activity_obj = _make_announce_ledger_activity(ledger_entry_id)
-    mock_dl = _mock_dl_for_ox14(queue, actor_id, activity_id, activity_obj)
+    sealed = _make_announce_ledger_activity(ledger_entry_id, activity_id)
+    mock_dl = _mock_dl_for_ox14(queue, actor_id, activity_id, sealed)
 
     async def always_raise(a_id, act_id, dl, emitter):
         raise RuntimeError("network down")
@@ -501,18 +641,20 @@ def test_dead_letter_ledger_entry_id_absent_for_non_ledger_activity(
     AC-4: activities with no associated ledger entry dead-letter as before,
     with the correlation absent rather than fabricated.
     """
-    from types import SimpleNamespace
-
     actor_id = "actor-xyz"
     activity_id = "urn:uuid:create-report-0"
 
     queue = _make_queue(activity_id)
-    # A non-Announce activity has no CaseLedgerEntry object_
-    non_ledger_activity = SimpleNamespace(
-        type_="Create", object_=SimpleNamespace(type_="Report")
+    # A non-Announce activity has no CaseLedgerEntry object
+    non_ledger_sealed = SealedOutboundBody(
+        id_=sealed_body_id(activity_id),
+        activity_id=activity_id,
+        body=json.dumps(
+            {"id": activity_id, "type": "Create", "object": {"type": "Report"}}
+        ),
     )
     mock_dl = _mock_dl_for_ox14(
-        queue, actor_id, activity_id, non_ledger_activity
+        queue, actor_id, activity_id, non_ledger_sealed
     )
 
     async def always_raise(a_id, act_id, dl, emitter):
@@ -545,8 +687,8 @@ def test_dead_letter_includes_failed_recipients_and_ledger_entry_id(
     unreached = ["urn:actor:vendor-a", "urn:actor:vendor-b"]
 
     queue = _make_queue(activity_id)
-    activity_obj = _make_announce_ledger_activity(ledger_entry_id)
-    mock_dl = _mock_dl_for_ox14(queue, actor_id, activity_id, activity_obj)
+    sealed = _make_announce_ledger_activity(ledger_entry_id, activity_id)
+    mock_dl = _mock_dl_for_ox14(queue, actor_id, activity_id, sealed)
 
     async def raise_delivery_error(a_id, act_id, dl, emitter):
         raise DeliveryError(unreached, act_id)
@@ -573,15 +715,15 @@ def test_resolve_ledger_entry_id_full_path(monkeypatch):
     ledger_entry_id = "urn:case:full-path/log/0"
     activity_id = "urn:uuid:announce-full-path"
 
-    activity_obj = _make_announce_ledger_activity(ledger_entry_id)
+    sealed = _make_announce_ledger_activity(ledger_entry_id, activity_id)
 
     mock_dl = MagicMock()
-    mock_dl.read.return_value = activity_obj
+    mock_dl.read.return_value = sealed
 
     result = oh._resolve_ledger_entry_id(activity_id, mock_dl)
 
     assert result == ledger_entry_id
-    mock_dl.read.assert_called_once_with(activity_id)
+    mock_dl.read.assert_called_once_with(sealed_body_id(activity_id))
 
 
 def test_resolve_ledger_entry_id_returns_none_for_missing_activity():
@@ -598,3 +740,128 @@ def test_resolve_ledger_entry_id_returns_none_on_read_error():
     mock_dl.read.side_effect = RuntimeError("db error")
 
     assert oh._resolve_ledger_entry_id("urn:uuid:bad", mock_dl) is None
+
+
+# ---------------------------------------------------------------------------
+# Default emitter slot (#3985)
+# ---------------------------------------------------------------------------
+
+
+def test_configure_default_emitter_installs_the_emitter(monkeypatch):
+    """The configured emitter is what ``get_default_emitter()`` returns."""
+    monkeypatch.setattr(oh._DEFAULT_EMITTER_SLOT, "value", None)
+    emitter = MagicMock()
+
+    oh.configure_default_emitter(emitter)
+
+    assert oh.get_default_emitter() is emitter
+
+
+def test_get_default_emitter_falls_back_to_http_delivery(monkeypatch):
+    """With nothing configured, a fresh ``HttpDeliveryAdapter`` is returned."""
+    monkeypatch.setattr(oh._DEFAULT_EMITTER_SLOT, "value", None)
+
+    assert isinstance(oh.get_default_emitter(), oh.HttpDeliveryAdapter)
+
+
+# ---------------------------------------------------------------------------
+# A sealed body delivery refuses is dead-lettered at once (OX-13-013)
+# ---------------------------------------------------------------------------
+
+
+def _sealed(activity_id: str, body: dict[str, object]) -> SealedOutboundBody:
+    return SealedOutboundBody(
+        id_=sealed_body_id(activity_id),
+        activity_id=activity_id,
+        body=json.dumps({"id": activity_id, **body}),
+    )
+
+
+@pytest.mark.spec("OX-13-013")
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(
+            {
+                "type": "Create",
+                "actor": "https://example.org/actors/vendor",
+                "object": {"type": "VulnerabilityCase", "id": "urn:case:1"},
+            },
+            id="no-recipient",
+        ),
+        pytest.param(
+            {
+                "type": "Create",
+                "actor": "https://example.org/actors/vendor",
+                "to": ["https://example.org/actors/finder"],
+                "object": "urn:case:1",
+            },
+            id="bare-uri-object",
+        ),
+    ],
+)
+def test_undeliverable_body_is_dead_lettered_on_first_refusal(
+    monkeypatch, body
+):
+    """A refused sealed body is dead-lettered once, never retried or slept on."""
+    actor_id = "actor-vendor"
+    activity_id = "urn:uuid:undeliverable"
+    queue = _make_queue(activity_id)
+    mock_dl = _mock_dl_for_ox14(
+        queue, actor_id, activity_id, _sealed(activity_id, body)
+    )
+    mock_dl.get_outbox_attempt_count.return_value = 0
+    attempts = [0]
+    real_handle = oh.handle_outbox_item
+
+    async def counting_handle(a_id, act_id, dl, emitter):
+        attempts[0] += 1
+        await real_handle(a_id, act_id, dl, emitter)
+
+    async def forbidden_sleep(seconds):
+        raise AssertionError(f"backed off {seconds}s on an undeliverable body")
+
+    emitter = MagicMock()
+    monkeypatch.setattr(oh, "handle_outbox_item", counting_handle)
+    monkeypatch.setattr(oh.asyncio, "sleep", forbidden_sleep)
+
+    asyncio.run(oh.outbox_handler(actor_id, mock_dl, emitter=emitter))
+
+    assert attempts[0] == 1
+    emitter.emit.assert_not_called()
+    mock_dl.dead_letter_append.assert_called_once()
+    assert (
+        mock_dl.dead_letter_append.call_args.kwargs["reason"]
+        == "undeliverable_body"
+    )
+    mock_dl.set_outbox_attempt_count.assert_not_called()
+    assert activity_id not in queue
+
+
+@pytest.mark.spec("OX-13-013")
+def test_undeliverable_body_dead_letter_is_logged_with_the_refusal(
+    monkeypatch, caplog
+):
+    """The ERROR names the activity and the refusal, not an attempt budget."""
+    import logging
+
+    actor_id = "actor-vendor"
+    activity_id = "urn:uuid:undeliverable-log"
+    queue = _make_queue(activity_id)
+    body = {"type": "Create", "object": {"type": "Note", "id": "urn:note:1"}}
+    mock_dl = _mock_dl_for_ox14(
+        queue, actor_id, activity_id, _sealed(activity_id, body)
+    )
+    mock_dl.get_outbox_attempt_count.return_value = 0
+
+    with caplog.at_level(logging.ERROR):
+        asyncio.run(oh.outbox_handler(actor_id, mock_dl, emitter=MagicMock()))
+
+    errors = [
+        r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR
+    ]
+    assert any(
+        activity_id in m and "OX-13-013" in m and "OX-08-001" in m
+        for m in errors
+    ), errors
+    assert not any("exhausted" in m for m in errors), errors

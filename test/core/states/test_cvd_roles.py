@@ -92,17 +92,17 @@ def test_cna_role_is_orthogonal_to_coordinator():
 def test_values_are_lowercase():
     """All CVDRole values must be lowercase strings."""
     for role in CVDRole:
-        assert (
-            role.value == role.value.lower()
-        ), f"{role.name}.value should be lowercase, got {role.value!r}"
+        assert role.value == role.value.lower(), (
+            f"{role.name}.value should be lowercase, got {role.value!r}"
+        )
 
 
 def test_name_value_relationship():
     """Each member's name is the uppercase version of its value."""
     for role in CVDRole:
-        assert (
-            role.name == role.value.upper()
-        ), f"{role.name}: name={role.name!r} value={role.value!r}"
+        assert role.name == role.value.upper(), (
+            f"{role.name}: name={role.name!r} value={role.value!r}"
+        )
 
 
 def test_string_equality():

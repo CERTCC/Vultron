@@ -20,15 +20,14 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.case_lookup import (
     CaseIdInputPortMixin,
 )
-from vultron.core.behaviors.helpers import (
-    DataLayerConditionWithPorts,
-    FindParticipantByActorIdNode,
-)
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
-from vultron.core.states.rm import RM
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
 from vultron.errors import VultronInvalidStateTransitionError
 
 
@@ -69,23 +68,25 @@ class _CheckReportPhaseRMStateBase(DataLayerConditionWithPorts):
         if is_valid:
             if self._success_when_valid:
                 self.logger.debug(
-                    f"{self.name}: Report {self.report_id} already VALID"
+                    "%s: Report %s already VALID", self.name, self.report_id
                 )
                 return Status.SUCCESS
             self.logger.debug(
-                f"{self.name}: Report {self.report_id}"
-                " already VALID - precondition failed"
+                "%s: Report %s already VALID - precondition failed",
+                self.name,
+                self.report_id,
             )
             return Status.FAILURE
 
         if self._success_when_valid:
             self.logger.debug(
-                f"{self.name}: Report {self.report_id} not in VALID state"
+                "%s: Report %s not in VALID state", self.name, self.report_id
             )
             return Status.FAILURE
         self.logger.debug(
-            f"{self.name}: Report {self.report_id}"
-            " in acceptable state for validation"
+            "%s: Report %s in acceptable state for validation",
+            self.name,
+            self.report_id,
         )
         return Status.SUCCESS
 
@@ -133,7 +134,7 @@ class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
 
     def __init__(
         self,
-        case_id: str,
+        case_id: str | None,
         actor_id: str,
         name: str | None = None,
     ) -> None:
@@ -193,18 +194,18 @@ class CheckRMStateAccepted(_CheckParticipantRMStateBase):
     _target_rm = RM.ACCEPTED
 
 
-class CheckRMStateDeferred(_CheckParticipantRMStateBase):
-    """Guard: actor RM state is already DEFERRED.
+class CheckParticipantRMState(_CheckParticipantRMStateBase):
+    """Guard: actor RM is already *target_rm*; a restated move is recorded once."""
 
-    Returns ``SUCCESS`` when the actor's latest RM state is ``RM.DEFERRED``.
-    Returns ``FAILURE`` otherwise.
-
-    Used as an idempotency guard in ``create_defer_case_tree`` so that
-    receiving a second ``Ignore(VulnerabilityCase)`` from an already-deferred
-    actor does not append a duplicate ParticipantStatus record.
-    """
-
-    _target_rm = RM.DEFERRED
+    def __init__(
+        self,
+        case_id: str | None,
+        actor_id: str,
+        target_rm: RM,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(case_id=case_id, actor_id=actor_id, name=name)
+        self._target_rm = target_rm
 
 
 class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):
@@ -297,7 +298,9 @@ class EvaluateReportCredibility(DataLayerConditionWithPorts):
             SUCCESS (always, for Phase 1)
         """
         self.logger.info(
-            f"{self.name}: Evaluating credibility for report {self.report_id} (stub: always accepts)"
+            "%s: Evaluating credibility for report %s (stub: always accepts)",
+            self.name,
+            self.report_id,
         )
         return Status.SUCCESS
 
@@ -331,7 +334,9 @@ class EvaluateReportValidity(DataLayerConditionWithPorts):
             SUCCESS (always, for Phase 1)
         """
         self.logger.info(
-            f"{self.name}: Evaluating validity for report {self.report_id} (stub: always accepts)"
+            "%s: Evaluating validity for report %s (stub: always accepts)",
+            self.name,
+            self.report_id,
         )
         return Status.SUCCESS
 
@@ -370,39 +375,11 @@ class EvaluateCasePriority(DataLayerConditionWithPorts):
             SUCCESS (always, for Phase 1)
         """
         self.logger.info(
-            f"{self.name}: Evaluating priority for case {self.case_id} (stub: always engage)"
+            "%s: Evaluating priority for case %s (stub: always engage)",
+            self.name,
+            self.case_id,
         )
         return Status.SUCCESS
-
-
-class CheckParticipantExists(FindParticipantByActorIdNode):
-    """
-    Check if actor has a CaseParticipant record in the specified case.
-
-    Returns SUCCESS if the actor's CaseParticipant is found in
-    case.case_participants. Returns FAILURE if the case is not found or
-    the actor has no participant record.
-
-    This is the precondition for engage_case and defer_case BTs: RM state
-    for a case is tracked in CaseParticipant.participant_status, so a
-    participant record must exist before transitioning RM state.
-    """
-
-    def __init__(self, case_id: str, actor_id: str, name: str | None = None):
-        """
-        Initialize CheckParticipantExists node.
-
-        Args:
-            case_id: ID of VulnerabilityCase to check
-            actor_id: ID of Actor to find in case_participants
-            name: Optional custom node name (defaults to class name)
-        """
-        super().__init__(
-            case_id=case_id,
-            target_actor_id=actor_id,
-            participant_key="participant",
-            name=name or self.__class__.__name__,
-        )
 
 
 class CheckReportNotClosed(DataLayerConditionWithPorts):

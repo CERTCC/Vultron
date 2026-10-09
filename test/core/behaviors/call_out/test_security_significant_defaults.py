@@ -57,8 +57,10 @@ from typing import Any
 import pytest
 from py_trees.common import Status
 
-from vultron.core.behaviors.call_out import bundles as core_bundles
-from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out import (
+    bundles as core_bundles,
+    unwrap_call_out,
+)
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
 )

@@ -17,6 +17,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from vultron.core.behaviors.sync.nodes.note_effect import (
     ApplyNoteFromLedgerNode,
+    ApplyRemoveNoteFromLedgerNode,
 )
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -110,3 +111,61 @@ def test_apply_note_skips_missing_case(bridge, case_actor):
     )
 
     assert result.status == Status.SUCCESS
+
+
+def _make_remove_note_entry(note_id: str = NOTE_ID):
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=0,
+            object_id="https://example.org/activities/remove-note",
+            event_type="remove_note_from_case",
+            payload_snapshot={"object": {"id": note_id}},
+            prev_log_hash="0" * 64,
+        )
+    )
+
+
+def _run_remove(bridge, case_actor):
+    event = _make_event(_make_remove_note_entry(), actor_id=case_actor.id_)
+    return bridge.execute_with_setup(
+        tree=ApplyRemoveNoteFromLedgerNode(name="ApplyRemoveNote"),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+    )
+
+
+@pytest.mark.spec("SYNC-02-002")
+@pytest.mark.spec("RSH-08-004")
+def test_apply_remove_note_detaches_from_case(
+    bridge, datalayer, case_actor, case_with_notes
+):
+    """The note id leaves the replica's notes; other notes stay."""
+    other = "https://example.org/notes/other"
+    case_with_notes.notes.extend([NOTE_ID, other])
+    datalayer.save(case_with_notes)
+
+    assert _run_remove(bridge, case_actor).status == Status.SUCCESS
+
+    updated = datalayer.read(CASE_ID)
+    assert updated is not None
+    assert list(updated.notes) == [other]
+
+
+@pytest.mark.spec("SYNC-12-003")
+def test_apply_remove_note_idempotent_when_absent(
+    bridge, datalayer, case_actor, case_with_notes
+):
+    assert case_with_notes is not None
+
+    for _ in range(2):
+        assert _run_remove(bridge, case_actor).status == Status.SUCCESS
+
+    updated = datalayer.read(CASE_ID)
+    assert updated is not None
+    assert list(updated.notes) == []
+
+
+@pytest.mark.spec("SYNC-12-001")
+def test_apply_remove_note_skips_missing_case(bridge, case_actor):
+    assert _run_remove(bridge, case_actor).status == Status.SUCCESS

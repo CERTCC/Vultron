@@ -12,6 +12,7 @@ related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
 related_notes:
+  - notes/demo-interactive-ui.md
   - notes/demo-scenario-registry.md
   - notes/event-driven-control-flow.md
 ---
@@ -41,8 +42,6 @@ canonical order for every scenario table.
 | Scenario | Tracking issue | Spec IDs | What it would demonstrate |
 |---|---|---|---|
 | `fcvd` | #1227 | DEMOMA-24, DEMOMA-16-014 | V develops the fix; D deploys it in their own environment (d→D, gated on the CSB-15-004 causal precondition) |
-| `rcv-embargo` | #1222 | DEMOMA-20, DEMOCI-07 | R+C+V; post-submission negotiation (variation b) + deliberate termination (variation e); EP→EA→ET arc |
-| `rcvv-embargo` | #1222 | DEMOMA-21, DEMOCI-07 | R+C+V1+V2; variations b+c+f+d; EP→EA→EV→EJ→auto-collapse via CS.P; V2 late-invite |
 | `vc` | #2591 | DEMOMA-25, DEMOMA-16-015 | V self-reports and owns the case; C joins as Observer |
 
 **Do not list a built scenario here.** Registration means built, so a scenario
@@ -68,8 +67,14 @@ register](#planned-scenario-register) when its spec group is written, and a
 
 | Scenario | Issue | Description | Status |
 |----------|-------|-------------|--------|
-| In-process fuzz | #1178 | FCV in-process; STOCHASTIC bundles; N configurable iterations; `vultron demo fuzz` CLI command | planned |
-| Multi-container fuzz | *(future Idea under "stochastic demos" Epic)* | Containerised variant of #1178; each actor in its own container; STOCHASTIC bundles configurable via environment; container state reset between iterations | idea-stage |
+| In-process fuzz | #1732 (planned under #1178) | FCV in-process; STOCHASTIC bundles; N configurable iterations; `vultron demo fuzz` CLI command | planned |
+| Multi-container fuzz | *(future Idea under "stochastic demos" Epic)* | Containerised variant of the in-process fuzz scenario; each actor in its own container; STOCHASTIC bundles configurable via environment; container state reset between iterations | idea-stage |
+
+The in-process fuzz scenario is misfiled here: it does have a spec group,
+DEMOMA-18, so DEMOCI-11-010 places it in the [planned scenario
+register](#planned-scenario-register). It cannot move there until DEMOMA-18
+carries the MS-13-003 `trigger: {type: scenario_start, value: <name>}` marker the
+partition check keys on.
 
 The multi-container variant is deferred until container reset and STOCHASTIC
 bundle configuration via environment variables are designed. See
@@ -80,8 +85,9 @@ the design decisions reached in the #1178 planning session.
 
 | Scenario | Issue | Description | Status |
 |----------|-------|-------------|--------|
-| Case split/merge | #1229 | Parent/child/sibling case relationships | |
-| Multi-reporter | #1231 | Two Finders, one C consolidates into one case | |
+| Case split/merge | #1229 | Parent/child/sibling case relationships | planned — split: design #4241 (ADR-0125, CM-32), build #4242, demo #4243; merge: demo #4244, blocked by merge spec #3701 and merge build #3702 (ADR-0105) |
+| Multi-reporter | #1231 | Two Finders, one C consolidates into one case — no merge: C adds the second report to the existing case and invites F2 | planned — #3671, blocked by the added-report ledger fix #3665 |
+| Concurrent cases | #1875 | Two independent cases through shared actors; one CaseActor manages both; no cross-case bleed | planned — #3672 (the case-lookup helper fix #3666 is done) |
 
 The Deployer-role and Vendor-as-finder ideas from this group are specified, so
 they sit in the [planned scenario register](#planned-scenario-register) as
@@ -93,9 +99,8 @@ they sit in the [planned scenario register](#planned-scenario-register) as
 |----------|-------|-------------|--------|
 | Pre-submission negotiation | *(new Idea, child of epic #1083)* | EP before report submission (variation a); blocked by EP-04-003 protocol gap — no mechanism for reporter to include embargo proposal with/before report; see `notes/embargo-default-semantics.md` | idea-stage |
 
-The RCV-embargo and RCVV-embargo scenarios from this group are specified, so
-they sit in the [planned scenario register](#planned-scenario-register) as
-`rcv-embargo` and `rcvv-embargo` instead.
+The RCV-embargo and RCVV-embargo scenarios from this group are built and
+registered.
 
 ### Cross-cutting variations (composable with any scenario)
 
@@ -127,16 +132,3 @@ Once #1221 is implemented, `ack_report` should be wired into the per-scenario
 `_FV_EXPECTED_EVENT_TYPES` in `test/ci/invariants/test_fv_invariants.py`,
 currently excluded; see the `test_invariant_5_expected_event_types_present`
 docstring citing #1133).
-
-## Deprecated / idea-mine only
-
-The following files exist but are based on much older code and no longer work.
-They may be useful as reference for future scenario development but should not
-be treated as working implementations.
-
-| Scenario | File | Notes |
-|----------|------|-------|
-| FCV | ~~`vultron/demo/scenario/three_actor_demo.py`~~ (deleted PR #1720) | Superseded by `fcv_demo.py` (PR #1623) |
-| FVCV (handoff) | ~~`vultron/demo/scenario/multi_vendor_demo.py`~~ (deleted PR #1720) | Superseded by `fvcv_handoff_demo.py`; see #1214 |
-
-See also: #1079 (multi-coordinator motivation from FIRSTCON 2026)

@@ -20,24 +20,25 @@ Provides:
 - :func:`create_accept_ownership_transfer_tree` — BT for
   ``AcceptCaseOwnershipTransferReceivedUseCase``.
 - :func:`create_offer_ownership_transfer_tree` — BT for
-  ``OfferCaseOwnershipTransferReceivedUseCase``; wraps
-  ``ForwardOfferToTransfereeNode`` in a ``create_case_manager_gated_tree``
-  so only the CaseActor forwards the offer (CM-21-005, ADR-0053).
+  ``OfferCaseOwnershipTransferReceivedUseCase``; passes
+  ``ForwardOfferToTransfereeNode`` as ``manager_effects`` so the factory's
+  CASE_MANAGER gate lets only the CaseActor forward the offer (CM-21-005,
+  ADR-0053, BT-17-008).
 """
 
 import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.lifecycle import (
-    create_receive_activity_tree,
-)
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptCaseOwnershipTransferNode,
     ForwardOfferToTransfereeNode,
 )
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
+from vultron.core.behaviors.case.nodes.store_received_object import (
+    StoreReceivedObjectNode,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,12 +65,24 @@ def create_accept_ownership_transfer_tree(
         name="AcceptOwnershipTransferBT",
         case_id=case_id,
         precondition_guards=[],
-        effect_nodes=[
+        # A receiver that does not hold the case is simply not its
+        # CASE_MANAGER (ADR-0087 Regime 3), for both the guarded commit and
+        # the gated effect: read the absence as "not the CASE_MANAGER" at
+        # debug rather than a Regime-1 anomaly.
+        case_may_be_absent=True,
+        # RSH-08-003: the ownership change is canonical case state only the
+        # CASE_MANAGER writes; it is committed and replayed from the ledger
+        # (OwnershipTransfer slot), so a replica learns the new owner from the
+        # fan-out, not from a direct Accept (#3814).
+        manager_effects=[
             AcceptCaseOwnershipTransferNode(
                 case_id=case_id,
                 new_owner_id=new_owner_id,
             ),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="AcceptOwnershipTransferIfCaseManager",
+        manager_case_may_be_absent=True,
     )
     logger.debug(
         "Created AcceptOwnershipTransferBT for case='%s' new_owner='%s'",
@@ -80,49 +93,62 @@ def create_accept_ownership_transfer_tree(
 
 
 def create_offer_ownership_transfer_tree(
-    case_id: str,
+    case_id: str | None,
     transferee_id: str | None,
     original_actor_id: str | None,
+    store_offer: StoreReceivedObjectNode | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``OfferCaseOwnershipTransferReceivedUseCase``.
 
-    Builds a ``create_receive_activity_tree`` whose effect section contains a
-    ``create_case_manager_gated_tree`` wrapping ``ForwardOfferToTransfereeNode``
-    so that only the CaseActor forwards the offer to the transferee (CM-21-005,
-    ADR-0053, CLP-10-006).
+    Builds a ``create_receive_activity_tree`` whose ``manager_effects`` hold
+    ``ForwardOfferToTransfereeNode``, so the factory's CASE_MANAGER gate
+    ensures only the CaseActor forwards the offer to the transferee
+    (CM-21-005, ADR-0053, CLP-10-006, BT-17-008).
 
     When ``transferee_id`` or ``original_actor_id`` is ``None`` the forwarding
     node is omitted: the ledger-commit gate still fires but no outbox write
     occurs.
 
     Args:
-        case_id: URI of the case whose ownership is being offered.
+        case_id: URI of the case whose ownership is being offered; ``None``
+            for an Offer that names no case, which is archived and kept but
+            commits and forwards nothing (CLP-10-018).
         transferee_id: URI of the intended new owner; ``None`` skips forwarding.
         original_actor_id: URI of the actor who originated the offer (vendor).
+        store_offer: Effect node that writes the Offer activity the accept
+            trigger reads back by id (DL-06); it runs before the gated
+            forward, after the guards and the commit (CLP-10-017,
+            CLP-10-019).
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
-    effect_nodes: list[py_trees.behaviour.Behaviour] = []
-    if transferee_id is not None and original_actor_id is not None:
-        effect_nodes = [
-            create_case_manager_gated_tree(
-                name="ForwardOfferToTransfereeCMGated",
+    replica_effects: list[py_trees.behaviour.Behaviour] = []
+    if store_offer is not None:
+        replica_effects.append(store_offer)
+    manager_effects: list[py_trees.behaviour.Behaviour] = []
+    if (
+        case_id is not None
+        and transferee_id is not None
+        and original_actor_id is not None
+    ):
+        manager_effects.append(
+            ForwardOfferToTransfereeNode(
                 case_id=case_id,
-                children=[
-                    ForwardOfferToTransfereeNode(
-                        case_id=case_id,
-                        transferee_id=transferee_id,
-                        original_actor_id=original_actor_id,
-                    ),
-                ],
-            ),
-        ]
+                transferee_id=transferee_id,
+                original_actor_id=original_actor_id,
+            )
+        )
     tree = create_receive_activity_tree(
         name="OfferOwnershipTransferBT",
         case_id=case_id,
         precondition_guards=[],
-        effect_nodes=effect_nodes,
+        replica_effects=replica_effects,
+        manager_effects=manager_effects,
+        manager_case_id=case_id if manager_effects else None,
+        manager_gate_name=(
+            "ForwardOfferToTransfereeCMGated" if manager_effects else None
+        ),
     )
     logger.debug(
         "Created OfferOwnershipTransferBT for case='%s'"

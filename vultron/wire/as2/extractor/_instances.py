@@ -27,17 +27,9 @@ CreateEmbargoEventPattern = ActivityPattern(
     ),
     activity_=TAtype.CREATE,
     object_=AOtype.EVENT,
-    context_=VOtype.VULNERABILITY_CASE,
-)
-AddEmbargoEventToCasePattern = ActivityPattern(
-    description=(
-        "Add an embargo event to a vulnerability case. This is typically "
-        "observed as an ADD activity where the object is an EVENT and the "
-        "target is a VULNERABILITY_CASE."
-    ),
-    activity_=TAtype.ADD,
-    object_=AOtype.EVENT,
-    target_=VOtype.VULNERABILITY_CASE,
+    # The subject may be a case or, before a case exists, the report the
+    # embargo is about (VAM-05-001, EP-04-009, ADR-0096).
+    context_=(VOtype.VULNERABILITY_CASE, VOtype.VULNERABILITY_REPORT),
 )
 RemoveEmbargoEventFromCasePattern = ActivityPattern(
     description=(
@@ -79,6 +71,35 @@ RejectInviteToEmbargoOnCasePattern = ActivityPattern(
     description="Reject an invitation to an embargo on a vulnerability case.",
     activity_=TAtype.REJECT,
     object_=InviteToEmbargoOnCasePattern,
+)
+ActivateEmbargoOnCasePattern = ActivityPattern(
+    description=(
+        "The case owner activates a proposed embargo on a vulnerability "
+        "case: an ACCEPT whose object is the EmbargoEvent itself (not the "
+        "Invite that proposed it) and whose target is the VulnerabilityCase "
+        "(ADR-0122)."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=AOtype.EVENT,
+    target_=VOtype.VULNERABILITY_CASE,
+    # Not strict: ``ActivityPattern.strict`` governs object_ AND target_
+    # together, but the case target is a bare URI by design (the recipient
+    # holds the case, so ``case_target_ref`` reduces it, MV-10-001). The
+    # ACCEPT verb + EVENT object + case target discriminate this activity from
+    # ``Accept(Invite(...))`` (object is an Invite activity, not an EVENT);
+    # a malformed bare-URI object is caught by ``IsOpenEmbargoProposalNode``.
+)
+RejectEmbargoProposalOnCasePattern = ActivityPattern(
+    description=(
+        "The case owner rejects a proposed embargo on a vulnerability case: "
+        "a REJECT whose object is the EmbargoEvent itself (not the Invite "
+        "that proposed it) and whose target is the VulnerabilityCase "
+        "(ADR-0122)."
+    ),
+    activity_=TAtype.REJECT,
+    object_=AOtype.EVENT,
+    target_=VOtype.VULNERABILITY_CASE,
+    # Not strict, for the same reason as the activation pattern above.
 )
 
 # ---------------------------------------------------------------------------
@@ -155,7 +176,7 @@ AddReportToCaseActivityPattern = ActivityPattern(
 
 CreateCaseProposalPattern = ActivityPattern(
     description=(
-        "Vendor actor requests case initialization at a case-actor service "
+        "Report receiver requests case initialization at a case-actor service "
         "by creating a CaseProposal object. "
         "Corresponds to Create(as_CaseProposal) — CP-03-001."
     ),
@@ -165,7 +186,7 @@ CreateCaseProposalPattern = ActivityPattern(
 )
 AcceptCaseProposalPattern = ActivityPattern(
     description=(
-        "Case-actor service accepts a vendor's CaseProposal. "
+        "Case-actor service accepts a report receiver's CaseProposal. "
         "Corresponds to Accept(as_CaseProposal) — CP-03-002."
     ),
     activity_=TAtype.ACCEPT,
@@ -174,7 +195,7 @@ AcceptCaseProposalPattern = ActivityPattern(
 )
 RejectCaseProposalPattern = ActivityPattern(
     description=(
-        "Case-actor service rejects a vendor's CaseProposal. "
+        "Case-actor service rejects a report receiver's CaseProposal. "
         "Corresponds to Reject(as_CaseProposal) — CP-03-003."
     ),
     activity_=TAtype.REJECT,
@@ -277,9 +298,18 @@ RejectCaseOwnershipTransferActivityPattern = ActivityPattern(
 # ---------------------------------------------------------------------------
 
 InviteActorToCasePattern = ActivityPattern(
+    description=(
+        "The stub Invite: Invite(Actor)[target=VulnerabilityCaseStub]"
+        " (VAM-04-004).  The target's type alone identifies it (CM-11-013);"
+        " strict (SE-08-004), so an Invite whose target is a bare URI — the"
+        " full-case Invite references its case by ID (CM-11-010) — does not"
+        " match.  Strictness also covers ``object``: an invitee still a bare"
+        " URI after rehydration cannot be confirmed as an actor."
+    ),
     activity_=TAtype.INVITE,
     object_=AOtype.ACTOR,
-    target_=VOtype.VULNERABILITY_CASE,
+    target_=VOtype.VULNERABILITY_CASE_STUB,
+    strict=True,
 )
 AcceptInviteActorToCasePattern = ActivityPattern(
     activity_=TAtype.ACCEPT,
@@ -288,6 +318,36 @@ AcceptInviteActorToCasePattern = ActivityPattern(
 RejectInviteActorToCasePattern = ActivityPattern(
     activity_=TAtype.REJECT,
     object_=InviteActorToCasePattern,
+)
+InviteActorToFullCasePattern = ActivityPattern(
+    description=(
+        "The full-case Invite: Invite(Actor)[target=VulnerabilityCase]"
+        " (VAM-04-011, CM-11-010).  The target is the plain case URI"
+        " (AKM-02-003), which a permissive pattern accepts; the stub Invite's"
+        " target is a VulnerabilityCaseStub object, whose type does not match,"
+        " so the two Invites are told apart by their target."
+    ),
+    activity_=TAtype.INVITE,
+    object_=AOtype.ACTOR,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+AcceptInviteActorToFullCasePattern = ActivityPattern(
+    description="RV: Accept(Invite(Actor)[target=VulnerabilityCase]) (VAM-04-012).",
+    activity_=TAtype.ACCEPT,
+    object_=InviteActorToFullCasePattern,
+)
+TentativeRejectInviteActorToFullCasePattern = ActivityPattern(
+    description=(
+        "RI: TentativeReject(Invite(Actor)[target=VulnerabilityCase])"
+        " (VAM-04-013).  The stub Invite has no TentativeReject (CM-11-007)."
+    ),
+    activity_=TAtype.TENTATIVE_REJECT,
+    object_=InviteActorToFullCasePattern,
+)
+RejectInviteActorToFullCasePattern = ActivityPattern(
+    description="RC: Reject(Invite(Actor)[target=VulnerabilityCase]) (VAM-04-014).",
+    activity_=TAtype.REJECT,
+    object_=InviteActorToFullCasePattern,
 )
 CloseCasePattern = ActivityPattern(
     activity_=TAtype.LEAVE, object_=VOtype.VULNERABILITY_CASE

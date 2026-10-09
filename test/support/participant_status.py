@@ -35,14 +35,12 @@ import logging
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     DDimension,
-    PecDimension,
     RmDimension,
     VfDimension,
 )
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
-    coerce_em_consent_state,
     participant_status_d_state,
     participant_status_vf_state,
 )
@@ -83,7 +81,6 @@ def advance_participant_rm(
             participant.id_,
         )
         return False
-    consent_state = coerce_em_consent_state(participant.embargo_consent_state)
     roles = coerce_cvd_roles(participant.case_roles)
     # Carry the vendor and deployer paths forward, but only while their role is
     # still held (ADR-0075) — omitting a dimension re-seeds it at its initial
@@ -109,11 +106,6 @@ def advance_participant_rm(
             d=DDimension(state=current_d) if current_d is not None else None,
             context=context,
             attributed_to=actor,
-            consent=(
-                PecDimension(state=consent_state)
-                if consent_state is not None
-                else None
-            ),
             cvd_role=roles,
         )
     )

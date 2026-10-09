@@ -31,25 +31,24 @@ Per GitHub issue #401 and specs/behavior-tree-node-design.yaml.
 
 import pytest
 
-from vultron.core.behaviors.report.nodes.case_creation import (
-    _collect_create_case_addressees,
-)
-from vultron.core.behaviors.report.nodes.emit import _compute_report_addressees
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.vultron_types import (
-    VultronOffer,
-    VultronReport,
-)
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.report.nodes import (
+    CheckReportClosable,
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
 )
+from vultron.core.behaviors.report.nodes.case_creation import (
+    _collect_create_case_addressees,
+)
+from vultron.core.behaviors.report.nodes.emit import _compute_report_addressees
+from vultron.core.models.activity import VultronOffer
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # ============================================================================
 # Fixtures
@@ -57,22 +56,22 @@ from test.core.behaviors.bt_harness import BTTestScenario
 
 
 @pytest.fixture
-def actor(bt_scenario: BTTestScenario) -> VultronCaseActor:
+def actor(bt_scenario: BTTestScenario) -> CaseActor:
     """Create a test actor and persist it in the scenario DataLayer.
 
     Its id *is* the scenario's actor: every node here executes as ``actor.id_``,
     and a BT's store follows its executing actor (ADR-0073), so a generated id
     would run each node against an empty store.
     """
-    obj = VultronCaseActor(id_=bt_scenario.actor_id, name="Test Actor")
+    obj = CaseActor(id_=bt_scenario.actor_id, name="Test Actor")
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
-def report(bt_scenario: BTTestScenario) -> VultronReport:
+def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
     """Create a test report and persist it in the scenario DataLayer."""
-    obj = VultronReport(
+    obj = VulnerabilityReport(
         name="TEST-001",
         content="Test vulnerability report",
     )
@@ -82,7 +81,7 @@ def report(bt_scenario: BTTestScenario) -> VultronReport:
 
 @pytest.fixture
 def offer(
-    bt_scenario: BTTestScenario, report: VultronReport, actor: VultronCaseActor
+    bt_scenario: BTTestScenario, report: VulnerabilityReport, actor: CaseActor
 ) -> VultronOffer:
     """Create a test offer and persist it in the scenario DataLayer."""
     obj = VultronOffer(actor=actor.id_, object_=report.id_)
@@ -104,8 +103,8 @@ def offer(
 
 def test_transition_rm_to_valid_same_state(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
 ) -> None:
@@ -128,8 +127,8 @@ def test_transition_rm_to_valid_same_state(
 
 def test_transition_rm_to_valid_invalid_jump(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
 ) -> None:
@@ -152,8 +151,8 @@ def test_transition_rm_to_valid_invalid_jump(
 
 def test_transition_rm_to_invalid_same_state(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
     """TransitionRMtoInvalid succeeds on a same-state write (AC-3)."""
@@ -174,8 +173,8 @@ def test_transition_rm_to_invalid_same_state(
 
 def test_transition_rm_to_invalid_invalid_jump(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
     """TransitionRMtoInvalid returns FAILURE for an illegal RM jump (AC-2)."""
@@ -196,8 +195,8 @@ def test_transition_rm_to_invalid_invalid_jump(
 
 def test_transition_rm_to_valid_from_invalid(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
 ) -> None:
@@ -221,8 +220,8 @@ def test_transition_rm_to_valid_from_invalid(
 
 def test_transition_rm_to_valid_no_participant_advance_when_link_blocked(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
 ) -> None:
@@ -270,8 +269,8 @@ def test_transition_rm_to_valid_no_participant_advance_when_link_blocked(
 
 def test_transition_rm_to_closed_valid_from_invalid(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
     """TransitionRMtoClosed succeeds from RM.INVALID (valid adjacent step)."""
@@ -293,8 +292,8 @@ def test_transition_rm_to_closed_valid_from_invalid(
 
 def test_transition_rm_to_closed_same_state(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
     """TransitionRMtoClosed succeeds on a same-state write (AC-3)."""
@@ -315,8 +314,8 @@ def test_transition_rm_to_closed_same_state(
 
 def test_transition_rm_to_closed_valid_from_accepted(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
     """TransitionRMtoClosed succeeds from RM.ACCEPTED (valid adjacent step)."""
@@ -338,8 +337,8 @@ def test_transition_rm_to_closed_valid_from_accepted(
 
 def test_transition_rm_to_closed_valid_from_deferred(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
     """TransitionRMtoClosed succeeds from RM.DEFERRED (valid adjacent step)."""
@@ -359,16 +358,104 @@ def test_transition_rm_to_closed_valid_from_deferred(
     bt_scenario.assert_rm_state(report.id_, RM.CLOSED, actor_id=actor.id_)
 
 
-def test_transition_rm_to_closed_invalid_jump_from_received(
+def test_transition_rm_to_closed_fails_without_report_case_link(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
-    """TransitionRMtoClosed returns FAILURE for RECEIVED→CLOSED (AC-2)."""
+    """TransitionRMtoClosed returns FAILURE when no ReportCaseLink exists."""
     result = bt_scenario.run(
         TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
         actor_id=actor.id_,
+    )
+    bt_scenario.assert_failure(result)
+
+
+@pytest.mark.spec("RMB-14-004")
+def test_transition_rm_to_closed_valid_from_received(
+    bt_scenario: BTTestScenario,
+    actor: CaseActor,
+    report: VulnerabilityReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoClosed succeeds from RM.RECEIVED (``R → C``, ADR-0114)."""
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    )
+
+    result = bt_scenario.run(
+        TransitionRMtoClosed(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+    bt_scenario.assert_rm_state(report.id_, RM.CLOSED, actor_id=actor.id_)
+
+
+@pytest.mark.spec("VP-02-004")
+def test_transition_rm_to_closed_invalid_jump_from_valid(
+    bt_scenario: BTTestScenario,
+    actor: CaseActor,
+    report: VulnerabilityReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoClosed returns FAILURE for VALID→CLOSED (no close edge)."""
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.VALID)
+    )
+
+    result = bt_scenario.run(
+        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_failure(result)
+    bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
+
+
+@pytest.mark.spec("RMB-14-004")
+@pytest.mark.spec("VP-02-004")
+@pytest.mark.parametrize(
+    ("rm_state", "expected"),
+    [
+        (RM.RECEIVED, "SUCCESS"),
+        (RM.INVALID, "SUCCESS"),
+        (RM.ACCEPTED, "SUCCESS"),
+        (RM.DEFERRED, "SUCCESS"),
+        (RM.CLOSED, "SUCCESS"),
+        (RM.VALID, "FAILURE"),
+        (RM.START, "FAILURE"),
+    ],
+    ids=lambda v: v.name if isinstance(v, RM) else v,
+)
+def test_check_report_closable_follows_the_close_edges(
+    bt_scenario: BTTestScenario,
+    actor: CaseActor,
+    report: VulnerabilityReport,
+    rm_state: RM,
+    expected: str,
+) -> None:
+    """CheckReportClosable succeeds exactly where RM has a close edge (or is CLOSED)."""
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=rm_state)
+    )
+    result = bt_scenario.run(
+        CheckReportClosable(report_id=report.id_), actor_id=actor.id_
+    )
+    assert result.status.name == expected
+
+
+def test_check_report_closable_fails_without_report_case_link(
+    bt_scenario: BTTestScenario,
+    actor: CaseActor,
+    report: VulnerabilityReport,
+) -> None:
+    """CheckReportClosable fails when the report has no ReportCaseLink."""
+    result = bt_scenario.run(
+        CheckReportClosable(report_id=report.id_), actor_id=actor.id_
     )
     bt_scenario.assert_failure(result)
 
@@ -391,7 +478,8 @@ class TestComputeReportAddresseesFallback:
     ) -> None:
         """Fallback path returns offer_actor_id from VultronOfferRecord."""
         from typing import cast
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+        from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
         actor_id = "urn:test:actor:1"
         submitter_id = "urn:test:submitter:1"
@@ -414,7 +502,8 @@ class TestComputeReportAddresseesFallback:
     ) -> None:
         """Fallback path returns None when offer_record is None."""
         from typing import cast
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+        from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
         result = _compute_report_addressees(
             report_id="urn:test:report:no-case",
@@ -429,7 +518,8 @@ class TestComputeReportAddresseesFallback:
     ) -> None:
         """Fallback path excludes actor_id (self) from addressees."""
         from typing import cast
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+        from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
         actor_id = "urn:test:actor:self"
         offer_record = VultronOfferRecord(

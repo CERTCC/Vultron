@@ -20,7 +20,8 @@ Covers two async race patterns (Bugs #2134-adjacent and #2376):
 2. ``verify_publicly_disclosed`` — after ``actor_notifies_published`` returns
    HTTP 202, the CaseActor's ``Add(CaseStatus)`` broadcast may not have
    reached the reporter's DataLayer yet.  ``verify_publicly_disclosed`` must
-   poll for the reporter's pxa_state before asserting it (ADR-0058).
+   poll for pxa_state on every replica before asserting it (ADR-0058) —
+   the reporter's (#2376) and the receiver's (#3903).
 3. ``wait_for_participant_pxa_state`` — underlying pxa polling helper must
    retry until pxa_state is public-aware and raise on timeout.
 """
@@ -71,7 +72,9 @@ def _receiver_case_payload() -> dict:
                 "pxa": {"state": "pxa"},
             }
         ],
-        "activeEmbargo": "urn:uuid:embargo-1",
+        "embargoRegister": [
+            {"embargo": "urn:uuid:embargo-1", "status": "ACTIVE"}
+        ],
     }
 
 
@@ -306,9 +309,9 @@ class TestFindOwnershipTransferOfferForActor:
             poll_interval=0.05,
         )
         assert result == _OT_FORWARDED_OFFER_ID
-        assert (
-            client.calls > 2
-        ), "helper must have polled more than once before finding offer"
+        assert client.calls > 2, (
+            "helper must have polled more than once before finding offer"
+        )
 
     def test_raises_assertion_error_on_timeout(self):
         client = _LateOTOfferClient(delay=10**6)
@@ -351,11 +354,19 @@ _PXA_RECEIVER_ID = "http://coordinator:7999/api/v2/actors/coordinator"
 
 
 def _pxa_case_payload(em_state: str = "EXITED") -> dict:
-    """Minimal case payload with EM.EXITED and no participants (participants polled separately)."""
+    """Minimal case payload with EM.EXITED and no participants (participants polled separately).
+
+    EM is derived from the embargo register (ADR-0122), so the register holds
+    the one embargo, ``TERMINATED`` for EXITED and ``ACTIVE`` for ACTIVE.
+    """
+    register_status = {"EXITED": "TERMINATED", "ACTIVE": "ACTIVE"}[em_state]
     return {
         "id": _PXA_CASE_ID,
         "type": "VulnerabilityCase",
         "actorParticipantIndex": {},
+        "embargoRegister": [
+            {"embargo": "urn:uuid:pxa-embargo", "status": register_status}
+        ],
         "caseStatuses": [
             {
                 "id": "urn:uuid:cs-pxa-1",
@@ -371,7 +382,7 @@ def _pxa_case_payload(em_state: str = "EXITED") -> dict:
 def _public_aware_participant(actor_id: str) -> MagicMock:
     """A participant whose latest status has a public-aware pxa_state."""
     p = MagicMock()
-    p.id_ = f"urn:uuid:participant-{actor_id.split('/')[-1]}"
+    p.id_ = f"urn:uuid:participant-{actor_id.rsplit('/', maxsplit=1)[-1]}"
     object.__setattr__(p, "case_roles", [])
     status = MagicMock()
     cs = MagicMock()
@@ -388,7 +399,7 @@ class TestWaitForParticipantPxaState:
     def test_returns_immediately_when_already_public_aware(self):
         participant = _public_aware_participant(_PXA_RECEIVER_ID)
         with patch(
-            "vultron.demo.helpers.verification._fetch_participant",
+            "vultron.demo.helpers.polling._fetch_participant",
             return_value=participant,
         ):
             wait_for_participant_pxa_state(
@@ -421,7 +432,7 @@ class TestWaitForParticipantPxaState:
             return public_participant
 
         with patch(
-            "vultron.demo.helpers.verification._fetch_participant",
+            "vultron.demo.helpers.polling._fetch_participant",
             side_effect=_fetch,
         ):
             wait_for_participant_pxa_state(
@@ -444,7 +455,7 @@ class TestWaitForParticipantPxaState:
         none_participant.participant_statuses = [none_status]
 
         with patch(
-            "vultron.demo.helpers.verification._fetch_participant",
+            "vultron.demo.helpers.polling._fetch_participant",
             return_value=none_participant,
         ):
             with pytest.raises(AssertionError, match="Timed out"):
@@ -459,11 +470,28 @@ class TestWaitForParticipantPxaState:
                 )
 
 
-class TestVerifyPubliclyDisclosedPollsReporterPxa:
-    """verify_publicly_disclosed must poll reporter's pxa_state before asserting (Bug #2376)."""
+def _unaware_participant() -> MagicMock:
+    """A participant whose latest status has not yet reached public-aware."""
+    p = MagicMock()
+    object.__setattr__(p, "case_roles", [])
+    status = MagicMock()
+    cs = MagicMock()
+    cs.pxa_state = None
+    status.case_status = cs
+    p.participant_status = status
+    p.participant_statuses = [status]
+    return p
 
-    def test_calls_wait_for_participant_pxa_state_on_reporter(self):
-        """The pxa polling gate must be called with the reporter client, not the receiver."""
+
+class TestVerifyPubliclyDisclosedPollsEveryReplica:
+    """verify_publicly_disclosed polls pxa_state on every replica it asserts.
+
+    Bug #2376 gated only the reporter replica; Bug #3903 showed the receiver
+    replica races the same way — the CaseActor's ledger fan-out reaches each
+    replica independently, so an instant read of either can see ``None``.
+    """
+
+    def test_polls_pxa_state_on_both_replicas(self):
         receiver_client = MagicMock(name="receiver_client")
         reporter_client = MagicMock(name="reporter_client")
         receiver_client.get.return_value = _pxa_case_payload()
@@ -487,11 +515,119 @@ class TestVerifyPubliclyDisclosedPollsReporterPxa:
                 receiver_actor_id=_PXA_RECEIVER_ID,
             )
 
-        mock_poll.assert_called_once_with(
-            client=cast(DataLayerClient, reporter_client),
-            case_id=_PXA_CASE_ID,
-            actor_id=_PXA_RECEIVER_ID,
-        )
+        polled = [c.kwargs["client"] for c in mock_poll.call_args_list]
+        assert receiver_client in polled
+        assert reporter_client in polled
+        for c in mock_poll.call_args_list:
+            assert c.kwargs["case_id"] == _PXA_CASE_ID
+            assert c.kwargs["actor_id"] == _PXA_RECEIVER_ID
+
+    def test_polls_em_exited_on_both_replicas(self):
+        """EM.EXITED races the same fan-out, so it is polled per replica too."""
+        receiver_client = MagicMock(name="receiver_client")
+        reporter_client = MagicMock(name="reporter_client")
+
+        participant = _public_aware_participant(_PXA_RECEIVER_ID)
+
+        with (
+            patch(
+                "vultron.demo.helpers.milestones.wait_for_case_em_terminated"
+            ) as mock_em_poll,
+            patch(
+                "vultron.demo.helpers.milestones.wait_for_participant_pxa_state"
+            ),
+            patch(
+                "vultron.demo.helpers.milestones._fetch_participant",
+                return_value=participant,
+            ),
+        ):
+            verify_publicly_disclosed(
+                receiver_client=cast(DataLayerClient, receiver_client),
+                reporter_client=cast(DataLayerClient, reporter_client),
+                case_id=_PXA_CASE_ID,
+                receiver_actor_id=_PXA_RECEIVER_ID,
+            )
+
+        polled = [c.kwargs["client"] for c in mock_em_poll.call_args_list]
+        assert receiver_client in polled
+        assert reporter_client in polled
+        for c in mock_em_poll.call_args_list:
+            assert c.kwargs["case_id"] == _PXA_CASE_ID
+
+    def test_succeeds_when_receiver_replica_exits_em_late(self):
+        """The receiver replica still reads EM.ACTIVE for two polls."""
+        receiver_reads = 0
+
+        def _receiver_get(path: str) -> dict:
+            nonlocal receiver_reads
+            receiver_reads += 1
+            return _pxa_case_payload(
+                em_state="ACTIVE" if receiver_reads <= 2 else "EXITED"
+            )
+
+        receiver_client = MagicMock(name="receiver_client")
+        receiver_client.get.side_effect = _receiver_get
+        reporter_client = MagicMock(name="reporter_client")
+        reporter_client.get.return_value = _pxa_case_payload()
+
+        participant = _public_aware_participant(_PXA_RECEIVER_ID)
+
+        with (
+            patch(
+                "vultron.demo.helpers.milestones.wait_for_participant_pxa_state"
+            ),
+            patch(
+                "vultron.demo.helpers.milestones._fetch_participant",
+                return_value=participant,
+            ),
+            patch("vultron.demo.helpers.polling.time.sleep"),
+        ):
+            verify_publicly_disclosed(
+                receiver_client=cast(DataLayerClient, receiver_client),
+                reporter_client=cast(DataLayerClient, reporter_client),
+                case_id=_PXA_CASE_ID,
+                receiver_actor_id=_PXA_RECEIVER_ID,
+            )
+
+        assert receiver_reads > 2, "receiver replica must have been polled"
+
+    def test_succeeds_when_receiver_replica_applies_status_late(self):
+        """The receiver replica reads ``None`` for two polls, then catches up."""
+        receiver_client = MagicMock(name="receiver_client", base_url="r")
+        reporter_client = MagicMock(name="reporter_client", base_url="f")
+        receiver_client.get.return_value = _pxa_case_payload()
+        reporter_client.get.return_value = _pxa_case_payload()
+
+        public = _public_aware_participant(_PXA_RECEIVER_ID)
+        unaware = _unaware_participant()
+        receiver_reads = 0
+
+        def _fetch(client, case_id, actor_id):
+            nonlocal receiver_reads
+            if client is receiver_client:
+                receiver_reads += 1
+                return unaware if receiver_reads <= 2 else public
+            return public
+
+        with (
+            patch(
+                "vultron.demo.helpers.polling._fetch_participant",
+                side_effect=_fetch,
+            ),
+            patch(
+                "vultron.demo.helpers.milestones._fetch_participant",
+                side_effect=_fetch,
+            ),
+            patch("vultron.demo.helpers.polling.time.sleep"),
+        ):
+            verify_publicly_disclosed(
+                receiver_client=cast(DataLayerClient, receiver_client),
+                reporter_client=cast(DataLayerClient, reporter_client),
+                case_id=_PXA_CASE_ID,
+                receiver_actor_id=_PXA_RECEIVER_ID,
+            )
+
+        assert receiver_reads > 2, "receiver replica must have been polled"
 
 
 _IC_REPORT_ID = "urn:uuid:test-report-ic-0001"
@@ -502,6 +638,7 @@ _IC_PARTICIPANT_ID = "urn:uuid:test-participant-ic-0001"
 _IC_INITIALIZED_CASE = {
     "id": _IC_CASE_ID,
     "type": "VulnerabilityCase",
+    "vulnerability_reports": [_IC_REPORT_ID],
     "case_participants": [
         {"id": _IC_PARTICIPANT_ID, "type": "CaseParticipant"}
     ],
@@ -509,6 +646,7 @@ _IC_INITIALIZED_CASE = {
 _IC_EMPTY_CASE = {
     "id": _IC_CASE_ID,
     "type": "VulnerabilityCase",
+    "vulnerability_reports": [_IC_REPORT_ID],
     "case_participants": [],
 }
 
@@ -519,12 +657,18 @@ class _LateInitializedCaseClient:
     def dl_path(self, key: str = "", actor_id: str | None = None) -> str:
         return _real_dl_path(self.base_url, actor_id or self.actor_id, key)
 
-    def __init__(self, delay: int, empty_before_init: bool = False) -> None:
+    def __init__(
+        self,
+        delay: int,
+        empty_before_init: bool = False,
+        store: dict | None = None,
+    ) -> None:
         self.base_url = "http://coordinator:7999/api/v2"
         self.actor_id = _IC_CASE_ACTOR_ID
         self._delay = delay
         self._empty_before_init = empty_before_init
         self.calls = 0
+        self.store = store
 
     def get(self, path: str) -> dict | None:
         expected = self.dl_path(
@@ -532,6 +676,8 @@ class _LateInitializedCaseClient:
         )
         if path == expected:
             self.calls += 1
+            if self.store is not None:
+                return self.store
             if self.calls <= self._delay:
                 if self._empty_before_init:
                     return {_IC_CASE_ID: _IC_EMPTY_CASE}
@@ -545,7 +691,7 @@ class TestWaitForInitializedCase:
 
     def _run(self, client: _LateInitializedCaseClient) -> as_VulnerabilityCase:
         with patch(
-            "vultron.demo.utils.case_actor_id_for_report",
+            "vultron.demo.helpers.polling.case_actor_id_for_report",
             return_value=_IC_CASE_ACTOR_ID,
         ):
             return wait_for_initialized_case(
@@ -574,16 +720,64 @@ class TestWaitForInitializedCase:
         client = _LateInitializedCaseClient(delay=2, empty_before_init=True)
         result = self._run(client)
         assert result.id_ == _IC_CASE_ID
-        assert (
-            client.calls > 2
-        ), "must have polled past the empty-participants case"
+        assert client.calls > 2, (
+            "must have polled past the empty-participants case"
+        )
+
+    def test_returns_the_case_for_each_report_in_a_shared_store(self):
+        """Two initialized cases on one CaseActor: each report gets its own (#3666)."""
+        other_report = "urn:uuid:test-report-ic-0002"
+        other_case = {
+            **_IC_INITIALIZED_CASE,
+            "id": "urn:uuid:test-case-ic-0002",
+            "vulnerability_reports": [other_report],
+        }
+        # The other report's case is listed first, so a first-found read
+        # would return it for _IC_REPORT_ID.
+        store = {
+            other_case["id"]: other_case,
+            _IC_CASE_ID: _IC_INITIALIZED_CASE,
+        }
+        client = _LateInitializedCaseClient(delay=0, store=store)
+        for report_id, expected in (
+            (_IC_REPORT_ID, _IC_CASE_ID),
+            (other_report, other_case["id"]),
+        ):
+            with patch(
+                "vultron.demo.helpers.polling.case_actor_id_for_report",
+                return_value=_IC_CASE_ACTOR_ID,
+            ):
+                result = wait_for_initialized_case(
+                    client=cast(DataLayerClient, client),
+                    report_id=report_id,
+                    timeout_seconds=5.0,
+                    poll_interval=0.05,
+                )
+            assert result.id_ == expected
+
+    def test_times_out_rather_than_return_another_reports_case(self):
+        """Only a different report's case is initialized: time out, don't return it (#3666)."""
+        client = _LateInitializedCaseClient(delay=0)
+        with (
+            patch(
+                "vultron.demo.helpers.polling.case_actor_id_for_report",
+                return_value=_IC_CASE_ACTOR_ID,
+            ),
+            pytest.raises(AssertionError, match="Timed out"),
+        ):
+            wait_for_initialized_case(
+                client=cast(DataLayerClient, client),
+                report_id="urn:uuid:some-other-report",
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
 
     def test_raises_on_timeout_when_no_initialized_case(self):
         """Raises AssertionError when no initialized case appears within timeout."""
         client = _LateInitializedCaseClient(delay=10**6)
         with pytest.raises(AssertionError, match="Timed out"):
             with patch(
-                "vultron.demo.utils.case_actor_id_for_report",
+                "vultron.demo.helpers.polling.case_actor_id_for_report",
                 return_value=_IC_CASE_ACTOR_ID,
             ):
                 wait_for_initialized_case(
@@ -603,7 +797,7 @@ class TestWaitForInitializedCase:
         client = _LateInitializedCaseClient(delay=0)
         with (
             patch(
-                "vultron.demo.utils.case_actor_id_for_report",
+                "vultron.demo.helpers.polling.case_actor_id_for_report",
                 return_value=_IC_CASE_ACTOR_ID,
             ),
             patch(

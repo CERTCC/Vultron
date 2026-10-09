@@ -16,18 +16,32 @@ import logging
 from typing import Any, cast
 from unittest.mock import MagicMock
 
-from vultron.errors import VultronValidationError
-
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+    seed_case_owner_participant,
+    seed_store_owner_as_case_manager,
+)
+from test.support.embargo_register import propose
 from vultron.adapters.driven.db_record import StorableRecord
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
     CreateEmbargoEventReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
@@ -36,8 +50,14 @@ from vultron.core.use_cases.triggers.embargo import SvcAcceptEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
 )
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.demo.utils import ref_id
+from vultron.enums.roles import CVDRole
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 from vultron.wire.as2.factories import (
+    activate_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
@@ -75,16 +95,27 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_cem1/embargo_events/embargo1",
             content="Proposed embargo",
             context="https://example.org/cases/case_cem1",
+            end_time=days_from_now_utc(45),
         )
+        # The store's owner manages the case and the vendor owns it, so the
+        # Create comes from the Case Owner (ADR-0115).
+        seed_store_owner_as_case_manager(dl, case)
+        seed_case_owner_participant(
+            dl, case, "https://example.org/users/vendor"
+        )
+        dl.create(case)
+
         activity = as_Create(
             actor="https://example.org/users/vendor",
             object_=embargo,
             context=case,
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
 
         event = make_payload(activity)
 
-        CreateEmbargoEventReceivedUseCase(dl, event).execute()
+        result = CreateEmbargoEventReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         stored = dl.get(embargo.type_, embargo.id_)
         assert stored is not None
@@ -115,18 +146,29 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_cem2/embargo_events/embargo2",
             content="Proposed embargo",
             context="https://example.org/cases/case_cem2",
+            end_time=days_from_now_utc(45),
         )
+        # The store's owner manages the case and the vendor owns it, so the
+        # Create comes from the Case Owner (ADR-0115).
+        seed_store_owner_as_case_manager(dl, case)
+        seed_case_owner_participant(
+            dl, case, "https://example.org/users/vendor"
+        )
+        dl.create(case)
+
         activity = as_Create(
             actor="https://example.org/users/vendor",
             object_=embargo,
             context=case,
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
         event = make_payload(activity)
 
         CreateEmbargoEventReceivedUseCase(dl, event).execute()
-        CreateEmbargoEventReceivedUseCase(
+        result = CreateEmbargoEventReceivedUseCase(
             dl, event
         ).execute()  # second call no-op
+        assert result.disposition is HandlerDisposition.SKIPPED
 
         stored = dl.get(embargo.type_, embargo.id_)
         assert stored is not None
@@ -149,11 +191,22 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em2/embargo_events/e2",
             content="Proposed embargo",
             context="https://example.org/cases/case_em2",
+            end_time=days_from_now_utc(45),
         )
+        # The vendor's replica receives the CASE_MANAGER's relayed Invite.
+        case_manager_id = "https://example.org/users/case-manager"
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_em2",
+            name="Invite Test",
+            attributed_to=case_manager_id,
+        )
+        seed_case_manager_participant(dl, case, case_manager_id)
+        dl.create(case)
         proposal = em_propose_embargo_activity(
             embargo,
             context="https://example.org/cases/case_em2",
-            actor="https://example.org/users/vendor",
+            actor=case_manager_id,
+            to=["https://example.org/users/vendor"],
             id_="https://example.org/cases/case_em2/embargo_proposals/1",
         )
 
@@ -161,12 +214,15 @@ class TestEmbargoProposalLifecycle:
             proposal, receiving_actor_id="https://example.org/users/vendor"
         )
 
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         stored = dl.get(proposal.type_.value, proposal.id_)
         assert stored is not None
 
-    def test_accept_invite_to_embargo_on_case_activates_embargo(
+    def test_owners_accept_of_an_invite_records_only_its_consent(
         self, monkeypatch, make_payload
     ):
         """accept_invite_to_embargo_on_case activates the embargo on the case (PROPOSED → ACTIVE)."""
@@ -189,16 +245,20 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em3/embargo_events/e3",
             content="Embargo",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         # Use inline objects (not string IDs) so rehydration skips DataLayer lookup
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,
             actor="https://example.org/users/vendor",
+            to=[coordinator_id],
             id_="https://example.org/cases/case_em3/embargo_proposals/1",
         )
         # Start from PROPOSED — the standard pre-condition for activation.
-        case.append_case_status(em_state=EM.PROPOSED)
+        propose(case, embargo.id_)
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
         dl.create(proposal)
@@ -210,18 +270,35 @@ class TestEmbargoProposalLifecycle:
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
+        # Accept(Invite) is the sender's consent, the owner's included; the
+        # owner's decision for the case is Accept(EmbargoEvent) (ADR-0122).
         case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
-        assert case.active_embargo is not None
-        assert case.current_status.em.state == EM.ACTIVE
+        assert case.active_embargo is None
+        assert case.current_status.em.state == EM.PROPOSED
+        assert case.proposed_embargo_ids == [embargo.id_]
+        record = dl.read(case.actor_participant_index[coordinator_id])
+        assert isinstance(record, CaseParticipant)
+        assert record.consent_for(embargo.id_) == EmbargoConsentState.ACCEPTED
 
-    def test_accept_invite_to_embargo_warns_on_non_standard_transition(
+    def test_accept_of_an_unrecorded_proposal_changes_nothing(
         self, monkeypatch, make_payload, caplog
     ):
-        """accept_invite_to_embargo_on_case ledgers WARNING when EM state is not on the standard machine path."""
+        """An Accept of terms the register never recorded writes nothing.
+
+        Accept(Invite) moves no register entry (ADR-0122), and a consent row
+        is only written for an embargo the register holds, so the store stays
+        at EM NONE with no row for the unknown terms.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
@@ -244,14 +321,18 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em3_warn/embargo_events/e3",
             content="Embargo",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         proposal = em_propose_embargo_activity(
             embargo,
             context=case,
             actor="https://example.org/users/vendor",
+            to=[coordinator_id],
             id_="https://example.org/cases/case_em3_warn/embargo_proposals/1",
         )
-        # Default em_state is NONE — not a valid predecessor for ACTIVE.
+        # The register is empty (EM NONE): the proposal was never recorded.
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(embargo)
         dl.create(proposal)
@@ -264,18 +345,30 @@ class TestEmbargoProposalLifecycle:
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         with caplog.at_level(logging.WARNING):
-            AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
 
-        assert any("state-sync override" in r.message for r in caplog.records)
+        assert not any(
+            "state-sync override" in r.message for r in caplog.records
+        )
         case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
-        assert case.current_status.em.state == EM.ACTIVE
+        assert case.em_state == EM.NONE
+        assert case.active_embargo_id is None
+        assert case.embargo_register == []
+        record = dl.read(case.actor_participant_index[coordinator_id])
+        assert isinstance(record, CaseParticipant)
+        assert record.consent_for(embargo.id_) is None
 
     def test_accept_invite_to_embargo_records_embargo_on_participant(
         self, monkeypatch, make_payload
     ):
-        """accept_invite_to_embargo_on_case records embargo ID in participant.accepted_embargo_ids (CM-10-002, CM-10-003)."""
+        """accept_invite_to_embargo_on_case records an ACCEPTED consent row for the embargo (CM-10-002, CM-10-003)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.wire.as2.vocab.objects.embargo_event import (
@@ -296,19 +389,24 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em5/embargo_events/e5",
             content="Embargo",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         participant = CaseParticipant(
             id_="https://example.org/cases/case_em5/participants/coord",
             attributed_to=coordinator_id,
             context=case.id_,
+            # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+            case_roles=[CVDRole.CASE_MANAGER],
         )
         case.add_participant(participant)
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,
             actor="https://example.org/users/vendor",
+            to=[coordinator_id],
             id_="https://example.org/cases/case_em5/embargo_proposals/1",
         )
+        propose(case, embargo.id_)
         dl.create(case)
         dl.create(embargo)
         dl.create(participant)
@@ -321,71 +419,71 @@ class TestEmbargoProposalLifecycle:
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
 
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         updated_participant = dl.get(id_=participant.id_)
         assert updated_participant is not None
         updated_participant = cast(Any, updated_participant)
-        assert embargo.id_ in updated_participant.accepted_embargo_ids
+        assert updated_participant.consent_for(embargo.id_) == "ACCEPTED"
 
-    def test_accept_invite_to_embargo_records_case_event(
-        self, monkeypatch, make_payload
-    ):
-        """accept_invite_to_embargo_on_case transitions EM state to ACTIVE
-        and persists the case (CM-02-009).
+    @pytest.mark.spec("EP-09-005")
+    @pytest.mark.spec("MSM-07-005")
+    def test_owners_accept_of_the_embargo_activates_it(self, make_payload):
+        """The owner's Accept(EmbargoEvent, target=Case) activates the proposal.
 
-        record_event('embargo_accepted') was removed in #789; the behavioral
-        invariant is verified by checking case.active_embargo is not None
-        after acceptance.
+        The activation is also the owner's agreement, so its row for the
+        embargo becomes ACCEPTED (ADR-0122).
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://example.org/users/coordinator",
-        )
         coordinator_id = "https://example.org/users/coordinator"
-        case = as_VulnerabilityCase(
+        owner_id = "https://example.org/users/vendor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=coordinator_id)
+        case = VulnerabilityCase(
             id_="https://example.org/cases/case_em6",
-            name="EM Accept Event Test",
-            attributed_to=coordinator_id,
+            name="EM Owner Activation Test",
+            attributed_to=owner_id,
         )
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em6/embargo_events/e6",
             content="Embargo",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
-        proposal = em_propose_embargo_activity(
-            embargo,
-            context=case,
-            actor="https://example.org/users/vendor",
-            id_="https://example.org/cases/case_em6/embargo_proposals/1",
-        )
+        propose(case, embargo.id_)
+        seed_store_owner_as_case_manager(dl, case)
+        seed_case_owner_participant(dl, case, owner_id)
         dl.create(case)
         dl.create(embargo)
-        dl.create(proposal)
 
-        accept = em_accept_embargo_activity(
-            proposal,
-            context=case,
-            actor=coordinator_id,
+        activation = activate_embargo_activity(
+            embargo, target=case.id_, actor=owner_id, to=[coordinator_id]
         )
-        event = make_payload(accept, receiving_actor_id=coordinator_id)
+        event = make_payload(activation, receiving_actor_id=coordinator_id)
 
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = ActivateEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
 
-        case = dl.read(case.id_)
-        assert case is not None
-        case = cast(as_VulnerabilityCase, case)
-        assert (
-            case.active_embargo is not None
-        ), "Expected active_embargo to be set after embargo acceptance"
+        stored = cast(VulnerabilityCase, dl.read(case.id_))
+        assert stored.active_embargo_id == embargo.id_
+        assert stored.current_status.em.state == EM.ACTIVE
+        owner = dl.read(stored.actor_participant_index[owner_id])
+        assert isinstance(owner, CaseParticipant)
+        assert owner.is_signatory(embargo.id_)
 
     def test_reject_invite_to_embargo_on_case_ledgers_rejection(
         self, make_payload
@@ -399,6 +497,7 @@ class TestEmbargoProposalLifecycle:
             id_="https://example.org/cases/case_em4/embargo_events/e4",
             content="Embargo",
             context="https://example.org/cases/case_em4",
+            end_time=days_from_now_utc(45),
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -430,16 +529,16 @@ class TestEmbargoProposalLifecycle:
     ):
         """SvcAcceptEmbargoUseCase raises VultronInvalidStateTransitionError when EM state does not allow ACCEPT."""
         import pytest
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Actor as Actor,
+        )
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
-        )
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Actor as Actor,
-            as_Service,
         )
 
         # The trigger runs as the vendor, so this is the vendor's store.
@@ -455,6 +554,7 @@ class TestEmbargoProposalLifecycle:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_eval_invalid/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -474,25 +574,21 @@ class TestEmbargoProposalLifecycle:
         dl.create(embargo)
         dl.create(proposal)
 
-        # Add a Case Manager participant so routing proceeds to the
-        # EM-state validation check (the test's actual assertion target).
+        # The vendor is the CASE_MANAGER, so the trigger reaches the EM-state
+        # validation (the test's actual assertion target): a non-manager
+        # writes no EM state and only asks (EP-09-008).
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant as CP,
         )
 
-        case_actor = as_Service(
-            id_="https://example.org/actors/case-manager",
-            name="Case Manager",
-        )
-        dl.create(case_actor)
         cm_p = CP(
-            attributed_to=case_actor.id_,
+            attributed_to=actor.id_,
             context=case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         dl.create(cm_p)
-        case.actor_participant_index[case_actor.id_] = cm_p.id_
+        case.actor_participant_index[actor.id_] = cm_p.id_
         case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         dl.save(case)
 
@@ -529,8 +625,13 @@ def _make_pxa_case(
     embargo_id: str,
     pxa_state_name: str,
     em_state=EM.PROPOSED,
+    to: list[str] | None = None,
 ):
-    """Return (case, embargo, proposal) with pxa_state set."""
+    """Return (case, embargo, proposal) with pxa_state set.
+
+    *to* addresses the proposal; omitted, it goes to *coordinator_id*,
+    since an Invite naming no recipient is refused (EP-09-010).
+    """
     from vultron.core.states.cs import CS_pxa
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -539,22 +640,54 @@ def _make_pxa_case(
         name="PXA Guard Test",
         attributed_to=coordinator_id,
     )
-    case.append_case_status(
-        em_state=em_state, pxa_state=CS_pxa[pxa_state_name]
-    )
+    case.append_case_status(pxa_state=CS_pxa[pxa_state_name])
     embargo = as_EmbargoEvent(
-        id_=embargo_id, content="PXA test embargo", context=case_id
+        id_=embargo_id,
+        content="PXA test embargo",
+        context=case_id,
+        end_time=days_from_now_utc(45),
     )
+    # The register derives *em_state*: PROPOSED holds the embargo as an open
+    # proposal, NONE holds no entry.
+    if em_state == EM.PROPOSED:
+        propose(case, embargo.id_)
+    assert case.em_state == em_state
     proposal = em_propose_embargo_activity(
         embargo,
         context=case.id_,
         actor=coordinator_id,
         id_=f"{case_id}/proposals/p1",
+        to=to if to is not None else [coordinator_id],
     )
+    # The case's CASE_MANAGER is the coordinator: the role is never unfilled
+    # (CM-24-006), and a participant's ER goes to it (PCR-08-001).
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+
+    manager = as_CaseParticipant(
+        id_=f"{case_id}/participants/coordinator",
+        attributed_to=coordinator_id,
+        context=case_id,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(manager)
+    case.case_participants.append(manager.id_)
+    case.actor_participant_index[coordinator_id] = manager.id_
     dl.create(case)
     dl.create(embargo)
     dl.create(proposal)
     return case, embargo, proposal
+
+
+def _sole_queued_reject(dl) -> Any:
+    """Return the one activity queued in *dl*'s outbox, asserting it is a Reject."""
+    outbox = dl.outbox_list()
+    assert len(outbox) == 1, f"Expected exactly 1 ER in outbox; got {outbox}"
+    reject = dl.read(outbox[0])
+    assert reject is not None, "queued ER must be readable"
+    assert getattr(reject, "type_", None) == "Reject"
+    return reject
 
 
 class TestInviteToEmbargoReceivedPxaGuard:
@@ -575,7 +708,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}"
         embargo_id = f"{case_id}/embargo_events/e1"
-        case, embargo, proposal = _make_pxa_case(
+        case, _embargo, proposal = _make_pxa_case(
             dl,
             case_id=case_id,
             coordinator_id=self.COORD_ID,
@@ -585,7 +718,9 @@ class TestInviteToEmbargoReceivedPxaGuard:
         )
 
         event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "EMB-01-002" in (result.reason or "")
 
         # BT was not run: EM state must remain NONE (no PROPOSED transition)
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -605,7 +740,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}/er"
         embargo_id = f"{case_id}/embargo_events/e1"
-        case, embargo, proposal = _make_pxa_case(
+        _case, _embargo, proposal = _make_pxa_case(
             dl,
             case_id=case_id,
             coordinator_id=self.COORD_ID,
@@ -616,13 +751,68 @@ class TestInviteToEmbargoReceivedPxaGuard:
 
         trigger_activity = TriggerActivityAdapter(dl)
         event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
-        InviteToEmbargoOnCaseReceivedUseCase(
+        result = InviteToEmbargoOnCaseReceivedUseCase(
             dl, event, trigger_activity=trigger_activity
         ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "EMB-01-002" in (result.reason or "")
 
         # ER activity must be in the outbox
-        outbox = dl.outbox_list()
-        assert len(outbox) == 1, f"Expected 1 ER in outbox; got {outbox}"
+        _sole_queued_reject(dl)
+
+    @pytest.mark.spec("EP-09-010")
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.parametrize(
+        ("to", "count"),
+        [([], 0), (["coord", "other"], 2)],
+        ids=["no-recipient", "two-recipients"],
+    )
+    def test_misrouted_ep_on_pxa_case_gets_a_fault_not_an_er(
+        self, make_payload, to, count
+    ):
+        """A misrouted EP is refused before the P/X/A check answers it.
+
+        EMB-01-002's ER answers a proposal this receiver was sent; an Invite
+        naming no recipient or several is a misrouting (EP-09-010), received
+        but not understood, so it is refused with the count and answered with
+        a ProcessingFault, never an ER (MSM-05-001).  Nothing is accepted, so
+        EMB-01-002's MUST NOT still holds.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.COORD_ID)
+        case_id = f"{self.CASE_ID}/misrouted/{count}"
+        recipients = {
+            "coord": self.COORD_ID,
+            "other": "https://example.org/actors/other-pxa",
+        }
+        _case, _embargo, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.COORD_ID,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            pxa_state_name="Pxa",
+            em_state=EM.NONE,
+            to=[recipients[name] for name in to],
+        )
+
+        event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
+        result = InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert f"names {count} 'to' recipients" in (result.reason or "")
+        assert "EMB-01-002" not in (result.reason or "")
+        (queued,) = dl.outbox_list()
+        sealed = read_sealed_body_dict(dl, queued)
+        assert sealed is not None
+        assert sealed["type"] == "Create"
+        assert sealed["object"]["type"] == "ProcessingFault"
+        assert sealed["object"]["failureClass"].endswith(
+            "MisroutedEmbargoInvite"
+        )
+        assert sealed["object"]["inReplyTo"] == proposal.id_
 
     def test_pxa_clear_allows_ep_processing(self, make_payload):
         """invite_to_embargo_on_case runs normally when pxa_state is clear."""
@@ -646,22 +836,45 @@ class TestInviteToEmbargoReceivedPxaGuard:
             id_=case_id, name="PXA clear", attributed_to=coordinator_id
         )
         dl.create(case)
+        # The CASE_MANAGER role is never unfilled (CM-24-006).
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant as CP,
+        )
+
+        cm_p = CP(
+            attributed_to=coordinator_id,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(cm_p)
+        case.actor_participant_index[coordinator_id] = cm_p.id_
+        dl.save(case)
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
             content="clear embargo",
             context=case_id,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
             embargo,
             context=case,
             actor=coordinator_id,
+            to=[coordinator_id],
             id_=f"{case_id}/proposals/p1",
         )
         dl.create(proposal)
 
         event = make_payload(proposal, receiving_actor_id=coordinator_id)
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         # Proposal must be stored (BT ran CreateAndStoreInviteNode)
         stored = dl.read(proposal.id_)
@@ -685,7 +898,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}"
         embargo_id = f"{case_id}/embargo_events/e1"
-        case, embargo, proposal = _make_pxa_case(
+        case, _embargo, proposal = _make_pxa_case(
             dl,
             case_id=case_id,
             coordinator_id=self.COORD_ID,
@@ -698,7 +911,11 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             proposal, context=case.id_, actor=self.COORD_ID
         )
         event = make_payload(accept, receiving_actor_id=self.COORD_ID)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event
+        ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "EMB-02-002" in (result.reason or "")
 
         # BT was not run: EM state must remain PROPOSED (not ACTIVE)
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -718,7 +935,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
         case_id = f"{self.CASE_ID}/{pxa_state_name}/er"
         embargo_id = f"{case_id}/embargo_events/e1"
-        case, embargo, proposal = _make_pxa_case(
+        case, _embargo, proposal = _make_pxa_case(
             dl,
             case_id=case_id,
             coordinator_id=self.COORD_ID,
@@ -732,16 +949,17 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         )
         trigger_activity = TriggerActivityAdapter(dl)
         event = make_payload(accept, receiving_actor_id=self.COORD_ID)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl, event, trigger_activity=trigger_activity
         ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "EMB-02-002" in (result.reason or "")
 
         # ER activity must be in the outbox
-        outbox = dl.outbox_list()
-        assert len(outbox) == 1, f"Expected 1 ER in outbox; got {outbox}"
+        _sole_queued_reject(dl)
 
     def test_pxa_clear_allows_ea_processing(self, make_payload):
-        """accept_invite_to_embargo_on_case activates embargo normally when pxa_state is clear."""
+        """accept_invite_to_embargo_on_case records consent when pxa_state is clear."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
@@ -758,18 +976,22 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         case = VulnerabilityCase(
             id_=case_id, name="PXA clear EA", attributed_to=coordinator_id
         )
-        case.append_case_status(em_state=EM.PROPOSED)
-        dl.create(case)
+        # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
+        seed_store_owner_as_case_manager(dl, case)
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
             content="clear embargo",
             context=case_id,
+            end_time=days_from_now_utc(45),
         )
+        propose(case, embargo.id_)
+        dl.create(case)
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,
             actor=coordinator_id,
+            to=[coordinator_id],
             id_=f"{case_id}/proposals/p1",
         )
         dl.create(proposal)
@@ -778,9 +1000,132 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             proposal, context=case.id_, actor=coordinator_id
         )
         event = make_payload(accept, receiving_actor_id=coordinator_id)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
-        # Embargo should be activated (BT ran SetEmbargoActiveNode)
+        # The Accept records the sender's consent and decides nothing
+        # (ADR-0122); EM stays PROPOSED.
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated is not None
-        assert updated.current_status.em.state == EM.ACTIVE
+        assert updated.current_status.em.state == EM.PROPOSED
+        record = dl.read(updated.actor_participant_index[coordinator_id])
+        assert isinstance(record, CaseParticipant)
+        assert record.consent_for(embargo.id_) == EmbargoConsentState.ACCEPTED
+
+
+class TestPxaRejectionAttribution:
+    """The P/X/A-guard ER is sent as the receiving actor.
+
+    EMB-01-002 / EMB-02-002 name the *receiver* as the actor that emits ER:
+    this store can only speak for its own actor, and emitting as the subject
+    would impersonate it.  An EP is answered only by its invitee (EP-09-010),
+    so an EP naming another invitee gets no ER at all.  In the EA test the
+    accepting actor is both sender and subject, so it tells the receiver apart
+    from the accepter but cannot tell "to the sender" apart from "to the
+    subject".
+    """
+
+    SENDER_ID = "https://example.org/actors/sender-pxa-attr"
+    RECEIVER_ID = "https://example.org/actors/receiver-pxa-attr"
+    INVITEE_ID = "https://example.org/actors/invitee-pxa-attr"
+    CASE_ID = "https://example.org/cases/c-pxa-attr"
+
+    def _dl(self):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        return SqliteDataLayer("sqlite:///:memory:", actor_id=self.RECEIVER_ID)
+
+    @pytest.mark.spec("EMB-01-002")
+    @pytest.mark.spec("PCR-08-001")
+    def test_ep_rejection_is_sent_as_receiver_to_case_manager(
+        self, make_payload
+    ):
+        """An EP to this receiver is rejected as it, to the CASE_MANAGER."""
+        dl = self._dl()
+        case_id = f"{self.CASE_ID}/ep"
+        _, _, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.SENDER_ID,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            pxa_state_name="Pxa",
+            em_state=EM.NONE,
+            to=[self.RECEIVER_ID],
+        )
+
+        event = make_payload(proposal, receiving_actor_id=self.RECEIVER_ID)
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        reject = _sole_queued_reject(dl)
+        assert ref_id(reject.actor) == self.RECEIVER_ID
+        assert [ref_id(r) for r in reject.to or []] == [self.SENDER_ID]
+
+    @pytest.mark.spec("EMB-01-002")
+    @pytest.mark.spec("HP-01-005")
+    def test_ep_naming_another_invitee_gets_no_er(self, make_payload):
+        """An EP addressed to another actor is refused at the door, unanswered.
+
+        The receiver is neither the sender nor named in ``to``/``cc``, so
+        no tree runs and EMB-01-002's ER duty — which binds only the
+        addressee — never arises (ADR-0118, #4132).
+        """
+        dl = self._dl()
+        case_id = f"{self.CASE_ID}/ep-other"
+        _, _, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.SENDER_ID,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            pxa_state_name="Pxa",
+            em_state=EM.NONE,
+            to=[self.INVITEE_ID],
+        )
+
+        event = make_payload(proposal, receiving_actor_id=self.RECEIVER_ID)
+        result = InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        reason = result.reason or ""
+        assert "neither the sender nor a recipient" in reason
+        assert self.RECEIVER_ID in reason and self.INVITEE_ID in reason
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("EMB-02-002")
+    def test_ea_rejection_is_sent_as_receiver_not_accepter(self, make_payload):
+        """An EA from the invitee is rejected as the receiving actor, to the invitee."""
+        dl = self._dl()
+        case_id = f"{self.CASE_ID}/ea"
+        case, _, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.SENDER_ID,
+            embargo_id=f"{case_id}/embargo_events/e1",
+            pxa_state_name="Pxa",
+            em_state=EM.PROPOSED,
+            # Realism only: the invitee accepts a proposal addressed to it.
+            to=[self.INVITEE_ID],
+        )
+        accept = em_accept_embargo_activity(
+            proposal,
+            context=case.id_,
+            actor=self.INVITEE_ID,
+            to=[self.RECEIVER_ID],
+        )
+
+        event = make_payload(accept, receiving_actor_id=self.RECEIVER_ID)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        reject = _sole_queued_reject(dl)
+        assert ref_id(reject.actor) == self.RECEIVER_ID
+        assert [ref_id(r) for r in reject.to or []] == [self.INVITEE_ID]

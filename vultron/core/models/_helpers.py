@@ -18,8 +18,17 @@
 import types
 import uuid
 from collections.abc import Iterable, Sequence
-from datetime import datetime, timedelta, timezone
-from typing import Any, Protocol, TypeVar, Union, get_args, get_origin
+from datetime import UTC, datetime, timedelta
+from typing import (
+    Annotated,
+    Any,
+    Protocol,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+    overload,
+)
 
 from pydantic import BaseModel
 from pydantic.alias_generators import to_camel
@@ -34,19 +43,62 @@ _datetime_type = datetime
 
 
 def now_utc() -> datetime:
-    return datetime.now(timezone.utc).replace(microsecond=0)
+    return datetime.now(UTC).replace(microsecond=0)
 
 
-def days_from_now_utc(days: int = 45) -> datetime:
+def from_now_utc(delta: timedelta) -> datetime:
+    """Return the UTC instant *delta* from now, at second precision (CS-13-004).
+
+    The one place embargo-deadline arithmetic lives: a resolved duration
+    (``InitialEmbargoDuration.duration``) becomes an ``end_time`` here, so
+    every deadline the application produces is aware, UTC and second-precise.
+    """
+    return now_utc() + delta
+
+
+def days_from_now_utc(days: int) -> datetime:
     """Return a UTC datetime *days* in the future, at second precision."""
-    return now_utc() + timedelta(days=days)
+    return from_now_utc(timedelta(days=days))
+
+
+@overload
+def require_future_aware(value: datetime, field: str = ...) -> datetime: ...
+
+
+@overload
+def require_future_aware(value: None, field: str = ...) -> None: ...
+
+
+def require_future_aware(
+    value: datetime | None, field: str = "end_time"
+) -> datetime | None:
+    """Return *value* when it is timezone-aware and in the future; else raise.
+
+    The one validator for a deadline a caller *states* — an embargo end, a
+    proposed embargo end — shared by the core trigger request models and the
+    HTTP body models that mirror them, so the two layers cannot drift on what
+    a well-formed deadline is (CS-13-001, CS-22-001).  ``None`` passes
+    through: an optional deadline that was not stated is not a deadline to
+    check.
+
+    Raises:
+        ValueError: naive (``tzinfo`` or ``utcoffset()`` is ``None``) or not
+            strictly after now.
+    """
+    if value is None:
+        return None
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{field} must be timezone-aware")
+    if value <= datetime.now(tz=UTC):
+        raise ValueError(f"{field} must be in the future")
+    return value
 
 
 #: Recency floor for statuses that carry no timestamps: they sort to the
 #: bottom. ``id_`` MUST NOT be used as a recency tiebreaker (CM-29-001) — its
 #: scheme (``urn:uuid`` vs ``https``) is an implementation artefact, not a
 #: time proxy.
-_MIN_UTC = datetime.min.replace(tzinfo=timezone.utc)
+_MIN_UTC = datetime.min.replace(tzinfo=UTC)
 
 
 def as_utc(value: datetime | None) -> datetime | None:
@@ -60,7 +112,7 @@ def as_utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
+        return value.replace(tzinfo=UTC)
     return value
 
 
@@ -96,7 +148,7 @@ def parse_published(value: Any) -> datetime | None:
     assert (
         aware is not None
     )  # parsed is a datetime here; as_utc only returns None for None input
-    return aware.astimezone(timezone.utc)
+    return aware.astimezone(UTC)
 
 
 def claimed_published_iso(activity_obj: Any) -> str:
@@ -219,6 +271,22 @@ def collapse_duplicate_spellings(
     return {k: v for k, v in data.items() if k not in drops}
 
 
+def strip_annotated(annotation: Any) -> Any:
+    """Return the bare type under an ``Annotated[...]``, else *annotation*.
+
+    The IRI branch of every reference union is ``NonEmptyString``, an
+    ``Annotated[str, AfterValidator(...)]`` (CS-08-001, CS-08-002).  Inside a
+    union Pydantic keeps that wrapper, so code that asks "does this slot admit a
+    string?" by testing ``branch is str`` stops seeing the branch the moment
+    the alias is tightened — and a reference slot is then misread as an
+    object-only slot.  Every annotation introspection that classifies a union
+    branch goes through this helper so the wrapper is transparent to it.
+    """
+    if get_origin(annotation) is Annotated:
+        return get_args(annotation)[0]
+    return annotation
+
+
 def _is_datetime_field(field: FieldInfo) -> bool:
     """Return whether *field* can hold a ``datetime``.
 
@@ -272,7 +340,7 @@ def absent_times_as_none(
     """Read every absent clock-defaulted timestamp in *data* as ``None``.
 
     A datetime field with a ``default_factory`` (``published``, ``updated``, an
-    embargo's ``start_time``/``end_time``, a ledger entry's ``received_at``)
+    embargo's ``start_time``, a ledger entry's ``received_at``)
     fills an omitted value from the *local* clock.  That is right when this
     process authors the object and wrong when it reconstructs one it received:
     the value would be a time no one claimed, and downstream it reads as the
@@ -320,11 +388,11 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
     refuses one boundary earlier, and the reason two replicas disagreed about
     which status was current (ISSUE-3257, CLP-15-007).
 
-    Interim helper for the handful of core sync/effect nodes that rebuild core
-    objects from inline snapshots.  It becomes redundant once the wire→core
-    ``WireParsePort`` designed in ADR-0082 (#2938) lands and owns wire→core
-    projection centrally; this is not a reintroduction of the retired
-    persistence-boundary normalisation (#2940).
+    Helper for the handful of core sync/effect nodes that rebuild core
+    objects from inline snapshots.  The ``WireParsePort`` ADR-0082 designed to
+    own this centrally (#2938) was rejected by ADR-0099, so this stays the
+    seam; it is not a reintroduction of the retired persistence-boundary
+    normalisation (#2940).
     """
     if not isinstance(data, dict):
         return data
@@ -339,7 +407,7 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
         return absent_times_as_none(cls, dict(data))
     # A snapshot carrying *both* spellings would collapse onto one key and lose
     # a value by iteration order, so reject a disagreement before remapping.
-    data = collapse_duplicate_spellings(
+    collapsed = collapse_duplicate_spellings(
         data,
         ((name, camel) for camel, name in remap.items()),
         owner=f"{cls.__name__} wire snapshot",
@@ -349,8 +417,7 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
     # not an alias the field itself declares, so reading first would take a
     # present ``receivedAt`` for an absent ``received_at``.
     projected: dict[str, Any] = {
-        remap[key] if key in remap else key: value
-        for key, value in data.items()
+        remap.get(key, key): value for key, value in collapsed.items()
     }
     return absent_times_as_none(cls, projected)
 
@@ -364,6 +431,9 @@ def _as_id(obj: Any) -> str | None:
 
     - If *obj* is ``None``, returns ``None``.
     - If *obj* has an ``id_`` attribute, returns ``obj.id_``.
+    - If *obj* is a ``dict`` (an inline object as stored), returns its ``id_``
+      or ``id`` string, so an inline case is named by its URI rather than by the
+      ``str()`` of the whole mapping.
     - Otherwise returns ``str(obj)``.
 
     This handles the mixed ``str | <wire-type>`` collections that arise when
@@ -371,7 +441,8 @@ def _as_id(obj: Any) -> str | None:
     """
     if obj is None:
         return None
-    id_ = getattr(obj, "id_", None)
+    id_ = obj.get("id_") or obj.get("id") if isinstance(obj, dict) else None
+    id_ = id_ or getattr(obj, "id_", None)
     if isinstance(id_, str):
         return id_
     return str(obj)

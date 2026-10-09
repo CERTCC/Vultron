@@ -12,9 +12,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 #
 #  See LICENSE for details
+import enum
 import logging
 import unittest
-import enum
 from itertools import product
 
 from vultron.bt import common as c

@@ -16,14 +16,13 @@
 """Shared fixtures for append subpackage tests."""
 
 import pytest
-import py_trees
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
@@ -34,11 +33,6 @@ CASE_ID = "https://example.org/cases/case-01"
 PARTICIPANT_ID = "https://example.org/cases/case-01/participants/vendor"
 CM_PARTICIPANT_ID = "https://example.org/cases/case-01/participants/case-actor"
 STATUS_ID = "https://example.org/cases/case-01/statuses/s1"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture

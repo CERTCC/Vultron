@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-08-03
+created: 2026-08-03
+updated: 2026-08-03
+revision: 1
 deciders: Allen D. Householder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # CaseActor Has Its Own RM Lifecycle Tracked via CaseParticipant
@@ -17,7 +21,7 @@ had no `ParticipantStatus` entries and therefore no RM state.
 
 With `Leave(VulnerabilityCase)` as the canonical RM closure path (ADR-0050),
 owner `Leave` must advance the Case Actor's own RM state to `RM.CLOSED` as
-the penultimate step before emitting the final `case_fully_closed`
+a step before emitting the `case_fully_closed`
 `CaseLedgerEntry` (CM-23-002). This requires the Case Actor to have a valid
 RM lifecycle starting from `RM.RECEIVED`.
 
@@ -103,7 +107,9 @@ Case Actor:
 - Each bootstrap transition must produce a `CaseLedgerEntry` in the canonical
   ledger.
 - Owner `Leave` processing must advance the Case Actor participant to
-  `RM.CLOSED` before emitting the final `case_fully_closed` entry.
+  `RM.CLOSED` before emitting the `case_fully_closed` entry. (Later
+  amended: `case_fully_closed` marks the ADR-0085 write boundary rather than
+  the final entry, and CM-23-014 places invite lapses between the two.)
 - `AllParticipantsRMClosedConditionNode` currently skips `CASE_MANAGER`;
   after the sidecar impl issue lands, this skip SHOULD be removed.
 - Implementation tracked in the sidecar issue from #1910 planning.

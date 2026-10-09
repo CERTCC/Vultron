@@ -101,9 +101,9 @@ def test_all_committed_examples_are_valid_json(committed_files):
         except json.JSONDecodeError as exc:
             invalid.append(f"{filename}: {exc}")
 
-    assert (
-        invalid == []
-    ), "Invalid JSON in committed examples:\n  " + "\n  ".join(invalid)
+    assert invalid == [], (
+        "Invalid JSON in committed examples:\n  " + "\n  ".join(invalid)
+    )
 
 
 def _key_paths(value: object, prefix: str = "") -> set[str]:

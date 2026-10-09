@@ -1,6 +1,5 @@
 ---
 title: "FVCV-extension Scenario: Finder + Vendor1 + Coordinator + Vendor2"
-status: stable
 causal_edges:
   - antecedent: validate_report
     consequent: engage_case
@@ -14,7 +13,7 @@ causal_edges:
       Case engagement triggers participant status entries.
   - antecedent: engage_case
     consequent: invite_actor_to_case
-    consequent_actor: vendor
+    consequent_actor: case-actor
     note: >
       Vendor1 invites the Coordinator to the case after engagement.
   - antecedent: invite_actor_to_case
@@ -24,14 +23,14 @@ causal_edges:
       The Coordinator accepts Vendor1's invitation; acceptance follows the invite.
   - antecedent: accept_invite_actor_to_case
     consequent: offer_case_participant
-    consequent_actor: coordinator
+    consequent_actor: case-actor
     note: >
       After joining, the Coordinator suggests Vendor2 via the actor-suggestion
       flow (ADR-0026).  The offer can only be submitted by a participant, so the
       Coordinator's acceptance must precede it.
   - antecedent: offer_case_participant
     consequent: accept_actor_recommendation
-    consequent_actor: vendor
+    consequent_actor: case-actor
     note: >
       Vendor1, as case owner, approves the Coordinator's suggestion.
   - antecedent: accept_actor_recommendation
@@ -74,17 +73,17 @@ The FVCV-extension scenario shows a **Vendor-initiated case** that grows through
 a Coordinator to include a second Vendor via the actor-suggestion flow.  The
 Finder reports to Vendor1, who owns and coordinates the case.  Vendor1 invites a
 Coordinator; the Coordinator then suggests Vendor2 to the case.  Vendor1, as
-case owner, approves the suggestion, and the CaseActor formally invites Vendor2.
+case owner, approves the suggestion, and the Case Actor formally invites Vendor2.
 
 Both vendors reach the fix-ready state before joint disclosure.
 
 **Participants:**
 
-- **Finder** — discovers the vulnerability; submits the initial report.
+- **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **Vendor1** — receives the report; validates, engages, and owns the case.
 - **Coordinator** — invited by Vendor1; suggests Vendor2.
 - **Vendor2** — joins via the actor-suggestion path; develops and ships a fix.
-- **CaseActor** — Vendor1's internal case-management sub-actor.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. Vendor1's platform hosts it, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -103,7 +102,7 @@ entries appear in the ledger.
 
 ### 3. Participant status records are created
 
-The CaseActor records initial `add_participant_status_to_participant` entries.
+The Case Actor records initial `add_participant_status_to_participant` entries.
 
 *Antecedent:* `engage_case` is in the ledger.
 
@@ -122,7 +121,7 @@ recorded.
 
 ### 6. Coordinator suggests Vendor2
 
-The Coordinator recognises that Vendor2 is affected and submits an
+The Coordinator recognizes that Vendor2 is affected and submits an
 `offer_case_participant` entry proposing Vendor2 for membership (ADR-0026).
 
 *Antecedent:* Coordinator's `accept_invite_actor_to_case` entry is in the ledger.
@@ -134,9 +133,9 @@ Vendor1, as case owner, reviews and approves the suggestion.  An
 
 *Antecedent:* `offer_case_participant` is in the ledger.
 
-### 8. CaseActor invites Vendor2
+### 8. Case Actor invites Vendor2
 
-The CaseActor, acting on Vendor1's approval, sends Vendor2 an
+The Case Actor, acting on Vendor1's approval, sends Vendor2 an
 `invite_actor_to_case` entry.
 
 *Antecedent:* `accept_actor_recommendation` is in the ledger.
@@ -145,7 +144,7 @@ The CaseActor, acting on Vendor1's approval, sends Vendor2 an
 
 Vendor2 reviews and accepts.  An `accept_invite_actor_to_case` entry is recorded.
 
-*Antecedent:* The CaseActor's `invite_actor_to_case` entry is in the ledger.
+*Antecedent:* The Case Actor's `invite_actor_to_case` entry is in the ledger.
 
 ### 10. Participants exchange notes
 

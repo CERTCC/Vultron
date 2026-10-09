@@ -1,0 +1,49 @@
+# A pull request that materially edits an ADR leaves its status on the epoch
+# ADR-0120 computes for that date (MS-14-007, MS-14-009).
+#
+# The check compares each changed ADR with its text at the merge base, so it
+# can fail only the pull request that made the edit. The clock alone never
+# fails a merge-blocking check; drift on ADRs a pull request did not touch is
+# reported by adr-status-drift.yml.
+
+name: ADR Lifecycle
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "docs/adr/**"
+      - "vultron/metadata/adr/**"
+      - ".github/workflows/adr-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  adr-lifecycle-check:
+    name: Edited ADRs Match Their Epoch
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Check the ADRs this pull request changes
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          base=$(git merge-base "origin/$BASE_REF" HEAD)
+          mapfile -t adrs < <(git diff --name-only --diff-filter=AMR "$base" HEAD -- 'docs/adr/*.md')
+          if [ "${#adrs[@]}" -eq 0 ]; then
+            echo "No ADR changed."
+            exit 0
+          fi
+          PYTHONPATH='' uv run python -m vultron.metadata.adr.lifecycle --base "$base" "${adrs[@]}"

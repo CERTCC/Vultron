@@ -1,10 +1,14 @@
 ---
 status: accepted
 date: 2026-08-26
+created: 2026-08-26
+updated: 2026-08-26
+revision: 1
 deciders: Allen D. Householder
 consulted: CERTCC/Vultron contributors
 informed: Vultron protocol working group
 lint_suppress: [status_prose_contradiction]
+stakeholder_type: [project-contributor]
 ---
 
 # Retire `CVDRole.FINDER` — Reporter Is the Protocol-Salient Role

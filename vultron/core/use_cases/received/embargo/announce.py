@@ -1,0 +1,143 @@
+"""Received ``Announce(EmbargoEvent)``."""
+
+import logging
+from typing import TYPE_CHECKING, ClassVar
+
+if TYPE_CHECKING:
+    from vultron.core.ports.wire_render import WireRenderPort
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.announce_received_tree import (
+    announce_embargo_received_tree,
+)
+from vultron.core.behaviors.embargo.nodes import (
+    ApplyAnnouncedEmbargoRevisionNode,
+)
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events.embargo import (
+    AnnounceEmbargoEventToCaseReceivedEvent,
+)
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
+from vultron.core.ports.case_persistence import CasePersistence
+
+if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
+
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    SenderEntitlementKind,
+    SenderMayAssertEmbargoNode,
+)
+from vultron.core.use_cases._helpers import (
+    resolve_receiving_actor_id,
+    unaddressed_copy_refusal,
+)
+from vultron.core.use_cases.received._bt_verdict import (
+    applied_or_raise,
+    find_node,
+    verdict_from_bt,
+)
+from vultron.core.use_cases.received._sender_preflight import sender_refusal
+from vultron.core.use_cases.received._store_only import run_store_only
+
+logger = logging.getLogger(__name__)
+
+
+class AnnounceEmbargoEventToCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_MANAGER
+    )
+
+    def __init__(
+        self,
+        dl: CasePersistence,
+        request: AnnounceEmbargoEventToCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
+    ) -> None:
+        self._dl = dl
+        self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
+        self._request: AnnounceEmbargoEventToCaseReceivedEvent = request
+
+    def execute(self) -> HandlerResult:
+        request = self._request
+        # Door check before any tree or write: an unaddressed copy is
+        # refused (HP-01-005, ADR-0118).
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+        if (
+            refusal := unaddressed_copy_refusal(
+                receiving_actor_id, request, label="Announce(EmbargoEvent)"
+            )
+        ) is not None:
+            return refusal
+        # The announcement is canonical case state, so only the CASE_MANAGER
+        # makes it, at every replica (EP-09-003, PCR-03-001, ADR-0115).  The
+        # guard runs ahead of the store-only tree, so a refused sender leaves
+        # nothing behind.
+        if (
+            refusal := sender_refusal(
+                self._dl,
+                receiving_actor_id,
+                SenderMayAssertEmbargoNode(
+                    case_id=request.case_id,
+                    sender_actor_id=request.actor_id,
+                ),
+                label="Announce(EmbargoEvent)",
+                sync_port=self._sync_port,
+            )
+        ) is not None:
+            return refusal
+        case_id, embargo_id = request.case_id, request.embargo_id
+        if case_id is None or embargo_id is None:
+            tree, result = run_store_only(
+                self._dl,
+                request,
+                name="AnnounceEmbargoEventToCaseReceivedBT",
+                sync_port=self._sync_port,
+                wire_render_port=self._wire_render_port,
+            )
+            applied_or_raise(
+                tree, result, label="AnnounceEmbargoEventToCaseReceivedBT"
+            )
+            return self._no_change()
+        # A replica whose ledger stream is paused applies a shorter revision
+        # from the CASE_MANAGER's notice (CM-31-009, CM-31-010); any other
+        # replica only archives it and takes the change from the ledger.
+        embargo = request.embargo
+        tree = announce_embargo_received_tree(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            embargo=embargo if isinstance(embargo, EmbargoEvent) else None,
+        )
+        result = BTBridge(
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        ).execute_with_setup(
+            tree=tree, actor_id=receiving_actor_id, activity=request
+        )
+        # A revision this replica cannot hold (another case's embargo, or
+        # one it cannot read) is the sender's fault: refused, not raised.
+        verdict = verdict_from_bt(
+            tree, result, label="AnnounceEmbargoEventToCaseReceivedBT"
+        )
+        if verdict.disposition is not HandlerDisposition.APPLIED:
+            return verdict
+        apply_node = find_node(tree, ApplyAnnouncedEmbargoRevisionNode)
+        if apply_node is not None and apply_node.applied:
+            return verdict
+        return self._no_change()
+
+    def _no_change(self) -> HandlerResult:
+        logger.info(
+            "Received embargo announcement '%s' — no receiver-side state"
+            " change required",
+            self._request.activity_id,
+        )
+        return HandlerResult.skipped("no receiver-side state change")

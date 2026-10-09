@@ -33,39 +33,29 @@ from pydantic import (
 )
 
 from vultron.core.models.base import ValidatedAssignmentMixin
-
 from vultron.core.states.cs import (
-    CS_d,
-    CS_pxa,
-    CS_vf,
     D_FIX_DEPLOYED,
-    D_Trigger,
     PXA_ATTACKS_OBSERVED,
     PXA_EXPLOIT_PUBLIC,
     PXA_PUBLIC_AWARE,
-    PxaState,
     VF_FIX_READY,
-    VF_Trigger,
     VF_VENDOR_AWARE,
+    CS_d,
+    CS_pxa,
+    CS_vf,
+    D_Trigger,
     PXA_Trigger,
+    PxaState,
+    VF_Trigger,
     _d_transitions,
     _pxa_transitions,
     _vf_transitions,
 )
-from vultron.core.states.em import (
-    EM,
-    EM_Trigger,
-    _transitions as _em_transitions,
-)
-from vultron.core.states.participant_embargo_consent import (
-    PEC,
-    PEC_Trigger,
-    _transitions as _pec_transitions,
-)
+from vultron.core.states.em import EM
 from vultron.core.states.rm import (
     RM,
-    RM_Trigger,
     RM_VALIDATED,
+    RM_Trigger,
     _transitions as _rm_transitions,
 )
 from vultron.errors import VultronInvalidStateTransitionError
@@ -93,19 +83,6 @@ def _coerce_rm(v: object) -> RM:
         except KeyError:
             raise ValueError(f"Unknown RM value: {v!r}") from None
     raise ValueError(f"Cannot coerce {v!r} to RM")
-
-
-def _coerce_pec(v: object) -> PEC:
-    if isinstance(v, PEC):
-        return v
-    if isinstance(v, str):
-        if v == "NO_EMBARGO":
-            return PEC.UNBOUND
-        try:
-            return PEC[v]
-        except KeyError:
-            raise ValueError(f"Unknown PEC value: {v!r}") from None
-    raise ValueError(f"Cannot coerce {v!r} to PEC")
 
 
 def _coerce_pxa(v: object) -> CS_pxa:
@@ -152,11 +129,12 @@ def _apply_transition(
     """Return the destination state for (current_state, trigger).
 
     Raises VultronInvalidStateTransitionError when no matching transition exists.
-    Supports wildcard source "*" (PEC RESET).
+    Every source is an explicit state: a trigger with no matching
+    source for the current state is refused.
     """
     for t in transitions:
         src = t.get("source")
-        if src != current_state and src != "*":
+        if src != current_state:
             continue
         if t.get("trigger") != trigger:
             continue
@@ -234,7 +212,9 @@ class _ScalarDimension(ValidatedAssignmentMixin, BaseModel):
 class EmDimension(_ScalarDimension):
     """Embargo Management state dimension object.
 
-    Holds the case-level EM state and owns immutable transition validation.
+    Holds the case-level EM state a status carries.  It has no transitions:
+    EM is derived from the case's embargo register (ADR-0122), and a case
+    stamps the derived value onto its current status.
     Replaces CaseStatus.em_state (SDO-01-001, SDO-03-001).
     """
 
@@ -244,16 +224,6 @@ class EmDimension(_ScalarDimension):
     @classmethod
     def validate_state(cls, v: object) -> EM:
         return _coerce_em(v)
-
-    def transition(self, trigger: EM_Trigger) -> "EmDimension":
-        """Return a new EmDimension with the state after applying *trigger*.
-
-        Raises VultronInvalidStateTransitionError on invalid trigger.
-        """
-        new_state = _apply_transition(
-            self.state, trigger, _em_transitions, "EmDimension"
-        )
-        return self.model_copy(update={"state": EM(str(new_state))})
 
     def is_active(self) -> bool:
         return self.state in (EM.ACTIVE, EM.REVISE)
@@ -401,42 +371,3 @@ class DDimension(_ScalarDimension):
 
     def is_fix_deployed(self) -> bool:
         return self.state in D_FIX_DEPLOYED
-
-
-class PecDimension(_ScalarDimension):
-    """Participant Embargo Consent dimension object.
-
-    Holds a single participant's embargo consent state and owns immutable
-    transition validation.  Replaces ParticipantStatus.em_consent_state
-    (SDO-01-001, SDO-03-002).
-    """
-
-    state: PEC = PEC.UNBOUND
-
-    @field_validator("state", mode="before")
-    @classmethod
-    def validate_state(cls, v: object) -> PEC:
-        return _coerce_pec(v)
-
-    def transition(self, trigger: PEC_Trigger) -> "PecDimension":
-        """Return a new PecDimension with the state after applying *trigger*.
-
-        Raises VultronInvalidStateTransitionError on invalid trigger.
-        Supports the RESET wildcard ("*" → UNBOUND from any state).
-        """
-        new_state = _apply_transition(
-            self.state, trigger, _pec_transitions, "PecDimension"
-        )
-        return self.model_copy(update={"state": PEC(str(new_state))})
-
-    def is_signatory(self) -> bool:
-        return self.state == PEC.SIGNATORY
-
-    def is_declined(self) -> bool:
-        return self.state == PEC.DECLINED
-
-    def is_invited(self) -> bool:
-        return self.state == PEC.INVITED
-
-    def is_lapsed(self) -> bool:
-        return self.state == PEC.LAPSED

@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # How to find your way around the codebase
 
 Use this guide when you need a fast orientation to the files maintainers touch

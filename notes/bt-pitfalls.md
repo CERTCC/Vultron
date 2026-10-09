@@ -10,10 +10,15 @@ description: >
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
+  - specs/case-ledger-processing.yaml
+  - specs/case-management.yaml
   - specs/case-proposal.yaml
   - specs/code-style.yaml
+  - specs/received-status-handling.yaml
+  - specs/participant-case-replica.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/sync-ledger-replication.md
   - notes/call-out-configuration.md
   - notes/bt-canonical-reference.md
   - notes/bt-design-patterns.md
@@ -22,6 +27,8 @@ related_notes:
   - notes/received-status-authorization.md
   - notes/testing-pitfalls.md
   - notes/protocol-asks.md
+  - notes/peer-broadcast-failure-semantics.md
+  - notes/agentic-workflow.md
 relevant_packages:
   - py_trees
   - vultron/core/behaviors
@@ -297,9 +304,15 @@ FAILURE, but local state written by the successful earlier children persists.
 
 **Design implication**: When using `memory=False` sequences for partially-
 reversible operations, document which steps are non-transactional and what
-state is committed if a later step fails. Tests MUST assert partial-write
-behavior explicitly so future readers do not assume FAILURE → no writes
-occurred.
+state is committed if a later step fails.
+Tests MUST assert partial-write behavior explicitly so future readers do not
+assume FAILURE → no writes occurred.
+
+**BT-19-001 prescription**: To prevent partial writes on a failing guard,
+place every read-only guard node (case-existence check, role resolution,
+routing prerequisite) **before** any state-mutation node in the sequence.
+A failing guard then leaves zero DataLayer state behind (BTND-06-005,
+BT-19-001).
 
 For the note-domain worked example, see
 `vultron/core/behaviors/note/AGENTS.md` § "`memory=False` Note Sequence".
@@ -321,9 +334,9 @@ there is an explicit opt-in, described in the section below.
 
 Note the discriminator, because it is easy to get backwards: a key the *caller*
 passes as a `context_data` kwarg **is** managed and restored, even when a node
-also writes it. Flat `/suggested_roles` is that case — `SvcInviteActorToCaseUseCase`
-puts it in `_extra_execute_kwargs()`, so it arrives as `context_data` — and it is
-therefore not an example of this rule.
+also writes it. The flat `/suggested_roles` key was that case until #3821 deleted the
+trigger tree that took it as a `context_data` kwarg; the roles now travel in the
+owner's Offer (CM-17-007).
 
 The same noun covers both cases, so name the key form and not the noun: the
 *namespaced* `/suggested_roles_{id_segment}` written by `EvaluateDefaultRolesNode`
@@ -389,6 +402,14 @@ key in `managed_keys` is how a node-written key opts *in* to bridge teardown.)
 not clear a blackboard key it does not own (CONCERN-2711), because a peer that
 legitimately owns the key would see it corrupted. Ownership stays with the
 producer; *lifetime* is enforced by the bridge.
+
+**`rm_transition_anomaly` is managed too** (#4310). The RM adjudication guards
+publish it and `EmitRMGapNoteNode` reads it. As a refusal effect (CLP-10-022)
+the note runs after *any* precondition guard refuses, including one ahead of
+the adjudication that never ran it, so a previous execution's anomaly would be
+noted again. A test that inspects the key wraps the tree in
+`RMAnomalyProbe` (`test/support/rm_declaration.py`) instead of reading the
+blackboard after the run.
 
 **`activity` and `context_data` keys are also managed** (#3161): `setup_tree`
 writes the `activity` key (when provided) and all `**context_data` keyword
@@ -617,15 +638,19 @@ occurred", because the pattern immediately above defeats it twice over:
   calling node's *own* `except Exception` in `update()` and converted to
   `Status.FAILURE`. So the outer bridge sees an ordinary failure and the flag
   stays `False` — verified at `case/nodes/actor.py`.
-- The nine nodes that run a subtree through their own `BTBridge` discard the
+- Most nodes that run a subtree through their own `BTBridge` discard the
   inner `result.internal_error` and return a bare `Status.FAILURE`
-  (`case/nodes/lifecycle.py`, `status/nodes/case_status.py`, and seven more), so
-  a crash inside a subtree is invisible in the outer result.
+  (`case_status_snapshot.py` and several more), so a crash inside a subtree
+  is invisible in the outer result.
 
-Both gaps are uniform across every nested-bridge site — there is no site where
-the flag survives the hop. Propagating it through nested calls is tracked on
-CONCERN-3019; until then, do not branch on `internal_error is False` as
-evidence that a failure was deliberate.
+The exception is `CommitCaseLedgerEntryNode` (`case/nodes/lifecycle.py`). It
+raises `VultronBTInternalError` when its nested commit reports
+`internal_error`, and `BTBridge` classifies that exception as internal. Every
+received commit runs through it, so a missing sync port reaches the handler
+as an internal error, not a refusal (#4113, ADR-0095). Use the same idiom at
+another nested site rather than a new one. Propagating the flag through the
+remaining nested calls is tracked on CONCERN-3019; until then, do not branch
+on `internal_error is False` as evidence that a failure was deliberate.
 
 On the test side the mirror-image rule — a FAILURE assertion must prove the
 harness can produce the reason it names — is in
@@ -935,6 +960,32 @@ be **one** actor (BT-05-006); letting any two drift is a silent skip.
 
 Source: ISSUE-2238
 
+### The Store Is Not the Subject
+
+The two rules above pick **which store** a received-side tree runs in. They say
+nothing about **whose state** the tree writes, and conflating them produced two
+RM handlers that advanced the wrong participant (CONCERN-3473, ADR-0108). The
+report-invalid and report-closed received trees passed
+`actor_id=receiving_actor_id` to `CreateParticipantStatusNode`, and the tests that
+pinned them (`test/core/use_cases/received/test_report_routing_guard.py`) asserted
+that *the receiving actor's* participant went INVALID/CLOSED — reading "the tree
+runs as B" as "the write is about B". The report-valid handler beside them passed
+`sender_actor_id`. #3812 fixed both: the factories no longer take an actor at all
+and read the subject from `request.actor_id`, and the tests were inverted to pin
+the sender's write while still pinning the store.
+
+The rule (RSH-08-001): a received activity is an assertion about the **sender's**
+state (HP-00-001), so the subject of every received-side RM write is
+`request.actor_id`. The receiving actor's own RM moves on receipt only when it is
+itself the mover — sender and receiver are the same actor, or CM-23-002 directs
+the CASE_MANAGER to advance its own participant on owner departure. When you make
+the subject explicit per BTND-10-005, check that the explicit value is the
+sender, not merely that it is explicit: ADR-0089 removed the blackboard fallback
+precisely so this choice would be visible, and a visibly wrong choice still
+passes that ratchet.
+
+Source: CONCERN-3473
+
 ## BT Write Nodes Must Validate Transitions at Their Own Boundary
 
 A BT node that writes CS/VFD/PXA/EM/RM state MUST validate the transition inside
@@ -1210,5 +1261,142 @@ Two corollaries worth keeping:
   per-request record exists, the indexed read *is* the correct probe, and the
   scan degrades to a legacy fallback that a negative indexed prefilter can skip.
 
+The general form — fix every member of the set, not the site the report names —
+is in `notes/agentic-workflow.md` § "Enumerate the Affected Set From Its
+Consumers, Not From the Site the Report Names".
+
 *Source: ISSUE-3399, found by two pre-PR review passes on #1315 — the second
 pass broke the first pass's fix.*
+
+---
+
+## Emit and Broadcast Nodes Fail Loudly
+
+- **An emit node in a case-scoped trigger BT resolves the CASE_MANAGER
+  recipient before enqueueing** and returns FAILURE when it cannot (PCR-08-011).
+  An emit that returns without setting `to` surfaces far away, as
+  `VultronOutboxToFieldMissingError` in the outbox handler (#927).
+- **A peer broadcast node must not mask delivery failure**: it returns FAILURE
+  when broadcast preparation or outbox enqueueing fails, never a guaranteed
+  SUCCESS fallback (BT-14-001). See `notes/peer-broadcast-failure-semantics.md`.
+
+---
+
+## A Received Tree Gets Its CASE_MANAGER Gate From the Factory (BT-17-008)
+
+The gate was added to received trees one at a time, and every manual sibling
+scan found the next miss (#3746, #2667, #3752, #3823, #3825).
+The cause was structural: about fifteen trees each wrapped their effects in
+`create_case_manager_gated_tree` by hand, so a new tree could simply leave it out.
+
+- **`create_receive_activity_tree` is the one place that applies the gate.**
+  It takes `manager_effects` (wrapped by the factory in a `CaseManagerGate`,
+  after the commit) and `replica_effects` (run on every replica, ungated).
+  `manager_gate_name` names the gate (default `{name}IfCaseManager`),
+  `manager_body_name` names the Sequence wrapping several effects (default
+  `{gate}Body`), and `manager_case_may_be_absent` passes through to
+  `CheckIsCaseManagerNode`.
+  A received-tree module does not call `create_case_manager_gated_tree` itself.
+- **Emit-capable nodes carry one shared marker.**
+  `EmitCapable` (`vultron/core/behaviors/emit_capable.py`) is mixed into
+  `_EmitSingleActivityBase`, `_SendEmbargoActivityBase`,
+  `RelayEmbargoInviteToEachNode`, `BroadcastCaseUpdateNode`, `QueueToOutboxNode`,
+  `UpdateActorOutbox` and the few hand-rolled outbox writers.
+  The factory raises `VultronWiringError` at construction when a marked node sits
+  in `replica_effects` outside every `CaseManagerGate` and no exemption covers it,
+  so a tree that skips the gate cannot be built.
+  An emit nested in a gate a shared helper built (the embargo relay guard) is
+  inside the gate and passes; the participant-replica gate is not a
+  CASE_MANAGER gate and does not.
+  Only `create_case_manager_gated_tree` constructs a `CaseManagerGate`, so the
+  type always carries the role check.
+- **Ledger replication carries no marker.**
+  A node that sends through `SyncActivityPort` or runs
+  `create_commit_log_entry_tree` (whose fan-out announces the entry) is gated by
+  ledger authority, not the case role: only the store holding the canonical log
+  mints and fans out (`DeclineForeignLedgerCommitNode`, ADR-0073). Those classes
+  are a pinned set, `LEDGER_REPLICATION_SENDERS`, so a new one is classified.
+- **The gate's case id is its own argument.**
+  Several received trees pass `case_id=None` to skip the commit stage
+  (`update_tree`, the close-case tree) yet still gate an emit on a real case.
+  `manager_case_id` therefore names the case to gate on separately from the
+  commit's `case_id`, and the factory orders the stages
+  intake → guards → commit → `replica_effects` → `manager_effects`.
+- **A by-design ungated emit is a named exemption with a reason.**
+  `replica_emit_exemption` takes a `ReplicaEmitExemption`
+  (`vultron/core/behaviors/replica_emit_exemptions.py`): a name, the reason, and
+  `covers`, the emit classes the decision admits.
+  The factory refuses an exemption not in `REPLICA_EMIT_EXEMPTIONS`, an
+  ungated emitter outside `covers`, and an exemption that covers nothing in the
+  tree (stale).
+  The registered decisions are the ack echo, the offer-role tree, the
+  case-proposal tree, the report receiver's case proposal, the RSH and
+  case-status trees, the RM gap notes of the engage, defer, validate, close
+  and invalidate trees, the embargo-Invite answer and the P/X/A refusal ER.
+  An exemption kept only to preserve behaviour during a migration names the
+  issue that deletes it in its reason; the last two such cases (the
+  Remove(EmbargoEvent) teardown announce, #4323, and the genesis pre-seed,
+  #4324) are now gone.
+  A sender check added to a tree without a named exemption never passes,
+  because it says nothing about whether this replica owns the case (#2667).
+- **Refusal effects get the same gate.**
+  `refusal_effects` run only when a precondition guard refuses, and the factory
+  wraps them in a `CaseManagerGate` (`{name}RefusalIfCaseManager`) with
+  `case_may_be_absent=True` on the tree's `case_id`: the
+  CASE_MANAGER adjudicates, so only it answers, and a refusal of an unknown case
+  is already reported by the guard. See
+  [bt-integration.md](bt-integration.md) § "The Four Received-Side Stages"
+  (CLP-10-022).
+- **`effect_nodes` is the unchecked legacy form, kept only for the close-case
+  tree.**
+  It cannot be mixed with the two new kinds, so a tree migrates whole.
+  Every other received tree moved off it (#4307); the close-case tree's
+  ungated decline emit is a bug (#3825), and the parameter goes when that
+  tree moves.
+- **The ratchets** live in `test/architecture/test_received_tree_case_manager_gate.py`
+  (ARCH-18-001, ARCH-18-005): `KNOWN_DIRECT_GATE_CALLERS` and
+  `KNOWN_LEGACY_EFFECT_NODES` shrink to empty, one `# owner:` per entry
+  (only #3825's close-case tree remains); the exemption uses and the gate
+  callers that build no received tree are pinned exemption sets.
+  `KNOWN_DIRECT_GATE_CALLERS` is already empty (#4300, #4301, #4302).
+- **The factory runs `manager_effects` last, so an effect that must follow the
+  gate has to move.**
+  Where a replica-side step followed the gate only because the gated work had
+  to finish first, and the gate and the participant-replica arm are mutually
+  exclusive and cover every receiver, the step goes at the end of each arm
+  (the embargo-Invite proposal index).
+  A gated emit inside a conditional branch whose guards cannot be re-checked
+  after the branch runs is not split from it: each arm builds the whole branch
+  from one helper. The Remove(EmbargoEvent) tree's participant-replica arm
+  tears down its own copy; its `manager_effects` arm tears down, announces and
+  backfills (`_teardown_if_active`, #4323).
+  Where an emit must precede a later step and that step is also the
+  CASE_MANAGER's alone, both move into `manager_effects` in order: the
+  reject-log-entry tree's replication state, genesis pre-seed and replay
+  (SYNC-03-005, SYNC-15-002, #4324). Never keep the order with an in-place
+  `Selector[Sequence[check, emit], Success]`: at the CASE_MANAGER it reads a
+  failed emit as a skip (BTND-07-005).
+  A gated subtree a use case also runs standalone, given no activity, lives
+  outside the received-tree modules and is pinned in
+  `GATE_CALLERS_OUTSIDE_RECEIVED_TREES` (the embargo admission backfill).
+- **State writes carry their own marker, checked on the built tree.**
+  `StateWriteCapable` (`vultron/core/behaviors/state_write_capable.py`) marks
+  every node that writes participant or case state (RSH-08-003); the factory
+  does not refuse it yet. `test/architecture/test_received_tree_state_writes_are_gated.py`
+  builds every received tree (`_received_tree_builds.py`) and walks it with
+  the same `ungated_nodes` the emit check uses: a marked node outside every
+  `CaseManagerGate` is either in the `KNOWN_UNGATED_STATE_WRITES` ratchet
+  (owner #3814, the gating half) or in the pinned `REPLICA_STATE_WRITES` set
+  (the ledger replay and the bootstrap trees that mint or seed a case).
+  A class reaching a state-write seam either carries the marker or is pinned in
+  `WRITES_NO_CASE_STATE` with its reason, so storing a received object,
+  ledger records and local bookkeeping stay visible decisions. A seam is
+  reached directly (`dl.save`, `EmbargoLifecycle`, `apply_pec_transition`),
+  through a helper function (derived by a text fixed point, never listed), or
+  by a leaf node that builds a writer node and ticks it itself
+  (`RMClosureWriter`): that inner write is invisible to the tree walk, so the
+  outer node carries the marker.
+  Move a write into `manager_effects` only after its replay slot exists
+  (RSH-08-004).
+
+*Source: ISSUE-3830.*

@@ -7,7 +7,6 @@ description: Requirements for participant assertions, CASE_MANAGER canonicalizat
   the process log, the CASE_MANAGER inbox routing path that enables ledger entry authorship,
   and the causal-ordering model that makes log_index order the authoritative causal
   sequence.
-version: 1.4.0
 scope:
 - prototype
 - production
@@ -34,6 +33,7 @@ groups:
   - id: CLP-01-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The protocol MUST NOT require a separate "asserted mode" marker on
       ordinary participant activities for case/proto-case flows
   - id: CLP-01-003
@@ -50,6 +50,7 @@ groups:
   - id: CLP-01-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Participant replicas MUST NOT project shared case state directly from
       peer assertions
 - id: CLP-02
@@ -102,6 +103,7 @@ groups:
   - id: CLP-02-005
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: When the CASE_MANAGER rejects an incoming assertion, the rejection
       outcome MUST be emitted as a `Reject` protocol activity directed at the
       asserting participant; it MUST NOT be written to the canonical case ledger.
@@ -135,6 +137,7 @@ groups:
   - id: CLP-02-009
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The `log_index` field of a `CaseLedgerEntry` MUST NOT be assigned by
       external parties.
     rationale: Allowing external parties to set log_index would enable index spoofing,
@@ -299,12 +302,14 @@ groups:
   - id: CLP-05-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Rejection outcomes MUST NOT be recorded as entries in the canonical
       case ledger; the canonical ledger contains only accepted protocol-significant
       assertions (see CLP-04-007).
   - id: CLP-05-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Implementations MUST NOT write local-only tracking markers or
       duplicate-detection markers as `CaseLedgerEntry` objects of any kind; such
       markers belong in ephemeral per-actor stores (e.g., `PendingAssertionStore`),
@@ -321,6 +326,7 @@ groups:
   - id: CLP-06-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Pending assertion state MUST NOT be treated as canonical case history
       and MUST NOT be used as the authoritative source for participant membership
       or case state reconstruction
@@ -348,6 +354,7 @@ groups:
   - id: CLP-06-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Pending assertion timeout handling MUST NOT automatically retry assertion
       emission; follow-up emission decisions MUST be made by subsequent behavior evaluation
   - id: CLP-06-006
@@ -367,7 +374,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: A `CaseLedgerEntry` committed to the canonical case ledger MUST correspond
-      to exactly one CASE_MANAGER-accepted protocol-significant assertion.
+      to exactly one CASE_MANAGER-accepted protocol-significant assertion. A state
+      change the CASE_MANAGER itself writes, such as the RM transitions it records
+      for a leaving participant (CM-23-001), is such an assertion, with the CASE_MANAGER
+      as asserter.
     verification: Integration tests in `test/demo/` confirm that each protocol-significant
       assertion accepted by the CASE_MANAGER produces exactly one new `CaseLedgerEntry`
       in the canonical ledger, with no duplicate entries for the same protocol event.
@@ -390,6 +400,7 @@ groups:
   - id: CLP-07-012
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The `payloadSnapshot` of a `CaseLedgerEntry` MUST NOT be empty for
       non-rejection entries.
     rationale: An empty payload snapshot for a recorded entry breaks deterministic
@@ -400,11 +411,21 @@ groups:
     kind: protocol
     statement: Each logical state change MUST produce at most one canonical `CaseLedgerEntry`;
       the CASE_MANAGER MUST NOT commit both an accepted-participant-assertion entry and
-      a separately-synthesized CASE_MANAGER entry for the same state change
+      a separately-synthesized CASE_MANAGER entry for the same state change.
+      An act and the state transitions the CASE_MANAGER records as its
+      consequence are different facts, not the same state change. The
+      `close_case` entry records a received Leave, and the status entries that
+      follow it record the RM transitions the Leave caused (CM-23-001).
     verification: Integration tests in `test/demo/` confirm that each logical state
       change produces at most one `CaseLedgerEntry`; no test scenario produces both
       an accepted-participant-assertion entry and a separately-synthesized CASE_MANAGER
-      entry for the same state change.
+      entry for the same state change. The case-ledger invariant harness
+      (`test/ci/invariants/common.py`) asserts, for every replica of every scenario,
+      that no two entries carry the same `payloadSnapshot.id` — the duplicate
+      observed when an emitting tree committed an Invite and a self-addressed copy of
+      it committed the same Invite again (#2996, ADR-0109).
+    adr:
+    - ADR-0109
     stories:
     - story_2022_045
   - id: CLP-07-003
@@ -417,7 +438,11 @@ groups:
       envelope and in recording metadata; it MUST NOT be substituted for a participant-asserter's
       identity. When the CASE_MANAGER also holds a participant role in the case, their
       identity in `payloadSnapshot.actor` is the correct asserter identity and is not
-      a substitution.
+      a substitution. A state change the CASE_MANAGER writes itself has no inbound
+      activity to compare against. Its `payloadSnapshot.actor` is the CASE_MANAGER,
+      the true asserter, and the comparison does not apply. The RM status entries
+      that follow a `close_case` entry (CM-23-001) are of this kind, and the leaving
+      participant's own act stays attributed to them in the `close_case` entry.
     rationale: ADR-0088 makes authority role-based rather than identity-based, so a
       `CVDRole.CASE_MANAGER` holder may simultaneously hold a participant role and
       legitimately assert any participant-role activity. Enforcing this at the receive-pipeline
@@ -427,13 +452,17 @@ groups:
       `lifecycle.CommitCaseLedgerEntryNode` raises `VultronCanonicalEntryError` when
       `payloadSnapshot.actor` does not match the inbound activity's `actor_id`. A
       companion test confirms that a CASE_MANAGER who also participates in a case can
-      add entries (e.g. `Add(Note)`) without error.
+      add entries (e.g. `Add(Note)`) without error. A further test confirms that the
+      status entries committed after a `close_case` entry carry the CASE_MANAGER as
+      `payloadSnapshot.actor` and commit without error, while the `close_case` entry
+      itself names the leaving participant.
     stories:
     - story_2022_045
     - story_2022_089
   - id: CLP-07-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The canonical case ledger MUST NOT contain runtime diagnostics, demo
       checkpoints, synthetic verification markers, troubleshooting events, or any
       per-actor observability content; such content belongs in the per-actor process
@@ -447,15 +476,20 @@ groups:
   - id: CLP-07-006
     priority: MUST
     kind: protocol
-    statement: Nested protocol objects referenced from a `payloadSnapshot` (e.g.,
-      `EmbargoEvent`, `VulnerabilityReport`, `Note`, `ParticipantStatus`) MUST be
-      embedded inline as full objects in the snapshot; ID-string substitutions that
-      require an out-of-band DataLayer lookup to resolve MUST NOT be used in canonical
-      snapshots
-    verification: '`test/core/behaviors/case/test_ledger_snapshots.py` confirms that
-      nested objects such as `EmbargoEvent`, `VulnerabilityReport`, and `Note` appear
-      as fully inlined AS2 objects in committed snapshots, with no bare ID strings
-      remaining for those types.'
+    statement: >-
+      Nested protocol objects referenced from a `payloadSnapshot` (e.g., `EmbargoEvent`,
+      `VulnerabilityReport`, `Note`, `ParticipantStatus`) MUST be embedded inline as full objects
+      in the snapshot; ID-string substitutions that require an out-of-band DataLayer lookup to
+      resolve MUST NOT be used in canonical snapshots. A `target` equal to the entry's own case
+      URI is not such a substitution — the entry is about that case and every replica holds it —
+      and the commit boundary MUST accept it, at any nesting depth, while refusing every other
+      bare string in an inline-object slot.
+    verification: >-
+      `test/core/behaviors/case/test_ledger_snapshots.py` confirms that nested objects such as
+      `EmbargoEvent`, `VulnerabilityReport`, and `Note` appear as fully inlined AS2 objects in
+      committed snapshots. `test/core/behaviors/sync/nodes/test_canonical_entry.py` confirms a
+      bare `target` naming the entry's case is accepted (top level and nested) and a bare `target`
+      naming another case, or a bare `object`, is refused.
     stories:
     - story_2022_045
   - id: CLP-07-007
@@ -474,6 +508,7 @@ groups:
   - id: CLP-07-008
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: If a canonicalization path resolves an ID-string nested reference for
       `payloadSnapshot` inlining, it MUST verify that the resolved object's context
       matches the parent snapshot context before replacement. On context mismatch,
@@ -486,10 +521,12 @@ groups:
     statement: A `payloadSnapshot` — and every object inlined into one under CLP-07-006
       — MUST be in the wire (AS2) shape, such that the wire vocabulary class for its
       `type_` can revalidate it without translation. When the object being captured
-      is a core domain object rather than a received activity, the wire shape MUST
-      be produced through the core→wire rendering port (ARCH-20-001), never by dumping
-      the core object with `by_alias=True` or by rewriting dumped keys in core.
-    rationale: 'CLP-07-001 requires the snapshot to be reconstitutable by receivers,
+      is a core domain object, the wire shape MUST be produced through the core→wire
+      rendering port (ARCH-20-001), never by dumping the core object with `by_alias=True`
+      or by rewriting dumped keys in core. A received activity is such an object, since the
+      extractor rebuilds it as a core-branch `VultronActivity`; its snapshot is
+      rendered through the port too.
+    rationale: 'CLP-07-011 requires the snapshot to be reconstitutable by receivers,
       and CLP-01-003/CLP-01-004 make it the replication substrate. Two distinct failure
       modes existed: core objects with no `alias_generator` were inlined in snake_case
       (unreconstitutable), and `ParticipantStatus` was dumped with a core `by_alias=True`
@@ -500,7 +537,7 @@ groups:
       via `model_validate`, with no key renaming applied first.
     relationships:
     - rel_type: refines
-      spec_id: CLP-07-001
+      spec_id: CLP-07-011
     - rel_type: depends_on
       spec_id: ARCH-20-001
     adr:
@@ -509,10 +546,8 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: Core snapshot-construction code MUST NOT special-case individual field
-      names to reach the wire spelling (e.g. moving a nested `consent.state` to a
-      flat `emConsentState`). Structural differences between the core and wire shapes
-      are the responsibility of the adapter-side translator for that pairing
-      (ARCH-12-005), reached through the rendering port.
+      names to reach the wire spelling (e.g. moving a nested `rm.state` to a flat `rmState`). Structural differences between the core and wire shapes
+      are the responsibility of the rendering port (ARCH-20-001).
     rationale: A per-field patch in core is a partial reimplementation of the translator
       that drifts as either shape evolves, and it is invisible to the adapter layer's
       own round-trip tests. Each such patch also silently defines the canonical shape
@@ -522,9 +557,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-07-009
-    - rel_type: depends_on
-      spec_id: ARCH-12-005
-      note: ARCH-12-005 names the adapter-side translator as the sole owner of the structural projection.
     adr:
     - ADR-0063
     - ADR-0082
@@ -552,15 +584,30 @@ groups:
     priority: MUST
     kind: protocol
     statement: The per-case genesis hash MUST be derived as `SHA-256(case_id + "|"
-      + created_at.isoformat() + "|" + case_actor_id)`, where `case_id` is the canonical
-      case URI, `created_at` is the case creation UTC timestamp in ISO 8601 format,
-      and `case_actor_id` is the URI of the CaseActor created for this case
-    rationale: Including all three values cryptographically anchors the chain's starting
-      point to the specific case's origin identity and timestamp, allowing any party
-      who knows the case metadata to independently verify the ledger's genesis
-    verification: A unit test confirms that `compute_genesis_hash(case_id, created_at,
-      case_actor_id)` returns the SHA-256 hex digest of the concatenated string `case_id
-      + "|" + created_at.isoformat() + "|" + case_actor_id`.
+      + created_at.isoformat() + "|" + owner_actor_id)`, where `case_id` is the
+      canonical case URI, `created_at` is the case creation UTC timestamp in ISO
+      8601 format, and `owner_actor_id` is the actor id of the case owner, the
+      value of `VulnerabilityCase.attributed_to` when the case is created. The
+      same derivation applies on every creation path, including a case the
+      CASE_MANAGER creates from the owner's `CaseProposal`.
+    rationale: Including all three values cryptographically anchors the chain's
+      starting point to the specific case's origin identity and timestamp,
+      allowing any party who knows the case metadata to independently verify the
+      ledger's genesis. The owner is the anchor because the CaseActor that may
+      create the case is the owner's delegated proxy, so a case created by its
+      owner and one created for the owner from a `CaseProposal` (CP-09-001,
+      CM-02-008) start from the same identity. The decision is recorded in
+      ADR-0117.
+    verification: A unit test confirms that `compute_genesis_hash(case_id,
+      created_at, owner_actor_id)` returns the SHA-256 hex digest of the
+      concatenated string `case_id + "|" + created_at.isoformat() + "|" +
+      owner_actor_id`. A unit test confirms that a case created from a
+      `CaseProposal` and a case its owner constructs with the same `case_id`,
+      `created_at` and owner carry the same hash, and that the owner's replica
+      built from the `Create(VulnerabilityCase)` keeps the sender's hash
+      unchanged.
+    adr:
+    - ADR-0117
     stories:
     - story_2022_045
     - story_2022_089
@@ -618,6 +665,7 @@ groups:
   - id: CLP-08-007
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Implementations MUST NOT use sequentially predictable or human-chosen
       path segments in the case URI when origin-binding integrity is required.
     rationale: Predictable or human-chosen path segments allow an attacker to pre-compute
@@ -699,8 +747,9 @@ groups:
   title: CASE_MANAGER Inbox Routing for Canonical Ledger Entry Authorship
   description: Requirements for the end-to-end routing path that delivers protocol-significant
     activities to the CASE_MANAGER's inbox so the CASE_MANAGER can author canonical ledger
-    entries. Covers outbound addressing rules, HTTP loopback self-delivery (OX-12-004),
-    and the pre-flight guard that prevents non-CASE_MANAGER invocations from committing
+    entries. Covers outbound addressing rules, the rule that the CASE_MANAGER commits its
+    own emissions in the emitting tree rather than mailing itself a copy (ADR-0109), and
+    the pre-flight guard that prevents non-CASE_MANAGER invocations from committing
     ledger entries.
   specs:
   - id: CLP-10-001
@@ -711,34 +760,39 @@ groups:
       CASE_MANAGER's inbox receives the activity and can author a canonical ledger entry.
       This requirement applies to ALL participants — the CASE_MANAGER is a participant
       with extra duties; it is not excluded from CLP-10-001. When the CASE_MANAGER itself
-      originates an activity (e.g., `invite_actor_to_case`), it MUST include its own
-      actor ID in the outbound activity's `cc:` field so that HTTP loopback self-delivery
-      (OX-12-004) triggers the CASE_MANAGER's received-side use case and the `GuardedCommitCaseLedgerEntryBT`
-      fires in the correct inbox context.
+      originates a protocol-significant activity (e.g., `invite_actor_to_case`), it MUST
+      emit from its own store and commit the canonical entry in the emitting tree
+      (CLP-10-013); it MUST NOT address a copy of the activity to itself in any
+      addressing field. A participant whose container does not host the CASE_MANAGER
+      reaches it by sending the CASE_MANAGER the participant's own activity, never by
+      executing a tree locally as the CASE_MANAGER (CM-24-004, ADR-0109).
     rationale: 'Before ADR-0021, several trigger trees (e.g., `validate_report`, `ack_report`,
       `close_case`) emitted no activity addressed to the CASE_MANAGER. The CASE_MANAGER
       therefore had no protocol event to commit, and the canonical ledger was missing
-      those event types entirely. The HTTP loopback self-delivery mechanism (OX-12-004)
-      already handles routing when the target actor ID is the CASE_MANAGER''s own inbox;
-      the missing piece was the emit node itself. The self-routing requirement also
+      those event types entirely. Delivery to the CASE_MANAGER''s own inbox already ran
+      over the uniform HTTP path like any other recipient (OX-12-001); the missing piece
+      was the emit node itself. The self-routing requirement also
       applies when the CASE_MANAGER is the originator: `invite_actor_to_case_trigger_bt`
       emitted an `Invite` addressed only to the invitee — the CASE_MANAGER never received
       its own activity and the canonical ledger had no `invite_actor_to_case` entry.
-      Using `cc:` rather than `to:` for the self-copy preserves the semantics that
-      the invitee is the primary recipient while still routing the activity through
-      the CASE_MANAGER''s inbox for archival. See OX-08-004 for the updated addressing
-      policy and ADR-0021 for the full end-to-end path.'
-    note: The self-`cc:` clause binds only where the canonical entry depends on inbox
-      loopback. A tree that emits under a `CVDRole.CASE_MANAGER` gate and wraps the
-      emit in `create_receive_activity_tree` with a `case_id` commits the entry itself
-      (CLP-10-013), so the entry already exists and a self-addressed copy adds no
-      record — see EMB-19-001 for the worked case, where addressing the manager also
-      made the announce reach nobody.
+      The first fix (ADR-0021 § Clarification) had the CASE_MANAGER add its own id to
+      `cc:` so a copy looped back through its inbox. That copy compensated for the case
+      owner''s container emitting the Invite in the CASE_MANAGER''s name from a store
+      that was not the ledger''s home; where the two were co-hosted it also committed
+      the same Invite twice (#2996). ADR-0109 replaced the loopback with the rule that
+      the emitting tree commits, and that only the hosting container emits as the
+      CASE_MANAGER.'
+    note: A tree that emits under a `CVDRole.CASE_MANAGER` gate and wraps the emit in
+      `create_receive_activity_tree` with a `case_id` commits the entry itself
+      (CLP-10-013), so a self-addressed copy would add no record — see EMB-19-001 for
+      the worked case, where addressing the manager also made the announce reach
+      nobody.
     verification: For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the
       CASE_MANAGER's canonical ledger contains at least one entry with that `eventType`
       after a full FV demo run.
     adr:
     - ADR-0021
+    - ADR-0109
     stories:
     - story_2022_045
     - story_2022_046
@@ -838,7 +892,7 @@ groups:
     - ADR-0022
   - id: CLP-10-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Any operation that is procedural code in `execute()` (including the
       use case's main operation) MUST be expressed as a node in the single BT tree
       built by the tree-factory function.
@@ -849,11 +903,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-10-008
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The guarded-commit subtree MUST be composed as a child of the tree-factory
       function, not invoked as a separate `execute_with_setup()` call.
     verification: '`test/architecture/test_single_bt_execution_received_side.py` confirms
@@ -865,27 +917,54 @@ groups:
       spec_id: CLP-10-005
     - rel_type: refines
       spec_id: CLP-10-002
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-10-006
     priority: MUST
     kind: project
     statement: In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
       subtree (composed via `create_guarded_commit_case_ledger_entry_tree`), the commit
-      subtree MUST appear after all pure precondition-guard nodes and before any protocol-effect
-      nodes. A precondition-guard node is one that only reads state and returns FAILURE
-      on mismatch, making no writes; a protocol-effect node is any node that writes
-      to the DataLayer, mutates actor or participant state, or enqueues an outbox
-      item.
+      subtree MUST appear after the intake node and after all pure precondition-guard
+      nodes, and before any protocol-effect nodes. The intake node is the single shared
+      node that archives the received activity as received (CLP-10-017). A
+      precondition-guard node is one that only reads state and returns
+      FAILURE on mismatch, making no writes. A protocol-effect node is any other node
+      that writes to the DataLayer, mutates actor or participant state, or enqueues an
+      outbox item; the intake node is not a protocol-effect node. A refusal effect
+      (CLP-10-022) is a protocol-effect node that runs only when a precondition
+      guard has refused, so the tree fails before the commit; it never runs on a
+      delivery the guards accept, and so never precedes a commit.
+    rationale: Receipt is a fact whether or not the assertion is later accepted, so the
+      record of what arrived is written before anything judges it. Classing that write
+      as a protocol effect forced it after the commit, and handlers that needed the
+      record regardless of the verdict stored it procedurally in `execute()` instead
+      (ISSUE-3339, ADR-0111). A refusal effect answers a refusal; the ordering rule
+      exists so an accepted assertion's effects follow the ledger record of their
+      cause, and a refused assertion has no ledger record and no other effect.
+    verification: '`test/architecture/test_receive_side_intake_first.py` asserts
+      that every receive-side tree factory under `vultron/core/behaviors/` returns
+      the result of `create_receive_activity_tree` (including the factories that
+      composed `create_case_manager_gated_tree` directly before #3870), so the tree
+      has the intake node as its first child; `test_receive_side_bt_commit_ordering.py`
+      asserts the guarded commit comes after every guard and no protocol-effect node
+      ahead of the commit, counting `refusal_effects` as effects; `test/core/behaviors/case/nodes/test_refusal_stage.py`
+      asserts no refusal effect runs on an accepted delivery.'
+    adr:
+    - ADR-0111
+    - ADR-0022
   - id: CLP-10-010
     priority: MUST
     kind: project
     statement: 'In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
-      subtree, the ordering MUST be: (1) precondition guards, (2) commit, (3) all
-      protocol effects.'
-    rationale: The canonical case ledger records the cause (the received activity)
-      and replicates it to all participants. Recording cause before applying effects
-      ensures the audit log is causally coherent.
+      subtree, the ordering MUST be: (1) intake, (2) precondition guards, (3) commit,
+      (4) all protocol effects. Refusal effects (CLP-10-022) belong to stage (2):
+      they run only after a precondition guard refuses, and the tree then ends
+      without reaching (3) or (4).'
+    rationale: Intake records what arrived. The canonical case ledger records the cause
+      (the received activity the CASE_MANAGER accepted) and replicates it to all
+      participants. Recording cause before applying effects ensures the audit log is
+      causally coherent.
+    verification: Covered by the structural test named in CLP-10-006.
+    adr:
+    - ADR-0111
   - id: CLP-10-011
     priority: MUST
     kind: project
@@ -913,14 +992,18 @@ groups:
   - id: CLP-10-009
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: In a receive-side BT composed via `create_receive_activity_tree`, every
       node that can return FAILURE to refuse an inbound assertion (a rejection validator)
       MUST appear in `precondition_guards`; a rejection validator placed in `effect_nodes`
       aborts the Sequence after GuardedCommit has already written a canonical ledger
-      entry, producing canonical/replica divergence (ISSUE-2254).
+      entry, producing canonical/replica divergence (ISSUE-2254). Feedback a refusal
+      owes the sender is passed as `refusal_effects` (CLP-10-022), never as an
+      emit placed beside the refusing guard.
   - id: CLP-10-012
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: A separate `ValidateRMTransitionNode` in `effect_nodes` MUST NOT be
       used in the receive-side path; `FilterParticipantStatusDimensionsNode` satisfies
       the per-dimension adjudication requirement for an inbound `ParticipantStatus`
@@ -931,10 +1014,32 @@ groups:
   - id: CLP-10-013
     priority: MUST
     kind: project
-    statement: Every receive-side tree that uses `create_receive_activity_tree` MUST
-      also pass `case_id` so that a canonical ledger entry is committed for each accepted
-      activity.
-    rationale: A rejection validator (FAILURE-on-mismatch, read-only) belongs before
+    statement: A receive-side tree that uses `create_receive_activity_tree` MUST pass
+      `case_id`, so that a canonical ledger entry is committed for each accepted
+      activity, exactly when the received activity's `(type, object)` pair is a
+      canonical payload signature (`_CANONICAL_PAYLOAD_SIGNATURES`); a tree whose
+      received activity has no canonical signature — `Update(VulnerabilityCase)`, the
+      `Announce(CaseLedgerEntry)` replication envelope (CLP-10-004) — MUST pass
+      `case_id=None` and omit the commit stage rather than commit an entry the
+      canonical-entry check would refuse. One canonical signature is exempt from
+      the commit and also passes `case_id=None` — `Announce(VulnerabilityCase)`,
+      which only the CASE_MANAGER sends and only a participant replica, never the
+      CASE_MANAGER itself, receives (PCR-03-004).
+    rationale: 'Amended with ADR-0111: the rule as first written required a commit for
+      every factory-built tree, which the CASE_MANAGER refused for an
+      `Update(VulnerabilityCase)` the moment the update tree moved onto the factory
+      (#3870). ADR-0111 (#3936) records that an owner''s `Update(VulnerabilityCase)`
+      is deliberately not a ledgered assertion: no production code sends it, it
+      has no protocol story, and `Announce(CaseLedgerEntry)` fan-out already
+      carries every ledgered case change (ADR-0108). The `Announce(VulnerabilityCase)`
+      receiver is never the CASE_MANAGER, so a `case_id` would only make the
+      commit gate skip (#4304). `Add(CaseParticipant)` was exempt until #4081 made
+      it the Case Owner''s reinstatement request: its commit landed together with
+      its replica apply node (`ApplyReinstateCaseParticipantFromLedgerNode`,
+      RSH-08-004), so it now commits. The `Reject(Offer)` and `TentativeReject(Offer)` trees
+      carry canonical signatures their CASE_MANAGER receivers ledger and replicas
+      replay (`ApplyRmVerdictFromLedgerNode`), so they commit. Original rationale: a rejection validator
+      (FAILURE-on-mismatch, read-only) belongs before
       the commit; an effects node (writes, enqueues, state mutations) belongs after.
       Mixing the two — placing a rejection validator in effect_nodes — creates a window
       where the ledger records receipt of an activity the local actor then refuses
@@ -942,7 +1047,16 @@ groups:
       to a locally applied protocol event. `add_participant_status_tree` previously
       contained `ValidateRMTransitionNode` after `GuardedCommit`, masked by a `_rm_was_carried_forward()`
       workaround. `add_case_status_tree` previously used a plain `py_trees.Sequence`
-      with no commit at all. Both were corrected in ISSUE-2254.
+      with no commit at all. Both were corrected in ISSUE-2254.'
+    verification: '`create_update_case_received_tree` passes `case_id=None` and its
+      structure test asserts no `GuardedCommitCaseLedgerEntryBT` child; a tree for a
+      canonical signature passes `case_id` and the ordering ratchet finds the commit
+      after the guards. A receive-side test per committing tree asserts the CASE_MANAGER
+      commits the entry once, any other receiver skips it, and a refused activity
+      leaves no entry; the `Announce(VulnerabilityCase)` tree is asserted to have
+      no commit child.'
+    adr:
+    - ADR-0111
     relationships:
     - rel_type: refines
       spec_id: CLP-10-006
@@ -950,33 +1064,32 @@ groups:
     priority: MUST
     kind: project
     statement: A store MUST NOT mint a canonical case-ledger index unless it is the
-      store that holds that case's canonical log. `CommitLogEntryBT` MUST decline
-      — reporting success, having written nothing — when the actor it executes as
-      is not one the running container hosts.
+      store that holds that case's canonical log. `CommitLogEntryBT` MUST fail —
+      raising, having written nothing — when the actor it executes as is not one the
+      running container hosts, because no sanctioned path executes a tree in a store
+      other than its actor's own (BT-05-005, ADR-0109).
     rationale: 'A log index is a claim on a position in one hash chain, so two stores
-      claiming the same position fork it irreparably. The delegated-emit path is how
-      a second claimant arises: a trigger the case *owner* runs emits as the case''s
-      CASE_MANAGER (PCR-08-007, CM-24-001) and commits under that same actor id. When
-      the owner hosts the CaseActor this is the canonical commit. After an ownership
-      handoff it is not — the CaseActor stays on the container that first received
-      the report (CP-08-003) while the owner is elsewhere — and BT-05-005''s foreign-authority
-      exception deliberately leaves the tree running in the *requester''s* store so
-      the activity is created and outboxed where it can be delivered. Without this
-      rule the commit rides along on that exception and mints index N in the owner''s
-      replica while the real CASE_MANAGER mints its own index N from the `cc:` copy.
-      The two disagree on bytes, not just timing: the owner''s snapshot carries local
-      enrichment (`attributedTo`, `name`, the case''s `caseStatus`) that the wire
-      copy does not (CM-17-002). Both then fan out, and the case partitions into the
-      participants each reached first (#2626). Declining loses nothing — the activity
-      still carries the CaseActor as `cc:`, so the canonical log gains the entry the
-      only way a remote store ever can (CLP-10-001), and the owner''s replica gains
-      it by replication from that log, byte-identical as a replica must be (DL-07-009).
-      Success rather than failure on decline because every existing caller reads a
-      non-SUCCESS commit as a hard error, and "the canonical log is somewhere else"
-      is not one.'
+      claiming the same position fork it irreparably. Before ADR-0109, the delegated-emit
+      path was how a second claimant arose: a trigger the case *owner* ran emitted as
+      the case''s CASE_MANAGER (PCR-08-007, CM-24-001) and committed under that same
+      actor id. When the owner hosted the CaseActor that was the canonical commit. After
+      an ownership handoff it was not — the CaseActor remained on the container that
+      created the case while the owner was elsewhere — and BT-05-005 carried an
+      exception that left the tree running in the *requester''s* store so the
+      activity was created and outboxed where it could be delivered. The commit rode
+      along on that exception and minted index N in the owner''s replica while the real
+      CASE_MANAGER minted its own index N from a `cc:` copy of the activity. The two
+      disagreed on bytes, not just timing: the owner''s snapshot carried local
+      enrichment (`attributedTo`, `name`, the case''s `caseStatus`) that the wire copy
+      did not (CM-17-002). Both then fanned out, and the case partitioned into the
+      participants each reached first (#2626). The guard first answered this by
+      declining silently and relying on the `cc:` copy. ADR-0109 removed both the
+      exception and the copy: a participant on another container asks the
+      CASE_MANAGER to act by message (CM-24-004), so a tree executing as an actor its
+      store does not host is a programming error, and the guard raises.'
     verification: A test executes `CommitLogEntryBT` under an `actor_id` at a foreign
-      authority and asserts SUCCESS with no `CaseLedgerEntry` written and no fan-out
-      sent, and under a same-authority `actor_id` asserts the guard stands aside.
+      authority and asserts that it raises with no `CaseLedgerEntry` written and no
+      fan-out sent, and under a same-authority `actor_id` asserts the guard stands aside.
     exceptions:
     - A store that cannot name its own actor — a test double, or any implementation
       that reports no `actor_id` — is never foreign, and such callers commit exactly
@@ -991,9 +1104,10 @@ groups:
     - protocol
     adr:
     - ADR-0073
+    - ADR-0109
   - id: CLP-10-015
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       When a received-side use case must identify a *subject* that the incoming
       message names — the invitee of an embargo invitation, the actor whose
@@ -1025,44 +1139,219 @@ groups:
     - protocol
     adr:
     - ADR-0022
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-10-016
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
-      Subject-identity resolution (CLP-10-015) MUST be by **addressee
-      membership**, not by position in the `to:` list. When the receiving actor
-      is among the recipients it is the subject; when exactly one recipient
-      exists and it is not this store's actor, that recipient is the subject;
-      when several recipients exist and none is this store's actor the case is
-      ambiguous and the resolver MUST warn and degrade rather than select
-      `to[0]`.
+      Subject-identity resolution (CLP-10-015) MUST NOT select a subject by its
+      position in the `to:` list.
+    note: >-
+      Where a message names its subject as its sole `to:` recipient, there is
+      no position to choose: the invitee of an `Invite(EmbargoEvent)` is that
+      recipient, and an Invite naming none or several is refused (EP-09-010).
     rationale: >-
-      Selecting `to[0]` positionally makes a multi-recipient message resolve to
-      the same subject in every replica — inviting the wrong participant
-      everywhere except the one store where `to[0]` happens to be correct.
-      Preferring the receiving actor when it is a recipient is what makes a
-      multi-recipient invitation correct in *each* recipient's own replica, and
-      it is canonical by construction because `inbox_handler` normalises the
-      receiving actor against `activity.to` (HP-09-001). Degrading with a WARNING
-      on genuine ambiguity preserves the canonical ledger commit that rides in
-      the same single tree (ADR-0022) rather than dropping the message. Source:
-      ISSUE-2762, ADR-0022.
+      A positional pick resolves a several-recipient message to the same
+      subject in every replica, so each recipient after the first would apply
+      the message to someone else's record. Source: ISSUE-2762, ADR-0022.
     verification: >-
-      Inspection of `resolve_invitee_id()` in
-      `vultron/core/use_cases/received/embargo.py` confirms resolution is by
-      addressee membership with the ordered fallbacks above, mirroring
-      `_is_primary_submit_report_recipient` in `received/report.py`.
+      `test_multi_recipient_invite_is_refused_at_a_recipient` in
+      `test/core/use_cases/received/test_embargo_invite_lapse.py` delivers an
+      `Invite(EmbargoEvent)` whose second recipient is the receiving actor and
+      asserts it is refused with nothing written, rather than resolved to
+      either recipient.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-015
+    - rel_type: depends_on
+      spec_id: EP-09-010
     tags:
     - protocol
     adr:
     - ADR-0022
-    lint_suppress:
-    - missing_story_reference
+    - ADR-0113
+  - id: CLP-10-017
+    priority: MUST
+    kind: project
+    statement: Every receive-side BT tree MUST begin with the shared intake node that
+      `create_receive_activity_tree` supplies. The intake node MUST idempotently archive
+      the received activity exactly as received, as a `ReceivedActivityRecord` whose id
+      the receiver derives (`ReceivedActivityRecord.build_id`) and which carries the
+      sender's activity id for the reverse lookup; it MUST NOT store the activity under
+      the id the sender chose, MUST NOT write a core record from any object inlined in
+      it, and MUST perform no other write. A core record a received object gives rise
+      to (a note, a report, a status, an embargo event, a case replica) is written by
+      an effect node from the copy the event carries, after the precondition guards.
+    rationale: 'One node, composed once by the shared factory, replaces the handler-local
+      store helpers that received-side use cases called from `execute()` — the files
+      `KNOWN_VIOLATIONS` enumerates once #3869 widens the ratchet (ISSUE-3339). The
+      archive is the mail, not core''s records: an object inlined in an activity is a
+      message shaped like that object, and writing it as a record before the guards
+      would let any sender seed a case replica or a ledger entry ahead of the trust
+      and chain checks (PCR-03-004, CBT-01-005) — a stored case row *is* the replica.
+      The archived row is also where #3742 persists the sealed received evidence
+      (ADR-0107) for deferred replay. The row is keyed by the receiver because the
+      DataLayer is one id-keyed table per actor: an activity stored under the id its
+      sender chose would let a sender who names its activity after a record the
+      receiver derives (a pending-case-inbox marker, an offer record) occupy that id
+      ahead of the receiver''s own write, so the later `create()` of the real record
+      fails as a duplicate and a read-then-create helper reads the squatter as
+      "already stored". A key the receiver mints is the receiver''s to manage; the
+      sender''s id is data on the row, not the row''s address.'
+    verification: '`test/architecture/test_receive_side_intake_first.py` asserts
+      the intake node is the first child of every tree `create_receive_activity_tree`
+      returns and that every receive-side factory returns that tree. A unit test for
+      the intake node archives a received activity that inlines an object, asserts the
+      activity is readable through `ReceivedActivityRecord.build_id` and not under the
+      sender''s id, asserts no record of the inlined object (and no case replica) was
+      created, asserts a second run writes nothing, and asserts a sender activity whose
+      id equals a receiver-derived record id does not block the later `create()` of
+      that record.'
+    adr:
+    - ADR-0111
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+  - id: CLP-10-018
+    priority: MUST
+    kind: project
+    statement: A refused inbound assertion MUST leave the received activity archived by
+      intake in the receiver's DataLayer; a refusal MUST NOT remove or alter the
+      archive.
+    rationale: Receipt is a fact and refusal is a verdict on the assertion, not on the
+      record of receipt. The refusal itself belongs in the process log, never the
+      ledger (CLP-05-002). A receiver that declines to create a case and still keeps
+      the report and the Offer (CM-15-002) does so as an effect of that policy
+      branch, from the event's copy, not because intake stored them.
+    verification: A received-side handler test posts an activity that a precondition
+      guard refuses, asserts the handler disposition is REFUSED, and asserts the
+      activity is readable from the receiver's DataLayer afterward.
+    adr:
+    - ADR-0111
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-01-001
+  - id: CLP-10-019
+    priority: MUST_NOT
+    kind: project
+    statement: A received-side use case MUST NOT store the received activity through
+      any path other than the intake node — not through a handler-local helper, a
+      per-tree store node, or a call in `execute()` — and MUST NOT write a core record
+      from a received object anywhere but an effect node of its tree.
+    rationale: The store-what-arrived step was implemented separately across the
+      received handlers `KNOWN_VIOLATIONS` enumerates (#3869) and one shared use-case
+      helper, each invisible to the mutation ratchet
+      because the write sat in a helper rather than in `execute()` itself (ISSUE-3339).
+      One shared node is the DRY form (CS-22-001) and the only one the ratchet can
+      see. The core records those helpers also wrote move to effect nodes, where the
+      guards have already run (ADR-0111 as amended).
+    verification: '`test/architecture/test_no_dl_mutations_in_execute.py` (CLP-10-020)
+      flags any DataLayer write an `execute()` body reaches through a use-case-layer
+      helper, so a handler-local store path fails the build unless enumerated in
+      `KNOWN_VIOLATIONS`.'
+    adr:
+    - ADR-0111
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+  - id: CLP-10-020
+    priority: MUST
+    kind: process
+    statement: '`test/architecture/test_no_dl_mutations_in_execute.py` MUST treat a
+      DataLayer write that a received-side `execute()` body (a use case under
+      `vultron/core/use_cases/received/`) reaches through any function or method
+      defined under `vultron/core/use_cases/`, resolved transitively, as a violation of
+      that `execute()`, and MUST enumerate the remaining violations as an exact
+      `KNOWN_VIOLATIONS` set.'
+    rationale: The detector matched only a write whose receiver was literally the use
+      case's DataLayer inside `execute()`; a same-package helper that performed the
+      write was excluded by design, which let eleven `execute()` bodies in nine files
+      reach a write it never saw (ISSUE-3339). A write inside a BT node is not a
+      violation, so resolution stops at the use-case package boundary. Trigger-side
+      `execute()` and `_prepare()` bodies are governed by BT-15-001, not this rule.
+    verification: Detector self-tests in the same module write synthetic sources to a
+      temporary directory and assert that a helper containing a DataLayer write and
+      called from `execute()` is flagged, that a helper two calls deep is flagged, and
+      that a write inside a BT node the tree runs is not. The ratchet assertion is
+      bidirectional equality against `KNOWN_VIOLATIONS` (ARCH-18-001).
+    adr:
+    - ADR-0111
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+    - rel_type: refines
+      spec_id: ARCH-18-001
+  - id: CLP-10-021
+    priority: MUST
+    kind: project
+    statement: >-
+      A received-side use case that tests whether a message is addressed to
+      the receiving actor MUST compare actor ids with a trailing-slash-tolerant
+      comparison (`is_addressed_to()` or `same_actor_id()` in
+      `vultron/core/predicates/addressing.py`), never an exact string match.
+    rationale: >-
+      `to:` and `cc:` arrive as the sender wrote them while the receiving actor
+      is canonical, so an exact match misses a recipient spelled with a
+      trailing slash and refuses mail that was addressed to this actor.
+      `Offer(Report)` is genuinely several-recipient and reads its eligibility
+      from `to:` (HP-09-001). Source: ISSUE-2667.
+    verification: >-
+      `test_submit_report_trailing_slash_recipient_creates_case` in
+      `test/core/use_cases/received/test_submit_report_received.py` addresses
+      an `Offer(Report)` to the receiver with a trailing slash and asserts the
+      case is created; `test/core/predicates/test_addressing.py` pins the
+      comparison.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-09-001
+    tags:
+    - protocol
+  - id: CLP-10-022
+    priority: MUST
+    kind: project
+    statement: >-
+      A receive-side tree that owes the sender feedback when a precondition
+      guard refuses its assertion MUST pass that feedback to
+      `create_receive_activity_tree` as `refusal_effects`. The factory MUST run
+      the refusal effects only when a precondition guard refuses, never when
+      the sender guard refuses or the guards pass; MUST run them only at the
+      case's CASE_MANAGER; MUST NOT run them again for a redelivery that intake
+      found already archived; and MUST leave the tree failing with the guard's
+      refusal, so nothing is committed and the handler reports `REFUSED` for
+      the guard's reason. Every refusal effect MUST be emit-capable and MUST
+      contain no state-write node: a refusal commits nothing, so it changes no
+      state.
+    rationale: >-
+      A receiver should not silently drop an assertion it can answer in the
+      moment, such as a refused backward RM declaration (RSH-06-004). An emit
+      beside the guard would precede the commit on an accepted delivery
+      (CLP-10-006), and per-tree scaffolding would repeat the structure
+      (CS-22-001). The CASE_MANAGER adjudicates, so only it answers
+      (BT-17-008); an unentitled sender is owed no answer (HP-01-006); a
+      redelivery changes nothing, so a second answer is noise.
+    note: >-
+      The redelivery skip keys on intake finding the activity already
+      archived, not on a record that the refusal effects ran: a refusal
+      effect writes no state, so no such record exists. A redelivery whose
+      first delivery never reached the refusal effects (the sender guard
+      refused it, the receiver was not yet the CASE_MANAGER, or the effect
+      failed) is therefore not answered either.
+    verification: >-
+      `test/core/behaviors/case/test_receive_activity_tree.py` asserts the
+      factory wraps the guards in the refusal stage ahead of the commit, gates
+      the refusal effects on the CASE_MANAGER, and refuses a refusal effect
+      that is not emit-capable; `test/core/behaviors/case/nodes/test_refusal_stage.py`
+      asserts the effects never run on an accepted delivery, run once on a
+      refusal, are skipped on a redelivery, and leave the guard's failure
+      reason; `TestRefusedRegressionIsNoted` in
+      `test/core/behaviors/report/test_rm_declaration_adjudication.py`
+      asserts the end-to-end behaviour for the RSH-06-004 note.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-006
+    - rel_type: refines
+      spec_id: CLP-10-010
+    adr:
+    - ADR-0111
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair
@@ -1100,6 +1389,7 @@ groups:
   - id: CLP-11-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: '`find_protocol_pair()` (durable, DataLayer-backed) and `PendingAssertionStore`
       (ephemeral, in-memory suppression) MUST NOT be unified. They serve distinct
       purposes: `find_protocol_pair` determines canonical open/closed state from the
@@ -1143,6 +1433,7 @@ groups:
   - id: CLP-12-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`Add(CaseStatus)` ledger entries authored by the CASE_MANAGER MUST be
       accepted as canonical entries by the ledger validation step.'
     rationale: 'Issue #1767: `("Add", "CaseStatus")` appeared in `_CANONICAL_PAYLOAD_SIGNATURES`
@@ -1157,6 +1448,7 @@ groups:
   - id: CLP-12-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: '`_CASE_AUTHORED_SIGNATURES` MUST be a complete superset of all `("verb",
       "object-type")` pairs emitted by the CASE_MANAGER during native case initialization
       (create_case, add_report_to_case, add_participant_status_to_participant × N,
@@ -1182,6 +1474,7 @@ groups:
   - id: CLP-13-001
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: A BT idempotency guard that detects a duplicate and returns ``Status.FAILURE``
       to abort processing MUST NOT write a ``CaseLedgerEntry`` of any disposition
       (``"recorded"`` or ``"rejected"``).
@@ -1201,6 +1494,7 @@ groups:
   - id: CLP-13-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Idempotency guard behaviour MUST be encapsulated in a reusable ``SilentIdempotencyGuardMixin``
       (or equivalent composable BT pattern) so that the silent-failure-on-duplicate
       invariant is expressed once and tested once, not re-implemented per call site.
@@ -1213,6 +1507,7 @@ groups:
   - id: CLP-13-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: When an idempotency guard fires and returns ``Status.FAILURE``, it
       MUST emit a Python ``logger.info`` or ``logger.debug`` message recording the
       duplicate detection.  No other observable side effect (ledger write, outbox
@@ -1234,6 +1529,7 @@ groups:
   - id: CLP-14-001
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: 'The CaseLedger MUST record entries in causal order from the CASE_MANAGER''s
       observation perspective: if the CASE_MANAGER observes event A before event B, then
       log_index(A) MUST be less than log_index(B). The log_index sequence is the authoritative
@@ -1254,6 +1550,7 @@ groups:
   - id: CLP-14-002
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: The `published` timestamp on the `CaseLedgerEntry` envelope — the
       CASE_MANAGER's commit stamp, as distinct from the claimed `payloadSnapshot.published`
       — MUST be non-null. The CASE_MANAGER MUST stamp each entry with its own authoritative
@@ -1269,7 +1566,7 @@ groups:
     - missing_story_reference
   - id: CLP-14-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The envelope `published` timestamps (the CASE_MANAGER's commit stamps) on
       consecutive recorded entries MUST be monotonically non-decreasing in log_index
       order. An entry with a higher log_index MUST NOT carry an envelope `published`
@@ -1292,11 +1589,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-14-001
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-14-004
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: All entries in a single case ledger MUST share the same case_id. An
       entry whose case_id does not match the ledger's case_id MUST be treated as malformed
       and rejected.
@@ -1309,6 +1605,7 @@ groups:
   - id: CLP-14-005
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: log_index values MUST be unique within a single case ledger. No two
       entries for the same case_id may share a log_index value.
     rationale: Duplicate indices would make it impossible to identify which entry
@@ -1323,7 +1620,7 @@ groups:
     - missing_story_reference
   - id: CLP-14-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Every CaseLedgerEntry's envelope `published` timestamp MUST be on or
       after the parent VulnerabilityCase's own published timestamp. A ledger entry
       MUST NOT be stamped with a time that precedes the case's creation. The CASE_MANAGER
@@ -1345,8 +1642,6 @@ groups:
       `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py`.
     adr:
     - ADR-0079
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-14-007
     priority: SHOULD
     kind: protocol
@@ -1382,7 +1677,7 @@ groups:
       spec_id: CLP-14-001
   - id: CLP-14-009
     priority: MAY
-    kind: protocol
+    kind: project
     statement: Implementations MAY expose the future tolerance (CLP-14-007), the
       staleness window (CLP-14-008) and the clock-skew tolerance applied to the
       claimed-timestamp checks (CLP-14-006, CLP-15-003) as configurable parameters
@@ -1399,7 +1694,7 @@ groups:
     - ADR-0079
   - id: CLP-14-010
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The log_index values of a case ledger MUST form a gapless sequence
       starting at 0. The genesis entry MUST carry log_index 0, and every later entry
       MUST carry the log_index of its immediate predecessor plus one. The CASE_MANAGER
@@ -1419,8 +1714,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-01-002
-    lint_suppress:
-    - missing_story_reference
 - id: CLP-15
   title: Participant Assertion Timestamp Obligations
   description: Normative requirements on what well-behaved participants MUST do when
@@ -1430,7 +1723,7 @@ groups:
   specs:
   - id: CLP-15-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A participant MUST emit protocol activities for a given case in causal
       order. If activity A causally precedes activity B in the participant's own event
       stream, A MUST be emitted to the CASE_MANAGER before B.
@@ -1450,8 +1743,6 @@ groups:
       `test/core/models/test_clp_14_15_invariants.py::test_clp_15_001_002_out_of_order_emission_detected_at_ledger_order`.'
     adr:
     - ADR-0079
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-15-002
     priority: MUST_NOT
     kind: protocol
@@ -1472,7 +1763,7 @@ groups:
       spec_id: CLP-15-001
   - id: CLP-15-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: For causally related activities within the same participant's event
       stream, the published timestamp on activity B MUST be greater than or equal
       to the published timestamp on activity A, where A causally precedes B. A participant
@@ -1500,8 +1791,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-001
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-15-004
     priority: SHOULD
     kind: protocol
@@ -1516,7 +1805,7 @@ groups:
     - ADR-0079
   - id: CLP-15-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A participant MUST include a `published` timestamp on every protocol
       activity it emits. A receiver MUST treat an inbound activity that carries no
       `published` as malformed and reject it at message validation, and MUST NOT
@@ -1539,11 +1828,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-004
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-15-005
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: The CASE_MANAGER's ledger is authoritative for what the CASE_MANAGER observed
       from its own perspective. It is NOT a guarantee of real-world causal fidelity
       when external participants self-report events. The CASE_MANAGER MUST record the
@@ -1565,7 +1853,7 @@ groups:
     - missing_story_reference
   - id: CLP-15-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A receiver MUST carry the `published` and `updated` timestamps of every
       object nested in an inbound activity as received. A timestamp the sender omitted
       MUST remain absent; the receiver MUST NOT substitute its own clock for it, whether
@@ -1589,5 +1877,3 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-15-006
-    lint_suppress:
-    - missing_story_reference

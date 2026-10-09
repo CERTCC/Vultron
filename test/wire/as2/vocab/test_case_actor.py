@@ -17,7 +17,7 @@ Tests for as_CaseActor wire object, including from_core conversions.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from vultron.core.models.case_actor import CaseActor as CoreCaseActor
 from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
@@ -35,7 +35,7 @@ class TestFromCorePreservesPublished(unittest.TestCase):
     published time (regression guard for issue #2554).
     """
 
-    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=UTC)
 
     def test_as_case_actor_from_core_preserves_published(self):
         core = CoreCaseActor(

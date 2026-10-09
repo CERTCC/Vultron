@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Archived ADRs
 
 Retired decision records live here — those whose status is `deprecated` or

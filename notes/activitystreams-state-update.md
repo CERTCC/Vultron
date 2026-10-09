@@ -224,14 +224,13 @@ into fields of the nested dict, the `Invite`'s own `actor` and `object_`
 (typically a case stub) are left as raw dicts, breaking `ActivityPattern`
 matching that relies on typed subtype information.
 
-**Lesson 2 — Minimal case dicts must expand to `as_VulnerabilityCaseStub`.**
+**Lesson 2 — A case stub is recognised by its `type`, not by its sparseness.**
 
-Minimal `{"id": "...", "type": "VulnerabilityCase"}` dicts received in
-inbound activities (e.g., as the `object_` of an `Invite`) should be expanded
-as `as_VulnerabilityCaseStub`, not full `VulnerabilityCase`. This preserves
-selective-disclosure semantics: the invitee has not yet accepted the embargo,
-so they should only see the stub. Expanding to full `VulnerabilityCase` would
-incorrectly materialize fields the invitee has not yet earned access to.
+An Invite's `target` stub carries `"type": "VulnerabilityCaseStub"` and expands
+to `as_VulnerabilityCaseStub` (CM-11-013). This preserves selective-disclosure
+semantics: the invitee has not yet accepted the embargo, so it sees only the
+stub. Before #4045 the stub reused `"type": "VulnerabilityCase"` and was guessed
+from a minimal key set; a sparse `VulnerabilityCase` is now always a case.
 
 **Lesson 3 — `inReplyTo` belongs on the model, not only on call sites.**
 
@@ -268,7 +267,7 @@ DataLayer.
    strings are accepted by the model but skipped during persistence.
 3. Vendor's CaseParticipant object is never stored in Finder's DataLayer.
 4. Vendor sends RmEngageCase (Join) to Finder.
-5. EngageCaseBT on Finder runs → CheckParticipantExists fails (no record).
+5. EngageCaseBT on Finder runs → its participant guard fails (no record).
 6. RM-state update is never recorded in Finder's case replica.
 ```
 
@@ -393,7 +392,8 @@ format was never emitted by any supported actor; retaining it as a registry
 entry was a source of ordering fragility. It has been removed entirely.
 The canonical `OFFER_CASE_PARTICIPANT_ROLE` format uses a dedicated object
 type (`as_CaseParticipantRole`) that is self-describing without any registry
-ordering dependency. See SE-08-003, SE-08-005.
+ordering dependency. See SE-08-003 (SE-08-005, retired, recorded the
+removal of its predecessor).
 
 **Rule for new patterns that share a verb+object pair** — if a new semantic
 requires the same `(activity_, object_)` pair as an existing pattern, it MUST

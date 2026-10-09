@@ -26,12 +26,11 @@ Covers all acceptance criteria from issue #1825:
   early-exit short-circuit
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
@@ -59,10 +58,10 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
 from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -89,8 +88,8 @@ def bt_scenario():
 
 
 @pytest.fixture
-def deployer_participant() -> VultronParticipant:
-    return VultronParticipant(
+def deployer_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/deployer-cp-001",
         attributed_to=DEPLOYER_ACTOR_ID,
         context=CASE_ID,
@@ -99,8 +98,8 @@ def deployer_participant() -> VultronParticipant:
 
 
 @pytest.fixture
-def case_manager_participant() -> VultronParticipant:
-    return VultronParticipant(
+def case_manager_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/cm-cp-001",
         attributed_to=CASE_MANAGER_ACTOR_ID,
         context=CASE_ID,
@@ -111,9 +110,9 @@ def case_manager_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_deployer(
     bt_scenario: BTTestScenario,
-    deployer_participant: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+    deployer_participant: CaseParticipant,
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[deployer_participant.id_],
@@ -126,10 +125,10 @@ def case_with_deployer(
 @pytest.fixture
 def case_with_deployer_and_case_manager(
     bt_scenario: BTTestScenario,
-    deployer_participant: VultronParticipant,
-    case_manager_participant: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+    deployer_participant: CaseParticipant,
+    case_manager_participant: CaseParticipant,
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -164,7 +163,7 @@ def _seed_status(
     bt_scenario.dl.create(status)
 
     case = bt_scenario.dl.read(case_id)
-    if not isinstance(case, VultronCase):
+    if not isinstance(case, VulnerabilityCase):
         return
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id:
@@ -395,7 +394,7 @@ class TestCSinStateFixDeployed:
     def test_success_when_fix_deployed(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
     ) -> None:
         _seed_status(
             bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF, d=CS_d.D
@@ -409,7 +408,7 @@ class TestCSinStateFixDeployed:
     def test_failure_when_not_deployed(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
     ) -> None:
         _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
         result = bt_scenario.run(
@@ -430,7 +429,7 @@ class TestCSinStateFixDeployed:
     def test_failure_when_actor_not_participant(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
     ) -> None:
         result = bt_scenario.run(
             CSinStateFixDeployed(case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID),
@@ -443,7 +442,7 @@ class TestCheckCSFixNotYetDeployed:
     def test_success_when_fix_ready_not_deployed(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
     ) -> None:
         """SUCCESS only for VFd (fix ready, not yet deployed)."""
         _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
@@ -459,7 +458,7 @@ class TestCheckCSFixNotYetDeployed:
     def test_failure_when_fix_not_ready(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
         vf: CS_vf | None,
         d: CS_d | None,
     ) -> None:
@@ -479,7 +478,7 @@ class TestCheckCSFixNotYetDeployed:
     def test_failure_when_already_deployed(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
     ) -> None:
         _seed_status(
             bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF, d=CS_d.D
@@ -508,7 +507,7 @@ class TestRMinStateDeferred:
     def test_success_when_deferred(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
     ) -> None:
         _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.DEFERRED)
         result = bt_scenario.run(
@@ -520,7 +519,7 @@ class TestRMinStateDeferred:
     def test_failure_when_accepted(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
     ) -> None:
         _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.ACCEPTED)
         result = bt_scenario.run(
@@ -586,7 +585,7 @@ class TestTransitionCStoFixDeployed:
     def test_success_and_creates_vfd_status(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
     ) -> None:
         _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
         result_out: dict = {}
@@ -615,7 +614,7 @@ class TestTransitionCStoFixDeployed:
     def test_fix_deployed_logged_in_narrative_form(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
         caplog,
     ) -> None:
         """AC-13: the d→D transition reads as a CVD milestone at INFO.
@@ -664,7 +663,7 @@ class TestEmitCDActivity:
     def test_success_emits_cd_activity(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer_and_case_manager: VultronCase,
+        case_with_deployer_and_case_manager: VulnerabilityCase,
     ) -> None:
         _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
         result_out: dict = {}
@@ -688,7 +687,7 @@ class TestEmitCDActivity:
     def test_failure_when_result_out_empty(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
     ) -> None:
         node = EmitCDActivity(
             case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, result_out={}
@@ -699,7 +698,7 @@ class TestEmitCDActivity:
     def test_failure_when_no_case_manager(
         self,
         bt_scenario: BTTestScenario,
-        case_with_deployer: VultronCase,
+        case_with_deployer: VulnerabilityCase,
     ) -> None:
         _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
         result_out: dict = {}
@@ -726,7 +725,7 @@ class TestEmitCDActivity:
 
 def test_early_exit_when_fix_already_deployed(
     bt_scenario: BTTestScenario,
-    case_with_deployer_and_case_manager: VultronCase,
+    case_with_deployer_and_case_manager: VulnerabilityCase,
 ) -> None:
     """Fix already deployed → CSinStateFixDeployed SUCCESS → Fallback succeeds.
 
@@ -737,7 +736,7 @@ def test_early_exit_when_fix_already_deployed(
         bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF, d=CS_d.D
     )
     case = bt_scenario.dl.read(CASE_ID)
-    assert isinstance(case, VultronCase)
+    assert isinstance(case, VulnerabilityCase)
     participant_id = case.actor_participant_index[DEPLOYER_ACTOR_ID]
     participant = bt_scenario.dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)
@@ -754,7 +753,7 @@ def test_early_exit_when_fix_already_deployed(
 
 def test_stay_deferred_short_circuits(
     bt_scenario: BTTestScenario,
-    case_with_deployer: VultronCase,
+    case_with_deployer: VulnerabilityCase,
 ) -> None:
     """Deferred deployer, no new info → _ShouldStayInRmDeferred SUCCESS.
 
@@ -764,7 +763,7 @@ def test_stay_deferred_short_circuits(
     """
     _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.DEFERRED)
     case = bt_scenario.dl.read(CASE_ID)
-    assert isinstance(case, VultronCase)
+    assert isinstance(case, VulnerabilityCase)
     participant_id = case.actor_participant_index[DEPLOYER_ACTOR_ID]
     participant = bt_scenario.dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)
@@ -784,7 +783,7 @@ def test_stay_deferred_short_circuits(
 @pytest.mark.spec("BT-03-004")
 def test_full_deploy_arm_completes_and_emits_cd(
     bt_scenario: BTTestScenario,
-    case_with_deployer_and_case_manager: VultronCase,
+    case_with_deployer_and_case_manager: VulnerabilityCase,
 ) -> None:
     """Deployer, RM ACCEPTED, fix ready-not-deployed, DeployFix SUCCEEDS.
 
@@ -800,14 +799,14 @@ def test_full_deploy_arm_completes_and_emits_cd(
     """
     _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
     case = bt_scenario.dl.read(CASE_ID)
-    assert isinstance(case, VultronCase)
+    assert isinstance(case, VulnerabilityCase)
     participant_id = case.actor_participant_index[DEPLOYER_ACTOR_ID]
     participant = bt_scenario.dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)
     before = len(participant.participant_statuses)
 
     bundle = DeployFixCallOutBundle(
-        deploy_fix_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
+        deploy_fix_factory=AlwaysSucceed,  # type: ignore[arg-type]
     )
     tree = create_deploy_fix_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
@@ -830,7 +829,7 @@ def test_full_deploy_arm_completes_and_emits_cd(
 
 def test_deploy_arm_falls_through_to_monitor_when_deployfix_fails(
     bt_scenario: BTTestScenario,
-    case_with_deployer_and_case_manager: VultronCase,
+    case_with_deployer_and_case_manager: VulnerabilityCase,
 ) -> None:
     """DETERMINISTIC DeployFix=AlwaysFail → deploy arm fails, monitor arm wins.
 
@@ -840,7 +839,7 @@ def test_deploy_arm_falls_through_to_monitor_when_deployfix_fails(
     """
     _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vf=CS_vf.VF)
     case = bt_scenario.dl.read(CASE_ID)
-    assert isinstance(case, VultronCase)
+    assert isinstance(case, VulnerabilityCase)
     participant_id = case.actor_participant_index[DEPLOYER_ACTOR_ID]
     participant = bt_scenario.dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)

@@ -66,9 +66,9 @@ def test_bundle_fields_satisfy_protocol():
 
     for f in dataclasses.fields(VALIDATION_DETERMINISTIC):
         val = getattr(VALIDATION_DETERMINISTIC, f.name)
-        assert isinstance(
-            val, CallOutBackendFactory
-        ), f"Field {f.name!r} default does not satisfy CallOutBackendFactory: {val!r}"
+        assert isinstance(val, CallOutBackendFactory), (
+            f"Field {f.name!r} default does not satisfy CallOutBackendFactory: {val!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -159,9 +159,9 @@ def test_bundle_is_frozen_dataclass(module_path, class_name):
 
     for f in params:
         val = getattr(instance, f.name)
-        assert isinstance(
-            val, CallOutBackendFactory
-        ), f"{class_name}.{f.name} default does not satisfy CallOutBackendFactory: {val!r}"
+        assert isinstance(val, CallOutBackendFactory), (
+            f"{class_name}.{f.name} default does not satisfy CallOutBackendFactory: {val!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -202,6 +202,6 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
     expected_singletons = [n for _, n in _discovered_singletons()]
 
     for name in expected_classes + expected_singletons:
-        assert hasattr(
-            bundles_pkg, name
-        ), f"vultron.demo.fuzzer.bundles does not export {name!r}"
+        assert hasattr(bundles_pkg, name), (
+            f"vultron.demo.fuzzer.bundles does not export {name!r}"
+        )

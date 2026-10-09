@@ -65,6 +65,15 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.deploy_fix import (
+    DEPLOY_FIX_DETERMINISTIC,
+)
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckDeployerRoleNode,
+)
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateAccepted,
+)
 from vultron.core.behaviors.report.nodes.deploy_fix import (
     CheckCSFixNotYetDeployed,
     CheckNoNewDeploymentInfoNode,
@@ -72,12 +81,6 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     EmitCDActivity,
     RMinStateDeferred,
     TransitionCStoFixDeployed,
-)
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckDeployerRoleNode,
-)
-from vultron.core.behaviors.report.nodes.conditions import (
-    CheckRMStateAccepted,
 )
 
 if TYPE_CHECKING:
@@ -124,10 +127,6 @@ def create_deploy_fix_tree(
     Returns:
         Root node of the deploy-fix behavior tree (Fallback).
     """
-    from vultron.core.behaviors.call_out.bundles.deploy_fix import (
-        DEPLOY_FIX_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else DEPLOY_FIX_DETERMINISTIC
 
     result_out: dict = {}

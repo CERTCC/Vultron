@@ -1,31 +1,38 @@
 """Tests for CoreObject base class and CORE_VOCABULARY registry."""
 
+import importlib.util
+import pathlib
+import re
+import tokenize
+from datetime import UTC
 from typing import Literal
 
 import pytest
 from pydantic import BaseModel
 
+import vultron
+from test.support.core_vocab import restore_core_registries
 from vultron.core.models import (
     CORE_VOCABULARY,
     CoreObject,
-    VultronObject,
     find_in_core_vocabulary,
 )
-from vultron.core.models.base import VULTRON_CONTEXT_URI, VultronBase
-from vultron.core.models.case import VultronCase
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import VULTRON_CONTEXT_URI, CoreRecord
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry as CoreCaseLedgerEntry,
 )
 from vultron.core.models.note import VultronNote
-from vultron.core.models.report import VulnerabilityReport, VultronReport
+from vultron.core.models.registry import CORE_TYPE_MAP
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 
 # --- Inheritance shape ------------------------------------------------------
 
 
-def test_core_object_inherits_vultron_object():
-    assert issubclass(CoreObject, VultronObject)
-    assert issubclass(CoreObject, VultronBase)
+def test_core_object_extends_the_core_record_root():
+    assert issubclass(CoreObject, CoreRecord)
     assert issubclass(CoreObject, BaseModel)
 
 
@@ -41,16 +48,18 @@ def test_core_object_has_required_as2_fields():
         "updated",
         "context_",
     ):
-        assert (
-            required in fields
-        ), f"CoreObject missing required field {required!r}"
+        assert required in fields, (
+            f"CoreObject missing required field {required!r}"
+        )
 
 
 def test_core_object_default_instance():
     obj = CoreObject()
     assert obj.id_.startswith("urn:uuid:")
-    # Bare CoreObject is treated as concrete by the type-from-classname validator.
-    assert obj.type_ == "CoreObject"
+    # The bare root is the extractor's minimal reference: its type is the
+    # referenced object's, so the class name is never invented for it.
+    assert obj.type_ is None
+    assert CoreObject(type_="Invite").type_ == "Invite"
     # context_ is a wire concern and defaults to None on the domain side.
     assert obj.context_ is None
     assert obj.published is not None
@@ -108,18 +117,61 @@ def test_core_object_context_empty_string_rejected():
 # --- CORE_VOCABULARY registration ------------------------------------------
 
 
-@pytest.fixture
-def isolated_vocab():
-    """Snapshot CORE_VOCABULARY around a test, restoring it after."""
-    snapshot = dict(CORE_VOCABULARY)
-    try:
-        yield
-    finally:
-        CORE_VOCABULARY.clear()
-        CORE_VOCABULARY.update(snapshot)
+# ``isolated_core_registries`` (snapshot/restore of CORE_VOCABULARY and
+# CORE_TYPE_MAP) is provided by ``test/conftest.py`` so every test-local
+# CoreObject subclass in the suite shares one registry-isolation mechanism.
+# The restore itself is ``test.support.core_vocab.restore_core_registries``,
+# tested directly below.
 
 
-def test_concrete_subclass_registers(isolated_vocab):
+@pytest.mark.spec("TB-06-003")
+@pytest.mark.spec("TB-06-004")
+def test_restore_core_registries_restores_both_maps():
+    """Both registries return to their prior contents, including the
+    ``CORE_TYPE_MAP``-only entry a subclass without its own ``type_`` makes
+    (the #3789 gap; see :func:`restore_core_registries`).
+    """
+    vocab_before = dict(CORE_VOCABULARY)
+    type_map_before = dict(CORE_TYPE_MAP)
+
+    with restore_core_registries():
+
+        class RestoreProbeConcrete(CoreObject):
+            type_: Literal["RestoreProbeConcrete"] = "RestoreProbeConcrete"
+
+        class RestoreProbeTypeMapOnly(CoreObject):
+            pass
+
+        # Both registrations happened, so the restore below is not vacuous.
+        assert CORE_VOCABULARY["RestoreProbeConcrete"] is RestoreProbeConcrete
+        assert CORE_TYPE_MAP["RestoreProbeConcrete"] is RestoreProbeConcrete
+        assert "RestoreProbeTypeMapOnly" not in CORE_VOCABULARY
+        assert (
+            CORE_TYPE_MAP["RestoreProbeTypeMapOnly"] is RestoreProbeTypeMapOnly
+        )
+
+    assert vocab_before == CORE_VOCABULARY
+    assert type_map_before == CORE_TYPE_MAP
+    assert "RestoreProbeConcrete" not in CORE_TYPE_MAP
+    assert "RestoreProbeTypeMapOnly" not in CORE_TYPE_MAP
+
+
+@pytest.mark.spec("TB-06-003")
+def test_restore_core_registries_restores_on_exception():
+    """A failing test body must not leave its local class registered."""
+    with pytest.raises(RuntimeError):
+        with restore_core_registries():
+
+            class RestoreProbeRaises(CoreObject):
+                type_: Literal["RestoreProbeRaises"] = "RestoreProbeRaises"
+
+            raise RuntimeError("test body failed")
+
+    assert "RestoreProbeRaises" not in CORE_VOCABULARY
+    assert "RestoreProbeRaises" not in CORE_TYPE_MAP
+
+
+def test_concrete_subclass_registers(isolated_core_registries):
     class CoreVocabFixtureConcrete(CoreObject):
         type_: Literal["CoreVocabFixtureConcrete"] = "CoreVocabFixtureConcrete"
 
@@ -132,14 +184,18 @@ def test_concrete_subclass_registers(isolated_vocab):
     )
 
 
-def test_subclass_without_type_override_does_not_register(isolated_vocab):
+def test_subclass_without_type_override_does_not_register(
+    isolated_core_registries,
+):
     class CoreVocabFixtureAbstract(CoreObject):
         pass
 
     assert "CoreVocabFixtureAbstract" not in CORE_VOCABULARY
 
 
-def test_subclass_with_union_type_override_does_not_register(isolated_vocab):
+def test_subclass_with_union_type_override_does_not_register(
+    isolated_core_registries,
+):
     class CoreVocabFixtureUnion(CoreObject):
         # Optional[str] — an abstract intermediate base, must not register.
         type_: str | None = None
@@ -147,7 +203,7 @@ def test_subclass_with_union_type_override_does_not_register(isolated_vocab):
     assert "CoreVocabFixtureUnion" not in CORE_VOCABULARY
 
 
-def test_registry_key_is_class_name_verbatim(isolated_vocab):
+def test_registry_key_is_class_name_verbatim(isolated_core_registries):
     """Core uses wire-style names with no prefix; key must equal __name__."""
 
     class VulnerabilityCaseRegistryProbe(CoreObject):
@@ -165,7 +221,9 @@ def test_find_in_core_vocabulary_raises_on_unknown():
         find_in_core_vocabulary("ThisTypeDoesNotExist")
 
 
-def test_registry_robust_under_future_annotations(tmp_path, isolated_vocab):
+def test_registry_robust_under_future_annotations(
+    tmp_path, isolated_core_registries
+):
     """Regression: PEP 563 string annotations must not bypass the union skip.
 
     Under ``from __future__ import annotations``, raw entries in
@@ -188,7 +246,8 @@ def test_registry_robust_under_future_annotations(tmp_path, isolated_vocab):
     module_dir = tmp_path / "future_annot_pkg"
     module_dir.mkdir()
     (module_dir / "__init__.py").write_text("")
-    (module_dir / "fixtures.py").write_text(textwrap.dedent("""
+    (module_dir / "fixtures.py").write_text(
+        textwrap.dedent("""
             from __future__ import annotations
             from typing import Literal
             from vultron.core.models import CoreObject
@@ -198,7 +257,8 @@ def test_registry_robust_under_future_annotations(tmp_path, isolated_vocab):
 
             class FutureAnnotConcrete(CoreObject):
                 type_: Literal["FutureAnnotConcrete"] = "FutureAnnotConcrete"
-            """))
+            """)
+    )
     sys.path.insert(0, str(tmp_path))
     try:
         mod = importlib.import_module("future_annot_pkg.fixtures")
@@ -212,23 +272,15 @@ def test_registry_robust_under_future_annotations(tmp_path, isolated_vocab):
     assert CORE_VOCABULARY["FutureAnnotConcrete"] is mod.FutureAnnotConcrete
 
 
-# --- AC-4: legacy Vultron* stubs are untouched ------------------------------
+# --- ADR-0099 detail 4: AS2-shaped stubs sit on the one AS2 root -----------
 
 
-def test_legacy_vultron_stubs_do_not_inherit_core_object():
-    """AC-4: existing Vultron* core stubs not yet migrated.
-
-    VultronNote still inherits VultronObject (not CoreObject) and must not
-    appear in CORE_VOCABULARY.  VultronCase is now an alias for
-    VulnerabilityCase (migrated in #729) so it IS a CoreObject.
-    """
-    for cls in (VultronNote,):
-        assert issubclass(cls, VultronObject)
-        assert not issubclass(cls, CoreObject), (
-            f"{cls.__name__} prematurely inherits CoreObject; "
-            "it has not been migrated yet."
-        )
-        assert cls.__name__ not in CORE_VOCABULARY
+def test_as2_shaped_vultron_stubs_are_core_objects():
+    """``VultronNote`` and the ``VultronActivity`` family carry AS2 object
+    fields, so they extend ``CoreObject`` — the one AS2 object root — rather
+    than the retired middle level (ADR-0099 detail 4)."""
+    for cls in (VultronNote, VultronActivity):
+        assert issubclass(cls, CoreObject)
 
 
 # --- AC-1/#727: migrated types inherit CoreObject ---------------------------
@@ -239,11 +291,6 @@ def test_vulnerability_report_inherits_core_object():
     assert issubclass(VulnerabilityReport, CoreObject)
     assert "VulnerabilityReport" in CORE_VOCABULARY
     assert CORE_VOCABULARY["VulnerabilityReport"] is VulnerabilityReport
-
-
-def test_vultron_report_alias_is_vulnerability_report():
-    """VultronReport backward-compat alias must resolve to VulnerabilityReport."""
-    assert VultronReport is VulnerabilityReport
 
 
 def test_vulnerability_record_inherits_core_object():
@@ -264,18 +311,115 @@ def test_core_case_ledger_entry_inherits_core_object():
 
 def test_vulnerability_case_inherits_core_object():
     """VulnerabilityCase (migrated in #729) must be a CoreObject subclass."""
-    from vultron.core.models.case import VulnerabilityCase
-
     assert issubclass(VulnerabilityCase, CoreObject)
     assert "VulnerabilityCase" in CORE_VOCABULARY
     assert CORE_VOCABULARY["VulnerabilityCase"] is VulnerabilityCase
 
 
-def test_vultron_case_alias_is_vulnerability_case():
-    """VultronCase backward-compat alias must resolve to VulnerabilityCase."""
-    from vultron.core.models.case import VulnerabilityCase
+_RETIRED_CORE_ALIASES = frozenset(
+    {
+        # #3431
+        "VultronCase",
+        "VultronCaseLedgerEntry",
+        "VultronCaseLedgerEntryRef",
+        # #3678
+        "VultronCaseActor",
+        "VultronReport",
+        "VultronEmbargoEvent",
+        "VultronParticipant",
+    }
+)
 
-    assert VultronCase is VulnerabilityCase
+
+@pytest.mark.parametrize(
+    ("module_name", "alias"),
+    [
+        # #3431
+        ("vultron.core.models.case", "VultronCase"),
+        ("vultron.core.models.case_ledger_entry", "VultronCaseLedgerEntry"),
+        ("vultron.core.models.case_ledger_entry", "VultronCaseLedgerEntryRef"),
+        (
+            "vultron.wire.as2.vocab.objects.case_ledger_entry",
+            "VultronCaseLedgerEntry",
+        ),
+        (
+            "vultron.wire.as2.vocab.objects.case_ledger_entry",
+            "VultronCaseLedgerEntryRef",
+        ),
+        # #3678
+        ("vultron.core.models.case_actor", "VultronCaseActor"),
+        ("vultron.core.models.report", "VultronReport"),
+        ("vultron.core.models.embargo_event", "VultronEmbargoEvent"),
+        ("vultron.core.models.case_participant", "VultronParticipant"),
+        (
+            "vultron.wire.as2.vocab.objects.case_participant",
+            "VultronParticipant",
+        ),
+    ],
+)
+def test_retired_core_alias_is_gone_from_its_old_home(module_name, alias):
+    """Retired ``Vultron``-prefixed aliases are not re-exported (#3431, #3678).
+
+    Each was an assignment alias of its canonical class, never a distinct type,
+    so an ``isinstance`` check against the alias could not fail and the
+    re-coercion branch it guarded was unreachable. CS-15-001 forbids keeping
+    them to spare call sites; this pins that the module that defined each one
+    no longer does.
+    """
+    assert alias in _RETIRED_CORE_ALIASES
+    module = importlib.import_module(module_name)
+    assert not hasattr(module, alias), f"{module_name}.{alias}"
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    ["vultron.core.models.vultron_types", "vultron.core.models.participant"],
+)
+def test_retired_core_model_shim_modules_are_gone(module_name):
+    """The re-export shim modules are deleted, not emptied (#3678, CS-15-001)."""
+    assert importlib.util.find_spec(module_name) is None
+
+
+_RETIRED_CORE_ALIAS_WORD = re.compile(
+    r"\b(?:" + "|".join(sorted(_RETIRED_CORE_ALIASES)) + r")\b"
+)
+
+
+def test_no_source_module_names_a_retired_core_alias():
+    """No identifier, string or comment under ``vultron/`` names a retired alias.
+
+    The per-module checks above catch a re-added definition in its old home;
+    this catches one re-introduced anywhere else, or a stale reference. String
+    and comment tokens are scanned too, because the retired names mostly lived
+    in string annotations (``cast("VultronReport | None", ...)``) and
+    docstrings, where neither an import nor a NAME scan would see them. The
+    word-boundary match keeps longer legitimate names such as
+    ``VultronReportCaseLink`` from being flagged.
+    """
+    package_root = pathlib.Path(vultron.__file__).parent
+    offenders = []
+    for path in sorted(package_root.rglob("*.py")):
+        with path.open("rb") as handle:
+            for token in tokenize.tokenize(handle.readline):
+                if token.type == tokenize.NAME:
+                    hit = token.string in _RETIRED_CORE_ALIASES
+                elif token.type in (tokenize.STRING, tokenize.COMMENT):
+                    hit = bool(_RETIRED_CORE_ALIAS_WORD.search(token.string))
+                else:
+                    continue
+                if hit:
+                    offenders.append(
+                        f"{path}:{token.start[0]}: {token.string}"
+                    )
+    assert offenders == []
+
+
+def test_retired_core_alias_word_match_spares_longer_names():
+    """The string/comment scan matches whole words only (guards the scan above)."""
+    assert _RETIRED_CORE_ALIAS_WORD.search('cast("VultronReport | None", x)')
+    assert _RETIRED_CORE_ALIAS_WORD.search("# see VultronParticipant")
+    assert not _RETIRED_CORE_ALIAS_WORD.search("VultronReportCaseLink")
+    assert not _RETIRED_CORE_ALIAS_WORD.search("as_VultronCase")
 
 
 # ---------------------------------------------------------------------------
@@ -283,44 +427,76 @@ def test_vultron_case_alias_is_vulnerability_case():
 # ---------------------------------------------------------------------------
 
 
-def test_core_object_strips_computed_field_input():
+def test_core_object_strips_computed_field_input(isolated_core_registries):
     """Cleanup #1: a ``@computed_field`` value in the payload is dropped.
 
-    ``ParticipantStatus.embargo_adherence`` is computed (ADR-0056) and appears
-    in ``model_dump()`` output but is not settable.  Under ``extra="forbid"``
-    it would be rejected on re-validation unless stripped first; the value is
-    re-derived from ``consent``, never taken from the injected key.
+    A computed field appears in the ``by_alias`` dump but is not settable.
+    Under ``extra="forbid"`` it would be rejected on re-validation unless
+    stripped first; the value is re-derived, never taken from the injected
+    key.  A local subclass carries one, so the contract is tested apart from
+    any production field (ARCH-23-005).
     """
-    from vultron.core.models.dimensions import PecDimension
-    from vultron.core.models.participant_status import ParticipantStatus
-    from vultron.core.states.participant_embargo_consent import PEC
+    from typing import Literal
 
-    # UNBOUND → not signatory → False, which is what the payload also says, so
-    # the redundant key is simply stripped.
-    status = ParticipantStatus.model_validate(
-        {
-            "context": "urn:uuid:case-computed-strip",
-            "consent": PecDimension(state=PEC.UNBOUND).model_dump(mode="json"),
-            "embargo_adherence": False,
-        }
+    from pydantic import computed_field
+
+    class _Derived(CoreObject):
+        type_: Literal["_Derived"] = "_Derived"
+        is_sealed_now: bool = False
+
+        @computed_field  # type: ignore[misc]
+        @property
+        def is_unsealed(self) -> bool:
+            return not self.is_sealed_now
+
+    # The payload agrees with the derived value, so the redundant key is
+    # simply stripped.
+    obj = _Derived.model_validate(
+        {"is_sealed_now": False, "is_unsealed": True}
     )
-    assert status.embargo_adherence is False
+    assert obj.is_unsealed is True
 
     # And a full dump round-trips (the computed key in the dump is stripped).
-    assert ParticipantStatus.model_validate(
-        status.model_dump(mode="json")
-    ) == (status)
+    assert _Derived.model_validate(obj.model_dump(mode="json")) == obj
 
     # Including the camelCase spelling, which is the AS2 wire form every core
-    # class emits (ADR-0099 detail 2).  Compared by dump, not ``==``: the wire
-    # dump carries ``@context``, and a parsed document keeps it in ``context_``
-    # (detail 1), which the locally built ``status`` never set.
+    # class emits (ADR-0099 detail 2).
     assert (
-        ParticipantStatus.model_validate(
-            status.model_dump(mode="json", by_alias=True)
+        _Derived.model_validate(
+            obj.model_dump(mode="json", by_alias=True)
         ).model_dump()
-        == status.model_dump()
+        == obj.model_dump()
     )
+
+
+def test_computed_field_with_a_field_serializer_is_refused(
+    isolated_core_registries,
+):
+    """A computed field may not declare a field serializer (ARCH-23-005).
+
+    The round-trip check derives a computed field's JSON form from its
+    return type, so a serializer that changed the published shape would make
+    the object refuse its own ``by_alias`` dump.  The class is refused when
+    it is defined instead.
+    """
+    from typing import Literal
+
+    from pydantic import computed_field, field_serializer
+
+    with pytest.raises(TypeError, match="item_count"):
+
+        class _Counted(CoreObject):
+            type_: Literal["_Counted"] = "_Counted"
+            items: list[str] = []
+
+            @computed_field  # type: ignore[prop-decorator]
+            @property
+            def item_count(self) -> int:
+                return len(self.items)
+
+            @field_serializer("item_count")
+            def _count_as_text(self, value: int) -> str:
+                return str(value)
 
 
 # ---------------------------------------------------------------------------
@@ -368,3 +544,52 @@ def test_case_ledger_entry_derives_id_from_wire_spelled_coordinates():
         }
     )
     assert entry.id_ == "urn:uuid:case-wire/log/3"
+
+
+# --- #3578 AC-5/AC-6: AS2 envelope spelling on every core vocabulary entry ---
+
+_ENVELOPE_SPELLING = {
+    "media_type": "mediaType",
+    "start_time": "startTime",
+    "end_time": "endTime",
+    "attributed_to": "attributedTo",
+    "in_reply_to": "inReplyTo",
+}
+
+
+def test_every_core_vocabulary_entry_spells_the_as2_envelope_in_camel_case():
+    """Each ``CORE_VOCABULARY`` entry dumps the shared AS2 envelope fields in
+    AS2 camelCase, not snake_case (#3578 AC-5).
+
+    Before the alias generator reached every core object (ADR-0099 detail 2),
+    ten classes — ``CaseParticipant``, ``CaseActor`` and ``CaseReference``
+    among them — dumped ``media_type`` / ``start_time`` / ``end_time`` /
+    ``attributed_to`` verbatim.
+    """
+    from datetime import datetime
+
+    from test.support.core_vocab import build_core_vocab
+
+    when = datetime(2026, 1, 2, tzinfo=UTC)
+    built, unconstructible = build_core_vocab(
+        "envelope",
+        {
+            "media_type": "text/plain",
+            "start_time": when,
+            "end_time": when,
+            "attributed_to": "urn:test:attributed-to:1",
+            "in_reply_to": "urn:test:in-reply-to:1",
+        },
+    )
+    assert not unconstructible, unconstructible
+    misspelled = {
+        name: sorted(
+            field
+            for field, camel in _ENVELOPE_SPELLING.items()
+            if camel not in dumped or field in dumped
+        )
+        for name, obj in built
+        if (dumped := obj.model_dump(by_alias=True, exclude_none=True))
+    }
+    misspelled = {name: bad for name, bad in misspelled.items() if bad}
+    assert not misspelled, f"non-AS2 envelope spelling: {misspelled}"

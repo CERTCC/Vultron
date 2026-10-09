@@ -248,7 +248,7 @@ class TestValidateAttribution:
         assert "_Model" not in message
 
     def test_prefix_is_kept(self):
-        with pytest.raises(MetadataLoadError, match="^invalid thing: title"):
+        with pytest.raises(MetadataLoadError, match=r"^invalid thing: title"):
             validate(_Model, {"count": 1}, prefix="invalid thing")
 
     def test_key_lines_locate_the_failing_key(self, tmp_path):
@@ -337,6 +337,9 @@ _ADR = """\
 ---
 title: T
 status: accepted
+created: 2020-01-01
+updated: 2020-01-01
+revision: 1
 date: 2026-01-01
 ---
 # ADR-0001 T
@@ -424,7 +427,7 @@ class TestHistoryLoaders:
         assert "<unicode string>" not in str(info.value)
 
     def test_cli_invalid_field(self):
-        with pytest.raises(ValueError, match="^invalid history frontmatter"):
+        with pytest.raises(ValueError, match=r"^invalid history frontmatter"):
             _validate_frontmatter(_ENTRY.replace("ISSUE-1", ""))
 
     def test_incoming_collects_parse_and_validation_faults(self, tmp_path):

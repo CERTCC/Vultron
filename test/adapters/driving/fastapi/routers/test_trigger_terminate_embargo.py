@@ -20,12 +20,14 @@ Tests for the terminate-embargo trigger endpoint
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
-import pytest
-from fastapi import status
 from unittest.mock import AsyncMock, patch
 
-from vultron.adapters.driven.db_record import object_to_record
+import pytest
+from fastapi import status
+
 from vultron.core.states.em import EM
+
+from .conftest import make_case_manager
 
 # ---------------------------------------------------------------------------
 # Module-level fixture: suppress outbox delivery retries
@@ -36,8 +38,7 @@ from vultron.core.states.em import EM
 def _no_outbox_delivery():
     """Suppress real outbox delivery for every test in this module."""
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
+        "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield
@@ -155,6 +156,7 @@ def test_trigger_terminate_embargo_updates_em_state_to_exited(
 ):
     """terminate-embargo transitions case EM state to EXITED."""
     case_obj, _ = case_with_embargo
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/terminate-embargo",
@@ -171,6 +173,7 @@ def test_trigger_terminate_embargo_clears_active_embargo(
 ):
     """terminate-embargo clears the active_embargo field on the case."""
     case_obj, _ = case_with_embargo
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/terminate-embargo",
@@ -183,18 +186,17 @@ def test_trigger_terminate_embargo_clears_active_embargo(
 
 
 def test_trigger_terminate_embargo_invalid_em_state_returns_409(
-    client_triggers, dl, actor, case_with_embargo
+    client_triggers, dl, actor, case_with_proposal
 ):
     """terminate-embargo returns HTTP 409 when EM state is not ACTIVE or REVISE.
 
-    Guards against bypassing the EM machine: even if active_embargo is set,
-    terminating from a state with no TERMINATE transition (e.g. PROPOSED) must
-    be rejected.
+    A case at PROPOSED has an open proposal but no embargo in force, so there
+    is nothing to terminate (ADR-0122: EM is derived from the register, and
+    only an ACTIVE entry can be TERMINATED).
     """
-    case_obj, _ = case_with_embargo
-    stored = dl.read(case_obj.id_)
-    stored.current_status.em.state = EM.PROPOSED
-    dl.update(stored.id_, object_to_record(stored))
+    case_obj, _, _ = case_with_proposal
+    assert dl.read(case_obj.id_).em_state == EM.PROPOSED
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/terminate-embargo",
@@ -203,28 +205,3 @@ def test_trigger_terminate_embargo_invalid_em_state_returns_409(
     assert resp.status_code == status.HTTP_409_CONFLICT
     data = resp.json()
     assert data["detail"]["error"] == "Conflict"
-
-
-def test_terminate_embargo_schedules_outbox_handler(
-    client_triggers, dl, actor, case_with_embargo
-):
-    """D5-6-TRIGDELIV: terminate-embargo schedules outbox delivery after execution."""
-    case_obj, _ = case_with_embargo
-    with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
-        new_callable=AsyncMock,
-    ) as mock_outbox:
-        resp = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/terminate-embargo",
-            json={"case_id": case_obj.id_},
-        )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
-    mock_outbox.assert_called_once()
-    assert mock_outbox.call_args.args[0] == actor.id_
-    assert mock_outbox.call_args.args[1] is dl
-    # No third positional: that slot is `emitter` now, and a store
-    # passed there silently becomes the emitter (see the ratchet in
-    # test/architecture/test_outbox_handler_emitter_keyword.py).
-    assert len(mock_outbox.call_args.args) == 2
-    assert "emitter" not in mock_outbox.call_args.kwargs

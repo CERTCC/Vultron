@@ -27,7 +27,8 @@ missing from `git log origin/main..HEAD` and the current diff.
 | `issue_number` | Issue to close (parsed from branch name if omitted; optional) |
 | `draft` | `true` to open as draft (default: `false`) |
 
-**Returns**: the PR URL as a string. Callers own `archive-history`.
+**Returns**: the PR URL as a string. Callers own `archive-history`, and for
+implementation PRs they own replacing the `Docs:` placeholder (Phase 1c).
 
 ---
 
@@ -96,10 +97,14 @@ For `implementation`:
 
 <Spec manifest from deepen-context, verbatim>
 
+## Docs
+
+Docs: pending check-docs-sync
+
 ## Verification
 
 - All N unit tests pass (M new)
-- Black, flake8, mypy, pyright clean
+- ruff, mypy, pyright clean
 ```
 
 If the caller supplied no Spec manifest, write `Spec manifest: not provided —
@@ -124,6 +129,66 @@ For `docs`:
 The `Closes #N` bullet **must be the very first line** of the body string
 passed to `gh pr create --body`. If it ends up after a `##` header, GitHub
 will not link the issue in the sidebar and triage will flag a FAIL.
+
+### 1c — Docs placeholder (implementation PRs)
+
+Every implementation or bug-fix PR body carries a `Docs:` line (PD-03-008;
+scope defined in `.agents/skills/shared/pr-body-guide.md` § "Implementation PR
+rules"), whether the body was inferred above or supplied by the caller. Apply
+this whenever `type` is `implementation` (passed or inferred) **or** the
+closed issue is a `Task`, `Feature`, or `Bug` — a skill-only or docs-only PR
+that closes a Task is still in scope:
+
+```bash
+bash .agents/skills/shared/query-issue-type.sh <ISSUE_NUMBER> \
+  | jq -r '.data.repository.issue.issueType.name'
+```
+
+If the body has no line beginning `Docs:`, insert this section immediately
+before `## Verification` (or at the end of the body if there is no
+Verification section):
+
+```markdown
+## Docs
+
+Docs: pending check-docs-sync
+```
+
+A caller-supplied `Docs:` line is left as written. The placeholder is not a
+final value: the caller runs `check-docs-sync` after the push and replaces it
+with one of the final forms in `.agents/skills/shared/pr-body-guide.md`
+§ "Implementation PR rules". A `docs` PR that closes no Task, Feature, or
+Bug issue carries no `Docs:` line.
+
+### 1d — Spec-amended placeholder (any PR type)
+
+```bash
+bash .agents/skills/shared/spec-amendments.sh origin/main
+```
+
+Exit `2` is a load error (bad ref, unreadable spec file): stop and report it;
+it is not "no amendment". Exit `0`: add nothing. Exit `1`: the diff changed or
+removed a `statement:` or
+`priority:` in `specs/`, so the body MUST carry a `## Spec amended` section
+(`.agents/skills/shared/pr-body-guide.md` § "Spec amended"). If the body has
+none, insert this placeholder immediately after `## Specs` (after `## Changes`
+on a docs PR), one `### <ID>` block per ID the script listed:
+
+```markdown
+## Spec amended
+
+### <SPEC-ID>
+
+- Before: <TODO — the statement or priority as it stood on main>
+- After: <TODO — the statement or priority as now written>
+- Reason: <TODO — why; and whether it changes what the requirement obliges>
+```
+
+The placeholder is not a final value. The caller fills every `<TODO>` from the
+diff (`git diff origin/main..HEAD -- specs/`) before the session ends;
+`pr-triage` FAILs a body that still contains one. A change to what a requirement
+obliges needs the user's approval first (see `notes/agentic-workflow.md`
+§ "Spec Text Conflicts With Code"), not a filled-in section alone.
 
 ---
 
@@ -154,13 +219,9 @@ Run the appropriate suite based on PR type:
 **Docs PR** (`type: docs`):
 
 ```bash
-# Linters only — no Python changed. Scope matches run-linters and build
-# Phase 6; bare `uv run flake8` walks the whole repo (including scripts/,
-# which carries pre-existing C901/E741 findings no other gate covers) and
-# fails every docs PR on debt it did not introduce.
-uv run black --check .
-uv run flake8 vultron/ test/
-uv run mypy vultron
+# Linters only — no Python changed. Each tool reads its scope from config.
+uv run ruff check && uv run ruff format --check
+uv run mypy
 uv run pyright
 ```
 
@@ -170,10 +231,10 @@ before proceeding. Do not open a PR with lint failures.
 **Implementation PR** (`type: implementation`):
 
 ```bash
-uv run black vultron/ test/
-uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
-uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
-uv run pytest -m integration --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
+uv run ruff check --fix && uv run ruff format
+uv run ruff check && uv run mypy && uv run pyright
+uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Both suites must pass. The first pytest command covers the unit suite
@@ -190,8 +251,7 @@ failing tests or lint errors.
 ### Happy path
 
 ```bash
-git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" \
-  "$(git branch --show-current)"
+git push -u origin HEAD
 
 gh pr create --repo CERTCC/Vultron \
   --head "$(git branch --show-current)" \
@@ -203,11 +263,16 @@ gh pr create --repo CERTCC/Vultron \
 
 Capture and return the PR URL emitted by `gh pr create`.
 
+Always push with `-u` to the named remote `origin`. Without `-u` the branch
+gets no upstream, so every later bare `git push` fails ("has no upstream
+branch"). Never push to a token-embedded URL: with `-u`, git would record that
+URL — token included — as the branch's remote in `.git/config` (#3893).
+
 ### Draft-with-conflict path (unresolvable conflicts)
 
 If Phase 2 exited with code `1` (cherry-pick conflict): push the un-freshened
-branch as-is, then open a draft PR with `needs-rebase` label per
-[REFERENCE.md](REFERENCE.md) § "Conflict PR template".
+branch as-is with the same `git push -u origin HEAD`, then open a draft PR with
+`needs-rebase` label per [REFERENCE.md](REFERENCE.md) § "Conflict PR template".
 
 ---
 
@@ -217,5 +282,7 @@ branch as-is, then open a draft PR with `needs-rebase` label per
   mandatory and must run immediately before the push in Phase 4.
 - **Never open a non-draft PR with lint failures or failing tests.**
 - **Callers own `archive-history`.** This skill does not call it.
+- **Every implementation PR body gets a `Docs:` line** (Phase 1c). This skill
+  writes the placeholder; it never runs `check-docs-sync` itself.
 - If called from another skill, a dirty working tree is a hard stop, not a
   prompt — callers must arrive with a clean tree.

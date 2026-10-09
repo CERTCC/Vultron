@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Developer Tutorials
 
 These tutorials teach maintainers by doing, with a single guided path per

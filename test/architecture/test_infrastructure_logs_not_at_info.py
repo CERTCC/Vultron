@@ -54,7 +54,6 @@ DEMOTED_FRAGMENTS: tuple[str, ...] = (
     "sync adapter: queued Announce(CaseLedgerEntry)",
     "store_embedded_participants: stored participant",
     "already exists locally",
-    "already received by",
     "already stored — skipping",
 )
 

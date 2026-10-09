@@ -15,8 +15,6 @@ previously defined in the project documentation.
 1. Search all markdown (`*.md`) files in `docs/` to discover capitalized
    occurrences of RFC 2119 keywords (e.g., "MUST", "SHOULD", "MAY") to
    identify candidate requirements.
-   1. Note that `docs/howto/em_icalendar.md` was written at a time when we were
-      considering iCalendar as a potential format for embargo representation.
       That is no longer the case. However, there may be some ideas in that file
       that are still relevant regarding privacy concerns in embargo
       representation.

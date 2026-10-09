@@ -167,8 +167,7 @@ class TestHostedActorIds:
     def test_uses_the_instance_registry_in_memory_mode(self):
         """An in-memory store exists only while an instance holds it open."""
         with patch(
-            "vultron.adapters.driven.datalayer_sqlite"
-            ".get_all_actor_datalayers",
+            "vultron.adapters.driven.actor_hosts.get_all_actor_datalayers",
             return_value={"b-actor": object(), "a-actor": object()},
         ):
             assert hosted_actor_ids("sqlite:///:memory:", _BASE) == [

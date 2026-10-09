@@ -4,7 +4,6 @@ description: >-
   Requirements for validating ActivityStreams 2.0 activities at the inbox handler boundary,
   covering ActivityStreams structure and semantic validation. Invalid activities are rejected
   with appropriate error responses before dispatch.
-version: 1.0.0
 scope:
 - prototype
 - production
@@ -88,6 +87,7 @@ groups:
   - id: MV-01-007
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The semantic-dispatch stage MUST NOT propagate internal dispatch
       errors to callers.
@@ -103,6 +103,7 @@ groups:
   - id: MV-02-001
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST use Pydantic models to validate activities
     relationships:
     - rel_type: implements
@@ -110,14 +111,17 @@ groups:
   - id: MV-02-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST reject activities that fail Pydantic validation with HTTP 422
   - id: MV-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Validation error responses MUST include detailed error information
   - id: MV-02-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: The system MUST log validation failures at WARNING level
 - id: MV-03
   title: Required Field Validation
@@ -134,7 +138,7 @@ groups:
     - missing_story_reference
   - id: MV-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       A receiver MUST treat a required field that is present but blank as absent,
       and MUST report it with the same error as an omitted field. A blank value is
@@ -162,8 +166,6 @@ groups:
       spec_id: MV-03-001
     adr:
     - ADR-0090
-    lint_suppress:
-    - missing_story_reference
 - id: MV-04
   title: Object Type Validation
   specs:
@@ -185,7 +187,7 @@ groups:
       actor, created object ID, and context (case ID)
   - id: MV-04-003
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >-
       When an inline object's `type` resolves to a known wire vocabulary class, a
       receiver MUST NOT substitute a less specific type for it if validation
@@ -194,13 +196,12 @@ groups:
       wire-branch classes; an unresolved type leaves the object for its parent
       field to validate.
     rationale: >-
-      Substituting a weaker type is silent data loss: a nested object handed back
-      as a raw dict is accepted by its parent as a bare `as_Link`, so an
-      `Accept(Invite(...))` with one corrupt inner field parsed clean, extracted as
-      `UNKNOWN`, and drew a 202. Wire-only resolution makes refusal safe:
-      `find_in_vocabulary` falls back to `CORE_TYPE_MAP` (ARCH-12-003), where
-      `OrderedCollection` alone is registered, so an inline actor's `inbox` became
-      a core instance its wire parent rejects (ARCH-22-001).
+      Substituting a weaker type is silent data loss: an `Accept(Invite(...))` with
+      one corrupt inner field parsed clean as a bare `as_Link`, extracted as
+      `UNKNOWN`, and drew a 202. Wire-only resolution makes refusal safe: while the
+      `CORE_TYPE_MAP` fallback (ARCH-12-003) was the lookup's default, an inline
+      actor's `inbox` resolved to a core instance its wire parent rejects
+      (ARCH-22-001). The fallback is now opt-in (VM-06-008).
     verification: >-
       Unit tests in `test/wire/as2/test_parser.py` confirm that an
       `Accept(Invite(...))` whose inner object carries an unparseable timestamp is
@@ -212,8 +213,6 @@ groups:
       spec_id: MV-04-001
     adr:
     - ADR-0090
-    lint_suppress:
-    - missing_story_reference
 - id: MV-05
   title: URI Validation
   specs:
@@ -230,14 +229,12 @@ groups:
     - story_2022_030
   - id: MV-05-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The system MUST treat ActivityStreams object IDs as opaque URIs
     verification: >-
       Inspection of `vultron/core/` confirms that no code parses or deconstructs
       object IDs beyond URI validation; IDs are stored and compared as opaque
       strings.
-    lint_suppress:
-    - missing_story_reference
 - id: MV-09
   title: Outbound Activity Object Integrity
   specs:
@@ -249,6 +246,10 @@ groups:
       `object_` field; a bare URI reference or `as_Link` is not permitted because
       the recipient has no access to the sender's DataLayer and cannot resolve the
       reference to determine the activity's semantic type.
+    note: >-
+      The rule binds the activity's own `object_`. An `Invite(EmbargoEvent)` nested as the
+      object of an ER may name its terms by URI: the ER answers the Invite by id and type,
+      both inline, and needs no terms (ADR-0123).
     verification: >-
       Enforced at runtime in `vultron/adapters/driving/fastapi/outbox_delivery.py`;
       `VultronValidationError` is raised when `object_` is a bare string URI rather
@@ -261,16 +262,19 @@ groups:
     kind: protocol
     statement: >-
       The outbox handler MUST raise `VultronOutboxObjectIntegrityError` and abort delivery
-      if an outbound activity's `object_` field is a bare string or `as_Link` after any DataLayer
-      expansion attempt.
+      if the sealed body of an outbound initiating activity carries a bare string or an
+      `as_Link` as its `object`. The handler MUST NOT attempt to expand the reference from the
+      DataLayer first: it is a dumb relay (VM-08-003), so a reference in `object` is refused as a
+      factory defect, not repaired at delivery time.
     verification: >-
-      A unit test confirms that submitting an outbound activity with `object_` set to a
-      bare string raises `VultronOutboxObjectIntegrityError` before any delivery attempt.
+      A unit test confirms that an outbound activity whose sealed body has `object` set to a
+      bare string raises `VultronOutboxObjectIntegrityError` before any delivery attempt and
+      without any DataLayer read beyond the sealed body itself.
     lint_suppress:
     - missing_story_reference
   - id: MV-09-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Vultron activity classes where semantic dispatch depends on the `object_` type MUST
       require `object_` at construction time — no `None` default is permitted.  An omitted
@@ -281,8 +285,6 @@ groups:
       Inspection of activity class definitions in `vultron/wire/` confirms that classes
       whose dispatch logic inspects `object_.type` declare `object_` as a required field
       with no `None` default.
-    lint_suppress:
-    - missing_story_reference
 - id: MV-10
   title: Stub Objects
   specs:
@@ -290,16 +292,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A stub object MUST carry at minimum an `id` field (full URI) and a `type` field; it
-      MAY carry a `summary` field for human-readable context. The stub form is permitted
-      ONLY for `VulnerabilityCase`. For every other object type, a sender that does not
-      inline the full object MUST reference it by URI (or by an ActivityStreams `Link`),
-      not by a partial inline object.
+      A stub object MUST carry at minimum an `id` field (full URI), a `type` field and
+      a non-empty `summary` field giving human-readable context, and a receiver MUST
+      refuse a stub whose `summary` is absent or blank. The stub form is
+      permitted ONLY for a case, as the distinct `VulnerabilityCaseStub` type of
+      CM-11-013, and a receiver MUST classify a stub by its `type`. For every other
+      object type, a sender that does not inline the full object MUST reference it by
+      URI (or by an ActivityStreams `Link`), not by a partial inline object.
     rationale: >-
-      The stub form is a narrow affordance, not a substitute for a full object. It serves
-      one need: an invitee must evaluate a case before accepting, and the case cannot be
-      shared until they accept (MV-10-005), so the stub is a transient placeholder that
-      rehydrates once they are admitted. No other type has that need or is implemented.
+      The stub form is a narrow affordance, not a substitute for a full object. It
+      serves one need: an invitee must decide whether to join a case before it may
+      receive the case (MV-10-005), so the stub stands in for the case until the
+      participant is active (CM-10-004). No other type has that need or is implemented.
+      The summary is what tells the invitee what it is being asked to join; what it
+      says is the sender's choice (CM-17-010); #4165 implemented the enforcement.
     note: >-
       Partial inline objects of other types were never designed — a parser fallback
       swallowed their validation failures and handed the parent a raw dict, which
@@ -308,22 +314,30 @@ groups:
       URI in another actor's message into the resolved object. Design discussion:
       `notes/stub-objects.md`.
     verification: >-
-      A unit test confirms that a `VulnerabilityCase` inline object carrying only
-      `id`/`type`(+`summary`) resolves to `as_VulnerabilityCaseStub`, and that a partial
-      inline object of any other recognised wire type is refused under MV-04-003 rather
-      than degraded. Bare URI references and `Link` objects remain accepted in all four
-      positions named by MV-10-002.
+      A unit test confirms that an inline object with `type: VulnerabilityCaseStub`
+      resolves to the stub class, that a sparse inline object with `type:
+      VulnerabilityCase` is validated as a case rather than read as a stub, and that a
+      partial inline object of any other recognised wire type is refused under MV-04-003
+      rather than degraded.
+      `test/wire/as2/test_unknown_key_disposition.py::test_a_stub_without_a_summary_is_refused`
+      asserts a stub with an absent, empty, or blank `summary` is refused at message
+      validation; all three parametrize cases pass since #4165 was implemented. Bare URI
+      references and `Link` objects remain accepted in all four positions named by MV-10-002.
     relationships:
     - rel_type: constrains
       spec_id: MV-04-003
     adr:
     - ADR-0090
+    - ADR-0114
     stories:
     - story_2022_039
   - id: MV-10-002
     priority: MUST
     kind: protocol
-    statement: 'A `VulnerabilityCase` stub object is ONLY permitted in the following field positions of an ActivityStreams activity: `actor`, `object`, `target`, and `origin`.'
+    statement: >-
+      A `VulnerabilityCaseStub` object is ONLY permitted in the following field
+      positions of an ActivityStreams activity: `actor`, `object`, `target`, and
+      `origin`.
     rationale: >-
       Scopes the position rule to the one permitted stub type (MV-10-001). A reference in
       any of these positions may also be a bare URI or a `Link`; those forms are always
@@ -334,9 +348,12 @@ groups:
       are treated as full-object validation failures.
     lint_suppress:
     - missing_story_reference
+    adr:
+    - ADR-0114
   - id: MV-10-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The DataLayer MUST NOT overwrite a full domain object with a stub object
     rationale: >-
       A recipient may receive a stub for an object they already have in full; discarding preserves
@@ -344,32 +361,21 @@ groups:
   - id: MV-10-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Inbound stubs MUST NOT be used to create new domain records
   - id: MV-10-005
     priority: MUST
     kind: protocol
     statement: >-
-      A participant MUST satisfy BOTH of the following conditions before the case owner delivers
-      full case details to them: 1. `ParticipantStatus.rm_state` is at least `RECEIVED` (the
-      participant has accepted the case invitation and been admitted to the case) 2.
-      `ParticipantStatus.embargo_adherence == True` (participant is a signatory to the active
-      embargo), OR there is no active embargo (`CaseStatus.em_state == NONE`)
-    note: >-
-      Condition 1 previously read `rm_state == ACCEPTED`. That was incorrect and mutually
-      unsatisfiable with the rest of the invitation lifecycle: CM-11-001 records an invitee at
-      `RM.RECEIVED` on `Accept(Invite)`, and CM-11-002 has them reaching `ACCEPTED` only AFTER
-      receiving the full case replica and running triage. Requiring `ACCEPTED` before delivery
-      meant a participant could never obtain the full case they need in order to reach `ACCEPTED`.
-      The condition's own parenthetical ("participant accepted the case invitation") describes
-      `RM.RECEIVED`, confirming the intent was "is admitted to the case", not "has completed triage".
-      The embargo condition (2) is the substantive gate on case content, per MV-10-006 and CM-18.
-      The implementation follows this ordering: `accept_invite_tree` creates the invitee at
-      `RM.RECEIVED`, auto-signs embargo consent when `EM.ACTIVE`, and only then emits
-      `Announce(VulnerabilityCase)` with the full snapshot.
+      A participant MUST be active (CM-10-004) before the CASE_MANAGER delivers full
+      case details to it.
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that the case
-      replica is delivered to a new participant only after their `rm_state` reaches
-      `RECEIVED` and embargo consent is auto-signed.
+      replica is delivered to a joining participant only after it has accepted the stub
+      Invite and, when an embargo is active, its consent is `SIGNATORY`, and that an
+      invitee that has not joined receives no case replica.
+    adr:
+    - ADR-0114
     relationships:
     - rel_type: depends_on
       spec_id: MV-10-006
@@ -381,17 +387,210 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a participant `Accept`s an `Invite(case)` and the case has an active embargo (`CaseStatus.em_state
-      == ACTIVE`), the acceptance MUST imply consent to the active embargo, transitioning
-      that participant's consent state to `SIGNATORY`
+      When a participant accepts the stub Invite (`Accept(Invite(Actor,
+      VulnerabilityCaseStub))`) and the case has an active embargo, the acceptance MUST
+      imply consent to the active embargo, marking that participant's consent row
+      for it `ACCEPTED` (CM-11-001).
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      `AcceptInviteToEmbargoOnCaseReceivedUseCase` transitions the accepting
-      participant's PEC state to `SIGNATORY` when `em_state == ACTIVE`.
+      accepting the stub Invite marks the accepting participant's consent row for the active embargo `ACCEPTED` when an embargo is active.
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008
+    adr:
+    - ADR-0114
     stories:
     - story_2022_023
     - story_2022_026
     - story_2022_052
+- id: MV-11
+  title: Inbound Unknown-Key Disposition
+  specs:
+  - id: MV-11-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The parse edge (`parse_activity` in `vultron/wire/as2/parser.py`) MUST decide what
+      happens to an unrecognised key on inbound data for every object at every depth — the
+      activity envelope, an inline object whose `type` resolves to a wire class, an inline
+      object whose `type` resolves to a core class, an inline `Link`, and an inline object
+      with no `type` — by partitioning the arriving keys against the resolved class's declared
+      spellings before validating it. A declared spelling is a field name, the camelCase alias
+      the class generates for it, an explicit validation alias, or `@context`. The disposition
+      MUST NOT depend on which branch the resolved class belongs to.
+    rationale: >-
+      Measured on 2026-09-30, an unknown key was refused with a 422 when the inline object
+      happened to be a domain type (a core class carrying `extra="forbid"`, ARCH-12-003) and
+      dropped silently when it landed on the envelope, a generic AS2 object, a `Link`, or an
+      untyped inline dict (wire classes inheriting Pydantic's default `extra="ignore"`).
+      Neither outcome was chosen for inbound data; both were inherited from a configuration
+      whose purpose is elsewhere. Under one object model (ADR-0099) the parser is the inbound
+      wire-to-core seam, so it is the one place a receive-side rule can be stated once and
+      hold everywhere (ADR-0032: validate at the edge; ARCH-21-002: inbound wire data stays
+      lenient).
+    verification: >-
+      `test/wire/as2/test_unknown_key_disposition.py` drives `parse_activity` with an unknown
+      key in each of the positions this requirement names and asserts the same disposition in
+      every one: refused when the key is a near miss (MV-11-002), set aside and reported when
+      it is foreign (MV-11-003). The partition is `vultron/wire/as2/unknown_keys.py` (#3921).
+    relationships:
+    - rel_type: depends_on
+      spec_id: MV-04-003
+      note: MV-04-003 decides which class an inline object resolves to; this requirement decides what happens to the keys that class does not declare.
+    adr:
+    - ADR-0099
+    - ADR-0032
+  - id: MV-11-002
+    priority: MUST
+    kind: project
+    statement: >-
+      A receiver MUST refuse the whole activity, with the schema-fault response MV-02-002
+      requires, when an unrecognised inbound key is a near miss for a declared spelling of the
+      resolved class or matches a retired name. A key is a near miss when lowercasing it and
+      removing every non-alphanumeric character yields the same string as a declared spelling
+      treated the same way (so `Actor`, `attributed-to` and `ATTRIBUTEDTO` are near misses of
+      `actor` and `attributedTo`). A spelling the resolved class accepts on input is declared,
+      never a near miss: both roots validate by field name as well as by alias (CS-14-001,
+      CS-14-002), so the snake_case field name `attributed_to` is a declared spelling of
+      `attributedTo`. The JSON-LD keywords `@id` and `@type` are near misses of `id` and `type`
+      by design, not an accident of the normalisation: AS2 spells these fields `id` and `type`
+      with no `@` prefix, because the normative AS2 context aliases the keywords and AS2 Core
+      section 2.1 requires the serialized form to be consistent with compaction under that
+      context, so a document carrying `@id` or `@type` is legal JSON-LD but not a conforming
+      AS2 document (MV-01-001). `@context` is the only JSON-LD keyword that is a declared
+      spelling; a receiver MUST NOT declare `@id` or `@type` as an alias or exempt them from
+      the near-miss test. The refusal MUST name the arriving key and the declared or
+      retired spelling it resembles. The near-miss test MUST be exactly this normalisation plus
+      the retired-name list: edit distance, prefix matching, or any other similarity measure
+      MUST NOT be used.
+    rationale: >-
+      A near miss is a key the sender meant us to read. Proceeding without it loses their data
+      with a log line attached, which is the #2232 shape; refusing tells the sender which field
+      to fix. The normalisation is deliberately shallow: AS2 has many two- and three-letter
+      property names within one character of each other, so an edit-distance model would
+      misfire constantly, and pinning down a richer notion of "near" is not worth the time
+      (ADR-0099 detail 8). A retired name is not a spelling of anything, so it is in the list
+      by name rather than by normalisation. The JSON-LD keywords are named so the refusal is
+      understood as a decision: a peer that emits `@id`/`@type` skipped compaction or compacted
+      under a context without the AS2 aliases, and it meant the `id`/`type` Vultron reads.
+      Setting the keywords aside would strip the object's identity and type and cascade into
+      other refusals; declaring them as aliases would make Vultron a partial JSON-LD processor
+      with no principled place to stop (full-IRI property names and `@value` objects are
+      equally legal JSON-LD). Refusing tells the peer the compact spelling to send
+      (CONCERN-3958).
+    verification: >-
+      `test/wire/as2/test_unknown_key_disposition.py` asserts that a case variant and a
+      separator variant (`attributed-to`) on the envelope and on an inline object, and a retired
+      name on an inline object (the retired-name list holds status-dimension keys, which never
+      sit on the envelope), each raise `VultronParseValidationError` whose message names both
+      the arriving key and the spelling it resembles; that the JSON-LD keywords `@id` and
+      `@type` on the envelope and on an inline object each raise the same parse-edge refusal
+      naming `id` or `type`, not a Pydantic dump; that a snake_case field name is accepted
+      as a declared spelling with nothing reported; and that no module under
+      `vultron/wire/as2/` contains an edit-distance or similarity helper (`difflib`,
+      Levenshtein, or equivalent).
+    relationships:
+    - rel_type: refines
+      spec_id: MV-11-001
+    - rel_type: depends_on
+      spec_id: MV-02-002
+    - rel_type: depends_on
+      spec_id: MV-01-001
+    adr:
+    - ADR-0099
+  - id: MV-11-003
+    priority: MUST
+    kind: project
+    statement: >-
+      An unrecognised inbound key that is not a near miss and not a retired name MUST be set
+      aside and reported, not refused: the activity proceeds on its declared fields, and the
+      receiver logs one INFO record per set-aside key carrying `activity_id`, the sender's
+      `actor_id`, the dotted field path of the object the key sat on, and the key itself. A
+      set-aside key MUST NOT be carried into the parsed object or appear in any dump of it;
+      the raw body remains available as received evidence (VM-08-002).
+    rationale: >-
+      AS2 is designed to be extended, and refusing a peer's whole message for one property
+      Vultron does not read is a federation cost with no benefit to the protocol. Silence is
+      not acceptable either: an operator needs to see what peers send that Vultron ignores,
+      and a spelling defect on Vultron's own side that escapes the near-miss net shows up here
+      first. Carrying the key on the object would leak it into the stored form, which
+      `extra="forbid"` refuses (the cross-class revalidation break of ISSUE-3489), so the
+      report is the only trace and the received evidence is the only copy.
+    verification: >-
+      `test/wire/as2/test_unknown_key_disposition.py` asserts, for an unknown key in each
+      position MV-11-001 names, that `parse_activity` returns an activity, that the parsed
+      object and its `by_alias` dump do not contain the key, and that exactly one INFO record
+      names the key, the path, the activity id and the sender.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-11-001
+    - rel_type: depends_on
+      spec_id: SL-02-001
+    - rel_type: depends_on
+      spec_id: SL-02-002
+    adr:
+    - ADR-0099
+    - ADR-0086
+  - id: MV-11-004
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Setting inbound unknown keys aside at the parse edge MUST NOT loosen `extra="forbid"` on
+      any core type (ARCH-12-003). The parse edge is the only door inbound data enters by, so a
+      core class never sees an inbound unknown key; an unknown key on in-process or stored data
+      remains a refusal. The retired-name list MV-11-002 consults MUST live in the wire layer
+      and be consulted only at the parse edge; core types MUST NOT carry a per-class
+      retired-key reject-guard (SDO-03-005).
+    rationale: >-
+      The two rules answer different questions. `extra="forbid"` asks "did this process build
+      or store an object with a key it does not know?" — always a bug. The parse edge asks
+      "did a peer send a property we do not read?" — usually an extension. Keeping them
+      separate is what lets the receive side be liberal without reopening the #2232 hole on
+      the stored side. `ParticipantStatus._reject_retired_vfd_keys` predated this rule and was
+      the one guard SDO-03-005 already forbade; #3921 deleted it when the wire-side list
+      arrived.
+    verification: >-
+      `test/architecture/test_core_extra_forbid.py` continues to assert every `CoreObject`
+      subclass forbids extras with no exemption list. A grep of `vultron/core/models/` finds no
+      `mode="before"` validator that rejects a retired key by name: #3921 deleted
+      `ParticipantStatus._reject_retired_vfd_keys`, and
+      `test_no_core_module_names_a_retired_key` (`test/wire/as2/test_unknown_key_disposition.py`)
+      fails if any string constant under `vultron/core/` names a key on the wire-side
+      `RETIRED_NAMES` list.
+    relationships:
+    - rel_type: constrains
+      spec_id: ARCH-12-003
+    - rel_type: refines
+      spec_id: SDO-03-005
+    adr:
+    - ADR-0099
+  - id: MV-11-005
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      After `parse_activity` returns, the receive path MUST NOT re-validate an inline object
+      from the raw request body. The parsed object graph is the authority for what arrived in
+      each slot; the raw body is received evidence, kept for audit, not a second source to
+      parse from.
+    rationale: >-
+      A re-parse from the raw body sees the keys the parse edge set aside and, on a core class,
+      fails on them. `inbox_storage._reparse_as_specific_type` did exactly that and fell back
+      to a base class on failure with a DEBUG line, so once keys were set aside it would have
+      stored the wrong class silently; #3922 deleted it.
+      Its purpose — recovering the specific class when the parser
+      had validated an inline object as the base type — ended when the parser began resolving
+      inline objects to their specific class itself (MV-04-003).
+    verification: >-
+      `test/architecture/test_no_receive_path_reparse.py` fails on any `model_validate` or
+      `model_validate_json` call under `vultron/adapters/driving/` or `vultron/core/` whose
+      argument is built from `received_evidence` or from a raw-body name, directly or through
+      a local assigned from one. `test/adapters/driving/fastapi/test_inbox_storage.py` asserts
+      that ingress storage persists the class the parser produced, including a case stub and a
+      case whose foreign key was set aside (#3922).
+    relationships:
+    - rel_type: depends_on
+      spec_id: MV-11-003
+    - rel_type: depends_on
+      spec_id: MV-04-003
+    adr:
+    - ADR-0099

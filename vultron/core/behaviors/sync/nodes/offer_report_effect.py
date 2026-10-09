@@ -15,11 +15,14 @@
 
 """Ledger effect node for add_report_to_case entries.
 
-Provides :class:`ApplyOfferReportFromLedgerNode`, which creates a
-``VultronOfferRecord`` when an invited actor processes the canonical
+Provides :class:`ApplyOfferReportFromLedgerNode`, which restores the report and
+attaches it to the case replica when an invited actor processes the canonical
 ``add_report_to_case`` ledger entry backfilled from the case owner.
 
-Per ADR-0035 DL-06-002, SYNC-02-002, ISSUE-2134.
+It creates no ``VultronOfferRecord``: the invited actor was never sent the
+``Offer(VulnerabilityReport)`` and does not answer it (CM-11-020, ADR-0121).
+
+Per SYNC-02-002, ISSUE-2134.
 """
 
 from __future__ import annotations
@@ -31,30 +34,36 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from pydantic import ValidationError
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
+from vultron.core.behaviors.sync.nodes.conditions import (
+    _require_log_entry,
+)
+from vultron.core.models._helpers import (
+    _as_id,
+    project_wire_snapshot_to_core,
+)
+from vultron.core.models.report import VulnerabilityReport
 
 
-class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
+class ApplyOfferReportFromLedgerNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply an ``add_report_to_case`` ledger entry to the local DataLayer.
 
     When an invited actor receives ``Announce(CaseLedgerEntry)`` for the
-    canonical ``add_report_to_case`` entry, this node creates a
-    :class:`~vultron.core.models.offer_record.VultronOfferRecord` keyed by
-    ``VultronOfferRecord.build_id(offer_id)`` so that ``SvcValidateReportUseCase``
-    can proceed without spoofing.
+    canonical ``add_report_to_case`` entry, this node stores the report from the
+    entry's ``payload_snapshot`` when the replica lacks it, and attaches it to
+    the case replica's ``vulnerability_reports``.
 
-    The record is derived from the ledger entry's ``payload_snapshot``:
+    It does not create a ``VultronOfferRecord``.  The invited actor was never
+    sent the reporter's ``Offer(VulnerabilityReport)``, so it holds no record of
+    it and cannot answer it (CM-11-020, ADR-0121).  The entry's ``offerId`` and
+    ``offerActorId`` stay in the ledger (CP-01-007); a participant reads them
+    from there.
 
-    - the snapshot's ``offer_id`` key → ``offer_id``
-    - ``payload_snapshot["object"]["id"]`` → ``report_id``
-    - the snapshot's ``offer_actor_id`` key (or ``"actor"``) → ``offer_actor_id``
-
-    Idempotent: if the record already exists the node returns SUCCESS without
-    overwriting.  Lenient on missing data — if the snapshot is incomplete the
-    node returns SUCCESS to avoid blocking the ``Announce`` processing flow.
-
-    Per ADR-0035 DL-06-002: domain facts from a received protocol message MUST
-    be recorded as core state at extraction time.  SYNC-02-002, ISSUE-2134.
+    Lenient on missing data — an incomplete snapshot returns SUCCESS to avoid
+    blocking the ``Announce`` processing flow.  SYNC-02-002, ISSUE-2134.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -78,15 +87,6 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        from vultron.core.behaviors.sync.nodes.conditions import (
-            _require_log_entry,
-        )
-        from vultron.core.models.offer_record import (
-            SNAPSHOT_OFFER_ACTOR_ID_KEY,
-            SNAPSHOT_OFFER_ID_KEY,
-            VultronOfferRecord,
-        )
-
         entry = _require_log_entry(self.activity, self.name)
 
         # Only handle add_report_to_case entries.
@@ -98,30 +98,6 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
             if isinstance(entry.payload_snapshot, dict)
             else {}
         )
-        offer_id = snapshot.get(SNAPSHOT_OFFER_ID_KEY)
-        if not offer_id:
-            self.logger.debug(
-                "%s: add_report_to_case entry carries no '%s' —"
-                " skipping (non-fatal)",
-                self.name,
-                SNAPSHOT_OFFER_ID_KEY,
-            )
-            return Status.SUCCESS
-
-        offer_record_id = VultronOfferRecord.build_id(offer_id)
-        if self.datalayer.read(offer_record_id) is not None:
-            self.logger.debug(
-                "%s: VultronOfferRecord '%s' already present — idempotent no-op",
-                self.name,
-                offer_record_id,
-            )
-            return Status.SUCCESS
-
-        # The offer-actor key names the original Offer sender; "actor" is the
-        # CaseActor.
-        offer_actor_id = _extract_id_from_field(
-            snapshot.get(SNAPSHOT_OFFER_ACTOR_ID_KEY) or snapshot.get("actor")
-        )
         object_data = snapshot.get("object")
         report_id = (
             _extract_id_from_field(object_data)
@@ -129,22 +105,36 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
             else None
         )
 
+        # The replica's report list converges on the manager's (RSH-08-004).
         self._maybe_restore_report(object_data, report_id)
+        self._attach_report_to_case(entry.case_id, report_id)
 
-        offer_to = snapshot.get("to", [])
-        if isinstance(offer_to, str):
-            offer_to = [offer_to]
+        return Status.SUCCESS
 
-        if not offer_actor_id or not report_id:
-            self.logger.debug(
-                "%s: payload_snapshot missing offer actor or object.id"
-                " — skipping offer-record creation (non-fatal)",
-                self.name,
-            )
-            return Status.SUCCESS
+    def _attach_report_to_case(
+        self, case_id: str | None, report_id: str | None
+    ) -> None:
+        """Append the report id to the replica's ``vulnerability_reports``.
 
-        return self._save_offer_record(
-            offer_id, offer_record_id, report_id, offer_actor_id, offer_to
+        Idempotent, and lenient on a case this replica does not hold yet
+        (Regime 2, ADR-0087): the entry is still recorded and the report id is
+        recovered when the case is seeded.
+        """
+        assert self.datalayer is not None
+        if not case_id or not report_id:
+            return
+        case = self._resolve_case_replica(case_id)
+        if case is None:
+            return
+        if report_id in [_as_id(r) for r in case.vulnerability_reports]:
+            return
+        case.vulnerability_reports.append(report_id)
+        self.datalayer.save(case)
+        self.logger.info(
+            "%s: attached report '%s' to case '%s' replica (SYNC-02-002)",
+            self.name,
+            report_id,
+            case_id,
         )
 
     def _maybe_restore_report(
@@ -154,8 +144,7 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
         # (build_add_report_to_case_snapshot -> obj_to_inline_dict).  An invited
         # replica never received the VulnerabilityReport object directly, so
         # reconstruct and store it from the snapshot here — otherwise
-        # _reconstitute_offer (and SvcValidateReportUseCase) 404 on the report
-        # lookup even though the offer record exists (#2180, ADR-0035 DL-06-002).
+        # report lookups on this replica miss (#2180).
         assert self.datalayer is not None
         if not (
             isinstance(object_data, dict)
@@ -163,10 +152,6 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
             and self.datalayer.read(report_id) is None
         ):
             return
-        from vultron.core.models._helpers import (
-            project_wire_snapshot_to_core,
-        )
-        from vultron.core.models.report import VulnerabilityReport
 
         try:
             report = VulnerabilityReport.model_validate(
@@ -192,62 +177,3 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
             self.name,
             report_id,
         )
-
-    def _save_offer_record(
-        self,
-        offer_id: str,
-        offer_record_id: str,
-        report_id: str,
-        offer_actor_id: str,
-        offer_to: list,
-    ) -> Status:
-        assert self.datalayer is not None
-        from vultron.core.models.offer_record import VultronOfferRecord
-        from vultron.core.models.report_case_link import VultronReportCaseLink
-
-        try:
-            record = VultronOfferRecord(
-                offer_id=offer_id,
-                report_id=report_id,
-                offer_actor_id=offer_actor_id,
-                offer_to=list(offer_to) if offer_to else [],
-            )
-        except ValidationError as exc:
-            # A malformed offer snapshot cannot be built into a record; stay
-            # lenient so a bad payload cannot wedge replication.  A write
-            # failure below is infrastructure and must surface (CS-23-001).
-            self.logger.warning(
-                "%s: could not build VultronOfferRecord for offer '%s': %s",
-                self.name,
-                offer_id,
-                exc,
-            )
-            return Status.SUCCESS
-        self.datalayer.save(record)
-
-        self.logger.info(
-            "%s: created VultronOfferRecord '%s' for offer '%s'"
-            " (ADR-0035 DL-06-002, ISSUE-2134)",
-            self.name,
-            offer_record_id,
-            offer_id,
-        )
-
-        # Seed VultronReportCaseLink(rm_state=RM.RECEIVED) for invited replicas
-        # (BTND-10-006, ADR-0089): TransitionRMtoValid requires the link to exist
-        # before it can advance rm_state to RM.VALID.  Invited participants never
-        # receive Offer(VulnerabilityReport) directly, so this is their only
-        # creation point.  Idempotent: skip if the link is already present.
-        link_id = VultronReportCaseLink.build_id(report_id)
-        if self.datalayer.read(link_id) is None:
-            # A write failure here is infrastructure and must surface via
-            # BTBridge rather than be swallowed (CS-23-001).
-            self.datalayer.save(VultronReportCaseLink(report_id=report_id))
-            self.logger.info(
-                "%s: seeded VultronReportCaseLink for invited replica"
-                " report '%s' (BTND-10-006)",
-                self.name,
-                report_id,
-            )
-
-        return Status.SUCCESS

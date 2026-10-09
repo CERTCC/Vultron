@@ -1,10 +1,11 @@
 ---
 title: "FCCV-handoff Scenario: Finder + C1 → C2 + Vendor"
-status: stable
+# consequent_actor names the dump actor recorded on the consequent entry:
+# C1 is 'vendor', C2 is 'coordinator', the Vendor is 'vendor2'.
 causal_edges:
   - antecedent: validate_report
     consequent: engage_case
-    consequent_actor: c1
+    consequent_actor: vendor
     note: >
       C1 validates the report before engaging the case.
   - antecedent: engage_case
@@ -14,35 +15,35 @@ causal_edges:
       Case engagement triggers participant status entries.
   - antecedent: engage_case
     consequent: invite_actor_to_case
-    consequent_actor: c1
+    consequent_actor: case-actor
     note: >
       C1 invites C2 after the case is active.
   - antecedent: invite_actor_to_case
     consequent: accept_invite_actor_to_case
-    consequent_actor: c2
+    consequent_actor: coordinator
     note: >
       C2 accepts C1's invitation; acceptance follows the invite.
   - antecedent: accept_invite_actor_to_case
     consequent: accept_case_ownership_transfer
-    consequent_actor: c2
+    consequent_actor: coordinator
     note: >
       C2 accepts the ownership transfer from C1 only after C2 has joined the
       case; the ownership-transfer acceptance must follow C2's participation
       acceptance.
   - antecedent: accept_case_ownership_transfer
     consequent: invite_actor_to_case
-    consequent_actor: c2
+    consequent_actor: case-actor
     note: >
       As the new case owner, C2 invites the Vendor.  This invite must follow
       the ownership acceptance.
   - antecedent: invite_actor_to_case
     consequent: accept_invite_actor_to_case
-    consequent_actor: vendor
+    consequent_actor: vendor2
     note: >
       The Vendor accepts C2's invitation; acceptance follows the invite.
   - antecedent: validate_report
     consequent: close_case
-    consequent_actor: c2
+    consequent_actor: coordinator
     note: >
       Closure requires a validated, engaged case.  C2, as the post-handoff
       case owner, commits the final close entry.
@@ -51,9 +52,15 @@ causal_edges:
     consequent_actor: finder
     note: >
       Notes require an active case.
+  - antecedent: offer_case_ownership_transfer
+    consequent: accept_case_ownership_transfer
+    consequent_actor: coordinator
+    note: >
+      The Case Actor records C1's ownership offer before forwarding it to C2
+      (ADR-0053); C2's acceptance follows the recorded offer.
   - antecedent: report_submitted
     consequent: validate_report
-    consequent_actor: c1
+    consequent_actor: vendor
     observable: false
     note: >
       Report submission by the Finder is an out-of-band API call that
@@ -73,11 +80,11 @@ the Vendor.  All participants eventually disclose and close the case.
 
 **Participants:**
 
-- **Finder** — discovers the vulnerability; submits the initial report.
+- **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **C1 (Coordinator 1)** — receives the report; validates and engages the case; transfers ownership to C2.
 - **C2 (Coordinator 2)** — joins via C1's invitation; receives case ownership; invites the Vendor.
 - **Vendor** — joins via C2's invitation; develops and ships a fix.
-- **CaseActor** — C1's internal case-management sub-actor (retained after the handoff).
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. C1's platform hosts it, but its authority comes from the role, not from where it runs; the same Case Actor keeps the role after the ownership handoff.
 
 ## Protocol narrative
 
@@ -96,7 +103,7 @@ entries appear in the ledger.
 
 ### 3. Participant status records are created
 
-The CaseActor records initial `add_participant_status_to_participant` entries.
+The Case Actor records initial `add_participant_status_to_participant` entries.
 
 *Antecedent:* `engage_case` is in the ledger.
 
@@ -114,9 +121,8 @@ C2 joins the case.  An `accept_invite_actor_to_case` entry is recorded.
 
 ### 6. C1 offers case ownership to C2
 
-C1 decides to transfer the case to C2 and initiates the ownership-transfer
-protocol.  This is an exchange of protocol messages; the consequent observable
-entry is C2's acceptance.
+C1 decides to transfer the case to C2 and initiates the ownership-transfer protocol.
+The offer is addressed to the **Case Actor**, not to C2 (ADR-0053): the Case Actor records it as an `offer_case_ownership_transfer` entry, so every participant learns that a transfer is on offer, and then forwards an offer of its own to C2.
 
 *Antecedent:* C2's `accept_invite_actor_to_case` entry is in the ledger.
 
@@ -125,7 +131,7 @@ entry is C2's acceptance.
 C2 formally accepts the ownership transfer.  An `accept_case_ownership_transfer`
 entry is recorded.  The case's `attributed_to` field is updated to C2.
 
-*Antecedent:* C1's ownership-transfer offer has been delivered to C2.
+*Antecedent:* the Case Actor's forwarded ownership offer has reached C2.
 
 ### 8. C2 invites the Vendor
 
@@ -171,4 +177,6 @@ commits the final close entry.
 | Unobservable step | Why not in ledger |
 |---|---|
 | Finder submits report to C1 | Report submission precedes the case. |
-| C1 offers ownership transfer | The offer is a protocol message; only C2's `accept_case_ownership_transfer` appears in the canonical ledger. |
+
+The ownership offer is not an unobservable step.
+The Case Actor records it as `offer_case_ownership_transfer` before it forwards the offer, and C2's `accept_case_ownership_transfer` follows it, which is the edge declared above.

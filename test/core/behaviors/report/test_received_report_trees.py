@@ -16,10 +16,10 @@
 """Tests for received-report behavior trees and use-case integration.
 
 Covers all four report-lifecycle BTs (issue #759 AC-1 through AC-5):
-  - ``CreateReportReceivedBT``    — stores report + activity
-  - ``AckReportReceivedBT``      — stores activity
-  - ``CloseReportReceivedBT``    — stores activity + RM → CLOSED
-  - ``InvalidateReportReceivedBT`` — stores activity + RM → INVALID
+  - ``CreateReportReceivedBT``    — stores report; intake archives activity
+  - ``AckReportReceivedBT``      — intake archives activity; forwards own ack
+  - ``CloseReportReceivedBT``    — intake archives activity; RM → CLOSED
+  - ``InvalidateReportReceivedBT`` — intake archives activity; RM → INVALID
 
 Each BT is tested at three levels:
   1. Node-level (individual storage / transition nodes)
@@ -36,16 +36,17 @@ from py_trees.common import Status
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.nodes.storage import (
-    StoreActivityNode,
     StoreReportNode,
 )
 from vultron.core.behaviors.report.received_report_trees import (
     create_ack_report_received_tree,
     create_close_report_received_tree,
-    create_report_received_tree,
     create_invalidate_report_received_tree,
+    create_report_received_tree,
 )
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
@@ -53,10 +54,8 @@ from vultron.core.models.events.report import (
     CreateReportReceivedEvent,
     InvalidateReportReceivedEvent,
 )
-from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.report import VultronReport as CoreReport
+from vultron.core.models.report import VulnerabilityReport as CoreReport
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import (
     AckReportReceivedUseCase,
@@ -85,18 +84,14 @@ PARTICIPANT_ID = "https://example.org/participants/p-bt-01"
 # ---------------------------------------------------------------------------
 
 
-def _activity_stored(dl: SqliteDataLayer, activity_id: str) -> bool:
-    """Return True if any activity with *activity_id* is in the DataLayer.
+def _archived_by_intake(dl: SqliteDataLayer, activity_id: str) -> bool:
+    """True when intake archived *activity_id* under the receiver's key."""
+    from vultron.core.models.received_activity_record import (
+        ReceivedActivityRecord,
+    )
 
-    Activities are stored in type-keyed collections (e.g. ``"Create"``),
-    so ``dl.read(id)`` does not work for them.  This helper tries each
-    known activity type used in these tests.
-    """
-    for type_key in ("Create", "Read", "Reject", "TentativeReject", "Offer"):
-        for record in dl.get_all(type_key):
-            if record.get("id_") == activity_id:
-                return True
-    return False
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    return isinstance(record, ReceivedActivityRecord)
 
 
 def _make_activity(
@@ -113,7 +108,7 @@ def _setup_case_with_participant(
     report_id: str = REPORT_ID,
     actor_id: str = ACTOR_ID,
     initial_rm: RM = RM.RECEIVED,
-) -> tuple[as_VulnerabilityCase, VultronParticipant]:
+) -> tuple[as_VulnerabilityCase, CaseParticipant]:
     """Create and persist a as_VulnerabilityCase linked to a report.
 
     Adds a CaseParticipant for *actor_id* so RM transition nodes can find
@@ -125,7 +120,7 @@ def _setup_case_with_participant(
     report = CoreReport(id_=report_id)
     dl.save(report)
 
-    participant = VultronParticipant(
+    participant = CaseParticipant(
         id_=PARTICIPANT_ID,
         attributed_to=actor_id,
         context=CASE_ID,
@@ -209,61 +204,6 @@ class TestStoreReportNode:
 
 
 # ---------------------------------------------------------------------------
-# StoreActivityNode
-# ---------------------------------------------------------------------------
-
-
-class TestStoreActivityNode:
-    def test_stores_activity_in_dl(self, dl, bridge):
-        """StoreActivityNode persists an activity → SUCCESS."""
-        activity = _make_activity()
-        node = StoreActivityNode(
-            activity_id=ACTIVITY_ID,
-            activity_obj=activity,
-            label="TestActivity",
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-
-        assert result.status == Status.SUCCESS
-        # Activities are stored in type-keyed collections; dl.read() won't find them.
-        stored = dl.get_all(activity.type_)
-        assert any(r["id_"] == ACTIVITY_ID for r in stored)
-
-    def test_idempotent_second_store(self, dl, bridge):
-        """StoreActivityNode is idempotent — second call is a no-op SUCCESS."""
-        activity = _make_activity()
-        dl.create(activity)  # pre-store
-
-        node = StoreActivityNode(
-            activity_id=ACTIVITY_ID,
-            activity_obj=activity,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-    def test_no_activity_obj_is_failure(self, dl, bridge, caplog):
-        """StoreActivityNode with activity_obj=None and a set id → FAILURE."""
-        node = StoreActivityNode(
-            activity_id=ACTIVITY_ID,
-            activity_obj=None,
-        )
-        with caplog.at_level(logging.ERROR):
-            result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-
-        assert result.status == Status.FAILURE
-        assert dl.get_all("Create") == []
-
-    def test_empty_activity_id_is_no_op(self, bridge):
-        """StoreActivityNode with empty activity_id is a no-op SUCCESS."""
-        node = StoreActivityNode(
-            activity_id="",
-            activity_obj=_make_activity(),
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-
-# ---------------------------------------------------------------------------
 # CreateParticipantStatusNode — RM.CLOSED / RM.INVALID via canonical writer
 # ---------------------------------------------------------------------------
 
@@ -294,7 +234,7 @@ class TestCreateParticipantStatusNodeClosed:
         assert result.status == Status.SUCCESS
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
+        participant = cast(CaseParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_no_case_id_fails(self, dl, bridge, caplog):
@@ -373,7 +313,7 @@ class TestCreateParticipantStatusNodeInvalid:
         assert result.status == Status.SUCCESS
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
+        participant = cast(CaseParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_no_case_id_fails(self, dl, bridge, caplog):
@@ -484,7 +424,7 @@ def _make_invalidate_report_event() -> InvalidateReportReceivedEvent:
 
 class TestCreateReportReceivedTree:
     def test_happy_path_stores_report_and_activity(self, dl):
-        """Full BT stores both VulnerabilityReport and CreateReport activity."""
+        """Full BT stores the VulnerabilityReport and intake archives the activity."""
         event = _make_create_report_event()
         tree = create_report_received_tree(event)
         bridge = BTBridge(datalayer=dl)
@@ -494,7 +434,7 @@ class TestCreateReportReceivedTree:
 
         assert result.status == Status.SUCCESS
         assert dl.read(REPORT_ID) is not None
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_idempotent_run_succeeds(self, dl):
         """Second BT execution is idempotent — no-op SUCCESS."""
@@ -520,7 +460,7 @@ class TestCreateReportReceivedUseCase:
         CreateReportReceivedUseCase(dl, event).execute()
 
         assert dl.read(REPORT_ID) is not None
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_use_case_is_idempotent(self):
         """Calling use case twice does not raise and stays consistent."""
@@ -533,7 +473,7 @@ class TestCreateReportReceivedUseCase:
         CreateReportReceivedUseCase(dl, event).execute()
 
         assert dl.read(REPORT_ID) is not None
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -542,8 +482,8 @@ class TestCreateReportReceivedUseCase:
 
 
 class TestAckReportReceivedTree:
-    def test_happy_path_stores_activity(self, dl):
-        """Full BT stores AckReport activity → SUCCESS."""
+    def test_happy_path_archives_activity(self, dl):
+        """Full BT archives the AckReport activity via intake → SUCCESS."""
         event = _make_ack_report_event()
         tree = create_ack_report_received_tree(event)
         bridge = BTBridge(datalayer=dl)
@@ -552,7 +492,7 @@ class TestAckReportReceivedTree:
         )
 
         assert result.status == Status.SUCCESS
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_does_not_create_participant_status(self, dl):
         """AckReportReceivedBT must NOT create standalone ParticipantStatus."""
@@ -580,8 +520,8 @@ class TestAckReportReceivedTree:
 
 
 class TestAckReportReceivedUseCase:
-    def test_use_case_stores_activity(self):
-        """Use case delegates to BT; activity is persisted."""
+    def test_use_case_archives_activity(self):
+        """Use case delegates to BT; intake archives the activity."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
@@ -589,7 +529,7 @@ class TestAckReportReceivedUseCase:
         event = _make_ack_report_event()
         AckReportReceivedUseCase(dl, event).execute()
 
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_use_case_does_not_create_participant_status(self):
         """Use case must NOT create standalone ParticipantStatus records."""
@@ -610,23 +550,30 @@ class TestAckReportReceivedUseCase:
 
 
 class TestCloseReportReceivedTree:
-    def test_happy_path_stores_activity_and_transitions_rm(self, dl):
-        """Full BT stores activity and transitions participant RM → CLOSED."""
+    def test_archives_activity_but_gates_the_rm_write_at_a_replica(self, dl):
+        """Intake archives the Reject; the RM write is CASE_MANAGER-gated.
+
+        RSH-08-003 (#3814): ``ACTOR_ID`` here is an ordinary participant, not
+        the case's CASE_MANAGER, so the sender's RM → CLOSED does not run — the
+        replica takes it from the ledger instead.  The transition at the
+        CASE_MANAGER is covered by ``test_report_routing_guard.py`` and
+        ``test_receive_tree_ledger_commit.py``.
+        """
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.INVALID)
         event = _make_close_report_event()
-        tree = create_close_report_received_tree(event, actor_id=ACTOR_ID)
+        tree = create_close_report_received_tree(event, case_id=CASE_ID)
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
         )
 
         assert result.status == Status.SUCCESS
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm.state == RM.CLOSED
+        participant = cast(CaseParticipant, dl.read(p_id))
+        assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_no_case_fails_after_storing_activity(self, dl, caplog):
         """No case linked to report → BT FAILURE, but the activity is stored.
@@ -637,7 +584,7 @@ class TestCloseReportReceivedTree:
         activity from step 1 is what makes a later retry possible.
         """
         event = _make_close_report_event()
-        tree = create_close_report_received_tree(event, actor_id=ACTOR_ID)
+        tree = create_close_report_received_tree(event, case_id=None)
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.INFO):
@@ -650,7 +597,7 @@ class TestCloseReportReceivedTree:
         assert any(
             "no vulnerabilitycase for report" in m.lower() for m in msgs
         )
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_idempotent_rm_transition(self, dl):
         """Already-CLOSED participant stays CLOSED; BT still SUCCESS."""
@@ -659,7 +606,7 @@ class TestCloseReportReceivedTree:
         bridge = BTBridge(datalayer=dl)
 
         for _ in range(2):
-            tree = create_close_report_received_tree(event, actor_id=ACTOR_ID)
+            tree = create_close_report_received_tree(event, case_id=CASE_ID)
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
             )
@@ -667,8 +614,12 @@ class TestCloseReportReceivedTree:
 
 
 class TestCloseReportReceivedUseCase:
-    def test_use_case_stores_activity_and_transitions_rm(self):
-        """Use case delegates to BT; activity stored + RM → CLOSED."""
+    def test_use_case_archives_activity_but_gates_the_rm_write(self):
+        """Use case delegates to BT; activity stored, RM write CASE_MANAGER-gated.
+
+        RSH-08-003 (#3814): a non-manager receiver writes no RM state; the
+        transition at the CASE_MANAGER is covered elsewhere.
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
@@ -677,11 +628,11 @@ class TestCloseReportReceivedUseCase:
         event = _make_close_report_event()
         CloseReportReceivedUseCase(dl, event).execute()
 
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm.state == RM.CLOSED
+        participant = cast(CaseParticipant, dl.read(p_id))
+        assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_use_case_warns_when_no_case(self, caplog):
         """Use case ledgers WARNING when no case is found for the report.
@@ -712,23 +663,30 @@ class TestCloseReportReceivedUseCase:
 
 
 class TestInvalidateReportReceivedTree:
-    def test_happy_path_stores_activity_and_transitions_rm(self, dl):
-        """Full BT stores activity and transitions participant RM → INVALID."""
+    def test_archives_activity_but_gates_the_rm_write_at_a_replica(self, dl):
+        """Intake archives the TentativeReject; the RM write is gated.
+
+        RSH-08-003 (#3814): ``ACTOR_ID`` is an ordinary participant, not the
+        CASE_MANAGER, so the sender's RM → INVALID does not run here — the
+        replica takes it from the ledger.  The CASE_MANAGER transition is
+        covered by ``test_report_routing_guard.py`` and
+        ``test_receive_tree_ledger_commit.py``.
+        """
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
-        tree = create_invalidate_report_received_tree(event, actor_id=ACTOR_ID)
+        tree = create_invalidate_report_received_tree(event, case_id=CASE_ID)
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
         )
 
         assert result.status == Status.SUCCESS
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm.state == RM.INVALID
+        participant = cast(CaseParticipant, dl.read(p_id))
+        assert participant.participant_statuses[-1].rm.state == RM.RECEIVED
 
     def test_no_case_fails_after_storing_activity(self, dl, caplog):
         """No case linked to report → BT FAILURE, but the activity is stored.
@@ -739,7 +697,7 @@ class TestInvalidateReportReceivedTree:
         activity from step 1 is what makes a later retry possible.
         """
         event = _make_invalidate_report_event()
-        tree = create_invalidate_report_received_tree(event, actor_id=ACTOR_ID)
+        tree = create_invalidate_report_received_tree(event, case_id=None)
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.INFO):
@@ -752,7 +710,7 @@ class TestInvalidateReportReceivedTree:
         assert any(
             "no vulnerabilitycase for report" in m.lower() for m in msgs
         )
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
 
     def test_idempotent_rm_transition(self, dl):
         """Already-INVALID participant stays INVALID; BT still SUCCESS."""
@@ -762,7 +720,7 @@ class TestInvalidateReportReceivedTree:
 
         for _ in range(2):
             tree = create_invalidate_report_received_tree(
-                event, actor_id=ACTOR_ID
+                event, case_id=CASE_ID
             )
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
@@ -771,8 +729,12 @@ class TestInvalidateReportReceivedTree:
 
 
 class TestInvalidateReportReceivedUseCase:
-    def test_use_case_stores_activity_and_transitions_rm(self):
-        """Use case delegates to BT; activity stored + RM → INVALID."""
+    def test_use_case_archives_activity_but_gates_the_rm_write(self):
+        """Use case delegates to BT; activity stored, RM write CASE_MANAGER-gated.
+
+        RSH-08-003 (#3814): a non-manager receiver writes no RM state; the
+        transition at the CASE_MANAGER is covered elsewhere.
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
@@ -781,11 +743,11 @@ class TestInvalidateReportReceivedUseCase:
         event = _make_invalidate_report_event()
         InvalidateReportReceivedUseCase(dl, event).execute()
 
-        assert _activity_stored(dl, ACTIVITY_ID)
+        assert _archived_by_intake(dl, ACTIVITY_ID)
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
-        participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm.state == RM.INVALID
+        participant = cast(CaseParticipant, dl.read(p_id))
+        assert participant.participant_statuses[-1].rm.state == RM.RECEIVED
 
     def test_use_case_warns_when_no_case(self, caplog):
         """Use case ledgers WARNING when no case is found for the report.

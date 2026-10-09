@@ -22,26 +22,29 @@ execution via BTTestScenario for one representative node per status sub-module.
 import pytest
 from py_trees.ports import NoDataAvailable
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.status.nodes.case_status import (
     CheckCaseStatusIdempotencyNode,
 )
 from vultron.core.behaviors.status.nodes.conditions import (
     AllParticipantsRMClosedConditionNode,
 )
-from vultron.core.behaviors.status.nodes.lifecycle import (
-    EmitCloseCaseNode,
-    _PublicDisclosureSkipConditionNode,
-)
+from vultron.core.behaviors.status.nodes.lifecycle import EmitCloseCaseNode
 from vultron.core.behaviors.status.nodes.rm_anomaly import EmitRMGapNoteNode
 from vultron.core.behaviors.status.nodes.threat_termination import (
     _ThreatTerminationSkipConditionNode,
 )
 from vultron.core.models.case import VulnerabilityCase
-from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-001"
 STATUS_ID = "https://example.org/statuses/status-001"
+INVITEE_ID = "https://example.org/actors/invitee"
 
 
 # ---------------------------------------------------------------------------
@@ -103,36 +106,58 @@ class TestAllParticipantsRMClosedConditionNodePorts:
         )
         bt_scenario.assert_failure(result)
 
-
-# ---------------------------------------------------------------------------
-# lifecycle.py — _PublicDisclosureSkipConditionNode
-# ---------------------------------------------------------------------------
-
-
-class TestPublicDisclosureSkipConditionNodePorts:
-    def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = _PublicDisclosureSkipConditionNode(
-            status_obj=None,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        node.setup_ports()
-        with pytest.raises(NoDataAvailable):
-            node.get_input("datalayer")
-
-    def test_success_skip_when_no_public_aware_status(
+    @pytest.mark.spec("CM-11-014")
+    def test_inert_invitee_does_not_hold_up_closure(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Non-public-aware status -> skip condition returns SUCCESS."""
+        """Every joined participant closed; an unanswered invitee is skipped."""
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+        )
+        closed = CaseParticipant(
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.VENDOR],
+        )
+        closed.participant_statuses = [
+            ParticipantStatus(
+                context=CASE_ID,
+                attributed_to=ACTOR_ID,
+                rm=RmDimension(state=RM.CLOSED),
+            )
+        ]
+        silent = CaseParticipant(
+            attributed_to=INVITEE_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.VENDOR],
+            joined=False,
+        )
+        silent.participant_statuses = [
+            ParticipantStatus(
+                context=CASE_ID,
+                attributed_to=INVITEE_ID,
+                rm=RmDimension(state=RM.RECEIVED),
+            )
+        ]
+        bt_scenario.seed(closed, silent)
+        case.add_participant(closed)
+        case.add_participant(silent)
+        bt_scenario.seed(case)
+
         result = bt_scenario.run(
-            _PublicDisclosureSkipConditionNode(
-                status_obj=None,
-                sender_actor_id=ACTOR_ID,
-                case_id=CASE_ID,
-            ),
+            AllParticipantsRMClosedConditionNode(case_id=CASE_ID),
             actor_id=ACTOR_ID,
         )
+
         bt_scenario.assert_success(result)
+
+        silent.joined = True
+        bt_scenario.dl.save(silent)
+        again = bt_scenario.run(
+            AllParticipantsRMClosedConditionNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
+        )
+        bt_scenario.assert_failure(again)
 
 
 # ---------------------------------------------------------------------------

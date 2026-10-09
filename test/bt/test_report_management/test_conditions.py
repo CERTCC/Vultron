@@ -15,8 +15,8 @@ import unittest
 
 import vultron.bt.report_management.conditions as rmc
 from vultron.bt.base.node_status import NodeStatus
-from vultron.core.states.rm import RM
 from vultron.bt.states import ActorState
+from vultron.core.states.rm import RM
 
 
 class MyTestCase(unittest.TestCase):

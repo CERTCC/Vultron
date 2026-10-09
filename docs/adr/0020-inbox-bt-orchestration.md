@@ -1,12 +1,17 @@
 ---
 status: proposed
+status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-06-16
+created: 2026-06-16
+updated: 2026-06-16
+revision: 1
 deciders:
   - vultron maintainers
 consulted:
   - project stakeholders
 informed:
   - contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Move Inbox Orchestration into a Core BT Module with a Typed `process_payload` Seam

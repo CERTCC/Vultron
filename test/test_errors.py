@@ -53,7 +53,7 @@ def test_bt_node_precondition_error_message_preserved():
     """str(exc) returns the original message."""
     msg = "blackboard entry 'x' is not a VulnerabilityCase"
     try:
-        raise BtNodePreconditionError(msg)
+        raise BtNodePreconditionError(msg)  # noqa: TRY301  # ruff-baseline #3353
     except BtNodePreconditionError as exc:
         assert str(exc) == msg
 
@@ -68,7 +68,7 @@ def test_bt_node_precondition_error_supports_chained_cause():
     """BtNodePreconditionError supports exception chaining via __cause__."""
     original = KeyError("missing_key")
     try:
-        raise BtNodePreconditionError("key missing") from original
+        raise BtNodePreconditionError("key missing") from original  # noqa: TRY301  # ruff-baseline #3353
     except BtNodePreconditionError as exc:
         assert exc.__cause__ is original
 

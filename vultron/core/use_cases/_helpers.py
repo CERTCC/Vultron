@@ -6,25 +6,29 @@ All helpers are private to the use-cases package (prefix ``_``).
 
 import hashlib
 import logging
-from typing import Any
 
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
-from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.ports.case_persistence import (
-    CasePersistence,
-    CaseOutboxPersistence,
+from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
 )
-from vultron.core.states.participant_embargo_consent import (
-    PEC,
-    PEC_Trigger,
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import (
+    is_addressed_to,
+    same_actor_id,
 )
 from vultron.core.states.rm import RM
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -45,7 +49,7 @@ from vultron.core.use_cases._snapshot_helpers import (  # noqa: E402,F401
 def _established_link_actor_id(
     dl: CasePersistence, case_id: str
 ) -> str | None:
-    """Return the ``trusted_case_actor_id`` recorded for *case_id*, if any.
+    """Return the ``case_manager_id`` recorded for *case_id*, if any.
 
     A completed ``VultronReportCaseLink`` records the address the authority was
     reached at during bootstrap (CBT-01-006).  That recorded address answers
@@ -55,8 +59,8 @@ def _established_link_actor_id(
     for link in dl.list_objects("ReportCaseLink"):
         if not isinstance(link, VultronReportCaseLink):
             continue
-        if link.case_id == case_id and link.trusted_case_actor_id:
-            return str(link.trusted_case_actor_id)
+        if link.case_id == case_id and link.case_manager_id:
+            return str(link.case_manager_id)
     return None
 
 
@@ -73,7 +77,7 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
 
     Resolution order:
 
-    1. The ``trusted_case_actor_id`` recorded on a completed
+    1. The ``case_manager_id`` recorded on a completed
        ``VultronReportCaseLink`` (CBT-01-006).
     2. The actor enacting ``CVDRole.CASE_MANAGER`` on the case replica.
 
@@ -143,64 +147,61 @@ def resolve_receiving_actor_id(
     )
 
 
-def _idempotent_create(
-    dl: CasePersistence,
-    type_key: str | None,
-    id_key: str | None,
-    obj: Any,
-    label: str,
-    activity_id: str | None = None,
-) -> None:
-    """Guard against duplicate object creation.
+def is_recipient(
+    receiving_actor_id: str, activity: VultronActivity | None
+) -> bool:
+    """True when *receiving_actor_id* is in *activity*'s ``to`` or ``cc``.
 
-    Checks whether *id_key* is already present in the DataLayer.  If so, logs
-    and returns without storing.  Otherwise stores *obj* (if not ``None``) via
-    ``dl.create``.
+    A received-side handler that acts for an addressee (the Case Owner
+    deciding an ``Offer(CaseParticipant)``, the transferee of a forwarded
+    ownership Offer) uses this to tell that addressee from an actor that
+    merely holds a copy.  The copy-holder refuses (HP-01-005): the sender
+    addressed the wrong party, and the receiver's own record says so.
 
-    An object carrying an id but **no ``type_``** is a *reference*, not something
-    that can be stored: ``type_`` is what selects the storage table, so
-    ``Record.from_obj`` refuses it outright.  The extractor produces exactly such
-    a stub — ``VultronObject(id_=…, type_=None)`` — when an inbound activity names
-    its object by bare URI, or by an object with no type.  That stub is load
-    bearing: ``event.object_id`` is *derived* from ``object_``, so it is how the id
-    survives at all; it simply is not a storable record.
-
-    Storing it was attempted anyway, which aborted the enclosing BT
-    (``CreateReportReceivedBT`` among them).  Such a reference is skipped here with
-    a warning naming it as one, because there is nothing to store — this is the
-    "Bare Object URI" case the Actor Knowledge Model describes, where the sender
-    should have inlined the object and the recipient legitimately has no copy.
-
-    Args:
-        dl: The DataLayer to read/write.
-        type_key: Object type used as the DataLayer collection key.
-        id_key: Object ID to check for existence.
-        obj: The domain object to persist when not already present.
-        label: Human-readable label used in log messages (e.g. ``"Note"``).
-        activity_id: Activity ID used in warning log when *obj* is ``None``.
+    The extractor has already normalised ``to``/``cc`` to id lists, so this
+    reads them as such.  Matching is by
+    :func:`~vultron.core.predicates.addressing.is_addressed_to`, so a
+    recipient written with a trailing slash still counts.  An event without
+    an activity names no recipient at all.
     """
-    if not type_key or not id_key:
-        return
-    if dl.read(id_key) is not None:
-        # Routine idempotency skip — infrastructure, not protocol story
-        # (SL-04-007).  Fires on essentially every received-side activity.
-        logger.debug("'%s' already stored — skipping (idempotent)", id_key)
-        return
-    if obj is None:
-        logger.warning("no %s object for event '%s'", label, activity_id)
-        return
-    if getattr(obj, "type_", None) is None:
-        logger.warning(
-            "%s '%s' arrived as a bare reference with no type (activity '%s'):"
-            " the sender named it by URI instead of inlining it, so there is no"
-            " object to store — recording nothing (Actor Knowledge Model)",
-            label,
-            id_key,
-            activity_id,
-        )
-        return
-    dl.create(obj)
-    logger.info("Stored %s '%s'", label, id_key)
+    if activity is None:
+        return False
+    recipients = [*(activity.to or []), *(activity.cc or [])]
+    return is_addressed_to(receiving_actor_id, recipients)
+
+
+def unaddressed_copy_refusal(
+    receiving_actor_id: str, request: VultronEvent, *, label: str
+) -> HandlerResult | None:
+    """REFUSED for a copy the receiver was never addressed; else ``None``.
+
+    The door check of every received embargo use case (HP-01-005, ADR-0118,
+    #4132): a receiver acts on an activity only when it sent it or is named
+    in its ``to`` or ``cc``.  Any other store holds a misaddressed copy — it
+    runs no tree, writes nothing and answers nothing (EMB-01-002's ER duty
+    binds only the addressee) — and its refusal names the receiver and the
+    recipients the sender actually chose, so the misrouting can be traced.
+    """
+    if same_actor_id(receiving_actor_id, request.actor_id) or is_recipient(
+        receiving_actor_id, request.activity
+    ):
+        return None
+    activity = request.activity
+    to = list(activity.to or []) if activity is not None else []
+    cc = list(activity.cc or []) if activity is not None else []
+    verdict = HandlerResult.refused(
+        f"'{receiving_actor_id}' is neither the sender nor a recipient of"
+        f" {label} '{request.activity_id}' (to={to}, cc={cc}); an"
+        " unaddressed copy is refused (HP-01-005)"
+    )
+    logger.warning(
+        "%s: refused '%s' (actor '%s'): %s",
+        label,
+        request.activity_id,
+        request.actor_id,
+        verdict.reason,
+    )
+    return verdict
 
 
 def resolve_case(case_id: str, dl: CasePersistence):
@@ -215,6 +216,38 @@ def resolve_case(case_id: str, dl: CasePersistence):
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
     return case_raw
+
+
+def read_received_activity(
+    dl: CasePersistence, activity_id: str, resource_type: str = "Activity"
+) -> PersistableModel:
+    """Return the activity *activity_id* as this receiver holds it.
+
+    A received activity that reached its use case is archived by intake as a
+    ``ReceivedActivityRecord`` under the receiver's own key (CLP-10-017,
+    ADR-0111), so that record is read first.
+
+    An activity the inbox deferred until its case is known has not reached
+    intake yet.  An Invite to a case is usually in that state: the invitee
+    holds no case until its Accept brings the bootstrap Announce (MV-10-003).
+    The inbox holds such an activity under the sender's id for replay, and
+    that copy is then the only one the receiver has, so it is read next.
+
+    Args:
+        dl: The receiver's DataLayer.
+        activity_id: The sender's id for the activity.
+        resource_type: Label for the error when nothing is held.
+
+    Raises:
+        VultronNotFoundError: When this store holds no such activity.
+    """
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    if isinstance(record, ReceivedActivityRecord):
+        return record.activity
+    deferred = dl.read(activity_id)
+    if deferred is None:
+        raise VultronNotFoundError(resource_type, activity_id)
+    return deferred
 
 
 def current_participant_rm_state(
@@ -298,34 +331,6 @@ def resolve_case_participant_id_for_actor(
         )
 
     return canonical_id
-
-
-def reset_case_participant_embargo_consent(
-    dl: CasePersistence, case: VulnerabilityCase
-) -> None:
-    """Reset all participants' embargo consent state to UNBOUND.
-
-    Called when an embargo is terminated or removed.  Iterates over all
-    participants in *case* and applies ``PEC_Trigger.RESET`` to any
-    participant whose embargo_consent_state is not already ``UNBOUND``.
-    Tolerates both string IDs and inline ``CaseParticipant`` objects in
-    ``case.case_participants`` (regression #609).
-
-    This is the single authoritative implementation; the former duplicates
-    ``_reset_case_participant_embargo_consent`` (received layer) and
-    ``_cascade_pec_reset`` (triggers layer) have been removed in favour of
-    this shared helper.
-    """
-    for entry in case.case_participants:
-        participant_id = _as_id(entry)
-        if participant_id is None:
-            continue
-        participant = dl.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            continue
-        if participant.embargo_consent_state != PEC.UNBOUND.value:
-            participant.apply_pec_transition(PEC_Trigger.RESET)
-            dl.save(participant)
 
 
 def _log_label(uri: str) -> str:

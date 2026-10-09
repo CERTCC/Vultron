@@ -15,6 +15,7 @@ related_specs:
   - specs/event-driven-control-flow.yaml
   - specs/embargo-default-semantics.yaml
 related_notes:
+  - notes/demo-interactive-ui.md
   - notes/case-bootstrap-trust.md
   - notes/case-proposal.md
   - notes/participant-case-replica.md
@@ -219,8 +220,8 @@ from the existing CASE_OWNER transfer:
 | `OFFER_CASE_OWNERSHIP_TRANSFER` (existing) | Transfers CASE_OWNER role from one actor to another | The offering actor loses CASE_OWNER |
 | `OFFER_CASE_PARTICIPANT_ROLE` (ADR-0039) | Delegates a CVDRole to a target Actor within a VulnerabilityCase | The offering actor (Vendor) retains CASE_OWNER permanently |
 
-**Note**: `OFFER_CASE_MANAGER_ROLE` was removed in issue #2429 (ADR-0039,
-SE-08-005). The canonical replacement is `OFFER_CASE_PARTICIPANT_ROLE` —
+**Note**: `OFFER_CASE_MANAGER_ROLE` was removed in issue #2429 (ADR-0039;
+the retired SE-08-005 recorded it). The canonical replacement is `OFFER_CASE_PARTICIPANT_ROLE` —
 `Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` — handled
 by `OfferCaseParticipantRoleReceivedUseCase` and the
 `offer_case_participant_role_received_tree`.
@@ -279,18 +280,6 @@ scripts for verification — they are read-only assertions, not puppeteering.
 | Fix deployed (CS.VFD) | Both replicas: participant status includes CS.D. |
 | Publicly disclosed (CS.VFDPxa) | Both replicas: CS.VFDPxa; EM state terminated/exited. |
 | Case closed (RM.CLOSED) | Both replicas: all participants RM.CLOSED; case status closed. |
-
----
-
-## Relation to Priority 476 Bugs
-
-Issues #449–#454 were identified against earlier demo implementations.
-During implementation of the new demo, each bug must be either:
-
-- Resolved by the new implementation (close the issue with a reference), or
-- Confirmed still relevant and kept open with a cross-reference note.
-
-Do not close these issues before implementation confirms their status.
 
 ---
 

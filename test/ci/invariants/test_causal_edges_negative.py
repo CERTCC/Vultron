@@ -11,6 +11,8 @@ they run in the regular unit suite, not the integration suite.
 
 from __future__ import annotations
 
+import pytest
+
 from test.ci.invariants.common import check_causal_edges
 
 # ---------------------------------------------------------------------------
@@ -72,6 +74,22 @@ def test_missing_consequent_fails() -> None:
     assert "engage_case" in violations[0]
 
 
+def test_causal_edge_antecedent_without_log_index_is_not_satisfied() -> None:
+    """An antecedent with no ``logIndex`` cannot satisfy an edge (ISSUE-2764).
+
+    ``log_index()`` used to read an absent index as ``-1``, so
+    ``min([-1]) < max([3])`` reported the edge as satisfied for an entry whose
+    position is unknown.
+    """
+    replicas = _replicas(
+        {"eventType": "validate_report"},
+        _make_entry(3, "engage_case"),
+    )
+    edges = [{"antecedent": "validate_report", "consequent": "engage_case"}]
+    with pytest.raises(ValueError, match="logIndex"):
+        check_causal_edges(replicas, edges)
+
+
 def test_unobservable_edge_is_skipped() -> None:
     """Edges with ``observable: false`` are not checked and never produce violations."""
     replicas = _replicas(
@@ -87,9 +105,9 @@ def test_unobservable_edge_is_skipped() -> None:
         }
     ]
     violations = check_causal_edges(replicas, edges)
-    assert (
-        not violations
-    ), f"Unexpected violations for unobservable edge: {violations}"
+    assert not violations, (
+        f"Unexpected violations for unobservable edge: {violations}"
+    )
 
 
 def test_empty_log_returns_violation() -> None:

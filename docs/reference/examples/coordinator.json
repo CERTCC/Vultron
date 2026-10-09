@@ -1,24 +1,18 @@
 {
-  "id": "https://vultron.example/organizations/coordinator",
-  "type": "Organization",
-  "name": "Coordinator LLC",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Organization",
+  "id": "https://vultron.example/organizations/coordinator",
+  "name": "Coordinator LLC",
   "inbox": {
-    "id": "urn:uuid:490ba486-0899-4fcf-b132-b6403ed08b24",
-    "type": "OrderedCollection",
-    "published": "2026-09-23T16:41:56+00:00",
-    "updated": "2026-09-23T16:41:56+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
-    "items": [],
-    "current": 0
+    "type": "OrderedCollection",
+    "id": "https://vultron.example/organizations/coordinator/inbox",
+    "items": []
   },
   "outbox": {
-    "id": "urn:uuid:25388126-8760-4d8e-80bb-59a1989fa4b3",
-    "type": "OrderedCollection",
-    "published": "2026-09-23T16:41:56+00:00",
-    "updated": "2026-09-23T16:41:56+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
-    "items": [],
-    "current": 0
+    "type": "OrderedCollection",
+    "id": "https://vultron.example/organizations/coordinator/outbox",
+    "items": []
   }
 }

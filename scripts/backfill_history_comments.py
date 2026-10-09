@@ -81,6 +81,7 @@ def _post_comment(
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -95,6 +96,7 @@ def _git_rm(path: Path) -> None:
         ["git", "rm", str(path)],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -116,7 +118,7 @@ def collect_targets() -> list[tuple[str, Path]]:
     return targets
 
 
-def main() -> None:  # noqa: C901
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Backfill plan/history/2608 ISSUE-N.md files as GitHub comments."
     )

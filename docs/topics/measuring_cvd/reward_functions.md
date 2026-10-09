@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+description: >
+  Criteria for reward functions over Report Management and Embargo Management histories, and the simulation work they would enable.
 ---
 
 # Reward Functions
@@ -26,7 +28,7 @@ The following sections describe two additional reward functions.
 
 ## A Reward Function for Minimizing RM Strings
 
-In [RM State Transitions](../process_models/rm/index.md#rm-state-transitions), we described a grammar that generates
+In [RM Formal Model](../process_models/rm/formal_model.md#rm-transition-function), we described a grammar that generates
 RM histories.
 The state machine can generate arbitrarily long histories because of the cycles in the state machine graph;
 however, we observed that human Participants in any real CVD case would likely check the amount of churn.
@@ -103,3 +105,11 @@ The EM reward function might include the following:
 - a limit on how long an EM history can get without reaching
     $q^{em} \in A$ at all (i.e., How many proposal-rejection cycles are
     tolerable before giving up?)
+
+## Modeling and Simulation
+
+The reward functions sketched above are also the instrument for evaluating changes to the protocol itself.
+A [reference implementation](../../reference/code/index.md) of the protocol now exists, and its [demo scenarios](../scenarios/index.md) run the coordination logic end to end.
+Its [behavior trees](../behavior_logic/index.md) are modular, which makes them ready ground for simulated experiments: a candidate change to the protocol can be run against a population of simulated cases and scored with a reward function before it is proposed for adoption.
+Nothing of this kind has been built.
+The [formal protocol](../../reference/formal_protocol/index.md), the [CS model](../process_models/cs/index.md), and the reward-function criteria above are the pieces such a simulation would assemble.

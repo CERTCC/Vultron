@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from vultron.core.models.events import VultronEvent
+    from vultron.core.models.use_case_result import HandlerResult
     from vultron.core.ports.datalayer import DataLayer
 
 
@@ -41,7 +42,12 @@ class ActivityDispatcher(Protocol):
     Adapters (inbox handler, CLI, MCP server) call ``dispatch()`` with a
     fully-populated ``VultronEvent`` and the ``DataLayer`` instance scoped to
     the current actor.  The concrete implementation looks up the matching use
-    case from the routing table and invokes it.
+    case from the routing table, invokes it, and returns its ``HandlerResult``
+    (UCORG-05-010). When no handler runs because the activity is unroutable,
+    the dispatcher synthesizes a ``REFUSED`` verdict instead (UCORG-05-012).
+    Callers other than the inbox pipeline MAY ignore the result.
     """
 
-    def dispatch(self, event: "VultronEvent", dl: "DataLayer") -> None: ...
+    def dispatch(
+        self, event: "VultronEvent", dl: "DataLayer"
+    ) -> "HandlerResult": ...

@@ -23,24 +23,25 @@ Spec: specs/triggerable-behaviors.yaml TRIG-10-002.
 
 import pytest
 
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.use_cases.triggers.case import SvcAddReportToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
     AddReportToCaseTriggerRequest,
 )
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
 )
 
 # ---------------------------------------------------------------------------
@@ -110,14 +111,12 @@ class TestSvcAddReportToCaseUseCase:
         ).execute()
 
         # Verify activity was queued in outbox
-        assert _activity_in_outbox(
-            self.actor, self.dl
-        ), "Activity should be queued in actor's outbox"
+        assert _activity_in_outbox(self.actor, self.dl), (
+            "Activity should be queued in actor's outbox"
+        )
 
         # Verify result contains activity
-        assert "activity" in result, "Result should contain 'activity' key"
-        activity_dict = result["activity"]
-        assert activity_dict is not None
+        activity_dict = activity_of(result)
         assert activity_dict.get("type") == "Add"
 
     def test_add_report_to_case_outbox_activity_to_field(self):
@@ -147,21 +146,21 @@ class TestSvcAddReportToCaseUseCase:
         ).execute()
         after = set(self.dl.outbox_list())
         new_ids = after - before
-        assert (
-            new_ids
-        ), "AddReportToCase must queue at least one outbox activity"
+        assert new_ids, (
+            "AddReportToCase must queue at least one outbox activity"
+        )
         activity_id = next(iter(new_ids))
         activity = self.dl.read(activity_id)
         assert activity is not None
         # Document current ``to`` value as regression anchor (PCR-08-001).
         _absent = object()
         to = getattr(activity, "to", _absent)
-        assert (
-            to is not _absent
-        ), "PCR-08-001: ``to`` attribute must exist on the activity"
-        assert to is None or isinstance(
-            to, (str, list)
-        ), f"PCR-08-001: ``to`` field must be None or a list/str; got {to!r}"
+        assert to is not _absent, (
+            "PCR-08-001: ``to`` attribute must exist on the activity"
+        )
+        assert to is None or isinstance(to, (str, list)), (
+            f"PCR-08-001: ``to`` field must be None or a list/str; got {to!r}"
+        )
 
     def test_add_report_to_case_raises_when_report_not_found(self):
         """SvcAddReportToCaseUseCase raises VultronNotFoundError when report
@@ -241,16 +240,15 @@ class TestSvcAddReportToCaseUseCase:
         ).execute()
 
         # Verify activity ID is in result
-        assert "activity" in result
-        activity_dict = result["activity"]
+        activity_dict = activity_of(result)
         activity_id = activity_dict.get("id")
         assert activity_id is not None
 
         # Verify activity was queued in outbox
         outbox_activity_id = _get_outbox_activity_id(self.actor, self.dl)
-        assert (
-            outbox_activity_id == activity_id
-        ), "Activity ID in outbox should match returned activity ID"
+        assert outbox_activity_id == activity_id, (
+            "Activity ID in outbox should match returned activity ID"
+        )
 
     def test_add_report_to_case_delegates_to_add_object(self):
         """SvcAddReportToCaseUseCase validates report type then delegates to
@@ -273,8 +271,7 @@ class TestSvcAddReportToCaseUseCase:
         ).execute()
 
         # Verify the result structure (should match SvcAddObjectToCaseUseCase result)
-        assert "activity" in result
-        activity_dict = result["activity"]
+        activity_dict = activity_of(result)
         assert activity_dict.get("type") == "Add"
 
     def test_add_multiple_reports_to_case(self):
@@ -319,5 +316,5 @@ class TestSvcAddReportToCaseUseCase:
         assert len(items) == 2, "Both activities should be queued"
 
         # Verify result contains activities
-        assert "activity" in result1
-        assert "activity" in result2
+        assert result1.activity is not None
+        assert result2.activity is not None

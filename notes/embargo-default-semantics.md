@@ -6,22 +6,49 @@ description: >
   versus protocol-default distinction and why the protocol default never
   competes under shortest-wins; default embargo duration and expiry semantics;
   the published-default / tacit-acceptance model that explains why the
-  happy-path embargo requires no explicit negotiation exchange; why there is no
-  pre-case embargo phase; why an RSVP deadline may not outlive its embargo; and
+  happy-path embargo requires no explicit negotiation exchange; why an RSVP
+  deadline may not outlive its embargo; and
   how EP-04-003's two-party shortest-wins relates to EP-08's general
-  earliest-expiration ordering for N open proposals.
+  earliest-expiration ordering for N open proposals; why the creation-time
+  revision's registration order no longer touches consent (ADR-0093); how
+  the creation-time revision is relayed to the other party after
+  initialization and indexed only once sent (EP-04-011, CM-14-007, ADR-0113),
+  and why the relay is a durable marker a later run retries (#4121);
+  why creation-time initialization runs once per case with the EM state, not
+  the active-embargo reference, as the evidence (EP-04-012); why a rerun on a
+  half-built case leaves no event to orphan, because the event is written by the
+  activating commit; why everything after activation commits with it in one
+  `save_many`; and why the actor
+  default is the CASE_OWNER's profile policy, carried inline on the case proposal
+  (CP-01-009, CP-01-010).
 related_specs:
   - specs/case-management.yaml
+  - specs/case-proposal.yaml
   - specs/embargo-policy.yaml
+  - specs/message-semantics-mapping.yaml
   - specs/vultron-as2-mapping.yaml
 related_notes:
   - notes/participant-embargo-consent.md
   - notes/embargo-lifecycle.md
+  - notes/case-communication-model.md
+  - notes/case-proposal.md
+  - notes/configuration.md
+  - notes/bt-pitfalls.md
 relevant_packages:
   - transitions
+  - vultron/adapters/driving/fastapi
   - vultron/bt/embargo_management
+  - vultron/config
   - vultron/core/behaviors/case
+  - vultron/core/behaviors/embargo
+  - vultron/core/models
+  - vultron/core/services
   - vultron/core/use_cases/triggers
+  - vultron/wire/as2/extractor
+  - vultron/wire/as2/factories
+  - vultron/wire/as2/parser.py
+  - vultron/adapters/driven/trigger_activity_adapter
+  - vultron/adapters/driving/fastapi/routers/actors
 ---
 
 # Embargo Default Semantics — Implementation Notes
@@ -76,15 +103,30 @@ reached with no visible `ProposeEmbargo` or `AcceptEmbargo` activity. This is
 | Neither party has a default or proposal, and P/X/A is set | No embargo | `EM.NONE` remains (EP-04-008) |
 
 The **default path** is the common happy-path scenario. No EP or EA message
-is emitted; no per-participant acceptance round-trip occurs. The demo
-scenarios all use this path because the reporter-side embargo proposal
-mechanism is specified but not yet built — see
-"Resolved: Reporter Embargo Proposal Mechanism" below.
+is emitted; no per-participant acceptance round-trip occurs. Every
+multi-actor scenario uses this path: `reporter_submits_report()` states no
+terms unless a caller passes `proposed_embargo_end_time`.
 
-The **negotiated path** requires that mechanism. EP-04-004 now specifies it
-(a proposed `EmbargoEvent` embedded on the report offer), which makes
-EP-04-003's shortest-wins comparison reachable; until the Tasks land, only
-EP-04-001 and EP-04-005 apply at case creation.
+The **negotiated path** is EP-04-004's mechanism — a proposed `EmbargoEvent`
+embedded on the report Offer (#3392) — which makes EP-04-003's shortest-wins
+comparison reachable. Its demonstration is the `report-with-embargo` exchange
+demo (`vultron/demo/exchange/report_with_embargo_demo.py`, #3393): the
+Reporter's `submit-report` trigger carries `proposed_embargo_end_time`, the
+Receiver publishes its actor default through `PUT
+/actors/{actor_id}/embargo-policy` (EP-02, #3972), and three runs show the
+Reporter's shorter terms winning, the Receiver's shorter default winning, and
+a Receiver with no default at all. No proposal exchange precedes the case: the
+comparison is settled at case creation, so a reader distinguishes the two
+paths by whether terms were stated on the Offer. What follows creation is
+EP-04-011's relay of the losing terms to the winner — so when the Receiver's
+default wins, the Receiver (the CASE_OWNER) is invited to the Reporter's
+longer terms. The protocol requires no automatic answer (EP-09-006), and the
+prototype's bounded auto-accept fires only at `EM.NONE` for terms within the
+owner's own policy duration (`OwnerMayAutoAcceptEmbargoNode`, #4179), so the
+owner holds its answer: the run stays at `EM.REVISE` with the owner's default
+active and the Reporter's terms pending. When the Reporter's terms win, the
+Reporter's acceptance only records consent, and the case also stays at
+`EM.REVISE`.
 
 **EP-04-003 is the two-party instance of a general rule.** Shortest-wins at case
 creation is the same comparison **EP-08-001** states for *N* simultaneously open
@@ -92,9 +134,12 @@ proposals: resolve earliest `end_time` first and handle the remainder as
 revisions (ADR-0100). EP-04-003 `refines` EP-08-001 accordingly. Two consequences
 for implementers:
 
-- **One comparator, not two.** #3392 builds EP-04-003's comparison and #3470
-  builds EP-08's; they MUST share a single earliest-end-date comparator rather
-  than growing separate ones that can disagree.
+- **One comparator, not two.** `earliest_ending` in
+  `vultron/core/services/embargo_ordering.py` (#3470) is the comparator:
+  `resolve_initial_embargo_duration` uses it for EP-04-003's shortest-wins and
+  `find_embargo_proposal_id` uses it for EP-08's earliest-expiring
+  selection. #3392 extends the case-creation input; it MUST NOT
+  grow a second comparator.
 - There is **no multi-candidate poll** to reach for when more than two sets of
   terms are on the table — ADR-0100 retired `ChoosePreferredEmbargo` (#3469).
   Send one `Invite` per candidate and answer each on its own.
@@ -110,8 +155,9 @@ Earliest-Expiration First (EP-08)".
   intervening embargo-negotiation steps is exercising the default path
   correctly. The absence of `ProposeEmbargo` / `AcceptEmbargo` activities is
   **not a gap** in the demo — it reflects the protocol rule.
-- Future demos that implement the negotiated path MUST document clearly that
-  they are doing so, so readers can distinguish the two paths.
+- A demo that implements the negotiated path MUST document clearly that it is
+  doing so, so readers can distinguish the two paths. `report-with-embargo`
+  does, in its module docstring and in the how-to page's "Try it" block.
 - Implementers who add a UI or agent integration at the `EvaluateEmbargoProposal`
   call-out point are adding the *negotiated path* seam. The default path will
   still apply when that seam is not triggered.
@@ -138,7 +184,8 @@ Earliest-Expiration First (EP-08)".
 ## Implementation: `InitializeDefaultEmbargoNode`
 
 `InitializeDefaultEmbargoNode` (in `vultron/core/behaviors/case/embargo_tree.py`;
-the leaf nodes it composes live in `vultron/core/behaviors/case/nodes/embargo.py`)
+the leaf nodes it composes live in
+`vultron/core/behaviors/case/nodes/embargo_resolution.py` and `embargo.py`)
 implements the default path by delegating to `EmbargoLifecycle.propose_embargo()`
 followed by an internal accept, landing the case at `EM.ACTIVE` atomically. The
 intermediate `EM.PROPOSED` state is never persisted or externally observable
@@ -168,43 +215,373 @@ It is also **not a minimum** (EP-04-007). A reporter who proposes 12 hours gets
 12 hours. EP-04-005's `[72 hours, 5 days]` range bounds what the *fallback* may be
 configured to, not what parties may agree.
 
-### How the conflation hid a defect
+### How the conflation hid a defect (resolved, #3390)
 
-`_preferred_embargo_duration()` (`vultron/core/behaviors/case/nodes/embargo.py`)
-returned a hardcoded 90-day fallback into the *same* blackboard key
-(`default_embargo_duration`) that a published `EmbargoPolicy` filled. Downstream,
-nothing could distinguish "the receiver published 90 days" from "the receiver
-published nothing". That is how a silent 90-day embargo survived in contradiction
-of three documents — `em/defaults.md` ("no embargo SHALL exist"), this file's own
-decision table, and `em/principles.md` ("shortest duration possible").
+`_preferred_embargo_duration()` (formerly in
+`vultron/core/behaviors/case/nodes/embargo.py`) returned a hardcoded 90-day
+fallback into the *same* blackboard key (`default_embargo_duration`) that a
+published `EmbargoPolicy` filled. Downstream, nothing could distinguish "the
+receiver published 90 days" from "the receiver published nothing". That is how a
+silent 90-day embargo survived in contradiction of three documents —
+`em/defaults.md` ("no embargo SHALL exist"), this file's own decision table, and
+`em/principles.md` ("shortest duration possible").
 
 It also inverted the incentive the protocol depends on: a receiver who published
 *nothing* got a longer embargo than one who published a considered 30 days. The
 short protocol default exists to reverse that — publishing must be the rewarded
-behavior.
+behavior. The same function also selected `policies[0]` from an unordered
+`list_objects()` result, so which policy applied was arbitrary.
 
-Two smaller traps in the same function:
+What replaced it:
 
-- It selected `policies[0]` from an unordered `list_objects()` result, so which
-  policy applied was arbitrary when an actor's store held more than one.
-- Its 90-day value was never *chosen*; it sat at the far end of `em/principles.md`'s
-  "a few days to a few months" by default.
+| Concern | Where it lives now |
+|---|---|
+| Configured fallback, refused outside `[72h, 5d]` (EP-04-005) | `ActorConfig.protocol_default_embargo_duration` (`vultron/config/actor.py`) |
+| Shortest-wins over candidates only, fallback when none (EP-04-006/007) | `resolve_initial_embargo_duration()` (`vultron/core/services/embargo_duration.py`) |
+| Deterministic actor default (EP-04-010) | `actor_default_duration()` (same module) reads the one `embargo_policy` field of the CASE_OWNER's profile (EP-01-001), so there is never a choice among records |
+| Actor default is the CASE_OWNER's own policy (EP-04-003, CP-01-010) | `ResolveEmbargoDurationNode` reads the inline profile on the blackboard (`owner_profile`) and fails unless its id is `case.attributed_to`, which names the CASE_OWNER on every creation path (CM-02-008, CP-09-001) |
+| Distinct blackboard names (EP-04-010) | `actor_default_embargo_duration`, `protocol_default_embargo_duration`, and the resolved `initial_embargo_duration` (duration plus source) |
+| Initialization runs once per case (EP-04-012) | `CaseEmbargoAlreadyInitializedNode`, the first arm of the `InitializeDefaultEmbargoNode` Selector — see "Initialization Runs Once Per Case" below |
+| P/X/A refusal before anything is created (EP-04-008) | `CaseNotEmbargoEligibleNode`, the second arm of the `InitializeDefaultEmbargoNode` Selector |
 
-### There is a third implicit duration, and it is the quietest
+**Whose policy is the actor default.** At creation the case has two actors with
+terms: the CASE_OWNER and the reporter. The CASE_OWNER is the actor that received
+the `Offer(VulnerabilityReport)` and caused the case to be created, whatever
+other roles it holds, and `case.attributed_to` names it on every creation path
+(CM-02-008, CP-09-001). The reporter's terms arrive as the sender proposal, so the
+actor default is the policy on the CASE_OWNER's actor profile and no one else's.
+The creation tree runs as the CASE_MANAGER, but the CASE_MANAGER contributes no
+terms of its own: a policy the CASE_MANAGER, or anyone else, published is never a
+candidate.
 
-`_DEFAULT_EMBARGO_DAYS` is not the only unchosen number. `EmbargoEvent.end_time`
-(`vultron/core/models/embargo_event.py`) carries
+**How the CASE_OWNER's policy reaches creation.** When the CASE_MANAGER creates
+the case, the CASE_OWNER's profile lives in the CASE_OWNER's own store, which the
+CASE_MANAGER cannot read (PCR-01-003). So the policy travels the way the
+reporter's terms do (CP-01-008): the proposing actor sends its full profile
+inline as the `actor` of `Create(as_CaseProposal)`, carrying its `embargoPolicy`
+(CP-01-010). The CASE_MANAGER reads the default from that profile only, never
+fetches it, and keeps it for no other case, so a stale copy can never win a
+later shortest-wins. The protocol also permits a profile reference that the
+CASE_MANAGER dereferences (CP-01-009); this prototype requires the inline form.
+A profile with no policy means no actor default.
+
+**How the prototype implements it (#4027).** The policy is a field of the
+actor's profile record (`CoreActor.embargo_policy`, EP-01-001), which the
+`PUT /actors/{id}/embargo-policy` endpoint writes; no free-standing
+`EmbargoPolicy` record is read by anything. The sending adapter puts the
+proposer's stored profile inline as the Create's `actor`
+(`create_case_proposal_activity`). The parser refuses a bare-URI actor or a
+profile whose id differs from `attributedTo`
+(`refuse_malformed_case_proposal_envelope`), and the profile's own validator
+refuses a policy naming another actor. The extractor carries the profile on the
+event as `proposer_profile`; the use case hands it to the tree as
+`owner_profile`, which `BTBridge.execute_with_setup` restores after the run, so a
+profile seen on one proposal is never the default for another (CP-01-010). The
+store-wide scan the tree used to run (`owner_embargo_policies`) is gone, and the
+demo seeder reads the owner's own record from the owner's store instead.
+
+**Stored records from before #4027 are refused, not converted.** The old PUT
+kept the policy as a free-standing record and stored its URL in the actor's
+`embargo_policy`. `CoreActor` now refuses a string there with a message naming
+the pre-#4027 shape and the remedy, so such an actor row reads as absent and the
+datalayer's warning says why. There is no silent coercion, because the URL no
+longer names anything a reader may follow (EP-01-001). An operator with a
+file-backed store from before the change resets it (`docker compose down -v`);
+in-memory stores are unaffected. An inbound inline actor carrying a URL-string
+`embargoPolicy` is refused at the parse edge on every activity type, for the
+same reason.
+
+**The P/X/A refusal arm.** `CaseNotEmbargoEligibleNode` is a *negative*
+condition — SUCCESS means "not eligible, stop" — rather than a Success
+fallback after the creation sequence. A fallback would turn
+any failure in creation into a silent "no embargo"; with the refusal arm first,
+creation failures still propagate. The refusal arm itself returns FAILURE only
+for "eligible": a missing case or unreadable store *raises*, because FAILURE
+there would run creation, which persists an `EmbargoEvent` before anything
+re-checks P/X/A (`notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails
+Toward 'Admit'"). The sender-proposal input
+(`sender_proposed_embargo_duration`) is written by the case-proposal use case from
+the `EmbargoEvent` the Reporter embedded on the report Offer, which the report
+receiver's `CaseProposal` carries whole as `inReplyTo` (#3392, CP-01-008); the
+winning sender event keeps its identity with its context rewritten to the case,
+and the loser is registered as a pending revision. Keeping the identity means one
+URI denotes a report-scoped event on the Reporter's side and a case-scoped one on
+the case-actor's side; a replica holding both sees a `context` that changed, which
+is the rewrite EP-04-004 prescribes, not a conflict to reconcile. An exact tie
+between the sender's terms and the actor default registers no revision — there is
+nothing contested.
+
+The revision is registered inside `InitializeDefaultEmbargoNode`, *before* the
+case-proposal tree seeds the report receiver and the reporter as SIGNATORY. So a
+contested creation leaves the case at `EM.REVISE` with two SIGNATORY participants
+who never saw the revision. That is correct: CM-14-005 seeds consent to the
+*active* embargo, whose terms are still in force under REVISE, and under ADR-0093
+a proposal changes nobody's consent, so the order of registration and seeding no
+longer affects the consent record (it once did — the superseded lapse-on-propose
+cascade would have lapsed both seeds had the revision been registered after them).
+
+The registration alone was not enough, for two reasons #3863 surfaced (ADR-0113,
+EP-04-011): `propose_embargo` added an open proposal but never wrote
+`pending_embargo_proposal_index`, so the owner's default earliest-expiring
+selection (EP-08-002) could not name the revision, and nobody but the CASE_MANAGER
+knew it existed. The creation-time revision is now a revision like any other and
+follows the relay in `embargo-lifecycle.md` § "Embargo Negotiation Relays Through
+the CASE_MANAGER", in two steps that sit at two different places in the tree:
+
+- **Owed and registered in one commit, not indexed.**
+  `ResolveCreationTimeRevisionNode` selects the longer proposal before anything
+  is written and publishes it as `creation_time_revision_candidate`;
+  `InitializeCreationEmbargoNode` registers it in the activation's commit and, in
+  that same `save_many`, writes a `PendingCreationTimeRevisionRelay` record keyed
+  on the case — the freshly minted id the relayed `Invite` will carry, the report
+  the reporter is resolved from, whose terms lost
+  (`initial_embargo_duration.source`), and the CASE_MANAGER that owes the relay.
+  It is the `PendingCreateCaseActivity` shape (CP-05-005), committed with the
+  effect it guards rather than ahead of it: a failure leaves neither, never a
+  registered revision with nothing to retry (#4156), and the once-per-case guard
+  lets a redelivery finish both (#4142). A contest whose case names no report
+  fails before the commit. Writing a record initiates no modification, so it does
+  not run ahead of CM-14-007's sequence. `BTBridge` scopes the candidate key to
+  one execution (as it does `ledger_payload_object_override`, #3101), because the
+  selection ticks only on the creation arm. Nothing writes a
+  `pending_embargo_proposal_index` entry: the bootstrap
+  `Create(VulnerabilityCase)` is rendered later in the tree with the case whole,
+  and an entry already naming the Invite would make the winner's idempotency guard
+  (`EmbargoProposalNotYetRecordedNode`) read the Invite as already answered and
+  skip it.
+- **Relayed after initialization.** `RelayCreationTimeRevisionNode` sits in the
+  case-proposal tree after `CommitNativeLedgerEntriesNode`, not inside
+  `InitializeDefaultEmbargoNode`, because no modification may be initiated before
+  the initialization sequence is complete (CM-14-007). It subclasses the #3913
+  relay emit (`RelayEmbargoInviteToEachNode`): the CASE_MANAGER emits
+  `Invite(EmbargoEvent)` as `actor` with the losing party in `attributedTo`
+  (CM-24-001/002), under the pre-minted id, and commits it in this tree before
+  the outbox write, and only then indexes it (`record_embargo_proposal_index`,
+  shared with the received-proposal handler) for the owner's default selection
+  (EP-08-002). No proposal activity exists at creation, so the committed relayed
+  Invite *is* the revision's proposal entry (EP-04-011). It reads what to relay
+  from the marker, never from the blackboard, and deletes the marker when done.
+
+The loser is the proposer and is not invited: when the reporter's longer terms
+lost (the reporter is the report's `attributedTo`), the owner is invited; when the
+owner's longer default lost, the reporter is. Proposing is consenting
+(MSM-07-005), so the proposer's record, not the executing actor's, gains the
+revision id: on the CASE_MANAGER's creation path the executor is neither party
+(#4152). `creation_revision_parties` (`nodes/embargo_revision.py`) resolves both
+parties from the case owner and the report's author, for the registration and the
+relay alike. Both were just seeded SIGNATORY, so
+the relay's PEC `INVITE` is not legal for the invitee and changes no consent
+(EP-09-004). A tie registers nothing and relays nothing. A report naming no
+reporter, a case naming no CASE_OWNER, or a winner who is not an invitation recipient (CM-10-007) raises: the relay is a MUST,
+so a registered revision whose Invite cannot be sent is never a silent SUCCESS,
+and the proposal was already accepted and the case announced, so it is the
+manager's internal error, never a REFUSED verdict on the sender (ADR-0095). A
+reporter that is itself the CASE_OWNER has nobody to invite, so nothing is relayed
+or indexed, and the marker is deleted.
+
+**A failed relay is retried, from the marker (#4121).** Initialization runs once
+per case (EP-04-012), so a redelivered proposal takes the already-initialized arm
+and registers nothing; without a durable record the revision would stay open with
+an Invite nobody sent and nobody could answer. Once the marker is written, a
+failure after it — a missing factory, an unresolvable party, a fault mid-relay, a
+crash — keeps it. Two runs find it. One is a later delivery of a proposal for the
+case, whose accept arm reruns the creation sequence and so reaches the relay
+again; that path is closed while a `PendingCreateCaseActivity` marker exists,
+because `CheckMarkerExistsNode` short-circuits the redelivery. The other is the
+startup runner `retry_pending_creation_time_revision_relays` in
+`vultron/adapters/driving/fastapi/pending_retry.py`, beside the
+`Create(VulnerabilityCase)` retry. The runner wraps the relay node in
+`create_case_manager_gated_tree` (BT-17-001), so an actor that no longer holds
+CASE_MANAGER relays nothing and the marker is kept for the role holder. A tree
+runs against the store of the actor it executes as (BT-05-005, DL-07-004), so the
+runner skips, at WARNING, a marker whose `case_actor_id` is not the store's actor
+rather than relay as one actor against another's store; a marker held by a former
+CASE_MANAGER stays in that actor's store.
+
+The relay node classifies the marker before acting:
+
+- **Not yet.** With no genesis `create_case` entry in the case's ledger, the
+  creation sequence is not complete (CM-14-007, CM-14-011): nothing is sent and
+  the marker is kept. Only a run outside the case tree can see this — inside it,
+  `CommitNativeLedgerEntriesNode` has already committed the genesis entry.
+- **Closed.** The embargo is no longer an open proposal: nothing is sent and the
+  marker is deleted.
+- **Committed.** An entry for the pre-minted Invite id is already in the ledger:
+  the relay committed and then failed. The node re-applies PEC `INVITE` where
+  legal (EP-09-004), writes the index, and deletes the marker. Whether it queues
+  the Invite again is decided by the marker's `invite_queued` receipt, which the
+  relay saves right after `outbox_append`: the outbox cannot answer it, because
+  `outbox_pop` empties the outbox on delivery and so a delivered Invite looks like
+  a lost one. With no receipt the outbox write never happened, so the node
+  appends the committed id — the sealed body stored under it is what is
+  delivered — and records the receipt (#4156). A crash between the append and the
+  receipt write sends the same Invite, under the same id, twice: at-least-once,
+  which the winner's idempotency guard absorbs.
+- **Send.** Otherwise it sends the Invite under the id the marker carries,
+  indexes it, and deletes the marker.
+
+When the `Create` runner recovered the announcement but the native entries were
+never committed, nothing at startup commits them, so the relay waits for a
+redelivered proposal; the runner logs that wait at WARNING on every start, so it
+is never silent. Because the index is written only after the Invite is committed,
+it never names an Invite that was not emitted.
+
+The owner may then accept or reject as with any revision (EP-09-005). Each replica
+learns the revision from two sources. The `Create(VulnerabilityCase)` snapshot
+carries it as a `PROPOSED` entry of its `embargoRegister` (ADR-0122). The index entry comes from elsewhere: the
+winner indexes the Invite when it receives and answers it, and the loser — the
+proposer, not invited — indexes it when `ApplyEmbargoInviteFromLedgerNode`
+replays the committed Invite attributed to it (#4099). That replay writes no index
+for any other actor, for the same idempotency reason the registration does not.
+
+The sender's event arrives under the sender's id, and an id is a sender-supplied
+value. `persist_creation_time_embargo` (`embargo_lifecycle/creation.py`) refuses a
+stored twin under that id that is not this embargo — about this case, ending when
+this one ends — instead of swallowing `VultronAlreadyExistsError` as a replay the
+way a freshly minted id allowed; otherwise a colliding id would bind the case to a
+foreign embargo while shortest-wins compared the terms the sender stated. On the
+receive side a proposal whose `context` is not the proposal's report is read as no
+proposal (EP-04-009), the same way an expired one is.
+
+### There was a third implicit duration, and it was the quietest
+
+The 90-day constant and the shared key went first; one unchosen number outlived
+them. `EmbargoEvent.end_time` (`vultron/core/models/embargo_event.py`) carried
 `default_factory=_45_days_hence`, so **any** `EmbargoEvent` constructed without an
-explicit `end_time` silently acquires 45 days — nine times the 5-day ceiling
-EP-04-005 sets, and reachable from any construction site that forgets the argument.
+explicit `end_time` silently acquired 45 days — nine times the 5-day ceiling
+EP-04-005 sets, and reachable from any construction site that forgot the argument.
 
-It is worth naming separately because it hides differently from the 90-day fallback.
-The 90 days was at least reachable by reading one function that everyone knew
-resolved the default. A field default applies wherever the object is built, with no
-call site to inspect. EP-04-010 therefore requires the protocol default be the
-*single* source of the fallback duration: all three carriers — the 90-day constant,
-the shared blackboard key, and this field default — must resolve to it or be made
-explicit at construction. Tracked as #3404.
+It hid differently from the 90-day fallback. That fallback was at least reachable
+by reading one function that everyone knew resolved the default. A field default
+applies wherever the object is built, with no call site to inspect. EP-04-010
+requires the protocol default be the *single* source of the fallback duration.
+
+Resolved in #3404 by making `end_time` **required** rather than by pointing the
+default at the protocol default: a model cannot see the actor's configuration, and
+ARCH-10-001's fail-fast rule already says a required invariant is asserted at
+construction. The two trigger use cases that built an event conditionally already
+required `end_time` on their requests, so the only production site that leaned on
+the default was the demo's replica seeding, which now resolves its duration the way
+`InitializeDefaultEmbargoNode` does. Test builders state `days_from_now_utc(45)`
+explicitly — the same window, now visible at every site.
+
+## Initialization Runs Once Per Case — the EM State Is the Evidence
+
+`InitializeDefaultEmbargoNode` is reached from the case-proposal tree on *both*
+branches of `ResolveCaseIdSelector`: after `CreateCaseFromProposalNode` on a
+fresh case, and after `LoadExistingCaseNode` when a redelivered
+`Create(CaseProposal)` reuses a case (CP-05-006). The reuse branch is a
+lost-reply recovery: it answers an exact redelivery of the same proposal and lets
+a redelivery *finish* a case whose first attempt died between creation and the
+`Accept`. "Duplicate" here means the same proposal arriving twice, never a second
+report that describes the same vulnerability — that is report management
+(RMB-11-002), not case creation. CP-05-006's *statement* still keys the duplicate
+on the report ("a proposal for the same report"); the rationale is the lost-reply
+recovery, and amending the statement's key is #3977's question.
+
+So the subtree needs a guard that answers "did creation-time initialization
+already run on this case?" — `CaseEmbargoAlreadyInitializedNode`, the first arm
+of `InitializeDefaultEmbargoNode`. Without it the creation arm re-ran on the
+reused case: the default path stored an orphan `EmbargoEvent`, and the contested
+path registered the losing candidate as a *second* pending revision, one per
+delivery (#3393). The vendor side stopped feeding it duplicates at the same
+time: `CheckProposalAlreadySentForReport` treats an *answered* `ReportCaseLink`
+(case linked) as "already proposed", not only a pending one, so a re-delivered
+Offer no longer re-proposes.
+
+EP-04-012 fixes what the guard's evidence is:
+
+| Evidence | Reads an exited embargo as | Reads a half-built case as |
+|---|---|---|
+| `case.active_embargo` is set | **uninitialized** (termination clears it) | uninitialized ✓ |
+| EM state has left `NONE` | initialized ✓ | uninitialized ✓ |
+
+The reference is wrong in the first column. After `terminate_active_embargo`
+the reference is `None` and the state is `EXITED`; a guard keyed on the
+reference falls through to the creation arm, which stores a fresh `EmbargoEvent`
+*before* `InitializeCreationEmbargoNode` asks the EM machine for a `PROPOSE` it has
+no transition for from `EXITED` — an orphan write, a failed tree, and a proposal
+that is never answered (#3986). The EM state is right in both columns because
+the machine never returns to `NONE` once it has left it and `PROPOSED` is never
+persisted at creation (EP-04-002), so "has left `NONE`" is exactly
+"initialization has run".
+
+Consequences for the guard arm:
+
+- It reads the state through `ReadEmStateNode`
+  (`vultron/core/behaviors/AGENTS.md` § "EM State Reads Must Use
+  ReadEmStateNode"), not from the case field.
+- It is a refusal arm ahead of a write, so an unreadable case or store *raises*
+  (`bt-pitfalls.md` § "A Refusal Arm in a Selector Fails Toward 'Admit'").
+  The two rules do not compose for free: `ReadEmStateNode` never raises — it
+  returns FAILURE, with the cause in `result_out["error"]` (or nothing at all
+  when the datalayer is missing) — and a bare FAILURE as the arm's first child
+  falls through the Selector into the creation arm, which is admit. The arm must
+  therefore convert the read's FAILURE into a raise itself: after the read, a
+  missing `result_out["em_before"]` is an error to raise (carrying
+  `result_out["error"]` when present), never a status to return. Only the
+  `em_before == EM.NONE` outcome may return FAILURE, because that is the one
+  case where falling through to the creation arm is the correct answer.
+- Skipping the whole creation arm is what makes the proposal's embargo terms
+  irrelevant on a reused case: shortest-wins and the pending-revision
+  registration both live inside it. The embargo is the case's, not the
+  report's; terms on a redelivered proposal that conflict with the case lose
+  to the case.
+- The per-node skip in `InitializeCreationEmbargoNode` stays. It is the node
+  validating its own transition (CSB-16), not the idempotency guard.
+
+"`PROPOSED` is never persisted at creation" is a property of one write, not of
+the order of two. `InitializeCreationEmbargoNode` calls
+`EmbargoLifecycle.initialize_creation_embargo`, which applies `PROPOSE` and
+`ACCEPT` in memory, attaches the embargo and saves the case once; every check
+(P/X/A, the event's record, both transitions) runs before that save. The
+creation arm used to call `propose_embargo` and then, in a second node,
+`activate_embargo`: a failure between the two saves left the case at
+`PROPOSED`, which this guard reads as initialized, so the case never got an
+active embargo (#4123).
+
+The same holds for everything after the activation. The consent records, the
+owner's `SIGNATORY` seed (CM-14-003) and a contested creation's revision
+(`ACTIVE → REVISE`, EP-04-003) used to be written by the service and by two
+nodes after the case was saved `ACTIVE`; a failure there left the owner
+unseeded or the revision unregistered, and this guard then refused the rerun
+that would have finished them (#4142). `initialize_creation_embargo` now does
+all of it and commits it through one `save_many`, the atomic write CM-21-004
+already relies on. The shared consent helpers save each record they touch and
+re-read a record an earlier helper changed (the owner is both the proposer and
+the seeded signatory on its own creation path), so the operation runs them
+against `StagedCasePersistence` (`embargo_lifecycle/staged_persistence.py`): it
+stages every save, answers every read from what it staged, refuses any query it
+could not answer faithfully, and flushes once. Any failure before or in that
+flush leaves the case at `NONE`, which this guard admits.
+
+A rerun at `NONE` must also not leave a *second* creation-time event (#4117 and
+issue 4182). The event is written by the same `save_many` that activates it:
+`CreateEmbargoEventNode` only builds it (the sender's own event with its
+`context` rewritten to the case, or a minted default) and hands it to
+`InitializeCreationEmbargoNode` on the blackboard, and
+`initialize_creation_embargo(embargo=...)` stages it first, so the read of the
+record being activated (EMB-18-003) sees it. A run that stops before the commit
+has therefore stored no event, and a rerun may resolve to either branch —
+default then sender, sender then default, or a different sender event — without
+an orphan to clean up. Storing it earlier, as the node used to, left the first
+attempt's event behind whenever the rerun took the other branch; re-stamping an
+event found under a derived id covered only default-then-default.
+
+The minted default still takes its id from the case
+(`creation_time_embargo_id`, a uuid5 of the case id), so the same case always
+names the same default. The sender branch keeps the Reporter's id, and an event
+the store already holds under the id is accepted only if it is the same embargo
+(same case, same `end_time`); `persist_creation_time_embargo` refuses any other.
+
+A run that stops *after* the PROPOSE trigger and before activation is a
+different gap: `propose_embargo` persists `PROPOSED`, which EP-04-002 forbids,
+and the guard then reads the case as initialized and never finishes it (#4123).
+
+The report-keyed `LoadExistingCaseNode` itself is suspect for a different
+reason — CBT-06-002 expects a second recipient of the same report to get its own
+case, and the proposal id is the key both of the reuse branch's jobs actually
+need — but that is #3977's question, not this section's.
 
 ## Resolved: Reporter Embargo Proposal Mechanism (EP-04-004)
 
@@ -228,52 +605,23 @@ precisely this window, and ADR-0089 re-rejected the proto-case when deciding whe
 pre-case RM state lives. The path was recorded here before either decision landed,
 which is why it read as a live option for so long.
 
-## No Pre-Case Embargo Phase
-
-CONCERN-2215 asked whether Vultron gets a protocol phase before a case exists, on
-the strength of `model_interactions/rm_em.md` stating that the EM process MAY begin
-before the report is sent. **ADR-0096 answered no**, and the reason is stronger
-than "not implemented":
-
-| Fact | Where |
-|---|---|
-| EM is defined as a global **per-case** state machine | `docs/reference/glossary.md` |
-| EM state exists only as `CaseStatus.em` (an `EmDimension`) | `vultron/core/models/dimensions.py` |
-| `EmbargoEvent.context` is required, and every core construction site set it to `case_id` | `case/nodes/embargo.py`, `triggers/embargo/{propose,revise}.py` |
-| `propose_embargo(case_id=…)` raises `VultronNotFoundError` when the case does not resolve | `vultron/core/services/embargo_lifecycle.py` |
-
-So the documented $q^{em} \in N \xrightarrow{p} P$ before any case exists named a
-machine instance that could not exist. `rm_em.md` has been corrected: its
-*motivation* survives (a sender may want terms fixed before disclosing), its
-*mechanism claim* is withdrawn.
-
-What replaces the phase is two rules, both above: the protocol default means a
-reporter never faces "no embargo at all", and the embedded proposal means they can
-always state the terms they want. Shortest-wins settles any disagreement at case
-creation.
-
-Note that EP-04-009's context widening does give pre-case embargo terms a
-legitimate home. What ADR-0096 declines is the *phase*, not the *representation* —
-so if a genuine pre-submission negotiation is ever wanted, the object it would
-negotiate over already exists.
-
 ## An RSVP Deadline May Not Outlive Its Embargo
 
 EP-07-006 and CM-28-011, added by ADR-0096, close a defect that is independent of
 everything else in this file.
 
 Nothing previously compared the RSVP deadline against the embargo's own
-`end_time`. EP-07-003 clamps a sub-minimum deadline **up** to a 72-hour floor, with
-no upper bound at all. So:
+`end_time`. EP-07-003 clamped a sub-minimum deadline **up** to a 72-hour floor,
+with no upper bound at all. So:
 
 > Invite a participant to a 24-hour embargo. The `Invite(EmbargoEvent)` carries no
 > `end_time`, so the CM-18-002 policy window applies: 7 days. The pocket veto fires
 > on day 7. The embargo ended at hour 24.
 
 The participant is asked to consent to an embargo that is already over, and their
-inaction is recorded as a decline six days after it stopped mattering. The same
-thing happens on day 28 of a 30-day embargo with an ordinary published actor
-default — this is reachable today, without any protocol default in the picture.
+inaction is recorded as an expiry six days after it stopped mattering. The same
+thing happened on day 28 of a 30-day embargo with an ordinary published actor
+default — without any protocol default in the picture.
 
 The rule is now: an RSVP deadline is clamped **down** to the embargo's `end_time`.
 Consequently EP-07-002's minimum became "72 hours, **or the remaining embargo,
@@ -296,6 +644,26 @@ than the protocol default, EP-07-002's *effective* minimum still has to be compu
 as the lesser of the configured window and the time remaining in the embargo. The
 arithmetic relating the RSVP floor to the embargo duration exists either way; the
 alignment only guarantees it never fires on the protocol-default path.
+
+### Where the rule lives (#3391)
+
+One pure function, `resolve_rsvp_deadline()` (`vultron/core/models/rsvp_deadline.py`),
+computes the effective deadline for both sides, which is what makes the clamp up
+and the clamp down agree. Every window is measured from the invite's `published`
+time:
+
+1. Computed deadline: the explicit `Invite.end_time`, else `published` plus the
+   policy window (EP-07-001, CM-18-002).
+2. Minimum: `published` plus the minimum window, or the embargo's end, whichever
+   is earlier (EP-07-002).
+3. Raise to the minimum (EP-07-003), then lower to the embargo's end (EP-07-006).
+
+The sender side (`em_propose_embargo_activity`) refuses a deadline the function
+would move. The receiver side (`extract_intent`) applies the moved value, logs
+each clamp at INFO with the requested and effective values (EP-07-005), and never
+rejects the invitation (EP-07-004). Because the policy window is now applied at
+extraction, an invite without `end_time` carries a concrete `rsvp_deadline` into
+core rather than `None`.
 
 ---
 

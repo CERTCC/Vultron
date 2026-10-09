@@ -14,7 +14,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import logging
 from copy import deepcopy
 from typing import Any
@@ -26,18 +25,22 @@ from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.embargo_management.behaviors import EmbargoManagementBt
 from vultron.bt.messaging.inbound.behaviors import ReceiveMessagesBt
 from vultron.bt.report_management.behaviors import ReportManagementBt
-from vultron.core.states.rm import RM
 from vultron.bt.states import ActorState
 from vultron.bt.vul_discovery.behaviors import DiscoverVulnerabilityBt
+from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
 
 STATELOG: list[dict[str, Any]] = []
 
 
-def reset_statelog():
-    global STATELOG
-    STATELOG = []
+def reset_statelog() -> None:
+    """Empty the shared state log in place.
+
+    Clearing rather than rebinding keeps every importer of ``STATELOG``
+    (e.g. ``vultron.bt.base.demo.cvd``) looking at the same list.
+    """
+    STATELOG.clear()
 
 
 class Snapshot(ActionNode):
@@ -102,7 +105,7 @@ class CvdProtocolBt(bt.BehaviorTree):
 
         self.preconditions = {}
         for a in attributes:
-            logger.debug(f"State: {a}: {getattr(self.bb, a)}")
+            logger.debug("State: %s: %s", a, getattr(self.bb, a))
             self.preconditions[a] = deepcopy(getattr(self.bb, a))
         logger.debug("--------")
 
@@ -113,10 +116,10 @@ class CvdProtocolBt(bt.BehaviorTree):
             if now != then:
                 changes.append(f"State change: {k}: {then} -> {now} ")
 
-        if len(changes):
+        if changes:
             logger.debug("--------")
         for change in changes:
-            logger.debug(change)
+            logger.debug("%s", change)
 
     @property
     def closed(self):

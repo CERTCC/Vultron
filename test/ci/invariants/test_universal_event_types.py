@@ -88,9 +88,9 @@ def _expected_event_types_constant(
     event_types = []
     for entry in getattr(module, name):
         value = entry if isinstance(entry, str) else entry.values[0]
-        assert isinstance(
-            value, str
-        ), f"{name} entry {entry!r} does not wrap an eventType string"
+        assert isinstance(value, str), (
+            f"{name} entry {entry!r} does not wrap an eventType string"
+        )
         event_types.append(value)
     return name, event_types
 
@@ -134,8 +134,8 @@ def test_all_ci_scenarios_have_a_harness_module() -> None:
     those too, so it should not pass here silently.
     """
     entries = json.loads(_CI_SCENARIOS_JSON.read_text())
-    assert len(entries) == 9, (
-        f"expected 9 CI scenarios, got {len(entries)} — if a scenario was "
+    assert len(entries) == 11, (
+        f"expected 11 CI scenarios, got {len(entries)} — if a scenario was "
         "added or removed, update DEMOMA-16 and the notes/ scenario tables"
     )
     missing = [

@@ -1,14 +1,18 @@
 ---
 status: accepted
 date: 2026-09-17
+created: 2026-09-17
+updated: 2026-09-17
+revision: 1
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
 # The decision itself is accepted, not provisional. The word appears because two
-# of the *rule exclusions* it records are provisional and cite tracking issues
-# (#3350, #3378) — which IMPLTS-07-019 requires them to say. Suppress the
-# MS-14-002 match on that vocabulary.
+# of the *rule exclusions* it records were provisional and cited tracking issues
+# (#3350, #3378) — which IMPLTS-07-019 requires them to say; both are resolved
+# and the rows record how. Suppress the MS-14-002 match on that vocabulary.
 lint_suppress: [status_prose_contradiction]
+stakeholder_type: [project-contributor]
 ---
 
 # Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them
@@ -78,7 +82,7 @@ belong in it, which is worth recording because both are easy to miscount:
 CS-23-001 (blanket `except Exception` / bare `except`) is a third case kept out of
 that table, and the most instructive one: it *does* have a gate. Its `verification:` names
 `test/architecture/test_no_broad_except_outside_bt_update.py`, an AST scan with a
-shrink-only `_DECLARED_EXCLUSIONS` allow-list — but that ratchet covers only
+exact-match `_DECLARED_EXCLUSIONS` pinned exemption set — but that test covers only
 `vultron/core/behaviors/`. Ruff's `BLE001`, `S110` and `S112` widen the same check
 to the whole tree, so for CS-23-001 this decision adds reach to an existing gate
 rather than a first gate.
@@ -306,12 +310,12 @@ deliberately not restated in `specs/` or `notes/` (MS-16-001).
 
 | Excluded | Findings suppressed | Reason |
 |---|---|---|
-| `PLC0415` import-outside-top-level | 2,426 | Function-local imports are this codebase's cycle-break idiom. CS-05-002 calls the pattern a "last resort"; at this scale it is the norm. That contradiction is real and is tracked as #3350 — it is a premise question, not a lint question, and enabling the rule before it is answered would either bury the tree in noise or force thousands of rewrites toward an unagreed target. |
+| `PLC0415` import-outside-top-level | 2,426 | Function-local imports are this codebase's cycle-break idiom. CS-05-002 calls the pattern a "last resort"; at this scale it is the norm. That contradiction is real and is tracked as #3350 — it is a premise question, not a lint question, and enabling the rule before it is answered would either bury the tree in noise or force thousands of rewrites toward an unagreed target. *Resolved 2026-09-30*: #3350 found the sites were habit, not cycle breaks (CS-05-002, CS-05-005, CS-05-006); #3949 deletes this entry and #3950 removes the remaining cycles. |
 | `TC006` runtime-cast-value | 654 | Would quote the type argument of every `cast()` call. Pure churn. |
 | `TRY003` raise-vanilla-args | 567 | Would require one exception class per distinct message string. |
 | `PLR2004` magic-value-comparison | 412 | Overwhelmingly test literals, where a named constant reduces clarity. |
 | `PLR0904`, `PLR0911`–`PLR0917` | 495 | Argument, return, branch and statement counts. `C901` at `max-complexity = 10` is this project's chosen complexity gate (IMPLTS-07-008); a second, differently-calibrated one would compete with it. |
-| `G004` logging-f-string | 194 | A legitimate rule — f-strings defeat logging's lazy formatting — but the rewrite has no agreed target, because the choice between lazy `%`-args and structured `extra=` fields belongs to the structured-logging requirements (`specs/structured-logging.yaml`). Provisional, tracked as #3378. |
+| `G004` logging-f-string | 194 | A legitimate rule — f-strings defeat logging's lazy formatting — but the rewrite has no agreed target, because the choice between lazy `%`-args and structured `extra=` fields belongs to the structured-logging requirements (`specs/structured-logging.yaml`). Provisional, tracked as #3378. *Resolved 2026-09-30*: #3378 found the two were never alternatives — the template-plus-lazy-args shape governs the message (SL-01-005) and record fields are the correlation mechanism, set by a boundary filter (SL-02-003) — so the rule is enabled: #3991 deletes this entry and rewrites every site, and #3992 builds the correlation filter. |
 | `TC001`, `TC002`, `TC003` | 113 | Would force `if TYPE_CHECKING:` blocks across the tree. |
 | `RET504` unnecessary-assign | 86 | Assign-then-return is more readable at the sites where it appears. |
 | `RUF001`–`RUF003` ambiguous-unicode | 47 | Fires on prose and docstrings, not code. |
@@ -319,6 +323,9 @@ deliberately not restated in `specs/` or `notes/` (MS-16-001).
 | `UP040`, `UP047` PEP 695 syntax | 52 | Type-alias and generic-syntax modernization with no requirement behind it. |
 | `PYI042` snake-case-type-alias | 35 | `snake_case` type aliases are established house style. |
 | `E501`, `E203` | — | Line length and slice whitespace belong to the formatter. Carried over verbatim from `.flake8`'s `extend-ignore`. |
+| `RUF012` mutable-class-default | 202 (2026-09-30) | *Added during implementation (#3352).* A false positive on the two dominant shapes: 182 findings are py_trees `INPUT_PORTS`/`OUTPUT_PORTS` tables, which must stay un-annotated because py_trees' `PortsMixin` declares them as instance attributes and a `ClassVar` override is a mypy error; the rest are pydantic models that ruff cannot see through an indirect base (`as_Object`), where `ClassVar` would delete a field. The project's own class-level tables carry `ClassVar` explicitly. #3352 had listed this rule for hand-fixing; the measurement showed there was nothing to fix. |
+| `RUF022` unsorted-dunder-all | 74 (2026-09-30) | *Added during implementation (#3352).* Package `__all__` lists are grouped by submodule under section comments; sorting them alphabetically scatters the groups and strands the comments. |
+| `S101` assert | 14,621 (2026-09-30) | *Added during implementation (#3352).* `assert` is pytest's assertion idiom in `test/`, and in `vultron/` it narrows types and states invariants; the `python -O` stripping hazard the rule guards against does not apply to how this project runs. |
 | `EXE` family (not selected) | 850 | `EXE001` fires on every file carrying the standard `#!/usr/bin/env python` + CMU copyright header — a file template, not a defect. Excluded by not selecting the family, so no `ignore` entry is needed. |
 
 Selecting the remaining families across the whole tracked Python surface (1,384
@@ -471,8 +478,12 @@ the wrong class, `pytest.raises(Exception)` as a vacuous assertion, missing
   ADR-0064 § "Ratcheting across the steps".
 - Precedent for a lint-tooling decision recorded as an ADR: ADR-0092.
 - Follow-on questions deliberately left open, each cited as the reason for a
-  provisional exclusion: #3350 (`PLC0415` vs CS-05-002) and #3378 (`G004` vs the
-  structured-logging requirements).
+  provisional exclusion: #3350 (`PLC0415` vs CS-05-002; resolved 2026-09-30 by
+  CS-05-005/006, implemented by #3949 and #3950) and #3378 (`G004` vs the
+  structured-logging requirements; resolved 2026-09-30 by SL-01-005 and
+  SL-02-003/004, implemented by #3991 and #3992). Once #3949 and #3991 land,
+  both provisional entries are gone and the `ignore` list carries only standing
+  rationales.
 - Exception-handling findings are owned by epic #3329, not by this decision:
   #3325 (closed via PR #3338), #3326.
 - Policy write-up for future maintainers: `notes/lint-tooling.md`.

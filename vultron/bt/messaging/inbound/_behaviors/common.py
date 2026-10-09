@@ -16,7 +16,6 @@ This module contains common behaviors that are used by the inbound message handl
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import logging
 
 from vultron.bt.base.bt_node import BtNode
@@ -38,7 +37,7 @@ def pop_message(obj: BtNode) -> bool:
     # take one down
     # pass it around
     obj.bb.current_message = obj.bb.incoming_messages.popleft()
-    logger.debug(f"** <-- Recv {obj.bb.current_message.msg_type}")
+    logger.debug("** <-- Recv %s", obj.bb.current_message.msg_type)
     return True
 
 
@@ -55,7 +54,7 @@ def push_message(obj: BtNode) -> bool:
             obj.bb.incoming_messages.appendleft(obj.bb.current_message)
             obj.bb.current_message = None
         except IndexError as e:
-            logger.warning(f"Caught error: {e}")
+            logger.warning("Caught error: %s", e)
             return False
 
     return True

@@ -46,6 +46,7 @@ from vultron.metadata.markdown_tables import iter_sections
 SCENARIO_TABLE_CONSUMERS: tuple[str, ...] = (
     ".github/workflows/demo-integration.yml",
     "docs/topics/scenarios/index.md",
+    "docs/tutorials/container_demos.md",
     "notes/README.md",
     "notes/demo-ci-diagnostics.md",
     "notes/demo-ci-invariants.md",

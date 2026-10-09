@@ -35,7 +35,6 @@ import logging
 
 import py_trees
 
-from vultron.core.models.protocols import PersistableModel
 from vultron.core.behaviors.status.nodes import (
     AppendStatusAndSaveParticipantNode,
     LoadParticipantNode,
@@ -43,6 +42,7 @@ from vultron.core.behaviors.status.nodes import (
     SkipIfIdempotentNode,
     ValidateRMTransitionNode,
 )
+from vultron.core.models.protocols import PersistableModel
 
 logger = logging.getLogger(__name__)
 

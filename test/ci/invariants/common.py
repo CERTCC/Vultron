@@ -28,14 +28,15 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
-from datetime import datetime, timezone
+from collections.abc import Callable, Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 import yaml
 
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.adapters.utils import strip_id_prefix
+from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
 from vultron.demo.helpers.ledger_dump import (
     DUMP_MANIFEST_FILENAME,
     default_devlogs_root,
@@ -71,8 +72,44 @@ def load_jsonl(path: Path) -> list[dict]:
 
 
 def log_index(entry: dict) -> int:
-    """Return the ``log_index`` from an entry dict."""
-    return int(entry.get("log_index", entry.get("logIndex", -1)))
+    """Return the ``log_index`` from an entry dict.
+
+    Raises:
+        ValueError: The entry has no ``logIndex``, a non-integer one, or a
+            negative one.  A committed entry always carries an integer index
+            ``>= 0`` (CLP-14-010), so there is no sentinel: a ``-1`` default
+            would sort and compare as a real — earliest — position and let
+            ordering checks pass on an entry whose position is unknown
+            (ISSUE-2764).  ``bool``, ``float`` and numeric strings are not
+            coerced, since each would silently stand in for a real position.
+    """
+    raw = entry.get("log_index")
+    if raw is None:
+        raw = entry.get("logIndex")
+    if raw is None:
+        raise ValueError(
+            f"Ledger entry eventType={event_type(entry)!r} has no logIndex"
+        )
+    if not isinstance(raw, int) or isinstance(raw, bool):
+        raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
+            f"Ledger entry eventType={event_type(entry)!r} has non-integer "
+            f"logIndex={raw!r}"
+        )
+    if raw < 0:
+        raise ValueError(
+            f"Ledger entry eventType={event_type(entry)!r} has negative "
+            f"logIndex={raw}"
+        )
+    return raw
+
+
+def log_index_violation(entry: dict) -> str | None:
+    """Return why *entry*'s ``logIndex`` is unusable, or ``None`` if it is valid."""
+    try:
+        log_index(entry)
+    except ValueError as exc:
+        return str(exc)
+    return None
 
 
 def entry_hash(entry: dict) -> str:
@@ -163,16 +200,83 @@ def _read_dump_manifests(search_root: Path) -> list[dict]:
     return manifests
 
 
+def _dump_crashed(manifest: dict) -> bool:
+    """True when the harness backstop wrote the manifest because the dump raised.
+
+    ``ScenarioHarness`` writes a fallback manifest carrying
+    ``DUMP_CRASHED_REASON`` when ``dump_case_ledgers`` died before it could
+    record per-actor results.  That manifest has the same ``caseId: null`` /
+    ``targetCount: 0`` shape as a no-case run, but says nothing about whether
+    a case existed — only the reason line tells the two apart.
+    """
+    return manifest.get("reason") == DUMP_CRASHED_REASON
+
+
+def _demo_never_reached_a_case(manifest: dict) -> bool:
+    """True when the dump had nothing to target because no case ever existed.
+
+    The dump writes ``caseId: null`` and ``targetCount: 0`` when the scenario
+    aborted before a case was created (DEMOCI-10-002) — the same shape as the
+    pre-run sentinel (DEMOCI-10-012) and as the harness's crashed-dump
+    backstop, which is excluded here because it does not know whether a case
+    existed.  A manifest that names a case but captured nothing is a
+    different situation again: the case existed and its ledgers are missing.
+    """
+    return (
+        manifest.get("caseId") is None
+        and not manifest.get("targetCount", 0)
+        and not _dump_crashed(manifest)
+    )
+
+
 def _fail_no_ledgers_despite_dump(
     search_root: Path,
     manifests: list[dict],
 ) -> None:
-    """Fail with the manifests' account of why no ledger files were captured."""
-    lines = [
-        f"No case-ledger files under {search_root}, but "
-        f"{len(manifests)} dump manifest(s) show the demo ran and dumped. "
-        "This is a real invariant failure, not missing test data."
-    ]
+    """Fail with the manifests' account of why no ledger files were captured.
+
+    The headline names the layer that failed (DEMOCI-10-014).  When every
+    manifest says the scenario never reached a case, the ledger invariants
+    were not exercised at all — the demo aborted upstream, and calling that a
+    "real invariant failure" sends a triager to the ledger when the fault is
+    in delivery or in the scenario (ISSUE-3879, #2898).  When the dump itself
+    crashed, whether a case existed is unknown and the headline says so.  Only
+    a manifest that names a case supports the strong wording.  The job still
+    fails in every branch (DEMOCI-10-003).
+    """
+    if all(_demo_never_reached_a_case(m) for m in manifests):
+        headline = (
+            f"No case-ledger files under {search_root}: "
+            f"{len(manifests)} dump manifest(s) show the demo aborted before "
+            "a case existed, so the ledger invariants were not exercised. "
+            "This is an upstream demo failure — see the demo-integration job "
+            "for the cause — not a ledger invariant failure."
+        )
+    elif any(_dump_crashed(m) for m in manifests):
+        headline = (
+            f"No case-ledger files under {search_root}: "
+            f"{len(manifests)} dump manifest(s) show the case-ledger dump "
+            "raised before it recorded any per-actor result, so whether a "
+            "case existed is unknown and the ledger invariants were not "
+            "exercised. See the demo-integration job log for the dump's "
+            "traceback; this is not evidence of a ledger invariant failure."
+        )
+    elif any(m.get("caseId") for m in manifests):
+        headline = (
+            f"No case-ledger files under {search_root}, but "
+            f"{len(manifests)} dump manifest(s) show the demo ran and dumped "
+            "for an existing case. "
+            "This is a real invariant failure, not missing test data."
+        )
+    else:
+        headline = (
+            f"No case-ledger files under {search_root}, and the "
+            f"{len(manifests)} dump manifest(s) name no case and give no "
+            "recognised reason, so the ledger invariants were not exercised "
+            "and the cause cannot be attributed from the manifest alone. "
+            "See the demo-integration job for the cause."
+        )
+    lines = [headline]
     for manifest in manifests:
         lines.append(
             f"- demo {manifest.get('demoName', '?')!r}: "
@@ -258,21 +362,42 @@ def load_devlogs(
             pytest.fail(msg)
         pytest.skip(msg)
 
-    for actor in replicas:
-        replicas[actor] = sorted(replicas[actor], key=log_index)
-
     # Filter to the most recent run's case when the manifest provides a caseId.
     # Without this, accumulated JSONL files from prior local runs chain entries
     # from different cases together and break the hash-chain invariant (issue #2273).
     manifest_case_ids = {m.get("caseId") for m in manifests if m.get("caseId")}
     if len(manifest_case_ids) == 1:
         (filter_id,) = manifest_case_ids
-        for actor in replicas:
-            replicas[actor] = [
-                e for e in replicas[actor] if case_id(e) == filter_id
-            ]
+        for actor, entries in replicas.items():
+            replicas[actor] = [e for e in entries if case_id(e) == filter_id]
+
+    _fail_on_invalid_log_indices(replicas)
+
+    for actor, entries in replicas.items():
+        replicas[actor] = sorted(entries, key=log_index)
 
     return replicas
+
+
+def _fail_on_invalid_log_indices(replicas: dict[str, list[dict]]) -> None:
+    """``pytest.fail`` naming every entry whose ``logIndex`` is unusable.
+
+    An entry with no position cannot be ordered, so every index-based
+    invariant would be judging a corrupt log.  All such entries are reported
+    at once, across every actor (EH-07-001, ISSUE-2764).
+    """
+    problems = [
+        f"  actor {actor!r}: {reason}"
+        for actor, entries in replicas.items()
+        for e in entries
+        if (reason := log_index_violation(e)) is not None
+    ]
+    if problems:
+        pytest.fail(
+            f"Ledger entries with no valid logIndex ({len(problems)}); a "
+            "committed entry always carries an index >= 0 (CLP-14-010):\n"
+            + "\n".join(problems)
+        )
 
 
 def auth_entries(replicas: dict[str, list[dict]]) -> list[dict]:
@@ -427,16 +552,34 @@ def check_event_type_count(
     replicas: dict[str, list[dict]],
     expected_event_type: str,
     min_count: int,
+    *,
+    max_count: int | None = None,
 ) -> list[str]:
-    """Assert that an expected eventType appears at least ``min_count`` times.
+    """Assert that an expected eventType appears between ``min_count`` and ``max_count`` times.
 
-    Useful for scenarios where a given event must repeat (e.g., two invitations).
+    Useful for scenarios where a given event must repeat (e.g., two
+    invitations), or must occur an exact number of times.  ``max_count``
+    defaults to no upper bound; set it when a count above the scenario's own
+    sends is itself a defect — a floor alone is satisfied by a double commit
+    (#4120), so it cannot tell the scenario's sends from a duplicate.
+
+    Raises:
+        ValueError: ``max_count`` is below ``min_count``.
     """
+    if max_count is not None and max_count < min_count:
+        raise ValueError(
+            f"max_count ({max_count}) must not be below min_count ({min_count})"
+        )
     auth = auth_entries(replicas)
     actual_count = sum(1 for e in auth if event_type(e) == expected_event_type)
     if actual_count < min_count:
         return [
             f"Expected eventType {expected_event_type!r} at least {min_count} "
+            f"time(s) in case-actor log; found {actual_count}."
+        ]
+    if max_count is not None and actual_count > max_count:
+        return [
+            f"Expected eventType {expected_event_type!r} at most {max_count} "
             f"time(s) in case-actor log; found {actual_count}."
         ]
     return []
@@ -524,9 +667,7 @@ def check_late_joiner_has_full_history(
     late_entries = replicas.get(late_actor, [])
 
     if not early_entries or not late_entries:
-        return (
-            []
-        )  # skip check — caller should pytest.skip when replicas absent
+        return []  # skip check — caller should pytest.skip when replicas absent
 
     early_indices = {log_index(e) for e in early_entries}
     late_indices = {log_index(e) for e in late_entries}
@@ -543,18 +684,12 @@ def check_late_joiner_has_full_history(
 
 def _missing_fields_in_status_snap(
     snap: dict,
-    valid_em_states: set,
     valid_roles: set,
 ) -> list[str]:
     """Return field-level violation strings for one ParticipantStatus snapshot."""
     missing: list[str] = []
-    if "emConsentState" not in snap and "em_consent_state" not in snap:
-        missing.append("emConsentState")
     if "cvdRole" not in snap and "cvd_role" not in snap:
         missing.append("cvdRole")
-    em_consent = snap.get("emConsentState", snap.get("em_consent_state"))
-    if em_consent not in valid_em_states:
-        missing.append("valid emConsentState value")
     cvd_role = snap.get("cvdRole", snap.get("cvd_role"))
     if not isinstance(cvd_role, list) or not cvd_role:
         missing.append("non-empty cvdRole list")
@@ -566,7 +701,7 @@ def _missing_fields_in_status_snap(
 def check_participant_status_schema_completeness(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
-    """Every ParticipantStatus snapshot includes emConsentState and cvdRole list (Invariant 9)."""
+    """Every ParticipantStatus snapshot includes a cvdRole list (Invariant 9)."""
     auth = auth_entries(replicas)
     status_entries = [
         e
@@ -578,10 +713,6 @@ def check_participant_status_schema_completeness(
             "No add_participant_status_to_participant entries found; cannot check schema completeness"
         ]
 
-    valid_em_states = {
-        *(state.name for state in PEC),
-        *(state.value for state in PEC),
-    }
     valid_roles = {
         *(role.name for role in CVDRole),
         *(role.value for role in CVDRole),
@@ -594,9 +725,7 @@ def check_participant_status_schema_completeness(
             snap = snap["object"]
         elif isinstance(snap.get("object_"), dict):
             snap = snap["object_"]
-        missing_fields = _missing_fields_in_status_snap(
-            snap, valid_em_states, valid_roles
-        )
+        missing_fields = _missing_fields_in_status_snap(snap, valid_roles)
         if missing_fields:
             incomplete.append(
                 f"logIndex={log_index(e)}: missing {missing_fields}"
@@ -798,6 +927,39 @@ def check_no_rejected_invite_entries(
     return violations
 
 
+def check_unique_payload_snapshot_ids(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """No replica holds two entries for the same activity (CLP-07-002).
+
+    A state change is recorded once, so on any one replica no two
+    ``CaseLedgerEntry`` records share a ``payloadSnapshot.id``.  The defect
+    this catches is the double commit ADR-0109 retired: an emitting tree
+    commits the Invite and the CASE_MANAGER commits it again on receipt of its
+    own ``cc:`` copy, giving two canonical entries for one activity.
+
+    Every replica is checked, the ``case-actor`` one included.  An entry whose
+    snapshot carries no ``id`` is not counted.
+
+    Returns one violation string per repeated activity id per replica.
+    """
+    violations: list[str] = []
+    for actor, entries in replicas.items():
+        seen: dict[str, list[int]] = {}
+        for e in entries:
+            snap_id = payload(e).get("id")
+            if isinstance(snap_id, str) and snap_id:
+                seen.setdefault(snap_id, []).append(log_index(e))
+        for snap_id, indices in seen.items():
+            if len(indices) > 1:
+                violations.append(
+                    f"Actor {actor!r}: payloadSnapshot.id {snap_id!r} is"
+                    f" recorded {len(indices)} times (logIndex"
+                    f" {sorted(indices)}; CLP-07-002 violation)"
+                )
+    return violations
+
+
 def for_each_replica(
     replicas: dict[str, list[dict]],
     check: Callable[[dict[str, list[dict]]], list[str]],
@@ -876,8 +1038,7 @@ def check_per_actor_replica_participant_status_schema_completeness(
     """Every ParticipantStatus snapshot on every replica carries the required fields.
 
     Replica-side counterpart of invariant 9.  A participant replica that began
-    emitting snapshots without ``cvdRole`` or ``emConsentState`` is only caught
-    here.
+    emitting snapshots without ``cvdRole`` is only caught here.
     """
     return for_each_replica(
         replicas,
@@ -958,9 +1119,78 @@ def load_narrative_edges(narrative_path: str | Path) -> list[dict]:
     return edges
 
 
+def load_actor_names(demo_name: str) -> dict[str, str]:
+    """Return ``{routeKey: actorName}`` from the scenario's dump manifest.
+
+    The manifest is the dump's own record of which actor was read under which
+    in-container route key (``vultron.demo.helpers.ledger_dump``), plus any
+    actor that acted without holding a replica (``unreplicatedActors``).  A
+    ledger entry's recorded actor, stripped of its URI prefix, is a
+    ``routeKey``; the ``actorName`` beside it is the replica directory name and
+    the vocabulary of a narrative's ``consequent_actor`` tag.
+
+    Returns an empty mapping when no manifest (or no devlogs directory) exists,
+    so a caller cannot mistake "nothing to resolve against" for "nothing to
+    check" (DEMOMA-22-005).
+    """
+    search_root = _DEVLOGS_DIR / demo_name
+    if not search_root.is_dir():
+        return {}
+    names: dict[str, str] = {}
+    for manifest in _read_dump_manifests(search_root):
+        records = [
+            *(manifest.get("actors") or []),
+            *(manifest.get("unreplicatedActors") or []),
+        ]
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            route_key = record.get("routeKey")
+            actor_name = record.get("actorName")
+            if isinstance(route_key, str) and isinstance(actor_name, str):
+                names[route_key] = actor_name
+    return names
+
+
+def recorded_actor_name(
+    entry: dict, actor_names: Mapping[str, str]
+) -> tuple[str | None, str]:
+    """Resolve who performed *entry*, as ``(actorName or None, recorded id)``.
+
+    Reads ``payloadSnapshot.actor`` (an id string, or an object carrying one),
+    strips the id prefix, and looks the result up as a ``routeKey`` in
+    *actor_names*.  ``None`` means the recorded actor is absent from the
+    manifest or the entry records none; the second element is what was
+    recorded, for diagnostics.
+    """
+    raw = payload(entry).get("actor")
+    if isinstance(raw, dict):
+        raw = raw.get("id") or raw.get("@id")
+    if not isinstance(raw, str) or not raw:
+        return None, ""
+    recorded = strip_id_prefix(raw)
+    return actor_names.get(recorded), recorded
+
+
+def _describe_recorded_actors(
+    entries: list[dict], actor_names: Mapping[str, str]
+) -> str:
+    """Render the actors recorded on *entries* for a mismatch message."""
+    parts: list[str] = []
+    for entry in entries:
+        name, recorded = recorded_actor_name(entry, actor_names)
+        parts.append(
+            repr(name)
+            if name is not None
+            else f"<unresolved: {recorded or 'no actor recorded'}>"
+        )
+    return ", ".join(dict.fromkeys(parts))
+
+
 def check_causal_edges(
     replicas: dict[str, list[dict]],
     edges: list[dict],
+    actor_names: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Assert that each declared observable causal edge appears in log-index order.
 
@@ -969,9 +1199,24 @@ def check_causal_edges(
     and verifies that at least one antecedent entry appears before at least
     one consequent entry (i.e. ``min(antecedent_indices) < max(consequent_indices)``).
 
+    When *actor_names* is given (``{routeKey: actorName}`` from the dump
+    manifest, see ``load_actor_names``) and the edge carries a
+    ``consequent_actor`` tag, the consequent candidates are restricted to
+    entries whose recorded actor resolves to that tag (DEMOMA-22-004,
+    DEMOMA-22-005).  An edge whose tag matches no recorded consequent entry, or
+    whose consequent actor is absent from the manifest, is a violation.
+    Passing ``None`` skips the actor check (structural callers with synthetic
+    ledgers); passing ``{}`` means "no manifest", so every tagged edge is
+    unresolvable and fails.
+
     Returns a list of violation strings (empty = all edges satisfied).
     Diagnostic output names the unsatisfied edge and the indices that were
     observed, so failures are self-explanatory (DEMOMA-22-006-AC-6).
+
+    Raises:
+        ValueError: An antecedent or consequent entry has no valid
+            ``logIndex`` (see ``log_index()``).  ``load_devlogs()`` rejects
+            such entries up front, so this only fires for hand-built replicas.
     """
     auth = auth_entries(replicas)
     if not auth:
@@ -991,9 +1236,24 @@ def check_causal_edges(
         ant_indices = [
             log_index(e) for e in auth if event_type(e) == antecedent
         ]
-        con_indices = [
-            log_index(e) for e in auth if event_type(e) == consequent
-        ]
+        con_entries = [e for e in auth if event_type(e) == consequent]
+        con_indices = [log_index(e) for e in con_entries]
+
+        if actor_names is not None and consequent_actor and con_entries:
+            matching = [
+                e
+                for e in con_entries
+                if recorded_actor_name(e, actor_names)[0] == consequent_actor
+            ]
+            if not matching:
+                violations.append(
+                    f"Edge [{antecedent!r} → {consequent!r}]: "
+                    f"consequent_actor {consequent_actor!r} matches no "
+                    f"recorded {consequent!r} entry; recorded actor(s): "
+                    f"{_describe_recorded_actors(con_entries, actor_names)}"
+                )
+                continue
+            con_indices = [log_index(e) for e in matching]
 
         if not ant_indices:
             violations.append(
@@ -1030,11 +1290,11 @@ def check_causal_edges(
 
 def _parse_ts(value: object) -> datetime | None:
     if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
     if isinstance(value, str):
         try:
             dt = datetime.fromisoformat(value)
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         except ValueError:
             return None
     return None

@@ -8,14 +8,23 @@ description: >
   and `rel_type`; keys that are silently dropped; the protocol-coverage
   ratchet and its xfail pattern; the audit passes required when retiring a
   name or splitting a compound requirement; priority tiers (MS-02-003/004); and
-  the owner-and-terminal-state rules for ceiling ratchets (MS-10-006..008).
+  the per-requirement `verification_debt` marker and its owner and
+  terminal-state rules (MS-10-006..008); the rule that a verification clause
+  names a check that inspects its property (MS-10-009); and the
+  CASE_MANAGER-versus-CaseActor naming discriminator.
 related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
+  - specs/triggerable-behaviors.yaml
+  - specs/testability.yaml
+  - specs/docs-build-workflow.yaml
+  - specs/demo-ci.yaml
 related_notes:
   - notes/specs-vs-adrs.md
   - notes/behavioral-conformance-specs.md
   - notes/testing-pitfalls.md
+  - notes/architecture-ratchet-corpus.md
+  - notes/agentic-workflow.md
 ---
 
 # Spec Authoring Rules — Field Values, Lint Traps, and Coverage Gates
@@ -86,13 +95,17 @@ adoption until 2026-09, and by then a large fraction of the `kind: protocol`
 corpus was carrying `lint_suppress: [missing_story_reference]` instead of a
 corrected `kind` — code naming conventions, test-coverage requirements, and
 build-file formats all tagged as wire-protocol obligations. For the live count,
-read the ratchet constant that MS-12-007 pins under `test/architecture/`; it is
+read `MAX_MISSING_STORY_SUPPRESSIONS` in
+`test/architecture/test_spec_kind_ratchet.py`, the ceiling MS-12-007 pins; it is
 the authoritative figure and it only goes down. Suppressing the
 story-traceability gate is almost never the right response to it firing; a spec
 that cannot be traced to a user story is usually mis-classified, not story-less.
 MS-12-006 now makes the unambiguous cases a hard error, and MS-12-007 ratchets
 the suppression count downward, but neither detects a misclassification whose
-statement names no code.
+statement names no code. MS-12-008 gives MS-12-006's own escape hatch,
+`protocol_kind_with_code_reference`, a ceiling of its own
+(`MAX_CODE_REFERENCE_SUPPRESSIONS`, 0 at introduction), so a suppression cannot
+move from one code to the other unseen.
 
 #### Why MS-12-006 is scoped the way it is
 
@@ -132,6 +145,27 @@ The general lesson, from ISSUE-3480: **an enforced MUST advertises itself throug
 full compliance in the artifacts; an unenforced one anti-advertises.** A rule at
 half adoption reads to the next author as "no rule here" — worse than one at zero
 adoption, which at least reads as "not done yet".
+
+#### Relabeling a `kind:` moves more than the field
+
+A relabel pass (the MS-12 passes in #3600 and #3601) has three mechanical
+consequences, each with a tool:
+
+- **Anchors move.** A spec renders only on its own kind's docs page (SR-09-002),
+  so every prose link to `specs/protocol.md#xx-nn-nnn` dangles the moment the
+  item becomes `project`, and so does a group anchor once its last protocol item
+  leaves. Run `uv run python scripts/relink_requirement_anchors.py` after the
+  relabel; it repoints each link at the page its anchor now renders on.
+- **Verification travels with the spec (MS-10-008).** An unverified MUST or
+  MUST_NOT that changes kind gains its `verification:` in the same change; its
+  `verification_debt` marker names the old kind's owner, so spec-lint fails it
+  until the clause replaces the marker.
+- **The suppression goes with the old kind.** `scripts/relabel_spec_kinds.py`
+  applies a `{spec_id: kind}` mapping and strips `missing_story_reference` from
+  each item in one pass, preserving every other line byte for byte. The
+  protocol-coverage ceiling (`MAX_UNCOVERED_PROTOCOL_SPECS`) then drops too, since
+  a spec that leaves the protocol tier leaves that population; lower it to the new
+  live count in the same PR.
 
 ### Valid `priority:` Values — Underscores, Not Spaces
 
@@ -236,17 +270,26 @@ inventing a sequence.
 
 ### An Advisory Warning Is Not Enforcement Once the Corpus Outgrows It
 
-`spec-lint`'s `must_without_verification` names exactly the "MUST with nothing
-checking it" defect — and fired on MS-13-001 and MS-13-002 themselves for as long
-as they went unenforced. It did not help, because well over half the corpus's
-MUST items have no `verification:` field, so that one warning produced the large
-majority of the run's `[WARN]` lines. A defect class at that volume is
-indistinguishable from background noise, and a newly-introduced instance is
-invisible.
+`spec-lint`'s per-item `must_without_verification` warning named exactly the
+"MUST with nothing checking it" defect — and fired on MS-13-001 and MS-13-002
+themselves for as long as they went unenforced. As a per-item `[WARN]` it did
+not help, because well over half the corpus's MUST items had no `verification:`
+field, so that one warning produced the large majority of the run's `[WARN]`
+lines. A defect class
+at that volume is indistinguishable from background noise, and a newly-introduced
+instance is invisible.
+
+It is now a per-item rule with a per-kind summary. Every unverified MUST-tier
+requirement carries `verification_debt: '#N'`, naming the open issue that owns
+verifying it, and `spec-lint` fails any item with neither field (MS-10-006). The
+default output is one line per kind — the number of marked requirements,
+tallied by owner — with the IDs only under `--list-unverified` (MS-10-005). The
+number is computed from the markers, so a backfill lowers it without editing
+anything else, and the line still shows each backfill issue's progress.
 
 When you add a per-item advisory, decide up front what happens when it is
-routinely true: collapse it to a count plus an opt-in listing, pin the count to
-a ceiling that equals the live count and has an owner and a terminal state (see
+routinely true: collapse it to a count plus an opt-in listing, mark each
+remaining hit with its owning issue, with a terminal state (see
 [A Ratchet Needs an Owner and a Terminal State](#a-ratchet-needs-an-owner-and-a-terminal-state)),
 or make it a hard error and
 dispose of every existing hit. Do not ship a rule at partial adoption: per the
@@ -257,28 +300,35 @@ worse than one nobody has started.
 
 RFC 2119 gives `MUST NOT` the same absolute strength as `MUST`, and `SHOULD NOT`
 the same strength as `SHOULD`. Every gate that selects requirements by priority
-must therefore select a *tier* (MS-02-003). In the code, that will mean asking a
-shared tier definition on `RFC2119Priority` (MS-02-004, which #3522 adds), never
-`spec.priority == RFC2119Priority.MUST`.
+must therefore select a *tier* (MS-02-003). In the code, that means asking the
+shared tier definition on `RFC2119Priority` — `spec.priority.is_must_tier` or
+`.tier` (MS-02-004) — never
+`spec.priority == RFC2119Priority.MUST`. A static test,
+`test/metadata/specs/test_priority_tier_gate.py`, fails on any comparison
+against an individual member or a priority string under
+`vultron/metadata/specs/` or `scripts/`; its allowlist holds exactly one entry,
+SR-11-003's selector, and fails if that entry stops matching, so retiring the
+exception also retires the allowlist.
 
 The literal comparison is easy to write and fails silently: nothing errors, and
 the prohibitions simply drop out. That happened more than once before MS-02-003:
 
 - `must_without_verification` was scoped to "MUST requirements" by the wording
   of the issue that introduced it (#2466), and a unit test then pinned the
-  exclusion (`test_lint_must_not_without_verification_no_warn`). The test reads
-  as a deliberate decision but only preserves the wording of that AC. So the
-  #2467 protocol-tier backfill reported the tier complete while most protocol
-  `MUST_NOT`s had no `verification:` at all (#2535, #3612).
-- SR-11-003's story gate and SR-11-004's advisory have the same shape. The
-  first skips `MUST_NOT`, and the second skips `SHOULD_NOT`; SR-11-004 now names
-  `SHOULD_NOT`, and #3522 makes the lint code match.
-  So the protocol story requirement that #2717 plans against was undercounted.
-  SR-11-003 is the one recorded exception, because extending it needs stories
-  that do not exist yet (see its `note:`).
+  exclusion. The test read as a deliberate decision but only preserved the
+  wording of that AC. So the #2467 protocol-tier backfill reported the tier
+  complete while most protocol `MUST_NOT`s had no `verification:` at all
+  (#2535, #3612). The count now covers both keywords.
+- SR-11-003's story gate and SR-11-004's advisory had the same shape. The
+  second now covers `SHOULD_NOT` by selecting "below the MUST tier" rather than
+  naming keywords. SR-11-003 is the one recorded exception, still `MUST`-only
+  because extending it needs stories that do not exist yet (see its `note:`);
+  the exception is written once, in `sr_11_003_gate_applies()` in
+  `vultron/metadata/specs/lint.py`, and `scripts/backfill_stories.py` selects
+  through that predicate rather than carrying a second copy of it.
 - `spec-backstop` got it right (`priority in ("MUST", "MUST_NOT")`), but as a
   second hand-written copy of the tiering, which is the drift MS-02-004's
-  single shared definition prevents.
+  single shared definition prevents. It now asks `is_must_tier`.
 
 When a priority-scoped rule is proposed, read "MUST" in its AC as the tier
 unless the AC explicitly excludes the negative form *and says why*. If you find
@@ -287,25 +337,32 @@ you trust it.
 
 ### A Ratchet Needs an Owner and a Terminal State
 
-The MS-10 verification ratchet (MS-10-006 through MS-10-008) is built so that it can
+The MS-10 verification rule (MS-10-006 through MS-10-008) is built so that it can
 only end at zero:
 
-1. **The ceiling equals the live count.** It is not an upper bound with slack,
-   so every backfill has to lower it, and a new unverified MUST fails at once.
-   This is MS-12-007's two-sided assertion. Suppressed items still count, so a
-   kind cannot reach zero by suppression.
-2. **Each non-zero ceiling names its owning issue.** A tier's backlog
-   cannot exist without a tracked path to zero. If you close the owning issue
-   early, the ratchet names a closed issue, which is a visible defect.
-3. **Zero is terminal.** The change that reaches zero turns that kind's check
-   into a hard error that `lint_suppress` cannot silence, and deletes the
-   ceiling entry, so there is nothing left to raise.
-4. **A relabel carries its verification with it.** Moving an unverified spec
-   between kinds (the MS-12 passes in #3600 and #3601) would otherwise force an
-   upward edit to the destination ceiling. Add the `verification:` clause in the
-   same change instead (MS-10-008).
+1. **The record is per requirement, not a count.** Each unverified MUST or
+   MUST_NOT carries its own `verification_debt` marker, so verifying one edits
+   only that requirement and two PRs conflict only when they edit the same one.
+   The earlier design pinned a per-kind count to its live value, which raced
+   every PR in flight (see `notes/testing-pitfalls.md`, "A Two-Sided Count Pin
+   Races Every Concurrent PR"). A requirement with both a marker and a
+   `verification:` clause fails as stale.
+2. **Each marker names an open owning issue.** The marker must name an owner of
+   its kind in `VERIFICATION_DEBT_OWNERS`. A PR that closes an owner issue
+   (`Closes #N`) while a marker or the table still names it fails, so the
+   backfill that finishes an owner also removes its table entry. An owner closed
+   by hand is reported within the hour by one tracking issue and never fails
+   the build, since no PR caused it (ARCH-18-004;
+   `.github/workflows/verification-debt-owners.yml`).
+3. **Zero is terminal.** Once no requirement of a kind carries a marker, delete
+   that kind's owner entry; any marker of that kind is then a hard error, so the
+   kind cannot regrow debt. The growth guard (#4200) keeps new markers out
+   while an entry still exists.
+4. **A relabel carries its verification with it.** A relabelled requirement's
+   marker names the old kind's owner and fails; replace it with a
+   `verification:` clause in the same change (MS-10-008).
 
-Any new ceiling-style ratchet should follow the same four rules unless it states
+Any new backlog-style ratchet should follow the same four rules unless it states
 why it cannot.
 
 ---
@@ -326,6 +383,12 @@ fails CI.
 **Fix:** add `@pytest.mark.spec("<new-id>")` to a test in the same PR, before
 the branch lands. Run `spec-coverage` to verify coverage after adding the
 marker. See SR-05-004, SR-05-005.
+
+`spec-coverage` reports `kind: protocol` IDs only. A `project`- or other-kind ID
+never appears in its output, covered or not, so an acceptance criterion reading
+"`spec-coverage` shows `<ID>` covered" cannot be met for one (#3565's AC-6
+asked this of VM-06-008). Write such a criterion as "a test carries
+`@pytest.mark.spec("<ID>")`" and check it with `grep`.
 
 ### Never Raise the Ceiling — Use a Strict `xfail` for Not-Yet-Implemented Specs
 
@@ -375,7 +438,97 @@ or describe the one that does.
 
 Source: ISSUE-2982
 
+## `protocol` Means RFC Content
+
+`protocol` is for what an RFC would contain: wire messages, the behaviours that
+lead to them, and state machines (MS-12-003). The TCP analogy is the test: TCP
+fixes what two implementations exchange, not how one implementation structures
+its endpoints or stores. A MUST about an internal endpoint is `project` however
+firm it reads; EP-02-004 (compare-and-set on the policy PUT) is the worked
+example. MS-12-006 scans the `statement` only, so a `verification:` that names a
+test file does not by itself make a spec `project`: MS-10-003 and MS-15-001
+oblige that path, and no protocol-tier variant of the verification convention
+is needed. The detector still scans `verification:` and the roughly ninety
+protocol-worded specs #3600 relabeled to `project` on that basis (#3943) have
+not yet returned to `protocol`; #4312 fixes both. Those that gain no user story
+carry `missing_story_reference`, which raises the MS-12-007 ceiling once, by the
+reverted count. #3601 and #2717 own the burn-down.
+
+Source: ISSUE-4195
+
+## Removed Requirements: Never Reuse an ID, Archive the Text
+
+A removed requirement is removed, not deprecated (MS-09-001): `deprecated: true`
+in `specs/` is a violation. Its ID is never reused (MS-09-004); a replacement
+rule gets a new ID, and citations are repointed (MS-09-003). CM-11-005 was reused
+with the opposite force, so every citation of it pointed at a rule it never meant.
+The removed text is parked as one file per ID under `plan/retired-specs/`
+(MS-09-005), outside `specs/` so it is never loaded into agent context.
+Retire with `uv run spec-retire <ID> --why ... --by '#N' [--replacement <ID>]`
+(MS-09-006): it moves the text, writes the history entry, and lists the
+citations still to repoint. `spec-lint` fails on `deprecated:`/`superseded_by:`
+and on a re-declared archived ID (MS-09-007).
+Spec-versus-code conflicts found in an implementation PR follow
+the material test in
+[notes/agentic-workflow.md](agentic-workflow.md) § "Spec Text Conflicts With
+Code", and the PR body carries `## Spec amended`.
+
+Source: ISSUE-4195
+
+## A Verification Clause Is a Claim About the Suite
+
+A `verification:` clause tells every later reader how the requirement is known
+to hold, and an unbacked clause reads exactly like a backed one. MS-10-009
+requires the clause to name a check that exists and that inspects the property
+the statement asserts. Five sessions found clauses that did not:
+
+| Requirement | What the clause named | Why it verified nothing |
+|---|---|---|
+| DEMOCI-11-009 | `mkdocs build --strict` renders the scenario table | Strict mode never sees a link a build-time block prints; the page shipped with nine `.md` links that 404 on the built site, on a green build (#3450) |
+| VM-01-004 | A test asserting the actor dual key | The test did not exist, and the stale wording licensed six bogus registry keys (#2982) |
+| DR-03-002 | Nothing | No clause, so nobody noticed it named the wrong component (#3827) |
+| MS-13-003 | Nothing | No check, half adoption, and the corpus read as having no rule; planning nearly invented a duplicate (#3480) |
+| ADR-0099 details 7–8 | The epic's closed children | Graduated to `accepted` with two details unbuilt; a `lint_suppress` in the same commit hid the prose/status mismatch (#3888) |
+
+**How to apply:** for each clause you write or review, ask one question — *if
+this requirement were violated, would the named check fail?* A build, lint or
+type-check that never examines the constrained artifact fails the question, and
+so does a test whose name you have not opened. For a build-time-rendered page,
+assert on the built `site/` (`docs-links`, DOCBW-03-007) or on the rendered string
+in a unit test. MS-15-001 makes a named path resolve; a named test function is
+not yet checked (#4170), so open it. The question is part of `pr-triage`'s spec
+conformance phase.
+
+Source: ISSUE-3450, ISSUE-2982, ISSUE-3827, ISSUE-3480, ISSUE-3888
+
 ## Audit Passes
+
+### A Resolving Citation Is Not a Correct Citation — Scope `Implements:` by Topic
+
+Every `Implements:` docstring under `vultron/` resolves to *some* requirement,
+so an existence-only traceability check cannot see a wrong-topic citation. The
+trigger routers cited `TB-01-001` ("the system MUST use pytest") 236 times as
+the requirement they implement, because the Testability topic shares the `TB`
+prefix a trigger spec once used; `trigger_embargo.py` had 52 `TB-` and zero
+`TRIG-` citations and every one of them resolved (#3354).
+
+**How to apply:**
+
+- `TB` (Testability) requirements govern tests. No module under `vultron/` may
+  cite one in an `Implements:` docstring; the ratchet that enforces this
+  (`test/architecture/test_implements_citations_topic_scoped.py`, SR-04-011, #3829) is
+  topic-scoped, not resolution-scoped — it fails on any `TB-NN-NNN` token
+  under `vultron/` by file and line, and separately checks that every
+  `Implements:` ID under the FastAPI routers resolves in the registry, so a
+  typo'd `TRIG` ID cannot replace a wrong `TB` one.
+- Repointing is per-file judgment, not a prefix swap. `TRIG-02` splits by
+  domain (`-001` report, `-002` embargo, `-004` case, `-005` participant,
+  `-006` demo-only), so a blind `TB-02-001` → `TRIG-02-001` mints fresh
+  wrong-but-resolving citations in four of five routers.
+- Once a registry row carries `spec_ids`, the check becomes an import-time
+  assertion over the table rather than a docstring scan.
+
+Source: ISSUE-3354
 
 ### Retiring a File or Label Requires Auditing All Specs for Bare-Filename References
 
@@ -474,7 +627,41 @@ compare `actor_id` against a computed `case_actor_id` — will be faithfully
 implemented and faithfully wrong. Grep the spec corpus for MUST requirements
 whose subject is `CaseActor` to catch these before they hide defects.
 
-Source: ISSUE-1872, ISSUE-3260
+**Applied naively, the rewrite over-reaches.** The same actor is both the
+authority (a role) and a concrete node with a URI, an inbox, an outbox, a
+DataLayer and a container. A role has no URI or inbox, so renaming an
+*infrastructure* reference to `CASE_MANAGER` is the same category error as leaving
+an *authority* reference as `CaseActor`. The discriminator:
+
+- **Write "the CASE_MANAGER"** when the subject performs a single-writer authority
+  action or holds an authority property: commits or authors canonical ledger
+  entries, writes shared EM/CS state, sets participant state at bootstrap, is the
+  sole authorized writer, authorizes a commit.
+- **Keep "CaseActor"** for infrastructure and identity: its URI or
+  `case_actor_id`, its inbox and outbox, HTTP-loopback self-delivery to its own
+  inbox, its DataLayer, its container or co-location, delegated-emit store
+  scoping (ADR-0073), a code identifier (`CheckIsOwnCaseActorNode`,
+  `VultronCaseActor`), the `CaseActor` domain type, or the `case-actor` URL-shape
+  anti-pattern a ratchet forbids.
+- **Write "the actor enacting `CVDRole.CASE_MANAGER`"** when the text needs an
+  actor grounded in the role — for example one that can fail a hosting test,
+  which a bare role cannot.
+
+The trap is a requirement that reads like authority but is delivery. The
+canonical-ledger self-delivery requirements in `outbox.yaml` sound like an
+authority obligation, yet every noun in them (own URI, own inbox, HTTP loopback)
+is the concrete actor's plumbing: the commit *authorization* is the role, the
+*delivery* of the self-copy is the actor. When in doubt on an
+infrastructure-flavoured line, keep `CaseActor`.
+
+A naming sweep is also a cheap way to surface stale premises, because it forces
+you to read the rationale the term sits in. Check a rewrite candidate's
+`refines:` and `adr:` parents for agreement, not only its wording: CM-20-001/004/
+005 claimed to refine CBT-01-003 while their rationale asserted its opposite.
+When two entries describe the same fact, make the laggard match the one that
+already applied the decision.
+
+Source: ISSUE-1872, ISSUE-3260, ISSUE-3342
 
 ### Name Which Member of a Population a Requirement Constrains
 

@@ -35,6 +35,8 @@ Usage::
 
 from typing import Any, Protocol
 
+from vultron.core.models.use_case_result import UseCaseResult
+
 
 class UseCase(Protocol):
     """Driving port for a single core domain use case.
@@ -43,10 +45,13 @@ class UseCase(Protocol):
 
     * Accept ``dl`` (a ``DataLayer``) and ``request`` (a domain event or
       trigger request model) in ``__init__`` and validate the request there.
-    * Return the result from ``execute()``; use ``None`` for fire-and-forget
-      cases.
+    * Return a ``UseCaseResult`` subtype from ``execute()`` (UCORG-05-001,
+      UCORG-05-003): ``HandlerResult`` on the received side, reporting what
+      the handler did with its activity. There is no fire-and-forget
+      ``None``; a handler that correctly did nothing returns
+      ``HandlerResult.skipped()``.
     """
 
     def __init__(self, dl: Any, request: Any) -> None: ...
 
-    def execute(self) -> Any: ...
+    def execute(self) -> UseCaseResult: ...

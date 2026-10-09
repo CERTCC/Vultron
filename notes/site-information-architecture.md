@@ -11,8 +11,11 @@ related_notes:
   - notes/documentation-strategy.md
   - notes/documentation-sweeps.md
   - notes/agents-md-structure.md
+  - notes/reader-facing-docs-audit.md
+  - notes/rfc-spec-authoring.md
 related_specs:
   - specs/diataxis-requirements.yaml
+  - specs/meta-specifications.yaml
 ---
 
 # Site Information Architecture — Stakeholder Types, Levels, and Routing
@@ -111,14 +114,16 @@ An organization's roles vary from case to case — the same vendor is a Reporter
 in one case and a Vendor in the next. What brought its engineer to this
 documentation does not change between cases. So no stakeholder type is named
 after a `CVDRole` value, which makes the conflation structurally impossible
-rather than a matter of author discipline. `docs/reference/terms.md` defines
+rather than a matter of author discipline. The glossary's "CVD Roles and
+Participants" section (which absorbed `docs/reference/terms.md` in #3624) defines
 roles held in a case; it is not a register of reader types, and stakeholder-type
 descriptions must not be added to it.
 
 This is not a hypothetical hazard. Five audience or role enumerations were
 already in circulation and none was authoritative: the four audiences in
 `docs/index.md`, the three in #607/#3511, the seven roles in
-`docs/reference/terms.md`, the `Roles:` metadata on the 111 user stories, and
+`docs/reference/terms.md` (since merged into the glossary), the `Roles:` metadata
+on the 111 user stories, and
 the vendors/system-owners/coordinators/governments list in
 `topics/other_uses/roles_influence.md`. The first two are audiences and the last
 three are roles, and they were read as one list. The enumeration below is
@@ -267,6 +272,69 @@ out above it. That is an expected *shape*, used as a diagnostic when reading the
 coverage matrix — a tree that does not look like this is probably mis-tagged. It
 is not a rule, and nothing fails because of it.
 
+### How the rule is checked
+
+`uv run docs-level-order` (`vultron/metadata/docs/level_order.py`, #3529)
+checks the rule. It needs one fact the tree did not record before: which page
+introduces which concept. The glossary stays the concept registry (SG-11). The
+page that is a term's canonical introduction names the term in its own
+frontmatter:
+
+```yaml
+level: 400
+introduces: [CASE_MANAGER, Case Ledger Entry]
+```
+
+A term has one introducer, and it must be a glossary term. For each leveled
+page, the check finds the first prose use of each term introduced above that
+page's level. Code, link targets, comments and directives are not prose. The use
+passes when the page links to the introducer before or at the use, or when the
+use is itself the text of a glossary link. A link later on the same line does
+not count, because SG-11 asks for the link at first use. Both are canonical introductions
+(SG-11), and linking out satisfies the rule. Otherwise it is a finding at
+`path:line:col`. Inline, reference-style and `<a href>` links all count. A
+reference definition counts only where a link uses it.
+
+Some consequences of that design:
+
+- **One ladder.** Levels are compared across the whole tree and never per
+  `stakeholder_type`.
+- **Unleveled pages are skipped.** The working record and not-yet-declared pages
+  are skipped, not read as level 0. Neither may declare `introduces:`, because
+  no page could be ordered against them.
+- **Fragments.** An include fragment is checked at its lowest host's level
+  (DF-11-010). A fragment included by another fragment takes the outer
+  fragment's hosts. A link inside a fragment counts for its host from the
+  include directive, because that is where the rendered page shows it. The
+  reverse is not credited: a fragment is checked on its own, so a host's link
+  above the include does not excuse a use inside the fragment. The snippets
+  `auto_append` abbreviations file has no leveled host and is not scanned: its
+  entries render as tooltips, not prose.
+- **The glossary is exempt.** It defines every term it lists, so it is the
+  registry the scan reads, never a page the scan reads.
+- **Defining in place is not detected.** DF-11-002 also excuses a page that
+  defines the concept itself. The check cannot tell a definition from a use, so
+  such a page links out instead.
+- **What still reads as prose.** Headings are prose, so a term in a heading is
+  a use. Indented code blocks are too: four spaces is also how an admonition
+  nests its prose. Fenced code, `<code>` and `<pre>` are masked.
+- **Only glossary terms are tracked.** A dependency on a page whose concept
+  has no glossary term goes unseen. Add the term to the glossary to track it.
+- **Choose specific terms.** A term claimed by `introduces:` should name a
+  specific concept. Everyday phrases such as "report submission" or
+  "participant status" match ordinary prose on dozens of pages, so the matches
+  measure word frequency, not dependency.
+
+Pre-existing violations are listed in
+`vultron/metadata/docs/level_order_baseline.txt`. Each entry is
+`page | term | reason`, and the reason names the remediation task that owns
+the fix. The list may only shrink. It is currently empty: the 21 entries it
+started with cleared together when the 300-level introduction of the
+CASE_MANAGER and the case ledger (audit missing page 3,
+`topics/case_lifecycle/case_manager_and_ledger.md`) took over their
+`introduces:` terms (#3621). A new violation is fixed by a link or a re-level,
+never by an entry.
+
 ## Reader-facing content versus the project working record
 
 These are different kinds of thing, not different depths, and the working
@@ -281,6 +349,17 @@ read when a question about it arises, while `user_stories/index.md` stays
 reader-facing (#3526). It stays
 published, linkable, and unbroken — and it stays out of the reader-facing
 navigation, behind one labeled door.
+
+The door is `docs/about/project_record.md` ("Working on This Implementation"),
+the working record's one nav entry. It is itself reader-facing — a
+`project-contributor` page at 400 — and it links one routing page per group:
+the ADR index, the case-state index, the behavior-tree index, the code
+documentation index, `topics/behavior_logic/original_design.md` for the design
+history, and the traceability matrix for the user stories. Every
+working-record page is absent from the nav and matched by `not_in_nav`, and
+`uv run docs-frontmatter` fails a page that is navved or unmatched, because an
+unmatched page is an omitted-file warning that breaks `mkdocs build --strict`
+(#3528).
 
 It does declare `stakeholder_type: [project-contributor]`, because it is addressed
 to somebody. That makes the missing level an ordinary property of one audience's
@@ -303,10 +382,18 @@ the group, not the members.
 The pattern is already proven in this repository and simply is not applied
 consistently: `docs/reference/user_stories/` holds 111 story pages that are
 excluded from the nav entirely and reached through `traceability.md`, which
-links all of them. Two nav entries carry 111 pages. Meanwhile the nav
-enumerates every decision record, every generated code page, and every
-enumerated case state inline. Same shape of content, opposite treatment. The
-`traceability.md` treatment is the correct one.
+links all of them. Two nav entries carry 111 pages. Until #3528 the nav
+enumerated every decision record, every generated code page, and every
+enumerated case state inline — same shape of content, opposite treatment. The
+`traceability.md` treatment is the correct one, and #3528 applied it to all of
+them.
+
+Research is the one reader-facing group that moved section rather than
+leaving the nav. Measuring CVD and Other Uses sit in their own top-level
+Research section, opened by `docs/research/index.md` at 500 and addressed to
+`process-researcher`, so they are off the adoption path without being hidden.
+Future Work stays in Explanation: its pages are `platform-developer` at 400
+(see the audit ruling in `notes/reader-facing-docs-audit.md`).
 
 ### Landing pages are generated, never hand-maintained
 
@@ -316,18 +403,43 @@ taxonomy that no longer existed being described to readers. Hand-maintained
 duplicates of a machine-readable structure always drift; the defect class is
 the duplication, not any individual omission.
 
-`uv run docs-site --write` generates the contents listing of each top-level
-section landing page — the `index.md` a top-level nav section opens with — and
-the `docs-site-sync` hook gates it (`vultron/metadata/docs/landing_pages.py`).
-The nav supplies what a section contains, each entry's label, and the fallback
+`uv run docs-site --write` generates the contents listing of each section
+landing page — an `index.md` a nav group opens with, at any depth — and the
+`docs-site-sync` hook gates it (`vultron/metadata/docs/landing_pages.py`). The
+nav supplies what a section contains, each entry's label, and the fallback
 order; each listed page's `description:` frontmatter supplies the text beside
 its link, and a declared `level` reorders the listing. Only the text between the
 generated-contents markers is replaced, so a landing page's framing,
 prerequisites, and cross-section pointers stay hand-written.
 
-The generator owns each top-level section landing page and nothing below it.
-Sub-section index pages are still hand-written: several carry a themed structure
-a flat generated list would lose, and which of them to generate is open (#3617).
+Not every section index is an enumeration, so each one declares which of three
+shapes it is in a `contents:` frontmatter key, and the declaration is required:
+an `index.md` that opens a nav group without one fails the check, so no
+sub-section can be left undecided by omission (#3617).
+
+- `contents: generated` — the listing above.
+- `contents: routing` — the page links its members inside framing prose or a
+  themed grouping that is editorial content. Nothing is generated; `--check`
+  fails when the page stops linking a member. The members it owes are the
+  group's nav members plus every reader page in its own directory that the nav
+  omits — the door pattern of the routing rule above — so a page added to the
+  directory without a link is caught. The same sibling rule makes a leaf
+  `index.md` accountable: one whose directory holds pages the nav omits must
+  declare `routing`, which is how the activity guides' index answers for the
+  thirteen guides behind it.
+- `contents: rendered` — the enumeration is rendered at build time from a
+  registry (DEMOCI-11-009), so nothing is committed to drift. The generator
+  records it and leaves it alone.
+
+What the generated form loses is recorded so nobody re-derives it: the
+grid-card icons three sub-indexes carried, the external standards links on the
+crosswalks index (each crosswalk page links the document it maps), and any
+table column beyond the per-page blurb, which moved into each child's
+`description:` — the frontmatter the rule says a listing is generated from. A
+`description:` is rendered on the landing page, so `docs-level-order` reads it
+at the landing page's level: a term the child may use unlinked at 400 is a
+finding when its blurb lands on a 200 index, and the fix is plainer wording in
+the description, not a link the generator cannot carry.
 
 It walks the nav itself rather than reusing `vultron.metadata.base.nav_paths`,
 because that helper flattens the nav to a path list, and a listing needs the
@@ -344,19 +456,63 @@ So the rule is about what the filename means, not about what the generator does:
 an `index.md` orients and routes, and anything on it that is neither orientation
 nor routing belongs on a named page of its own, with the index linking to it.
 
-`docs/topics/background/index.md` is the open instance — 211 lines titled
-"Vultron Contextualized", which is an essay, not a door. The prerequisites
-admonition and the "New to Vultron?" pointer are the parts that belong to an
-index; the rest needs its own page. #3526 owns deciding what that page is called
-and what carries over, because the choice depends on how the neighbouring
-`background/` pages divide the same material — which is exactly the
+`docs/topics/background/index.md` was the worked instance — 211 lines titled
+"Vultron Contextualized", which was an essay, not a door. #3526 decided where
+each section went, because that depended on how the neighbouring
+`background/` pages divide the same material — exactly the
 several-overlapping-pages judgment an audit must settle rather than hand to a
-page-local fixer.
+page-local fixer. #3619 applied the ruling: the essay is now
+`cvd-coordination-problem.md`, its protocol definitions and the "Why Vultron?"
+sidebar live on `what-is-vultron.md`, and the index, retitled "Background",
+keeps only the prerequisites admonition, the "New to Vultron?" pointer, and one
+line per child in dependency order.
+
+### Sub-section index decisions
+
+One row per `index.md` the nav carries, decided in #3617 against the nav
+shape that #3627 left. The decision is machine-readable on the page
+(`contents:`); this table carries the reason.
+`test_committed_generated_pages_are_the_decided_set` pins the three sets, so a
+new group index is decided here before it lands.
+
+| Index | Decision | Why |
+|---|---|---|
+| `tutorials/`, `topics/`, `howto/`, `reference/`, `research/` | generated | The five top-level landings from #3527, now declaring the shape they always had. |
+| `topics/background/index.md` | generated | A plain enumeration in dependency order; the blurbs moved to each child's `description:`. |
+| `topics/case_lifecycle/index.md` | generated | Was a grid of cards; the icons were decoration and the blurbs moved to `description:`. |
+| `topics/process_models/index.md` | routing | Routes its four sub-groups through a diagram-per-model argument; a list would repeat what each H2 already does. |
+| `topics/process_models/rm/index.md` | generated | A content page with an index filename (audit `extract` verdict, applied in part by #3680); its "In this section" list is generated so both sibling pages are always reached. |
+| `topics/process_models/em/index.md` | generated | The "In this section" list is generated; the "Doing it on the wire" pointers into How-to stay hand-written. |
+| `topics/process_models/cs/index.md` | generated | The table became the listing; the limits page sits in Research (#3627) and is linked from the framing. |
+| `topics/process_models/model_interactions/index.md` | generated | Two bullets became the listing. |
+| `topics/behavior_logic/index.md` | routing | Its "three views" table routes the notation page and the use-case group as part of an argument that also reaches the working record. |
+| `topics/behavior_logic/use-cases/index.md` | generated | The trigger-name column folded into each child's `description:`. |
+| `topics/scenarios/index.md` | rendered | Table rendered at build time from the scenario registry (DEMOCI-11-009); the leaves stay in the nav (DEMOCI-11-007). |
+| `topics/future_work/index.md` | generated | Two cards became the listing. |
+| `howto/activitypub/index.md` | routing | A content page on the AS2 grammar whose closing cards route its one child beside two reference pages. |
+| `howto/activitypub/activities/index.md` | routing | The themed grouping (report and case, participants and roles, embargoes and faults) is editorial; the leaves are out of the nav (DF-11-006, #3627), so the sibling rule holds the page to all thirteen. |
+| `reference/iso_crosswalks/index.md` | generated | The table became the listing; each crosswalk links the standard it maps, so the external links were redundant. |
+| `reference/formal_protocol/index.md` | generated | Bullets became the listing; the set-notation in the blurbs became prose in `description:`. |
+| `reference/messages/index.md` | generated | The shorthand codes each page covers folded into its `description:`. |
+| `reference/specs/index.md` | routing | Routes all four tiers, two of which (`project.md`, `process.md`) are working record the nav omits (DF-11-003); a nav-derived listing would drop them. |
+| `reference/vultron-spec/index.md` | routing | The Protocol Specification's landing page (#4059): its framing routes the six body pages, the seven annex pages, Open Questions and the hidden all-in-one `full.md`, which the nav omits (`notes/rfc-spec-authoring.md` § "Page Map"); a nav-derived listing would drop `full.md`. |
+| `start/index.md` | routing | Opens *Start Here*; its four situation cards come from `includes/start_here_cards.md`, the same fragment the home page's "Where to start" uses, and `routing_faults` counts a whole-included fragment's links (DF-10-002). |
+| `topics/measuring_cvd/index.md` | generated | The table became the listing; the reading-order sentence stays as framing. |
+| `topics/other_uses/index.md` | generated | As above. |
+
+Three `index.md` files the nav carries are not section indexes and declare
+nothing: `topics/capability_model/index.md` is a content page whose directory
+holds no other page; `reference/user_stories/index.md` routes the stories through
+an included table, and the stories themselves are working record reached from
+`traceability.md`; `docs/index.md` is the front door (#3524). A leaf
+`index.md` becomes a section index the moment its directory gains a reader page
+the nav omits — the generator then requires it to declare `routing` and link the
+page.
 
 ### Entry pages are titled by situation, never by type
 
-One routing page is generated per stakeholder type, and its title names a
-situation the reader recognizes rather than the type it was generated from:
+There is one routing page per stakeholder type, under `docs/start/`, and its
+title names a situation the reader recognizes rather than the type it serves:
 *"You maintain a vulnerability tracker and want it to talk to your partners"*,
 not *"For platform developers"*. The vocabulary drives which pages exist and
 what they link; it never appears on them.
@@ -369,6 +525,18 @@ label at all, so the same logic applies one step further. And because
 the word loses nothing when it happens — the split just adds a page with a
 narrower situation. Keeping the vocabulary internal is what makes that deferral
 cheap.
+
+The pages are hand-written, not generated. Each is a curated reading path, not
+an enumeration of a section's children, so DF-11-005's generate-and-gate rule
+does not apply to them (#3524 AC-11).
+They also sit in the nav as a *Start Here* section, labelled by situation, so
+a reader who lands mid-site reaches an entry path without going back to the
+home page (#3627). The section opens with `start/index.md`, so the tab lands
+on a choice of paths rather than inside the first one. Its cards, and an aside
+that sends a reader with a vul to report to the vendor or CERT/CC instead, are
+one fragment shared with the home page; only the "none of these" fallback to
+*What Is Vultron?* is the Start Here page's own, since the home page already
+answers that question in its own prose.
 
 ### The coverage matrix is generated too
 

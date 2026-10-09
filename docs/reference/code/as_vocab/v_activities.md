@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Vultron ActivityStream Vocabulary Activities
 
 ::: vultron.wire.as2.vocab.activities

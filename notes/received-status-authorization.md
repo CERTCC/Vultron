@@ -9,18 +9,109 @@ description: >
 related_specs:
   - specs/behavior-tree-node-design.yaml
   - specs/received-status-handling.yaml
+  - specs/case-ledger-processing.yaml
   - specs/behavior-tree-integration.yaml
   - specs/cs-behavior.yaml
+  - specs/embargo-policy.yaml
+  - specs/em-behavior.yaml
+  - specs/sync-ledger-replication.yaml
 related_notes:
+  - notes/embargo-lifecycle.md
   - notes/bt-integration.md
   - notes/call-out-configuration.md
   - notes/bt-fuzzer-rm-threat.md
+  - notes/message-type-reference.md
+  - notes/bt-pitfalls.md
+  - notes/case-communication-model.md
+  - notes/case-joining.md
 relevant_packages:
   - vultron/core/behaviors/status
+  - vultron/core/behaviors/report
+  - vultron/core/behaviors/sync
   - vultron/core/use_cases/received
 ---
 
 # Received-Side Status Authorization: Two-Gate Design
+
+## One move, one mover: the pipeline is the authority (ADR-0108)
+
+The two-gate design below governs `Add(ParticipantStatus)`. It is **not** the
+only wire form that moves participant state, and until ADR-0108 nothing said how
+the other forms relate to it. CONCERN-3473's inventory found, per state machine:
+
+| Machine | Act (activity-typed) | Declaration (status-typed) | Ledger |
+|---|---|---|---|
+| RM | `Accept`/`TentativeReject`/`Reject(Offer(Report))`, `Join`/`Ignore(Case)`, `Leave(Case)` | `Add(ParticipantStatus).rmState` | `add_participant_status_to_participant`, `close_case`; `validate_report`, `engage_case`, `defer_case`, the full-case Invite replies (#3814); `invalidate_report`, `close_report` replayed but not yet committed (#4304) |
+| EM | `Accept`/`Reject(Invite(EmbargoEvent))`, `Add`/`Remove(EmbargoEvent)` | `Add(CaseStatus).emState`, embedded `caseStatus` | `add_embargo_event_to_case` (#3814), `remove_embargo_event_from_case`; the revision relay's `invite_to_embargo_on_case` (proposal and each relayed Invite) and `accept`/`reject_invite_to_embargo_on_case` (#3915) |
+| CS V/F/D | — | `Add(ParticipantStatus).vfdState` | `add_participant_status_to_participant` |
+| CS P/X/A | — | `Add(CaseStatus).pxaState`, embedded `caseStatus` | `add_case_status_to_case` (#3814) |
+| PEC | side-effects of EM acts only (MSM-07) | derived, never asserted | via participant status |
+
+The act and the declaration are **two layers of one move**, both expected, and
+neither is "the" authoritative form (RSH-08-002). Authority is a property of the
+pipeline: the mover announces; only the CASE_MANAGER turns an announcement into
+case state, applying the state machine's acceptance rule to the *sender's*
+declaration whichever message carried it (RSH-06-006, RSH-08-001); every other
+participant applies the ledger (PCR-03-001, RSH-08-003).
+
+Three defects followed from that rule being unstated, each an implementation
+issue under epic #3472:
+
+- **Subject** (fixed, #3812). The report-invalid and report-closed received trees
+  advanced the *receiving* actor's RM; the valid handler advanced the sender's.
+  All three now write the sender's. See [bt-pitfalls.md](bt-pitfalls.md) § "The
+  Store Is Not the Subject".
+- **Acceptance rule** (fixed, #3813). The activity-typed RM handlers validated
+  adjacency only and never checked the sender was a participant. Report valid,
+  invalid and closed, engage/defer, and the full-case Invite replies (#4311)
+  now share the rule
+  `FilterParticipantStatusDimensionsNode` applies, from one place:
+  `classify_rm_declaration` (`core/states/rm.py`) classifies the move,
+  `rm_anomaly` (`status/nodes/rm_rule.py`) logs and flags it, and
+  `report/rm_declaration_tree.py` composes the guard
+  (`AdjudicateRMDeclarationNode`, before the commit) and the effects (an
+  idempotent write with `rm_rule=RMRule.DECLARATION`, then `EmitRMGapNoteNode`).
+  The write node keeps its own evaluator call, held to the declaration rule
+  rather than adjacency (BTND-10-003). Tests on both paths run one table,
+  `test/support/rm_declaration.py`. A restated declaration is reported
+  `SKIPPED` (`rm_declaration_verdict`) unless the handler has another effect
+  to run. A wholly refused regression ends the tree before its effects, so
+  both paths pass the same note as `refusal_effects` too: the factory runs it
+  only when a guard refuses, at the CASE_MANAGER, once per received activity,
+  and the handler still reports `REFUSED` with nothing committed (#4310,
+  CLP-10-022). See [bt-integration.md](bt-integration.md) § "The Four
+  Received-Side Stages".
+- **Pipeline.** Every received tree gates its *commit* on `CheckIsCaseManagerNode`
+  but runs its *effects* at every inbox, so `Add(EmbargoEvent)`,
+  `Remove(EmbargoEvent)` and `Add(CaseStatus)` move a replica's state from any
+  sender. Those effects existed because the ledger did not carry every
+  transition. Order of repair is fixed: add the replay nodes (RSH-08-004), then
+  gate the effects (RSH-08-003). Gating first blinds every replica. The
+  embargo Invite path was the first done in that order (#3915): its relay
+  entries are replayed, and the participant's Invite tree now stores and
+  answers without writing state (EP-09-003). The replay half of the rest is
+  #3814: `create_announce_log_entry_tree` now replays `add_case_status_to_case`
+  (under the RSH-05-023/019 rules), `add_embargo_event_to_case` (through
+  `EmbargoLifecycle`), and the activity-typed RM moves — the report verdicts and
+  engage/defer, and the full-case Invite replies — onto the *sender's*
+  participant. Every committed event type is
+  classified, from code, in
+  `test/architecture/test_ledger_event_types_are_replayed.py`. The gating half
+  of #3814 then wrapped every one of those received-side state-writing effects
+  in the factory's CASE_MANAGER gate (`manager_effects`): a non-CASE_MANAGER
+  replica now stores the activity and writes no participant or case state, and
+  converges on the `Announce(CaseLedgerEntry)` fan-out (RSH-08-003,
+  PCR-03-001). The one deliberate exception is a signatory whose ledger stream
+  is paused (removed, withheld, or at RM `CLOSED`): the CASE_MANAGER's direct
+  `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)` is its only channel, so it
+  applies its own teardown or revision through `EmbargoLifecycle`, gated on
+  `AwaitsEmbargoEndingNoticeNode` (CM-31-010).
+  `test/architecture/test_received_tree_state_writes_are_gated.py` now holds the
+  invariant that every received-side state write is CASE_MANAGER-gated, with the
+  ledger-replay and bootstrap writes classified in `REPLICA_STATE_WRITES`.
+
+What is **not** changed: the CS dimensions, the PEC side-effect model, the single
+`ParticipantStatus` writer, and this note's two-gate design for adoption.
 
 ## Background
 
@@ -83,6 +174,9 @@ AddParticipantStatusBT (Sequence)
 └─ EmitRMGapNoteNode                    ← NEW: Add(Note,Case) on RM anomaly (RSH-06-004, ADR-0067)
 ```
 
+A wholly refused regression fails the guard stage, so the same note runs there
+as a refusal effect instead (`refusal_effects`, CLP-10-022).
+
 ### Per-dimension partial accept (RSH-05, ADR-0061)
 
 `FilterParticipantStatusDimensionsNode` replaced the former
@@ -130,9 +224,9 @@ warns on an unrecognized `producer_type` (audit hint, not a commit blocker).
 
 It carries a **field patch, not a replacement object** (RSH-05-009). The
 snapshot's `object` is the sender's wire-shaped `ParticipantStatus` — flat
-`rmState`/`vfdState`, nested `caseStatus`, plus `@context`, `emConsentState` and
-`cvdRole` — and every replica plus the case-ledger invariant harness read it in
-that shape. A guard in `vultron.core` cannot rebuild that object: core has zero
+`rmState`/`vfdState`, nested `caseStatus`, plus `@context`, `cvdRole` (and,
+before ADR-0122, `emConsentState`) — and every replica plus the case-ledger
+invariant harness read it in that shape. A guard in `vultron.core` cannot rebuild that object: core has zero
 `from vultron.wire` imports (ADR-0009, ADR-0017), so dumping the core model
 would emit nested `rm`/`vfd` dimension objects and drop every field the guard
 never adjudicated. Naming only the adjudicated fields, keyed by wire alias, and
@@ -336,7 +430,7 @@ AddCaseStatusToCaseBT (Sequence)
 ├─ CheckCaseStatusIdempotencyNode       ← precondition guard (CLP-10-009)
 ├─ CheckCsEphemeralStateNode            ← pX ephemeral guard (CSB-17-012, #2524)
 ├─ CheckCsHistoryPrefixNode             ← history prefix guard (CSB-17-005, #2524)
-├─ FilterCsEmDimensionNode              ← per-dim EM adjudication (RSH-05-018); FAILURE when case absent (CLP-10-009, #2957), SUCCESS otherwise
+├─ FilterCsEmDimensionNode              ← per-dim EM adjudication (RSH-05-023); FAILURE when case absent (CLP-10-009, #2957), SUCCESS otherwise
 ├─ FilterCsPxaDimensionNode             ← per-dim PXA adjudication (RSH-05-019); always SUCCESS
 ├─ FinalizeCsFilterNode                 ← FAILURE on whole-refusal; publishes filter
 ├─ GuardedCommitOrSkip                  ← canonical ledger commit (CLP-10-006)
@@ -352,9 +446,10 @@ removed; per-dimension filter nodes are its replacement.
 
 `FilterCsEmDimensionNode` runs first: it clears `BB_CASE_STATUS_DIM_FILTER` and
 the per-tick accumulator unconditionally (RSH-05-010, BT-17-003), returns FAILURE
-when the case is not found in the DataLayer (CLP-10-009, #2957 AC-1), evaluates
-the EM transition per the acceptance predicate in RSH-05-018
-(`is_valid_em_transition()`), and writes a per-tick accumulator dict to the
+when the case is not found in the DataLayer (CLP-10-009, #2957 AC-1), refuses any
+asserted EM that differs from the case's own `case.em_state` (RSH-05-023: EM
+is derived from the embargo register, so a status never moves it, ADR-0122),
+and writes a per-tick accumulator dict to the
 blackboard. `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` is **not** touched here; its
 sole owner is `FinalizeCsFilterNode` (CONCERN-2711, #2957 AC-2).
 
@@ -375,7 +470,8 @@ forward), and publishes both `BB_CASE_STATUS_DIM_FILTER` (for
 no new state is carried (RSH-05-005).
 
 `FinalizeCsFilterNode` is a REJECTION_VALIDATORS member: it MUST appear in
-`precondition_guards`, never in `effect_nodes` (CLP-10-009).
+`precondition_guards`, never among the effects (`replica_effects`,
+`manager_effects` or the legacy `effect_nodes`; CLP-10-009).
 
 ### Blackboard keys
 
@@ -393,7 +489,10 @@ in `_RECOGNIZED_OVERRIDE_PRODUCERS` per RSH-05-014.
 
 ## EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode
 
-**Location**: `add_case_status_tree`, after `AppendCaseStatusToCaseNode`
+**Location**: both received-status trees, inside a `TeardownEffectsOrSkip`
+sequence after the canonical write — `add_case_status_tree` (after
+`AppendCaseStatusToCaseNode`, shown below) and `add_participant_status_tree` (after
+`EmitCaseStatusUpdateNode`, on the adoption path)
 
 **Purpose**: decide whether to execute side-effects after a canonical write
 
@@ -419,16 +518,18 @@ conversation-state routing subtree, and `RequireCaseOwnerApprovalNode` is
 deleted rather than completed. See the amendment note under **StatusAdoptionGate**
 above and [protocol-asks.md](protocol-asks.md); tracked by #2885.
 
-Note: the self-addressed `Add(CaseStatus)` path arrives with the CASE_MANAGER as
-sender (CASE_MANAGER role). This means even when `EmbargoTeardownAuthorizationGate` requires
-CASE_OWNER approval, the CASE_MANAGER has already obtained that approval via
-StatusAdoptionGate before emitting the self-message. The two gates compose correctly.
+Note: on the adoption path the two gates run in one tree, in order:
+StatusAdoptionGate authorizes adoption, `EmitCaseStatusUpdateNode` writes the
+canonical `CaseStatus`, and only then does `EmbargoTeardownAuthorizationGate`
+decide whether teardown may run (RSH-01-003, RSH-01-004). Case Owner approval for
+adoption has therefore already been obtained before the teardown gate asks its
+own question, and the two gates compose without an inbox round-trip. (The former
+self-addressed `Add(CaseStatus)` loopback that threaded them is gone — ADR-0108.)
 
 ### ThreatTerminationBranchNode
 
-Replaces `PublicDisclosureBranchNode` (which is removed from
-`add_participant_status_tree`). Fires `terminate_embargo_bt` when the canonical
-CaseStatus carries any of:
+Replaces `PublicDisclosureBranchNode`, which is deleted (#4154). Fires
+`terminate_embargo_bt` when the canonical CaseStatus carries any of:
 
 - **CS.P** — public awareness (previously covered)
 - **CS.X** — exploit public (newly covered)
@@ -438,6 +539,17 @@ The CASE_OWNER sender gate that was part of `PublicDisclosureBranchNode`
 is dropped: authorization already occurred at StatusAdoptionGate. By the time
 `ThreatTerminationBranchNode` runs, the canonical state write has been
 authorized.
+
+One skip is not an authorization check: when the status was declared by the
+CASE_MANAGER and the executing actor is someone else, the branch does nothing
+(`_DeclaredByCaseManagerNode`, RSH-03-004, #4149). The CASE_MANAGER tore down
+on its own detection before declaring the status, so the replica waits for the
+committed teardown entry instead of asking for what is already done. The skip
+decides *who* carries out the teardown, not *whether* it is allowed. The same
+condition keeps `PxaEmInvariantDiagnosticNode` from posting a CSB-18 Note at
+the replica, since the gap it would report is the one the manager's entry
+closes. The abandonment arm itself writes and sends nothing at a non-manager
+(EMB-16-002, #4148); see [embargo-lifecycle.md](embargo-lifecycle.md).
 
 This node is the enforcement mechanism for CSB-18-002, CSB-18-003, and
 CSB-18-004 (PXA↔EM cross-machine entailment). When `EmbargoTeardownAuthorizationGate`
@@ -481,18 +593,6 @@ Placed in `vultron/core/behaviors/call_out/bundles/status_authorization.py`
 
 ---
 
-## Migration from PublicDisclosureBranchNode
-
-| Before | After |
-|---|---|
-| `PublicDisclosureBranchNode` in `add_participant_status_tree` | Removed |
-| Gates: CS.P AND CASE_OWNER sender | N/A |
-| Runs before canonical write | N/A |
-| `ThreatTerminationBranchNode` in `add_case_status_tree` | Added |
-| Gates: CS.P OR CS.X OR CS.A (no sender gate) | Correct tree, post-write |
-
----
-
 ## CaseStatus Emission Authority (RSH-04)
 
 ### The invariant
@@ -521,7 +621,7 @@ A shared BT node, `EmitCaseStatusUpdateNode`, performs the canonical write:
 
 This node is wired **after** every EM lifecycle node in each BT tree factory
 (Propose, Accept, Reject, Terminate, and cascade variants such as
-`RejectProposedEmbargoLifecycleNode` and `ApplyEmbargoTeardownNode`).
+`AbandonEmbargoProposalsLifecycleNode` and `ApplyEmbargoTeardownNode`).
 
 ### Causality (important)
 
@@ -533,18 +633,17 @@ CASE_MANAGER mutates EM/PXA state
   → Announce(CaseLedgerEntry) syncs participants
 ```
 
-**Not** the inbox-loopback pattern that `EmitAddCaseStatusToSelfNode`
-currently uses:
+**Not** the inbox-loopback pattern the former `EmitAddCaseStatusToSelfNode`
+used:
 
 ```text
-[kludge] EmitAddCaseStatusToSelf → inbox → add_case_status_tree → writes ledger
+[kludge, removed] EmitAddCaseStatusToSelf → inbox → add_case_status_tree → writes ledger
 ```
 
 The inbox gate (StatusAdoptionGate → EmbargoTeardownAuthorizationGate) exists for evaluating **external participant
 suggestions**, not for the CASE_MANAGER recording its own authoritative state
-changes. `EmitAddCaseStatusToSelfNode` is a recognized kludge; a follow-on
-issue will refactor the inbound path to use direct ledger writes as well
-(blocked by the `EmitCaseStatusUpdateNode` impl issue).
+changes. The inbound adoption path was refactored onto `EmitCaseStatusUpdateNode`
+(#2176, RSH-01-003) and the loopback node was removed (ADR-0108).
 
 ### BT nodes in scope for the emit invariant
 
@@ -555,7 +654,7 @@ issue will refactor the inbound path to use direct ledger writes as well
 | `AcceptEmbargoLifecycleNode` (trigger) | PROPOSED → ACTIVE | Implemented (#2857) |
 | `RejectEmbargoLifecycleNode` (trigger) | PROPOSED → NONE | Implemented (#2857) |
 | `TerminateEmbargoLifecycleNode` (trigger) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
-| `RejectProposedEmbargoLifecycleNode` (cascade) | PROPOSED → NONE | Implemented (#2857) |
+| `AbandonEmbargoProposalsLifecycleNode` (cascade, CASE_MANAGER only) | PROPOSED → NONE | Implemented (#2857, #4131) |
 | `ApplyEmbargoTeardownNode` (sync/announce) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
 
 ---

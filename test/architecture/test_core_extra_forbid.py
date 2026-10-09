@@ -19,30 +19,21 @@ ARCH-23-005), and that the mechanisms this contract subsumes cannot be
 reintroduced (AC-7).
 """
 
-import importlib
-import pkgutil
-from datetime import timedelta
+from datetime import UTC
 
 import pytest
 from pydantic import ValidationError
 
 from test.architecture import _corpus
+from test.support.core_vocab import build_core_vocab, import_all_core_models
 from vultron.core.models.base import CoreObject
 from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.errors import VultronProtocolViolationError
 from vultron.metadata.base import repo_root
 
 
-def _import_all_core_models() -> None:
-    import vultron.core.models as models_pkg
-
-    for module in pkgutil.walk_packages(
-        models_pkg.__path__, models_pkg.__name__ + "."
-    ):
-        importlib.import_module(module.name)
-
-
 def _all_core_object_subclasses() -> set[type[CoreObject]]:
-    _import_all_core_models()
+    import_all_core_models()
 
     def descend(cls: type) -> set[type]:
         found: set[type] = set()
@@ -54,64 +45,29 @@ def _all_core_object_subclasses() -> set[type[CoreObject]]:
     return {c for c in descend(CoreObject)}
 
 
-#: Why a CORE_VOCABULARY entry could not be minimally constructed, per name.
-_UNCONSTRUCTIBLE: dict[str, str] = {}
-
-
-def _minimal_kwargs(cls: type[CoreObject]) -> dict:
-    """Minimum kwargs to construct *cls* without validation errors."""
-    kwargs: dict = {}
-    for field_name, field_info in cls.model_fields.items():
-        if not field_info.is_required():
-            continue
-        ann = str(field_info.annotation)
-        if "timedelta" in ann:
-            kwargs[field_name] = timedelta(days=90)
-        else:
-            kwargs[field_name] = f"urn:test:{field_name}:1"
-    return kwargs
-
-
 def _constructible_vocab() -> list[tuple[str, CoreObject]]:
     """(name, instance) for every CORE_VOCABULARY entry we can minimally build."""
-    _import_all_core_models()
-    out: list[tuple[str, CoreObject]] = []
-    for name, base_cls in sorted(CORE_VOCABULARY.items()):
-        if not issubclass(base_cls, CoreObject):
-            continue
-        cls: type[CoreObject] = base_cls  # type: ignore[assignment]
-        kwargs = _minimal_kwargs(cls)
-        kwargs["id_"] = f"urn:test:{name.lower()}:forbid"
-        try:
-            out.append((name, cls(**kwargs)))
-        except Exception as exc:  # noqa: PERF203
-            # Not minimally constructible from synthesised kwargs.  Recorded
-            # rather than swallowed: AC-3/AC-4 claim coverage of *every*
-            # CORE_VOCABULARY entry, so an entry dropping out silently would
-            # weaken both ratchets with no signal.
-            _UNCONSTRUCTIBLE[name] = f"{type(exc).__name__}: {exc}"
-            continue
-    return out
+    return build_core_vocab("forbid")[0]
 
 
 def test_every_core_vocabulary_entry_is_actually_exercised() -> None:
     """The AC-3/AC-4 ratchets must cover every CORE_VOCABULARY entry.
 
     Both iterate ``_constructible_vocab()``.  If a future core type gains a
-    required field ``_minimal_kwargs`` cannot synthesise, it would vanish from
+    required field ``minimal_kwargs`` cannot synthesise, it would vanish from
     those loops and they would keep passing while checking less.  This makes
-    that visible instead: extend ``_minimal_kwargs`` (or state the exemption
+    that visible instead: extend ``minimal_kwargs`` (or state the exemption
     here deliberately) rather than letting coverage erode.
     """
-    _UNCONSTRUCTIBLE.clear()
-    exercised = {name for name, _ in _constructible_vocab()}
+    built, unconstructible = build_core_vocab("forbid")
+    exercised = {name for name, _ in built}
     expected = {
         name
         for name, cls in CORE_VOCABULARY.items()
         if issubclass(cls, CoreObject)
     }
     missing = {
-        n: _UNCONSTRUCTIBLE.get(n, "?") for n in sorted(expected - exercised)
+        n: unconstructible.get(n, "?") for n in sorted(expected - exercised)
     }
     assert exercised == expected, (
         'these CORE_VOCABULARY entries are not exercised by the extra="forbid" '
@@ -139,7 +95,7 @@ def test_every_core_object_forbids_extra_with_no_exemption_list() -> None:
 
 def test_unknown_key_raises_for_every_core_vocabulary_entry() -> None:
     """AC-3: an unknown key raises rather than being silently dropped."""
-    for name, obj in _constructible_vocab():
+    for _name, obj in _constructible_vocab():
         payload = obj.model_dump(mode="json")
         payload["totallyUnknownKey"] = "x"
         with pytest.raises(ValidationError):
@@ -192,6 +148,223 @@ def test_round_trip_is_exact_for_every_core_vocabulary_entry() -> None:
     for name, obj in _constructible_vocab():
         restored = type(obj).model_validate(obj.model_dump(mode="json"))
         assert restored == obj, f"{name} did not round-trip exactly"
+
+
+def _sealed_class() -> type[CoreObject]:
+    """A test-local ``CoreObject`` whose ``is_sealed`` is a computed bool.
+
+    The one production computed field (``activeParticipants``) is a list,
+    so the bool contract — including the True side, which a vocabulary of
+    minimal objects never reaches — is exercised on a local subclass.  Callers request
+    ``isolated_core_registries`` so the class stays out of the global
+    registries.
+    """
+    from typing import Literal
+
+    from pydantic import computed_field
+
+    class _Sealed(CoreObject):
+        type_: Literal["_Sealed"] = "_Sealed"
+        sealed_by: str | None = None
+
+        @computed_field  # type: ignore[misc]
+        @property
+        def is_sealed(self) -> bool:
+            return self.sealed_by is not None
+
+    return _Sealed
+
+
+def test_true_computed_bool_round_trips(isolated_core_registries) -> None:
+    """A computed bool that is True round-trips exactly (ARCH-23-005).
+
+    Exercises the True side so the comparison inside
+    ``_check_computed_field_inputs`` cannot be an inverted equality that
+    passes vacuously.
+    """
+    sealed = _sealed_class().model_validate({"sealed_by": "urn:uuid:actor"})
+    assert sealed.model_dump(by_alias=True)["isSealed"] is True
+
+    cls = type(sealed)
+    assert cls.model_validate(sealed.model_dump(mode="json")) == sealed
+    # The camelCase wire form carries the computed value and parses back into
+    # an equal object: the matching value is stripped, and the default
+    # ``@context`` reads back as no override.
+    wire = sealed.model_dump(mode="json", by_alias=True)
+    assert wire["isSealed"] is True
+    assert cls.model_validate(wire) == sealed
+    assert cls.model_validate(sealed.model_dump(by_alias=True)) == sealed
+
+
+def test_computed_field_is_published_by_alias_and_never_stored(
+    isolated_core_registries,
+) -> None:
+    """A computed field is on the AS2 path only (CM-31-003, ARCH-23-005).
+
+    The persistence form (no ``by_alias``) carries the facts a computed
+    field is derived from, never the derived value, so a stored row cannot
+    contradict a later derivation.
+    """
+    sealed = _sealed_class().model_validate({"sealed_by": "urn:uuid:actor"})
+
+    assert "is_sealed" not in sealed.model_dump()
+    assert "is_sealed" not in sealed.model_dump(mode="json")
+    assert sealed.model_dump(by_alias=True)["isSealed"] is True
+
+
+def test_contradicted_computed_bool_raises_protocol_violation(
+    isolated_core_registries,
+) -> None:
+    """AC-2: a supplied computed value that contradicts the derived value
+    raises VultronProtocolViolationError for both snake_case and camelCase
+    spellings (ARCH-23-005, EH-07-001).
+    """
+    cls = _sealed_class()
+    for spelling in ("is_sealed", "isSealed"):
+        with pytest.raises(ValidationError) as exc_info:
+            cls.model_validate({spelling: True})
+        msg = str(exc_info.value)
+        assert "is_sealed" in msg, (
+            f"Error for spelling {spelling!r} did not name the field: {msg}"
+        )
+        assert "supplied True" in msg, (
+            f"Error for spelling {spelling!r} did not include supplied value: {msg}"
+        )
+        error = _protocol_violation(exc_info.value)
+        assert [v.dimensions for v in error.violations] == [("is_sealed",)]
+
+
+def _protocol_violation(exc: ValidationError) -> VultronProtocolViolationError:
+    """Return the ``VultronProtocolViolationError`` Pydantic wrapped in *exc*."""
+    error = exc.errors()[0].get("ctx", {}).get("error")
+    assert isinstance(error, VultronProtocolViolationError), exc
+    return error
+
+
+@pytest.mark.parametrize(
+    ("data", "expected_spelling"),
+    [
+        # camelCase agrees with derived (False); snake_case contradicts.
+        ({"is_sealed": True, "isSealed": False}, "is_sealed"),
+        # snake_case agrees; camelCase contradicts.
+        ({"is_sealed": False, "isSealed": True}, "isSealed"),
+    ],
+)
+def test_disagreeing_duplicate_spellings_cannot_mask_a_contradiction(
+    data: dict[str, bool], expected_spelling: str, isolated_core_registries
+) -> None:
+    """Both spellings supplied with different values: the contradicting one is
+    refused whichever spelling carries it (ARCH-23-005, EH-07-001).
+
+    Keying supplied values by canonical field name let the last-iterated
+    spelling win, so one ordering was accepted while the reverse was refused.
+    """
+    with pytest.raises(ValidationError) as exc_info:
+        _sealed_class().model_validate(data)
+    error = _protocol_violation(exc_info.value)
+    assert len(error.violations) == 1
+    assert repr(expected_spelling) in error.violations[0].message
+
+
+def test_all_computed_field_contradictions_named_in_one_error(
+    isolated_core_registries,
+) -> None:
+    """AC-2: every contradicted computed field is carried in one error as
+    structured ``Violation`` data (EH-07-001, EH-07-003).
+
+    A test-local CoreObject subclass with two computed fields is used to
+    prove the multi-violation contract.  ``isolated_core_registries`` keeps that subclass out
+    of the process-global core registries.
+    """
+    from typing import Literal
+
+    from pydantic import computed_field
+
+    class _TwoComputedFields(CoreObject):
+        type_: Literal["_TwoComputedFields"] = "_TwoComputedFields"
+        base_val: int = 3
+
+        @computed_field  # type: ignore[misc]
+        @property
+        def doubled(self) -> int:
+            return self.base_val * 2
+
+        @computed_field  # type: ignore[misc]
+        @property
+        def tripled(self) -> int:
+            return self.base_val * 3
+
+    with pytest.raises(ValidationError) as exc_info:
+        _TwoComputedFields.model_validate({"doubled": 999, "tripled": 888})
+    msg = str(exc_info.value)
+    assert "doubled" in msg, f"First contradicted field not named: {msg}"
+    assert "tripled" in msg, f"Second contradicted field not named: {msg}"
+    error = _protocol_violation(exc_info.value)
+    assert sorted(v.dimensions for v in error.violations) == [
+        ("doubled",),
+        ("tripled",),
+    ]
+    # str() renders the whole set, one line per violation (EH-07-003).
+    assert str(error).count("supplied") == 2
+
+
+def test_json_mode_dump_round_trips_for_non_bool_computed_field(
+    isolated_core_registries,
+) -> None:
+    """A ``mode="json"`` dump of a computed field of any type round-trips
+    (ARCH-23-005).
+
+    A bool's JSON form equals its Python form, so a comparison that only
+    accepts the Python value would go unseen.  A ``datetime`` computed field arrives from a JSON dump as
+    a string and must still be recognised as matching.
+    """
+    from datetime import datetime
+    from typing import Literal
+
+    from pydantic import computed_field
+
+    class _DatetimeComputed(CoreObject):
+        type_: Literal["_DatetimeComputed"] = "_DatetimeComputed"
+
+        @computed_field  # type: ignore[misc]
+        @property
+        def when(self) -> datetime:
+            return datetime(2026, 1, 1, tzinfo=UTC)
+
+    obj = _DatetimeComputed()
+    assert _DatetimeComputed.model_validate(obj.model_dump(mode="json")) == obj
+    assert _DatetimeComputed.model_validate(obj.model_dump()) == obj
+
+    with pytest.raises(ValidationError) as exc_info:
+        _DatetimeComputed.model_validate({"when": "2025-12-31T00:00:00Z"})
+    assert [
+        v.dimensions for v in _protocol_violation(exc_info.value).violations
+    ] == [("when",)]
+
+
+def test_retired_embargo_adherence_refused_at_parse() -> None:
+    """An inbound ParticipantStatus carrying the retired embargoAdherence key
+    is refused at parse (ADR-0122), not accepted with the value set aside.
+    """
+    import pytest
+
+    from vultron.wire.as2.parser import (
+        VultronParseValidationError,
+        parse_activity,
+    )
+
+    body = {
+        "type": "Announce",
+        "actor": "https://example.org/actors/alice",
+        "object": {
+            "type": "ParticipantStatus",
+            "context": "urn:uuid:case-received-path",
+            "embargoAdherence": True,
+        },
+        "published": "2026-01-01T00:00:00+00:00",
+    }
+    with pytest.raises(VultronParseValidationError, match="ADR-0122"):
+        parse_activity(body)
 
 
 def test_retired_wire_normalisation_mechanisms_are_not_reintroduced() -> None:

@@ -41,7 +41,6 @@ class TestWireKey:
             (ParticipantStatus, "rm", "rmState"),
             (ParticipantStatus, "vf", "vfState"),
             (ParticipantStatus, "d", "dState"),
-            (ParticipantStatus, "consent", "emConsentState"),
             (CaseStatus, "em", "emState"),
             (CaseStatus, "pxa", "pxaState"),
             # No explicit alias: the model's alias_generator camel-cases it.

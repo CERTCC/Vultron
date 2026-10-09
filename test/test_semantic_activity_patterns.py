@@ -1,5 +1,5 @@
-from typing import Any, Dict, cast
 import itertools
+from typing import Any, cast
 
 import pytest
 
@@ -21,7 +21,10 @@ from vultron.wire.as2.factories import (
     rm_invite_to_case_activity,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Invite,
+)
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,
     as_Organization,
@@ -71,7 +74,7 @@ def test_all_patterns_discriminate_on_activity_and_object():
     )
 
 
-def _pattern_dump(pattern: Any) -> Dict[str, Any]:
+def _pattern_dump(pattern: Any) -> dict[str, Any]:
     """
     Return a top-level dict representation of the given pattern.
 
@@ -83,7 +86,7 @@ def _pattern_dump(pattern: Any) -> Dict[str, Any]:
             if callable(pattern) and not hasattr(pattern, "model_dump")
             else pattern
         )
-    except Exception:
+    except Exception:  # noqa: BLE001  # ruff-baseline #3989
         obj = pattern
 
     if hasattr(obj, "model_dump"):
@@ -118,7 +121,7 @@ def _elem_matches(a: Any, b: Any) -> bool:
     return bool(a == b)
 
 
-def _is_subset(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+def _is_subset(a: dict[str, Any], b: dict[str, Any]) -> bool:
     """
     Return True if dict 'a' is a top-level subset of dict 'b', comparing nested dicts/lists recursively.
     Only checks keys present in 'a' (assumes exclude_none was used).
@@ -198,7 +201,7 @@ def test_non_overlapping_activity_patterns():
         for pat in group_patterns:
             try:
                 dumped = _pattern_dump(pat)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001  # ruff-baseline #3989
                 problems.append(
                     {
                         "group": group_name,
@@ -215,7 +218,9 @@ def test_non_overlapping_activity_patterns():
         ):
             assert getattr(pat_a, "activity_", None) == getattr(
                 pat_b, "activity_", None
-            ), f"Patterns {pat_a!r} and {pat_b!r} should share activity_ to be grouped"
+            ), (
+                f"Patterns {pat_a!r} and {pat_b!r} should share activity_ to be grouped"
+            )
             idx_a = registry_order.get(id(pat_a), -1)
             idx_b = registry_order.get(id(pat_b), -1)
             if not _subset_safe(dump_a, dump_b, idx_a, idx_b):
@@ -319,7 +324,45 @@ OWNER_URI = "https://example.org/actors/owner"
 
 
 def _make_case() -> as_VulnerabilityCaseStub:
-    return as_VulnerabilityCaseStub(id_=CASE_URI)
+    return as_VulnerabilityCaseStub(case_id=CASE_URI)
+
+
+@pytest.mark.parametrize(
+    ("invitee", "target"),
+    [
+        (as_Actor(id_=ACTOR_URI), CASE_URI),
+        (
+            as_Actor(id_=ACTOR_URI),
+            as_VulnerabilityCase(id_=CASE_URI, name="Full case"),
+        ),
+        (ACTOR_URI, as_VulnerabilityCaseStub(case_id=CASE_URI)),
+    ],
+    ids=["uri-target", "full-case-target", "bare-uri-invitee"],
+)
+@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("VAM-04-004")
+@pytest.mark.spec("SE-08-004")
+def test_only_a_stub_invite_matches_the_stub_invite_pattern(invitee, target):
+    """The stub Invite pattern is strict (AC-2 of #4045).
+
+    A stub is recognised by its target's ``type`` alone, so neither a case
+    named by URI nor an inline full case matches it.  Strictness covers
+    ``object`` too: an invitee left as a bare URI after rehydration cannot be
+    confirmed as an actor, so the Invite matches no stub pattern either.
+    """
+    invite = as_Invite(
+        id_="https://example.org/invitations/not-a-stub",
+        actor=OWNER_URI,
+        object_=invitee,
+        target=target,
+    )
+    assert find_matching_semantics(invite) != (
+        MessageSemantics.INVITE_ACTOR_TO_CASE
+    )
+    reply = as_Accept(actor=ACTOR_URI, object_=invite)
+    assert find_matching_semantics(reply) != (
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+    )
 
 
 @pytest.mark.parametrize(
@@ -425,33 +468,45 @@ def test_announce_vulnerability_case_pattern_matches():
         actor="https://example.org/actors/owner",
     )
     result = find_matching_semantics(announce)
-    assert (
-        result == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
-    ), f"Expected ANNOUNCE_VULNERABILITY_CASE, got {result}"
+    assert result == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE, (
+        f"Expected ANNOUNCE_VULNERABILITY_CASE, got {result}"
+    )
 
 
 @pytest.mark.spec("VM-07-001")
 @pytest.mark.spec("VM-07-002")
 def test_vulnerability_case_stub_serialises_minimally():
-    """as_VulnerabilityCaseStub must produce only {id, type} when serialised.
+    """A bare stub serialises as only {id, type, caseId} (CM-17-010).
 
     DR-10 / MV-10-001: the stub is the selective-disclosure object used in
     Invite.target; it must not expose full case details to uninvited parties.
     """
     stub = as_VulnerabilityCaseStub(
-        id_="https://example.org/cases/case-stub-001"
+        case_id="https://example.org/cases/case-stub-001"
     )
     dumped = stub.model_dump(by_alias=True, exclude_none=True)
-    assert set(dumped.keys()) <= {"id", "type", "@context"}
-    assert dumped.get("id") == "https://example.org/cases/case-stub-001"
-    assert dumped.get("type") == "VulnerabilityCase"
+    assert set(dumped.keys()) <= {"id", "type", "caseId", "@context"}
+    assert dumped.get("id") == "https://example.org/cases/case-stub-001/stub"
+    assert dumped.get("type") == "VulnerabilityCaseStub"
+    assert dumped.get("caseId") == "https://example.org/cases/case-stub-001"
+
+
+@pytest.mark.spec("CM-11-013")
+def test_a_stub_that_claims_another_type_is_refused():
+    """The type alone identifies a stub, so the stub class pins it."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        as_VulnerabilityCaseStub.model_validate(
+            {"type": "VulnerabilityCase", "caseId": CASE_URI}
+        )
 
 
 @pytest.mark.spec("VM-07-001")
 def test_vulnerability_case_stub_with_summary():
     """as_VulnerabilityCaseStub may expose a summary field (MV-10-002)."""
     stub = as_VulnerabilityCaseStub(
-        id_="https://example.org/cases/case-stub-002",
+        case_id="https://example.org/cases/case-stub-002",
         summary="Heap overflow in libfoo",
     )
     dumped = stub.model_dump(by_alias=True, exclude_none=True)
@@ -470,21 +525,24 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
     """
     actor = as_Actor(id_="https://example.org/actors/alice")
     full_case = as_VulnerabilityCase(
-        id_="https://example.org/cases/c1", name="Full"
+        id_="https://example.org/cases/c1",
+        name="Full",
+        stub_summary="Security issue — details shared after acceptance",
     )
     activity = rm_invite_to_case_activity(
         actor,
         target=cast(Any, full_case),
         actor=actor.id_,
     )
-    assert isinstance(
-        activity.target, as_VulnerabilityCaseStub
-    ), "DR-10: wire activity target must be as_VulnerabilityCaseStub, not full as_VulnerabilityCase"
-    assert activity.target.id_ == full_case.id_
+    assert isinstance(activity.target, as_VulnerabilityCaseStub), (
+        "DR-10: wire activity target must be as_VulnerabilityCaseStub, not full as_VulnerabilityCase"
+    )
+    assert activity.target.case_id == full_case.id_
+    assert activity.target.id_ == f"{full_case.id_}/stub"
 
 
 # ---------------------------------------------------------------------------
-# CASE_MANAGER role delegation pattern tests (DEMOMA-08-002, DEMOMA-08-003)
+# CASE_MANAGER role delegation pattern tests (DEMOMA-08-003)
 # ---------------------------------------------------------------------------
 
 _VENDOR_URI = "https://example.org/actors/vendor"
@@ -510,9 +568,9 @@ def test_offer_case_manager_role_not_confused_with_ownership_transfer():
         actor=_VENDOR_URI,
     )
     result = find_matching_semantics(offer)
-    assert (
-        result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
-    ), f"Expected OFFER_CASE_OWNERSHIP_TRANSFER, got {result}"
+    assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER, (
+        f"Expected OFFER_CASE_OWNERSHIP_TRANSFER, got {result}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -543,9 +601,9 @@ def test_offer_case_participant_role_dispatches_correctly():
         actor=_VENDOR_URI,
     )
     result = find_matching_semantics(offer)
-    assert (
-        result == MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE
-    ), f"Expected OFFER_CASE_PARTICIPANT_ROLE, got {result}"
+    assert result == MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE, (
+        f"Expected OFFER_CASE_PARTICIPANT_ROLE, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-08-003")
@@ -567,9 +625,9 @@ def test_offer_case_participant_role_not_confused_with_ownership_transfer():
         actor=_VENDOR_URI,
     )
     result = find_matching_semantics(offer)
-    assert (
-        result != MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
-    ), "OFFER_CASE_PARTICIPANT_ROLE misclassified as OFFER_CASE_OWNERSHIP_TRANSFER"
+    assert result != MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER, (
+        "OFFER_CASE_PARTICIPANT_ROLE misclassified as OFFER_CASE_OWNERSHIP_TRANSFER"
+    )
 
 
 @pytest.mark.spec("SE-08-003")
@@ -626,9 +684,9 @@ def test_create_case_proposal_dispatches_correctly():
         to=[_CASE_ACTOR_URI],
     )
     result = find_matching_semantics(activity)
-    assert (
-        result == MessageSemantics.CREATE_CASE_PROPOSAL
-    ), f"Expected CREATE_CASE_PROPOSAL, got {result}"
+    assert result == MessageSemantics.CREATE_CASE_PROPOSAL, (
+        f"Expected CREATE_CASE_PROPOSAL, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-02-001")
@@ -649,9 +707,9 @@ def test_accept_case_proposal_dispatches_correctly():
         to=[_VENDOR_URI],
     )
     result = find_matching_semantics(activity)
-    assert (
-        result == MessageSemantics.ACCEPT_CASE_PROPOSAL
-    ), f"Expected ACCEPT_CASE_PROPOSAL, got {result}"
+    assert result == MessageSemantics.ACCEPT_CASE_PROPOSAL, (
+        f"Expected ACCEPT_CASE_PROPOSAL, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-02-001")
@@ -672,9 +730,9 @@ def test_reject_case_proposal_dispatches_correctly():
         to=[_VENDOR_URI],
     )
     result = find_matching_semantics(activity)
-    assert (
-        result == MessageSemantics.REJECT_CASE_PROPOSAL
-    ), f"Expected REJECT_CASE_PROPOSAL, got {result}"
+    assert result == MessageSemantics.REJECT_CASE_PROPOSAL, (
+        f"Expected REJECT_CASE_PROPOSAL, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-03-002")
@@ -696,9 +754,9 @@ def test_create_case_proposal_not_confused_with_create_case():
         to=[_CASE_ACTOR_URI],
     )
     result = find_matching_semantics(activity)
-    assert (
-        result != MessageSemantics.CREATE_CASE
-    ), "CREATE_CASE_PROPOSAL must not be misrouted as CREATE_CASE"
+    assert result != MessageSemantics.CREATE_CASE, (
+        "CREATE_CASE_PROPOSAL must not be misrouted as CREATE_CASE"
+    )
 
 
 @pytest.mark.spec("SE-03-002")
@@ -745,9 +803,9 @@ def test_case_proposal_with_string_object_returns_unresolvable():
         to=[_VENDOR_URI],
     )
     result = find_matching_semantics(activity)
-    assert (
-        result == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
-    ), f"Expected UNKNOWN_UNRESOLVABLE_OBJECT for bare URI, got {result}"
+    assert result == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT, (
+        f"Expected UNKNOWN_UNRESOLVABLE_OBJECT for bare URI, got {result}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -764,9 +822,11 @@ def test_strict_target_rejects_bare_string_uri():
     that bare URI strings do not satisfy a typed target_ constraint when the
     pattern is in strict mode.
     """
-    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
     from vultron.core.models.enums import VultronObjectType as VOtype
-    from vultron.wire.as2.enums import as_ObjectType as AOtype
+    from vultron.wire.as2.enums import (
+        as_ObjectType as AOtype,
+        as_TransitiveActivityType as TAtype,
+    )
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Offer,
     )
@@ -788,9 +848,9 @@ def test_strict_target_rejects_bare_string_uri():
         object_=case,
         target="https://example.org/actors/alice",
     )
-    assert not strict_pattern.match(
-        activity_string_target
-    ), "strict=True pattern must not match when target is a bare string URI"
+    assert not strict_pattern.match(activity_string_target), (
+        "strict=True pattern must not match when target is a bare string URI"
+    )
 
 
 @pytest.mark.spec("VAM-01-006")
@@ -801,9 +861,11 @@ def test_strict_target_matches_typed_actor():
     Complement of test_strict_target_rejects_bare_string_uri — confirms that
     the fix only blocks bare strings, not properly typed target values.
     """
-    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
     from vultron.core.models.enums import VultronObjectType as VOtype
-    from vultron.wire.as2.enums import as_ObjectType as AOtype
+    from vultron.wire.as2.enums import (
+        as_ObjectType as AOtype,
+        as_TransitiveActivityType as TAtype,
+    )
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Offer,
     )
@@ -825,9 +887,9 @@ def test_strict_target_matches_typed_actor():
         object_=case,
         target=actor,
     )
-    assert strict_pattern.match(
-        activity_typed_target
-    ), "strict=True pattern must match when target is a typed Actor object"
+    assert strict_pattern.match(activity_typed_target), (
+        "strict=True pattern must match when target is a typed Actor object"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -862,9 +924,9 @@ def test_accept_case_participant_role_dispatches_correctly():
         offer, actor=_CASE_ACTOR_URI
     )
     result = find_matching_semantics(accept)
-    assert (
-        result == MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE
-    ), f"Expected ACCEPT_CASE_PARTICIPANT_ROLE, got {result}"
+    assert result == MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE, (
+        f"Expected ACCEPT_CASE_PARTICIPANT_ROLE, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-08-003")
@@ -880,9 +942,9 @@ def test_reject_case_participant_role_dispatches_correctly():
         offer, actor=_CASE_ACTOR_URI
     )
     result = find_matching_semantics(reject)
-    assert (
-        result == MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE
-    ), f"Expected REJECT_CASE_PARTICIPANT_ROLE, got {result}"
+    assert result == MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE, (
+        f"Expected REJECT_CASE_PARTICIPANT_ROLE, got {result}"
+    )
 
 
 @pytest.mark.spec("SE-08-003")
@@ -905,3 +967,30 @@ def test_accept_case_participant_role_not_confused_with_other_accepts():
         MessageSemantics.UNKNOWN,
         MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
     }, f"Accept(Offer(CaseParticipantRole)) misrouted as {result}"
+
+
+# ---------------------------------------------------------------------------
+# The case owner's decision on an embargo proposal (ADR-0122, #4292): Accept
+# or Reject of the EmbargoEvent itself is told apart from the same verb on
+# the Invite that proposed it, which is each sender's own consent.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("example", "expected"),
+    [
+        ("activate_embargo", MessageSemantics.ACTIVATE_EMBARGO_ON_CASE),
+        (
+            "reject_embargo_proposal",
+            MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
+        ),
+        ("accept_embargo", MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE),
+        ("reject_embargo", MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE),
+    ],
+)
+def test_owner_embargo_decisions_are_distinct_from_invite_answers(
+    example: str, expected: MessageSemantics
+) -> None:
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    assert find_matching_semantics(getattr(examples, example)()) == expected

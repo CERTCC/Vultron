@@ -22,7 +22,7 @@ import py_trees.behaviour
 from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     defer_case_trigger_bt,
 )
-from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
     resolve_case,
@@ -32,7 +32,7 @@ from vultron.core.use_cases.triggers.requests import DeferCaseTriggerRequest
 logger = logging.getLogger(__name__)
 
 
-class SvcDeferCaseUseCase(SvcBTTriggerBase):
+class SvcDeferCaseUseCase(SvcActivityTriggerBase):
     """Defer a case (RM → DEFERRED).
 
     Updates the actor's RM state to DEFERRED and sends a Defer(Case)

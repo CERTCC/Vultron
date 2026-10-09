@@ -1,6 +1,7 @@
 ---
 stakeholder_type: ALL
 level: 200
+contents: generated
 ---
 
 # Explanation
@@ -23,20 +24,19 @@ This section provides an overview of the Vultron Protocol, including:
 
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
-- [Background](background/index.md)
-- [Other Uses of Vultron](other_uses/index.md)
-- [Measuring CVD](measuring_cvd/index.md)
+- [Background](background/index.md) — What Vultron is, the coordination problem it addresses, and the outcomes a Coordinated Vulnerability Disclosure case is trying to reach.
 - [Case Lifecycle](case_lifecycle/index.md)
+- [Process Models](process_models/index.md)
+- [Capability Model](capability_model/index.md) — The answer to "Vultron doesn't do X": every decision the protocol leaves to your organization is a call-out point where your own system plugs in.
 - [Protocol Event Flow](protocol_flow.md)
+- [Worked Example](../tutorials/worked_example.md) — Sequence diagrams of a few usage scenarios, from a finder becoming a reporter through embargo negotiation, coordination, publication, and case closure.
 - [Message Semantics](message_semantics.md)
 - [Actor Knowledge Model](actor-knowledge-model.md)
-- [Process Models](process_models/index.md)
+- [Behavior Logic](behavior_logic/index.md)
 - [Demo Scenarios](scenarios/index.md)
 - [Future Work](future_work/index.md)
 - [Activity Vocabulary Design](activity_vocabulary_design.md)
 - [Reference Implementation Architecture](reference_architecture.md)
-- [Behavior Logic](behavior_logic/index.md)
-- [Capability Model](capability_model/index.md)
 
 <!-- END GENERATED SECTION CONTENTS -->
 

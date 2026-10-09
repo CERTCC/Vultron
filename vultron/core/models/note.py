@@ -17,16 +17,16 @@
 
 from pydantic import Field
 
-from vultron.core.models.base import NonEmptyString, VultronObject
+from vultron.core.models.base import CoreObject, NonEmptyString
 
 
-class VultronNote(VultronObject):
+class VultronNote(CoreObject):
     """Domain representation of a Note.
 
     ``type_`` is ``"Note"`` to match the wire value.
     """
 
-    type_: str = Field(
+    type_: NonEmptyString = Field(
         default="Note",
         validation_alias="type",
         serialization_alias="type",

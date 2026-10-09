@@ -1,152 +1,122 @@
-"""Tests for the Participant Embargo Consent (PEC) state machine."""
+"""Tests for the per-embargo consent row-state table (ADR-0122, CM-18-003)."""
 
 import pytest
 
-from vultron.core.models.dimensions import PecDimension
 from vultron.core.states.participant_embargo_consent import (
-    PEC,
+    EmbargoConsentState,
     PEC_Trigger,
-    create_pec_machine,
+    consent_after,
+    consent_trigger_is_legal,
 )
 from vultron.errors import VultronInvalidStateTransitionError
 
+S = EmbargoConsentState
+T = PEC_Trigger
 
-class TestPECEnum:
+# The complete transition table: (source, trigger) -> destination.  A source of
+# ``None`` is "no row yet" (never asked).
+LEGAL: dict[tuple[S | None, T], S] = {
+    (None, T.INVITE): S.INVITED,
+    (S.DECLINED, T.INVITE): S.INVITED,
+    (S.EXPIRED, T.INVITE): S.INVITED,
+    (None, T.ACCEPT): S.ACCEPTED,
+    (S.INVITED, T.ACCEPT): S.ACCEPTED,
+    (S.EXPIRED, T.ACCEPT): S.ACCEPTED,
+    (None, T.DECLINE): S.DECLINED,
+    (S.INVITED, T.DECLINE): S.DECLINED,
+    (S.ACCEPTED, T.DECLINE): S.DECLINED,
+    (S.EXPIRED, T.DECLINE): S.DECLINED,
+    (S.INVITED, T.EXPIRE): S.EXPIRED,
+}
+
+SOURCES: list[S | None] = [None, *S]
+ALL_PAIRS = [(src, trig) for src in SOURCES for trig in T]
+ILLEGAL = [pair for pair in ALL_PAIRS if pair not in LEGAL]
+
+
+def _id(pair: tuple[S | None, T]) -> str:
+    src, trig = pair
+    return f"{src.value if src else 'NO_ROW'}-{trig.name}"
+
+
+class TestEnums:
     @pytest.mark.spec("SM-08-001")
-    def test_values_are_strings(self) -> None:
-        for member in PEC:
+    def test_row_states_are_strings(self) -> None:
+        for member in S:
             assert isinstance(member, str)
 
-    def test_all_states_exist(self) -> None:
-        names = {m.name for m in PEC}
-        assert names == {
-            "UNBOUND",
+    def test_all_row_states_exist(self) -> None:
+        assert {m.name for m in S} == {
             "INVITED",
-            "SIGNATORY",
+            "ACCEPTED",
             "DECLINED",
-            "LAPSED",
+            "EXPIRED",
         }
 
-
-class TestPECTriggerEnum:
     def test_all_triggers_exist(self) -> None:
-        names = {m.name for m in PEC_Trigger}
-        assert names == {"INVITE", "ACCEPT", "DECLINE", "REVISE", "RESET"}
+        assert {m.name for m in T} == {
+            "INVITE",
+            "ACCEPT",
+            "DECLINE",
+            "EXPIRE",
+        }
+
+    def test_retired_mechanisms_are_gone(self) -> None:
+        import vultron.core.states.participant_embargo_consent as module
+
+        for name in (
+            "PEC",
+            "PEC_TERMINAL_STATES",
+            "create_pec_machine",
+            "PECTransition",
+        ):
+            assert not hasattr(module, name), name
+        assert not hasattr(T, "REVISE")
+        assert not hasattr(T, "EXIT")
 
 
-class TestPECMachineCreation:
-    def test_create_returns_machine(self) -> None:
-        from transitions import Machine
+class TestTransitionTable:
+    def test_table_covers_every_pair_exactly_once(self) -> None:
+        assert len(ALL_PAIRS) == 5 * 4
+        assert len(LEGAL) + len(ILLEGAL) == len(ALL_PAIRS)
 
-        machine = create_pec_machine()
-        assert isinstance(machine, Machine)
+    @pytest.mark.spec("CM-18-003")
+    @pytest.mark.parametrize("pair", list(LEGAL), ids=_id)
+    def test_legal_pair_moves_to_destination(
+        self, pair: tuple[S | None, T]
+    ) -> None:
+        src, trig = pair
+        assert consent_trigger_is_legal(src, trig) is True
+        assert consent_after(src, trig) is LEGAL[pair]
 
-
-class TestPecDimensionTransition:
-    # --- INVITE transitions ---
-    @pytest.mark.spec("SDO-02-001")
-    def test_invite_from_unbound(self) -> None:
-        result = PecDimension(state=PEC.UNBOUND).transition(PEC_Trigger.INVITE)
-        assert result.state == PEC.INVITED
-
-    @pytest.mark.spec("SDO-02-001")
-    def test_invite_from_lapsed(self) -> None:
-        result = PecDimension(state=PEC.LAPSED).transition(PEC_Trigger.INVITE)
-        assert result.state == PEC.INVITED
-
-    @pytest.mark.spec("SDO-02-001")
-    def test_invite_from_declined(self) -> None:
-        result = PecDimension(state=PEC.DECLINED).transition(
-            PEC_Trigger.INVITE
-        )
-        assert result.state == PEC.INVITED
-
-    # --- ACCEPT transitions ---
-    @pytest.mark.spec("SDO-02-001")
-    def test_accept_from_invited(self) -> None:
-        result = PecDimension(state=PEC.INVITED).transition(PEC_Trigger.ACCEPT)
-        assert result.state == PEC.SIGNATORY
-
-    @pytest.mark.spec("SDO-02-001")
-    def test_accept_from_lapsed(self) -> None:
-        result = PecDimension(state=PEC.LAPSED).transition(PEC_Trigger.ACCEPT)
-        assert result.state == PEC.SIGNATORY
-
-    # --- DECLINE transitions ---
-    @pytest.mark.spec("SDO-02-001")
-    def test_decline_from_invited(self) -> None:
-        result = PecDimension(state=PEC.INVITED).transition(
-            PEC_Trigger.DECLINE
-        )
-        assert result.state == PEC.DECLINED
-
-    @pytest.mark.spec("SDO-02-001")
-    def test_decline_from_lapsed(self) -> None:
-        result = PecDimension(state=PEC.LAPSED).transition(PEC_Trigger.DECLINE)
-        assert result.state == PEC.DECLINED
-
-    # --- REVISE transition ---
-    @pytest.mark.spec("SDO-02-001")
-    def test_revise_from_signatory(self) -> None:
-        result = PecDimension(state=PEC.SIGNATORY).transition(
-            PEC_Trigger.REVISE
-        )
-        assert result.state == PEC.LAPSED
-
-    # --- RESET transitions (wildcard) ---
-    @pytest.mark.spec("SDO-02-001")
-    @pytest.mark.parametrize(
-        "state",
-        [PEC.UNBOUND, PEC.INVITED, PEC.SIGNATORY, PEC.DECLINED, PEC.LAPSED],
-    )
-    def test_reset_from_any_state(self, state: PEC) -> None:
-        result = PecDimension(state=state).transition(PEC_Trigger.RESET)
-        assert result.state == PEC.UNBOUND
-
-    # --- ADR-0048: ACCEPT and DECLINE directly from UNBOUND ---
-    @pytest.mark.spec("SDO-02-001")
-    def test_accept_from_unbound(self) -> None:
-        result = PecDimension(state=PEC.UNBOUND).transition(PEC_Trigger.ACCEPT)
-        assert result.state == PEC.SIGNATORY
-
-    @pytest.mark.spec("SDO-02-001")
-    def test_decline_from_unbound(self) -> None:
-        result = PecDimension(state=PEC.UNBOUND).transition(
-            PEC_Trigger.DECLINE
-        )
-        assert result.state == PEC.DECLINED
-
-    # --- ADR-0093: SIGNATORY → DECLINED via DECLINE trigger ---
-    @pytest.mark.spec("SDO-02-001")
-    def test_decline_from_signatory(self) -> None:
-        result = PecDimension(state=PEC.SIGNATORY).transition(
-            PEC_Trigger.DECLINE
-        )
-        assert result.state == PEC.DECLINED
-
-    # --- CM-18-004: SIGNATORY → INVITED must remain invalid ---
-    @pytest.mark.spec("SDO-02-002")
-    def test_invite_from_signatory_raises(self) -> None:
+    @pytest.mark.spec("CM-18-003")
+    @pytest.mark.parametrize("pair", ILLEGAL, ids=_id)
+    def test_illegal_pair_is_refused(self, pair: tuple[S | None, T]) -> None:
+        src, trig = pair
+        assert consent_trigger_is_legal(src, trig) is False
         with pytest.raises(VultronInvalidStateTransitionError):
-            PecDimension(state=PEC.SIGNATORY).transition(PEC_Trigger.INVITE)
+            consent_after(src, trig)
 
-    # --- Other invalid transitions raise VultronInvalidStateTransitionError ---
-    @pytest.mark.spec("SDO-02-002")
-    def test_accept_from_declined_raises(self) -> None:
-        with pytest.raises(VultronInvalidStateTransitionError):
-            PecDimension(state=PEC.DECLINED).transition(PEC_Trigger.ACCEPT)
+    @pytest.mark.spec("CM-18-003")
+    def test_refusal_names_the_trigger(self) -> None:
+        with pytest.raises(VultronInvalidStateTransitionError) as exc:
+            consent_after(S.ACCEPTED, T.INVITE)
+        assert "invite" in str(exc.value).lower()
 
-    @pytest.mark.spec("SDO-02-002")
-    def test_decline_from_declined_raises(self) -> None:
-        with pytest.raises(VultronInvalidStateTransitionError):
-            PecDimension(state=PEC.DECLINED).transition(PEC_Trigger.DECLINE)
+    @pytest.mark.spec("CM-18-003")
+    def test_declined_is_not_accepted_without_a_new_invite(self) -> None:
+        assert not consent_trigger_is_legal(S.DECLINED, T.ACCEPT)
+        reinvited = consent_after(S.DECLINED, T.INVITE)
+        assert consent_after(reinvited, T.ACCEPT) is S.ACCEPTED
 
-    @pytest.mark.spec("SDO-02-002")
-    def test_revise_from_invited_raises(self) -> None:
-        with pytest.raises(VultronInvalidStateTransitionError):
-            PecDimension(state=PEC.INVITED).transition(PEC_Trigger.REVISE)
+    @pytest.mark.spec("CM-18-003")
+    def test_only_an_invited_row_can_expire(self) -> None:
+        legal_sources = [
+            s for s in SOURCES if consent_trigger_is_legal(s, T.EXPIRE)
+        ]
+        assert legal_sources == [S.INVITED]
 
-    @pytest.mark.spec("SDO-02-002")
-    def test_revise_from_unbound_raises(self) -> None:
-        with pytest.raises(VultronInvalidStateTransitionError):
-            PecDimension(state=PEC.UNBOUND).transition(PEC_Trigger.REVISE)
+    @pytest.mark.spec("CM-18-003")
+    def test_accepted_is_idempotent_only_by_the_caller(self) -> None:
+        """A second ACCEPT from ACCEPTED is illegal here; callers guard it."""
+        assert not consent_trigger_is_legal(S.ACCEPTED, T.ACCEPT)

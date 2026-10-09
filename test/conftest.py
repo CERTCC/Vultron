@@ -29,6 +29,7 @@ Guardrail".
 """
 
 import os
+from collections.abc import Iterator
 from pathlib import Path
 
 # Set VULTRON_DATABASE__DB_URL BEFORE any vultron module imports so that
@@ -36,11 +37,14 @@ from pathlib import Path
 # The legacy VULTRON_DB_URL is also cleared to avoid confusion.
 os.environ.setdefault("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
 
-import pytest  # noqa: E402
-from vultron.adapters.driven.datalayer_sqlite import (  # noqa: E402
+import py_trees
+import pytest
+
+from test.support.xdist_workers import worker_count
+from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
-from vultron.metadata.specs import (  # noqa: E402
+from vultron.metadata.specs import (
     load_registry,
     warn_spec_registry_unavailable,
     warn_unknown_spec_id,
@@ -83,6 +87,20 @@ def pytest_configure(config):
         "markers",
         "spec(spec_id): mark test as verifying a specific spec requirement ID",
     )
+
+
+@pytest.hookimpl(tryfirst=True, optionalhook=True)
+def pytest_xdist_auto_num_workers(config: pytest.Config) -> int | None:
+    """Size ``-n auto`` to the container's cgroup limits (``worker_count``).
+
+    ``PYTEST_XDIST_AUTO_NUM_WORKERS`` still wins: returning ``None`` hands the
+    decision back to xdist, which reads it.  ``-n logical`` is left to xdist.
+    """
+    if os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS"):
+        return None
+    if config.option.numprocesses == "logical":
+        return None
+    return worker_count()
 
 
 def apply_integration_timeout(items):
@@ -212,6 +230,94 @@ def _dispose_actor_stores_between_tests():
     reset_store_claimants()
 
 
+@pytest.fixture(autouse=True)
+def _reset_pending_assertion_stores_between_tests():
+    """Drop every per-actor pending-assertion store after each test.
+
+    The stores are process-global and in-memory (SYNC-11-002).  An embargo
+    trigger run by a participant that is not the CASE_MANAGER records its ask
+    there and suppresses a repeat of it (EP-09-008), so an entry left by one
+    test would silently suppress the same trigger in the next.
+    """
+    yield
+    from vultron.core.models.pending_assertion import _reset_stores
+
+    _reset_stores()
+
+
+@pytest.fixture(autouse=True)
+def _reset_ledger_gap_buffers_between_tests():
+    """Drop every per-actor ledger gap buffer after each test.
+
+    ``get_ledger_gap_buffer()`` returns a process-global, in-memory singleton
+    per actor, and the received sync and actor-announce use cases buffer
+    out-of-order ledger entries in it.  An entry one test buffers under an
+    actor id would otherwise be waiting in the next test that names the same
+    actor, and be applied there as if it had just arrived (TB-06-003).
+    """
+    yield
+    from vultron.core.models.ledger_gap_buffer import _reset_buffers
+
+    _reset_buffers()
+
+
+@pytest.fixture(autouse=True)
+def _restore_third_party_log_levels_between_tests():
+    """Undo third-party log-level suppression after each test (TB-06-003).
+
+    ``suppress_third_party_info_noise()`` records each noisy logger's original
+    level in a process-global map on first call, and only
+    ``restore_third_party_log_levels()`` empties it.  The demo CLI and several
+    logging tests suppress without restoring, so a later test in the same
+    process inherited the stale map: its own ``restore`` call then reset a
+    logger it had just configured.  Serial runs hid this behind collection
+    order; xdist split it across workers.
+    """
+    yield
+    from vultron.logging_setup import restore_third_party_log_levels
+
+    restore_third_party_log_levels()
+
+
+@pytest.fixture(autouse=True)
+def clear_py_trees_blackboard() -> Iterator[None]:
+    """Clear the ``py_trees`` blackboard before and after every test (TB-06-005).
+
+    ``py_trees.blackboard.Blackboard.storage`` is process-global, and
+    ``BTBridge.execute_with_setup`` restores only the keys on its
+    ``managed_keys`` list when an execution ends.  Any other key a node writes
+    outlives the execution, and so the test.
+
+    This lives at the root, for every test, because trees run far outside
+    ``test/core/behaviors/``: received and trigger use cases, adapters and demo
+    scenarios all execute them through the bridge.  When the clearing lived
+    only in a few directory conftests, a received-side embargo test read the
+    ``/participant`` an earlier test's tree had left behind and transitioned
+    that participant instead of its own (#3996).
+    """
+    py_trees.blackboard.Blackboard.storage.clear()
+    yield
+    py_trees.blackboard.Blackboard.storage.clear()
+
+
+@pytest.fixture
+def isolated_core_registries():
+    """Restore ``CORE_VOCABULARY`` and ``CORE_TYPE_MAP`` after the test.
+
+    Request this fixture from any test that defines a local ``CoreObject`` or
+    ``CoreRecord`` subclass (TB-06-003, TB-06-004).  It lives in the root
+    conftest because such tests exist under ``test/core/``, ``test/adapters/``
+    and ``test/architecture/`` alike, and the suite is meant to share one
+    registry-isolation mechanism.  The snapshot/restore itself is
+    :func:`test.support.core_vocab.restore_core_registries`, which is where its
+    behaviour is tested.
+    """
+    from test.support.core_vocab import restore_core_registries
+
+    with restore_core_registries():
+        yield
+
+
 def seed_case_actor_replica(dl, case_actor_id, case, *extra):
     """Give the CaseActor its own replica of *case*, and return its store.
 
@@ -231,3 +337,27 @@ def seed_case_actor_replica(dl, case_actor_id, case, *extra):
     for obj in extra:
         case_actor_dl.create(obj)
     return case_actor_dl
+
+
+def seed_case_owner_participant(dl, case):
+    """Seed the CASE_OWNER participant of *case* — the actor ``attributed_to``
+    names (CM-02-008) — and index it on *case*; return the participant.
+
+    Embargo initialization seeds that participant as SIGNATORY (CM-14-003) and
+    fails when it is missing, because the owner's record is created before the
+    embargo (CM-14-002).  Call this before persisting *case*.
+    """
+    from vultron.core.models._helpers import _as_id
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole
+
+    owner_id = _as_id(case.attributed_to)
+    assert owner_id is not None, "case.attributed_to names no owner"
+    owner = CaseParticipant(
+        attributed_to=owner_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case.add_participant(owner)
+    dl.create(owner)
+    return owner

@@ -15,8 +15,8 @@
 import unittest
 from enum import Enum
 
-import vultron.core.case_states.patterns.info as info
 from vultron.core.case_states.hypercube import CVDmodel
+from vultron.core.case_states.patterns import info
 
 
 class MyTestCase(unittest.TestCase):

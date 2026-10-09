@@ -13,8 +13,8 @@
 
 import pytest
 
-from vultron.adapters.driven.db_record import Record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.db_record import Record
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 

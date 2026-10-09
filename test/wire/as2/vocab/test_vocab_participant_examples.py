@@ -11,9 +11,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 import unittest
-from typing import Sequence, cast
+from collections.abc import Sequence
+from typing import cast
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
+from vultron.core.states.cs import CS_pxa, CS_vf
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.activities.actor import _RecommendActorActivity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -31,9 +35,9 @@ from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
-from vultron.core.states.cs import CS_pxa, CS_vf
-from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseStub,
+)
 
 
 class TestVocabParticipantExamples(unittest.TestCase):
@@ -133,7 +137,10 @@ class TestVocabParticipantExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.object_, coordinator)
-        self.assertEqual(activity.target, case.id_)
+        stub = activity.target
+        assert isinstance(stub, as_VulnerabilityCaseStub)
+        self.assertEqual(stub.case_id, case.id_)
+        self.assertEqual(activity.context, case.id_)
         self.assertEqual(activity.to, coordinator.id_)
 
     def test_accept_invite_to_case(self):
@@ -178,7 +185,10 @@ class TestVocabParticipantExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.object_, coordinator)
-        self.assertEqual(activity.target, case.id_)
+        stub = activity.target
+        assert isinstance(stub, as_VulnerabilityCaseStub)
+        self.assertEqual(stub.case_id, case.id_)
+        self.assertEqual(activity.context, case.id_)
         self.assertEqual(activity.to, coordinator.id_)
 
     def test_recommend_actor(self):

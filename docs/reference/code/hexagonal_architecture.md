@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Hexagonal Architecture
 
 Our prototype implementation of the Vultron Protocol is structured according

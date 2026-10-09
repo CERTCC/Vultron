@@ -37,8 +37,9 @@ from vultron.demo.exchange import receive_report_demo as demo
 @pytest.fixture(scope="module")
 def demo_env(client: TestClient):
     """Patch the demo module to route through the TestClient."""
-    from _pytest.monkeypatch import MonkeyPatch
     import importlib
+
+    from _pytest.monkeypatch import MonkeyPatch
 
     mp = MonkeyPatch()
     base = str(client.base_url).rstrip("/") + "/api/v2"
@@ -78,9 +79,9 @@ def test_demo_completes_under_8_seconds(demo_env, caplog):
         demo.main(skip_health_check=True, demos=[demo.demo_validate_report])
     elapsed = time.monotonic() - start
 
-    assert (
-        "ERROR SUMMARY" not in caplog.text
-    ), f"Demo failed with errors:\n{caplog.text}"
+    assert "ERROR SUMMARY" not in caplog.text, (
+        f"Demo failed with errors:\n{caplog.text}"
+    )
     assert elapsed < 8.0, (
         f"Demo took {elapsed:.1f}s — delivery to unreachable hosts is not"
         f" patched.  Expected < 8 s with the conftest _TestClientRouter."

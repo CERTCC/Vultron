@@ -284,7 +284,7 @@ def _spec_column_problems(
     """Return rows whose ``Spec`` cell disagrees with the spec corpus."""
     column = table.spec_column or ""
     problems: list[str] = []
-    for spec, cell in zip(resolved, parsed.column(column)):
+    for spec, cell in zip(resolved, parsed.column(column), strict=False):
         named = set(SPEC_ID_RE.findall(cell))
         wanted = set(per_scenario.get(spec.name, ()))
         if named != wanted:
@@ -304,7 +304,7 @@ def _pr_set_column_problems(
     """Return rows whose PR-set mark disagrees with the ``in_pr_set`` field."""
     column = table.pr_set_column or ""
     problems: list[str] = []
-    for spec, cell in zip(resolved, parsed.column(column)):
+    for spec, cell in zip(resolved, parsed.column(column), strict=False):
         marked = cell.strip().startswith(_IN_PR_SET_MARK)
         if marked != spec.in_pr_set:
             problems.append(
@@ -343,7 +343,7 @@ def _additional_column_problems(
     """Return rows whose ``Additional required`` cell disagrees with the harness."""
     column = table.event_type_column or ""
     problems: list[str] = []
-    for spec, cell in zip(resolved, parsed.column(column)):
+    for spec, cell in zip(resolved, parsed.column(column), strict=False):
         harness = harness_event_types(spec, root)
         if harness is None:
             # No harness file. For a *registered* scenario that is a missing
@@ -393,7 +393,7 @@ def _tick_problems(
         )
         return problems
 
-    for spec, row in zip(resolved, parsed.rows):
+    for spec, row in zip(resolved, parsed.rows, strict=False):
         harness = harness_event_types(spec, root)
         if harness is None:
             # No harness file. For a *registered* scenario that is a missing
@@ -404,7 +404,7 @@ def _tick_problems(
             # ``sync.main``, which extends one problem list with both.
             continue
         expected = frozenset(harness)
-        cells = dict(zip(parsed.columns, row))
+        cells = dict(zip(parsed.columns, row, strict=False))
         for name in columns:
             ticked = bool(cells.get(name, "").strip())
             if ticked != (name in expected):

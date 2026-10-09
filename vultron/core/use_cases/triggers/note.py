@@ -29,7 +29,8 @@ from vultron.core.behaviors.note.add_note_trigger_tree import (
     add_note_to_case_trigger_bt,
 )
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.pending_assertion import get_pending_assertion_store
+from vultron.core.models.pending_assertion import record_pending_assertion
+from vultron.core.models.use_case_result import NoteResult
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -42,7 +43,7 @@ from vultron.core.use_cases.triggers.requests import (
 logger = logging.getLogger(__name__)
 
 
-class SvcAddNoteToCaseUseCase(SvcBTTriggerBase):
+class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
     """Add a note to a case (actor-initiated).
 
     Creates the note in the actor's datalayer, adds it to the actor's local
@@ -108,15 +109,15 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase):
         )
         add_activity_id = str(self._result_out.get("add_activity_id", ""))
         if add_activity_id:
-            store = get_pending_assertion_store(self._actor_id)
-            store.add(
+            record_pending_assertion(
+                self._actor_id,
                 self._case_id,
                 MessageSemantics.ADD_NOTE_TO_CASE.value,
                 add_activity_id,
             )
 
-    def execute(self) -> dict:
-        """Execute and return ``{"note": ..., "activity": ...}``."""
-        result = super().execute()
-        result["note"] = self._captured.get("note")
-        return result
+    def _build_result(self) -> NoteResult:
+        """The activity body plus the note the tree minted."""
+        return NoteResult(
+            **self._activity_fields(), note=self._captured.get("note")
+        )

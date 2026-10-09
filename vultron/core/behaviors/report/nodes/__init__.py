@@ -21,7 +21,9 @@ existing import paths (``from vultron.core.behaviors.report.nodes import ...``)
 continue to work without modification.
 
 Submodules:
+- ``ack_conditions``: Received-side AckReport condition nodes
 - ``conditions``: Validation and prioritization condition nodes
+- ``close_conditions``: Report-closure guard nodes
 - ``rm_transitions``: Report-management transition action nodes
 - ``case_creation``: Case creation and Create(Case) activity nodes
 - ``participant``: Case participant RM transition action nodes
@@ -32,24 +34,26 @@ Submodules:
 - ``storage``: Idempotent storage nodes for inbound report objects
 """
 
-from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
+from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseActivity,
     CreateCaseNode,
 )
+from vultron.core.behaviors.report.nodes.close_conditions import (
+    CheckReportClosable,
+)
 from vultron.core.behaviors.report.nodes.conditions import (
-    _CheckParticipantRMStateBase,
-    _CheckReportPhaseRMStateBase,
-    CheckParticipantExists,
+    CheckParticipantRMState,
     CheckReportNotClosed,
     CheckRMStateAccepted,
-    CheckRMStateDeferred,
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
     EnsureEmbargoExists,
     EvaluateCasePriority,
     EvaluateReportCredibility,
     EvaluateReportValidity,
+    _CheckParticipantRMStateBase,
+    _CheckReportPhaseRMStateBase,
 )
 from vultron.core.behaviors.report.nodes.deploy_fix import (
     CheckCSFixNotYetDeployed,
@@ -60,9 +64,9 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     TransitionCStoFixDeployed,
 )
 from vultron.core.behaviors.report.nodes.develop_fix import (
-    _EmitParticipantStatusActivityBase,
     EmitCFActivity,
     TransitionCStoFixReady,
+    _EmitParticipantStatusActivityBase,
 )
 from vultron.core.behaviors.report.nodes.develop_fix_conditions import (
     CheckCSFixNotYetReady,
@@ -73,22 +77,19 @@ from vultron.core.behaviors.report.nodes.emit import (
     EmitInvalidateReportActivity,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
-    _ReportPhaseRMTransition,
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
+    _ReportPhaseRMTransition,
 )
-from vultron.core.behaviors.report.nodes.storage import (
-    StoreActivityNode,
-    StoreReportNode,
-)
+from vultron.core.behaviors.report.nodes.storage import StoreReportNode
 
 __all__ = [
     # conditions
     "_CheckParticipantRMStateBase",
     "_CheckReportPhaseRMStateBase",
     "CheckRMStateAccepted",
-    "CheckRMStateDeferred",
+    "CheckParticipantRMState",
     "CheckRMStateValid",
     "CheckRMStateReceivedOrInvalid",
     "CheckReportNotClosed",
@@ -96,7 +97,8 @@ __all__ = [
     "EvaluateReportCredibility",
     "EvaluateReportValidity",
     "EvaluateCasePriority",
-    "CheckParticipantExists",
+    # close_conditions
+    "CheckReportClosable",
     # rm_transitions
     "_ReportPhaseRMTransition",
     "TransitionRMtoValid",
@@ -124,7 +126,6 @@ __all__ = [
     "EmitCloseReportActivity",
     # storage
     "StoreReportNode",
-    "StoreActivityNode",
     # re-exported from helpers (backward compat)
     "UpdateActorOutbox",
 ]

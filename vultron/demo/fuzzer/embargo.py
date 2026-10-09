@@ -32,6 +32,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     AlmostCertainlyFail,
@@ -78,7 +80,9 @@ class ExitEmbargoWhenDeployed(EvaluatorCallOutPoint, ProbablyFail):
     requires policy-rule evaluation or human confirmation.
     """
 
-    output_keys = {"exit_embargo_when_deployed_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "exit_embargo_when_deployed_verdict": str
+    }
 
 
 class ExitEmbargoWhenFixReady(EvaluatorCallOutPoint, UsuallyFail):
@@ -103,7 +107,9 @@ class ExitEmbargoWhenFixReady(EvaluatorCallOutPoint, UsuallyFail):
     policy that may require human override.
     """
 
-    output_keys = {"exit_embargo_when_fix_ready_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "exit_embargo_when_fix_ready_verdict": str
+    }
 
 
 class ExitEmbargoForOtherReason(EvaluatorCallOutPoint, OneInTwoHundred):
@@ -128,7 +134,9 @@ class ExitEmbargoForOtherReason(EvaluatorCallOutPoint, OneInTwoHundred):
     cannot be anticipated by a general policy rule.
     """
 
-    output_keys = {"exit_embargo_other_reason_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "exit_embargo_other_reason_verdict": str
+    }
 
 
 class EmbargoTimerExpired(RetrieverCallOutPoint, OneInOneHundred):
@@ -202,7 +210,9 @@ class StopProposingEmbargo(EvaluatorCallOutPoint, UsuallyFail):
     prospects; requires human decision.
     """
 
-    output_keys = {"stop_proposing_embargo_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "stop_proposing_embargo_verdict": str
+    }
 
 
 class SelectEmbargoOfferTerms(EvaluatorCallOutPoint, AlwaysSucceed):
@@ -226,7 +236,9 @@ class SelectEmbargoOfferTerms(EvaluatorCallOutPoint, AlwaysSucceed):
     need human review.
     """
 
-    output_keys = {"selected_embargo_terms_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "selected_embargo_terms_verdict": str
+    }
 
 
 class WantToProposeEmbargo(EvaluatorCallOutPoint, RandomSucceedFail):
@@ -252,7 +264,9 @@ class WantToProposeEmbargo(EvaluatorCallOutPoint, RandomSucceedFail):
     override.
     """
 
-    output_keys = {"want_to_propose_embargo_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "want_to_propose_embargo_verdict": str
+    }
 
 
 class WillingToCounterEmbargoProposal(EvaluatorCallOutPoint, UsuallyFail):
@@ -278,7 +292,9 @@ class WillingToCounterEmbargoProposal(EvaluatorCallOutPoint, UsuallyFail):
     revising; best left to human discretion.
     """
 
-    output_keys = {"willing_to_counter_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "willing_to_counter_verdict": str
+    }
 
 
 class AvoidEmbargoCounterProposal(UsuallySucceed):
@@ -325,7 +341,9 @@ class ReasonToProposeEmbargoWhenDeployed(
     required.
     """
 
-    output_keys = {"reason_to_propose_when_deployed_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "reason_to_propose_when_deployed_verdict": str
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -355,7 +373,9 @@ class EvaluateEmbargoProposal(EvaluatorCallOutPoint, UsuallySucceed):
     accept/reject for out-of-range proposals typically needs human review.
     """
 
-    output_keys = {"evaluate_embargo_proposal_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "evaluate_embargo_proposal_verdict": str
+    }
 
 
 class OnEmbargoAccept(ActuatorCallOutPoint, AlwaysSucceed):
@@ -454,7 +474,9 @@ class EmbargoExitPolicyGuard(EvaluatorCallOutPoint, AlwaysSucceed):
     approval status) are fully automatable via case-management API calls.
     """
 
-    output_keys = {"embargo_exit_policy_guard_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "embargo_exit_policy_guard_verdict": str
+    }
 
 
 class EmbargoExitOverride(EvaluatorCallOutPoint, AlwaysFail):
@@ -478,7 +500,9 @@ class EmbargoExitOverride(EvaluatorCallOutPoint, AlwaysFail):
     acknowledgment for accountability; should not be auto-approved.
     """
 
-    output_keys = {"embargo_exit_override_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "embargo_exit_override_verdict": str
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -507,4 +531,6 @@ class CurrentEmbargoAcceptable(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     negotiation contexts may still require human judgment.
     """
 
-    output_keys = {"current_embargo_acceptable_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "current_embargo_acceptable_verdict": str
+    }

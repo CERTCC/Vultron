@@ -34,10 +34,10 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.models._helpers import _as_id
 from vultron.core.behaviors.status.nodes.rm_validation import (
     ValidateRMTransitionNode,
 )
+from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 

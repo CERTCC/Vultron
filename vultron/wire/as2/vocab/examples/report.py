@@ -11,6 +11,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.wire.as2.factories import (
+    rm_close_report_activity,
+    rm_create_report_activity,
+    rm_invalidate_report_activity,
+    rm_read_report_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Create,
@@ -20,14 +28,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TentativeReject,
 )
 from vultron.wire.as2.vocab.examples._base import _FINDER, _REPORT, _VENDOR
-from vultron.wire.as2.factories import (
-    rm_close_report_activity,
-    rm_create_report_activity,
-    rm_invalidate_report_activity,
-    rm_read_report_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
-)
 
 
 def create_report() -> as_Create:

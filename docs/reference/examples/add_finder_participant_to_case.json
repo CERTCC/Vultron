@@ -1,18 +1,19 @@
 {
-  "id": "urn:uuid:7585597f-629c-4edf-aaaa-4c73875bf63e",
-  "type": "Add",
-  "name": "https://vultron.example/organizations/vendorco Add Finn der Vul to urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
-  "content": "We're adding the finder as a participant to this case.",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Add",
+  "id": "urn:uuid:32b78d17-fc2b-4c48-a5f0-7dc669b7816a",
+  "name": "https://vultron.example/organizations/vendorco Add Finn der Vul to urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+  "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+  "content": "We're adding the finder as a participant to this case.",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+  "target": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "object": {
-    "id": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6/participants/finndervul",
+    "id": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927/participants/finndervul",
     "type": "CaseParticipant",
     "name": "Finn der Vul",
-    "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
-    "published": "2026-09-23T16:41:57+00:00",
-    "updated": "2026-09-23T16:41:57+00:00",
+    "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+    "published": "2026-09-30T16:00:59+00:00",
+    "updated": "2026-09-30T16:00:59+00:00",
     "attributedTo": "https://vultron.example/users/finndervul",
     "caseRoles": [
       "finder",
@@ -20,26 +21,24 @@
     ],
     "participantStatuses": [
       {
-        "id": "urn:uuid:a0d033c3-f949-4314-acda-fa60dfee8aae",
+        "id": "urn:uuid:5581d2b3-e7dd-4144-a6f3-1651611eb222",
         "type": "ParticipantStatus",
         "name": "START",
-        "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
-        "published": "2026-09-23T16:41:57+00:00",
-        "updated": "2026-09-23T16:41:57+00:00",
+        "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+        "published": "2026-09-30T16:00:59+00:00",
+        "updated": "2026-09-30T16:00:59+00:00",
         "attributedTo": "https://vultron.example/users/finndervul",
         "rmState": "START",
         "caseEngagement": true,
-        "emConsentState": "UNBOUND",
         "cvdRole": [
           "FINDER",
           "REPORTER"
         ],
-        "embargoAdherence": false,
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
       }
     ],
-    "acceptedEmbargoIds": [],
-    "embargoConsentState": "UNBOUND",
+    "embargoConsents": [],
+    "joined": true,
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

@@ -1,54 +1,45 @@
 ---
 description: >
   Step through a complete Coordinated Vulnerability Disclosure (CVD) case with
-  the Finder + Vendor (FV) scenario, from report submission through fix,
-  public disclosure, and case closure.
+  the Finder + Vendor (FV) scenario, from report submission through fix
+  readiness, public disclosure, embargo teardown, and case closure.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
 ---
 
 # Tutorial: Run the FV Demo
 
-In this tutorial, we will run the **FV CVD demo** end-to-end using
-Docker Compose. This demo models a complete Coordinated Vulnerability
-Disclosure (CVD) workflow between a Finder (vulnerability reporter) and a
-Vendor (software maintainer).
+In this tutorial, we will run the **FV demo** end to end with Docker Compose.
+The FV scenario models a Coordinated Vulnerability Disclosure (CVD) case between a Finder, who reports the vulnerability, and a Vendor, who maintains the affected software.
+It is the default scenario of the multi-actor stack and the simplest place to see a whole case go by.
 
 By the end of this tutorial, we will have:
 
-- started a multi-container Vultron stack (Finder, Vendor, Coordinator,
-  Case Actor, and Vendor2) representing distinct CVD participants,
-- watched the actors exchange ActivityStreams messages across container
-  boundaries driven by trigger-based puppeteering, and
-- followed the case through all seven milestones: report submission, case
-  bootstrap, replica sync, notes exchange, fix lifecycle, public disclosure,
-  and case closure.
+- started the multi-actor Vultron stack, in which two of the actor containers take part in this scenario,
+- watched the Finder and the Vendor exchange ActivityStreams messages across container boundaries, driven by trigger-based puppeteering, and
+- followed the case through seven verified milestones, from report submission to case closure.
 
 !!! info "What we will learn"
 
-    The FV demo exercises the **full VFDPxa lifecycle**: a case moves
-    from report submission all the way through fix-ready, fix-deployed, public
-    disclosure, embargo teardown, and case closure on both participant replicas.
-
-    The demo runner calls trigger endpoints on each actor's own container so
-    that each actor's behavior tree and outbox logic are exercised end-to-end.
-    Activities flow from sender outbox to receiver inbox over HTTP across the
-    Docker network — this is the full Vultron Protocol, not a simulation.
+    The FV demo runs a case from report submission through case creation, note exchange, fix readiness, public disclosure, embargo teardown, and closure.
+    The demo runner calls trigger endpoints on each actor's own container, so each actor's behavior tree and outbox logic run end to end.
+    Activities flow from the sender's outbox to the receiver's inbox over HTTP across the Docker network.
+    This is the full Vultron Protocol, not a simulation.
 
 ---
 
 ## Prerequisites
 
-We need the following tools installed before we begin:
+You need the following tools installed before we begin:
 
-- [Docker](https://docs.docker.com/get-docker/){:target="_blank"} (version
-  20.10 or later)
-- [Docker Compose](https://docs.docker.com/compose/install/){:target="_blank"}
-  (version 2.x; included with Docker Desktop)
+- [Docker](https://docs.docker.com/get-docker/){:target="_blank"} (version 20.10 or later)
+- [Docker Compose](https://docs.docker.com/compose/install/){:target="_blank"} (version 2.x; included with Docker Desktop)
 - Git (to clone the repository)
 
-We do **not** need Python installed locally; the containers include everything
-required.
+You do **not** need Python installed locally; the containers include everything required.
+
+This tutorial assumes you know what a CVD case is and who its participants are.
+If you do not, start with [What Is Vultron?](../topics/background/what-is-vultron.md).
 
 ---
 
@@ -63,22 +54,19 @@ cd Vultron
 
 !!! tip
 
-    If you already have a local clone, `cd` into the repository root and run
-    `git pull` to make sure you are up to date.
+    If you already have a local clone, `cd` into the repository root and run `git pull` to make sure you are up to date.
 
 ---
 
 ## Step 2 — Create the environment file
 
-Before running any `docker compose` command, create a local `.env` file from
-the provided example:
+Before running any `docker compose` command, create a local `.env` file from the provided example:
 
 ```bash
 cp docker/.env.example docker/.env
 ```
 
-This sets the Docker Compose project name and is required for container,
-network, and volume naming to work correctly.
+This sets the Docker Compose project name, which the container, network, and volume names are derived from.
 
 ---
 
@@ -88,169 +76,120 @@ From the repository root, run:
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml \
-    up --abort-on-container-exit demo-runner
+    up --abort-on-container-exit --exit-code-from demo-runner
 ```
 
-The FV scenario is the **default** — no `DEMO` environment variable is
-required.
+The FV scenario is the **default**, so no `DEMO` environment variable is required.
+[Running the Multi-Actor Container Demos](container_demos.md) shows how to select the others.
 
-Docker builds the images on the first run (this takes a few minutes). On
-subsequent runs, it reuses the cached images and starts immediately.
+Docker builds the images on the first run, which takes a few minutes.
+Subsequent runs reuse the cached images and start immediately.
 
-Once running, the demo runner:
+Once the images exist, the compose stack starts all of its actor containers and waits for each one to pass its health check.
+Only two of them take part in this scenario: `finder` plays the Finder and `vendor` plays the Vendor.
+The Vendor's container also hosts the **Case Actor**, the actor that holds the CASE_MANAGER role for the case and writes its ledger; see [The CASE_MANAGER and the Case Ledger](../topics/case_lifecycle/case_manager_and_ledger.md) for what that role does.
+The other containers stay idle, and the demo runner confirms at the end of Phase 2 that the dedicated `case-actor` container holds no case data.
 
-1. waits for all actor containers to pass their health checks,
-2. resets container state and seeds actor records,
-3. steps through the six demo phases, logging progress and verifying each
-   milestone, and
-4. exits with code `0` on success or non-zero on failure.
+The demo runner then:
+
+1. resets every container's state and seeds the actor records,
+2. steps through the six phases below, logging each step and verifying each milestone, and
+3. exits with code `0` on success or non-zero on failure.
 
 !!! success "Success indicator"
 
     Look for this line at the end of the output:
 
     ```text
-    TWO-ACTOR DEMO COMPLETE ✓  (VFDPxa full lifecycle)
+    FV DEMO COMPLETE ✓  (VFDPxa full lifecycle)
     ```
+
+    The banner names the lifecycle the scenario walks.
+    The case state the checks verify ends at `VFdPxa`: a vendor-only participant stops at fix ready, because deploying a fix is a Deployer's step (see Phase 4).
 
 ---
 
-## What happens: the four narrative phases
+## What happens: six phases, seven milestones
 
-The demo progresses through **four narrative phases**, verified by seven
-milestones (M1–M7). The sequence diagram below shows the key protocol state
-changes at each phase.
+The demo progresses through six phases, and the runner verifies seven milestones (M1–M7) along the way.
+The milestones are numbered by protocol meaning, and Phase 2 verifies M2 before Phase 3 verifies M3, so the milestones appear in the log in numeric order.
 
-### Sequence diagram
+The sections below say what to look for in each phase.
+The [FV scenario narrative](../topics/scenarios/fv.md) explains why the case moves this way, and the [FV Demo Protocol Reference](../reference/fv-demo-protocol.md) lists every message exchanged.
 
-```mermaid
-sequenceDiagram
-    participant F as Finder
-    participant V as Vendor / CaseActor
+### Phase 1 — Report submission and case activation (M1)
 
-    note over F,V: Phase 1 — Report Submission & Case Creation
+The Finder submits a vulnerability report to the Vendor.
+The Vendor's behavior tree proposes a case to its Case Actor, which creates the case, seats the Vendor as Case Owner and the Finder as Reporter, and activates the Vendor's default embargo.
+The Case Actor then delivers a copy of the case to both participants.
+The Vendor validates the report and engages the case, which moves its [Report Management (RM)](../topics/process_models/rm/index.md) state from `RECEIVED` through `VALID` to `ACCEPTED`.
 
-    F->>V: submits vulnerability report
-    note right of V: report validated,<br/>case created,<br/>Case Actor spawned,<br/>participants established,<br/>embargo activated (EM.ACTIVE)
-    V-->>F: case replica delivered (trust bootstrap)
+Notice the two causal gates (`🚧`) in this phase: the runner does not validate until the case copy has landed in the Vendor's own store, and does not engage until the Vendor's `RM.VALID` has been committed.
 
-    note over F,V: ✅ M1 — Case active · 3 participants · EM.ACTIVE
+**M1 verified when:** both containers hold a case record with at least three participants (Vendor, Finder, Case Actor) and an active embargo, and the Finder holds its copy of the case.
 
-    note over F,V: Phase 2 — Notes Exchange & Replica Sync
+### Phase 2 — Replica synchronization verification (M2)
 
-    F->>V: adds question note to case
-    V->>F: replies to question
-    note over F,V: ✅ M3 — Vendor holds authoritative final case state
+Every change to the case is written to the case ledger by the Case Actor and fanned out to every participant.
+The runner waits until the Finder's copy holds every ledger entry the Vendor's copy holds, then compares the two: same participants, same active embargo, same ledger tail hash.
 
-    V-->>F: case ledger entry replicated (LedgerFanout)
-    note over F,V: ✓ M2 — Finder replica synchronized (LedgerFanout verified)
+Notice that no new protocol step happens in this phase.
+It is a read-only check that the fan-out worked.
 
-    note over F,V: Phase 3 — Fix Lifecycle
+**M2 verified when:** the Finder's copy of the case matches the Vendor's.
 
-    note right of V: trigger: notify-fix-ready
-    note over F,V: ✅ M4 — Both replicas: CS includes F (fix ready)
+### Phase 3 — Notes exchange (M3)
 
-    note right of V: trigger: notify-fix-deployed
-    note over F,V: ✅ M5 — Both replicas: CS includes D (fix deployed)
+The Finder asks a question by adding a note to the case, and the Vendor replies with a second note.
+Each note goes to the Case Actor, which records it in the ledger and fans the entry out, so both participants end up holding both notes.
 
-    note over F,V: Phase 4 — Publication & Case Closure
+**M3 verified when:** the Vendor's container holds the authoritative final case state, including both notes.
 
-    note right of V: trigger: notify-published
-    note right of V: CS → VFDPxa, EM → EXITED<br/>(embargo auto-terminated)
-    note right of F: trigger: notify-published
-    note over F,V: ✅ M6 — Both replicas: CS.VFDPxa · EM.EXITED
+### Phase 4 — Fix lifecycle (M4–M5)
 
-    V->>V: Vendor closes case (RM → CLOSED)
-    F->>F: Finder closes case (RM → CLOSED)
-    note over F,V: ✅ M7 — All participants RM.CLOSED
-```
+The runner triggers the Vendor to report that its fix is ready.
+The Vendor's [Case State (CS)](../topics/process_models/cs/cs_model.md) vendor-path dimensions advance from `vfd` to `VFd`: vendor aware and fix ready, fix not yet deployed.
 
-### Phase 1 — Report submission and case creation (M1)
+Notice that the demo does **not** report a fix deployed.
+Deployment is a Deployer's step, and this scenario has no Deployer, so the Vendor stops at `VFd`.
+Both M4 and M5 therefore check for fix ready; M5 confirms the state held after the Finder's copy caught up.
 
-The Finder submits a vulnerability report to the Vendor. The Vendor's behavior
-tree validates the report, creates a `VulnerabilityCase`, spawns a Case Actor,
-adds the Finder and Case Actor as participants, and activates the default
-embargo (EM → ACTIVE). The Vendor delivers a case replica to the Finder via
-trust bootstrap.
+**M4 verified when:** both copies show the Vendor's case state includes `F` (fix ready).
 
-**M1 verified when:**
-Vendor and Finder containers each hold a case record with at least three
-participants (Vendor, Finder, Case Actor) and an active embargo.
+**M5 verified when:** both copies still show `VFd`, the Vendor's final vendor-path state.
 
-### Phase 2 — Notes exchange and replica sync (M3, M2)
+### Phase 5 — Publication and embargo teardown (M6)
 
-The Finder sends a question note to the case, which the Case Actor broadcasts
-to all participants. The Vendor replies, and the Case Actor broadcasts the
-reply back.
+The Vendor reports that the vulnerability is publicly disclosed, which sets its public-path state to `Pxa`.
+The Case Actor sees a public-awareness report from the Case Owner and terminates the embargo, moving the [Embargo Management (EM)](../topics/process_models/em/index.md) state to `EXITED`; see [Early Termination](../topics/process_models/em/early_termination.md) for why publication ends an embargo.
+The Finder then reports its own public awareness.
 
-**M3 verified when:** Vendor container holds the authoritative final case
-state after the notes exchange.
+**M6 verified when:** both copies show `CS.VFdPxa` and `EM.EXITED`, and the Vendor's participant record is public-aware.
 
-Next, the demo runner triggers the Vendor to commit a `CaseLedgerEntry` and
-deliver it to the Finder via the outbox (LedgerFanout replication verification).
-The Finder waits for the log entry to appear in its DataLayer.
+### Phase 6 — Case closure (M7)
 
-!!! note "Milestone order in the log output"
+The Vendor closes its participation.
+Because the Vendor is the Case Owner, the Case Actor closes the case: it advances the Vendor and itself to `RM.CLOSED` and records that the case is fully closed.
+The Finder then closes its own participation.
 
-    M3 appears in the log **before** M2. The notes-exchange phase runs first,
-    then LedgerFanout verification runs immediately after.
-
-**M2 verified when:** Finder's DataLayer contains the replicated log entry.
-
-### Phase 3 — Fix lifecycle (M4–M5)
-
-The demo runner triggers the Vendor to report two successive fix-status
-transitions:
-
-1. **Fix ready** (`CS.VFd`) — the Vendor's participant status is updated
-   and both replicas are verified.
-2. **Fix deployed** (`CS.VFD`) — the Vendor's participant status is updated
-   again and both replicas are re-verified.
-
-**M4 verified when:** Both replicas show the case state includes `F`
-(fix ready).
-
-**M5 verified when:** Both replicas show the case state includes `D`
-(fix deployed).
-
-### Phase 4 — Publication and case closure (M6–M7)
-
-The Vendor notifies that the vulnerability has been publicly disclosed
-(`CS.VFDPxa`). The Case Actor detects the `CS.P` event from the Case Owner
-and automatically terminates the embargo (EM → EXITED). The Finder then also
-triggers `notify-published`, updating its own participant status to `CS.VFDPxa`.
-Both replicas are verified.
-
-The Vendor then closes its case (RM → CLOSED) and the Finder closes its
-replica (RM → CLOSED). The Case Actor auto-closes when all participants are
-closed.
-
-**M6 verified when:** Both replicas show `CS.VFDPxa` and `EM.EXITED`.
-
-**M7 verified when:** All participants on both replicas are `RM.CLOSED`.
+**M7 verified when:** every participant on both copies is `RM.CLOSED`.
 
 ---
 
 ## Reading the activity log
 
-The demo runner logs all activity to stdout with structured markers. Use the
-milestone lines as anchor points when reading the output.
+The demo runner logs all activity to stdout with structured markers.
+Use the milestone lines as anchor points when reading the output.
 
 | Marker | What it means |
 |:-------|:--------------|
-| `✅ M1:` | Case active: required participants and EM.ACTIVE confirmed on both replicas |
+| `✅ M1:` | Required participants (Vendor, Finder, Case Actor), `EM.ACTIVE`, and the Finder holds a case copy |
+| `✓ M2:` | Finder DataLayer synchronized (Ledger Fanout verified) |
 | `✅ M3:` | Vendor container holds the authoritative final case state |
-| `✓ M2:` | Finder DataLayer synchronized (LedgerFanout verified) |
-| `✅ M4:` | Both replicas show CS includes F (fix ready) |
-| `✅ M5:` | Both replicas show CS includes D (fix deployed) |
-| `✅ M6:` | Both replicas: CS.VFDPxa and EM.EXITED confirmed |
-| `✅ M7:` | All participants RM.CLOSED on both replicas |
-
-!!! note "M3 appears before M2"
-
-    The notes-exchange phase (M3) runs before the LedgerFanout verification phase
-    (M2) in the demo execution order, so `✅ M3:` will appear in the log
-    before `✓ M2:`.
+| `✅ M4:` | Both copies show CS includes `F` (fix ready) |
+| `✅ M5:` | Both copies show CS includes `F` (fix ready); the Vendor stops at `VFd` |
+| `✅ M6:` | Both copies show `CS.VFdPxa` and `EM.EXITED`; the Vendor is public-aware |
+| `✅ M7:` | All participants `RM.CLOSED` on both copies |
 
 Between milestones, look for these log line prefixes:
 
@@ -262,12 +201,15 @@ Between milestones, look for these log line prefixes:
 | `📋 <description>` | A demo check is starting |
 | `✅ <description>` | A demo check passed |
 | `❌ <description>` | A demo check failed (see Troubleshooting) |
+| `🚧 <description>` | A causal gate is waiting for an earlier effect to be committed |
+| `🔓 <description>` | The gate's precondition held |
+| `🔒 <description>` | The gate failed; its dependent steps were skipped |
 
 A successful run ends with:
 
 ```text
 ================================================================================
-TWO-ACTOR DEMO COMPLETE ✓  (VFDPxa full lifecycle)
+FV DEMO COMPLETE ✓  (VFDPxa full lifecycle)
 ================================================================================
 ```
 
@@ -277,27 +219,26 @@ TWO-ACTOR DEMO COMPLETE ✓  (VFDPxa full lifecycle)
 
 ### The demo-runner exits immediately with an error
 
-The actor containers may not have finished starting up. Verify all five
-actor services are healthy:
+The actor containers may not have finished starting up.
+Verify that every actor service is healthy:
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml \
-    ps finder vendor coordinator case-actor vendor2
+    ps finder vendor coordinator case-actor actor5 actor6
 ```
 
-All five should show `healthy` status. If any service shows `starting` or
-`unhealthy`, wait a moment and retry.
+All of them should show `healthy` status.
+If any service shows `starting` or `unhealthy`, wait a moment and retry.
 
-### A milestone check fails with `❌`
+### A milestone check fails with `❌`, or a gate fails with `🔒`
 
-Read the failure message for the check that failed. Check the demo-runner
-and actor logs for errors:
+Read the failure message for the check or gate that failed.
+Then check the demo-runner and actor logs for errors:
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml logs demo-runner
 docker compose -f docker/docker-compose-multi-actor.yml logs vendor
 docker compose -f docker/docker-compose-multi-actor.yml logs finder
-docker compose -f docker/docker-compose-multi-actor.yml logs coordinator
 ```
 
 Look for `ERROR` or `500` status lines that correspond to the failing step.
@@ -323,8 +264,8 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 
 ## Step 4 — Clean up
 
-Named Docker volumes persist the SQLite databases between runs. Remove all
-volumes after a session to start fresh next time:
+Named Docker volumes persist the SQLite databases between runs.
+Remove all volumes after a session to start fresh next time:
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml down -v
@@ -336,29 +277,16 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 
 We have:
 
-- cloned the Vultron repository and started a multi-container Vultron stack
-  (Finder, Vendor, Coordinator, Case Actor, and Vendor2),
-- run a complete CVD workflow from report submission through case closure,
-  exercising the full VFDPxa lifecycle, and
-- observed the seven milestones (M1–M7) logged and verified by the demo
-  runner in real time.
+- cloned the Vultron repository and started the multi-actor Vultron stack,
+- run a complete CVD case between a Finder and a Vendor, from report submission through fix readiness, public disclosure, embargo teardown, and closure, and
+- observed the seven milestones (M1–M7) logged and verified by the demo runner in real time.
 
 ---
 
 ## Next steps
 
-- **Run the other container scenarios** — see
-  [Running the Multi-Actor Container Demos](container_demos.md) to run
-  FCV, FVCV-Handoff, and other multi-actor workflows.
-- **Understand the message-level protocol** — the
-  [FV Demo Protocol Reference](../reference/fv-demo-protocol.md)
-  documents every ActivityStreams activity exchanged during this demo,
-  including sequence diagrams, per-phase narratives, and example AS2 JSON
-  payloads.
-- **Read the scenario source** — the demo script is at
-  `vultron/demo/scenario/fv_demo.py`; shared helpers are in
-  `vultron/demo/helpers/`.
-- **Explore the single-container demos** — see
-  [Run the Receive-Report Demo](receive_report_demo.md) and
-  [Running the Other Demos](other_demos.md) to step through individual
-  protocol activities.
+- **Run the other container scenarios** — see [Running the Multi-Actor Container Demos](container_demos.md) to run FCV, FVCV-handoff, and the other multi-actor workflows.
+- **Understand why the case moved this way** — the [FV scenario narrative](../topics/scenarios/fv.md) explains each step in CVD terms and names the ledger entry it produces.
+- **Understand the message-level protocol** — the [FV Demo Protocol Reference](../reference/fv-demo-protocol.md) documents every ActivityStreams activity exchanged during this demo and the ledger entries it produces.
+- **Read the scenario source** — the demo script is at `vultron/demo/scenario/fv_demo.py`; shared helpers are in `vultron/demo/helpers/`.
+- **Explore the single-container demos** — see [Run the Receive-Report Demo](receive_report_demo.md) and [Running the Other Demos](other_demos.md) to step through individual protocol activities.

@@ -7,10 +7,15 @@ description: >
   rationale, InboxOutcome contract, and pending-queue port design.
 related_specs:
   - specs/inbox-orchestration.yaml
+  - specs/use-case-organization.yaml
+  - specs/handler-protocol.yaml
+  - specs/inbox-endpoint.yaml
 related_notes:
   - notes/architecture-hexagonal.md
+  - notes/use-case-protocol.md
   - notes/bt-integration.md
   - notes/architecture-adapters.md
+  - notes/case-communication-model.md
 relevant_packages:
   - vultron/core/behaviors/inbox
   - vultron/adapters/driving/fastapi
@@ -32,9 +37,21 @@ inbox endpoint becomes thin glue that:
 1. Parses the HTTP request body into a raw payload.
 2. Calls `process_payload(payload, ingress_adapter, dispatch_adapter)`.
 3. Returns HTTP 202 immediately and schedules the call via `BackgroundTasks`.
+   The scheduled task is a coroutine, so it runs `process_payload` (and the
+   pending-queue replay loop) through `asyncio.to_thread` rather than inline:
+   an `async` background task executes on the event loop, and a synchronous
+   BT tick there stalls every other request, delivery, and outbox drain on
+   the container for its duration (IE-06-003; #3033, #2898). See
+   [bt-integration](bt-integration.md) § "Concurrency Model".
 
 The CLI, tests, and any future inbox entry point do the same but supply
 different adapter implementations.
+
+So a change to inbox processing behavior (parse, rehydrate, defer-check, dispatch)
+belongs in `vultron/core/behaviors/inbox/` (IO-02-001), never in the FastAPI router or
+a new adapter-layer pipeline helper. `process_payload` is the sole caller-facing entry
+point (IO-02-003), and all policy is internal to the BT; logic added to the router
+repeats the ADR-0009 violation and is untestable from non-HTTP entry points.
 
 ---
 
@@ -66,8 +83,28 @@ Rules for any future route-level guard:
 - **`IngressPayloadAdapter`** — translates raw input (bytes or dict) into a
   rehydrated `as_Activity`. Owns parse + rehydrate; isolates wire-format
   knowledge from the orchestration BT.
-- **`DispatchAdapter`** — accepts a `VultronEvent` and executes the
-  appropriate use-case path. Wraps the existing `ActivityDispatcher` port.
+- **`DispatchAdapter`** — accepts a `VultronEvent`, executes the
+  appropriate use-case path, and returns the handler's `HandlerResult`
+  (IO-03-001, UCORG-05-010). Wraps the existing `ActivityDispatcher` port.
+
+`DispatchNode` is the only place the verdict becomes an outcome (HP-01-004):
+`APPLIED`/`SKIPPED` → `processed`, `DEFERRED` → `deferred`, `REFUSED` →
+`rejected` with the handler's reason. A dispatch that returns no
+`HandlerResult` is rejected — "did not raise" is not a verdict. When no
+handler runs at all (an unroutable activity), the dispatcher synthesizes a
+`REFUSED` verdict, so the drop is never reported as `processed`
+(UCORG-05-012). `run_inbox_pipeline` logs every `rejected` outcome at WARNING
+with the actor and activity ids (UCORG-05-013, SL-02-001); the BT nodes log
+their own outcome writes at INFO so a refusal is not reported twice.
+
+Replay of activities held pending a case bootstrap runs only when the
+bootstrap's verdict maps to `processed`. A bootstrap the handler refused or
+deferred has not made the case locally available, so replaying its held
+activities would only defer them again. The legacy adapter paths
+(`inbox_handler._dispatch_or_defer_inbox_item`, `InboxPipeline.process`)
+apply the same gate through `HandlerResult.took_effect`. A replay that raises
+is logged and does not turn an applied bootstrap into `rejected`
+(MV-01-007). This became live when each received handler was given its real disposition (#2255).
 
 This two-adapter design was chosen over:
 
@@ -104,7 +141,7 @@ Tests MUST target the `process_payload` interface:
 
 ```python
 outcome = process_payload(raw_payload, ingress_adapter, dispatch_adapter)
-assert outcome.status == "processed"
+assert outcome.status is InboxOutcomeStatus.PROCESSED
 assert outcome.context_id == expected_case_id
 ```
 

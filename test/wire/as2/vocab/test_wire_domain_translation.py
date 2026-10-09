@@ -18,22 +18,25 @@
 import pytest
 from pydantic import ValidationError
 
-from vultron.core.models.case import VultronCase
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from test.support.embargo_register import register
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
-from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.dimensions import (
+    EmDimension,
+    RmDimension,
+)
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
 )
-from vultron.core.models.report import VultronReport
-from vultron.core.models.dimensions import (
-    EmDimension,
-    PecDimension,
-    RmDimension,
-)
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
@@ -52,9 +55,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 def test_vulnerability_report_round_trips_between_core_and_wire():
     """ADR-0099 detail 3: as_VulnerabilityReport is VulnerabilityReport (identity)."""
-    assert as_VulnerabilityReport is VultronReport
+    assert as_VulnerabilityReport is VulnerabilityReport
 
-    core = VultronReport(
+    core = VulnerabilityReport(
         id_="https://example.org/reports/1",
         attributed_to="https://example.org/actors/finder",
         context="https://example.org/cases/1",
@@ -125,37 +128,8 @@ def test_participant_status_from_core_materializes_case_status_reference():
     assert round_tripped.case_status.em.state == core_case_status.em.state
 
 
-def test_participant_status_embargo_adherence_survives_wire_round_trip():
-    """embargo_adherence is correctly projected through from_core() and round-tripped via to_core() (ADR-0056)."""
-    core_signatory = CoreParticipantStatus(
-        id_="https://example.org/cases/1/participants/vendor/status/1",
-        attributed_to="https://example.org/actors/vendor",
-        context="https://example.org/cases/1",
-        consent=PecDimension(state=PEC.SIGNATORY),
-    )
-    wire = as_ParticipantStatus.model_validate(
-        core_signatory.model_dump(by_alias=True, mode="json")
-    )
-    assert wire.embargo_adherence is True
-
-    round_tripped = wire
-    assert round_tripped.embargo_adherence is True
-
-    core_no_consent = CoreParticipantStatus(
-        id_="https://example.org/cases/1/participants/vendor/status/2",
-        attributed_to="https://example.org/actors/vendor",
-        context="https://example.org/cases/1",
-        consent=None,
-    )
-    wire_no_consent = as_ParticipantStatus.model_validate(
-        core_no_consent.model_dump(by_alias=True, mode="json")
-    )
-    assert wire_no_consent.embargo_adherence is False
-    assert wire_no_consent.embargo_adherence is False
-
-
 def test_case_participant_round_trips_between_core_and_wire():
-    core = VultronParticipant(
+    core = CaseParticipant(
         id_="https://example.org/cases/1/participants/vendor",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
@@ -168,13 +142,21 @@ def test_case_participant_round_trips_between_core_and_wire():
                 rm=RmDimension(state=RM.ACCEPTED),
             )
         ],
-        accepted_embargo_ids=["https://example.org/embargoes/1"],
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id="https://example.org/embargoes/1",
+                state=EmbargoConsentState.ACCEPTED,
+            ),
+            EmbargoConsent(
+                embargo_id="https://example.org/embargoes/2",
+                state=EmbargoConsentState.INVITED,
+            ),
+        ],
         participant_case_name="Vendor Case Name",
     )
 
-    wire = as_CaseParticipant.model_validate(
-        core.model_dump(by_alias=True, mode="json")
-    )
+    wire_dump = core.model_dump(by_alias=True, mode="json")
+    wire = as_CaseParticipant.model_validate(wire_dump)
 
     assert isinstance(wire, as_CaseParticipant)
     assert wire.id_ == core.id_
@@ -182,13 +164,16 @@ def test_case_participant_round_trips_between_core_and_wire():
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
-    assert round_tripped.accepted_embargo_ids == core.accepted_embargo_ids
+    assert round_tripped.embargo_consents == core.embargo_consents
+    assert wire_dump["embargoConsents"][0]["embargoId"] == (
+        "https://example.org/embargoes/1"
+    )
     assert round_tripped.participant_statuses[0].rm.state == RM.ACCEPTED
 
 
 def test_vulnerability_case_round_trips_between_core_and_wire():
     """ADR-0099 detail 3: as_VulnerabilityCase is VulnerabilityCase (identity)."""
-    assert as_VulnerabilityCase is VultronCase
+    assert as_VulnerabilityCase is VulnerabilityCase
 
     case_status = CoreCaseStatus(
         id_="https://example.org/cases/1/status/1",
@@ -196,12 +181,12 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         context="https://example.org/cases/1",
         em=EmDimension(state=EM.PROPOSED),
     )
-    participant = VultronParticipant(
+    participant = CaseParticipant(
         id_="https://example.org/cases/1/participants/vendor",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
     )
-    core = VultronCase(
+    core = VulnerabilityCase(
         id_="https://example.org/cases/1",
         attributed_to="https://example.org/actors/vendor",
         case_participants=[participant],
@@ -211,8 +196,10 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         vulnerability_reports=["https://example.org/reports/1"],
         case_statuses=[case_status],
         notes=["https://example.org/notes/1"],
-        active_embargo="https://example.org/embargoes/1",
-        proposed_embargoes=["https://example.org/embargoes/1"],
+        embargo_register=register(
+            active="https://example.org/embargoes/1",
+            proposed=["https://example.org/embargoes/2"],
+        ),
         case_activity=["https://example.org/activities/1"],
         parent_cases=["https://example.org/cases/parent"],
         child_cases=["https://example.org/cases/child"],
@@ -225,21 +212,21 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         "caseParticipants",
         "vulnerabilityReports",
         "caseStatuses",
-        "activeEmbargo",
-        "proposedEmbargoes",
+        "embargoRegister",
         "caseActivity",
         "parentCases",
         "childCases",
         "siblingCases",
     ):
         assert key in data, f"wire dump is missing AS2 key {key!r}"
-    assert "case_statuses" not in data and "active_embargo" not in data
+    assert "case_statuses" not in data and "embargo_register" not in data
     restored = as_VulnerabilityCase.model_validate(data)
     assert restored.id_ == core.id_
     assert restored.vulnerability_reports == core.vulnerability_reports
     assert restored.notes == core.notes
     assert restored.active_embargo == core.active_embargo
-    assert restored.proposed_embargoes == core.proposed_embargoes
+    assert restored.embargo_register == core.embargo_register
+    assert restored.proposed_embargo_ids == core.proposed_embargo_ids
     assert restored.case_activity == core.case_activity
     assert restored.parent_cases == core.parent_cases
     assert restored.child_cases == core.child_cases
@@ -250,7 +237,7 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
 
 def test_case_ledger_entry_to_core_returns_domain_model():
     """ADR-0099 detail 3: as_CaseLedgerEntry is CaseLedgerEntry (identity)."""
-    assert as_CaseLedgerEntry is VultronCaseLedgerEntry
+    assert as_CaseLedgerEntry is CaseLedgerEntry
 
     entry = as_CaseLedgerEntry(
         case_id="https://example.org/cases/1",
@@ -260,16 +247,16 @@ def test_case_ledger_entry_to_core_returns_domain_model():
         payload_snapshot={"id": "https://example.org/activities/1"},
     )
 
-    assert isinstance(entry, VultronCaseLedgerEntry)
+    assert isinstance(entry, CaseLedgerEntry)
     assert entry.case_id == "https://example.org/cases/1"
     assert entry.entry_hash is not None
 
 
 def test_case_actor_round_trips_between_core_and_wire():
     """ADR-0099 detail 3: as_CaseActor is CaseActor (identity)."""
-    assert as_CaseActor is VultronCaseActor
+    assert as_CaseActor is CaseActor
 
-    core = VultronCaseActor(
+    core = CaseActor(
         id_="https://example.org/actors/case-actor",
         name="Case Actor",
         attributed_to="https://example.org/actors/vendor",

@@ -17,24 +17,25 @@
 
 ``EmitOfferCaseParticipantToOwnerNode`` and
 ``EmitNoteDuplicateRecommendationToOwnerNode`` run *as the CaseActor*, in the
-CaseActor's own store (ADR-0073#peer-records-in-knowers-store).  There, ``VulnerabilityCase.
-attributed_to`` names the **CaseActor** — it authored that case (CM-22-001,
-CP-05-003, ADR-0041/ADR-0023).  Both nodes used to read ``attributed_to`` and
-call the result "the Case Owner", so the CaseActor addressed the
-``Offer(CaseParticipant)`` to itself and the owner never saw it.
+CaseActor's own store (ADR-0073#peer-records-in-knowers-store).  A node that
+read ``attributed_to`` there and called the result "the Case Owner" would
+address the ``Offer(CaseParticipant)`` to the CaseActor itself whenever that
+copy of the case names the CaseActor, and the owner would never see it.
 
-That is invisible in a single-store test — the owner and the CaseActor share
-``attributed_to`` there — and it only surfaced in the fcvcv Docker scenario as a
-chain of five failures starting at "Offer(CaseParticipant) for V2 arrived in
-C1's DataLayer" and ending with a 422 from ``accept-actor-recommendation``.
-These tests seed the CaseActor's store the way ``CreateCaseFromProposalNode``
-actually leaves it, so the mis-addressing fails here instead.
+``attributed_to`` names the CASE_OWNER (CP-09-001), but the nodes resolve the
+owner from the ``CASE_OWNER`` participant role, the authoritative record
+(CM-21-002).  These tests seed a store whose ``attributed_to`` names the
+CaseActor, so a node that reads ``attributed_to`` first fails here.
+The defect only ever surfaced in the fcvcv Docker scenario, as a chain of five
+failures starting at "Offer(CaseParticipant) for V2 arrived in C1's DataLayer"
+and ending with a 422 from ``accept-actor-recommendation``.
 """
 
 import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -75,12 +76,12 @@ def _seed_case_actor_store(
     with_owner_participant: bool = True,
     attributed_to: str = CASE_ACTOR_ID,
 ) -> None:
-    """Seed the case as the CaseActor's own store actually holds it.
+    """Seed the case in the CaseActor's own store.
 
-    ``CreateCaseFromProposalNode`` sets ``attributed_to`` to the CaseActor
-    (CM-22-001), and ``AddVendorOwnerParticipantNode`` adds the report
-    receiver as the ``CASE_OWNER`` participant.  The CASE_OWNER participant is
-    therefore the only record of who owns the case in this store.
+    ``AddOwnerParticipantNode`` adds the report receiver as the
+    ``CASE_OWNER`` participant.  *attributed_to* defaults to the CaseActor,
+    so the CASE_OWNER participant is the only correct record of who owns the
+    case and a node that reads ``attributed_to`` first fails.
     """
     case = as_VulnerabilityCase(
         id_=CASE_ID,
@@ -118,6 +119,7 @@ def _run(dl: SqliteDataLayer, node) -> Status:
     bridge = BTBridge(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
     )
     return bridge.execute_with_setup(tree=node, actor_id=CASE_ACTOR_ID).status
 

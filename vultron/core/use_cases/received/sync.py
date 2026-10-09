@@ -18,17 +18,33 @@ Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-04-001, SYNC-04-002.
 """
 
 import logging
-from typing import cast
+from typing import ClassVar
 
+import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    SenderEntitlementKind,
+    SenderIsCaseManagerNode,
+    SenderIsNamedActorNode,
+)
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
+)
+from vultron.core.behaviors.sync.nodes import (
+    BufferOutOfOrderEntryNode,
+    BufferPreGenesisEntryNode,
+    CheckHashMatchesNode,
+    CheckLedgerEntryAlreadyStoredNode,
+    ReconstructChainTailNode,
+    SendRejectLogEntryNode,
 )
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
@@ -41,15 +57,25 @@ from vultron.core.models.pending_assertion import (
     PendingAssertionStore,
     get_pending_assertion_store,
 )
-from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.ports.case_persistence import (
-    CasePersistence,
-    CaseOutboxPersistence,
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
 )
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.sync_helpers import _reconstruct_tail_hash
-from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases._helpers import (
+    _find_case_actor_id,
+    resolve_receiving_actor_id,
+)
+from vultron.core.use_cases.received._bt_verdict import (
+    node_failed,
+    node_succeeded,
+    not_case_manager_refusal,
+    verdict_from_bt,
+)
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -61,15 +87,93 @@ def _run_announce_bt(
     receiving_actor_id: str,
     gap_buffer: LedgerGapBuffer | None,
     sync_port: SyncActivityPort | None,
-) -> BTExecutionResult:
-    """Run the announce receive BT for *request* with the gap buffer wired."""
-    return BTBridge(datalayer=dl).execute_with_setup(
-        tree=create_announce_log_entry_tree(),
+    wire_render_port: WireRenderPort | None = None,
+) -> tuple[py_trees.behaviour.Behaviour, BTExecutionResult]:
+    """Run the announce receive BT for *request* with the gap buffer wired.
+
+    Returns the tree along with the result so the caller can tell which
+    branch decided the outcome (#2255).
+    """
+    tree = create_announce_log_entry_tree()
+    result = BTBridge(
+        datalayer=dl,
+        wire_render_port=wire_render_port,
+        sync_port=sync_port,
+    ).execute_with_setup(
+        tree=tree,
         actor_id=receiving_actor_id,
         activity=request,
-        sync_port=sync_port,
         gap_buffer=gap_buffer,
     )
+    return tree, result
+
+
+def _announce_verdict(
+    tree: py_trees.behaviour.Behaviour,
+    result: BTExecutionResult,
+    request: AnnounceLogEntryReceivedEvent,
+    entry: CaseLedgerEntry,
+) -> HandlerResult:
+    """Classify a finished ``AnnounceLogEntryReceivedBT`` run (HP-01-003).
+
+    ``SendRejectLogEntryNode`` always returns ``FAILURE`` after it sends, so a
+    completed reject marks an entry this replica answered with ``Reject``.
+    """
+    verdict = verdict_from_bt(tree, result, label="AnnounceLogEntryReceivedBT")
+    if verdict.disposition is HandlerDisposition.APPLIED:
+        if node_succeeded(tree, SenderIsNamedActorNode):
+            return HandlerResult.skipped(
+                f"own announcement of ledger entry '{entry.id_}' echoed back;"
+                " delivery confirmed"
+            )
+        if node_succeeded(tree, CheckLedgerEntryAlreadyStoredNode):
+            return HandlerResult.skipped(
+                f"ledger entry '{entry.id_}' already stored"
+            )
+        return verdict
+    if verdict.disposition is not HandlerDisposition.REFUSED:
+        return verdict
+    return _refused_announce_verdict(tree, request, entry) or verdict
+
+
+def _refused_announce_verdict(
+    tree: py_trees.behaviour.Behaviour,
+    request: AnnounceLogEntryReceivedEvent,
+    entry: CaseLedgerEntry,
+) -> HandlerResult | None:
+    """Name why a failed announce run failed, or ``None`` for the default."""
+    if node_succeeded(tree, BufferOutOfOrderEntryNode):
+        return HandlerResult.deferred(
+            f"ledger entry '{entry.id_}' (log_index={entry.log_index})"
+            " buffered until its predecessor arrives (SYNC-14-001)"
+        )
+    if node_succeeded(tree, BufferPreGenesisEntryNode):
+        return HandlerResult.deferred(
+            f"ledger entry '{entry.id_}' buffered until case"
+            f" '{entry.case_id}' is seeded (SYNC-15-004)"
+        )
+    if node_failed(tree, SenderIsNamedActorNode):
+        return HandlerResult.refused(
+            f"CASE_MANAGER does not accept an announcement of ledger entry"
+            f" '{entry.id_}' from '{request.actor_id}'"
+        )
+    if node_failed(tree, SenderIsCaseManagerNode):
+        return HandlerResult.refused(
+            f"sender '{request.actor_id}' is not the CaseActor for case"
+            f" '{entry.case_id}' (SYNC-13-006)"
+        )
+    if node_failed(tree, SendRejectLogEntryNode):
+        if node_failed(tree, ReconstructChainTailNode):
+            return HandlerResult.refused(
+                f"case '{entry.case_id}' is not seeded here; Reject sent for"
+                " replay from genesis (SYNC-15-001)"
+            )
+        if node_failed(tree, CheckHashMatchesNode):
+            return HandlerResult.refused(
+                f"ledger entry '{entry.id_}' does not extend the local chain"
+                " tail; Reject sent (SYNC-03-001)"
+            )
+    return None
 
 
 def drain_gap_buffer(
@@ -78,6 +182,7 @@ def drain_gap_buffer(
     receiving_actor_id: str,
     gap_buffer: LedgerGapBuffer,
     sync_port: SyncActivityPort | None = None,
+    wire_render_port: WireRenderPort | None = None,
 ) -> None:
     """Apply buffered entries that now extend the local chain, in order.
 
@@ -100,8 +205,6 @@ def drain_gap_buffer(
     flight; ``actor_id`` is resolved to the CaseActor when known, falling back to
     ``case_id``.
     """
-    from vultron.core.use_cases._helpers import _find_case_actor_id
-
     actor_id = _find_case_actor_id(dl, case_id) or case_id
     while True:
         try:
@@ -131,8 +234,13 @@ def drain_gap_buffer(
         # (CONCERN-3019), so the FAILURE branch below owns re-buffering.  A raise
         # here would be an unclassified bridge-contract violation and must
         # surface loudly rather than be absorbed (CS-23-001).
-        result = _run_announce_bt(
-            dl, drain_event, receiving_actor_id, gap_buffer, sync_port
+        _, result = _run_announce_bt(
+            dl,
+            drain_event,
+            receiving_actor_id,
+            gap_buffer,
+            sync_port,
+            wire_render_port,
         )
         if result.status == Status.FAILURE and dl.read(successor.id_) is None:
             # Application failed and the entry was not persisted; hold it again
@@ -144,50 +252,6 @@ def drain_gap_buffer(
                 successor.id_,
             )
             return
-
-
-def _update_replication_state(
-    case_id: str,
-    peer_id: str,
-    last_acknowledged_hash: str,
-    dl: CasePersistence,
-) -> None:
-    """Upsert the :class:`VultronReplicationState` for *peer_id* in *case_id*.
-
-    Creates a new record if none exists yet; updates the
-    ``last_acknowledged_hash`` and ``updated_at`` fields on the existing one.
-
-    Spec: SYNC-04-001, SYNC-04-002.
-    """
-    state = VultronReplicationState(
-        case_id=case_id,
-        peer_id=peer_id,
-        last_acknowledged_hash=last_acknowledged_hash,
-    )
-    existing = dl.read(state.id_)
-    if existing is not None:
-        existing_state = cast(VultronReplicationState, existing)
-        existing_state.last_acknowledged_hash = last_acknowledged_hash
-        from vultron.core.models._helpers import now_utc
-
-        existing_state.updated_at = now_utc()
-        dl.save(existing_state)
-        logger.debug(
-            "sync: updated ReplicationState for peer '%s' in case '%s' "
-            "→ last_acknowledged_hash=%.16s…",
-            peer_id,
-            case_id,
-            last_acknowledged_hash,
-        )
-    else:
-        dl.save(state)
-        logger.debug(
-            "sync: created ReplicationState for peer '%s' in case '%s' "
-            "→ last_acknowledged_hash=%.16s…",
-            peer_id,
-            case_id,
-            last_acknowledged_hash,
-        )
 
 
 class AnnounceLedgerEntryReceivedUseCase:
@@ -214,6 +278,10 @@ class AnnounceLedgerEntryReceivedUseCase:
     SYNC-11-003, SYNC-12-001.
     """
 
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_MANAGER
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
@@ -221,23 +289,27 @@ class AnnounceLedgerEntryReceivedUseCase:
         sync_port: SyncActivityPort | None = None,
         pending_assertions: PendingAssertionStore | None = None,
         gap_buffer: LedgerGapBuffer | None = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request = request
         self._sync_port = sync_port
         self._pending_assertions = pending_assertions
         self._gap_buffer = gap_buffer
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         entry = request.log_entry
         if entry is None:
             logger.warning(
                 "sync: received ANNOUNCE_CASE_LEDGER_ENTRY activity '%s' "
-                "with no log entry object — ignoring",
+                "with no log entry object — refusing",
                 request.activity_id,
             )
-            return
+            return HandlerResult.refused(
+                "Announce(CaseLedgerEntry) carries no log entry"
+            )
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -254,12 +326,13 @@ class AnnounceLedgerEntryReceivedUseCase:
             request.actor_id,
             entry.log_index,
         )
-        result = _run_announce_bt(
+        tree, result = _run_announce_bt(
             self._dl,
             request,
             receiving_actor_id,
             gap_buffer,
             self._sync_port,
+            self._wire_render_port,
         )
 
         # Whenever an entry is committed, its successor may already be waiting
@@ -273,13 +346,21 @@ class AnnounceLedgerEntryReceivedUseCase:
                 receiving_actor_id,
                 gap_buffer,
                 self._sync_port,
+                self._wire_render_port,
             )
 
-        if result.status == Status.FAILURE:
-            logger.debug(
-                "sync: announce BT returned FAILURE for '%s': %s",
+        verdict = _announce_verdict(tree, result, request, entry)
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "sync: refused log-entry announcement '%s': %s",
                 request.activity_id,
-                result.feedback_message,
+                verdict.reason,
+            )
+        elif verdict.disposition is HandlerDisposition.DEFERRED:
+            logger.info(
+                "sync: deferred log-entry announcement '%s': %s",
+                request.activity_id,
+                verdict.reason,
             )
 
         # Clear pending assertion for this entry regardless of BT outcome
@@ -294,21 +375,32 @@ class AnnounceLedgerEntryReceivedUseCase:
                 entry.event_type,
                 entry.log_object_id,
             )
+        return verdict
 
 
 class RejectLedgerEntryReceivedUseCase:
     """CaseActor handles a participant's rejection of a log entry announcement.
 
     When a participant rejects an ``Announce(CaseLedgerEntry)`` because the
-    ``prev_log_hash`` does not match their local tail, the CaseActor:
+    ``prev_log_hash`` does not match their local tail, the CaseActor runs the
+    reject tree (``create_reject_log_entry_tree``), whose nodes:
 
-    1. Updates :class:`~vultron.core.models.replication_state.VultronReplicationState`
-       for the rejecting peer (SYNC-04-001, SYNC-04-002).
-    2. Replays all missing entries from after the last-accepted hash to the
-       peer (SYNC-03-002).
+    1. Record the rejecting peer's last-acknowledged hash in its
+       per-peer replication state — ``UpdateReplicationStateNode``
+       (SYNC-04-001, SYNC-04-002).
+    2. Replay all missing entries from after the last-accepted hash to the
+       peer — ``SendMissingEntriesNode`` (SYNC-03-002).
 
-    Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
+    Only an active participant's rejection is acted on, and only at the
+    case's CASE_MANAGER: any other receiver reports ``REFUSED`` and sends
+    nothing (SYNC-03-005, HP-01-005).
+
+    Spec: SYNC-03-001, SYNC-03-002, SYNC-03-005, SYNC-04-001, SYNC-04-002.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    )
 
     def __init__(
         self,
@@ -316,22 +408,26 @@ class RejectLedgerEntryReceivedUseCase:
         request: RejectLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         rejected_entry = request.rejected_entry
         if rejected_entry is None:
             logger.warning(
                 "sync: received REJECT_CASE_LEDGER_ENTRY from '%s' "
-                "with no log entry object — ignoring",
+                "with no log entry object — refusing",
                 request.actor_id,
             )
-            return
+            return HandlerResult.refused(
+                "Reject(CaseLedgerEntry) carries no log entry"
+            )
 
         logger.info(
             "sync: received Reject(CaseLedgerEntry) from peer '%s' "
@@ -340,20 +436,34 @@ class RejectLedgerEntryReceivedUseCase:
             rejected_entry.case_id,
             request.last_accepted_hash,
         )
+        tree = create_reject_log_entry_tree(rejected_entry.case_id)
         result = BTBridge(
             datalayer=self._dl,
             sync_port=self._sync_port,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
         ).execute_with_setup(
-            tree=create_reject_log_entry_tree(),
+            tree=tree,
             actor_id=resolve_receiving_actor_id(
                 self._dl, request.receiving_actor_id
             ),
             activity=request,
         )
-        if result.status == Status.FAILURE:
-            logger.debug(
-                "sync: reject BT returned FAILURE for '%s': %s",
-                request.activity_id,
-                result.feedback_message,
+        verdict = verdict_from_bt(
+            tree, result, label="RejectLogEntryReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.APPLIED:
+            # Only the CASE_MANAGER answers a rejection; a replica that
+            # receives one was misaddressed (SYNC-03-005, HP-01-005).
+            refusal = not_case_manager_refusal(
+                tree, self._dl, rejected_entry.case_id
             )
+            if refusal is not None:
+                verdict = refusal
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "sync: could not act on Reject(CaseLedgerEntry) '%s': %s",
+                request.activity_id,
+                verdict.reason,
+            )
+        return verdict

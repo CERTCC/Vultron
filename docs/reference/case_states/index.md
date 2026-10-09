@@ -1,6 +1,7 @@
 ---
 description: >
   An annotated listing of every state in the case state model.
+stakeholder_type: [project-contributor]
 ---
 
 <!-- This file is auto-generated. Do not edit. -->

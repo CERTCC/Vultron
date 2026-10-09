@@ -13,16 +13,28 @@
 """Tests for note-related use-case classes."""
 
 from typing import cast
+from unittest.mock import MagicMock
 
+import pytest
+
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+    seed_case_owner_participant,
+    seed_case_participant,
+    seed_store_owner_as_case_manager,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
     CreateNoteReceivedUseCase,
     RemoveNoteFromCaseReceivedUseCase,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -32,6 +44,9 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+
+_STORE_ACTOR = "https://example.org/actors/cm-store"
+_OWNER = "https://example.org/actors/case-owner"
 
 
 class TestNoteUseCases:
@@ -55,7 +70,13 @@ class TestNoteUseCases:
 
         event = make_payload(activity)
 
-        CreateNoteReceivedUseCase(dl, event).execute()
+        result = CreateNoteReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         stored = dl.get(note.type_.value, note.id_)
         assert stored is not None
@@ -78,7 +99,12 @@ class TestNoteUseCases:
         event = make_payload(activity)
 
         dl.create(note)
-        CreateNoteReceivedUseCase(dl, event).execute()
+        CreateNoteReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         stored = dl.get(note.type_.value, note.id_)
         assert stored is not None
@@ -95,6 +121,9 @@ class TestNoteUseCases:
             id_="https://example.org/cases/case_cn1",
             name="Context Case",
         )
+        # RSH-08-003/#3814: attaching the note to the case is now
+        # CASE_MANAGER-gated, so the store's own actor must hold the role.
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
 
         note = as_Note(
@@ -108,7 +137,12 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        CreateNoteReceivedUseCase(dl, event).execute()
+        CreateNoteReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         refreshed = dl.read(case.id_)
         assert refreshed is not None
@@ -142,7 +176,12 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        CreateNoteReceivedUseCase(dl, event).execute()
+        CreateNoteReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         refreshed = dl.read(case.id_)
         assert refreshed is not None
@@ -158,7 +197,7 @@ class TestNoteUseCases:
             as_CaseParticipant,
         )
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=case_actor_id,
             name="CaseActor",
             attributed_to="https://example.org/users/vendor",
@@ -166,9 +205,12 @@ class TestNoteUseCases:
         )
         dl.create(case_actor)
 
+        # attributed_to anchors the per-case ledger genesis, without which
+        # the CaseActor's receipt commit fails (CLP-08-005).
         case = as_VulnerabilityCase(
             id_=case_id,
             name="Note Case",
+            attributed_to="https://example.org/users/vendor",
         )
         case_mgr_participant = as_CaseParticipant(
             id_=f"{case_id}/participants/case-actor-p",
@@ -206,12 +248,18 @@ class TestNoteUseCases:
             receiving_actor_id=case_actor_id,
         )
 
-        AddNoteToCaseReceivedUseCase(dl, event).execute()
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         refreshed = dl.read(case_id)
         assert refreshed is not None
         refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ in refreshed.notes
+        assert result.disposition == HandlerDisposition.APPLIED
 
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
         """CaseActor skips adding a note already in the case (idempotent)."""
@@ -239,22 +287,28 @@ class TestNoteUseCases:
             receiving_actor_id=case_actor_id,
         )
 
-        AddNoteToCaseReceivedUseCase(dl, event).execute()
+        AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         refreshed = dl.read(case_id)
         assert refreshed is not None
         refreshed = cast(as_VulnerabilityCase, refreshed)
         assert refreshed.notes.count(note.id_) == 1
 
-    def test_add_note_noop_for_non_case_manager(
+    @pytest.mark.spec("HP-01-005")
+    def test_add_note_refused_for_non_case_manager(
         self, monkeypatch, make_payload
     ):
-        """Non-CaseActor receiving Add(Note, Case) must not update case replica.
+        """A non-manager receiving Add(Note, Case) neither attaches nor commits.
 
         Case replica updates arrive exclusively via Announce(CaseLedgerEntry)
-        fan-out (SYNC-02-002). The BT CheckIsCaseManagerNode guard ensures
-        the non-CaseActor takes the Success fallback and skips both attach
-        and commit.
+        fan-out (SYNC-02-002). The BT CheckIsCaseManagerNode guard keeps the
+        non-manager from attaching or committing, and the handler reports the
+        misaddressed note as a refusal (#3752).
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -263,6 +317,11 @@ class TestNoteUseCases:
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_n3_noop",
             name="Noop Case",
+        )
+        # Somebody else holds CASE_MANAGER, so the gate fails on "this actor
+        # is not the manager" rather than on "no role holder" (BT-17-005).
+        seed_case_manager_participant(
+            dl, case, "https://example.org/actors/case-manager"
         )
         note = as_Note(
             id_="https://example.org/notes/note_noop",
@@ -274,79 +333,319 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor="https://example.org/users/finder"
         )
-        # Non-CaseActor: no CASE_MANAGER participant registered
         event = make_payload(
             activity,
             receiving_actor_id="https://example.org/actors/non-manager",
         )
 
-        AddNoteToCaseReceivedUseCase(dl, event).execute()
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         refreshed = dl.read(case.id_)
         assert refreshed is not None
         refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ not in refreshed.notes
+        # HP-01-005: a note addressed to the wrong party is refused, not
+        # reported as a processed no-op.
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "CASE_MANAGER" in result.reason
 
+    def _managed_case_with_note(
+        self, dl: SqliteDataLayer, case_id: str, note: as_Note, owner_id: str
+    ) -> as_VulnerabilityCase:
+        """A case the store's actor manages, owned by *owner_id*, holding *note*."""
+        case = as_VulnerabilityCase(
+            id_=case_id,
+            name="Remove Note Case",
+            attributed_to=owner_id,
+            notes=[note.id_],
+        )
+        seed_case_manager_participant(dl, case, _STORE_ACTOR)
+        seed_case_owner_participant(dl, case, owner_id)
+        dl.create(case)
+        dl.create(note)
+        return case
+
+    def _remove(self, dl, make_payload, sender, note, case):
+        event = make_payload(
+            as_Remove(actor=sender, object_=note, target=case.id_)
+        )
+        return RemoveNoteFromCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    @pytest.mark.spec("CM-30-001")
+    @pytest.mark.spec("CLP-10-005")
     def test_remove_note_from_case_removes_note(
         self, monkeypatch, make_payload
     ):
-        """remove_note_from_case removes note ID from case.notes and persists."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+        """The Case Owner's Remove(Note) detaches the note and commits an entry."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
+        note = as_Note(id_="https://example.org/notes/note5", content="A note")
+        case = self._managed_case_with_note(
+            dl, "https://example.org/cases/case_n3", note, _OWNER
         )
+
+        result = self._remove(dl, make_payload, _OWNER, note, case)
+
+        case = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert note.id_ not in case.notes
+        assert result.disposition == HandlerDisposition.APPLIED
+        entries = [
+            cast(CaseLedgerEntry, o)
+            for o in dl.list_objects("CaseLedgerEntry")
+            if isinstance(o, CaseLedgerEntry) and o.case_id == case.id_
+        ]
+        assert [e.event_type for e in entries] == ["remove_note_from_case"]
+
+    @pytest.mark.spec("CM-30-001")
+    def test_remove_note_by_its_active_author_is_applied(self, make_payload):
+        """The note's author, an active participant, may remove it."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
+        author = "https://example.org/actors/note-author"
         note = as_Note(
-            id_="https://example.org/notes/note5",
+            id_="https://example.org/notes/note_author",
             content="A note",
+            attributed_to=author,
         )
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_n3",
-            name="Remove Note Case",
-            notes=[note.id_],
+        case = self._managed_case_with_note(
+            dl, "https://example.org/cases/case_n3_author", note, _OWNER
         )
-        dl.create(case)
-        dl.create(note)
+        seed_case_participant(dl, case, author)
+        dl.save(case)
 
-        activity = as_Remove(
-            actor="https://example.org/users/finder",
-            object_=note,
-            target=case.id_,
-        )
-        event = make_payload(activity)
+        result = self._remove(dl, make_payload, author, note, case)
 
-        RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
-
-        case = dl.read(case.id_)
-        assert case is not None
-        case = cast(as_VulnerabilityCase, case)
+        assert result.disposition == HandlerDisposition.APPLIED
+        case = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert note.id_ not in case.notes
 
+    @pytest.mark.spec("CM-30-001")
+    def test_remove_note_by_author_who_left_is_refused(self, make_payload):
+        """An author who is no longer a participant has no standing."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
+        author = "https://example.org/actors/departed-author"
+        note = as_Note(
+            id_="https://example.org/notes/note_departed",
+            content="A note",
+            attributed_to=author,
+        )
+        case = self._managed_case_with_note(
+            dl, "https://example.org/cases/case_n3_departed", note, _OWNER
+        )
+
+        result = self._remove(dl, make_payload, author, note, case)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        case = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert note.id_ in case.notes
+        assert dl.list_objects("CaseLedgerEntry") == []
+
+    @pytest.mark.spec("HP-01-005")
+    def test_remove_note_at_non_manager_is_refused(self, make_payload):
+        """A replica neither detaches nor commits; the CASE_MANAGER sent it."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
+        manager = "https://example.org/actors/the-manager"
+        note = as_Note(id_="https://example.org/notes/note_rep", content="x")
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_n3_replica",
+            name="Replica",
+            attributed_to=_OWNER,
+            notes=[note.id_],
+        )
+        seed_case_manager_participant(dl, case, manager)
+        dl.create(case)
+        dl.create(note)
+
+        result = self._remove(dl, make_payload, manager, note, case)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        case = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert note.id_ in case.notes
+        assert dl.list_objects("CaseLedgerEntry") == []
+
+    @pytest.mark.spec("CM-30-001")
+    def test_remove_note_at_replica_from_non_manager_is_refused(
+        self, make_payload
+    ):
+        """At a replica only the CASE_MANAGER is an entitled sender."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
+        note = as_Note(id_="https://example.org/notes/note_rep2", content="x")
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_n3_replica2",
+            name="Replica",
+            attributed_to=_OWNER,
+            notes=[note.id_],
+        )
+        seed_case_manager_participant(
+            dl, case, "https://example.org/actors/the-manager"
+        )
+        dl.create(case)
+        dl.create(note)
+
+        result = self._remove(dl, make_payload, _OWNER, note, case)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "CASE_MANAGER" in result.reason
+
     def test_remove_note_from_case_idempotent(self, monkeypatch, make_payload):
-        """remove_note_from_case is idempotent when note not in case."""
+        """A note the case does not hold is SKIPPED and commits nothing."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
+        note = as_Note(id_="https://example.org/notes/note6", content="A note")
+        case = self._managed_case_with_note(
+            dl, "https://example.org/cases/case_n4", note, _OWNER
+        )
+        case.notes.clear()
+        dl.save(case)
+
+        result = self._remove(dl, make_payload, _OWNER, note, case)
+
+        # HP-01-003: an idempotent re-removal is a no-op.
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert dl.list_objects("CaseLedgerEntry") == []
+
+    @pytest.mark.spec("HP-01-003")
+    def test_remove_note_from_unknown_case_is_refused(self, make_payload):
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        note = as_Note(id_="https://example.org/notes/note7", content="x")
+        activity = as_Remove(
+            actor="https://example.org/users/finder",
+            object_=note,
+            target="https://example.org/cases/no-such-case",
+        )
+        event = make_payload(activity)
+
+        result = RemoveNoteFromCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "not found" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.parametrize(
+        "use_case",
+        [AddNoteToCaseReceivedUseCase, RemoveNoteFromCaseReceivedUseCase],
+    )
+    def test_note_membership_change_without_ids_is_refused(self, use_case):
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        event = MagicMock()
+        event.note_id = None
+        event.case_id = "https://example.org/cases/c"
+
+        result = use_case(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_create_note_without_note_object_is_refused(self, make_payload):
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        event = make_payload(
+            as_Create(
+                actor="https://example.org/users/finder",
+                object_=as_Note(
+                    id_="https://example.org/notes/note-none", content="x"
+                ),
+            )
+        ).model_copy(update={"object_": None, "object_id": None})
+        assert event.note is None
+
+        result = CreateNoteReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        # CLP-10-018: the refused delivery is still archived.
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
+
+    @pytest.mark.spec("HP-01-003")
+    def test_create_note_for_unknown_case_writes_no_attachment(
+        self, make_payload
+    ):
+        """A Create(Note) whose context names a case this actor lacks attaches
+        nothing: the receiver is not that case's CASE_MANAGER (and does not
+        even hold it), so the attach is gated out (RSH-08-003, #3814).  The
+        Note object is still archived; the attachment, if any, arrives through
+        the case's ledger.  No Regime-1 anomaly is logged for the absent case
+        (manager_case_may_be_absent, ADR-0087 Regime 3)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         note = as_Note(
-            id_="https://example.org/notes/note6",
-            content="A note",
+            id_="https://example.org/notes/note8",
+            content="x",
+            context="https://example.org/cases/no-such-case",
         )
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_n4",
-            name="Remove Note Idempotent",
-        )
-        dl.create(case)
-        dl.create(note)
-
-        activity = as_Remove(
-            actor="https://example.org/users/finder",
-            object_=note,
-            target=case.id_,
+        activity = as_Create(
+            actor="https://example.org/users/finder", object_=note
         )
         event = make_payload(activity)
 
-        result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
-        assert result is None
+        result = CreateNoteReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        # Nothing was attached (the case is absent and the actor is not its
+        # CASE_MANAGER); the tree still succeeds, writing no case state.
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert dl.read("https://example.org/cases/no-such-case") is None
+
+    @pytest.mark.spec("HP-01-003")
+    def test_add_note_to_unknown_case_is_refused(self, make_payload):
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/actors/non-manager",
+        )
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/never-stored", name="x"
+        )
+        note = as_Note(id_="https://example.org/notes/note9", content="x")
+        activity = add_note_to_case_activity(
+            note, target=case, actor="https://example.org/users/finder"
+        )
+        event = make_payload(
+            activity,
+            receiving_actor_id="https://example.org/actors/non-manager",
+        )
+
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
 
     # ------------------------------------------------------------------
     # CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-1
@@ -358,7 +657,7 @@ class TestNoteUseCases:
         """AddNoteToCaseReceivedUseCase commits a CaseLedgerEntry (PCR-08-003).
 
         When a sync_port is injected and receiving_actor_id is set, the use
-        case MUST commit one VultronCaseLedgerEntry after accepting a note
+        case MUST commit one CaseLedgerEntry after accepting a note
         addition.
         """
         dl = SqliteDataLayer(
@@ -370,7 +669,7 @@ class TestNoteUseCases:
         participant_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_le1"
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=case_actor_id,
             name="CaseActor le1",
             attributed_to=author_id,
@@ -421,25 +720,37 @@ class TestNoteUseCases:
         event = make_payload(activity, receiving_actor_id=case_actor_id)
 
         sync_port = SyncActivityAdapter(dl)
-        AddNoteToCaseReceivedUseCase(dl, event, sync_port=sync_port).execute()
+        AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
 
         # Exactly one CaseLedgerEntry should be persisted for this case.
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        entry = cast(VultronCaseLedgerEntry, entries[0])
+        entry = cast(CaseLedgerEntry, entries[0])
         assert entry.event_type == "add_note_to_case"
         assert entry.log_object_id == activity.id_
 
-    def test_add_note_no_fanout_without_sync_port(self, make_payload):
-        """No fan-out Announce(CaseLedgerEntry) is sent when sync_port is None.
+    @pytest.mark.spec("SYNC-02-002")
+    @pytest.mark.spec("BT-14-001")
+    def test_add_note_without_sync_port_raises_as_wiring_fault(
+        self, make_payload
+    ):
+        """A missing sync_port fails the commit instead of skipping fan-out.
 
-        The log entry IS committed locally, but no outbox messages are queued
-        for delivery to participants.
+        ``RequireSyncPortNode`` raises ``VultronWiringError`` before the entry
+        is minted (#4113).  ``CommitCaseLedgerEntryNode`` carries the nested
+        bridge's ``internal_error`` across the hop, so the handler raises
+        ``VultronBTInternalError`` rather than reporting the sender as refused
+        (ADR-0095).  The note is not attached and nothing is announced.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -450,7 +761,7 @@ class TestNoteUseCases:
         participant_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_le2"
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=case_actor_id,
             name="CaseActor le2",
             attributed_to=author_id,
@@ -500,17 +811,28 @@ class TestNoteUseCases:
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
 
-        # No sync_port — log entry is committed but fan-out is skipped.
-        AddNoteToCaseReceivedUseCase(dl, event, sync_port=None).execute()
+        # No sync_port — the commit's fan-out is a wiring fault.
+        with pytest.raises(VultronBTInternalError, match="sync_port"):
+            AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=None,
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
 
-        # Log entry MUST be committed locally even without a sync_port.
+        stored_case = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert stored_case is not None
+        assert note.id_ not in stored_case.notes
+
+        # The port guard refuses before the mint, so no entry is written
+        # that no replica would ever receive.
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
-        assert len(entries) == 1
+        assert entries == []
 
-        # But no outbox activities should be queued for fan-out.
+        # Nothing is announced to participants.
         assert dl.outbox_list() == []

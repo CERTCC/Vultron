@@ -24,7 +24,7 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
 )
 from vultron.core.behaviors.narrative_log import log_case_engagement
 from vultron.core.use_cases._helpers import current_participant_rm_state
-from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
     resolve_case,
@@ -34,7 +34,7 @@ from vultron.core.use_cases.triggers.requests import EngageCaseTriggerRequest
 logger = logging.getLogger(__name__)
 
 
-class SvcEngageCaseUseCase(SvcBTTriggerBase):
+class SvcEngageCaseUseCase(SvcActivityTriggerBase):
     """Engage a case (RM → ACCEPTED).
 
     Updates the actor's RM state to ACCEPTED and sends an Engage(Case)

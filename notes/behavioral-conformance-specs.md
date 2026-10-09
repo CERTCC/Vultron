@@ -90,7 +90,8 @@ Some ECA rules are not just "do A when B" but "do A *before* B." These use
 - **Ephemeral states: pX→PX invariant** (CSB-13-001, CSB-17-003, CSB-17-012):
   when the CS PXA state is pXa or pXA (exploit public without public awareness),
   the next CS event MUST be P. **Write-boundary enforcement** (AC-1, PR #2479):
-  `_promote_pxa()` in `AppendCaseStatusToCaseNode` and `EmitCaseStatusUpdateNode`,
+  `promote_pxa()` (`case_status_snapshot.py`), called by `AppendCaseStatusToCaseNode`
+  and `EmitCaseStatusUpdateNode`,
   and `_apply_ac1_promotions()` in `CreateParticipantStatusNode`, prevent
   pXa/pXA from being persisted. **Receive-path enforcement** (PR #2888):
   `CheckCsEphemeralStateNode` in `add_case_status_tree` returns FAILURE if
@@ -102,8 +103,8 @@ Some ECA rules are not just "do A when B" but "do A *before* B." These use
   Multi-event advances and PXA regressions are deferred to
   `FilterCsPxaDimensionNode` (RSH-05). See #2524, PR #2888.
 - **Ledger commit ordering** (from `specs/case-ledger-processing.yaml`
-  CLP-10-006): precondition checks → ledger commit → protocol effects.
-  Observable from audit replay.
+  CLP-10-006, ADR-0111): intake → precondition checks → ledger commit →
+  protocol effects. Observable from audit replay.
 - **CX in state `...px.`**: emitting CX must also trigger CS→P and emit CP.
   Observable: CX without CP from a sender in `...px.` is a detectable violation.
 - **RS in EM Proposed = implicit EA**: VP-06-007 (SHALL). Observable: RS after

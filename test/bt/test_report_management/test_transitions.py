@@ -79,7 +79,7 @@ class MyTestCase(unittest.TestCase):
     def test_q_rm_to_C(self):
         self._test_generic_transition(
             rmt.q_rm_to_C,
-            [RM.INVALID, RM.DEFERRED, RM.ACCEPTED, RM.CLOSED],
+            [RM.RECEIVED, RM.INVALID, RM.DEFERRED, RM.ACCEPTED, RM.CLOSED],
             target=RM.CLOSED,
         )
 

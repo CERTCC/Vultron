@@ -315,6 +315,10 @@ sub-module layout):
 | `AssignVulIdCallOutBundle` | Vulnerability ID assignment | `create_assign_vul_id_tree` |
 | `CloseReportCallOutBundle` | Report closure | `create_close_report_tree` |
 | `StatusAuthorizationCallOutBundle` | Received-side status authorization | `add_participant_status_tree`, `add_case_status_tree` |
+| `DevelopFixCallOutBundle` | Fix development | `create_develop_fix_tree` |
+| `AssignCveIdCallOutBundle` | CVE ID assignment | `create_assign_cve_id_tree` |
+| `CaseProposalCallOutBundle` | Received case-proposal admission | `create_case_proposal_received_tree` |
+| `ActorDiscoveryCallOutBundle` | Actor discovery (Sentinel seam; no core tree yet) | — |
 
 ### PrioritizationCallOutBundle fields
 
@@ -346,13 +350,14 @@ vultron/core/behaviors/call_out/     ← core-owned seam
   __init__.py       ← re-exports CallOutBackendFactory, AlwaysSucceed, AlwaysFail
   protocol.py       ← CallOutBackendFactory Protocol (canonical home)
   nodes.py          ← deterministic AlwaysSucceed / AlwaysFail
+  guard.py          ← SynchronousCallOut guard + guard_call_out_factory (BT-18-011)
   bundles/
     __init__.py     ← re-exports all bundle classes + <DOMAIN>_DETERMINISTIC
+    base.py         ← CallOutBundle base dataclass
     validation.py   ← ValidationCallOutBundle + VALIDATION_DETERMINISTIC
     prioritization.py
     embargo.py
     publication.py
-    report_to_others.py
     deploy_monitoring.py  ← DeploymentMonitoringBundle (shared base)
     deploy_fix.py         ← DeployFixCallOutBundle + DEPLOY_FIX_DETERMINISTIC
     deploy_mitigation.py  ← DeployMitigationCallOutBundle + DEPLOY_MITIGATION_DETERMINISTIC
@@ -360,6 +365,10 @@ vultron/core/behaviors/call_out/     ← core-owned seam
     assign_vul_id.py
     close_report.py
     status_authorization.py   ← StatusAuthorizationCallOutBundle + STATUS_AUTHORIZATION_DETERMINISTIC
+    develop_fix.py
+    assign_cve_id.py
+    case_proposal.py
+    actor_discovery.py
 
 vultron/demo/fuzzer/                  ← simulation-only
   base.py           ← WeightedBehavior family (incl. its own AlwaysSucceed/Fail)
@@ -521,8 +530,8 @@ Normative requirements: `specs/behavior-tree-integration.yaml` BT-23.
 ## Multi-Actor In-Process Simulation
 
 The three-mode model and STOCHASTIC bundles are the foundation for the
-**fully-fuzzed in-process simulation scenario** tracked in issue #1178 (see
-spec `DEMOMA-18`).
+**fully-fuzzed in-process simulation scenario**, planned under #1178 and
+implemented by #1732 (see spec `DEMOMA-18`).
 
 ### Design decisions (from #1178 planning)
 

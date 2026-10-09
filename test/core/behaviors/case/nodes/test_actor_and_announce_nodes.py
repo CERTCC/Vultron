@@ -16,24 +16,28 @@
 """Tests for AcceptCaseOwnershipTransferNode, SeedAnnouncedCaseNode,
 and EmitInviteActorToCaseNode._read_suggested_roles."""
 
+import json
 from typing import Any, cast
 
 import py_trees
 import pytest
-
-from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
 )
+from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptCaseOwnershipTransferNode,
 )
-from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
@@ -84,7 +88,11 @@ def dl(store_for):
 
 @pytest.fixture
 def bridge(dl):
-    return BTBridge(datalayer=dl)
+    return BTBridge(
+        datalayer=dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -297,12 +305,12 @@ class TestAcceptCaseOwnershipTransferNode:
         # Both participants must be exactly as they were before the attempt.
         old_refreshed = cast(Any, dl.read(old_owner_participant.id_))
         new_refreshed = cast(Any, dl.read(new_owner_participant.id_))
-        assert (
-            CVDRole.CASE_OWNER in old_refreshed.case_roles
-        ), "CM-21-004: old owner should still hold CASE_OWNER after failed transfer"
-        assert (
-            CVDRole.CASE_OWNER not in new_refreshed.case_roles
-        ), "CM-21-004: new owner must not gain CASE_OWNER from a failed transfer"
+        assert CVDRole.CASE_OWNER in old_refreshed.case_roles, (
+            "CM-21-004: old owner should still hold CASE_OWNER after failed transfer"
+        )
+        assert CVDRole.CASE_OWNER not in new_refreshed.case_roles, (
+            "CM-21-004: new owner must not gain CASE_OWNER from a failed transfer"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -315,14 +323,20 @@ def case():
     return as_VulnerabilityCase(id_=CASE_ID2, name="Seed Announce Test")
 
 
-@pytest.fixture
-def announce_event(case) -> AnnounceVulnerabilityCaseReceivedEvent:
+def _announce_event_for(
+    case: as_VulnerabilityCase,
+) -> AnnounceVulnerabilityCaseReceivedEvent:
     activity = announce_vulnerability_case_activity(
         case, actor=ACTOR_ID, context=case.id_
     )
     event = extract_event(activity)
     assert event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
     return cast(AnnounceVulnerabilityCaseReceivedEvent, event)
+
+
+@pytest.fixture
+def announce_event(case) -> AnnounceVulnerabilityCaseReceivedEvent:
+    return _announce_event_for(case)
 
 
 class TestSeedAnnouncedCaseNode:
@@ -392,7 +406,7 @@ class TestSeedAnnouncedCaseNode:
         """Persisted VulnerabilityCase must not carry inline CaseParticipant objects.
 
         Regression for #2233 write path: _build_case_object materialises inline
-        participants for delivery so that _store_embedded_participants on the
+        participants for delivery so that store_embedded_participants on the
         receiver side can project and persist them.  SeedAnnouncedCaseNode must
         normalise case_participants to string IDs *before* saving the case, so
         the stored row never carries stale inline snapshots that would freeze
@@ -432,9 +446,89 @@ class TestSeedAnnouncedCaseNode:
                 f"found inline {type(ref).__name__!r} — write-path bug (#2233)"
             )
         # Standalone participant record must also exist
-        assert (
-            dl.read(participant_id) is not None
-        ), "Standalone CaseParticipant record must be stored alongside the case"
+        assert dl.read(participant_id) is not None, (
+            "Standalone CaseParticipant record must be stored alongside the case"
+        )
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_stores_the_inline_embargo_the_case_names(
+        self, bridge, dl
+    ) -> None:
+        """An inline active embargo becomes a record this store can read."""
+        embargo = EmbargoEvent(
+            id_=f"{CASE_ID2}/embargo_events/inline",
+            context=CASE_ID2,
+            end_time=days_from_now_utc(45),
+        )
+        case = as_VulnerabilityCase(
+            id_=CASE_ID2,
+            name="Inline Embargo",
+            embargo_register=register(active=embargo),
+        )
+        event = _announce_event_for(case)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=case, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.SUCCESS
+        assert isinstance(dl.read(embargo.id_), EmbargoEvent)
+        assert dl.read(CASE_ID2) is not None
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_refuses_a_case_naming_an_unheld_embargo(self, bridge, dl) -> None:
+        """A bare embargo id this store cannot read is refused, not seeded."""
+        case = as_VulnerabilityCase(
+            id_=CASE_ID2,
+            name="Unheld Embargo",
+            embargo_register=register(
+                active=f"{CASE_ID2}/embargo_events/unheld"
+            ),
+        )
+        event = _announce_event_for(case)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=case, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.FAILURE
+        assert dl.read(CASE_ID2) is None
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_refuses_a_reannounce_naming_an_unheld_embargo(
+        self, bridge, dl, case
+    ) -> None:
+        """An already-held case is left as stored, participants included."""
+        dl.create(case)
+        participant_id = f"{CASE_ID2}/participants/reannounced"
+        reannounced = as_VulnerabilityCase(
+            id_=CASE_ID2,
+            name="Re-announced",
+            embargo_register=register(
+                active=f"{CASE_ID2}/embargo_events/unheld"
+            ),
+            case_participants=[
+                as_CaseParticipant(
+                    id_=participant_id,
+                    attributed_to=ACTOR_ID,
+                    context=CASE_ID2,
+                )
+            ],
+        )
+        event = _announce_event_for(reannounced)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=reannounced, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.FAILURE
+        stored = dl.read(CASE_ID2)
+        assert stored is not None
+        assert stored.active_embargo is None
+        assert dl.read(participant_id) is None
 
 
 # ---------------------------------------------------------------------------
@@ -463,9 +557,86 @@ class TestEmitInviteActorToCaseNodeReadSuggestedRoles:
     def test_returns_none_when_key_absent(self):
         """AC-3: _read_suggested_roles() returns None on KeyError (key not set)."""
         result = self.node._read_suggested_roles()
-        assert (
-            result is None
-        ), f"AC-3: expected None when suggested_roles absent, got {result!r}"
+        assert result is None, (
+            f"AC-3: expected None when suggested_roles absent, got {result!r}"
+        )
+
+
+class TestEmitInviteActorToCaseNodeCommitsBeforeQueuing:
+    """AC-3 (#3821): the emitting tree's commit is the Invite's only commit.
+
+    The CASE_MANAGER builds the Invite, commits it, then appends it to its
+    outbox, and the Invite carries no ``cc:`` copy back to the manager
+    (CM-17-006, ADR-0109).
+    """
+
+    @pytest.fixture
+    def dl(self, store_for):
+        return store_for(ACTOR_ID)
+
+    @pytest.mark.spec("CM-17-006")
+    def test_invite_has_no_cc_and_is_committed_before_the_outbox_append(
+        self, dl, monkeypatch
+    ):
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        case = as_VulnerabilityCase(
+            id_=AC3_CASE_ID,
+            name="AC3 commit order",
+            attributed_to=ACTOR_ID,
+            stub_summary="Security issue — details shared after acceptance",
+        )
+        dl.create(case)
+
+        def _invite_entries() -> list[CaseLedgerEntry]:
+            return [
+                e
+                for e in dl.list_objects("CaseLedgerEntry")
+                if isinstance(e, CaseLedgerEntry)
+                and e.event_type == "invite_actor_to_case"
+            ]
+
+        ledger_at_append: list[list[str | None]] = []
+        original_append = SqliteDataLayer.outbox_append
+
+        def _spy(self_dl, activity_id):
+            ledger_at_append.append(
+                [e.payload_snapshot.get("id") for e in _invite_entries()]
+            )
+            return original_append(self_dl, activity_id)
+
+        monkeypatch.setattr(SqliteDataLayer, "outbox_append", _spy)
+
+        node = EmitInviteActorToCaseNode(
+            invitee_id=INVITEE_ID,
+            case_id=AC3_CASE_ID,
+            attributed_to=NEW_OWNER_ID,
+            roles=["vendor"],
+        )
+        result = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = dl.outbox_list()
+        assert len(outbox) == 1
+        invite_id = outbox[0]
+        invite = dl.read(invite_id)
+        assert getattr(invite, "cc", None) in (None, [])
+        assert getattr(invite, "actor", None) == ACTOR_ID
+        assert getattr(invite, "attributed_to", None) == NEW_OWNER_ID
+
+        entries = _invite_entries()
+        assert [e.payload_snapshot.get("id") for e in entries] == [invite_id]
+        assert "cc" not in entries[0].payload_snapshot
+        # The one append saw the entry already committed.
+        assert ledger_at_append == [[invite_id]]
 
 
 class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
@@ -481,12 +652,6 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
     def dl(self, store_for):
         """This class executes as ACTOR_ID, so that is its store."""
         return store_for(ACTOR_ID)
-
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
 
     def test_invite_actor_to_case_called_with_roles_none(self, dl):
         """AC-2: roles=None passed to factory when suggested_roles absent."""
@@ -507,8 +672,6 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
             attributed_to=ACTOR_ID,
         )
         dl.create(case)
-
-        import json
 
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.invite_actor_to_case.return_value = (
@@ -531,7 +694,12 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
             ),
         )
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
         node = EmitInviteActorToCaseNode(
             invitee_id=INVITEE_ID,
             case_id=AC3_CASE_ID,
@@ -552,359 +720,6 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
 
 
 # ---------------------------------------------------------------------------
-# EmitAddCaseParticipantNode (Issue-1689)
-# ---------------------------------------------------------------------------
-
-EMIT_ADD_CASE_ID = "https://example.org/cases/add-participant-01"
-EMIT_ADD_ACTOR_ID = "https://example.org/actors/case-actor-add"
-EMIT_ADD_INVITEE_ID = "https://example.org/actors/new-participant-add"
-EMIT_ADD_PARTICIPANT_ID = f"{EMIT_ADD_CASE_ID}/participants/p-new"
-EMIT_ADD_ACTIVITY_ID = f"{EMIT_ADD_CASE_ID}/activities/add-p-001"
-
-
-def _make_add_node_fixture(dl):
-    """Create a minimal CaseParticipant on the blackboard for EmitAddCaseParticipantNode tests."""
-    from vultron.core.models.case_participant import CaseParticipant
-
-    participant = CaseParticipant(
-        id_=EMIT_ADD_PARTICIPANT_ID,
-        attributed_to=EMIT_ADD_INVITEE_ID,
-        context=EMIT_ADD_CASE_ID,
-    )
-    dl.create(participant)
-    return participant
-
-
-class TestEmitAddCaseParticipantNode:
-    """Unit tests for EmitAddCaseParticipantNode."""
-
-    @pytest.fixture
-    def dl(self, store_for):
-        """This class executes as EMIT_ADD_ACTOR_ID, so that is its store."""
-        return store_for(EMIT_ADD_ACTOR_ID)
-
-    @pytest.mark.spec("CM-17-004")
-    def test_emits_add_activity_and_commits_ledger_entry(self, dl):
-        """Happy path: emits Add(CaseParticipant) and commits ledger entry."""
-        from unittest.mock import MagicMock
-
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
-        from vultron.core.behaviors.case.accept_invite_tree import (
-            EmitAddCaseParticipantNode,
-        )
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        case = as_VulnerabilityCase(
-            id_=EMIT_ADD_CASE_ID,
-            name="add-participant-test",
-            attributed_to=EMIT_ADD_ACTOR_ID,
-        )
-        dl.create(case)
-        participant = _make_add_node_fixture(dl)
-
-        from vultron.wire.as2.factories import add_participant_to_case_activity
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-
-        wire_participant = as_CaseParticipant(
-            id_=EMIT_ADD_PARTICIPANT_ID,
-            attributed_to=EMIT_ADD_INVITEE_ID,
-            context=EMIT_ADD_CASE_ID,
-        )
-        add_activity = add_participant_to_case_activity(
-            participant=wire_participant,
-            target=EMIT_ADD_CASE_ID,
-            actor=EMIT_ADD_ACTOR_ID,
-            id_=EMIT_ADD_ACTIVITY_ID,
-        )
-        dl.create(add_activity)
-
-        mock_factory = MagicMock(spec=TriggerActivityAdapter)
-        mock_factory.add_participant_to_case.return_value = (
-            EMIT_ADD_ACTIVITY_ID
-        )
-
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
-        node = EmitAddCaseParticipantNode(
-            case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
-        )
-        result = bridge.execute_with_setup(
-            tree=node,
-            actor_id=EMIT_ADD_ACTOR_ID,
-            new_invite_participant=participant,
-            invitee_already_participant=False,
-        )
-
-        assert result.status == Status.SUCCESS
-        mock_factory.add_participant_to_case.assert_called_once()
-        entries = [
-            e
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == EMIT_ADD_CASE_ID
-        ]
-        assert any(
-            e.event_type == "add_case_participant" for e in entries
-        ), f"Expected add_case_participant ledger entry; got {[e.event_type for e in entries]}"
-
-    def test_snapshot_strips_bare_target_from_stored_activity(self, dl):
-        """_build_snapshot must strip bare target from stored as_Add (IMPROVE-2).
-
-        The real TriggerActivityAdapter stores the as_Add in the datalayer and
-        returns its id.  model_dump() of the stored object includes
-        ``"target": "<case_uri>"`` as a bare string.  _validate_canonical_entry
-        rejects bare inline-object values, so _build_snapshot MUST call
-        _snapshot_with_context (which calls _drop_bare_inline_refs) rather than
-        returning raw model_dump output.
-        """
-        from unittest.mock import MagicMock
-
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
-        from vultron.core.behaviors.case.accept_invite_tree import (
-            EmitAddCaseParticipantNode,
-        )
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-        from vultron.wire.as2.factories import add_participant_to_case_activity
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        case = as_VulnerabilityCase(
-            id_=EMIT_ADD_CASE_ID,
-            name="snapshot-bare-target-test",
-            attributed_to=EMIT_ADD_ACTOR_ID,
-        )
-        dl.create(case)
-        participant = _make_add_node_fixture(dl)
-
-        # Build and store the real as_Add activity so datalayer.read() returns it.
-        # Use target as a bare string URI — that is what the real adapter does
-        # (TriggerActivityAdapterActorsMixin.add_participant_to_case passes case_id
-        # as the target kwarg).  model_dump() serialises this as "target": "<uri>"
-        # which _validate_canonical_entry would reject without _drop_bare_inline_refs.
-        wire_participant = as_CaseParticipant(
-            id_=EMIT_ADD_PARTICIPANT_ID,
-            attributed_to=EMIT_ADD_INVITEE_ID,
-            context=EMIT_ADD_CASE_ID,
-        )
-        add_activity = add_participant_to_case_activity(
-            participant=wire_participant,
-            target=EMIT_ADD_CASE_ID,
-            actor=EMIT_ADD_ACTOR_ID,
-            id_=EMIT_ADD_ACTIVITY_ID,
-        )
-        dl.create(add_activity)
-
-        mock_factory = MagicMock(spec=TriggerActivityAdapter)
-        mock_factory.add_participant_to_case.return_value = (
-            EMIT_ADD_ACTIVITY_ID
-        )
-
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
-        node = EmitAddCaseParticipantNode(
-            case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
-        )
-        result = bridge.execute_with_setup(
-            tree=node,
-            actor_id=EMIT_ADD_ACTOR_ID,
-            new_invite_participant=participant,
-            invitee_already_participant=False,
-        )
-
-        assert result.status == Status.SUCCESS, (
-            "Snapshot with stored as_Add must not fail validation "
-            "(bare target must be stripped by _snapshot_with_context)"
-        )
-        entries = [
-            e
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.case_id == EMIT_ADD_CASE_ID
-        ]
-        assert any(e.event_type == "add_case_participant" for e in entries)
-
-    def test_skips_when_already_participant(self, dl):
-        """SUCCESS without emitting when invitee_already_participant=True."""
-        from unittest.mock import MagicMock
-
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
-        from vultron.core.behaviors.case.accept_invite_tree import (
-            EmitAddCaseParticipantNode,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        case = as_VulnerabilityCase(
-            id_=EMIT_ADD_CASE_ID,
-            name="add-participant-skip-test",
-            attributed_to=EMIT_ADD_ACTOR_ID,
-        )
-        dl.create(case)
-        participant = _make_add_node_fixture(dl)
-        mock_factory = MagicMock(spec=TriggerActivityAdapter)
-
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
-        node = EmitAddCaseParticipantNode(
-            case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
-        )
-        result = bridge.execute_with_setup(
-            tree=node,
-            actor_id=EMIT_ADD_ACTOR_ID,
-            new_invite_participant=participant,
-            invitee_already_participant=True,
-        )
-
-        assert result.status == Status.SUCCESS
-        mock_factory.add_participant_to_case.assert_not_called()
-
-    def test_fails_when_participant_not_on_blackboard(self, dl):
-        """FAILURE when new_invite_participant is not a valid participant object."""
-        from unittest.mock import MagicMock
-
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
-        from vultron.core.behaviors.case.accept_invite_tree import (
-            EmitAddCaseParticipantNode,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        case = as_VulnerabilityCase(
-            id_=EMIT_ADD_CASE_ID,
-            name="add-participant-fail-test",
-            attributed_to=EMIT_ADD_ACTOR_ID,
-        )
-        dl.create(case)
-        mock_factory = MagicMock(spec=TriggerActivityAdapter)
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
-        node = EmitAddCaseParticipantNode(
-            case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
-        )
-        result = bridge.execute_with_setup(
-            tree=node,
-            actor_id=EMIT_ADD_ACTOR_ID,
-            new_invite_participant="not-a-participant",
-            invitee_already_participant=False,
-        )
-
-        assert result.status == Status.FAILURE
-        mock_factory.add_participant_to_case.assert_not_called()
-
-    def test_to_field_contains_http_actor_urls_not_bare_uuids(self, dl):
-        """to= passed to add_participant_to_case must contain HTTP actor URLs.
-
-        Production storage keeps case.case_participants as bare UUID strings
-        (e.g. "urn:uuid:…").  _resolve_actor_recipients must use
-        case.actor_participant_index keys (HTTP URIs) instead, or outbox
-        delivery will fail with "Request URL is missing 'http://'".
-        """
-        from unittest.mock import MagicMock
-
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
-        from vultron.core.behaviors.case.accept_invite_tree import (
-            EmitAddCaseParticipantNode,
-        )
-        from vultron.core.models.case import VulnerabilityCase
-        from vultron.core.models.case_participant import CaseParticipant
-
-        # Two existing participants stored as bare UUID strings in case_participants
-        # (matching production DataLayer storage format).
-        existing_actor_1 = "https://example.org/actors/existing-actor-1"
-        existing_actor_2 = "https://example.org/actors/existing-actor-2"
-        existing_p1_id = "urn:uuid:11111111-0000-0000-0000-000000000001"
-        existing_p2_id = "urn:uuid:22222222-0000-0000-0000-000000000002"
-
-        case = VulnerabilityCase(
-            id_=EMIT_ADD_CASE_ID,
-            name="to-field-http-url-test",
-            attributed_to=EMIT_ADD_ACTOR_ID,
-            # bare UUID strings, as stored in production
-            case_participants=[existing_p1_id, existing_p2_id],
-            actor_participant_index={
-                existing_actor_1: existing_p1_id,
-                existing_actor_2: existing_p2_id,
-            },
-        )
-        dl.create(case)
-
-        participant = CaseParticipant(
-            id_=EMIT_ADD_PARTICIPANT_ID,
-            attributed_to=EMIT_ADD_INVITEE_ID,
-            context=EMIT_ADD_CASE_ID,
-        )
-        dl.create(participant)
-
-        from vultron.wire.as2.factories import add_participant_to_case_activity
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant as as_CP,
-        )
-
-        wire_p_to = as_CP(
-            id_=EMIT_ADD_PARTICIPANT_ID,
-            attributed_to=EMIT_ADD_INVITEE_ID,
-            context=EMIT_ADD_CASE_ID,
-        )
-        add_act_to = add_participant_to_case_activity(
-            participant=wire_p_to,
-            target=EMIT_ADD_CASE_ID,
-            actor=EMIT_ADD_ACTOR_ID,
-            id_=EMIT_ADD_ACTIVITY_ID,
-        )
-        dl.create(add_act_to)
-
-        mock_factory = MagicMock(spec=TriggerActivityAdapter)
-        mock_factory.add_participant_to_case.return_value = (
-            EMIT_ADD_ACTIVITY_ID
-        )
-
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
-        node = EmitAddCaseParticipantNode(
-            case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
-        )
-        result = bridge.execute_with_setup(
-            tree=node,
-            actor_id=EMIT_ADD_ACTOR_ID,
-            new_invite_participant=participant,
-            invitee_already_participant=False,
-        )
-
-        assert result.status == Status.SUCCESS
-        mock_factory.add_participant_to_case.assert_called_once()
-        call_kwargs = mock_factory.add_participant_to_case.call_args
-        to_arg = call_kwargs.kwargs.get("to") or (
-            call_kwargs.args[3] if len(call_kwargs.args) > 3 else None
-        )
-        assert (
-            to_arg is not None
-        ), "to= must be passed to add_participant_to_case"
-        for recipient in to_arg:
-            assert recipient.startswith("http"), (
-                f"to= recipients must be HTTP actor URLs, not bare IDs: {recipient!r}. "
-                f"Full to= list: {to_arg}"
-            )
-        assert existing_actor_1 in to_arg
-        assert existing_actor_2 in to_arg
-        # The new invitee must NOT be in the recipients (it's the one being added)
-        assert EMIT_ADD_INVITEE_ID not in to_arg
-
-
-# ---------------------------------------------------------------------------
 # AC-5a / AC-5b: EmitOfferCaseOwnershipTransferNode and
 #               EmitAcceptCaseOwnershipTransferNode BT-layer routing tests
 # ---------------------------------------------------------------------------
@@ -912,6 +727,7 @@ class TestEmitAddCaseParticipantNode:
 _OT_OWNER_ID = "https://example.org/actors/ot-owner"
 _OT_CASE_ACTOR_ID = "https://example.org/actors/ot-case-actor"
 _OT_TRANSFEREE_ID = "https://example.org/actors/ot-transferee"
+_OT_REQUESTER_ID = "https://example.org/actors/ot-requester"
 _OT_CASE_ID = "https://example.org/cases/ot-emit-test-01"
 
 
@@ -976,25 +792,31 @@ class TestEmitOwnershipTransferNodes:
         node = EmitOfferCaseOwnershipTransferNode(
             case_id=_OT_CASE_ID,
             transferee_id=_OT_TRANSFEREE_ID,
+            requesting_actor_id=_OT_REQUESTER_ID,
             captured=captured,
         )
         bridge = BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(tree=node, actor_id=_OT_OWNER_ID)
 
-        assert (
-            result.status == Status.SUCCESS
-        ), f"EmitOfferCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        assert result.status == Status.SUCCESS, (
+            f"EmitOfferCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        )
         activity = captured.get("activity", {})
         # ADR-0053 / CM-21-005: Offer is routed to the CaseActor, not the transferee.
         assert _OT_CASE_ACTOR_ID in activity.get("to", []), (
             f"Offer must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
             f"got to={activity.get('to')!r}"
         )
+        # CM-24-001, CM-24-002, CM-24-005: executing actor authors, requester asked.
+        assert activity.get("actor") == _OT_OWNER_ID
+        assert activity.get("attributedTo") == _OT_REQUESTER_ID
         # The transferee is named as the intended new owner in the target field.
-        assert _OT_TRANSFEREE_ID == activity.get("target"), (
+        assert activity.get("target") == _OT_TRANSFEREE_ID, (
             f"Offer.target must name the transferee ({_OT_TRANSFEREE_ID}); "
             f"got target={activity.get('target')!r}"
         )
@@ -1032,23 +854,28 @@ class TestEmitOwnershipTransferNodes:
             offer_id="https://example.org/activities/ot-offer-01",
             case_id=_OT_CASE_ID,
         )
-        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
         result = bridge.execute_with_setup(
             tree=node, actor_id=_OT_TRANSFEREE_ID
         )
 
-        assert (
-            result.status == Status.SUCCESS
-        ), f"EmitAcceptCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        assert result.status == Status.SUCCESS, (
+            f"EmitAcceptCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        )
         mock_factory.accept_case_ownership_transfer.assert_called_once()
         call_kwargs = mock_factory.accept_case_ownership_transfer.call_args
         to_arg = call_kwargs.kwargs.get("to") or (
             call_kwargs.args[2] if len(call_kwargs.args) > 2 else None
         )
         # ADR-0053 / CM-21-006: Accept is routed to the CaseActor.
-        assert (
-            to_arg is not None
-        ), "to= must be passed to accept_case_ownership_transfer"
+        assert to_arg is not None, (
+            "to= must be passed to accept_case_ownership_transfer"
+        )
         assert _OT_CASE_ACTOR_ID in to_arg, (
             f"Accept must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
             f"got to={to_arg!r}"

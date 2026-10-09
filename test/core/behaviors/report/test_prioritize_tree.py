@@ -25,40 +25,47 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import VultronObject
-from vultron.core.models.events import MessageSemantics
-from vultron.core.models.events.case import (
-    DeferCaseReceivedEvent,
-    EngageCaseReceivedEvent,
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
 )
-from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.vultron_types import (
-    VultronCase,
-    VultronCaseActor,
-    VultronParticipant,
-    VultronReport,
-)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.refusal_stage import (
+    PreconditionGuardStage,
+)
+from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
     create_prioritize_subtree,
 )
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.case import (
+    DeferCaseReceivedEvent,
+    EngageCaseReceivedEvent,
+)
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
 
 def _make_participant_in_valid_state(
     id_: str, attributed_to: str, context: str
-) -> VultronParticipant:
-    """Create a VultronParticipant pre-seeded with RM.VALID status.
+) -> CaseParticipant:
+    """Create a CaseParticipant pre-seeded with RM.VALID status.
 
     engage_case and defer_case require the participant to be in VALID state
     (the precondition for VALID → ACCEPTED or VALID → DEFERRED transitions).
     """
-    participant = VultronParticipant(
+    participant = CaseParticipant(
         id_=id_,
         attributed_to=attributed_to,
         context=context,
@@ -79,34 +86,34 @@ def _make_participant_in_valid_state(
 
 
 def _make_engage_request(
-    case: VultronCase, actor_id: str
+    case: VulnerabilityCase, actor_id: str
 ) -> EngageCaseReceivedEvent:
     return EngageCaseReceivedEvent(
         activity_id=f"{case.id_}/activities/engage",
         actor_id=actor_id,
-        object_=VultronObject(id_=case.id_),
+        object_=CoreObject(id_=case.id_),
         semantic_type=MessageSemantics.ENGAGE_CASE,
         activity=VultronActivity(
             type_="Announce",
             actor=actor_id,
-            object_=VultronCase(id_=case.id_),
+            object_=VulnerabilityCase(id_=case.id_),
             context=case.id_,
         ),
     )
 
 
 def _make_defer_request(
-    case: VultronCase, actor_id: str
+    case: VulnerabilityCase, actor_id: str
 ) -> DeferCaseReceivedEvent:
     return DeferCaseReceivedEvent(
         activity_id=f"{case.id_}/activities/defer",
         actor_id=actor_id,
-        object_=VultronObject(id_=case.id_),
+        object_=CoreObject(id_=case.id_),
         semantic_type=MessageSemantics.DEFER_CASE,
         activity=VultronActivity(
             type_="Announce",
             actor=actor_id,
-            object_=VultronCase(id_=case.id_),
+            object_=VulnerabilityCase(id_=case.id_),
             context=case.id_,
         ),
     )
@@ -138,14 +145,14 @@ def case_manager_datalayer(case_manager_actor_id):
 
 @pytest.fixture
 def actor(datalayer, actor_id):
-    obj = VultronCaseActor(id_=actor_id, name="Vendor Co")
+    obj = CaseActor(id_=actor_id, name="Vendor Co")
     datalayer.create(obj)
     return obj
 
 
 @pytest.fixture
 def report(datalayer):
-    obj = VultronReport(
+    obj = VulnerabilityReport(
         id_="https://example.org/reports/CVE-2024-001",
         name="Test Report",
         content="Buffer overflow",
@@ -167,7 +174,7 @@ def case_with_participant(datalayer, actor_id, actor, report):
         context="https://example.org/cases/case-001",
     )
     datalayer.create(participant)
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.id_],
@@ -181,7 +188,7 @@ def case_with_participant(datalayer, actor_id, actor, report):
 @pytest.fixture
 def case_without_participant(datalayer, report):
     """Case with no participants."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-002",
         name="Test Case No Participants",
         vulnerability_reports=[report.id_],
@@ -198,13 +205,15 @@ def bridge(datalayer):
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return BTBridge(
         datalayer=datalayer,
         trigger_activity=TriggerActivityAdapter(
             cast(CaseOutboxPersistence, datalayer)
         ),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(datalayer),
     )
 
 
@@ -216,7 +225,7 @@ def trigger_activity(datalayer):
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return TriggerActivityAdapter(cast(CaseOutboxPersistence, datalayer))
 
@@ -244,10 +253,10 @@ def case_with_manager(
     )
     datalayer.create(vendor_participant)
 
-    cm_actor = VultronCaseActor(id_=case_manager_actor_id, name="Coordinator")
+    cm_actor = CaseActor(id_=case_manager_actor_id, name="Coordinator")
     datalayer.create(cm_actor)
 
-    cm_participant = VultronParticipant(
+    cm_participant = CaseParticipant(
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=case_manager_actor_id,
         context="https://example.org/cases/case-manager-001",
@@ -257,7 +266,7 @@ def case_with_manager(
 
     # attributed_to triggers genesis_hash computation (CLP-08-001/002), required
     # for CommitCaseLedgerEntryNode to succeed in tests that run as CaseManager.
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-manager-001",
         name="Test Case With Manager",
         attributed_to=case_manager_actor_id,
@@ -290,10 +299,10 @@ def case_with_manager_in_cm_store(
     )
     case_manager_datalayer.create(vendor_participant)
 
-    cm_actor = VultronCaseActor(id_=case_manager_actor_id, name="Coordinator")
+    cm_actor = CaseActor(id_=case_manager_actor_id, name="Coordinator")
     case_manager_datalayer.create(cm_actor)
 
-    cm_participant = VultronParticipant(
+    cm_participant = CaseParticipant(
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=case_manager_actor_id,
         context="https://example.org/cases/case-manager-001",
@@ -301,7 +310,7 @@ def case_with_manager_in_cm_store(
     )
     case_manager_datalayer.create(cm_participant)
 
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-manager-001",
         name="Test Case With Manager",
         attributed_to=case_manager_actor_id,
@@ -312,6 +321,9 @@ def case_with_manager_in_cm_store(
             case_manager_actor_id: cm_participant.id_,
         },
     )
+    # The CASE_MANAGER holds every report its case names: the engage broadcast
+    # embeds them, and an Announce that cannot is refused (CBT-01-007).
+    case_manager_datalayer.create(report)
     case_manager_datalayer.create(case)
     return case
 
@@ -331,7 +343,10 @@ def test_create_engage_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "EngageCaseBT"
     assert hasattr(tree, "children")
-    assert len(tree.children) == 5
+    # RSH-08-003 (#3814): the RM write, gap note and broadcast now sit inside
+    # one CASE_MANAGER gate, so the top level is intake, the guard stage, the
+    # guarded commit, and that gate.
+    assert len(tree.children) == 4
 
 
 @pytest.mark.spec("BT-06-002")
@@ -344,33 +359,77 @@ def test_create_defer_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "DeferCaseBT"
     assert hasattr(tree, "children")
-    assert len(tree.children) == 3
+    # RSH-08-003 (#3814): intake, sender guard, the guard stage, the guarded
+    # commit, and the CASE_MANAGER gate holding the RM write + gap note.
+    assert len(tree.children) == 5
 
 
 def test_engage_tree_node_names(case_with_participant, actor_id):
     tree = create_engage_case_tree(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
-    assert tree.children[0].name == "CheckParticipantExists"
+    # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
+    assert tree.children[0].name == "IntakeReceivedActivityNode"
+    # The guards sit in the refusal-effects stage (CLP-10-022): the sender
+    # must be a participant (HP-01-006), and its declaration is adjudicated
+    # before the commit (RSH-06-006); a refused regression is still noted.
+    stage = tree.children[1]
+    assert isinstance(stage, PreconditionGuardStage)
+    assert [g.name for g in stage.guards.children] == [
+        "SenderIsActiveParticipantNode",
+        "AdjudicateRMDeclarationNode",
+    ]
+    assert "EmitRMGapNote" in [n.name for n in stage.refusal.iterate()]
     # Commit runs before effects (CLP-10-006)
-    assert tree.children[1].name == "GuardedCommitCaseLedgerEntryBT"
-    # Idempotency Selector: skip write when already ACCEPTED
-    assert tree.children[2].name == "IdempotentTransitionRMtoAccepted"
-    assert tree.children[2].children[0].name == "CheckRMStateAccepted"
-    assert tree.children[2].children[1].name == "TransitionRMtoAccepted"
+    assert tree.children[2].name == "GuardedCommitCaseLedgerEntryBT"
+    # RSH-08-003 (#3814): the RM write, its gap note and the broadcast all run
+    # only at the CASE_MANAGER, so they sit inside one gate; a replica takes
+    # the move from the ledger fan-out.
+    gate = tree.children[3]
+    assert isinstance(gate, CaseManagerGate)
+    assert gate.name == "EngageEffectsIfCaseManager"
+    body = gate.gated_branch
+    names = [n.name for n in body.children]
+    # Idempotency Selector: skip write when already ACCEPTED (RSH-08-002)
+    assert names == [
+        "IdempotentTransitionRMtoAccepted",
+        "EmitRMGapNote",
+        "CaptureCaseUpdateBroadcastExclusionsNode",
+        "BroadcastCaseUpdateNode",
+    ]
+    assert body.children[0].children[0].name == "AlreadyRecordedAccepted"
+    assert body.children[0].children[1].name == "TransitionRMtoAccepted"
 
 
 def test_defer_tree_node_names(case_with_participant, actor_id):
     tree = create_defer_case_tree(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
-    assert tree.children[0].name == "CheckParticipantExists"
+    # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
+    assert tree.children[0].name == "IntakeReceivedActivityNode"
+    # The sender must be a participant (HP-01-006) ...
+    assert tree.children[1].name == "SenderIsActiveParticipantNode"
+    # ... and its declaration is adjudicated before the commit (RSH-06-006),
+    # inside the refusal-effects stage that notes a refused regression
+    # (CLP-10-022)
+    stage = tree.children[2]
+    assert isinstance(stage, PreconditionGuardStage)
+    assert [g.name for g in stage.guards.children] == [
+        "AdjudicateRMDeclarationNode"
+    ]
     # Commit runs before effects (CLP-10-006)
-    assert tree.children[1].name == "GuardedCommitCaseLedgerEntryBT"
-    # Idempotency Selector: skip write when already DEFERRED
-    assert tree.children[2].name == "IdempotentTransitionRMtoDeferred"
-    assert tree.children[2].children[0].name == "CheckRMStateDeferred"
-    assert tree.children[2].children[1].name == "TransitionRMtoDeferred"
+    assert tree.children[3].name == "GuardedCommitCaseLedgerEntryBT"
+    # RSH-08-003 (#3814): the RM write and its gap note run only at the
+    # CASE_MANAGER, inside one gate; a replica takes the move from the ledger.
+    gate = tree.children[4]
+    assert isinstance(gate, CaseManagerGate)
+    assert gate.name == "DeferEffectsIfCaseManager"
+    body = gate.gated_branch
+    names = [n.name for n in body.children]
+    # Idempotency Selector: skip write when already DEFERRED (RSH-08-002)
+    assert names == ["IdempotentTransitionRMtoDeferred", "EmitRMGapNote"]
+    assert body.children[0].children[0].name == "AlreadyRecordedDeferred"
+    assert body.children[0].children[1].name == "TransitionRMtoDeferred"
 
 
 # ============================================================================
@@ -382,24 +441,35 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
 @pytest.mark.spec("RMB-13-002")
 @pytest.mark.spec("BT-03-004")
 def test_engage_case_tree_success(
-    bridge, datalayer, actor_id, case_with_participant
+    case_manager_datalayer,
+    actor_id,
+    case_manager_actor_id,
+    case_with_manager_in_cm_store,
 ):
-    """EngageCaseBT succeeds and sets participant RM to ACCEPTED."""
-    request = _make_engage_request(case_with_participant, actor_id)
-    tree = create_engage_case_tree(
-        case_id=case_with_participant.id_, actor_id=actor_id
-    )
-    result = bridge.execute_with_setup(
+    """EngageCaseBT records the sender's RM as ACCEPTED at the CASE_MANAGER.
+
+    RSH-08-003 (#3814): the RM write is now CASE_MANAGER-gated, so the engage
+    is received in the CASE_MANAGER's store with the vendor as the sender.
+    """
+    case = case_with_manager_in_cm_store
+    request = _make_engage_request(case, actor_id)
+    tree = create_engage_case_tree(case_id=case.id_, actor_id=actor_id)
+    result = BTBridge(
+        datalayer=case_manager_datalayer,
+        trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(case_manager_datalayer),
+    ).execute_with_setup(
         tree=tree,
-        actor_id=actor_id,
+        actor_id=case_manager_actor_id,
         activity=request,
-        case_id=case_with_participant.id_,
+        case_id=case.id_,
     )
 
     assert result.status == Status.SUCCESS
 
-    participant_id = "https://example.org/participants/vendor-cp-001"
-    updated_participant = datalayer.read(participant_id)
+    participant_id = case.actor_participant_index[actor_id]
+    updated_participant = case_manager_datalayer.read(participant_id)
     latest_status = updated_participant.participant_statuses[-1]
     assert latest_status.rm.state == RM.ACCEPTED
 
@@ -423,7 +493,7 @@ def test_engage_case_tree_fails_no_participant(
 @pytest.mark.spec("BT-03-001")
 def test_engage_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """EngageCaseBT fails when the case does not exist in the datalayer."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/nonexistent",
         name="Missing Case",
         vulnerability_reports=[],
@@ -449,24 +519,35 @@ def test_engage_case_tree_fails_missing_case(bridge, datalayer, actor_id):
 @pytest.mark.spec("RMB-12-001")
 @pytest.mark.spec("BT-03-004")
 def test_defer_case_tree_success(
-    bridge, datalayer, actor_id, case_with_participant
+    case_manager_datalayer,
+    actor_id,
+    case_manager_actor_id,
+    case_with_manager_in_cm_store,
 ):
-    """DeferCaseBT succeeds and sets participant RM to DEFERRED."""
-    request = _make_defer_request(case_with_participant, actor_id)
-    tree = create_defer_case_tree(
-        case_id=case_with_participant.id_, actor_id=actor_id
-    )
-    result = bridge.execute_with_setup(
+    """DeferCaseBT records the sender's RM as DEFERRED at the CASE_MANAGER.
+
+    RSH-08-003 (#3814): the RM write is CASE_MANAGER-gated, so the defer is
+    received in the CASE_MANAGER's store with the vendor as the sender.
+    """
+    case = case_with_manager_in_cm_store
+    request = _make_defer_request(case, actor_id)
+    tree = create_defer_case_tree(case_id=case.id_, actor_id=actor_id)
+    result = BTBridge(
+        datalayer=case_manager_datalayer,
+        trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(case_manager_datalayer),
+    ).execute_with_setup(
         tree=tree,
-        actor_id=actor_id,
+        actor_id=case_manager_actor_id,
         activity=request,
-        case_id=case_with_participant.id_,
+        case_id=case.id_,
     )
 
     assert result.status == Status.SUCCESS
 
-    participant_id = "https://example.org/participants/vendor-cp-001"
-    updated_participant = datalayer.read(participant_id)
+    participant_id = case.actor_participant_index[actor_id]
+    updated_participant = case_manager_datalayer.read(participant_id)
     latest_status = updated_participant.participant_statuses[-1]
     assert latest_status.rm.state == RM.DEFERRED
 
@@ -490,7 +571,7 @@ def test_defer_case_tree_fails_no_participant(
 @pytest.mark.spec("BT-03-001")
 def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """DeferCaseBT fails when the case does not exist in the datalayer."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/nonexistent",
         name="Missing Case",
         vulnerability_reports=[],
@@ -513,50 +594,78 @@ def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
 
 
 @pytest.mark.spec("BT-09-001")
-def test_engage_only_affects_target_actor(bridge, datalayer, actor_id, report):
-    """Engaging updates only the target actor's RM state, not other participants.
+def test_engage_only_affects_target_actor(
+    case_manager_datalayer, actor_id, case_manager_actor_id, report
+):
+    """Engaging updates only the sender's RM state, not other participants.
 
-    Both participants are records inside *one* case replica — the replica of the
-    actor executing the tree — so this is legitimately a single-store test.
-    ``actor_a`` is therefore that actor; ``actor_b`` is a peer participant it
-    knows about, not a second store.
+    RSH-08-003 (#3814): the RM write is CASE_MANAGER-gated, so this runs in the
+    CASE_MANAGER's store.  ``actor_a`` is the engaging sender; ``actor_b`` is a
+    peer participant whose RM must not move.
     """
+    dl = case_manager_datalayer
     actor_a = actor_id
     actor_b = "https://example.org/actors/vendor-b"
+    case_id = "https://example.org/cases/case-multi"
 
     participant_a = _make_participant_in_valid_state(
         id_="https://example.org/participants/cp-a",
         attributed_to=actor_a,
-        context="https://example.org/cases/case-multi",
+        context=case_id,
     )
     participant_b = _make_participant_in_valid_state(
         id_="https://example.org/participants/cp-b",
         attributed_to=actor_b,
-        context="https://example.org/cases/case-multi",
+        context=case_id,
     )
-    datalayer.create(participant_a)
-    datalayer.create(participant_b)
-    case = VultronCase(
-        id_="https://example.org/cases/case-multi",
+    cm_participant = CaseParticipant(
+        id_="https://example.org/participants/cp-manager",
+        attributed_to=case_manager_actor_id,
+        context=case_id,
+        case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
+    )
+    cm_actor = CaseActor(id_=case_manager_actor_id, name="Coordinator")
+    dl.create(cm_actor)
+    dl.create(participant_a)
+    dl.create(participant_b)
+    dl.create(cm_participant)
+    dl.create(report)
+    case = VulnerabilityCase(
+        id_=case_id,
         name="Multi-participant case",
+        # attributed_to seeds the genesis hash so the guarded commit succeeds.
+        attributed_to=case_manager_actor_id,
         vulnerability_reports=[report.id_],
-        case_participants=[participant_a.id_, participant_b.id_],
+        case_participants=[
+            participant_a.id_,
+            participant_b.id_,
+            cm_participant.id_,
+        ],
         actor_participant_index={
             actor_a: participant_a.id_,
             actor_b: participant_b.id_,
+            case_manager_actor_id: cm_participant.id_,
         },
     )
-    datalayer.create(case)
+    dl.create(case)
 
     request = _make_engage_request(case, actor_a)
     tree = create_engage_case_tree(case_id=case.id_, actor_id=actor_a)
-    result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor_a, activity=request, case_id=case.id_
+    result = BTBridge(
+        datalayer=dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=case_manager_actor_id,
+        activity=request,
+        case_id=case.id_,
     )
     assert result.status == Status.SUCCESS
 
-    updated_a = datalayer.read(participant_a.id_)
-    updated_b = datalayer.read(participant_b.id_)
+    updated_a = dl.read(participant_a.id_)
+    updated_b = dl.read(participant_b.id_)
     assert updated_a.participant_statuses[-1].rm.state == RM.ACCEPTED
     # actor_b's RM state must be unchanged (START, from default init)
     assert updated_b.participant_statuses[-1].rm.state != RM.ACCEPTED
@@ -569,35 +678,43 @@ def test_engage_only_affects_target_actor(bridge, datalayer, actor_id, report):
 
 @pytest.mark.spec("BT-09-001")
 def test_engage_case_tree_idempotent(
-    bridge, datalayer, actor_id, case_with_participant
+    case_manager_datalayer,
+    actor_id,
+    case_manager_actor_id,
+    case_with_manager_in_cm_store,
 ):
-    """Executing EngageCaseBT twice leaves RM state ACCEPTED, no duplicate entries."""
-    request = _make_engage_request(case_with_participant, actor_id)
-    tree1 = create_engage_case_tree(
-        case_id=case_with_participant.id_, actor_id=actor_id
-    )
-    result1 = bridge.execute_with_setup(
-        tree=tree1,
-        actor_id=actor_id,
-        activity=request,
-        case_id=case_with_participant.id_,
-    )
-    assert result1.status == Status.SUCCESS
+    """Executing EngageCaseBT twice leaves RM state ACCEPTED, no duplicate entries.
 
-    tree2 = create_engage_case_tree(
-        case_id=case_with_participant.id_, actor_id=actor_id
-    )
-    result2 = bridge.execute_with_setup(
-        tree=tree2,
-        actor_id=actor_id,
-        activity=request,
-        case_id=case_with_participant.id_,
-    )
-    assert result2.status == Status.SUCCESS
+    RSH-08-003 (#3814): run at the CASE_MANAGER, where the gated RM write runs.
+    """
+    case = case_with_manager_in_cm_store
 
-    updated_case = datalayer.read(case_with_participant.id_)
-    participant_id = updated_case.case_participants[0]
-    participant = datalayer.read(participant_id)
+    def _run() -> Status:
+        request = _make_engage_request(case, actor_id)
+        tree = create_engage_case_tree(case_id=case.id_, actor_id=actor_id)
+        return (
+            BTBridge(
+                datalayer=case_manager_datalayer,
+                trigger_activity=TriggerActivityAdapter(
+                    case_manager_datalayer
+                ),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(case_manager_datalayer),
+            )
+            .execute_with_setup(
+                tree=tree,
+                actor_id=case_manager_actor_id,
+                activity=request,
+                case_id=case.id_,
+            )
+            .status
+        )
+
+    assert _run() == Status.SUCCESS
+    assert _run() == Status.SUCCESS
+
+    participant_id = case.actor_participant_index[actor_id]
+    participant = case_manager_datalayer.read(participant_id)
     assert participant.participant_statuses[-1].rm.state == RM.ACCEPTED
     # Second execution must NOT append a duplicate status entry
     accepted_entries = [
@@ -610,35 +727,43 @@ def test_engage_case_tree_idempotent(
 
 @pytest.mark.spec("BT-09-001")
 def test_defer_case_tree_idempotent(
-    bridge, datalayer, actor_id, case_with_participant
+    case_manager_datalayer,
+    actor_id,
+    case_manager_actor_id,
+    case_with_manager_in_cm_store,
 ):
-    """Executing DeferCaseBT twice leaves RM state DEFERRED, no duplicate entries."""
-    request = _make_defer_request(case_with_participant, actor_id)
-    tree1 = create_defer_case_tree(
-        case_id=case_with_participant.id_, actor_id=actor_id
-    )
-    result1 = bridge.execute_with_setup(
-        tree=tree1,
-        actor_id=actor_id,
-        activity=request,
-        case_id=case_with_participant.id_,
-    )
-    assert result1.status == Status.SUCCESS
+    """Executing DeferCaseBT twice leaves RM state DEFERRED, no duplicate entries.
 
-    tree2 = create_defer_case_tree(
-        case_id=case_with_participant.id_, actor_id=actor_id
-    )
-    result2 = bridge.execute_with_setup(
-        tree=tree2,
-        actor_id=actor_id,
-        activity=request,
-        case_id=case_with_participant.id_,
-    )
-    assert result2.status == Status.SUCCESS
+    RSH-08-003 (#3814): run at the CASE_MANAGER, where the gated RM write runs.
+    """
+    case = case_with_manager_in_cm_store
 
-    updated_case = datalayer.read(case_with_participant.id_)
-    participant_id = updated_case.case_participants[0]
-    participant = datalayer.read(participant_id)
+    def _run() -> Status:
+        request = _make_defer_request(case, actor_id)
+        tree = create_defer_case_tree(case_id=case.id_, actor_id=actor_id)
+        return (
+            BTBridge(
+                datalayer=case_manager_datalayer,
+                trigger_activity=TriggerActivityAdapter(
+                    case_manager_datalayer
+                ),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(case_manager_datalayer),
+            )
+            .execute_with_setup(
+                tree=tree,
+                actor_id=case_manager_actor_id,
+                activity=request,
+                case_id=case.id_,
+            )
+            .status
+        )
+
+    assert _run() == Status.SUCCESS
+    assert _run() == Status.SUCCESS
+
+    participant_id = case.actor_participant_index[actor_id]
+    participant = case_manager_datalayer.read(participant_id)
     assert participant.participant_statuses[-1].rm.state == RM.DEFERRED
     # Second execution must NOT append a duplicate status entry
     deferred_entries = [
@@ -677,7 +802,12 @@ def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
     tree = create_engage_case_tree(
         case_id=case_with_manager.id_, actor_id=actor_id
     )
-    result = BTBridge(datalayer=case_manager_datalayer).execute_with_setup(
+    result = BTBridge(
+        datalayer=case_manager_datalayer,
+        trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(case_manager_datalayer),
+    ).execute_with_setup(
         tree=tree,
         actor_id=case_manager_actor_id,
         activity=request,

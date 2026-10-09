@@ -20,14 +20,107 @@ module holds the composites that wrap other work in such a gate — the differen
 being that a condition node answers a question, while these decide whether a
 subtree runs at all.
 
-Currently one gate: :func:`create_case_manager_gated_tree`, the single sanctioned
-shape for "only the CASE_MANAGER may do this" (BTND-07-005). Canonical ledger
-commits and the note-attachment path both build on it.
+Two gates: :func:`create_case_manager_gated_tree`, the single sanctioned shape
+for "only the CASE_MANAGER may do this" (BTND-07-005) — canonical ledger commits
+and the note-attachment path both build on it — and its complement
+:func:`create_participant_replica_gated_tree`, for the work a received tree does
+only when the executing actor is *not* the CASE_MANAGER (RSH-08-003).
 """
 
 import py_trees
 
-__all__ = ["create_case_manager_gated_tree"]
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckIsCaseManagerNode,
+)
+from vultron.core.behaviors.sender_entitlement import SenderIsCaseManagerNode
+
+__all__ = [
+    "CaseManagerGate",
+    "create_case_manager_gated_tree",
+    "create_role_scoped_sender_guard",
+    "create_participant_replica_gated_tree",
+]
+
+
+class CaseManagerGate(py_trees.composites.Selector):
+    """The Selector :func:`create_case_manager_gated_tree` returns.
+
+    A plain ``Selector`` in behaviour; the subclass only names the shape, so
+    ``create_receive_activity_tree`` can tell an emit inside the gate from one
+    outside it without matching child names (BT-17-008).
+    The gated work is :attr:`gated_branch`; the first child is the skip arm.
+    Only :func:`create_case_manager_gated_tree` constructs one, so the type
+    implies the ``CheckIsCaseManagerNode`` skip arm;
+    ``test/architecture/test_received_tree_case_manager_gate.py`` pins that.
+    """
+
+    @property
+    def gated_branch(self) -> py_trees.behaviour.Behaviour:
+        """The child that runs only at the CASE_MANAGER (for inspection)."""
+        return self.children[1]
+
+
+def create_role_scoped_sender_guard(
+    name: str,
+    case_id: str,
+    at_case_manager: py_trees.behaviour.Behaviour,
+) -> py_trees.composites.Selector:
+    """A sender guard whose rule depends on the receiver's role (ADR-0115).
+
+    At the CASE_MANAGER the sender must satisfy *at_case_manager*; at any other
+    participant replica the only entitled sender is the CASE_MANAGER itself,
+    because replicas learn of a change from the manager's ledger fan-out
+    (SYNC-02-002), never from a peer's message.
+
+    Structure::
+
+        <name> (Selector)
+        ├── AtCaseManager (Sequence): CheckIsCaseManager, <at_case_manager>
+        └── AtReplica (Sequence): Inverter(CheckIsCaseManager), SenderIsCaseManager
+
+    The Selector fails when the receiver is the manager and *at_case_manager*
+    fails: the replica arm's inverted role check fails too.
+    """
+    return py_trees.composites.Selector(
+        name=name,
+        memory=False,
+        children=[
+            py_trees.composites.Sequence(
+                name="AtCaseManager",
+                memory=False,
+                children=[
+                    CheckIsCaseManagerNode(case_id=case_id),
+                    at_case_manager,
+                ],
+            ),
+            py_trees.composites.Sequence(
+                name="AtReplica",
+                memory=False,
+                children=[
+                    py_trees.decorators.Inverter(
+                        name="InvertIsNotCaseManager",
+                        child=CheckIsCaseManagerNode(case_id=case_id),
+                    ),
+                    SenderIsCaseManagerNode(case_id=case_id),
+                ],
+            ),
+        ],
+    )
+
+
+def _wrap_children(
+    name: str,
+    children: list[py_trees.behaviour.Behaviour],
+    body_name: str | None,
+) -> py_trees.behaviour.Behaviour:
+    """One child runs bare; several become a Sequence so a mid-run FAILURE propagates."""
+    if len(children) == 1:
+        return children[0]
+    return py_trees.composites.Sequence(
+        name=body_name or f"{name}Body",
+        memory=False,
+        children=children,
+    )
 
 
 def create_case_manager_gated_tree(
@@ -35,7 +128,8 @@ def create_case_manager_gated_tree(
     case_id: str | None,
     children: list[py_trees.behaviour.Behaviour],
     body_name: str | None = None,
-) -> py_trees.composites.Selector:
+    case_may_be_absent: bool = False,
+) -> CaseManagerGate:
     """Run *children* only when the executing actor holds ``CVDRole.CASE_MANAGER``.
 
     Reimplementing this boilerplate is forbidden (BTND-07-005) for a concrete
@@ -71,25 +165,16 @@ def create_case_manager_gated_tree(
         children: Nodes to run when the gate passes. More than one is wrapped in
             a Sequence so a mid-sequence failure still propagates.
         body_name: Name for that wrapping Sequence. Defaults to ``{name}Body``.
+        case_may_be_absent: Read a case the executing actor does not hold as
+            "not the CASE_MANAGER" instead of an anomaly; see
+            :class:`CheckIsCaseManagerNode`.
 
     Returns:
-        The gated root Selector.
+        The gated root :class:`CaseManagerGate` Selector.
     """
-    from vultron.core.behaviors.case.nodes.conditions import (
-        CheckIsCaseManagerNode,
-    )
+    gated = _wrap_children(name, children, body_name)
 
-    gated: py_trees.behaviour.Behaviour
-    if len(children) == 1:
-        gated = children[0]
-    else:
-        gated = py_trees.composites.Sequence(
-            name=body_name or f"{name}Body",
-            memory=False,
-            children=children,
-        )
-
-    return py_trees.composites.Selector(
+    return CaseManagerGate(
         name=name,
         memory=False,
         children=[
@@ -99,9 +184,67 @@ def create_case_manager_gated_tree(
                 children=[
                     py_trees.decorators.Inverter(
                         name="InvertIsNotCaseManager",
-                        child=CheckIsCaseManagerNode(case_id=case_id),
+                        child=CheckIsCaseManagerNode(
+                            case_id=case_id,
+                            case_may_be_absent=case_may_be_absent,
+                        ),
                     ),
                 ],
+            ),
+            gated,
+        ],
+    )
+
+
+def create_participant_replica_gated_tree(
+    name: str,
+    case_id: str | None,
+    children: list[py_trees.behaviour.Behaviour],
+    body_name: str | None = None,
+    case_may_be_absent: bool = False,
+) -> py_trees.composites.Selector:
+    """Run *children* only when the executing actor is **not** the CASE_MANAGER.
+
+    The complement of :func:`create_case_manager_gated_tree`, for a received
+    tree whose manager-side and replica-side effects differ (EP-09-001 versus
+    EP-09-003): the manager adjudicates and relays, a participant replica
+    records what arrived.  The two gates placed side by side in one Sequence
+    are mutually exclusive, so exactly one arm runs.
+
+    Structure::
+
+        <name> (Selector)
+        ├── CheckIsCaseManagerNode        # SUCCESS when IS case manager → skip
+        └── <children>                    # only reached when NOT case manager
+
+    No ``Inverter`` is needed here and no failure is masked: the first arm is a
+    pure condition, so a Selector that falls through to *children* reports
+    their FAILURE as its own.
+
+    Args:
+        name: Name for the root Selector.
+        case_id: Case whose CASE_MANAGER role gates the children.
+        children: Nodes to run when the executing actor is not the manager.
+            More than one is wrapped in a Sequence so a mid-sequence failure
+            still propagates.
+        body_name: Name for that wrapping Sequence. Defaults to ``{name}Body``.
+        case_may_be_absent: Read a case the executing actor does not hold as
+            "not the CASE_MANAGER" instead of an anomaly; see
+            :class:`CheckIsCaseManagerNode`.
+
+    Returns:
+        The gated root Selector.
+    """
+    gated = _wrap_children(name, children, body_name)
+
+    return py_trees.composites.Selector(
+        name=name,
+        memory=False,
+        children=[
+            CheckIsCaseManagerNode(
+                case_id=case_id,
+                name="SkipIfCaseManager",
+                case_may_be_absent=case_may_be_absent,
             ),
             gated,
         ],

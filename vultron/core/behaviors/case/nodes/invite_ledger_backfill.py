@@ -29,14 +29,14 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
-    DataLayerAction,
     DataLayerActionWithPorts,
     PortInformation,
+    _EmitSingleActivityBase,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -46,21 +46,30 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
 
     This node MUST appear AFTER ``CheckInviteeNotAlreadyParticipantNode`` in
     the precondition-guards list, so it can read ``invitee_already_participant``
-    from the blackboard.
+    and ``invitee_joined`` from the blackboard.
 
     **Resume case** (invitee already registered, ``invitee_already_participant
-    = True``): the commit's ``FanOutLogEntryNode`` will include the invitee in
-    its recipient list (they are a current case participant), so
-    ``BackfillCanonicalLedgerToInviteeNode`` must limit its window to entries
-    that existed *before* the commit to avoid sending the new entry twice.
-    This node writes ``pre_commit_backfill_target`` to the blackboard.
+    = True``, ``invitee_joined = True``): the commit's ``FanOutLogEntryNode``
+    will include the invitee in its recipient list (they are a current case
+    participant), so ``BackfillCanonicalLedgerToInviteeNode`` must limit its
+    window to entries that existed *before* the commit to avoid sending the
+    new entry twice.  This node writes ``pre_commit_backfill_target`` to the
+    blackboard.
 
-    **Fresh case** (invitee not yet registered, ``invitee_already_participant
-    = False``): the commit fan-out will NOT include the invitee (they are not
-    yet a participant), so backfill must include the newly committed entry in
-    its window.  This node does *not* write ``pre_commit_backfill_target``,
-    leaving ``BackfillCanonicalLedgerToInviteeNode`` to compute its target
-    from the post-commit ledger state.
+    **Inert-record case** (``invitee_already_participant = True``,
+    ``invitee_joined = False``): the invitee has an inert stub record at
+    invite-send time (ADR-0114, CM-11-006) but is NOT in the fan-out
+    recipients (``is_active_participant()`` is False), so the commit fan-out
+    will NOT include them.  Treat as fresh: leave
+    ``pre_commit_backfill_target`` unset so backfill covers all entries
+    including the new accept entry.
+
+    Both the inert-record and the fresh paths leave
+    ``BackfillCanonicalLedgerToInviteeNode`` to compute its target from the
+    ledger tail at backfill time.  (An invitee with no record never reaches
+    this node in the Accept tree: CM-11-021 refuses it first.)  The full-case Invite's entry
+    (``EmitInviteActorToFullCaseNode``) is committed *after* the backfill and
+    reaches the invitee through its own fan-out, in chain order (CM-17-004).
 
     Always returns ``SUCCESS``.
     """
@@ -74,6 +83,7 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
         "invitee_already_participant": PortInformation(
             data_type=object, required=False
         ),
+        "invitee_joined": PortInformation(data_type=object, required=False),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
@@ -86,6 +96,7 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             "invitee_already_participant": "/invitee_already_participant",
+            "invitee_joined": "/invitee_joined",
             "pre_commit_backfill_target": "/pre_commit_backfill_target",
         }
 
@@ -97,24 +108,32 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
             )
         except (NoDataAvailable, NotImplementedError):
             self._already_participant_bb = False
+        try:
+            self._invitee_joined_bb = self.get_input("invitee_joined")
+        except (NoDataAvailable, NotImplementedError):
+            self._invitee_joined_bb = None
 
     def update(self) -> Status:
         already_participant = self._already_participant_bb
+        # An inert participant (joined=False, ADR-0114) is not included in the
+        # fan-out, so treat the same as fresh — no pre-commit snapshot.
+        invitee_joined = self._invitee_joined_bb
+        is_resume = already_participant and invitee_joined is not False
 
-        if not already_participant:
-            # Fresh case: commit fan-out won't reach invitee (not yet
-            # registered).  Write None to pre_commit_backfill_target so that
-            # BackfillCanonicalLedgerToInviteeNode uses the post-commit target,
-            # and any stale value from a prior resume test is overwritten.
+        if not is_resume:
+            # Fresh case (or inert record): the commit fan-out won't reach the
+            # invitee.  Write None so BackfillCanonicalLedgerToInviteeNode
+            # uses the ledger tail at backfill time, and any stale value from
+            # a prior resume test is overwritten.
             self._set_output("pre_commit_backfill_target", None)
             self.logger.debug(
-                "%s: fresh invite — clearing pre-commit backfill target"
+                "%s: fresh/inert invite — clearing pre-commit backfill target"
                 " (backfill will include post-commit entry)",
                 self.name,
             )
             return Status.SUCCESS
 
-        # Resume case: invitee IS already a participant.
+        # Resume case: invitee IS already a fully-joined participant.
         # Capture the current last index so backfill doesn't re-send the
         # accept-invite entry that the commit fan-out will deliver.
         if self.datalayer is None:
@@ -138,7 +157,11 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
 
 
 class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
-    """Send canonical CaseLedgerEntry history to a joiner in strict order."""
+    """Send canonical CaseLedgerEntry history to a joiner in strict order.
+
+    A missing ``sync_port`` is a wiring fault and raises
+    ``VultronWiringError``, as the fan-out does (SYNC-02-003, #4126).
+    """
 
     def __init__(
         self, case_id: str, invitee_id: str, name: str | None = None
@@ -198,11 +221,11 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         if self._sync_port is None:
-            self.logger.error(
-                "%s: sync_port not injected; cannot perform join-time backfill",
-                self.name,
+            raise VultronWiringError(
+                f"{self.name}: sync_port must be injected to backfill the"
+                f" ledger of case '{self.case_id}' to '{self.invitee_id}'"
+                " (SYNC-02-003, #4126)"
             )
-            return Status.FAILURE
 
         entries: list[CaseLedgerEntry] = [
             obj
@@ -293,7 +316,7 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
         return state
 
 
-class EmitAnnounceCaseToInviteeNode(DataLayerAction):
+class EmitAnnounceCaseToInviteeNode(_EmitSingleActivityBase):
     """Queue Announce(VulnerabilityCase) to the invitee from the CaseActor.
 
     Per MV-10-003/MV-10-005, the CaseActor sends the full case object after
@@ -334,9 +357,10 @@ class EmitAnnounceCaseToInviteeNode(DataLayerAction):
                 context_id=self.case_id,
                 to=[self.invitee_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            # factory.announce_vulnerability_case returns str only;
+            # pass an empty blob since no captured dict is present.
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "%s: queued AnnounceVulnerabilityCase '%s' to '%s'"
                 " for case '%s' (MV-10-003)",
@@ -346,8 +370,8 @@ class EmitAnnounceCaseToInviteeNode(DataLayerAction):
                 self.case_id,
             )
             return Status.SUCCESS
-        except Exception as exc:
-            self.logger.error(
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: failed to emit AnnounceVulnerabilityCase for case '%s'"
                 " to '%s': %s",
                 self.name,

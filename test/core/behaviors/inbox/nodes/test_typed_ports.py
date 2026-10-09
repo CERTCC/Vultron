@@ -24,27 +24,32 @@ import pytest
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.inbox.nodes.pipeline import (
+from vultron.core.behaviors.inbox.nodes.dispatch import (
     BuildOutcomeNode,
-    DeferCheckNode,
     DispatchNode,
-    ExtractSemanticsNode,
+)
+from vultron.core.behaviors.inbox.nodes.pipeline import (
     KEY_ACTIVITY,
     KEY_DISPATCH,
     KEY_EVENT,
     KEY_INGRESS,
     KEY_OUTCOME_STATUS,
     KEY_PAYLOAD,
+    DeferCheckNode,
+    ExtractSemanticsNode,
     ParsePayloadNode,
     RehydrateActivityNode,
 )
 
 
 @pytest.fixture(autouse=True)
-def _clear_blackboard():
+def _reset_blackboard_clients():
+    """Re-enable the activity stream and drop clients after each test.
+
+    The root ``clear_py_trees_blackboard`` fixture clears the storage.
+    """
     yield
     py_trees.blackboard.Blackboard.enable_activity_stream()
-    py_trees.blackboard.Blackboard.storage.clear()
     py_trees.blackboard.Blackboard.clients.clear()
 
 

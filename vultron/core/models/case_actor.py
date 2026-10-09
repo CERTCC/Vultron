@@ -19,14 +19,18 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from vultron.core.models.base import CoreObject, ValidatedAssignmentMixin
+from vultron.core.models.base import (
+    CoreObject,
+    NonEmptyString,
+    ValidatedAssignmentMixin,
+)
 from vultron.core.models.enums import VultronActorType
 
 
 class VultronOutbox(ValidatedAssignmentMixin, BaseModel):
     """Minimal outbox representation for domain actor types."""
 
-    items: list[str] = Field(default_factory=list)
+    items: list[NonEmptyString] = Field(default_factory=list)
 
 
 class CaseActor(CoreObject):
@@ -84,7 +88,3 @@ class CaseActor(CoreObject):
 
     def _as2_derived_fields(self) -> dict[str, Any]:
         return {"inbox": f"{self.id_}/inbox", "outbox": f"{self.id_}/outbox"}
-
-
-#: Backward-compatibility alias.  New code should import :class:`CaseActor`.
-VultronCaseActor = CaseActor

@@ -47,9 +47,9 @@ from vultron.core.states.cs import (
 from vultron.core.states.cs_invariants import (
     CS_EVENT_TO_PXA_TRIGGER,
     CS_EVENTS,
-    CSEvent,
     PXA_EVENTS,
     VFD_EVENTS,
+    CSEvent,
     apply_cs_event,
     cs_dimensions,
     cs_from_dimensions,
@@ -82,7 +82,7 @@ def _all_candidate_state_strings() -> list[str]:
         combos.append(
             "".join(
                 letter.upper() if bit == "1" else letter
-                for letter, bit in zip("vfdpxa", bits)
+                for letter, bit in zip("vfdpxa", bits, strict=False)
             )
         )
     return combos
@@ -136,7 +136,7 @@ def test_cs_events_are_canonical_order():
 
 
 def test_event_dimension_partition():
-    assert VFD_EVENTS | PXA_EVENTS == set(CS_EVENTS)
+    assert set(CS_EVENTS) == VFD_EVENTS | PXA_EVENTS
     assert not VFD_EVENTS & PXA_EVENTS
 
 
@@ -372,7 +372,7 @@ def test_transitions_are_monotone():
     """No transition ever un-sets a bit; CS events are irreversible."""
     for src in CS:
         for dst in next_cs_states(src):
-            for before, after in zip(src.name, dst.name):
+            for before, after in zip(src.name, dst.name, strict=False):
                 assert not (before.isupper() and after.islower())
 
 
@@ -422,9 +422,9 @@ def test_valid_transitions(src, dst):
     ],
 )
 def test_invalid_transitions(src, dst, reason):
-    assert not is_valid_cs_transition(
-        src, dst
-    ), f"{src.name} -> {dst.name} should be rejected: {reason}"
+    assert not is_valid_cs_transition(src, dst), (
+        f"{src.name} -> {dst.name} should be rejected: {reason}"
+    )
     with pytest.raises(VultronInvalidStateTransitionError):
         ensure_valid_cs_transition(src, dst)
 
@@ -593,9 +593,9 @@ def test_accepted_histories(history):
 )
 def test_rejected_histories(history, reason):
     events = [CSEvent(char) for char in history]
-    assert not is_valid_cs_history(
-        events
-    ), f"{history} should be rejected: {reason}"
+    assert not is_valid_cs_history(events), (
+        f"{history} should be rejected: {reason}"
+    )
     with pytest.raises(
         (VultronValidationError, VultronInvalidStateTransitionError)
     ):

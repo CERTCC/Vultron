@@ -32,4 +32,4 @@ Please note: Pull request submissions are subject to our
 <!-- For PRs that modify .py files. Include actual test count + new tests added.
      Delete this section for docs-only PRs. -->
 - All N unit tests pass (M new)
-- Black, flake8, mypy, pyright clean
+- ruff, mypy, pyright clean

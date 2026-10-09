@@ -7,7 +7,6 @@ description: 'Authoritative normative bridge from protocol message shorthand lab
   pxa_state, EV/EJ/EC onto EP/ER/EA), and one shorthand may expand across several wire activities (GI, EP). Shorthands with
   no dedicated dispatch value are the protocol-layer error and acknowledgment signals; these are not unimplemented — the
   purposes they name are served by mechanisms partitioned on a different axis, specified normatively in MSM-05.'
-version: 0.3.0
 scope:
 - prototype
 - production
@@ -39,8 +38,12 @@ groups:
   - id: MSM-01-002
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `RI` (Report Invalid) MUST dispatch as `MessageSemantics.INVALIDATE_REPORT`; its AS2 wire
-      form is `TentativeReject(Offer(VulnerabilityReport))` per VAM-02-005.
+    statement: >-
+      Protocol shorthand `RI` (Report Invalid) MUST dispatch as
+      `MessageSemantics.INVALIDATE_REPORT`; its AS2 wire form is
+      `TentativeReject(Offer(VulnerabilityReport))` per VAM-02-005. This is the direct
+      report recipient's RI; a participant that joined through an Invite sends RI as the
+      full-case Invite reply of VAM-04-013.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.INVALIDATE_REPORT`
       is paired with an `ActivityPattern` matching
@@ -48,14 +51,20 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-005
+    adr:
+    - ADR-0121
     stories:
     - story_2022_101
     - story_2022_006
   - id: MSM-01-003
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `RV` (Report Valid) MUST dispatch as `MessageSemantics.VALIDATE_REPORT`; its AS2 wire form
-      is `Accept(Offer(VulnerabilityReport))` per VAM-02-004.
+    statement: >-
+      Protocol shorthand `RV` (Report Valid) MUST dispatch as
+      `MessageSemantics.VALIDATE_REPORT`; its AS2 wire form is
+      `Accept(Offer(VulnerabilityReport))` per VAM-02-004. This is the direct report
+      recipient's RV; a participant that joined through an Invite sends RV as the
+      full-case Invite reply of VAM-04-012.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.VALIDATE_REPORT`
       is paired with an `ActivityPattern` matching `Accept(Offer(VulnerabilityReport))`
@@ -63,6 +72,8 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-004
+    adr:
+    - ADR-0121
     stories:
     - story_2022_101
     - story_2022_006
@@ -104,8 +115,12 @@ groups:
   - id: MSM-01-006
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `RC` (Report Closed) MUST dispatch as `MessageSemantics.CLOSE_REPORT`; its AS2 wire form
-      is `Reject(Offer(VulnerabilityReport))` per VAM-02-006.
+    statement: >-
+      Protocol shorthand `RC` (Report Closed) MUST dispatch as
+      `MessageSemantics.CLOSE_REPORT`; its AS2 wire form is
+      `Reject(Offer(VulnerabilityReport))` per VAM-02-006. This is the direct report
+      recipient's RC; a participant that joined through an Invite sends RC as the
+      full-case Invite reply of VAM-04-014.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.CLOSE_REPORT`
       is paired with an `ActivityPattern` matching `Reject(Offer(VulnerabilityReport))`
@@ -113,12 +128,14 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-006
+    adr:
+    - ADR-0121
     stories:
     - story_2022_006
     - story_2022_101
   - id: MSM-01-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `RE` (Report Management Error) has no dedicated `MessageSemantics` dispatch value and no
       entry in `SEMANTIC_REGISTRY`; report-management error conditions MUST instead be reported through the
       failure-mode mechanisms specified in MSM-05-001.
@@ -133,8 +150,6 @@ groups:
       `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
       registry entry names `RE`; a unit test asserts this absence to prevent
       unintended additions.
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-01-008
     priority: MUST
     kind: protocol
@@ -191,6 +206,7 @@ groups:
   - id: MSM-02-003
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: Protocol shorthand `EV` (Embargo Revision Proposed) MUST dispatch as `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE`;
       its AS2 wire form is `Invite(Event)[context=VulnerabilityCase]` per VAM-05-005 — identical to `EP`. The revision context
       is inferred from the presence of an active embargo.
@@ -267,7 +283,7 @@ groups:
     - story_2022_015
   - id: MSM-02-008
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `EE` (Embargo Management Error) has no dedicated `MessageSemantics` dispatch value and no
       entry in `SEMANTIC_REGISTRY`; embargo-management error conditions MUST instead be reported through the
       failure-mode mechanisms specified in MSM-05-001.
@@ -282,11 +298,9 @@ groups:
       `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
       registry entry names `EE`; a unit test asserts this absence to prevent
       unintended additions.
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-02-009
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `EK` (Embargo Management Acknowledgment) has no dedicated `MessageSemantics` dispatch value
       and no entry in `SEMANTIC_REGISTRY`; acknowledgement of embargo state carried on the case ledger MUST instead
       follow the cumulative hash-chain mechanism specified in MSM-05-002.
@@ -301,8 +315,6 @@ groups:
       `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
       registry entry names `EK`; a unit test asserts this absence to prevent
       unintended additions.
-    lint_suppress:
-    - missing_story_reference
 - id: MSM-03
   title: CS Protocol Message Shorthands
   description: 'Normative shorthand-to-semantic mappings for CVD Case State (CS) protocol messages, covering CV, CF, CD, CP,
@@ -434,7 +446,7 @@ groups:
     - story_2022_081
   - id: MSM-03-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `CE` (Case State Error) has no dedicated `MessageSemantics` dispatch value and no entry
       in `SEMANTIC_REGISTRY`; case-state error conditions MUST instead be reported through the failure-mode
       mechanisms specified in MSM-05-001.
@@ -449,11 +461,9 @@ groups:
       `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
       registry entry names `CE`; a unit test asserts this absence to prevent
       unintended additions.
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-03-008
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `CK` (Case State Acknowledgment) has no dedicated `MessageSemantics` dispatch value and
       no entry in `SEMANTIC_REGISTRY`; acknowledgement of case-state changes carried on the case ledger MUST instead
       follow the cumulative hash-chain mechanism specified in MSM-05-002.
@@ -468,8 +478,6 @@ groups:
       `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
       registry entry names `CK`; a unit test asserts this absence to prevent
       unintended additions.
-    lint_suppress:
-    - missing_story_reference
 - id: MSM-04
   title: General Protocol Message Shorthands
   description: 'Normative shorthand-to-semantic mappings for General (non-state-machine) protocol messages, covering GI, GK,
@@ -478,7 +486,7 @@ groups:
   specs:
   - id: MSM-04-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The note lifecycle MUST realize protocol shorthand `GI` (General Inquiry) as
       `MessageSemantics.CREATE_NOTE`, `MessageSemantics.ADD_NOTE_TO_CASE`, and
       `MessageSemantics.REMOVE_NOTE_FROM_CASE`; their AS2 wire forms are `Create(Note)` per VAM-07-001,
@@ -498,11 +506,9 @@ groups:
       spec_id: VAM-07-002
     - rel_type: derives_from
       spec_id: VAM-07-003
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-04-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Protocol shorthand `GI` MUST additionally cover the actor-suggestion exchange, dispatching as
       `MessageSemantics.OFFER_ACTOR_TO_CASE`, `MessageSemantics.OFFER_CASE_PARTICIPANT`,
       `MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT`, or `MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT`.
@@ -522,8 +528,6 @@ groups:
       spec_id: VAM-04-002
     - rel_type: derives_from
       spec_id: VAM-04-003
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-04-003
     priority: MUST
     kind: protocol
@@ -566,7 +570,7 @@ groups:
     - missing_story_reference
   - id: MSM-05-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Acknowledgement of replicated case-ledger state MUST be cumulative and implicit via hash-chain continuity. A
       receiver whose `prev_log_hash` matches its local tail MUST NOT emit an acknowledgement, and MUST emit
       `Reject(CaseLedgerEntry)` on a mismatch, whereupon the CASE_MANAGER replays all entries after the last accepted hash.'
@@ -581,8 +585,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-05-005
     priority: MUST
     kind: protocol
@@ -644,8 +646,6 @@ groups:
       and the whole of `docs/` returns no definitions and no documentation
       references. `ActivityPattern.in_reply_to_` has been removed from the
       codebase; the pattern matcher cannot match on a field that does not exist.
-    lint_suppress:
-    - missing_story_reference
 - id: MSM-06
   title: Message Type Reference Rendering
   description: Requirements governing the consolidated per-message-type reference pages under `docs/reference/messages/`, so
@@ -665,7 +665,6 @@ groups:
       produced by a `markdown_exec` block reading the spec and semantic registries,
       following the `docs/reference/specs/*.md` pattern.
     lint_suppress:
-    - missing_story_reference
     - phantom_path_ref
   - id: MSM-06-002
     priority: MUST
@@ -683,7 +682,6 @@ groups:
       designation for every entry outside the declared exemption set, and that the entry
       appears on its designated page.
     lint_suppress:
-    - missing_story_reference
     - phantom_path_ref
   - id: MSM-06-003
     priority: MUST
@@ -697,35 +695,32 @@ groups:
     verification: >-
       Inspection of the rendered pages confirms a status column is present and
       populated for every row.
-    lint_suppress:
-    - missing_story_reference
 - id: MSM-07
   title: Participant Embargo Consent (PEC) State Machine Coupling to EM Wire Activities
   description: >-
-    Normative record of how each EM wire activity drives the per-participant Participant
-    Embargo Consent (PEC) state machine as a side-effect, and which PEC transitions are
-    internal cascades or timer-based events with no corresponding wire message. PEC is a
-    participant-local state machine tracking each actor's relationship to the shared case
-    embargo; its transitions are not independent protocol messages and have no formal
-    shorthands in the 28-shorthand set. PEC state answers the question: "has this
-    participant explicitly accepted or rejected the *current* active embargo?" Unlike
-    RM state (self-reported by the participant) and VF/D state (self-reported by
-    vendor/deployer), PEC state is set by the CASE_MANAGER (CM-28-003) based on observed
-    participant behavior — incoming Accept/Reject wire activities, timer-enforced lapses,
-    and cascades from shared EM state changes. The five states are UNBOUND (participant
-    not bound by any embargo terms), INVITED (awaiting response), SIGNATORY (accepted
-    current terms), LAPSED (terms changed since last acceptance), and DECLINED
-    (explicitly refused or timed out without responding). Normative authority:
-    specs/case-management.yaml CM-18. Decisions: ADR-0048, ADR-0091.
+    Normative record of how each EM wire activity drives the per-participant, per-embargo
+    Participant Embargo Consent (PEC) rows as a side-effect, and which consent positions are
+    derived rather than written. PEC is participant-local state tracking each actor's
+    relationship to each embargo it was asked about; its transitions are not independent
+    protocol messages and have no formal shorthands in the 28-shorthand set. A participant's
+    consent to an embargo is one row holding INVITED, ACCEPTED, DECLINED or EXPIRED; whether
+    the participant is bound by the *current* active embargo is a lookup of the active
+    embargo's row, and a lapse is read from the rows when a longer embargo replaces the one
+    the participant accepted. Unlike RM state (self-reported by the participant) and VF/D state
+    (self-reported by vendor/deployer), consent rows are set by the CASE_MANAGER (CM-28-003)
+    based on observed participant behavior — incoming Accept/Reject wire activities and
+    timer-enforced invitation expiry — and replayed on each replica. Normative authority:
+    specs/case-management.yaml CM-18. Decisions: ADR-0048, ADR-0091, ADR-0118, ADR-0122.
   specs:
   - id: MSM-07-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The Participant Embargo Consent (PEC) state machine MUST NOT be assigned any
       formal shorthand in the 28-shorthand protocol message set; all PEC transitions
-      are either side-effects of EM wire activities (MSM-07-002 through MSM-07-005)
-      or timer-based internal events (MSM-07-006) with no dedicated wire message or
+      are either side-effects of EM wire activities (MSM-07-002 through MSM-07-005,
+      MSM-07-008)
+      or timer-based internal events (MSM-07-007) with no dedicated wire message or
       dispatch value of their own.
     rationale: >-
       PEC is participant-local state tracking each actor's relationship to the shared
@@ -740,174 +735,288 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-07-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The wire activity INVITE_TO_EMBARGO_ON_CASE (EP wire form:
-      Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to
-      the invited participant, advancing their consent state from UNBOUND, DECLINED,
-      or LAPSED to INVITED.
+      Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to the
+      invited participant's row for the invited embargo, advancing it from no row, DECLINED
+      or EXPIRED to INVITED.
     rationale: >-
-      An embargo proposal is an invitation to consent; the EP wire activity conveys
-      the invitation and the PEC machine records each participant's position. Participants
-      already in SIGNATORY are unaffected by EP; INVITE is a no-op from SIGNATORY
-      (CM-18-004). The PEC trigger is applied via EmbargoLifecycle.record_participant_consent()
-      inside the InviteToEmbargoOnCaseReceivedUseCase received-side handler.
+      An embargo proposal is an invitation to consent; the EP wire activity conveys the invitation
+      and the PEC rows record each participant's position on each embargo. A participant whose row
+      is ACCEPTED is unaffected by EP; INVITE is not legal from ACCEPTED (CM-18-003), and a
+      signatory asked about a revision gains a row for the revision while its row for the active
+      embargo stays ACCEPTED (EP-09-004). The PEC trigger is applied via
+      EmbargoLifecycle.record_embargo_invite() on the CASE_MANAGER as it relays the Invite, and on
+      each replica as it replays the relay's ledger entry (EP-09-007).
     verification: >-
-      Inspection of vultron/core/use_cases/received/embargo.py and
-      vultron/core/services/embargo_lifecycle.py confirms that processing
-      INVITE_TO_EMBARGO_ON_CASE applies PEC_Trigger.INVITE to each named invitee
-      via record_participant_consent().
+      Inspection of vultron/core/behaviors/embargo/nodes/relay.py, relay_effect.py and
+      vultron/core/services/embargo_lifecycle/ confirms that relaying or replaying
+      INVITE_TO_EMBARGO_ON_CASE applies PEC_Trigger.INVITE to the named invitee's row for the
+      Invite's embargo via record_embargo_invite().
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-001
-    lint_suppress:
-    - missing_story_reference
   - id: MSM-07-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (EA wire form:
-      Accept(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
-      (1) when the sending actor is the case owner it MUST advance the shared EM
-      state from PROPOSED to ACTIVE (or from REVISE to ACTIVE for EC); (2) for
-      any accepting participant it MUST apply the PEC ACCEPT trigger, advancing
-      their consent state from INVITED, UNBOUND, or LAPSED to SIGNATORY.
+      Accept(Invite(Event)[context=VulnerabilityCase])) is always the sending actor's own
+      consent, whoever sends it, the case owner included: it MUST apply the PEC ACCEPT
+      trigger to the sender's row for the accepted embargo, advancing it from no row,
+      INVITED or EXPIRED to ACCEPTED, and MUST NOT change any embargo register entry. The
+      rule is the same whether the accepted embargo is the case's active embargo, a first
+      proposal (EM PROPOSED) or a *proposed revision* of an embargo still in force: the
+      accepted embargo's row is marked, and only that row. A participant is a signatory
+      exactly when the row for the active embargo is ACCEPTED, so accepting a proposed
+      revision binds the participant to nothing new until the owner activates it
+      (MSM-07-008). A participant whose row for the accepted embargo is DECLINED records
+      nothing — ACCEPT is not legal from DECLINED (CM-18-003), so it is re-invited first.
     rationale: >-
-      The same wire activity simultaneously drives the case-level EM machine
-      (for the case owner) and the participant-level PEC machine (for the accepting
-      actor). An implementer handling this activity MUST update both machines, not
-      just the EM state. The PEC ACCEPT trigger is valid directly from UNBOUND
-      because consent can be self-determined without an invitation (ADR-0048,
-      ADR-0091, CM-18-003).
+      The case owner's decision for the case has its own activity (MSM-07-008, ADR-0122), so
+      an Accept of an Invite means one thing whoever sends it and no handler branches on the
+      sender to learn what it means. The PEC ACCEPT trigger is valid directly from no row
+      because consent can be self-determined without an invitation (ADR-0048, ADR-0091,
+      CM-18-003). Consent is per embargo (CM-10-001, ADR-0093, ADR-0122): an Accept is always
+      a statement about the embargo it names, so it always marks that embargo's row and there
+      is no first-proposal versus revision asymmetry to special-case.
     verification: >-
-      Inspection of vultron/core/use_cases/received/embargo.py confirms
-      AcceptInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
-      with the sending actor's PEC updated to SIGNATORY regardless of whether
-      the actor is the case owner driving EM.
+      Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` assert that a
+      participant accepting the embargo in force, a first proposal and a proposed revision each
+      marks exactly that embargo's row ACCEPTED and moves no register entry, that the case
+      owner's Accept of an Invite records only its own consent, that a signatory accepting a
+      proposed revision keeps its ACCEPTED row for the active embargo, and that a DECLINED
+      participant's Accept records nothing.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-002
-    lint_suppress:
-    - missing_story_reference
+    adr:
+    - ADR-0093
+    - ADR-0122
   - id: MSM-07-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (ER wire form:
-      Reject(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
-      (1) when the sending actor is the case owner it MUST advance the shared EM
-      state from PROPOSED to NONE (for ER) or leave EM in ACTIVE (for EJ); (2)
-      for any rejecting participant it MUST apply the PEC DECLINE trigger, advancing
-      their consent state from INVITED, UNBOUND, or LAPSED to DECLINED.
+      Reject(Invite(Event)[context=VulnerabilityCase])) is always the sending actor's own
+      consent, whoever sends it, the case owner included: it MUST apply the PEC DECLINE
+      trigger to the sender's row for the rejected embargo (valid from no row, INVITED,
+      ACCEPTED or EXPIRED) and MUST NOT change any embargo register entry. Rejecting the
+      case's *active* embargo is consent withdrawal and MUST also decline every open
+      proposal's row the participant had ACCEPTED — every open proposal is a revision of the
+      embargo withdrawn from (EP-08-004), and a DECLINED participant MUST NOT hold an ACCEPTED
+      row for an embargo that can become active without re-invitation. Rejecting a *proposed*
+      embargo that is not active declines that embargo's row only and MUST leave the
+      participant's row for the active embargo unchanged — a signatory's rejection of a
+      proposed revision refuses those terms; it is not withdrawal from the embargo in force.
+      When no embargo is in force (EM PROPOSED) a Reject of a proposal declines that
+      proposal's row only: it withdraws from nothing, and other open proposals the
+      participant accepted stay accepted.
     rationale: >-
-      Symmetric with MSM-07-003: the reject wire activity drives both the EM machine
-      (case-owner path) and the PEC machine (rejecting participant path). The PEC
-      DECLINE trigger is valid directly from UNBOUND for symmetric reasons to
-      ACCEPT (ADR-0048, ADR-0091, CM-18-003).
+      Symmetric with MSM-07-003: the case owner's rejection of a proposal for the case has its
+      own activity (MSM-07-009, ADR-0122), so a Reject of an Invite is the sender's consent
+      and nothing else. The PEC DECLINE trigger is valid directly from no row for symmetric
+      reasons to ACCEPT (ADR-0048, ADR-0091, CM-18-003), and from ACCEPTED as first-class
+      consent withdrawal (ADR-0093, VP-13-007, VP-13-008). Consent is per embargo, so a
+      signatory who refuses proposed terms is still bound by, and still consents to, the
+      embargo that remains active; only the case owner decides whether the proposal replaces
+      it.
     verification: >-
-      Inspection of vultron/core/use_cases/received/embargo.py confirms
-      RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
-      with the sending actor's PEC updated to DECLINED regardless of EM ownership.
+      Inspection of vultron/core/use_cases/received/embargo/reject.py and
+      vultron/core/services/embargo_lifecycle/consent.py confirms
+      RejectInviteToEmbargoOnCaseReceivedUseCase applies
+      EmbargoLifecycle.record_embargo_rejection, which declines the rejecting actor's row for
+      the rejected embargo, declines its accepted open proposals only when the rejected
+      embargo is the active one, applies the same rule to the case owner, and moves no
+      register entry.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-006
-    lint_suppress:
-    - missing_story_reference
+    adr:
+    - ADR-0093
+    - ADR-0122
   - id: MSM-07-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
-      When the shared EM state transitions from ACTIVE to REVISE (driven by an
-      EV / INVITE_TO_EMBARGO_ON_CASE wire activity), implementations MUST
-      automatically apply the PEC REVISE trigger to every participant currently
-      in SIGNATORY state, advancing them to LAPSED. No separate outbound wire
-      activity is emitted for these per-participant PEC transitions; the cascade
-      is an internal side-effect of the EM state change.
+      When the case owner's Accept(Event)[target=VulnerabilityCase] (MSM-07-008) replaces
+      active embargo A with revision B (the register activates B and supersedes A, so the
+      derived EM goes REVISE → ACTIVE),
+      implementations MUST settle every participant's consent rows against B:
+      if B ends no later than A, every participant whose row for A is ACCEPTED MUST be carried
+      over by marking its row for B ACCEPTED (where ACCEPT is legal, CM-18-003); if B ends
+      later than A, implementations MUST NOT write any row to lapse anyone — a participant
+      whose row for B is not ACCEPTED is not a signatory to B and has lapsed if it had
+      accepted A (CM-18-001). Activating B advances no one: a participant holding an ACCEPTED
+      row for B is its signatory by lookup, whether it is the proposer, an early acceptor or
+      the owner. Only participants whose row for A is ACCEPTED are carried over: a participant
+      that had lapsed from an earlier embargo stays lapsed until it is re-invited or accepts B,
+      and a participant INVITED to A whose invitation B has made stale is handled by the
+      stale-terms re-invite path (EMB-17). A revision proposal (EV, ACTIVE → REVISE, or a
+      counter-revision REVISE → REVISE) MUST NOT change any participant's consent to the
+      embargo in force, and the proposer's row for the proposed embargo MUST be marked
+      ACCEPTED. The carry-over MUST run whether the transition is driven locally or observed
+      from the wire. No separate outbound wire activity is emitted for these per-participant
+      consent writes; they are an internal side-effect of the activation.
     rationale: >-
-      LAPSED means "I accepted the prior embargo terms, but those terms have
-      changed and my prior consent no longer applies." Because the revision is
-      a case-level event the cascade must be atomic with the EM transition —
-      leaving any SIGNATORY participant in place while EM is REVISE would allow
-      the case to proceed as though all prior signatories had re-accepted the
-      revised terms, which they have not. The REVISE cascade is performed by
-      EmbargoLifecycle._cascade_pec_revise() inside propose_embargo().
+      A participant has lapsed when the active embargo was replaced by longer terms it has not
+      accepted. While a revision is merely proposed the prior embargo is still in force and
+      every signatory to it is still bound by it, so nothing about their consent has changed
+      (ADR-0093). Agreeing to N days is agreeing to every shorter period — the containment that
+      makes shortest-wins safe (EP-04-003) — so a shorter revision asks nothing new of an
+      existing signatory and carries them over. Longer terms ask for more than they promised,
+      so only those who accepted B are bound by B, and the rows say so without a write. Only
+      the owner's acceptance changes the embargo on the case; other participants' accepts and
+      rejects are recorded per embargo and inform that decision. Running the carry-over in the
+      observed path too keeps every replica's consent rows in step with the CASE_MANAGER's.
     verification: >-
-      Inspection of vultron/core/services/embargo_lifecycle.py confirms that
-      propose_embargo() calls _cascade_pec_revise() and that SIGNATORY
-      participants are transitioned to LAPSED before the EM REVISE transition
-      is persisted. Unit tests in test/core/services/test_embargo_lifecycle.py
-      assert the cascade.
+      Inspection of vultron/core/services/embargo_lifecycle/ confirms that
+      propose_embargo() writes only the proposer's row for the proposed id, and that
+      activate_embargo() carries signatories over to a revision that ends no later than the
+      replaced embargo and writes nothing for a longer one. Unit tests
+      in test/core/services/embargo_lifecycle/ assert both arms, the derived lapse, and the
+      no-op on proposal.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-003
-    lint_suppress:
-    - missing_story_reference
+    adr:
+    - ADR-0093
+    - ADR-0122
   - id: MSM-07-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
-      When the shared EM state transitions to EXITED (driven by an ET /
-      REMOVE_EMBARGO_EVENT_FROM_CASE wire activity), implementations MUST
-      automatically apply the PEC RESET trigger to every participant, advancing
-      all consent states to UNBOUND. No separate outbound wire activity is
-      emitted for these per-participant PEC transitions; the cascade is an
-      internal side-effect of the EM termination.
+      When an ET / REMOVE_EMBARGO_EVENT_FROM_CASE wire activity terminates the embargo
+      register's ACTIVE entry (cancelling every open proposal in the same step, so the derived
+      EM becomes EXITED), implementations MUST leave the case with no active embargo and MUST
+      NOT write any participant's consent rows: with no active embargo
+      no participant is a signatory and no row binds anyone, and an Accept or Reject that
+      arrives afterwards records nothing (EMB-17-004). No separate outbound wire activity is
+      emitted; the participant position is derived from the case.
     rationale: >-
-      UNBOUND is the correct state when no embargo is in scope (ADR-0048, ADR-0091).
-      Terminating the embargo removes it from scope for all participants, so
-      their per-participant consent records must reflect that absence. The RESET
-      cascade is performed by EmbargoLifecycle._cascade_pec_reset() inside
-      terminate_active_embargo().
+      A register with a TERMINATED entry accepts no further change (ADR-0122 invariant 4), so a
+      terminated embargo can never be invited to again. That is a fact about the case, which every replica holds once it replays the
+      teardown, so it does not need to be copied onto each participant record as the terminal
+      state it was before ADR-0122 (ADR-0118). Leaving the rows as they were also keeps the
+      history of who accepted what.
     verification: >-
-      Inspection of vultron/core/services/embargo_lifecycle.py confirms that
-      terminate_active_embargo() calls _cascade_pec_reset() and that all
-      participants reach UNBOUND. Unit tests in
-      test/core/services/test_embargo_lifecycle.py assert the cascade.
+      Inspection of vultron/core/services/embargo_lifecycle/ confirms that
+      terminate_active_embargo() writes no consent row. Unit tests in
+      test/core/services/embargo_lifecycle/ assert the rows are unchanged and no participant is
+      a signatory afterwards, and a per-actor-store test asserts the same on the CASE_MANAGER
+      and on a replica.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-007
-    lint_suppress:
-    - missing_story_reference
+    adr:
+    - ADR-0118
+    - ADR-0122
   - id: MSM-07-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
-      The timer-based pocket-veto transitions — INVITED to DECLINED and LAPSED
-      to DECLINED after the invitation deadline passes — MUST be enforced lazily
-      with no outbound wire message emitted for the PEC state change itself.
-      The CASE_MANAGER MUST author a case-ledger entry recording the lapse (CM-28-005)
-      so the consent change is visible in the canonical ledger, but no additional
-      protocol wire activity is required.
+      The timer-based pocket-veto transition — INVITED to EXPIRED after the invitation deadline
+      passes — MUST be enforced lazily with no outbound wire message emitted for the consent
+      change itself. A lapse has no timer path (CM-18-002): a lapsed participant is re-invited, and
+      the deadline attaches to that invitation. The CASE_MANAGER MUST author a case-ledger entry
+      recording the expiry (CM-28-005) so the consent change is visible in the canonical ledger, but
+      no additional protocol wire activity is required.
     rationale: >-
-      Inaction cannot produce an outbound message because there is no actor-observable
-      event to report. The lapse is a derived conclusion from (invite_rsvp_deadline,
-      now); the ledger entry is the record of that conclusion, not a message sent
-      by the lapsing participant. Requiring a wire message would demand the system
-      speak on behalf of a participant who has said nothing, which contradicts the
-      Actor Knowledge Model (AKM).
+      Inaction cannot produce an outbound message because there is no actor-observable event to
+      report. The expiry is a derived conclusion from (invite_rsvp_deadline, now); the ledger entry
+      is the record of that conclusion, not a message sent by the silent participant. Requiring a
+      wire message would demand the system speak on behalf of a participant who has said nothing,
+      which contradicts the Actor Knowledge Model (AKM).
     verification: >-
-      Inspection of vultron/core/services/embargo_lifecycle.py confirms
-      detect_and_apply_lapse() applies PEC_Trigger.DECLINE without emitting
-      an outbound wire activity, and that a CASE_MANAGER-authored ledger entry
-      is written per CM-28-005.
+      Inspection of vultron/core/services/embargo_lifecycle/ confirms detect_and_apply_expiry()
+      applies PEC_Trigger.EXPIRE without emitting an outbound wire activity, that a
+      CASE_MANAGER-authored ledger entry is written per CM-28-005, and that
+      detect_and_apply_expiry() applies it only to rows in INVITED.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-002
     - rel_type: derives_from
       spec_id: CM-28-005
-    lint_suppress:
-    - missing_story_reference
+    adr:
+    - ADR-0093
+  - id: MSM-07-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The wire activity ACTIVATE_EMBARGO_ON_CASE (wire form:
+      Accept(Event)[target=VulnerabilityCase], the EmbargoEvent itself as the object) is the
+      case owner's decision for the case and MUST be accepted only from the case owner; any
+      other sender MUST be refused with REFUSED before any write (HP-01-006). It MUST
+      activate the named proposal's embargo register entry and supersede any entry in force
+      in the same step, so the derived EM becomes ACTIVE (EA, or EC for a revision); MUST
+      mark the owner's row for the activated embargo ACCEPTED unless it already is; and, when
+      it replaces an embargo in force, MUST apply the MSM-07-005 consent rule. It MUST be
+      refused before it is committed when the named embargo is not an open proposal of the
+      case, when CS is public, exploited or attacked (EMB-02-002), or when the owner's row for
+      the proposal is DECLINED (the owner is invited again first, CM-18-003).
+    rationale: >-
+      Giving the owner's decision its own activity retires the two-audience rule: an Accept of
+      an Invite is always the sender's consent (MSM-07-003), and this activity is always the
+      owner's decision for the case, so neither meaning depends on who sent the message
+      (ADR-0122). Refusing a doomed activation before the commit keeps the ledger free of an
+      entry that replicas, replaying in OBSERVED mode, would apply without the CASE_MANAGER's
+      P/X/A check.
+    verification: >-
+      Unit tests in `test/core/use_cases/received/` assert that the case owner's
+      Accept(EmbargoEvent, target=Case) at the CASE_MANAGER activates the proposal, records
+      the owner's ACCEPTED row and carries signatories over to a shorter revision, that a
+      replica replaying the committed entry converges, and that a non-owner sender, a
+      non-open proposal, P/X/A and a DECLINED owner are each refused with nothing committed.
+    relationships:
+    - rel_type: derives_from
+      spec_id: EP-09-005
+    - rel_type: depends_on
+      spec_id: MSM-07-005
+    adr:
+    - ADR-0122
+  - id: MSM-07-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The wire activity REJECT_EMBARGO_PROPOSAL_ON_CASE (wire form:
+      Reject(Event)[target=VulnerabilityCase], the EmbargoEvent itself as the object) is the
+      case owner's decision for the case and MUST be accepted only from the case owner; any
+      other sender MUST be refused with REFUSED before any write (HP-01-006). It MUST reject
+      the named proposal's embargo register entry, so the derived EM becomes NONE (ER) or
+      stays ACTIVE with the prior terms in force (EJ) once no other proposal is open, and
+      stays PROPOSED or REVISE while another is (EP-08-001); it MUST NOT change any
+      participant's consent rows, the owner's included. When it rejects the last open
+      revision while CS is public, exploited or attacked, the embargo MUST be terminated
+      instead (EMB-04-002). It MUST be refused before it is committed when the named embargo
+      is not an open proposal of the case.
+    rationale: >-
+      The owner's rejection decides the proposal for the case; whether the owner, as a
+      participant, also refuses those terms is a separate Reject of the Invite (MSM-07-004).
+      Keeping the two apart lets the owner keep the prior terms without declining them
+      (ADR-0122).
+    verification: >-
+      Unit tests in `test/core/use_cases/received/` assert that the case owner's
+      Reject(EmbargoEvent, target=Case) at the CASE_MANAGER rejects the proposal with no
+      consent row changed, leaves another open proposal open, terminates the embargo when it
+      rejects the last revision after disclosure, and that a non-owner sender or a non-open
+      proposal is refused with nothing committed.
+    relationships:
+    - rel_type: derives_from
+      spec_id: EP-09-005
+    - rel_type: depends_on
+      spec_id: EMB-04-002
+    adr:
+    - ADR-0122

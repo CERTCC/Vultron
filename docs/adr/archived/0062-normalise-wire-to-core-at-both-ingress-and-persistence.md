@@ -1,10 +1,14 @@
 ---
 status: superseded
 date: 2026-08-13
+created: 2026-08-13
+updated: 2026-08-13
+revision: 1
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
 superseded_by: 0082-wire-core-boundary-pairing-registry.md
+stakeholder_type: [project-contributor]
 ---
 
 > **Superseded (#2940).** The persistence-boundary normalisation this ADR
@@ -164,7 +168,7 @@ the shapes converge.
 
 ## More Information
 
-**Superseded by [ADR-0082](../0082-wire-core-boundary-pairing-registry.md).**
+**Superseded by [ADR-0082](0082-wire-core-boundary-pairing-registry.md)**, itself since superseded by [ADR-0099](../0099-one-object-model-as2-is-a-serialization.md).
 That decision takes the unification this ADR named as the right end state and
 deferred: with
 `extra="forbid"` on the core branch and a declarative core↔wire pairing registry,

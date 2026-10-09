@@ -18,12 +18,25 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
+from test.support.embargo_register import activate
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
+from vultron.core.use_cases.received._embargo_pxa import (
+    pxa_embargo_ineligible,
+)
 from vultron.core.use_cases.received.embargo import (
     AnnounceEmbargoEventToCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
-    _pxa_embargo_ineligible,
 )
 from vultron.wire.as2.factories import (
     announce_embargo_activity,
@@ -53,19 +66,25 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_aem1/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
+        activate(case, embargo.id_)
+        # Only the CASE_MANAGER announces canonical embargo state (ADR-0115).
+        seed_case_manager_participant(
+            dl, case, "https://example.org/users/vendor"
+        )
         dl.create(case)
 
         activity = announce_embargo_activity(
             embargo=embargo,
             context=case.id_,
             actor="https://example.org/users/vendor",
+            to=["https://example.org/users/finder"],
         )
         event = make_payload(activity)
 
-        AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+        result = AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+        assert result.disposition is HandlerDisposition.SKIPPED
 
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated is not None
@@ -74,24 +93,100 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         assert updated.active_embargo is not None
 
     def test_announce_embargo_logs_info(self, make_payload, caplog):
-        """execute() logs receipt at INFO level."""
-        dl = MagicMock()
-        mock_event = MagicMock()
-        mock_event.activity_id = "https://example.org/activities/ann1"
+        """execute() logs receipt at INFO level and archives the Announce."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/users/finder",
+        )
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_aem2",
+            name="Announce Embargo Log Test",
+            attributed_to="https://example.org/users/finder",
+        )
+        embargo = as_EmbargoEvent(
+            id_="https://example.org/cases/case_aem2/embargo_events/e1",
+            context=case.id_,
+            end_time=days_from_now_utc(45),
+        )
+        seed_case_manager_participant(
+            dl, case, "https://example.org/users/vendor"
+        )
+        dl.create(case)
+        activity = announce_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor="https://example.org/users/vendor",
+            to=["https://example.org/users/finder"],
+        )
+        event = make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            AnnounceEmbargoEventToCaseReceivedUseCase(dl, mock_event).execute()
+            AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+
+        assert isinstance(
+            dl.read(ReceivedActivityRecord.build_id(activity.id_)),
+            ReceivedActivityRecord,
+        )
 
         assert any(
             "no receiver-side state change required" in r.message
             for r in caplog.records
         )
 
+    def test_announce_embargo_from_a_non_manager_is_refused(
+        self, make_payload
+    ):
+        """Only the CASE_MANAGER announces canonical embargo state."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://example.org/users/finder",
+        )
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_aem3",
+            name="Announce Embargo Sender Test",
+            attributed_to="https://example.org/users/finder",
+        )
+        embargo = as_EmbargoEvent(
+            id_="https://example.org/cases/case_aem3/embargo_events/e1",
+            context=case.id_,
+            end_time=days_from_now_utc(45),
+        )
+        seed_case_manager_participant(
+            dl, case, "https://example.org/users/vendor"
+        )
+        dl.create(case)
+        event = make_payload(
+            announce_embargo_activity(
+                embargo=embargo,
+                context=case.id_,
+                actor="https://example.org/users/impostor",
+                to=["https://example.org/users/finder"],
+            )
+        )
+
+        result = AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CASE_MANAGER" in (result.reason or "")
+
 
 class TestResetEmbargoConsentWithInlineParticipants:
-    """Regression tests for #609: _reset_case_participant_embargo_consent
-    must tolerate inline as_CaseParticipant objects in case.case_participants,
-    not just plain string IDs.
+    """Regression tests for #609: embargo removal must tolerate inline
+    as_CaseParticipant objects in case.case_participants, not just plain
+    string IDs.
     """
 
     def test_remove_active_embargo_with_inline_participant_no_type_error(
@@ -104,8 +199,12 @@ class TestResetEmbargoConsentWithInlineParticipants:
         Regression test for #609.
         """
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.states.participant_embargo_consent import PEC
+        from vultron.core.models.embargo_consent import EmbargoConsent
+        from vultron.core.states.participant_embargo_consent import (
+            EmbargoConsentState,
+        )
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
@@ -114,32 +213,39 @@ class TestResetEmbargoConsentWithInlineParticipants:
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         actor_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_609_inline"
         participant_id = f"{case_id}/participants/p1"
 
+        # RSH-08-003 (#3814): the teardown that resets inline-participant
+        # consent runs only at the CASE_MANAGER, so this store is the
+        # CASE_MANAGER (which exercises the #609 inline path).
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://example.org/users/finder",  # the receiving actor's own store
+            actor_id="https://example.org/users/case-manager",
         )
-
-        # Build a participant and store it — it also appears inline in case
-        participant = as_CaseParticipant(
-            id_=participant_id,
-            context=case_id,
-            attributed_to=actor_id,
-        )
-        # Simulate receiver-side: participant's consent state is SIGNATORY
-        object.__setattr__(participant, "embargo_consent_state", PEC.SIGNATORY)
-        dl.create(participant)
 
         embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
             context=case_id,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
+
+        # Build a participant and store it — it also appears inline in case.
+        # Receiver-side, the participant holds an ACCEPTED row for the embargo.
+        participant = as_CaseParticipant(
+            id_=participant_id,
+            context=case_id,
+            attributed_to=actor_id,
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                )
+            ],
+        )
+        dl.create(participant)
 
         # Store inline as_CaseParticipant object (not string ID) in
         # case_participants — this is the condition that caused #609.
@@ -148,98 +254,43 @@ class TestResetEmbargoConsentWithInlineParticipants:
             name="Inline Participant Regression Test",
             attributed_to=actor_id,
         )
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
+        activate(case, embargo.id_)
         case.case_participants.append(participant)  # type: ignore[arg-type]  # inline wire object (regression test for #609)
         case.actor_participant_index[actor_id] = participant_id
+        case_manager_id = "https://example.org/users/case-manager"
+        seed_case_manager_participant(dl, case, case_manager_id)
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(
             embargo,
             origin=case.id_,
-            actor=actor_id,
+            actor=case_manager_id,
+            to=[actor_id],
         )
-        event = make_payload(activity, receiving_actor_id=actor_id)
+        event = make_payload(activity, receiving_actor_id=case_manager_id)
 
         # Must not raise TypeError
-        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
 
         updated = cast(VulnerabilityCase, dl.read(case_id))
         assert updated is not None
         assert updated.active_embargo is None
         assert updated.current_status.em.state == EM.EXITED
 
-    def test_reset_consent_with_inline_participant_resets_state(self):
-        """_reset_case_participant_embargo_consent resets consent state even
-        when case_participants entries are inline wire-layer as_CaseParticipant
-        objects (not string IDs).
-
-        Regression test for #609.
-        """
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.states.participant_embargo_consent import PEC
-        from vultron.core.use_cases._helpers import (
-            reset_case_participant_embargo_consent as _reset_case_participant_embargo_consent,
-        )
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        actor_id = "https://example.org/users/finder"
-        case_id = "https://example.org/cases/case_609_reset"
-        participant_id = f"{case_id}/participants/p1"
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://example.org/users/finder",  # the receiving actor's own store
-        )
-
-        # Wire-layer as_CaseParticipant with non-default consent state.
-        # Stored in the DataLayer separately so dl.read(participant_id) works.
-        participant = as_CaseParticipant(
-            id_=participant_id,
-            context=case_id,
-            attributed_to=actor_id,
-        )
-        object.__setattr__(
-            participant, "embargo_consent_state", PEC.SIGNATORY.value
-        )
-        dl.create(participant)
-
-        # Wire-layer case stored in DataLayer; dl.read() returns core type (ADR-0034).
-        wire_case = as_VulnerabilityCase(
-            id_=case_id,
-            name="Reset Consent Inline",
-        )
-        wire_case.case_participants.append(participant)  # type: ignore[arg-type]
-        dl.create(wire_case)
-
-        from vultron.core.models.case import VulnerabilityCase
-
-        core_case = dl.read(case_id)
-        assert isinstance(core_case, VulnerabilityCase)
-
-        # Must not raise TypeError
-        _reset_case_participant_embargo_consent(dl, core_case)
-
-        updated_participant = dl.read(participant_id)
-        assert updated_participant is not None
-        assert (
-            getattr(updated_participant, "embargo_consent_state", None)
-            == PEC.UNBOUND.value
-        )
-
 
 # ---------------------------------------------------------------------------
-# _pxa_embargo_ineligible — AC-4 named-predicate coverage
+# pxa_embargo_ineligible — AC-4 named-predicate coverage
 # ---------------------------------------------------------------------------
 
 
 class TestPxaEmbargoIneligible:
-    """Unit tests for _pxa_embargo_ineligible (AC-4: named predicates).
+    """Unit tests for pxa_embargo_ineligible (AC-4: named predicates).
 
     Verifies that every CS_pxa state with at least one bit set returns True
     (ineligible) and that the clear state returns False (eligible).
@@ -272,12 +323,12 @@ class TestPxaEmbargoIneligible:
     def test_any_pxa_bit_set_is_ineligible(self, pxa_state_name):
         """Any P/X/A bit set makes the case embargo-ineligible."""
         dl = self._make_dl_with_pxa(pxa_state_name)
-        assert _pxa_embargo_ineligible(dl, self.CASE_ID) is True
+        assert pxa_embargo_ineligible(dl, self.CASE_ID) is True
 
     def test_clear_pxa_is_eligible(self):
         """CS_pxa.pxa (all clear) makes the case embargo-eligible."""
         dl = self._make_dl_with_pxa("pxa")
-        assert _pxa_embargo_ineligible(dl, self.CASE_ID) is False
+        assert pxa_embargo_ineligible(dl, self.CASE_ID) is False
 
     def test_missing_case_returns_false(self):
         """Missing case returns False so normal processing can continue."""
@@ -288,18 +339,18 @@ class TestPxaEmbargoIneligible:
             actor_id="https://example.org/users/finder",
         )
         assert (
-            _pxa_embargo_ineligible(dl, "https://example.org/cases/missing")
+            pxa_embargo_ineligible(dl, "https://example.org/cases/missing")
             is False
         )
 
     def test_value_error_on_current_status_returns_false(self):
         """False (eligible) when case.current_status raises ValueError.
 
-        The try/except ValueError guard in _pxa_embargo_ineligible must
+        The try/except ValueError guard in pxa_embargo_ineligible must
         return False (fail-open) so that processing continues normally
         when no materialized CaseStatus exists.
         """
-        from unittest.mock import MagicMock, PropertyMock
+        from unittest.mock import PropertyMock
 
         mock_case = MagicMock()
         mock_case.type_ = "VulnerabilityCase"
@@ -312,4 +363,4 @@ class TestPxaEmbargoIneligible:
         mock_dl = MagicMock()
         mock_dl.read.return_value = mock_case
 
-        assert _pxa_embargo_ineligible(mock_dl, self.CASE_ID) is False
+        assert pxa_embargo_ineligible(mock_dl, self.CASE_ID) is False

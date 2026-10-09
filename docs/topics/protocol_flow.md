@@ -56,7 +56,7 @@ This model has one important consequence. **An actor never reaches into another 
 
 Two kinds of things happen in Vultron, and the difference matters.
 
-A **primary event** comes from outside the protocol. Something in the world changed, and a person, a service, or another organisation must tell Vultron. Examples:
+A **primary event** comes from outside the protocol. Something in the world changed, and a person, a service, or another organization must tell Vultron. Examples:
 
 - A finder submits a vulnerability report.
 - A vendor decides the report is valid.
@@ -108,7 +108,7 @@ flowchart LR
 
 Only the last links prove anything. That a message was *sent* proves only that the sender tried. That it *arrived* proves only that the network worked. That the receiver **recorded** it proves the receiver accepted it and acted.
 
-If you write tests or monitoring for a Vultron implementation, check the recorded state of the actor that owns the effect, and read it from that actor. Do not accept elapsed time as evidence, and do not accept an acknowledgement of receipt as evidence that processing succeeded.
+If you write tests or monitoring for a Vultron implementation, check the recorded state of the actor that owns the effect, and read it from that actor. Do not accept elapsed time as evidence, and do not accept an acknowledgment of receipt as evidence that processing succeeded.
 
 ---
 
@@ -174,7 +174,7 @@ The **questions I asked** list stops an actor asking the same thing twice, and l
 
 The **questions I owe** list is more important than it first appears. It is the list a person, an interface, or an automated service works from. Without it, a case owner has no way to discover that a decision is waiting for them, so permission could only ever be granted by accident. This list is what makes the case owner's role something they can actually perform.
 
-Both lists are working notes. They say what is outstanding. They never say what was permitted — for that, an actor reads the recorded history of the case, which is the shared, verifiable record. Keeping these apart matters: a working note could be rebuilt or damaged, and it must never be able to authorise anything on its own.
+Both lists are working notes. They say what is outstanding. They never say what was permitted — for that, an actor reads the recorded history of the case, which is the shared, verifiable record. Keeping these apart matters: a working note could be rebuilt or damaged, and it must never be able to authorize anything on its own.
 
 ---
 
@@ -186,7 +186,7 @@ Vultron uses two mechanisms, and neither is a timer inside the protocol.
 
 **Looking when you pass by.** The next time an actor reaches the step that asked the question, it notices the deadline has passed. This is often enough. When a message is lost, the sender usually sends it again, and that repeat is what causes both actors to look. In that case the other party's retry is the clock.
 
-**An external watcher.** For prompt handling, an implementation can run a service that watches for passed deadlines and notifies the actor. This is deliberately outside the protocol: watching the clock is not a protocol behaviour, and keeping it outside means an implementation can choose how attentive to be. It also means deadline behaviour can be tested by asking for a check directly, rather than by waiting.
+**An external watcher.** For prompt handling, an implementation can run a service that watches for passed deadlines and notifies the actor. This is deliberately outside the protocol: watching the clock is not a protocol behavior, and keeping it outside means an implementation can choose how attentive to be. It also means deadline behavior can be tested by asking for a check directly, rather than by waiting.
 
 Noticing an expired request never sends it again by itself. Expiry is information. Whether the actor still wants to act is a fresh decision, and only the actor's own logic can make it.
 
@@ -238,7 +238,7 @@ It also sets a limit: **a request must not contain anything that cannot be shown
 | Deadline | Part of the request, so both parties can see it. |
 | Late reply | For some kinds of request it grants nothing. Ask again. |
 | Authority | The request says what was asked. The reply is only yes or no. |
-| Open questions | Two working lists: what I await, and what I owe. Neither authorises anything. |
+| Open questions | Two working lists: what I await, and what I owe. Neither authorizes anything. |
 | Faults | Tell an authenticated sender that a message could not be processed. Say little. |
 
 ---
@@ -246,5 +246,5 @@ It also sets a limit: **a request must not contain anything that cannot be shown
 ## Further reading
 
 - [Behavior Logic](behavior_logic/index.md) — how an actor decides what to do when a message arrives
-- [Capability Model](capability_model/index.md) — how external services supply the judgements an actor cannot make alone
+- [Capability Model](capability_model/index.md) — how external services supply the judgments an actor cannot make alone
 - [The Case Model](case_lifecycle/case_model.md) — the shared record that actors coordinate around

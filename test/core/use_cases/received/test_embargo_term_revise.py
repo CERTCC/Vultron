@@ -14,116 +14,139 @@
 
 from typing import cast
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+    seed_case_owner_participant,
+)
+from test.support.embargo_register import activate, propose
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
-    AddEmbargoEventToCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
-    add_embargo_to_case_activity,
+    activate_embargo_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
+# RSH-08-003 (#3814): the embargo activation/teardown writes run only at the
+# CASE_MANAGER, so these tests receive the Add/Remove(EmbargoEvent) in the
+# CASE_MANAGER's own store (its actor is the role holder and the entitled
+# sender); a replica would write nothing and take the change from the ledger.
+_CASE_MANAGER = "https://example.org/users/case-manager"
+_COORD = "https://example.org/users/coord"
+_OWNER = "https://example.org/users/vendor"
+
 
 class TestEmbargoTermRevise:
     """Tests for embargo add/remove and unusual-state transition use cases."""
 
-    def test_add_embargo_event_to_case_activates_embargo(
-        self, monkeypatch, make_payload
-    ):
-        """add_embargo_event_to_case sets the active embargo on the case (PROPOSED → ACTIVE)."""
+    def _owner_activation_case(self, *, proposed: bool):
+        """A CASE_MANAGER store (``coord``) for a case the vendor owns."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://example.org/users/coord",
-        )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_COORD)
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em1",
             name="EM Test Case",
-            attributed_to="https://example.org/users/coord",
+            attributed_to=_OWNER,
         )
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em1/embargo_events/e1",
             content="Embargo test",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
-        # Start from PROPOSED — the standard pre-condition for activation.
-        case.append_case_status(em_state=EM.PROPOSED)
+        if proposed:
+            propose(case, embargo.id_)
+        seed_case_manager_participant(dl, case, _COORD)
+        seed_case_owner_participant(dl, case, _OWNER)
         dl.create(case)
         dl.create(embargo)
+        return dl, case, embargo
 
-        activity = add_embargo_to_case_activity(
-            embargo,
-            target=as_VulnerabilityCase(id_=case.id_),
-            actor="https://example.org/users/vendor",
-        )
-        event = make_payload(activity)
-
-        AddEmbargoEventToCaseReceivedUseCase(dl, event).execute()
-
-        case = dl.read(case.id_)
-        assert case is not None
-        case = cast(VulnerabilityCase, case)
-        assert case.active_embargo is not None
-        assert case.current_status.em.state == EM.ACTIVE
-
-    def test_add_embargo_event_to_case_warns_on_non_standard_transition(
-        self, monkeypatch, make_payload, caplog
-    ):
-        """add_embargo_event_to_case ledgers WARNING when EM state is not on the standard machine path (state-sync override)."""
-        import logging
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.objects.embargo_event import (
-            as_EmbargoEvent,
-        )
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://example.org/users/coord",
-        )
-        case = VulnerabilityCase(
-            id_="https://example.org/cases/case_em1_warn",
-            name="EM Warn Test Case",
-            attributed_to="https://example.org/users/coord",
-        )
-        embargo = as_EmbargoEvent(
-            id_="https://example.org/cases/case_em1_warn/embargo_events/e1",
-            content="Embargo test",
-            context=case.id_,
-        )
-        # Default em_state is NONE — not a valid predecessor for ACTIVE.
-        dl.create(case)
-        dl.create(embargo)
-
-        activity = add_embargo_to_case_activity(
-            embargo,
-            target=as_VulnerabilityCase(id_=case.id_),
-            actor="https://example.org/users/vendor",
-        )
-        event = make_payload(activity)
-
-        with caplog.at_level(logging.WARNING):
-            AddEmbargoEventToCaseReceivedUseCase(dl, event).execute()
-
-        assert any("forcing state-sync" in r.message for r in caplog.records)
-        case = dl.read(case.id_)
-        assert case is not None
-        case = cast(VulnerabilityCase, case)
-        # OBSERVED mode: state is still updated despite non-standard source state.
-        assert case.current_status.em.state == EM.ACTIVE
-
-    def test_remove_embargo_from_proposed_clears_proposed_list(
+    def test_owner_accept_of_embargo_activates_it_at_the_case_manager(
         self, make_payload
     ):
-        """remove_embargo_event removes embargo from proposed_embargoes."""
+        """The owner's Accept(EmbargoEvent) activates the proposal (ADR-0122)."""
+        dl, case, embargo = self._owner_activation_case(proposed=True)
+
+        activity = activate_embargo_activity(
+            embargo,
+            target=as_VulnerabilityCase(id_=case.id_),
+            actor=_OWNER,
+            to=[_COORD],
+        )
+        event = make_payload(activity, receiving_actor_id=_COORD)
+
+        result = ActivateEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
+
+        stored = cast(VulnerabilityCase, dl.read(case.id_))
+        assert stored.active_embargo_id == embargo.id_
+        assert stored.proposed_embargo_ids == []
+        assert stored.current_status.em.state == EM.ACTIVE
+
+    def test_owner_accept_of_an_embargo_never_proposed_is_refused(
+        self, make_payload
+    ):
+        """The received path adjudicates: no open proposal, nothing to activate.
+
+        The guard refuses ahead of the commit, so the register is unchanged
+        and no ledger entry is written (CLP-10-009).
+        """
+        dl, case, embargo = self._owner_activation_case(proposed=False)
+
+        activity = activate_embargo_activity(
+            embargo,
+            target=as_VulnerabilityCase(id_=case.id_),
+            actor=_OWNER,
+            to=[_COORD],
+        )
+        event = make_payload(activity, receiving_actor_id=_COORD)
+
+        result = ActivateEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "not an open proposal" in (result.reason or "")
+
+        stored = cast(VulnerabilityCase, dl.read(case.id_))
+        assert stored.embargo_register == []
+        assert stored.em_state == EM.NONE
+        assert dl.list_objects("CaseLedgerEntry") == []
+
+    def test_remove_naming_a_proposed_embargo_changes_nothing(
+        self, make_payload
+    ):
+        """A Remove naming a merely-proposed embargo changes no register entry.
+
+        Remove ends the embargo in force; an open proposal leaves the register
+        only by being activated, rejected or cancelled (ADR-0122).
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
@@ -131,7 +154,7 @@ class TestEmbargoTermRevise:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://example.org/users/coord",
+            actor_id=_CASE_MANAGER,
         )
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem1",
@@ -141,46 +164,52 @@ class TestEmbargoTermRevise:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem1/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
-        case.proposed_embargoes.append(embargo.id_)
-        case.append_case_status(em_state=EM.PROPOSED)
+        propose(case, embargo.id_)
+        seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(
             embargo,
             origin=as_VulnerabilityCase(id_=case.id_),
-            actor="https://example.org/users/coord",
+            actor=_CASE_MANAGER,
+            to=["https://example.org/users/coord"],
         )
-        event = make_payload(
-            activity, receiving_actor_id="https://example.org/users/coord"
-        )
+        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
 
-        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)
         assert updated is not None
         updated = cast(VulnerabilityCase, updated)
-        assert embargo.id_ not in [
-            e if isinstance(e, str) else getattr(e, "id_", None)
-            for e in updated.proposed_embargoes
-        ]
+        assert updated.proposed_embargo_ids == [embargo.id_]
+        assert updated.active_embargo_id is None
+        assert updated.em_state == EM.PROPOSED
 
     def test_remove_active_embargo_transitions_em_to_exited(
         self, make_payload
     ):
         """remove_embargo_event transitions EM from ACTIVE to EXITED via BT."""
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://example.org/users/coord",
+            actor_id=_CASE_MANAGER,
         )
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem2",
@@ -190,21 +219,29 @@ class TestEmbargoTermRevise:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem2/embargo_events/e2",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
+        activate(case, embargo.id_)
+        seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
+        dl.create(embargo)
 
         activity = remove_embargo_from_case_activity(
             embargo,
             origin=as_VulnerabilityCase(id_=case.id_),
-            actor="https://example.org/users/coord",
+            actor=_CASE_MANAGER,
+            to=["https://example.org/users/coord"],
         )
-        event = make_payload(
-            activity, receiving_actor_id="https://example.org/users/coord"
-        )
+        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
 
-        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)
         assert updated is not None
@@ -212,22 +249,26 @@ class TestEmbargoTermRevise:
         assert updated.active_embargo is None
         assert updated.current_status.em.state == EM.EXITED
 
-    def test_remove_active_embargo_unusual_state_uses_override(
+    def test_remove_active_embargo_during_revise_cancels_open_revision(
         self, caplog, make_payload
     ):
-        """remove_embargo_event uses state-sync override when EM is PROPOSED but embargo is active."""
+        """Removing the active embargo while a revision is open ends both.
+
+        At EM REVISE the Remove terminates the active entry and cancels the
+        open proposal in the same step, so EM derives EXITED (ADR-0122).
+        """
         import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://example.org/users/coord",
+            actor_id=_CASE_MANAGER,
         )
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem3",
@@ -237,24 +278,36 @@ class TestEmbargoTermRevise:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem3/embargo_events/e3",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.PROPOSED)
+        activate(case, embargo.id_)
+        revision_id = "https://example.org/cases/case_rem3/embargo_events/e4"
+        propose(case, revision_id)
+        assert case.em_state == EM.REVISE
+        seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
+        dl.create(embargo)
 
         activity = remove_embargo_from_case_activity(
             embargo,
             origin=as_VulnerabilityCase(id_=case.id_),
-            actor="https://example.org/users/coord",
+            actor=_CASE_MANAGER,
+            to=["https://example.org/users/coord"],
         )
-        event = make_payload(
-            activity, receiving_actor_id="https://example.org/users/coord"
-        )
+        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
 
-        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)
         assert updated is not None
         updated = cast(VulnerabilityCase, updated)
         assert updated.active_embargo is None
         assert updated.current_status.em.state == EM.EXITED
+        assert updated.proposed_embargo_ids == []

@@ -16,13 +16,16 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.db_record import (
-    Record,
     _KEEP_INLINE_NESTED_TYPES,
+    Record,
     _dehydrate_data,
+    _rekey_wire_identity,
     object_to_record,
     record_to_object,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronValidationError,
@@ -67,7 +70,11 @@ def test_object_to_record_preserves_id_type_and_data_for_base_object(
     record = object_to_record(base_object)
     assert record.id_ == base_object.id_
     assert record.type_ == base_object.type_
-    assert record.data_ == base_object.model_dump()
+    # data_ carries wire-facing identity keys (ARCH-23-005)
+    assert record.data_["id"] == base_object.id_
+    assert record.data_["type"] == base_object.type_
+    assert "id_" not in record.data_
+    assert "type_" not in record.data_
 
 
 def test_object_to_record_returns_Record_for_note_object(note_object):
@@ -190,9 +197,9 @@ def test_dehydrate_data_dehydrates_all_object_ref_fields():
             field_name: {"id_": obj_id, "type_": "Note"},
         }
         result = _dehydrate_data(data)
-        assert (
-            result[field_name] == obj_id
-        ), f"Expected {field_name!r} to be dehydrated to ID string"
+        assert result[field_name] == obj_id, (
+            f"Expected {field_name!r} to be dehydrated to ID string"
+        )
 
 
 # --- object_to_record dehydration integration tests ---
@@ -320,13 +327,17 @@ def test_keep_inline_nested_types_contains_case_ledger_entry():
 
 
 def test_keep_inline_nested_types_matches_enum_union_exactly():
-    """_KEEP_INLINE_NESTED_TYPES must equal the union of both enum value sets plus CaseLedgerEntry."""
+    """_KEEP_INLINE_NESTED_TYPES is both activity enums plus two record-less types.
+
+    ``CaseLedgerEntry`` and ``VulnerabilityCaseStub`` (CM-11-013) have no record
+    of their own to be read back from.
+    """
     expected = (
         frozenset(e.value for e in as_TransitiveActivityType)
         | frozenset(e.value for e in as_IntransitiveActivityType)
-        | {"CaseLedgerEntry"}
+        | {"CaseLedgerEntry", "VulnerabilityCaseStub"}
     )
-    assert _KEEP_INLINE_NESTED_TYPES == expected
+    assert expected == _KEEP_INLINE_NESTED_TYPES
 
 
 # ---------------------------------------------------------------------------
@@ -362,7 +373,9 @@ def _make_wire_vulnerability_case():
 def _make_wire_embargo_event():
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    return as_EmbargoEvent(context=_CASE_ID_2401)
+    return as_EmbargoEvent(
+        context=_CASE_ID_2401, end_time=days_from_now_utc(45)
+    )
 
 
 def _make_wire_case_status():
@@ -455,7 +468,9 @@ def test_embargo_event_with_context_is_valid():
     """
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    event = as_EmbargoEvent(context="urn:uuid:case-123")
+    event = as_EmbargoEvent(
+        context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+    )
     assert event.context == "urn:uuid:case-123"
 
     record = object_to_record(cast(Any, event))
@@ -514,7 +529,8 @@ def test_case_proposal_object_survives_storage_as_an_inline_report():
     )
     report = proposal.object_
     assert isinstance(report, as_VulnerabilityReport)
-    assert stored["id_"] == report.id_
+    # data_ carries wire-facing identity keys (ARCH-23-005)
+    assert stored["id"] == report.id_
     assert (
         stored["attributed_to"] == "https://example.org/actors/finder-cp01004"
     )
@@ -530,12 +546,14 @@ def test_case_proposal_round_trips_with_a_typed_report():
     back = record_to_object(object_to_record(cast(Any, proposal)))
     restored = getattr(back, "object_", None)
 
-    assert isinstance(
-        restored, as_VulnerabilityReport
-    ), f"expected a typed report on read-back, got {type(restored).__name__}"
+    assert isinstance(restored, as_VulnerabilityReport), (
+        f"expected a typed report on read-back, got {type(restored).__name__}"
+    )
     assert restored.attributed_to == (
         "https://example.org/actors/finder-cp01004"
-    ), "the reporter must survive the round-trip — it is who becomes a participant"
+    ), (
+        "the reporter must survive the round-trip — it is who becomes a participant"
+    )
     assert restored.content == (
         "the vulnerability being proposed for coordination"
     )
@@ -568,12 +586,13 @@ def _case_carrying_its_embargo():
         id_="urn:uuid:emb-dl08000-0000-0000-000000000001",
         summary="embargo carried with the case",
         context=case_id,
+        end_time=days_from_now_utc(45),
     )
     return as_VulnerabilityCase(
         id_=case_id,
         attributed_to="https://example.org/actors/case-actor-dl08",
         published=datetime(2026, 8, 24, tzinfo=UTC),
-        active_embargo=embargo,
+        embargo_register=register(active=embargo),
     )
 
 
@@ -589,7 +608,9 @@ def test_case_declares_active_embargo_as_an_inline_required_ref():
         as_VulnerabilityCase,
     )
 
-    assert "active_embargo" in as_VulnerabilityCase.inline_required_refs
+    # The case's embargoes are its register entries (ADR-0122); each entry's
+    # embargo is what must be carried inline.
+    assert "embargo_register" in as_VulnerabilityCase.inline_required_refs
 
 
 def test_case_active_embargo_survives_storage_as_an_inline_object():
@@ -604,12 +625,14 @@ def test_case_active_embargo_survives_storage_as_an_inline_object():
     case = _case_carrying_its_embargo()
     record = object_to_record(cast(Any, case))
 
-    stored = record.data_["active_embargo"]
+    (entry,) = record.data_["embargo_register"]
+    stored = entry["embargo"]
     assert not isinstance(stored, str), (
         "AKM-03-001 requires the embargo inline; storage reduced it to"
         f" {stored!r}, which the receiver cannot resolve"
     )
-    assert stored["id_"] == "urn:uuid:emb-dl08000-0000-0000-000000000001"
+    # data_ carries wire-facing identity keys (ARCH-23-005)
+    assert stored["id"] == "urn:uuid:emb-dl08000-0000-0000-000000000001"
 
 
 def test_case_carries_the_embargo_as_an_inline_object():
@@ -628,7 +651,9 @@ def test_case_carries_the_embargo_as_an_inline_object():
     )
     assert (
         case.active_embargo_id == "urn:uuid:emb-dl08000-0000-0000-000000000001"
-    ), "the id is still reachable via active_embargo_id when that is what is wanted"
+    ), (
+        "the id is still reachable via active_embargo_id when that is what is wanted"
+    )
 
 
 def test_case_passes_through_a_bare_embargo_id():
@@ -646,7 +671,9 @@ def test_case_passes_through_a_bare_embargo_id():
         id_="urn:uuid:case-dl08001-0000-0000-000000000001",
         attributed_to="https://example.org/actors/case-actor-dl08",
         published=datetime(2026, 8, 24, tzinfo=UTC),
-        active_embargo="urn:uuid:emb-dl08001-0000-0000-000000000001",
+        embargo_register=register(
+            active="urn:uuid:emb-dl08001-0000-0000-000000000001"
+        ),
     )
 
     assert case.active_embargo == "urn:uuid:emb-dl08001-0000-0000-000000000001"
@@ -661,7 +688,7 @@ _CASE_ACTOR_ID = "http://coordinator:7999/api/v2/actors/case-actor"
 
 
 def _invite_naming_a_peer():
-    """An ``Invite(Actor, Case)`` as the Case Actor builds it for a peer.
+    """An ``Invite(Actor, CaseStub)`` as the Case Actor builds it for a peer.
 
     Built through the factory, not the internal vocab class, per the
     AF-05-001 boundary (``test/architecture/test_activity_factory_imports.py``).
@@ -710,7 +737,8 @@ def test_invite_keeps_the_invited_peer_inline():
         f"the invitee collapsed to {stored!r}; nothing in this store can expand"
         " it again (DL-08-003)"
     )
-    assert stored.get("id_") == _PEER_ACTOR_ID
+    # data_ carries wire-facing identity keys (ARCH-23-005)
+    assert stored.get("id") == _PEER_ACTOR_ID
 
 
 def test_invited_peer_round_trips_as_an_object():
@@ -720,9 +748,9 @@ def test_invited_peer_round_trips_as_an_object():
     )
     restored = getattr(back, "object_", None)
 
-    assert not isinstance(
-        restored, str
-    ), "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+    assert not isinstance(restored, str), (
+        "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+    )
     assert getattr(restored, "id_", None) == _PEER_ACTOR_ID
 
 
@@ -824,7 +852,192 @@ def test_recommended_peer_round_trips_as_an_object():
     )
     restored = getattr(back, "object_", None)
 
-    assert not isinstance(
-        restored, str
-    ), "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+    assert not isinstance(restored, str), (
+        "a bare string object_ is exactly what the AKM-03-001 gate rejects"
+    )
     assert getattr(restored, "id_", None) == _PEER_ACTOR_ID
+
+
+# ---------------------------------------------------------------------------
+# ARCH-23-005: persisted rows MUST carry wire-facing identity keys
+# ---------------------------------------------------------------------------
+
+
+def test_from_obj_emits_wire_identity_keys_no_trailing_underscores():
+    """ARCH-23-005: no trailing-underscore identity key in the stored data_.
+
+    ``Record.from_obj()`` MUST emit ``id``/``type`` rather than ``id_``/
+    ``type_`` as the key names for the identity fields of persisted rows.
+    This is the verification clause the spec cites.
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(
+        id_="urn:uuid:case-arch23005-0000-0000-000000000001"
+    )
+    record = object_to_record(cast(Any, case))
+
+    assert "id_" not in record.data_, (
+        "ARCH-23-005: data_ MUST NOT carry trailing-underscore 'id_' key"
+    )
+    assert "type_" not in record.data_, (
+        "ARCH-23-005: data_ MUST NOT carry trailing-underscore 'type_' key"
+    )
+    assert (
+        record.data_["id"] == "urn:uuid:case-arch23005-0000-0000-000000000001"
+    )
+    assert record.data_["type"] == "VulnerabilityCase"
+
+
+def test_from_obj_wire_identity_keys_apply_to_inline_objects():
+    """ARCH-23-005 applies at every nesting level of the stored dict.
+
+    Inline objects (kept because they are in inline_required_refs) must also
+    carry ``id``/``type`` rather than ``id_``/``type_``.
+    """
+    case = _case_carrying_its_embargo()
+    record = object_to_record(cast(Any, case))
+
+    (entry,) = record.data_["embargo_register"]
+    stored_embargo = entry["embargo"]
+    assert isinstance(stored_embargo, dict)
+    assert "id_" not in stored_embargo, (
+        "ARCH-23-005: inline dict MUST NOT carry trailing-underscore 'id_'"
+    )
+    assert "type_" not in stored_embargo, (
+        "ARCH-23-005: inline dict MUST NOT carry trailing-underscore 'type_'"
+    )
+
+
+def test_rekey_wire_identity_renames_only_identity_keys():
+    """_rekey_wire_identity renames id_/type_/context_ and nothing else."""
+    data = {
+        "id_": "urn:uuid:x",
+        "type_": "SomeType",
+        "context_": "https://example.org/context",
+        "some_other_field": "value",
+        "nested": {
+            "id_": "urn:uuid:y",
+            "type_": "Inner",
+            "unrelated": 42,
+        },
+        "items": [
+            {"id_": "urn:uuid:z", "type_": "ListItem", "n": 1},
+            "a-bare-string",
+        ],
+    }
+    result = _rekey_wire_identity(data)
+
+    assert result["id"] == "urn:uuid:x"
+    assert result["type"] == "SomeType"
+    assert result["@context"] == "https://example.org/context"
+    assert result["some_other_field"] == "value"
+    assert "id_" not in result
+    assert "type_" not in result
+    assert "context_" not in result
+
+    nested = result["nested"]
+    assert nested["id"] == "urn:uuid:y"
+    assert nested["type"] == "Inner"
+    assert nested["unrelated"] == 42
+    assert "id_" not in nested
+
+    # List items that are dicts are also re-keyed (ARCH-23-005).
+    list_item = result["items"][0]
+    assert list_item["id"] == "urn:uuid:z"
+    assert list_item["type"] == "ListItem"
+    assert "id_" not in list_item
+    assert result["items"][1] == "a-bare-string"
+
+
+def test_rekey_wire_identity_is_no_op_on_already_wire_keyed_dict():
+    """_rekey_wire_identity is idempotent on dicts already using wire keys."""
+    data = {"id": "urn:uuid:x", "type": "Foo", "name": "bar"}
+    result = _rekey_wire_identity(data)
+    assert result == data
+
+
+def test_from_obj_wire_identity_keys_apply_to_list_items():
+    """ARCH-23-005 applies to list-of-dict fields such as case_statuses."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(
+        id_="urn:uuid:case-arch23005-list-000-000000000001",
+        attributed_to="urn:uuid:actor-arch23005-list",
+    )
+    record = object_to_record(cast(Any, case))
+
+    statuses = record.data_.get("case_statuses", [])
+    assert isinstance(statuses, list)
+    assert len(statuses) > 0, (
+        "VulnerabilityCase must have at least one CaseStatus"
+    )
+    for item in statuses:
+        assert isinstance(item, dict)
+        assert "id_" not in item, "ARCH-23-005: list item MUST NOT carry 'id_'"
+        assert "type_" not in item, (
+            "ARCH-23-005: list item MUST NOT carry 'type_'"
+        )
+        assert "id" in item
+        assert "type" in item
+
+
+def test_activity_object_ref_properties_is_the_full_activity_slot_set():
+    """The derived set is exactly the five generic Activity slots.
+
+    ``_is_generic_object_ref`` matches the expanded alias by set equality, so
+    when the alias's IRI branch became ``NonEmptyString`` (CS-08-001, #3876)
+    a comparison against bare ``str`` would have matched nothing — and
+    ``test_dehydrate_data_dehydrates_all_object_ref_fields`` would have looped
+    over an empty set and passed.  Pinning the set keeps that loop honest.
+    """
+    from vultron.adapters.driven.db_record import (
+        _activity_object_ref_properties,
+    )
+
+    assert _activity_object_ref_properties() == frozenset(
+        {"object_", "target", "origin", "instrument", "result"}
+    )
+
+
+def test_is_generic_object_ref_sees_through_the_non_empty_string_branch():
+    from vultron.adapters.driven.db_record import _is_generic_object_ref
+    from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
+    from vultron.wire.as2.vocab.base.objects.base import (
+        as_ObjectRef,
+        as_ObjectRequiredRef,
+    )
+
+    assert _is_generic_object_ref(as_ObjectRef)
+    assert _is_generic_object_ref(as_ObjectRequiredRef)
+    # A *narrowed* reference is still not a generic one.
+    assert not _is_generic_object_ref(as_ActorRef)
+
+
+@pytest.mark.spec("CM-31-003")
+def test_computed_active_participants_is_not_in_the_stored_row() -> None:
+    """The persistence record carries the facts, not the derived view."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+
+    case_id = "https://example.org/cases/stored-row"
+    participant = CaseParticipant(
+        id_=f"{case_id}/participants/p1",
+        attributed_to="https://example.org/actors/p1",
+        context=case_id,
+    )
+    case = VulnerabilityCase(
+        id_=case_id,
+        attributed_to="https://example.org/actors/p1",
+        case_participants=[participant],
+    )
+    assert case.active_participants == [participant.id_]
+
+    data = Record.from_obj(case).data_
+
+    assert "active_participants" not in data
+    assert "activeParticipants" not in data

@@ -29,6 +29,8 @@ in each row is derived from the scenario name by convention rather than stored
 | FVCV-extension | `test/ci/invariants/test_fvcv_extension_invariants.py` |  |
 | FVCV-handoff | `test/ci/invariants/test_fvcv_handoff_invariants.py` | ✓ |
 | FVV | `test/ci/invariants/test_fvv_invariants.py` |  |
+| RCV embargo | `test/ci/invariants/test_rcv_embargo_invariants.py` | ✓ |
+| RCVV embargo | `test/ci/invariants/test_rcvv_embargo_invariants.py` | ✓ |
 
 <!-- END GENERATED SCENARIO TABLE -->
 
@@ -41,6 +43,11 @@ demo artifacts: `test_universal_event_types.py` and `test_diagnostic_map_sync.py
 are structural ratchets over the harness constants, the DEMOMA-16-001 spec
 statement and the diagnostic map, while `test_common.py`, `test_late_joiner.py`
 and `test_causal_edges_negative.py` unit-test the `common.py` check helpers.
+`test_narrative_edges.py` checks the committed `causal_edges:` blocks
+themselves — that each handoff narrative orders the ownership acceptance
+before the new owner's invite, and that no invitation response is attributed
+to the inviter — so an authoring slip fails here rather than waiting for a
+demo run.
 
 ---
 

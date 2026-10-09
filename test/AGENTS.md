@@ -12,11 +12,11 @@ need on *every* run; the longer pitfall write-ups live in
 ## ⚠️ Running the Test Suite — ONE RUN RULE (MUST)
 
 ```bash
-uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
-Run **exactly once**. Do NOT re-run to grep counts, change tail length, or add
-`-q` (suppresses summary line). One run, read the `exit:` line, then the tail.
+Run **exactly once**; never re-run for counts, a longer tail, or `-q`. `-n auto`
+is sized to the slot's cgroup, not `nproc` ([pitfalls](../notes/testing-pitfalls.md)).
 
 **Read `exit:` before the tail — it is the verdict; the tail is only detail.**
 Never pipe the run into `tail` (`… 2>&1 | tail -5`) or through `tee`: a pipeline
@@ -34,7 +34,7 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 ```
 
 If `vultron/demo/` or `test/demo/` was touched, run the full suite:
-`uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
+`uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
 
 ---
 
@@ -141,7 +141,7 @@ Consistency".
 
 ## Config in Fixtures
 
-`vultron/config/app.py` keeps a process-global `_config_cache`. Prefer
+`vultron/config/app.py` caches `get_config()` process-wide. Prefer
 `config_override()`; where you cannot, `monkeypatch.undo()` MUST precede
 `reload_config()` in teardown, or the patched value is pinned into the cache for
 the rest of the session. A module that depends on a `VULTRON_*` setting MUST set
@@ -170,10 +170,12 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   "failure when X absent" for either is unreachable; assert the reason
   (`assert_failure(result, reason=...)`), not just the status, and note that
   `allow_internal=True` requires a `reason`.
-- **Process-global state** — the `py_trees` blackboard *and* its class registry
-  (define test BT subclasses at module level); `SUBFAILED` in `unittest` subtests
-  does not fail pytest; `caplog.set_level()` in a fixture captures other
-  fixtures' setup.
+- **Process-global state** — reset only in root `test/conftest.py` (blackboard,
+  per-actor registries; no per-directory copy, #3996); define test BT subclasses
+  at module level; test-local `CoreObject`/`CoreRecord` subclasses pollute
+  `CORE_VOCABULARY`/`CORE_TYPE_MAP` (use `isolated_core_registries`);
+  `SUBFAILED` in `unittest` subtests does not fail pytest; `caplog.set_level()`
+  in a fixture captures other fixtures' setup.
 - **BT test patterns** — pass a deterministic factory when the default is
   probabilistic; contract-test wrappers inherit the *production* node class; stub
   every probabilistic node *except* the one under test;

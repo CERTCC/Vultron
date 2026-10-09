@@ -22,45 +22,110 @@ continue to work without modification.
 
 Submodules:
 - ``actor``: Actor-participation invite/accept emit nodes
-- ``conditions``: Idempotency guard condition nodes
-- ``case_setup``: Case persistence, CaseActor identity and CaseActor
-  provisioning leaf action nodes
+- ``conditions``: Idempotency guard and role-check condition nodes
+- ``case_setup``: CaseActor provisioning leaf action node (EnsureCaseActorHostedNode)
 - ``participant``: Participant creation and attachment leaf action nodes
 - ``embargo``: Default embargo initialization action nodes
-- ``communication``: Outbound activity emission action nodes
+- ``close_case_effect``: Ledger-apply of a ``close_case`` entry on a replica
+  (ApplyCloseCaseFromLedgerNode; composes the participant-status writer)
+- ``intake``: Intake node — archives the received activity as received,
+  first in every received tree (ADR-0111)
 - ``lifecycle``: Case log entry commit action node
-- ``proposal``: CaseProposal send nodes (ADR-0041 vendor-side slimmed tree)
+- ``proposal``: CaseProposal send nodes (ADR-0041 receiver-side slimmed tree)
 - ``proposal_admission_conditions``: case-actor-side admission guards (CP-05-002)
 - ``proposal_admission_actions``: case-actor-side admission writes and the
   ``Reject`` emit (CP-05-002, CP-05-004)
+- ``invite_inert_participant``: Inert-participant lifecycle nodes (ADR-0114):
+  create at invite-send time, advance VF on reply, close on Reject
 - ``suggest_actor``: Suggest-actor workflow emit and duplicate-detection nodes
 
 Composite subtrees (``Sequence``/``Selector`` subclasses) are defined in
 sibling ``*_tree.py`` modules at the process-area root per BTND-07-003.
-They are re-exported here for backward compatibility via module
-``__getattr__`` (PEP 562) to avoid circular imports:
-
-- ``RecordCaseCreationEvents``, ``CreateCaseActorNode``
-  → ``vultron.core.behaviors.case.case_setup_tree``
-- ``CreateCaseOwnerParticipant``, ``CreateCaseParticipantNode``
-  → ``vultron.core.behaviors.case.participant_tree``
-- ``EmitCreateCaseActivity``
-  → ``vultron.core.behaviors.case.communication_tree``
-- ``InitializeDefaultEmbargoNode``
-  → ``vultron.core.behaviors.case.embargo_tree``
+They are not re-exported here: the tree modules import leaf nodes from
+this package, so a re-export would close an import cycle (CS-05-003).
+Import each composite from the ``*_tree.py`` module that defines it.
 """
-
-import importlib
-from typing import TYPE_CHECKING
 
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
-    ProposeCaseToActorNode,
+)
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    RequireCaseForReport,
+)
+from vultron.core.behaviors.case.nodes.case_setup import (
+    EnsureCaseActorHostedNode,
+)
+from vultron.core.behaviors.case.nodes.close_case_effect import (
+    ApplyCloseCaseFromLedgerNode,
+)
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckAutoCaseCreationEnabledNode,
+    CheckCaseExistsForReport,
+    CheckIsCaseManagerNode,
+    CheckProposalAlreadySentForReport,
+    WritePendingReportCaseLinkNode,
+)
+from vultron.core.behaviors.case.nodes.delegation import (
+    AutoAcceptCaseParticipantRoleNode,
+    EmitRejectCaseParticipantRoleNode,
+)
+from vultron.core.behaviors.case.nodes.embargo import (
+    CreateEmbargoEventNode,
+    InitializeCreationEmbargoNode,
+)
+from vultron.core.behaviors.case.nodes.embargo_resolution import (
+    CaseEmbargoAlreadyInitializedNode,
+    CaseNotEmbargoEligibleNode,
+    ResolveEmbargoDurationNode,
+)
+
+# RelayCreationTimeRevisionNode is imported from its own module,
+# ``embargo_revision_relay``: re-exporting it here closes an import cycle
+# through the embargo relay emit, which imports the case role gates.
+from vultron.core.behaviors.case.nodes.embargo_revision import (
+    ResolveCreationTimeRevisionNode,
+)
+from vultron.core.behaviors.case.nodes.intake import (
+    IntakeReceivedActivityNode,
+)
+from vultron.core.behaviors.case.nodes.invite_inert_participant import (
+    AdvanceInviteeVFToVendorAwareNode,
+    ApplyInviteRejectToParticipantNode,
+    CreateInertInviteeParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
+    BackfillCanonicalLedgerToInviteeNode,
+    CapturePreCommitBackfillTargetNode,
+    EmitAnnounceCaseToInviteeNode,
+)
+from vultron.core.behaviors.case.nodes.invite_participant import (
+    CheckInviteeNotAlreadyParticipantNode,
+    InviteeHasParticipantRecordNode,
+)
+from vultron.core.behaviors.case.nodes.invite_participant_persist import (
+    ActivateInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.invite_response import (
     EmitAcceptCaseInviteNode,
     EmitRejectCaseInviteNode,
+)
+from vultron.core.behaviors.case.nodes.lifecycle import (
+    CommitCaseLedgerEntryNode,
+)
+from vultron.core.behaviors.case.nodes.on_behalf_guards import (
+    CheckOnBehalfAuthorizedNode,
+    CheckOnBehalfTargetIsParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.ownership_transfer import (
+    EmitAcceptCaseOwnershipTransferNode,
+    EmitOfferCaseOwnershipTransferNode,
+    ForwardOfferToTransfereeNode,
+)
+from vultron.core.behaviors.case.nodes.participant import (
+    CreateParticipantStatusNode,
+    _create_and_attach_participant,
+    resolve_participant_state_from_dl,
 )
 from vultron.core.behaviors.case.nodes.proposal import (
     ProposeReportCaseToActorNode,
@@ -78,49 +143,37 @@ from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     activity_names_proposal,
     find_activity_for_proposal,
 )
-from vultron.core.behaviors.case.nodes.case_setup import (
-    EnsureCaseActorHostedNode,
-    PersistCase,
-    RecordCaseCreatedEventNode,
-    RecordOfferReceivedEventNode,
-    SetCaseAttributedTo,
+from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
+    CreateCaseFromProposalNode,
+    LoadExistingCaseNode,
+    StoreProposalReportNode,
 )
-from vultron.core.behaviors.case.nodes.communication import (
-    CollectCaseAddresseesNode,
-    CreateAndPersistCaseActivityNode,
+from vultron.core.behaviors.case.nodes.proposal_consent import (
+    SeedReporterSignatoryNode,
 )
-from vultron.core.behaviors.case.nodes.delegation import (
-    AutoAcceptCaseParticipantRoleNode,
-    EmitRejectCaseParticipantRoleNode,
+from vultron.core.behaviors.case.nodes.proposal_emits import (
+    EmitAcceptCaseProposalNode,
+    EmitCreateVulnerabilityCaseNode,
 )
-from vultron.core.behaviors.case.nodes.conditions import (
-    CheckAutoCaseCreationEnabledNode,
-    CheckCaseAlreadyExists,
-    CheckCaseExistsForReport,
-    CheckIsCaseManagerNode,
-    CheckPendingProposalExistsForReport,
-    WritePendingReportCaseLinkNode,
+from vultron.core.behaviors.case.nodes.proposal_ledger import (
+    CommitNativeLedgerEntriesNode,
 )
-from vultron.core.behaviors.case.nodes.case_lookup import (
-    RequireCaseForReport,
+from vultron.core.behaviors.case.nodes.proposal_participants import (
+    AddCaseActorParticipantNode,
+    AddOwnerParticipantNode,
 )
-from vultron.core.behaviors.case.nodes.embargo import (
-    AdvanceEMStateToActiveNode,
-    AttachEmbargoToCaseNode,
-    CreateEmbargoEventNode,
-    ResolveEmbargoDurationNode,
-    SeedOwnerAsSignatoryNode,
+from vultron.core.behaviors.case.nodes.proposal_reporter import (
+    AddReporterParticipantNode,
 )
-from vultron.core.behaviors.case.nodes.lifecycle import (
-    CommitCaseLedgerEntryNode,
-    create_guarded_commit_case_ledger_entry_tree,
-    create_receive_activity_tree,
+from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+    CheckCaseAlreadyAnnouncedNode,
+    CheckMarkerExistsNode,
+    ClearCreateCaseMarkerNode,
+    WriteCreateCaseMarkerNode,
 )
-from vultron.core.behaviors.case.nodes.participant import (
-    CreateParticipantStatusNode,
-    RecordOwnerJoinedEventNode,
-    _create_and_attach_participant,
-    resolve_participant_state_from_dl,
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+    create_participant_replica_gated_tree,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     ActorAlreadyParticipantNode,
@@ -132,70 +185,16 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
 )
-from vultron.core.behaviors.case.nodes.ownership_transfer import (
-    EmitAcceptCaseOwnershipTransferNode,
-    EmitOfferCaseOwnershipTransferNode,
-    ForwardOfferToTransfereeNode,
-)
-from vultron.core.behaviors.case.nodes.role_gates import (
-    create_case_manager_gated_tree,
-)
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
-    CheckNotSoleObserverVfdNode,
-)
-from vultron.core.behaviors.case.nodes.on_behalf_guards import (
-    CheckOnBehalfAuthorizedNode,
-    EnsureOnBehalfParticipantExistsNode,
-)
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
     CaptureCaseUpdateBroadcastExclusionsNode,
     CheckCaseUpdateOwnerNode,
 )
-from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
-    CreateCaseFromProposalNode,
-    LoadExistingCaseNode,
-    StoreProposalReportNode,
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckNotSoleObserverVfdNode,
 )
-from vultron.core.behaviors.case.nodes.proposal_participants import (
-    AddCaseActorParticipantNode,
-    AddVendorOwnerParticipantNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_reporter import (
-    AddReporterParticipantNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_consent import (
-    SeedReporterSignatoryNode,
-    SeedVendorOwnerSignatoryNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_ledger import (
-    CommitNativeLedgerEntriesNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
-    CheckMarkerExistsNode,
-    ClearCreateCaseMarkerNode,
-    WriteCreateCaseMarkerNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_emits import (
-    EmitAcceptCaseProposalNode,
-    EmitCreateVulnerabilityCaseNode,
-)
-from vultron.core.behaviors.case.nodes.invite_participant import (
-    CheckInviteeNotAlreadyParticipantNode,
-    CreateInviteeParticipantNode,
-)
-from vultron.core.behaviors.case.nodes.invite_participant_persist import (
-    AdvanceInviteeToReceivedNode,
-    PersistInviteeParticipantNode,
-)
-from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
-    BackfillCanonicalLedgerToInviteeNode,
-    CapturePreCommitBackfillTargetNode,
-    EmitAnnounceCaseToInviteeNode,
-)
-from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
+from vultron.core.behaviors.helpers import UpdateActorOutbox
 
 __all__ = [
     "CheckDeclineRecordExistsNode",
@@ -211,53 +210,34 @@ __all__ = [
     "EmitInviteActorToCaseNode",
     "EmitAcceptCaseInviteNode",
     "EvaluateDefaultRolesNode",
-    "ProposeCaseToActorNode",
     "ProposeReportCaseToActorNode",
     # conditions
     "CheckAutoCaseCreationEnabledNode",
-    "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
     "CheckIsCaseManagerNode",
-    "CheckIsCaseOwnerNode",
-    "CheckPendingProposalExistsForReport",
+    "CheckProposalAlreadySentForReport",
     "RequireCaseForReport",
     "WritePendingReportCaseLinkNode",
     # case_setup (leaf nodes)
     "EnsureCaseActorHostedNode",
-    "PersistCase",
-    "SetCaseAttributedTo",
-    "RecordOfferReceivedEventNode",
-    "RecordCaseCreatedEventNode",
-    # case_setup_tree (composite subtrees — lazy via __getattr__)
-    "RecordCaseCreationEvents",
     # participant (leaf nodes)
     "CreateParticipantStatusNode",
-    "RecordOwnerJoinedEventNode",
     "_create_and_attach_participant",
     "resolve_participant_state_from_dl",
-    # participant_tree (composite subtrees — lazy via __getattr__)
-    "CreateCaseOwnerParticipant",
-    "CreateCaseParticipantNode",
     # embargo (leaf nodes)
-    "AdvanceEMStateToActiveNode",
-    "AttachEmbargoToCaseNode",
+    "InitializeCreationEmbargoNode",
+    "CaseEmbargoAlreadyInitializedNode",
+    "CaseNotEmbargoEligibleNode",
     "CreateEmbargoEventNode",
+    "ResolveCreationTimeRevisionNode",
     "ResolveEmbargoDurationNode",
-    "SeedOwnerAsSignatoryNode",
-    # embargo_tree (composite subtree — lazy via __getattr__)
-    "InitializeDefaultEmbargoNode",
     # delegation (leaf nodes)
     "AutoAcceptCaseParticipantRoleNode",
     "EmitRejectCaseParticipantRoleNode",
-    # communication (leaf nodes)
-    "CollectCaseAddresseesNode",
-    "CreateAndPersistCaseActivityNode",
-    # communication_tree (composite subtrees — lazy via __getattr__)
-    "EmitCreateCaseActivity",
+    # close_case_effect (ledger-apply leaf node)
+    "ApplyCloseCaseFromLedgerNode",
     # lifecycle
     "CommitCaseLedgerEntryNode",
-    "create_guarded_commit_case_ledger_entry_tree",
-    "create_receive_activity_tree",
     # update
     "CheckCaseUpdateOwnerNode",
     "CaptureCaseUpdateBroadcastExclusionsNode",
@@ -269,11 +249,12 @@ __all__ = [
     "ForwardOfferToTransfereeNode",
     # role_gates (gated composites)
     "create_case_manager_gated_tree",
+    "create_participant_replica_gated_tree",
     # vfd_role_guards (condition nodes)
     "CheckNotSoleObserverVfdNode",
-    # on_behalf_guards (ADR-0084)
+    # on_behalf_guards (ADR-0121)
     "CheckOnBehalfAuthorizedNode",
-    "EnsureOnBehalfParticipantExistsNode",
+    "CheckOnBehalfTargetIsParticipantNode",
     # suggest_actor (leaf nodes)
     "ActorAlreadyParticipantNode",
     "EmitAcceptActorRecommendationNode",
@@ -291,68 +272,32 @@ __all__ = [
     "StoreProposalReportNode",
     # proposal_participants (leaf nodes)
     "AddCaseActorParticipantNode",
-    "AddVendorOwnerParticipantNode",
+    "AddOwnerParticipantNode",
     # proposal_reporter (leaf node)
     "AddReporterParticipantNode",
-    # proposal_consent (leaf nodes)
-    "SeedVendorOwnerSignatoryNode",
+    # proposal_consent (leaf node)
     "SeedReporterSignatoryNode",
     # proposal_ledger (leaf node)
     "CommitNativeLedgerEntriesNode",
     # proposal_retry_marker (leaf nodes)
+    "CheckCaseAlreadyAnnouncedNode",
     "CheckMarkerExistsNode",
     "WriteCreateCaseMarkerNode",
     "ClearCreateCaseMarkerNode",
     # proposal_emits (leaf nodes)
     "EmitAcceptCaseProposalNode",
     "EmitCreateVulnerabilityCaseNode",
+    # invite_inert_participant (leaf nodes — ADR-0114)
+    "AdvanceInviteeVFToVendorAwareNode",
+    "ApplyInviteRejectToParticipantNode",
+    "CreateInertInviteeParticipantNode",
     # invite_participant (leaf nodes)
     "CheckInviteeNotAlreadyParticipantNode",
-    "CreateInviteeParticipantNode",
+    "InviteeHasParticipantRecordNode",
     # invite_participant_persist (leaf nodes)
-    "PersistInviteeParticipantNode",
-    "AdvanceInviteeToReceivedNode",
+    "ActivateInviteeParticipantNode",
     # invite_ledger_backfill (leaf nodes)
     "CapturePreCommitBackfillTargetNode",
     "BackfillCanonicalLedgerToInviteeNode",
     "EmitAnnounceCaseToInviteeNode",
 ]
-
-# TYPE_CHECKING stubs so mypy resolves composite names to their actual types.
-# At runtime these imports are skipped; the lazy __getattr__ below handles them.
-if TYPE_CHECKING:
-    from vultron.core.behaviors.case.case_setup_tree import (  # noqa: F401
-        RecordCaseCreationEvents,
-    )
-    from vultron.core.behaviors.case.communication_tree import (  # noqa: F401
-        EmitCreateCaseActivity,
-    )
-    from vultron.core.behaviors.case.embargo_tree import (  # noqa: F401
-        InitializeDefaultEmbargoNode,
-    )
-    from vultron.core.behaviors.case.participant_tree import (  # noqa: F401
-        CreateCaseOwnerParticipant,
-        CreateCaseParticipantNode,
-    )
-
-# Composite subtrees live in sibling *_tree.py modules (BTND-07-003).
-# They are re-exported lazily here to avoid circular imports: the tree
-# modules import leaf nodes from this package, so eager re-exports would
-# create a cycle.  PEP 562 module __getattr__ resolves the name only when
-# first accessed, after this __init__ is fully initialized.
-_COMPOSITE_COMPAT: dict[str, str] = {
-    "RecordCaseCreationEvents": "vultron.core.behaviors.case.case_setup_tree",
-    "CreateCaseOwnerParticipant": "vultron.core.behaviors.case.participant_tree",
-    "CreateCaseParticipantNode": "vultron.core.behaviors.case.participant_tree",
-    "EmitCreateCaseActivity": "vultron.core.behaviors.case.communication_tree",
-    "InitializeDefaultEmbargoNode": "vultron.core.behaviors.case.embargo_tree",
-}
-
-
-def __getattr__(name: str) -> object:
-    if name in _COMPOSITE_COMPAT:
-        mod = importlib.import_module(_COMPOSITE_COMPAT[name])
-        obj = getattr(mod, name)
-        globals()[name] = obj  # cache to avoid repeated lookup
-        return obj
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

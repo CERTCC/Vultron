@@ -1,23 +1,53 @@
 """Use cases for case and participant status activities."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
+import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.store_received_object import (
+    StoreReceivedObjectNode,
+)
+from vultron.core.behaviors.status.add_case_status_tree import (
+    add_case_status_tree,
+)
+from vultron.core.behaviors.status.add_participant_status_tree import (
+    add_participant_status_tree,
+)
+from vultron.core.behaviors.status.nodes import (
+    CASE_STATUS_ALREADY_PRESENT,
+)
+from vultron.core.behaviors.status.nodes.dimension_filter import (
+    FilterParticipantStatusDimensionsNode,
+)
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
     CreateCaseStatusReceivedEvent,
     CreateParticipantStatusReceivedEvent,
 )
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
 )
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
-    _idempotent_create,
     resolve_receiving_actor_id,
+)
+from vultron.core.use_cases.received._bt_verdict import (
+    find_named,
+    node_failed,
+    verdict_from_bt,
+)
+from vultron.core.use_cases.received._store_only import (
+    run_store_only,
+    store_only_verdict,
 )
 
 if TYPE_CHECKING:
@@ -26,66 +56,95 @@ if TYPE_CHECKING:
     )
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
+
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    SenderEntitlementKind,
+    exempt,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _filter_node_wholly_refused(tree: object) -> bool:
+def _filter_node_wholly_refused(tree: py_trees.behaviour.Behaviour) -> bool:
     """Return True if FilterParticipantStatusDimensionsNode returned FAILURE.
 
     Used by AddParticipantStatusToParticipantReceivedUseCase to distinguish a
     wholly-refused dimension-filter from other BT failure causes (ISSUE-3199,
-    AC-2).  Only the filter's total-refusal path warrants a ``rejected``
-    InboxOutcome; sender-not-a-participant or authorization failures are
+    AC-2).  Only the filter's total-refusal path warrants a refusal;
+    sender-not-a-participant or authorization failures are
     different failure modes that do not indicate the assertion was wholly refused.
     """
-    from vultron.core.behaviors.status.nodes.dimension_filter import (
-        FilterParticipantStatusDimensionsNode,
-    )
+    return node_failed(tree, FilterParticipantStatusDimensionsNode)
 
-    root = getattr(tree, "root", tree)
-    iterate = getattr(root, "iterate", None)
-    if iterate is None:
-        return False
-    for node in iterate():
-        if isinstance(node, FilterParticipantStatusDimensionsNode):
-            return node.status == Status.FAILURE
-    return False
+
+def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
+    """Return True if the StatusAdoptionGate Selector returned FAILURE."""
+    gate = find_named(tree, "StatusAdoptionGate")
+    return gate is not None and gate.status == Status.FAILURE
 
 
 class CreateCaseStatusReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check defined for case status creation"
+    )
+
     def __init__(
-        self, dl: CasePersistence, request: CreateCaseStatusReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: CreateCaseStatusReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: CreateCaseStatusReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
-        _idempotent_create(
+        tree, result = run_store_only(
             self._dl,
-            request.object_type,
-            request.status_id,
-            request.status,
-            "CaseStatus",
-            request.activity_id,
+            request,
+            name="CreateCaseStatusReceivedBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            store_node=StoreReceivedObjectNode(
+                request.object_type,
+                request.status_id,
+                request.status,
+                "CaseStatus",
+                request.activity_id,
+            ),
+        )
+        return store_only_verdict(
+            tree, result, label="CreateCaseStatusReceivedBT"
         )
 
 
 class AddCaseStatusToCaseReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check defined for case status update"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
         request: AddCaseStatusToCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         call_out: "StatusAuthorizationCallOutBundle | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: AddCaseStatusToCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._call_out = call_out
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         status_id = request.status_id
         case_id = request.case_id
@@ -93,15 +152,9 @@ class AddCaseStatusToCaseReceivedUseCase:
             logger.warning(
                 "add_case_status_to_case: missing status_id or case_id"
             )
-            return
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.status.add_case_status_tree import (
-            add_case_status_tree,
-        )
-        from vultron.core.behaviors.status.nodes import (
-            CASE_STATUS_ALREADY_PRESENT,
-        )
+            return HandlerResult.refused(
+                "Add(CaseStatus) is missing its status id or case id"
+            )
 
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}
@@ -110,6 +163,8 @@ class AddCaseStatusToCaseReceivedUseCase:
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
@@ -122,57 +177,74 @@ class AddCaseStatusToCaseReceivedUseCase:
             activity=request,
         )
 
-        if result.status != Status.SUCCESS:
-            reason = BTBridge.get_failure_reason(tree)
-            reason_str = reason or result.feedback_message or ""
-            if reason_str == CASE_STATUS_ALREADY_PRESENT:
-                logger.info(
-                    "CaseStatus '%s' already in case '%s'"
-                    " — skipping (idempotent)",
-                    status_id,
-                    case_id,
+        if (
+            result.status != Status.SUCCESS
+            and BTBridge.get_failure_reason(tree)
+            == CASE_STATUS_ALREADY_PRESENT
+        ):
+            logger.info(
+                "CaseStatus '%s' already in case '%s' — skipping (idempotent)",
+                status_id,
+                case_id,
+            )
+            return HandlerResult.skipped(
+                f"CaseStatus '{status_id}' already in case '{case_id}'"
+            )
+        verdict = verdict_from_bt(tree, result, label="AddCaseStatusToCaseBT")
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "AddCaseStatusToCaseBT refused activity '%s': %s",
+                request.activity_id,
+                verdict.reason,
+            )
+            if self._trigger_activity is not None and request.actor_id:
+                self._trigger_activity.emit_processing_fault(
+                    actor=resolve_receiving_actor_id(
+                        self._dl, request.receiving_actor_id
+                    ),
+                    failed_activity_id=request.activity_id,
+                    failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+                    to=[request.actor_id],
+                    case_id=case_id,
                 )
-            else:
-                logger.warning(
-                    "AddCaseStatusToCaseBT did not succeed for activity"
-                    " '%s': %s",
-                    request.activity_id,
-                    reason_str,
-                )
-                if self._trigger_activity is not None and request.actor_id:
-                    from vultron.core.models.fault_classes import (
-                        VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-                    )
-
-                    self._trigger_activity.emit_processing_fault(
-                        actor=resolve_receiving_actor_id(
-                            self._dl, request.receiving_actor_id
-                        ),
-                        failed_activity_id=request.activity_id,
-                        failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-                        to=[request.actor_id],
-                        case_id=case_id,
-                    )
+        return verdict
 
 
 class CreateParticipantStatusReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check defined for participant status creation"
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
         request: CreateParticipantStatusReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: CreateParticipantStatusReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
-        _idempotent_create(
+        tree, result = run_store_only(
             self._dl,
-            request.object_type,
-            request.status_id,
-            request.status,
-            "ParticipantStatus",
-            request.activity_id,
+            request,
+            name="CreateParticipantStatusReceivedBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            store_node=StoreReceivedObjectNode(
+                request.object_type,
+                request.status_id,
+                request.status,
+                "ParticipantStatus",
+                request.activity_id,
+            ),
+        )
+        return store_only_verdict(
+            tree, result, label="CreateParticipantStatusReceivedBT"
         )
 
 
@@ -197,6 +269,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         specs/behavior-tree-integration.yaml BT-06-001.
     """
 
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
@@ -204,29 +280,29 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
         call_out: "StatusAuthorizationCallOutBundle | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AddParticipantStatusToParticipantReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
         self._call_out = call_out
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         if not request.status_id or not request.participant_id:
             logger.warning(
                 "add_participant_status_to_participant: missing status_id"
                 " or participant_id"
             )
-            return
+            return HandlerResult.refused(
+                "Add(ParticipantStatus) is missing its status id or"
+                " participant id"
+            )
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
-        )
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.status.add_participant_status_tree import (
-            add_participant_status_tree,
         )
 
         # Resolve case_id for the guarded-commit subtree (pre-flight lookup).
@@ -243,27 +319,33 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
 
-        if result.status != Status.SUCCESS:
-            reason = BTBridge.get_failure_reason(tree)
-            reason_str = reason or result.feedback_message or ""
+        verdict = verdict_from_bt(tree, result, label="AddParticipantStatusBT")
+        if verdict.disposition is HandlerDisposition.REFUSED and (
+            _adoption_gate_blocked(tree)
+        ):
+            # The raw claim is on the participant record; only its adoption as
+            # canonical was withheld (RSH-01-001, RSH-01-002).  That is not a
+            # refusal of the assertion's content (RSH-05-022), so no fault.
+            return HandlerResult.skipped(
+                f"ParticipantStatus '{request.status_id}' recorded but not"
+                " adopted: CASE_OWNER approval required (RSH-01-002)"
+            )
+        if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
-                "AddParticipantStatusBT did not succeed for activity '%s': %s",
+                "AddParticipantStatusBT refused activity '%s': %s",
                 request.activity_id,
-                reason_str,
+                verdict.reason,
             )
             if self._trigger_activity is not None and request.actor_id:
-                from vultron.core.models.fault_classes import (
-                    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-                )
-
                 self._trigger_activity.emit_processing_fault(
                     actor=receiving_actor_id,
                     failed_activity_id=request.activity_id,
@@ -272,12 +354,11 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                     case_id=case_id,
                 )
             if _filter_node_wholly_refused(tree):
-                from vultron.errors import VultronStatusAssertionRefusedError
-
-                raise VultronStatusAssertionRefusedError(
+                return HandlerResult.refused(
                     f"ParticipantStatus assertion wholly refused for activity"
-                    f" '{request.activity_id}': {reason_str}"
+                    f" '{request.activity_id}': {verdict.reason}"
                 )
+        return verdict
 
     def _resolve_case_id_for_log_cascade(self) -> str | None:
         request = self._request

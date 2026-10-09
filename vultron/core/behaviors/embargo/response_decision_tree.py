@@ -29,12 +29,13 @@ Two overture flows are supported via caller-supplied delegate trees:
   :func:`~vultron.core.behaviors.embargo.trigger_tree.propose_embargo_trigger_bt`
   as ``counter_bt`` (counter = re-propose, no new mechanism, EMB-15-003).
 
-- **Flow B** — PEC-level invitation (InviteToEmbargoOnCase).  The caller
-  passes the result of
-  :func:`~vultron.core.behaviors.embargo.announce_teardown_tree.accept_invite_to_embargo_tree`
-  as ``accept_bt`` and
-  :func:`~vultron.core.behaviors.embargo.announce_teardown_tree.reject_invite_to_embargo_tree`
-  as ``reject_bt``.  No counter arm; pass ``counter_bt=None`` (the default).
+- **Flow B** — PEC-level invitation (InviteToEmbargoOnCase), answered by the
+  invitee (EP-09-003).  The caller passes a
+  :class:`~vultron.core.behaviors.embargo.nodes.invite_answer.SendEmbargoInviteAnswerNode`
+  with ``accept=True`` as ``accept_bt`` and one with ``accept=False`` as
+  ``reject_bt``; each queues the answer to the CASE_MANAGER.  No counter arm;
+  pass ``counter_bt=None`` (the default).  ``invite_to_embargo_on_case_tree``
+  is the caller.
 
 Tree structure (EMB-15, ADR-0046)::
 
@@ -65,8 +66,8 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EmbargoCallOutBundle,
 )
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseOwnerNode,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,7 +89,7 @@ def create_embargo_response_decision_tree(
     InviteToEmbargoOnCase) and delegates to the caller-supplied mechanical BTs.
 
     **Authorization (EMB-15-002)**: a ``AuthorizeSelector`` (Fallback) puts
-    ``CheckIsCaseOwnerNode`` first — when the **deciding** actor (the local
+    ``SenderIsCaseOwnerNode`` first — when the **deciding** actor (the local
     actor processing the inbound overture and choosing how to respond) holds
     ``CVDRole.CASE_OWNER``, the response is gospel and no approval call-out
     is invoked.  Non-owners route through
@@ -105,8 +106,8 @@ def create_embargo_response_decision_tree(
 
     **Reject arm (EMB-15-004)**: the third child of the outer Selector, always
     present.  The caller supplies the flow-appropriate reject BT
-    (``reject_embargo_trigger_bt`` for Flow A; ``reject_invite_to_embargo_tree``
-    for Flow B).
+    (``reject_embargo_trigger_bt`` for Flow A; ``SendEmbargoInviteAnswerNode``
+    with ``accept=False`` for Flow B).
 
     .. note::
         This tree does **not** enforce EMB-01-002 (mandatory rejection when
@@ -119,14 +120,14 @@ def create_embargo_response_decision_tree(
             status for the gospel-bypass guard.
         deciding_actor_id: Actor ID of the LOCAL actor that is processing the
             inbound overture and making the accept/counter/reject decision.
-            Passed to ``CheckIsCaseOwnerNode`` — gospel bypass fires when THIS
+            Passed to ``SenderIsCaseOwnerNode`` — gospel bypass fires when THIS
             actor holds ``CVDRole.CASE_OWNER``, not when the remote proposer does.
         accept_bt: Pre-built BT to execute when the accept arm is taken.
             For Flow A: ``accept_embargo_trigger_bt(...)``.
-            For Flow B: ``accept_invite_to_embargo_tree(...)``.
+            For Flow B: ``SendEmbargoInviteAnswerNode(..., accept=True)``.
         reject_bt: Pre-built BT to execute when the reject arm is taken.
             For Flow A: ``reject_embargo_trigger_bt(...)``.
-            For Flow B: ``reject_invite_to_embargo_tree(...)``.
+            For Flow B: ``SendEmbargoInviteAnswerNode(..., accept=False)``.
         counter_bt: Pre-built BT to execute when the counter arm is taken.
             Supply ``propose_embargo_trigger_bt(...)`` for Flow A.
             Pass ``None`` (the default) for Flow B — omits the counter arm.
@@ -141,7 +142,7 @@ def create_embargo_response_decision_tree(
         name="AuthorizeSelector",
         memory=False,
         children=[
-            CheckIsCaseOwnerNode(
+            SenderIsCaseOwnerNode(
                 sender_actor_id=deciding_actor_id,
                 case_id=case_id,
                 name="CheckIsCaseOwner",

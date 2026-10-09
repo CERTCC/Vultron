@@ -262,7 +262,7 @@ class TestBadCitationDetected:
         adr_dir = tmp_path / "docs" / "adr"
         adr_dir.mkdir(parents=True)
         (adr_dir / "0073-test-stub.md").write_text(
-            "---\nstatus: accepted\n---\n"
+            "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n---\n"
             "# Stub\n"
             '<a id="real-anchor"></a>\n'
             "- The real decision.\n"
@@ -289,7 +289,7 @@ class TestBadCitationDetected:
         adr_dir = tmp_path / "docs" / "adr"
         adr_dir.mkdir(parents=True)
         (adr_dir / "0073-test-stub.md").write_text(
-            "---\nstatus: accepted\n---\n"
+            "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n---\n"
             '<a id="peer-records-in-knowers-store"></a>\n'
             "- Peer actor records live in the address book of each hosted actor.\n"
         )

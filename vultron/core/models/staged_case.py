@@ -64,7 +64,7 @@ class IncomingReport(VulnerabilityCase):
     model_config = ConfigDict(from_attributes=True)
 
     @model_validator(mode="after")
-    def _check_incoming_report_invariants(self) -> "IncomingReport":
+    def _check_incoming_report_invariants(self) -> IncomingReport:
         if not self.vulnerability_reports:
             raise VultronValidationError(
                 "IncomingReport requires at least one vulnerability report "
@@ -96,7 +96,7 @@ class Case(VulnerabilityCase):
     model_config = ConfigDict(from_attributes=True)
 
     @model_validator(mode="after")
-    def _check_case_invariants(self) -> "Case":
+    def _check_case_invariants(self) -> Case:
         if not self.vulnerability_reports:
             raise VultronValidationError(
                 "Case requires at least one vulnerability report (LST-02-002)."
@@ -120,12 +120,13 @@ class EmbargoedCase(Case):
 
     Guarantees all :class:`Case` invariants plus:
 
-    - ``active_embargo`` is non-None.
-    - The most recent :class:`~vultron.core.models.case_status.CaseStatus`
-      has ``em_state ∈ {ACTIVE, REVISE}``.
+    - ``active_embargo`` is non-None: the embargo register has an
+      ``ACTIVE`` entry, so the derived ``em_state`` is ``ACTIVE`` or
+      ``REVISE`` (ADR-0122).
 
-    The EM machine never returns to ``NONE``/``PROPOSED`` once ``ACTIVE``,
-    so this milestone is monotonic (LST-02-003).
+    The register never returns EM to ``NONE``/``PROPOSED`` once an entry is
+    ``ACTIVE``, so this milestone is monotonic until termination
+    (LST-02-003).
 
     Shared ``type_="VulnerabilityCase"`` (inherited, not redeclared) ensures
     DataLayer round-trip compatibility.
@@ -134,19 +135,13 @@ class EmbargoedCase(Case):
     """
 
     @model_validator(mode="after")
-    def _check_embargoed_invariants(self) -> "EmbargoedCase":
+    def _check_embargoed_invariants(self) -> EmbargoedCase:
         if self.active_embargo is None:
             raise VultronValidationError(
                 "EmbargoedCase requires active_embargo to be non-None "
                 "(LST-02-003)."
             )
-        try:
-            em_state = self.current_status.em.state
-        except ValueError as exc:
-            raise VultronValidationError(
-                "EmbargoedCase requires at least one materialized CaseStatus; "
-                "found none (LST-02-003)."
-            ) from exc
+        em_state = self.em_state
         if em_state not in (EM.ACTIVE, EM.REVISE):
             raise VultronValidationError(
                 f"EmbargoedCase requires em_state ∈ {{ACTIVE, REVISE}}, "

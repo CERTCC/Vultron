@@ -37,8 +37,8 @@ from fastapi import (
 from pydantic import BaseModel, Field
 
 from vultron.adapters.driven import actor_hosts
-from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
     node_base_url,
@@ -49,8 +49,22 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.adapters.driving.fastapi.routers.actors import _embargo_policy
+from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+    _activity_addressed_to,
+    parse_activity,
+)
+from vultron.adapters.driving.fastapi.routers.actors._lookup import (
+    _ACTOR_RECORD_TYPES,
+    _ACTOR_TYPE_MAP,
+    _actor_class_for_record,
+    _find_actor_record,
+    _find_actor_record_by_id,
+    _resolve_actor_or_404,
+)
+from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.adapters.utils import strip_id_prefix
-from vultron.core.models.base import CoreObject
+from vultron.config import get_config
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
@@ -64,28 +78,7 @@ from vultron.core.use_cases.query.action_rules import (
     GetActionRulesUseCase,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
-from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.objects.collections import (
-    as_OrderedCollection,
-)
-
-from vultron.adapters.driving.fastapi.routers.actors._inbox import (
-    _activity_addressed_to,
-    _activity_already_received,
-    _get_body,
-    _record_inbox_receipt,
-    parse_activity,
-)
-from vultron.adapters.driving.fastapi.routers.actors._lookup import (
-    _ACTOR_RECORD_TYPES,
-    _ACTOR_TYPE_MAP,
-    _actor_class_for_record,
-    _find_actor_record,
-    _find_actor_record_by_id,
-    _resolve_actor_or_404,
-)
 
 AnyActor = CoreActor
 
@@ -176,7 +169,6 @@ def _is_foreign_authority(actor_id: str, base_url: str | None) -> bool:
     parsed_id = urlsplit(actor_id)
     if not parsed_id.scheme:
         return False
-    from vultron.config import get_config
 
     effective_base = base_url or get_config().server.base_url
     return parsed_id.netloc != urlsplit(effective_base).netloc
@@ -240,7 +232,7 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
         # A client-supplied id that names no actor (``"/"``, ``"//"``) is a bad
         # request, not a server fault: it must not become a 500, and it must not
         # be allowed to mint a store for a phantom actor.
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
@@ -445,7 +437,7 @@ def get_action_rules(
         if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
             case_obj = dl.find_case_by_short_id(case_id)
         if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
-            raise VultronNotFoundError("VulnerabilityCase", case_id)
+            raise VultronNotFoundError("VulnerabilityCase", case_id)  # noqa: TRY301  # ruff-baseline #3353
         canonical_actor_id = canonical
         if actor_obj is not None and hasattr(actor_obj, "id_"):
             canonical_actor_id = actor_obj.id_
@@ -467,40 +459,50 @@ def get_action_rules(
         # case-aware reads.  `SqliteDataLayer` satisfies both protocols
         # structurally; a bare `DataLayer` does not, because
         # `CasePersistence.clone_for_actor` returns a `CasePersistence`.
-        return GetActionRulesUseCase(
-            dl=cast(CasePersistence, dl), request=req
-        ).execute()
+        return (
+            GetActionRulesUseCase(dl=cast(CasePersistence, dl), request=req)
+            .execute()
+            .model_dump(mode="json")
+        )
     except VultronNotFoundError as exc:
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         )
     except VultronValidationError as exc:
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         )
 
 
-@router.get(
+_INBOX_REFUSED_METHODS = ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "DELETE"]
+
+
+@router.api_route(
     "/{actor_id:path}/inbox",
-    response_model=as_OrderedCollection,
-    summary="Get Actor Inbox",
-    description="Returns the Actor's Inbox. (stub implementation).",
-    operation_id="actors_get_inbox",
+    methods=_INBOX_REFUSED_METHODS,
+    include_in_schema=False,
 )
-def get_actor_inbox(
-    actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)
-) -> AS2JSONResponse:
-    """Returns the Actor's Inbox."""
-    # 404 if this node does not host the addressed actor.  No clone is needed:
-    # the injected DataLayer already *is* this actor's store (ADR-0073).
-    _resolve_actor_or_404(actor_id, datalayer)
-    items = cast(
-        list[as_Object | as_Link | str | CoreObject | None],
-        list(cast(Any, datalayer).inbox_list()),
+@router.api_route(
+    "/{actor_id:path}/inbox/",
+    methods=_INBOX_REFUSED_METHODS,
+    include_in_schema=False,
+)
+def refuse_non_post_inbox(actor_id: str) -> None:
+    """Answer 405 to every non-POST method on the inbox path (IE-02-003).
+
+    The inbox is a delivery target with no read surface (IE-02-004): what an
+    actor has received is read from its store through the datalayer router.
+    This route exists because ``actors_get`` below is a path catch-all
+    (``/{actor_id:path}``); without it an unrouted GET on ``/inbox`` or
+    ``/inbox/`` would land there and answer 404 instead of 405.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail="The inbox accepts POST only.",
+        headers={"Allow": "POST"},
     )
-    return AS2JSONResponse(as_OrderedCollection(items=items))
 
 
 @router.post(
@@ -517,7 +519,6 @@ def post_actor_inbox(
     request: Request,
     background_tasks: BackgroundTasks,
     activity: as_Activity = Depends(parse_activity),
-    body: dict[str, Any] = Depends(_get_body),
     dl: DataLayer = Depends(get_actor_dl),
 ) -> None:
     """Adds an item to the Actor's Inbox.
@@ -533,7 +534,6 @@ def post_actor_inbox(
         actor_id: The ID of the Actor whose Inbox to add the item to.
         request: The FastAPI Request (used to resolve the per-app emitter/dispatcher).
         activity: The Activity item (parsed by the ``parse_activity`` dependency).
-        body: Raw JSON request body dict (needed for nested object re-parsing).
         background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
     Returns:
         None
@@ -554,31 +554,17 @@ def post_actor_inbox(
             detail=f"Activity is not addressed to actor {canonical_actor_id}.",
         )
 
-    if _activity_already_received(actor, activity.id_):
-        logger.debug(
-            "Activity %s already received by %s; ignoring duplicate submission.",
-            activity.id_,
-            canonical_actor_id,
-        )
-        return None
-
-    # Record receipt synchronously so the dedup guard on the next delivery
-    # of the same activity_id sees the updated actor inbox record.
-    _record_inbox_receipt(dl, actor, activity.id_, canonical_actor_id)
-
     emitter = getattr(request.app.state, "emitter", None)
     dispatcher = getattr(request.app.state, "dispatcher", None)
 
     background_tasks.add_task(
         run_inbox_pipeline,
         activity,
-        body,
         dl,
         canonical_actor_id,
         dispatcher,
         emitter,
     )
-    return None
 
 
 @router.post(
@@ -624,12 +610,15 @@ def post_actor_outbox(
         )
 
     logger.debug(
-        f"Posting activity to actor {canonical_actor_id} outbox: {activity}"
+        "Posting activity to actor %s outbox: %s", canonical_actor_id, activity
     )
 
     # No clone: the injected DataLayer already is this actor's store.
     actor_dl = cast(Any, dl)
     actor_dl.create(object_to_record(activity))
+    # Seal what was posted: the outbox delivers this body, not a re-read of
+    # the record (VM-08-003).
+    seal_outbound_body(actor_dl, activity)
     actor_dl.outbox_append(activity.id_)
 
     emitter = getattr(request.app.state, "emitter", None)
@@ -641,7 +630,11 @@ def post_actor_outbox(
         outbox_handler, canonical_actor_id, actor_dl, emitter=emitter
     )
 
-    return None
+
+# Included ahead of the catch-all below on purpose: FastAPI matches routes in
+# registration order, and ``GET /{actor_id:path}`` would otherwise claim
+# ``/actors/{slug}/embargo-policy`` with the suffix folded into the segment.
+router.include_router(_embargo_policy.router)
 
 
 @router.get(

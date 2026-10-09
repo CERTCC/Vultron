@@ -5,7 +5,8 @@ description: >
   Pitfalls when writing or reading GitHub Actions workflows and the YAML that
   drives them: PyYAML's bare `on:` key, matrix booleans coerced to strings,
   `actionlint` and block-scalar indentation, single-quoted apostrophes, the
-  mandatory `notify-failure` wiring, and how to read a red CI job correctly.
+  mandatory `notify-failure` wiring, why a `GITHUB_TOKEN`-raised event never
+  triggers another workflow, and how to read a red CI job correctly.
 related_notes:
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
@@ -48,6 +49,21 @@ manually audits the Actions tab. Two separate steps are required: one on failure
 the issue for recovery visibility, CISEC-05-002).
 
 Source: CONCERN-2132
+
+## Events Raised With `GITHUB_TOKEN` Never Trigger Other Workflows
+
+Anything a workflow does with its own `GITHUB_TOKEN` — filing an issue, adding a
+label, pushing a commit — raises events that GitHub deliberately does not
+dispatch to other workflows, to prevent recursive runs. So a bot-filed issue
+cannot be typed by applying a `bug` label and waiting for
+`label-to-issue-type.yml`: that workflow never fires for it. Nor can
+`gh issue create` set an issue type. A workflow that needs a typed issue must resolve
+the type's node ID by name via the `issueTypes` GraphQL field and apply it with
+the `updateIssue` mutation itself, failing the step if the type does not exist
+(CISEC-05-007). The `notify-failure` composite action does this in both of its
+notify arms; until it did, every `ci:main-failure` issue it filed was untyped.
+
+Source: ISSUE-4038
 
 ## PyYAML Parses Bare `on:` Mapping Key as Python `True`
 

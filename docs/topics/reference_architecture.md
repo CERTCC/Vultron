@@ -6,7 +6,7 @@ level: 400
 # Reference Implementation Architecture
 
 This page explains how the Vultron reference implementation is structured.
-It is written for practitioners who want to understand the code before reading it: Coordinated Vulnerability Disclosure (CVD) practitioners evaluating adoption, software developers assessing the implementation, and contributors orienting to the layout.
+It is written for readers who want to understand the code before reading it: software developers assessing the implementation, and contributors orienting to the layout.
 It answers three questions: what the hexagonal boundary means, how an incoming message flows from Hyper Text Transfer Protocol (HTTP) delivery to behavior-tree execution, and what the reference implementation supplies versus what an adopter must build.
 
 !!! note "Reference implementation, not the protocol"
@@ -34,8 +34,10 @@ The codebase splits into three concentric responsibilities.
 
 The wire format is a separate concern from the domain, not a subset of it.
 AS2 was chosen because it maps cleanly to Vultron semantics ([ADR-0005](../adr/0005-activitystreams-vocabulary-as-vultron-message-format.md)), but that alignment does not make it a domain dependency.
-Domain objects and their wire counterparts share a common base but form two structurally distinct branches: a strict core branch and a lenient wire branch ([ADR-0017](../adr/0017-domain-wire-object-separation.md)).
-The core branch is authoritative and represents every field the wire can carry; the wire branch tolerates the loose, optional shapes that arrive over the network.
+Core domain objects and wire classes form two structurally distinct branches with no shared base: a strict core branch and a lenient wire branch ([ADR-0017](../adr/archived/0017-domain-wire-object-separation.md), [ADR-0099](../adr/0099-one-object-model-as2-is-a-serialization.md)).
+The core branch is authoritative, and AS2 is one of its serializations: a core object dumped with its AS2 aliases *is* the wire document.
+The wire branch tolerates the loose, optional shapes that arrive over the network.
+A domain type such as a case has no separate wire class: its `as_` name is an alias of the core class.
 
 We keep this boundary for two reasons.
 Wire formats change, and the domain logic should not have to change with them.
@@ -66,7 +68,7 @@ flowchart TD
     rehydrate["rehydrate<br/>resolve referenced objects"]
     extract["semantic extractor<br/>AS2 pattern → MessageSemantics"]
     dispatch["behavior dispatcher<br/>semantics → use case"]
-    bt["use case runs a behavior tree<br/>guards → commit → effects"]
+    bt["use case runs a behavior tree<br/>intake → guards → commit → effects"]
     persist["persist via DataLayer<br/>and queue outbound messages"]
 
     http --> parse
@@ -82,11 +84,13 @@ The HTTP inbox lives in `vultron/adapters/driving/fastapi/`, returns `202 Accept
 
 The wire layer turns bytes into meaning.
 The AS2 parser checks structural validity, `rehydrate()` resolves referenced objects into full inline objects, and the semantic extractor (`vultron/wire/as2/extractor/`) matches the activity against an ordered pattern registry to produce a domain-level `MessageSemantics` value.
+The parser also decides what happens to every unrecognized key, at every depth (MV-11, [ADR-0099](../adr/0099-one-object-model-as2-is-a-serialization.md)).
+A misspelling of a field the receiver reads refuses the whole activity, and any other unknown key is set aside and logged.
 The semantic extractor is the single place where AS2 structure becomes domain intent (ARCH-03-001), so the rest of the core never inspects wire shapes.
 
 The core layer decides what to do.
 The behavior dispatcher (`vultron/core/dispatcher.py`) maps the extracted semantics to a use case through a table lookup, and the use case runs the appropriate behavior tree.
-Routing all inbound case activity through the [Case Actor](case_lifecycle/case_model.md#caseactor) is what lets a single behavior-tree execution produce a canonically ordered ledger entry ([ADR-0021](../adr/0021-caseactor-inbox-routing-canonical-ledger.md), [ADR-0022](../adr/0022-single-bt-execution-for-received-side-case-actor-routing.md)).
+Routing all inbound case activity through the [CASE_MANAGER](case_lifecycle/case_manager_and_ledger.md) — in the prototype, the [Case Actor](case_lifecycle/case_model.md#caseactor) — is what lets a single behavior-tree execution produce a canonically ordered ledger entry ([ADR-0021](../adr/0021-caseactor-inbox-routing-canonical-ledger.md), [ADR-0022](../adr/0022-single-bt-execution-for-received-side-case-actor-routing.md)).
 The design that moves this orchestration into a core module behind a typed `process_payload` seam is recorded in [ADR-0020](../adr/0020-inbox-bt-orchestration.md).
 
 For the protocol-level view of what these messages mean to a participant, see [Protocol Event Flow](protocol_flow.md).
@@ -105,6 +109,8 @@ This keeps the transport uniform: the same JSON payload is deliverable whether t
 Delivery is treated as unreliable and bounded.
 The outbox retries with backoff, classifies `4xx` responses as terminal, and moves an activity to a dead-letter store once its per-activity attempt budget is exhausted rather than retrying forever ([ADR-0066](../adr/0066-outbox-terminal-state.md)).
 When the exhausted activity is an `Announce(CaseLedgerEntry)`, the dead-letter record also carries the URI of the canonical ledger entry being replicated, so replica divergence is observable without log access (OX-14-001, OX-14-003).
+Delivery is also ordered per recipient: one drain runs per actor outbox at a time, rows addressed to the same recipient are delivered in the order they were enqueued with at most one in flight, and a row that fails is re-queued ahead of the rows behind it for that recipient, while rows for other recipients proceed ([ADR-0112](../adr/0112-per-recipient-ordered-outbox-delivery.md)).
+This is what keeps a ledger fan-out from reaching a replica out of order and turning the receiver's gap recovery into the normal path.
 An outbound activity always carries a non-empty `to:` field (OX-08-001) and full inline objects, because a recipient can only act on what it has received — it cannot read the sender's store (see the [Actor Knowledge Model](actor-knowledge-model.md)).
 
 ---
@@ -115,7 +121,7 @@ Inside a use case, protocol-significant work runs as a **behavior tree** (BT).
 A behavior tree is a hierarchy of nodes ticked from the root; each node returns *Success*, *Failure*, or *Running*, and the control-flow nodes above them compose those results into higher-level behavior.
 Vultron uses this structure because CVD activities compose the same way: validate a report, propose an embargo, publish an advisory — each is a small tree that slots into a larger one ([ADR-0002](../adr/0002-model-processes-with-behavior-trees.md)).
 
-On the received side, a tree runs guards first, commits the ledger entry, then fires effects, in that order (CLP-10-006).
+On the received side, a tree first stores what arrived (intake), then runs guards, commits the ledger entry, and fires effects, in that order (CLP-10-006, [ADR-0111](../adr/0111-intake-is-the-first-received-side-stage.md)).
 A read or write of Report Management (RM), Embargo Management (EM), or Case State (CS) goes through a dedicated state node rather than touching state inline, which keeps every transition auditable.
 
 This page stays at the summary level by design.
@@ -130,13 +136,13 @@ A behavior tree can reach a step it cannot decide on its own: whether a report i
 These are **call-out points** — locations where automated execution pauses and waits for an answer from an external service.
 
 During development and simulation, a call-out point is filled by a **Fuzzer Node** that returns a probabilistic success or failure.
-In production, an adopter replaces that stub with a real service that satisfies one of five **capability shapes** — Sentinel, Evaluator, Retriever, Composer, or Actuator ([ADR-0024](../adr/0024-coordination-agent-taxonomy.md)).
+In production, an adopter replaces that stub with a real service that satisfies one of four **capability shapes** — Evaluator, Retriever, Composer, or Actuator ([ADR-0097](../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), BT-18-013).
 In the hexagonal layout, a capability shape is a port and a concrete capability is the adapter that fulfills it.
 
 Not every external question is a call-out point.
 A question that needs a decision from *another actor* — for example, whether the Case Owner approves a change — cannot be answered while the tree is running, so the actor sends a request and finishes instead of pausing (see [when an actor must ask permission](protocol_flow.md#when-an-actor-must-ask-permission)).
 
-The [Capability Model](capability_model/index.md) page is the full taxonomy: the two integration surfaces, the five shapes, and the catalog of known call-out points by domain.
+The [Capability Model](capability_model/index.md) page is the full taxonomy: the two integration surfaces, the four shapes, the Sentinel call-in pattern, and the catalog of known call-out points by domain.
 
 ---
 
@@ -146,11 +152,12 @@ The extension boundary is the set of ports.
 The reference implementation provides the protocol machinery: the five state machines, the wire vocabulary and its semantic mapping, the inbox and outbox pipelines, the behavior trees that orchestrate transitions, and the persistence and delivery adapters that make a local actor run.
 What an adopter supplies are the capabilities behind the call-out points — the judgment and the connections to outside systems that the protocol deliberately leaves open.
 
-This division tracks the protocol's conformance levels.
-Correct message syntax and correct state transitions (levels L1 and L2) come from using a conformant serializer and implementing the state machines.
-Correct observable behavior (L3) is stated by the behavioral conformance specifications.
-Correct internal decision structure — precondition checks before state writes before effects, audit-log ordering, idempotency — is level L4, which is only demonstrable through a reference implementation, and the `vultron/core/behaviors/` behavior-tree layer is that demonstration.
-The [Process Implementation Notes](../howto/process_implementation.md#conformance-levels) how-to develops the L1–L4 framing and how to map the protocol onto an existing workflow system.
+This division also shows in how conformance is tested.
+The specification organizes conformance tests in four layers, L1 Syntax to L4 Process ([§12.5 Conformance Testing Approach](../reference/vultron-spec/conformance.md#125-conformance-testing-approach)).
+A layer says what a test checks, and is a separate question from the capability sets an implementation claims, which say what it provides ([§12.2 Capability Sets](../reference/vultron-spec/conformance.md#122-capability-sets)).
+Correct message syntax and correct state transitions (L1 and L2) come from using a conformant serializer and implementing the state machines.
+Correct observable behavior (L3) — the right messages emitted and the right states reached — is stated by the behavioral conformance specifications.
+Correct internal decision structure — precondition checks before state writes before effects — is L4, which is only enforceable against a reference implementation, and the `vultron/core/behaviors/` behavior-tree layer is that demonstration.
 
 An adopter therefore has a spectrum of choices.
 A minimal participant reuses the protocol machinery and supplies only the capabilities it needs.
@@ -166,5 +173,6 @@ A different-language implementation reuses the concepts — the boundary, the pi
 - [Capability Model](capability_model/index.md) — the call-out point taxonomy and how to build a capability
 - [Concept Taxonomy](../reference/vultron-taxonomy.md) — vultron-core, vultron-wire, and vultron-transport as distinct concepts
 - [Process Implementation Notes](../howto/process_implementation.md) — integrating the protocol into an existing workflow system
+- [Federation](future_work/federation.md) — future work on a deployment in which each organization runs its own coordination service
 - [ADR-0009](../adr/0009-hexagonal-architecture.md) — Adopt Hexagonal Architecture
-- [ADR-0017](../adr/0017-domain-wire-object-separation.md) — Domain/Wire Object Separation
+- [ADR-0017](../adr/archived/0017-domain-wire-object-separation.md) — Domain/Wire Object Separation

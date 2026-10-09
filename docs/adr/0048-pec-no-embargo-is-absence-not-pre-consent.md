@@ -1,7 +1,12 @@
 ---
 status: accepted
 date: 2026-07-31
+created: 2026-07-31
+updated: 2026-07-31
+revision: 1
 deciders: [adh, Claude Opus 5]
+partially_superseded_by: docs/adr/0122-per-embargo-participant-consent.md
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0048: PEC `NO_EMBARGO` Means Absence of Embargo, Not Pre-Consent
@@ -225,3 +230,5 @@ divergent write sites (CS-22-001) — including the seven that already call
 - **Subsequent rename**: ADR-0091 (Issue #3277) renamed `PEC.NO_EMBARGO` to
   `PEC.UNBOUND` and dropped the `EM.NO_EMBARGO = NONE` alias. The absence
   semantics established here are unchanged; only the state identifier changed.
+- **Amended by ADR-0118 (2026-10-02)**: the machine gains `EXPIRED` (an invite whose RSVP deadline passed unanswered, distinct from `DECLINED`) and the terminal `UNBOUND_EXITED` (reached by `EXIT`, renamed from `RESET`, when the embargo terminates).
+  `UNBOUND` is now only the initial state; it is no longer the `RESET` destination described above.

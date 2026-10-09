@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
+description: >
+  The SYNC substrate that replicates the case ledger (ADR-0077).
 ---
 
 # Ledger Replication Messages
@@ -15,8 +17,8 @@ These messages are **infrastructure**, not protocol messages in the
 rather than being a Vultron protocol step in their own right (see
 [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 
-For the acknowledgement semantics see
-[Faults and Acknowledgements](faults_and_acknowledgements.md).
+For the acknowledgment semantics see
+[Faults and Acknowledgments](faults_and_acknowledgements.md).
 
 ## How replication works
 
@@ -24,7 +26,7 @@ For the acknowledgement semantics see
    `Announce(CaseLedgerEntry)` → each participant.
 2. A participant whose local `prev_log_hash` matches the incoming entry's
    `prev_log_hash` silently accepts — hash-chain continuity is the implicit
-   positive acknowledgement (MSM-05-002).
+   positive acknowledgment (MSM-05-002).
 3. A participant whose hashes do not match rejects: `Reject(CaseLedgerEntry)`
    with `context` = its last accepted hash, so the CASE_MANAGER can replay the
    gap (SYNC-03-001, SYNC-03-002).
@@ -77,7 +79,7 @@ print(json2md(announce_case_ledger_entry()))
 - **Triggering transition:** triggered by hash-chain mismatch detection —
   not a protocol shorthand.
 - **Wire activity:** `Reject(CaseLedgerEntry)`.
-- **Spec:** SYNC-03-001, SYNC-03-002.
+- **Spec:** SYNC-03-001, SYNC-03-002, SYNC-03-005.
 - **Pattern:** `RejectLogEntryPattern` in
   `vultron/wire/as2/extractor/_instances.py`.
 - **Factory:** `reject_log_entry_activity` in
@@ -93,6 +95,10 @@ print(json2md(reject_case_ledger_entry()))
 Buffering takes priority over rejection (ADR-0037). A `Reject` is sent only for an
 entry genuinely missing from the chain, never for one that is merely out of order,
 so an out-of-order delivery does not start a reject-and-replay cycle.
+
+The CASE_MANAGER acts on a `Reject(CaseLedgerEntry)` only when its sender is an active participant in the case (SYNC-03-005, CM-10-004).
+From any other sender it reports `REFUSED`, records no replication state, and replays no entry and announces no case to that sender.
+The check runs before any write, so a stranger cannot obtain case content by sending a `Reject` with an empty last-accepted hash.
 
 ---
 

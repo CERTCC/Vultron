@@ -38,11 +38,16 @@ from vultron.core.behaviors.report.trigger_report_trees import (
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.models.report import VulnerabilityReport, VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.models.use_case_result import OfferResult
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.use_cases.triggers._base import (
+    SvcActivityTriggerBase,
+    SvcBTTriggerBase,
+)
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
 )
@@ -93,7 +98,26 @@ def _resolve_offer_and_report(
     return offer_record, report
 
 
-class SvcValidateReportUseCase(SvcBTTriggerBase):
+def _require_offer_addressed_to(
+    actor_id: str, offer_record: VultronOfferRecord, trigger: str
+) -> None:
+    """Refuse *trigger* unless *actor_id* received the Offer (CM-11-020).
+
+    Only a ``to`` recipient of the ``Offer(VulnerabilityReport)`` answers it
+    (HP-09-001).  A participant that joined through an Invite never received
+    that Offer, so the record's ``offer_to`` does not name it; it judges the
+    case by replying to the full-case Invite (CM-11-011, ADR-0121).
+    """
+    if actor_id not in offer_record.offer_to:
+        raise VultronValidationError(
+            f"{trigger} refused: actor '{actor_id}' was not sent offer "
+            f"'{offer_record.offer_id}'. A participant that joined the case "
+            "through an Invite judges the case by replying to the full-case "
+            "Invite, not by answering the original report Offer (CM-11-020)."
+        )
+
+
+class SvcValidateReportUseCase(SvcActivityTriggerBase):
     """Validate a report offer using the ValidateReportBT behavior tree.
 
     Per ADR-0021 CLP-10-001: the validate trigger tree now emits an
@@ -111,6 +135,9 @@ class SvcValidateReportUseCase(SvcBTTriggerBase):
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
         )
+        _require_offer_addressed_to(
+            self._actor_id, self._offer, "validate-report"
+        )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_validate_report_tree(
@@ -124,7 +151,7 @@ class SvcValidateReportUseCase(SvcBTTriggerBase):
         pass
 
 
-class SvcInvalidateReportUseCase(SvcBTTriggerBase):
+class SvcInvalidateReportUseCase(SvcActivityTriggerBase):
     """Emit RmInvalidateReportActivity (TentativeReject) for the given offer."""
 
     def _prepare(self) -> None:
@@ -133,6 +160,9 @@ class SvcInvalidateReportUseCase(SvcBTTriggerBase):
         self._actor_id = actor.id_
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
+        )
+        _require_offer_addressed_to(
+            self._actor_id, self._offer, "invalidate-report"
         )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
@@ -152,7 +182,7 @@ class SvcInvalidateReportUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcRejectReportUseCase(SvcBTTriggerBase):
+class SvcRejectReportUseCase(SvcActivityTriggerBase):
     """Hard-close a report offer by emitting RmCloseReportActivity (Reject)."""
 
     def _prepare(self) -> None:
@@ -162,6 +192,9 @@ class SvcRejectReportUseCase(SvcBTTriggerBase):
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
         )
+        _require_offer_addressed_to(
+            self._actor_id, self._offer, "reject-report"
+        )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_reject_report_trigger_tree(
@@ -169,6 +202,7 @@ class SvcRejectReportUseCase(SvcBTTriggerBase):
             report_id=self._report.id_,
             captured=self._captured,
             sender_actor_id=self._actor_id,
+            result_out=self._result_out,
         )
 
     def _handle_result(self) -> None:
@@ -182,7 +216,7 @@ class SvcRejectReportUseCase(SvcBTTriggerBase):
         )
 
 
-class SvcCloseCaseUseCase(SvcBTTriggerBase):
+class SvcCloseCaseUseCase(SvcActivityTriggerBase):
     """Close a VulnerabilityCase via the RM lifecycle (RM → C transition).
 
     Only the Case Owner may close the case.  The ``case_id`` is resolved
@@ -234,7 +268,7 @@ class SvcCloseCaseUseCase(SvcBTTriggerBase):
 SvcCloseReportUseCase = SvcCloseCaseUseCase
 
 
-class SvcSubmitReportUseCase(SvcBTTriggerBase):
+class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):
     """Create a VulnerabilityReport and offer it to a recipient.
 
     Stores the report and a VultronReportCaseLink in the actor's DataLayer
@@ -242,6 +276,13 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase):
     and queue the Offer activity.  Returns ``{"offer": <offer_dict>}``
     rather than the base-class ``{"activity": ...}`` shape to preserve
     the existing API contract.
+
+    When the request states ``proposed_embargo_end_time``, ``_prepare()``
+    also stores the Reporter's proposed ``EmbargoEvent`` — about the report,
+    since no case exists yet (EP-04-009) — and the tree carries it on the
+    Offer as ``proposedEmbargo`` (EP-04-004).  The Reporter keeps the event
+    under the id the Offer names: the CASE_MANAGER keeps that identity when
+    the terms win, so the Reporter can recognise its own terms on the case.
     """
 
     def _prepare(self) -> None:
@@ -249,7 +290,7 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        report = VultronReport(
+        report = VulnerabilityReport(
             name=request.report_name,
             content=request.report_content,
             attributed_to=self._actor_id,
@@ -271,7 +312,7 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase):
             self._dl.create(
                 VultronReportCaseLink(
                     report_id=report.id_,
-                    trusted_case_creator_id=request.recipient_id,
+                    case_creator_id=request.recipient_id,
                 )
             )
         except VultronAlreadyExistsError:
@@ -283,12 +324,44 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase):
 
         self._report_id = report.id_
         self._recipient_id = request.recipient_id
+        self._proposed_embargo_id = self._store_proposed_embargo(
+            report, request
+        )
+
+    def _store_proposed_embargo(
+        self,
+        report: VulnerabilityReport,
+        request: SubmitReportTriggerRequest,
+    ) -> str | None:
+        """Persist the Reporter's proposed terms for *report*, if any stated.
+
+        Returns the stored ``EmbargoEvent`` id, or ``None`` when the request
+        proposes nothing.  The event names the report as its ``context``
+        (EP-04-009); the case does not exist yet.
+        """
+        if request.proposed_embargo_end_time is None:
+            return None
+        proposal = EmbargoEvent(
+            context=report.id_,
+            end_time=request.proposed_embargo_end_time,
+        )
+        self._dl.create(proposal)
+        logger.info(
+            "Reporter '%s' proposes embargo '%s' ending %s for report '%s'"
+            " (EP-04-004)",
+            self._actor_id,
+            proposal.id_,
+            proposal.end_time.isoformat(),
+            report.id_,
+        )
+        return proposal.id_
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return submit_report_trigger_bt(
             report_id=self._report_id,
             recipient_id=self._recipient_id,
             captured=self._captured,
+            proposed_embargo_id=self._proposed_embargo_id,
         )
 
     def _handle_result(self) -> None:
@@ -298,7 +371,6 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase):
             self._recipient_id,
         )
 
-    def execute(self) -> dict:
-        """Execute and return ``{"offer": <offer_dict>}``."""
-        super().execute()
-        return {"offer": self._captured.get("offer")}
+    def _build_result(self) -> OfferResult:
+        """The body is the captured ``Offer(VulnerabilityReport)`` alone."""
+        return OfferResult(offer=self._captured.get("offer"))

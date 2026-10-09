@@ -25,35 +25,37 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.core.behaviors.embargo.nodes.conftest import (
+    CASE_MANAGER_ACTOR,
+    OTHER_PARTICIPANT_ACTOR,
+    make_case_and_embargo,
+    make_case_with_manager,
+)
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     remove_embargo_from_case_tree,
 )
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.embargo import (
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
-)
-
-from test.core.behaviors.embargo.nodes.conftest import (
-    CASE_MANAGER_ACTOR,
-    make_case_and_embargo,
-    make_case_with_manager,
 )
 
 # Kept for objects that reference the vendor; the trees below execute as the
 # CASE_MANAGER, which is who the ledger commit is gated on.
 ACTOR_ID = "https://example.org/actors/vendor"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _make_factory(
@@ -65,7 +67,12 @@ def _make_factory(
 
 
 def _make_remove_event(
-    case, embargo, activity_id: str
+    case,
+    embargo,
+    activity_id: str,
+    *,
+    sender: str = ACTOR_ID,
+    receiver: str = CASE_MANAGER_ACTOR,
 ) -> RemoveEmbargoEventFromCaseReceivedEvent:
     """A Remove(EmbargoEvent) received event that carries its own activity.
 
@@ -82,14 +89,14 @@ def _make_remove_event(
     """
     return RemoveEmbargoEventFromCaseReceivedEvent(
         activity_id=activity_id,
-        actor_id=ACTOR_ID,
-        object_=VultronObject(id_=embargo.id_),
-        origin=VultronObject(id_=case.id_),
-        receiving_actor_id=CASE_MANAGER_ACTOR,
+        actor_id=sender,
+        object_=CoreObject(id_=embargo.id_),
+        origin=CoreObject(id_=case.id_),
+        receiving_actor_id=receiver,
         activity=VultronActivity(
             id_=activity_id,
             type_="Remove",
-            actor=ACTOR_ID,
+            actor=sender,
             object_=embargo.id_,
             origin=case.id_,
             context=case.id_,
@@ -110,9 +117,16 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
-            case_id=case.id_, embargo_id=embargo.id_
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
         )
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove1"
         )
@@ -136,23 +150,69 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
 
+    @pytest.mark.spec("EMB-13-001")
+    def test_teardown_leaves_consent_rows_and_nobody_a_signatory(self):
+        """Teardown writes no consent; clearing the active embargo unbinds all."""
+        case, _, dl = make_case_with_manager("atrt1c", em_state=EM.ACTIVE)
+        embargo_id = cast(str, case.active_embargo_id)
+        dl.create(make_case_and_embargo("atrt1c")[1])
+        tree = remove_embargo_from_case_tree(
+            case_id=case.id_,
+            embargo_id=embargo_id,
+            sender_actor_id=CASE_MANAGER_ACTOR,
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=_make_factory(),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        embargo = dl.read(embargo_id)
+        assert embargo is not None
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=CASE_MANAGER_ACTOR,
+            activity=_make_remove_event(
+                case, embargo, "https://example.org/activities/remove1c"
+            ),
+        )
+
+        assert result.status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.active_embargo_id is None
+        for participant_id in updated.actor_participant_index.values():
+            participant = cast(CaseParticipant, dl.read(participant_id))
+            assert participant.consent_for(embargo_id) is (
+                EmbargoConsentState.ACCEPTED
+            )
+            assert not participant.is_signatory(updated.active_embargo_id)
+
     def test_no_announce_when_embargo_not_active(self):
         """EmbargoWasNotActive path does NOT emit Announce(EmbargoEvent)."""
-        # Build a case that starts in PROPOSED state (not ACTIVE), so the
-        # IsActiveEmbargoNode guard fails and the ActiveTeardown Sequence is
-        # skipped — the Selector falls through to EmbargoWasNotActive.
+        # Build a case whose register holds the embargo only as an open
+        # proposal (EM PROPOSED, not ACTIVE), so the IsActiveEmbargoNode guard
+        # fails and the ActiveTeardown Sequence is skipped — the Selector falls
+        # through to EmbargoWasNotActive.
         case, _, dl = make_case_with_manager("atrt2", em_state=EM.PROPOSED)
         _, embargo = make_case_and_embargo("atrt2")
         dl.create(embargo)
-        object.__setattr__(case, "active_embargo", None)
-        case.proposed_embargoes.append(embargo.id_)
-        dl.save(case)
+        assert case.proposed_embargo_ids == [embargo.id_]
         factory = _make_factory()
 
         tree = remove_embargo_from_case_tree(
-            case_id=case.id_, embargo_id=embargo.id_
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
         )
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+            # A mock port: the removal entry's ledger fan-out is not under
+            # test, and the empty-outbox check below is about the embargo
+            # Announce alone.
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove2"
         )
@@ -163,6 +223,11 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         assert result.status == py_trees.common.Status.SUCCESS
         factory.announce_embargo.assert_not_called()
         assert dl.outbox_list() == []
+        # A Remove naming a merely-proposed embargo changes no register entry
+        # (ADR-0122): the proposal stays open.
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.em_state == EM.PROPOSED
+        assert updated.proposed_embargo_ids == [embargo.id_]
 
     def test_announce_skipped_gracefully_when_no_factory(self):
         """Tree succeeds when factory is absent (no announce emitted)."""
@@ -171,9 +236,15 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         dl.create(embargo)
 
         tree = remove_embargo_from_case_tree(
-            case_id=case.id_, embargo_id=embargo.id_
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
         )
-        bridge = BTBridge(datalayer=dl)  # no trigger_activity
+        bridge = BTBridge(
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )  # no trigger_activity
         activity = _make_remove_event(
             case, embargo, "https://example.org/activities/remove3"
         )
@@ -184,3 +255,160 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         assert result.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
+
+
+class TestRemoveEmbargoAnnouncedOnlyByTheCaseManager:
+    """Only the CASE_MANAGER announces the teardown (BT-17-008, #4323).
+
+    The same ``Remove(EmbargoEvent)`` runs in two isolated stores, the
+    CASE_MANAGER's and a participant replica's, each as its own actor
+    (TB-06-007).
+    """
+
+    def _run(
+        self,
+        dl,
+        case,
+        embargo,
+        executing_actor: str,
+        expected_em: EM = EM.EXITED,
+    ) -> MagicMock:
+        factory = _make_factory()
+        result = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(
+            tree=remove_embargo_from_case_tree(
+                case_id=case.id_,
+                embargo_id=embargo.id_,
+                sender_actor_id=CASE_MANAGER_ACTOR,
+            ),
+            actor_id=executing_actor,
+            activity=_make_remove_event(
+                case,
+                embargo,
+                "https://example.org/activities/remove6",
+                sender=CASE_MANAGER_ACTOR,
+                receiver=executing_actor,
+            ),
+        )
+        assert result.status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == expected_em
+        return factory
+
+    @pytest.mark.spec("BT-17-008")
+    @pytest.mark.spec("RSH-08-003")
+    @pytest.mark.spec("CM-31-010")
+    def test_active_replica_writes_nothing_and_sends_nothing(self):
+        """An active replica takes the teardown from the ledger (#3814).
+
+        Its stream is not paused, so ``AwaitsEmbargoEndingNoticeNode`` refuses
+        and the participant-replica arm writes nothing: EM stays ``ACTIVE``
+        until the ``remove_embargo_event_from_case`` ledger entry arrives.
+        Only the CASE_MANAGER tears down and announces here (RSH-08-003).
+        """
+        manager_case, _, manager_dl = make_case_with_manager("atrt6")
+        replica_case, _, replica_dl = make_case_with_manager(
+            "atrt6", store_actor_id=OTHER_PARTICIPANT_ACTOR
+        )
+        _, embargo = make_case_and_embargo("atrt6")
+        manager_dl.create(embargo)
+        replica_dl.create(embargo)
+
+        replica_factory = self._run(
+            replica_dl,
+            replica_case,
+            embargo,
+            OTHER_PARTICIPANT_ACTOR,
+            expected_em=EM.ACTIVE,
+        )
+        manager_factory = self._run(
+            manager_dl, manager_case, embargo, CASE_MANAGER_ACTOR
+        )
+
+        replica_factory.announce_embargo.assert_not_called()
+        assert replica_dl.outbox_list() == []
+        manager_factory.announce_embargo.assert_called_once_with(
+            embargo_id=embargo.id_,
+            case_id=manager_case.id_,
+            actor=CASE_MANAGER_ACTOR,
+            to=[OTHER_PARTICIPANT_ACTOR],
+        )
+        assert "https://example.org/activities/ann1" in (
+            manager_dl.outbox_list()
+        )
+
+
+class TestRemoveEmbargoTeardownFailuresSurface:
+    """Only "nothing to tear down" falls back; a failed teardown fails (#2255)."""
+
+    @pytest.mark.spec("HP-01-003")
+    def test_failed_teardown_step_fails_the_tree(self, monkeypatch):
+        """A teardown step that fails is not absorbed as "was not active"."""
+        from vultron.core.behaviors.embargo.nodes import ClearActiveEmbargoNode
+
+        def _fail(self):
+            self.feedback_message = "could not clear active embargo"
+            return py_trees.common.Status.FAILURE
+
+        monkeypatch.setattr(ClearActiveEmbargoNode, "update", _fail)
+        case, _, dl = make_case_with_manager("atrt4", em_state=EM.ACTIVE)
+        _, embargo = make_case_and_embargo("atrt4")
+        dl.create(embargo)
+        factory = _make_factory()
+
+        tree = remove_embargo_from_case_tree(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        activity = _make_remove_event(
+            case, embargo, "https://example.org/activities/remove4"
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
+        )
+
+        assert result.status == py_trees.common.Status.FAILURE
+        assert (
+            BTBridge.get_failure_reason(tree)
+            == "could not clear active embargo"
+        )
+        factory.announce_embargo.assert_not_called()
+
+    def test_already_exited_embargo_is_not_torn_down_again(self):
+        """A Remove of an already-terminated embargo falls back to success."""
+        case, _, dl = make_case_with_manager("atrt5", em_state=EM.EXITED)
+        _, embargo = make_case_and_embargo("atrt5")
+        dl.create(embargo)
+        factory = _make_factory()
+
+        tree = remove_embargo_from_case_tree(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        activity = _make_remove_event(
+            case, embargo, "https://example.org/activities/remove5"
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ACTOR, activity=activity
+        )
+
+        assert result.status == py_trees.common.Status.SUCCESS
+        factory.announce_embargo.assert_not_called()

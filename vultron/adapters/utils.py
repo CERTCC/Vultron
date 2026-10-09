@@ -85,10 +85,7 @@ def parse_id(object_id: str) -> ParsedObjectId:
         path_parts.pop(-1)
 
     obj_id = path_parts.pop(-1)
-    if len(path_parts) == 0:
-        obj_type = None
-    else:
-        obj_type = path_parts.pop(-1)
+    obj_type = None if len(path_parts) == 0 else path_parts.pop(-1)
 
     # if there is anything left in path_parts, that is part of the base url path
     base_path = "/".join(path_parts)

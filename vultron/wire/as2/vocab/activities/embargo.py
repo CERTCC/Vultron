@@ -15,17 +15,11 @@
 Provides Vultron Activity Streams Vocabulary classes for Embargo activities
 """
 
-from typing import Sequence, TypeAlias
-
 from pydantic import Field
 
-from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
-    as_Question,
-)
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Add,
     as_Announce,
     as_Invite,
     as_Reject,
@@ -33,7 +27,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent,
-    as_EmbargoEventRef,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseRef,
@@ -43,16 +36,15 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class _EmProposeEmbargoActivity(as_Invite):
     """The actor is proposing an embargo on the case.
     This corresponds to the Vultron Message Types EP and EV
-    object_: as_EmbargoEvent
+    object_: as_EmbargoEvent, or its URI when the sender named the terms by
+        reference.  An Invite received that way is still answered: the ER
+        names the Invite by id and needs no terms (ADR-0123).
     """
 
-    object_: as_EmbargoEvent = Field(
+    object_: as_EmbargoEvent | NonEmptyString = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
     context: as_VulnerabilityCaseRef = None
-
-
-_EmProposeEmbargoRef: TypeAlias = ActivityStreamRef[_EmProposeEmbargoActivity]
 
 
 class _EmAcceptEmbargoActivity(as_Accept):
@@ -89,39 +81,31 @@ class _EmRejectEmbargoActivity(as_Reject):
     context: as_VulnerabilityCaseRef = None
 
 
-class _ChoosePreferredEmbargoActivity(as_Question):
-    """The case owner is asking the participants to indicate their embargo preferences from among the proposed embargoes.
-    Case participants should respond with an _EmAcceptEmbargoActivity or _EmRejectEmbargoActivity activity for each proposed embargo.
-    Either anyOf or oneOf should be specified, but not both.
-    The Case owner will then need to decide which embargo to make active on the case.
-    """
+class _ActivateEmbargoActivity(as_Accept):
+    """The case owner activates a proposed embargo on the case (ADR-0122).
 
-    # note: not specifying object_ here because Questions are intransitive
-
-    any_of: Sequence[as_EmbargoEventRef] | None = None
-    one_of: Sequence[as_EmbargoEventRef] | None = None
-
-
-class _ActivateEmbargoActivity(as_Add):
-    """The case owner is activating an embargo on the case.
-    This corresponds to the Vultron Message Types EA and EC at the case level
-    object_: the as_EmbargoEvent being activated
-    target: the VulnerabilityCase for which the as_EmbargoEvent was proposed
-    in_reply_to: the _EmProposeEmbargoActivity activity that proposed the as_EmbargoEvent
+    ``Accept(EmbargoEvent, target=VulnerabilityCase)``: the owner's decision
+    for the case, distinct from ``Accept(Invite(EmbargoEvent))``, which is
+    always the sender's own consent.  Only the case owner sends it.
+    object_: the as_EmbargoEvent being activated (inline, so a recipient
+        reads the terms without a dereference, AKM-03-001)
+    target: the VulnerabilityCase the embargo was proposed for
     """
 
     object_: as_EmbargoEvent = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
-    in_reply_to: _EmProposeEmbargoRef = None
 
 
-class _AddEmbargoToCaseActivity(as_Add):
-    """Add an as_EmbargoEvent to a case. This should only be performed by the case owner.
-    For use when the case owner is activating an embargo on the case without first proposing it to the participants.
-    See _ActivateEmbargoActivity for use when the case owner is activating an embargo on the case
-    in response to a previous _EmProposeEmbargoActivity activity.
+class _RejectEmbargoProposalActivity(as_Reject):
+    """The case owner rejects a proposed embargo on the case (ADR-0122).
+
+    ``Reject(EmbargoEvent, target=VulnerabilityCase)``: the owner's decision
+    for the case, distinct from ``Reject(Invite(EmbargoEvent))``, which is
+    always the sender's own consent.  Only the case owner sends it.
+    object_: the as_EmbargoEvent being rejected (inline, AKM-03-001)
+    target: the VulnerabilityCase the embargo was proposed for
     """
 
     object_: as_EmbargoEvent = Field(
@@ -142,11 +126,14 @@ class _AnnounceEmbargoActivity(as_Announce):
     context: as_VulnerabilityCaseRef = None
 
 
-# remove as_EmbargoEvent from proposedEmbargoes of VulnerabilityCase
-# todo: should proposedEmbargoes be its own collection object that can then be used as the origin here?
 class _RemoveEmbargoFromCaseActivity(as_Remove):
-    """Remove an as_EmbargoEvent from the proposedEmbargoes of a VulnerabilityCase.
-    This should only be performed by the case owner.
+    """Remove the embargo in force from a VulnerabilityCase (ET).
+
+    The receiver terminates the case's ``ACTIVE`` embargo register entry and
+    cancels every open proposal in the same step, so EM derives ``EXITED``
+    (MSM-07-006, ADR-0122).  A Remove naming an embargo that is only
+    proposed changes nothing.  This should only be performed by the case
+    owner.
     object_: as_EmbargoEvent
     origin: VulnerabilityCase
     """

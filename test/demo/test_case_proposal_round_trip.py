@@ -52,7 +52,8 @@ FastAPI instance backed by the same DataLayer).
 The case-actor's inbox handler runs ``CreateCaseProposalReceivedUseCase``
 which:
 
-1. Creates a ``VulnerabilityCase`` (attributed to the case-actor).
+1. Creates a ``VulnerabilityCase`` attributed to the proposing vendor,
+   the CASE_OWNER (CP-09-001).
 2. Emits ``Accept(as_CaseProposal)`` addressed to the vendor.
 3. Emits ``Create(VulnerabilityCase)`` addressed to the vendor.
 
@@ -70,12 +71,15 @@ BackgroundTask execution model.
 """
 
 import importlib
+import logging
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from test.demo._helpers import make_testclient_call
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.demo.utils import case_actor_id_for_report
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -130,9 +134,9 @@ def _post_to_inbox(client, actor_slug: str, activity) -> None:
         content=activity.model_dump_json(by_alias=True, exclude_none=True),
         headers={"Content-Type": "application/json"},
     )
-    assert (
-        resp.status_code == 202
-    ), f"Inbox POST returned {resp.status_code}: {resp.text}"
+    assert resp.status_code == 202, (
+        f"Inbox POST returned {resp.status_code}: {resp.text}"
+    )
 
 
 def _actor_slug(actor_id: str) -> str:
@@ -217,6 +221,7 @@ def two_app_setup():
 class TestCaseProposalRoundTrip:
     """CP-07-003: full Create(CaseProposal) → Accept + Create(Case) round-trip."""
 
+    @pytest.mark.spec("CP-04-001")
     def test_proposal_queued_after_submit_report(self, two_app_setup):
         """ProposeCaseToActorNode queues Create(as_CaseProposal) after SubmitReport.
 
@@ -224,7 +229,7 @@ class TestCaseProposalRoundTrip:
         whose ``object_`` is an ``as_CaseProposal`` must exist in the
         DataLayer (CP-04-001, CP-04-002).
         """
-        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
+        vendor_iso, _reporter_iso, vendor_tc, reporter_tc = two_app_setup
 
         vendor_base_api = f"{_VENDOR_BASE}/api/v2"
         reporter_base_api = f"{_REPORTER_BASE}/api/v2"
@@ -279,14 +284,18 @@ class TestCaseProposalRoundTrip:
             "ProposeCaseToActorNode may not have run (CP-04-001, CP-04-002)."
         )
 
-    def test_case_actor_sends_accept_and_create_case(self, two_app_setup):
+    @pytest.mark.spec("CP-09-001")
+    @pytest.mark.spec("CM-02-004")
+    def test_case_actor_sends_accept_and_create_case(
+        self, two_app_setup, caplog
+    ):
         """Case-actor responds with Accept(CaseProposal) + Create(VulnerabilityCase).
 
         After the vendor's outbox flushes Create(as_CaseProposal) to the
         case-actor inbox, the case-actor service must emit Accept and
         Create(VulnerabilityCase) back to the vendor (CP-05-003).
         """
-        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
+        vendor_iso, _reporter_iso, vendor_tc, reporter_tc = two_app_setup
 
         vendor_base_api = f"{_VENDOR_BASE}/api/v2"
         reporter_base_api = f"{_REPORTER_BASE}/api/v2"
@@ -325,7 +334,8 @@ class TestCaseProposalRoundTrip:
             _actor_slug(case_actor_id_for_report(str(report.id_))),
             "Case Actor CP",
         )
-        _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
+        with caplog.at_level(logging.WARNING):
+            _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
 
         # The full chain runs synchronously inside TestClient's
         # BackgroundTask model:
@@ -352,6 +362,40 @@ class TestCaseProposalRoundTrip:
             "The case-actor may not have emitted Create(VulnerabilityCase) "
             "(CP-05-003)."
         )
+
+        # The replica keeps the owner the CASE_MANAGER recorded: the proposing
+        # vendor, never the CaseActor that created the case (CP-09-001).
+        replicas = [
+            case
+            for case in vendor_iso.dl.list_objects("VulnerabilityCase")
+            if isinstance(case, VulnerabilityCase)
+        ]
+        assert replicas, "the vendor holds no VulnerabilityCase replica"
+        assert {_as_id(case.attributed_to) for case in replicas} == {
+            vendor_actor_id
+        }
+
+        # EMB-18-003: the vendor's replica names the default embargo the
+        # CASE_MANAGER minted, so the Create must have carried that record and
+        # the vendor must hold it — a bare id would have been refused.
+        from vultron.core.services.embargo_ordering import read_embargo_event
+
+        cases = [
+            vendor_iso.dl.read(case_id) for case_id in vulnerability_cases
+        ]
+        embargoed = [c for c in cases if getattr(c, "active_embargo", None)]
+        assert embargoed, (
+            "Expected the vendor's case replica to name an embargo"
+        )
+        for case in embargoed:
+            ref = case.active_embargo
+            read_embargo_event(vendor_iso.dl, getattr(ref, "id_", ref))
+        refusals = [
+            r.getMessage()
+            for r in caplog.records
+            if "EMB-18-003" in r.getMessage()
+        ]
+        assert not refusals, refusals
 
 
 # ---------------------------------------------------------------------------
@@ -386,12 +430,12 @@ class TestCaseProposalRejectRoundTrip:
         )
         from vultron.core.behaviors.call_out.nodes import AlwaysFail
 
-        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
+        vendor_iso, _reporter_iso, vendor_tc, reporter_tc = two_app_setup
 
         # The deployment's admission policy: refuse.  Patched on the adapter
         # module, which is where a real deployment substitutes its own bundle.
         declining = CaseProposalCallOutBundle(
-            evaluate_proposal_factory=lambda name: AlwaysFail(name),  # type: ignore[arg-type]
+            evaluate_proposal_factory=AlwaysFail,  # type: ignore[arg-type]
         )
         monkeypatch.setattr(
             importlib.import_module(
@@ -443,9 +487,9 @@ class TestCaseProposalRejectRoundTrip:
             "the vendor's store, so the refusal never left the case actor."
         )
 
-        assert not vendor_iso.dl.by_type(
-            "Accept"
-        ), "the service refused, so it must not also acknowledge the proposal"
+        assert not vendor_iso.dl.by_type("Accept"), (
+            "the service refused, so it must not also acknowledge the proposal"
+        )
         assert not vendor_iso.dl.by_type("VulnerabilityCase"), (
             "a refusal creates nothing: no case may be delivered to the "
             "proposer (CLP-10-009)"

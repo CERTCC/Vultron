@@ -18,10 +18,14 @@ every single module contributes a registry entry would be wrong.
 
 What we DO test here:
 - All important domain and AS2 types are reachable in VOCABULARY.
-- Object modules that define classes with their own type_ annotation register
-  at least one type (catches accidental omissions in discovery).
 - Dynamic discovery causes all activity and object modules to be imported
   (reachable via sys.modules) even if they add no new type keys.
+
+Per-class registration completeness (VM-01-007) lives in
+``test_registry.py::TestWireTypeValues``.  It replaced a per-module check here
+whose skip predicate — "the module declares no own ``type_`` annotation" — is
+exactly what an unregistered module looks like, so it skipped the modules it
+existed to catch (ISSUE-3564).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -46,7 +50,6 @@ import pytest
 import vultron.wire.as2.vocab  # noqa: F401 — triggers dynamic discovery
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
-    WIRE_TYPE_MAP,
     find_in_vocabulary,
 )
 
@@ -67,10 +70,6 @@ def _collect_modules(*package_names: str) -> list[str]:
 
 _OBJECT_MODULES = _collect_modules("vultron.wire.as2.vocab.objects")
 _ACTIVITY_MODULES = _collect_modules("vultron.wire.as2.vocab.activities")
-_BASE_OBJECT_MODULES = _collect_modules(
-    "vultron.wire.as2.vocab.base.objects",
-    "vultron.wire.as2.vocab.base.objects.activities",
-)
 
 
 # ---------------------------------------------------------------------------
@@ -94,77 +93,6 @@ def test_activity_module_imported_by_dynamic_discovery(module_name):
     assert module_name in sys.modules, (
         f"Module '{module_name}' was NOT imported by dynamic discovery. "
         "Check vocab/activities/__init__.py discovery loop."
-    )
-
-
-# ---------------------------------------------------------------------------
-# Per-module registration check: object modules that define their own
-# type_ annotation must contribute ≥1 type to VOCABULARY.
-# Modules with only semantic-alias classes (inheriting parent type_) are
-# expected to contribute zero entries and are skipped automatically.
-#
-# Exception — intentionally superseded base modules:
-# Some base modules define concrete AS2 subtypes (e.g. as_Person, as_Service)
-# that are auto-registered on class creation, then deliberately replaced by
-# Vultron-specific wire-branch types in vultron_actor.py. By the time tests
-# run, none of the original base-module classes remain in VOCABULARY. This is
-# correct per ADR-0017 Option D (shared-base, two-branch hierarchy). These
-# modules are excluded from the completeness check.
-_SUPERSEDED_BASE_MODULES = {
-    # All concrete actor subtypes (Person, Organization, etc.) are replaced by
-    # VultronPerson, VultronOrganization, etc. from vultron_actor.py; the base
-    # Actor key now maps to CoreActor (issue #802).
-    "vultron.wire.as2.vocab.base.objects.actors",
-}
-# ---------------------------------------------------------------------------
-
-
-def _module_defines_own_type_annotation(module_name: str) -> bool:
-    """Return True if any class in this module defines type_ in its own __annotations__."""
-    mod = importlib.import_module(module_name)
-    for name in dir(mod):
-        obj = getattr(mod, name, None)
-        if not isinstance(obj, type):
-            continue
-        if getattr(obj, "__module__", None) != module_name:
-            continue
-        if "type_" in obj.__dict__.get("__annotations__", {}):
-            return True
-    return False
-
-
-def _module_contributes_registered_type(module_name: str) -> bool:
-    """Return True if any class defined in this module is in VOCABULARY or WIRE_TYPE_MAP."""
-    mod = importlib.import_module(module_name)
-    all_registered = set(VOCABULARY.values()) | set(WIRE_TYPE_MAP.values())
-    for name in dir(mod):
-        obj = getattr(mod, name, None)
-        if obj is None or not isinstance(obj, type):
-            continue
-        if getattr(obj, "__module__", None) != module_name:
-            continue
-        if obj in all_registered:
-            return True
-    return False
-
-
-@pytest.mark.parametrize("module_name", _OBJECT_MODULES + _BASE_OBJECT_MODULES)
-def test_object_module_with_own_type_contributes_to_registry(module_name):
-    """Object modules that declare their own type_ annotation must register it."""
-    if module_name in _SUPERSEDED_BASE_MODULES:
-        pytest.skip(
-            f"Module {module_name} has types intentionally superseded by "
-            "Vultron wire-branch types (ADR-0017 Option D)"
-        )
-    if not _module_defines_own_type_annotation(module_name):
-        pytest.skip(
-            f"Module {module_name} has no own type_ annotation — "
-            "semantic alias or abstract module, skip"
-        )
-    assert _module_contributes_registered_type(module_name), (
-        f"Module '{module_name}' has a class with own type_ annotation "
-        "but none are in VOCABULARY. Check __init_subclass__ or explicit "
-        "registration."
     )
 
 

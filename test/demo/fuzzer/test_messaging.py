@@ -1,7 +1,7 @@
 """Tests for vultron.demo.fuzzer.messaging."""
 
-import pytest
 import py_trees
+import pytest
 
 from vultron.demo.fuzzer.base import UniformSucceedFail
 from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint

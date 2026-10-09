@@ -46,8 +46,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_TentativeReject,
 )
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -158,6 +158,23 @@ def test_rm_submit_report_to_accepts_actor_object(sample_report, sample_actor):
         report=sample_report, to=recipient, actor=sample_actor
     )
     assert result.to == [recipient]
+
+
+@pytest.mark.spec("CBT-06-001")
+def test_rm_submit_report_offers_to_two_recipients_are_distinct(
+    sample_report, sample_actor
+):
+    """Offering one report to two recipients yields two distinguishable Offers."""
+    coordinator_uri = "https://example.org/actors/coordinator"
+    first = rm_submit_report_activity(
+        report=sample_report, to=_RECIPIENT_URI, actor=sample_actor
+    )
+    second = rm_submit_report_activity(
+        report=sample_report, to=coordinator_uri, actor=sample_actor
+    )
+    assert first.to == [_RECIPIENT_URI]
+    assert second.to == [coordinator_uri]
+    assert first.id_ != second.id_
 
 
 def test_rm_submit_report_kwargs_actor_forwarded(sample_report, sample_actor):
@@ -401,7 +418,7 @@ def test_parse_submit_report_offer_from_dict(sample_report, sample_actor):
         report=sample_report, to=_ACTOR_URI, actor=sample_actor
     )
     offer_dict = offer.model_dump(by_alias=True)
-    report_out, offer_out = parse_submit_report_offer(offer_dict)
+    report_out, _offer_out = parse_submit_report_offer(offer_dict)
     assert isinstance(report_out, as_VulnerabilityReport)
     assert report_out.id_ == sample_report.id_
 
@@ -412,7 +429,7 @@ def test_parse_submit_report_offer_from_plain_offer(
 ):
     """parse_submit_report_offer coerces a plain as_Offer correctly."""
     plain_offer = as_Offer(actor=None, object_=sample_report)
-    report_out, offer_out = parse_submit_report_offer(plain_offer)
+    report_out, _offer_out = parse_submit_report_offer(plain_offer)
     assert isinstance(report_out, as_VulnerabilityReport)
     assert report_out.id_ == sample_report.id_
 

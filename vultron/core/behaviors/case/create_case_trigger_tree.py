@@ -31,12 +31,13 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
     UpdateActorOutbox,
 )
-from vultron.core.models.case import VultronCase
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 
 
-class _CreateCaseRecordNode(DataLayerActionWithPorts):
+class _CreateCaseRecordNode(DataLayerActionWithPorts, StateWriteCapable):
     """Create and persist VulnerabilityCase; publish case_id to blackboard."""
 
     def __init__(
@@ -66,7 +67,7 @@ class _CreateCaseRecordNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        case = VultronCase(
+        case = VulnerabilityCase(
             name=self._case_name,
             content=self._case_content,
             attributed_to=self.actor_id,
@@ -79,7 +80,9 @@ class _CreateCaseRecordNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class _RegisterCreatorParticipantNode(DataLayerActionWithPorts):
+class _RegisterCreatorParticipantNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Register CASE_OWNER+CASE_MANAGER participant for the creating actor (CM-02-015)."""
 
     def __init__(self, name: str | None = None) -> None:
@@ -166,11 +169,11 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
 
         try:
             activity_id, activity_dict = self._activity_builder(case_id)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"CreateCase activity construction failed: {exc}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
         self._set_output("activity_id", activity_id)
@@ -185,23 +188,31 @@ def create_case_trigger_bt(
     report_id: str | None,
     result_out: dict[str, Any],
     activity_builder: Callable[[str], tuple[str, str]],
+    queue_for_delivery: bool,
 ) -> py_trees.behaviour.Behaviour:
-    """Return trigger-side BT for case creation + outbound Create activity."""
+    """Return trigger-side BT for case creation + outbound Create activity.
+
+    ``queue_for_delivery`` is ``False`` when the activity names no recipient:
+    the case and its ``Create`` are still built, but nothing is queued, since
+    the outbox refuses an activity whose ``to:`` names no one (OX-08-001).
+    """
+    children: list[py_trees.behaviour.Behaviour] = [
+        _CreateCaseRecordNode(
+            case_name=case_name,
+            case_content=case_content,
+            report_id=report_id,
+            result_out=result_out,
+        ),
+        _RegisterCreatorParticipantNode(),
+        _BuildCreateCaseActivityNode(
+            activity_builder=activity_builder,
+            result_out=result_out,
+        ),
+    ]
+    if queue_for_delivery:
+        children.append(UpdateActorOutbox())
     return py_trees.composites.Sequence(
         name="CreateCaseTriggerBT",
         memory=False,
-        children=[
-            _CreateCaseRecordNode(
-                case_name=case_name,
-                case_content=case_content,
-                report_id=report_id,
-                result_out=result_out,
-            ),
-            _RegisterCreatorParticipantNode(),
-            _BuildCreateCaseActivityNode(
-                activity_builder=activity_builder,
-                result_out=result_out,
-            ),
-            UpdateActorOutbox(),
-        ],
+        children=children,
     )

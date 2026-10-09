@@ -17,8 +17,8 @@ import string
 import unittest
 from itertools import permutations, product
 
-import vultron.errors as err
 import vultron.core.case_states.validations as v
+import vultron.errors as err
 from vultron.core.case_states.hypercube import CVDmodel
 
 alpha = string.ascii_lowercase
@@ -69,10 +69,8 @@ class MyTestCase(unittest.TestCase):
         for length in range(1, 10):
             if length == 6:
                 continue
-            for i in range(100):
-                test_str = "".join(
-                    (random.choice(alpha) for _ in range(length))
-                )
+            for _i in range(100):
+                test_str = "".join(random.choice(alpha) for _ in range(length))
                 self.assertEqual(length, len(test_str))
                 with self.assertRaises(err.PatternValidationError):
                     v.is_valid_pattern(test_str)
@@ -83,9 +81,9 @@ class MyTestCase(unittest.TestCase):
         :return:
         """
         # wrong chars
-        for i in range(1000):
+        for _i in range(1000):
             ch = [a for a in alpha if a not in "vfdpxa"]
-            test_str = "".join((random.choice(ch) for _ in range(6)))
+            test_str = "".join(random.choice(ch) for _ in range(6))
             self.assertEqual(6, len(test_str))
             with self.assertRaises(err.PatternValidationError):
                 v.is_valid_pattern(test_str)
@@ -117,10 +115,8 @@ class MyTestCase(unittest.TestCase):
         for length in range(1, 10):
             if length == 6:
                 continue
-            for i in range(100):
-                test_str = "".join(
-                    (random.choice(alpha) for _ in range(length))
-                )
+            for _i in range(100):
+                test_str = "".join(random.choice(alpha) for _ in range(length))
                 self.assertEqual(length, len(test_str))
                 with self.assertRaises(err.StateValidationError):
                     v.is_valid_state(test_str)
@@ -131,9 +127,9 @@ class MyTestCase(unittest.TestCase):
         :return:
         """
         # wrong chars
-        for i in range(1000):
+        for _i in range(1000):
             ch = [a for a in alpha if a not in "vfdpxa"]
-            test_str = "".join((random.choice(ch) for _ in range(6)))
+            test_str = "".join(random.choice(ch) for _ in range(6))
             self.assertEqual(6, len(test_str))
             with self.assertRaises(err.StateValidationError):
                 v.is_valid_state(test_str)
@@ -191,7 +187,7 @@ class MyTestCase(unittest.TestCase):
         # all single char changes from valid state to valid state are ok
         for a, b in product(ok_states, ok_states):
             diff = []
-            for c1, c2 in zip(a, b):
+            for c1, c2 in zip(a, b, strict=False):
                 if c1 != c2:
                     diff.append((c1, c2))
             if len(diff) == 1:
@@ -227,6 +223,19 @@ class MyTestCase(unittest.TestCase):
         for h in invalid:
             with self.assertRaises(err.HistoryValidationError):
                 v.is_valid_history(h)
+
+    def test_cs_event_letters_spell_vfdpxa(self):
+        self.assertEqual(("V", "F", "D", "P", "X", "A"), v.CS_EVENT_LETTERS)
+
+    def test_valid_states_are_the_32_lattice_states(self):
+        states = v.valid_states()
+        self.assertEqual(32, len(states))
+        self.assertEqual(sorted(ok_states), sorted(states))
+        for pfx, (p, x, a) in product(bogus_pfx, product("pP", "xX", "aA")):
+            self.assertNotIn(f"{pfx}{p}{x}{a}", states)
+
+    def test_valid_states_match_the_hypercube_graph(self):
+        self.assertEqual(v.valid_states(), list(self.sg.states))
 
     def test_is_valid_history_ok(self):
         valid = self.sg.histories

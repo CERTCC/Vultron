@@ -24,11 +24,15 @@ This router is conditionally mounted only when
 In ``RunMode.PROD`` these paths are simply not registered, so any request to
 ``/actors/{id}/demo/`` returns HTTP 404 (TRIG-09-003).
 
+Every trigger here is a thin wrapper: it validates the HTTP body, builds the
+verb's core request and hands it to
+:func:`~vultron.adapters.driving.fastapi.trigger_runner.run_trigger`.
+
 Spec: TRIG-08-004, TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 """
 
 import json
-from typing import Any, cast
+from typing import Any
 
 from fastapi import (
     APIRouter,
@@ -43,28 +47,38 @@ from fastapi import (
 from fastapi.responses import JSONResponse, Response
 
 from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
+    get_trigger_dispatcher,
     get_trigger_dl,
-    get_trigger_service,
 )
-from vultron.adapters.driving.fastapi.errors import domain_error_translation
-from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.adapters.driving.fastapi.trigger_models import (
+from vultron.adapters.driving.fastapi.trigger_runner import run_trigger
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.use_case_result import (
+    ActivityResult,
+    NoteResult,
+    StatusResult,
+    SyncLogEntryResult,
+)
+from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.use_cases.triggers.request_bodies import (
     AddNoteToCaseRequest,
     CloseCaseRequest,
     NotifyFixDeployedRequest,
     NotifyFixReadyRequest,
     NotifyPublishedRequest,
+    SetStubSummaryRequest,
     SyncLogEntryRequest,
 )
-from vultron.core.models._helpers import now_utc
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.models.case import VulnerabilityCase
-from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    as_CaseLedgerEntry as WireCaseLedgerEntry,
+from vultron.core.use_cases.triggers.requests import (
+    AddNoteToCaseTriggerRequest,
+    AddParticipantStatusTriggerRequest,
+    LeaveCaseTriggerRequest,
+    SetStubSummaryTriggerRequest,
+    SyncLogEntryTriggerRequest,
 )
-from vultron.core.ports.datalayer import DataLayer
-from vultron.core.ports.trigger_service import TriggerServicePort
+from vultron.errors import VultronCanonicalEntryError
 
 router = APIRouter(prefix="/actors", tags=["Demo Triggers"])
 
@@ -97,31 +111,35 @@ def _resolve_case_id(case_key: str, dl: DataLayer) -> str:
         "Spec: TRIG-09-001, TRIG-10-003."
     ),
     operation_id="actors_demo_add_note_to_case",
+    response_model=NoteResult,
 )
 def demo_add_note_to_case(
     actor_id: str,
     body: AddNoteToCaseRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> NoteResult:
     """Create a Note and add it to a case (demo scaffold).
 
     Implements:
         TRIG-09-001, TRIG-09-004, TRIG-10-003,
-        TB-01-001, TB-01-002, HTTP-03-005, TB-02-001,
-        TB-03-001, TB-03-002, TB-04-001, TB-06-001, TB-06-002
+        TRIG-01-002, HTTP-03-005, TRIG-02-006,
+        TRIG-03-001, TRIG-03-002, TRIG-04-001, TRIG-06-001, TRIG-06-002,
+        TRIG-12-001
     """
-    with domain_error_translation():
-        result = svc.add_note_to_case(
+    return run_trigger(
+        AddNoteToCaseTriggerRequest(
             actor_id=actor_id,
             case_id=body.case_id,
             note_name=body.note_name,
             note_content=body.note_content,
             in_reply_to=body.in_reply_to,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -136,36 +154,40 @@ def demo_add_note_to_case(
         "Spec: DEMOMA-07-001."
     ),
     operation_id="actors_demo_notify_fix_ready",
+    response_model=StatusResult,
 )
 def demo_notify_fix_ready(
     actor_id: str,
     body: NotifyFixReadyRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict[str, Any]:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> StatusResult:
     """Report that the actor has a fix ready (demo scaffold).
 
-    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-06-001,
+        TRIG-12-001.
     """
-    from vultron.core.states.cs import CS_vf
-
-    with domain_error_translation():
-        # VF hypercube: vf → Vf is the only valid first hop from the
-        # initial state; Vf → VF is the second hop. Both must be emitted
-        # in order so ValidateTriggerTransitionsNode passes each step.
-        svc.add_participant_status(
-            actor_id=actor_id,
-            case_id=body.case_id,
-            vf_state=CS_vf.Vf,
-        )
-        result = svc.add_participant_status(
-            actor_id=actor_id,
-            case_id=body.case_id,
-            vf_state=CS_vf.VF,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    # VF hypercube: vf → Vf is the only valid first hop from the initial
+    # state; Vf → VF is the second hop.  The verb is two protocol steps, so
+    # it is two trigger runs — each validated by ValidateTriggerTransitionsNode
+    # — and the response is the second hop's status.
+    run_trigger(
+        AddParticipantStatusTriggerRequest(
+            actor_id=actor_id, case_id=body.case_id, vf_state=CS_vf.Vf
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
+    return run_trigger(
+        AddParticipantStatusTriggerRequest(
+            actor_id=actor_id, case_id=body.case_id, vf_state=CS_vf.VF
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -180,28 +202,28 @@ def demo_notify_fix_ready(
         "Spec: DEMOMA-07-001."
     ),
     operation_id="actors_demo_notify_fix_deployed",
+    response_model=StatusResult,
 )
 def demo_notify_fix_deployed(
     actor_id: str,
     body: NotifyFixDeployedRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict[str, Any]:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> StatusResult:
     """Report that the actor has deployed a fix (demo scaffold).
 
-    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-06-001,
+        TRIG-12-001.
     """
-    from vultron.core.states.cs import CS_d
-
-    with domain_error_translation():
-        result = svc.add_participant_status(
-            actor_id=actor_id,
-            case_id=body.case_id,
-            d_state=CS_d.D,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return run_trigger(
+        AddParticipantStatusTriggerRequest(
+            actor_id=actor_id, case_id=body.case_id, d_state=CS_d.D
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -216,28 +238,28 @@ def demo_notify_fix_deployed(
         "Spec: DEMOMA-07-001."
     ),
     operation_id="actors_demo_notify_published",
+    response_model=StatusResult,
 )
 def demo_notify_published(
     actor_id: str,
     body: NotifyPublishedRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict[str, Any]:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> StatusResult:
     """Report that the vulnerability is publicly disclosed (demo scaffold).
 
-    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-06-001,
+        TRIG-12-001.
     """
-    from vultron.core.states.cs import CS_pxa
-
-    with domain_error_translation():
-        result = svc.add_participant_status(
-            actor_id=actor_id,
-            case_id=body.case_id,
-            pxa_state=CS_pxa.Pxa,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return run_trigger(
+        AddParticipantStatusTriggerRequest(
+            actor_id=actor_id, case_id=body.case_id, pxa_state=CS_pxa.Pxa
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -252,29 +274,30 @@ def demo_notify_published(
         "Spec: DEMOMA-07-001."
     ),
     operation_id="actors_demo_close_case",
+    response_model=ActivityResult,
 )
 def demo_close_case(
     actor_id: str,
     body: CloseCaseRequest,
     background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> dict[str, Any]:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
     """Trigger Leave(VulnerabilityCase) for the given actor and case.
 
     Implements the canonical RM case closure path (ADR-0050): emits
     Leave(VulnerabilityCase) to the Case Actor inbox, which commits a
     ``close_case`` CaseLedgerEntry and fans it out to all participants.
 
-    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-006, TRIG-06-001,
+        TRIG-12-001.
     """
-    with domain_error_translation():
-        result = svc.leave_case(
-            actor_id=actor_id,
-            case_id=body.case_id,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-    return result
+    return run_trigger(
+        LeaveCaseTriggerRequest(actor_id=actor_id, case_id=body.case_id),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
@@ -282,7 +305,7 @@ def demo_close_case(
     status_code=status.HTTP_202_ACCEPTED,
     summary="[Demo] Commit a case ledger entry and fan it out to participants.",
     description=(
-        "Demo-only trigger. Commits a ``VultronCaseLedgerEntry`` for the "
+        "Demo-only trigger. Commits a ``CaseLedgerEntry`` for the "
         "given case via the canonical BT commit path and queues an "
         "``Announce(CaseLedgerEntry)`` per participant for fan-out delivery. "
         "Uses ``Announce(VulnerabilityCase)`` as the canonical payload type. "
@@ -290,119 +313,88 @@ def demo_close_case(
         "Spec: TRIG-09-001, SYNC-02-002, SYNC-02-003."
     ),
     operation_id="actors_demo_sync_log_entry",
+    response_model=SyncLogEntryResult,
 )
 def demo_sync_log_entry(
     actor_id: str,
     body: SyncLogEntryRequest,
     background_tasks: BackgroundTasks,
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
-) -> JSONResponse:
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> SyncLogEntryResult:
     """Commit a case ledger entry and fan it out (demo scaffold, BT-06-006 compliant).
 
-    Uses BTBridge + create_commit_log_entry_tree via a canonical
-    Announce(VulnerabilityCase) payload so the entry passes canonical
-    validation (CLP-07).  The caller-supplied event_type is stored verbatim.
+    Runs :class:`~vultron.core.use_cases.triggers.sync_log_entry.SvcSyncLogEntryUseCase`
+    through the trigger dispatcher: the commit tree executes as the case's
+    CASE_MANAGER with a canonical ``Announce(VulnerabilityCase)`` payload so the
+    entry passes canonical validation (CLP-07), and the caller-supplied
+    ``event_type`` is stored verbatim.
 
-    Spec: TRIG-09-001, SYNC-02-002, SYNC-02-003.
+    Implements:
+        TRIG-09-001, TRIG-09-004, TRIG-02-006, TRIG-10-004, TRIG-06-001,
+        TRIG-06-002, SYNC-02-002, SYNC-02-003, TRIG-12-001
     """
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.sync.commit_tree import (
-        create_commit_log_entry_tree,
-    )
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
-    from vultron.core.sync_helpers import _find_equivalent_recorded_entry
-    from vultron.core.use_cases._helpers import _find_case_actor_id
-
-    case_id = body.case_id
-    object_id = body.object_id
-    event_type = body.event_type
-
-    # The dependency is typed as the narrow `DataLayer` port, but everything
-    # below wants case-aware reads and an outbox.  `SqliteDataLayer` satisfies
-    # both protocols structurally; a bare `DataLayer` does not, because
-    # `CasePersistence.clone_for_actor` is declared to return a
-    # `CasePersistence`.  Cast once here rather than at each use — the same
-    # pattern `deps.get_trigger_service` uses.
-    cop = cast(CaseOutboxPersistence, dl)
-
-    # Resolve canonical actor URI (slug from path param → full ID).
-    _actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
-    canonical_actor_id = (
-        _actor.id_ if _actor and hasattr(_actor, "id_") else actor_id
-    )
-    case_actor_id = _find_case_actor_id(cop, case_id) or canonical_actor_id
-    payload_snapshot = {
-        "type": "Announce",
-        "object": {"type": "VulnerabilityCase", "id": case_id},
-        "actor": case_actor_id,
-        # CLP-07-011: a recorded snapshot must be the verbatim AS2 activity, and
-        # an AS2 activity always carries ``published``.  The commit boundary
-        # rejects a snapshot without one (ISSUE-2824).
-        "published": now_utc().isoformat(),
-        "context": case_id,
-    }
-
-    with domain_error_translation():
-        from vultron.adapters.driven.sync_activity_adapter import (
-            SyncActivityAdapter,
-        )
-
-        sync_port = SyncActivityAdapter(cop)
-        bridge = BTBridge(datalayer=cop)
-        bridge.execute_with_setup(
-            tree=create_commit_log_entry_tree(
-                case_id=case_id,
-                object_id=object_id,
-                event_type=event_type,
-                payload_snapshot=payload_snapshot,
+    try:
+        return run_trigger(
+            SyncLogEntryTriggerRequest(
+                actor_id=actor_id,
+                case_id=body.case_id,
+                object_id=body.object_id,
+                event_type=body.event_type,
             ),
-            actor_id=case_actor_id,
-            sync_port=sync_port,
+            dispatcher=dispatcher,
+            dl=actor_dl,
+            background_tasks=background_tasks,
         )
-
-    # Read back from the store the commit ran *in*, not the requester's.  The
-    # tree executes as the case actor (only the CASE_MANAGER may append to the
-    # canonical log, CLP-09), and a BT's store follows its executing actor
-    # (BT-05-005) — so the entry was written to the case actor's store.  Looking
-    # for it in `cop` finds nothing whenever the requester is not itself the case
-    # actor, and the route then reports a successful commit as a 500.
-    commit_dl = cop
-    if case_actor_id and case_actor_id != getattr(cop, "actor_id", None):
-        commit_dl = cast(
-            CaseOutboxPersistence, cop.clone_for_actor(case_actor_id)
-        )
-
-    entry = _find_equivalent_recorded_entry(
-        case_id=case_id,
-        object_id=object_id,
-        event_type=event_type,
-        payload_snapshot=payload_snapshot,
-        dl=commit_dl,
-    )
-
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
-
-    if entry is None:
-        return JSONResponse(
+    except VultronCanonicalEntryError:
+        # The tree ran but this store does not hold the canonical log, so the
+        # ledger-authority guard declined the mint (ADR-0073).  Kept as the
+        # 500 this route has always answered; ``domain_error_translation()``
+        # has no mapping for it because it is neither a client fault nor a
+        # state conflict.
+        raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": "Log entry commit did not persist."},
-        )
+            detail="Log entry commit did not persist.",
+        ) from None
 
-    from vultron.core.models.case_ledger_entry import (
-        VultronCaseLedgerEntry as DomainEntry,
-    )
 
-    if not isinstance(entry, DomainEntry):
-        entry = DomainEntry.model_validate(entry.model_dump(mode="json"))
+@router.post(
+    "/{actor_id}/demo/set-stub-summary",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="[Demo] Seed stub_summary on the actor's DataLayer copy of a case.",
+    description=(
+        "Demo-only scaffold. "
+        "Seeds ``stub_summary`` on the actor's local DataLayer copy of the "
+        "case so that a subsequent ``invite-actor-to-case`` trigger can build "
+        "the stub Invite (CM-17-010, MV-10-001, #4165). "
+        "Only available in ``RunMode.PROTOTYPE``."
+    ),
+    operation_id="actors_demo_set_stub_summary",
+    response_model=StatusResult,
+)
+def demo_set_stub_summary(
+    actor_id: str,
+    body: SetStubSummaryRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> StatusResult:
+    """Seed stub_summary on the actor's DataLayer copy of a case (demo scaffold).
 
-    return JSONResponse(
-        status_code=status.HTTP_202_ACCEPTED,
-        content={
-            "log_entry_id": entry.id_,
-            "entry_hash": entry.entry_hash,
-            "log_index": entry.log_index,
-        },
+    Call this before ``invite-actor-to-case`` to satisfy the stub-Invite
+    precondition (CM-17-010, MV-10-001).
+
+    Implements: CM-17-010, MV-10-001, TRIG-09-001, TRIG-09-004.
+    """
+    return run_trigger(
+        SetStubSummaryTriggerRequest(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            stub_summary=body.stub_summary,
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
     )
 
 
@@ -412,7 +404,7 @@ def demo_sync_log_entry(
     summary="[Demo] List all case ledger entries for a case, sorted by log_index.",
     description=(
         "Demo-only read endpoint. "
-        "Returns all ``VultronCaseLedgerEntry`` objects for the specified case, "
+        "Returns all ``CaseLedgerEntry`` objects for the specified case, "
         "sorted ascending by ``log_index``. "
         "Default response is ``application/json``. "
         "Request ``Accept: application/x-ndjson`` or pass ``?format=ndjson`` "
@@ -420,14 +412,14 @@ def demo_sync_log_entry(
         "file capture (``curl ... > case.jsonl``). "
         "This endpoint is for demo tooling, test scripts, and live display "
         "only. It MUST NOT be used as a participant-facing log-replication "
-        "mechanism (use the ActivityStreams inbox channel per SYNC-07). "
+        "mechanism (use the ActivityStreams inbox channel per SYNC-02-001). "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: TRIG-09-001, SYNC-01-002, SYNC-02-003."
     ),
     operation_id="actors_demo_get_case_ledger",
 )
 def demo_get_case_ledger(
-    actor_id: str,  # noqa: ARG001
+    actor_id: str,
     case_id: str,
     request: Request,
     fmt: str | None = Query(
@@ -445,26 +437,15 @@ def demo_get_case_ledger(
     Demo/observability only — do not expose as a participant-facing endpoint.
     """
     canonical_case_id = _resolve_case_id(case_id, dl)
-    raw_entries = [
+    entries = [
         e
         for e in dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, (VultronCaseLedgerEntry, WireCaseLedgerEntry))
-        and e.case_id == canonical_case_id
+        if isinstance(e, CaseLedgerEntry) and e.case_id == canonical_case_id
     ]
-    raw_entries.sort(key=lambda e: e.log_index)
-    wire_entries = [
-        (
-            e
-            if isinstance(e, WireCaseLedgerEntry)
-            else WireCaseLedgerEntry.model_validate(
-                e.model_dump(by_alias=True, serialize_as_any=True)
-            )
-        )
-        for e in raw_entries
-    ]
+    entries.sort(key=lambda e: e.log_index)
     payloads = [
         e.model_dump(mode="json", by_alias=True, exclude_none=True)
-        for e in wire_entries
+        for e in entries
     ]
 
     accept = request.headers.get("accept", "")
@@ -480,7 +461,7 @@ def demo_get_case_ledger(
     summary="[Demo] Get a single case ledger entry by log_index.",
     description=(
         "Demo-only read endpoint. "
-        "Returns the single ``VultronCaseLedgerEntry`` at the given ``log_index`` "
+        "Returns the single ``CaseLedgerEntry`` at the given ``log_index`` "
         "for the specified case. "
         "Returns HTTP 404 if no entry exists at that index. "
         "Only available in ``RunMode.PROTOTYPE``. "
@@ -489,7 +470,7 @@ def demo_get_case_ledger(
     operation_id="actors_demo_get_case_ledger_entry",
 )
 def demo_get_case_ledger_entry(
-    actor_id: str,  # noqa: ARG001
+    actor_id: str,
     case_id: str,
     index: int = Path(ge=0, description="Zero-based log entry index."),
     dl: DataLayer = Depends(get_trigger_dl),
@@ -504,7 +485,7 @@ def demo_get_case_ledger_entry(
     canonical_case_id = _resolve_case_id(case_id, dl)
     entry_id = f"{canonical_case_id}/log/{index}"
     obj = dl.read(entry_id)
-    if not isinstance(obj, (VultronCaseLedgerEntry, WireCaseLedgerEntry)):
+    if not isinstance(obj, CaseLedgerEntry):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
@@ -516,11 +497,4 @@ def demo_get_case_ledger_entry(
                 "activity_id": None,
             },
         )
-    wire_obj = (
-        obj
-        if isinstance(obj, WireCaseLedgerEntry)
-        else WireCaseLedgerEntry.model_validate(
-            obj.model_dump(by_alias=True, serialize_as_any=True)
-        )
-    )
-    return wire_obj.model_dump(mode="json", by_alias=True)
+    return obj.model_dump(mode="json", by_alias=True)

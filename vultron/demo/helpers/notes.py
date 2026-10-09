@@ -19,7 +19,6 @@ the naming aligned with the ActivityStreams wire format.
 """
 
 import logging
-from typing import Optional
 
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import wait_for_note_in_case
@@ -45,8 +44,8 @@ def participant_adds_note_to_case(
     case: as_VulnerabilityCase,
     note_name: str,
     note_content: str,
-    in_reply_to: Optional[str] = None,
-) -> Optional[as_Note]:
+    in_reply_to: str | None = None,
+) -> as_Note | None:
     """Participant adds a note to a case via the ``add-note-to-case`` trigger.
 
     Models the AS2 ``Add(Note)`` action: the posting actor uses their own
@@ -87,7 +86,7 @@ def participant_adds_note_to_case(
     if note_id is None:
         return None
 
-    note: Optional[as_Note] = None
+    note: as_Note | None = None
     with demo_gate("Note delivered to watching container"):
         wait_for_note_in_case(watching_client, case.id_, note_id)
         verify_object_stored(watching_client, note_id)
@@ -96,3 +95,41 @@ def participant_adds_note_to_case(
         note = as_Note(**note_data)
 
     return note
+
+
+def reporter_asks_vendor_answers(
+    reporter: ActorSession,
+    vendor: ActorSession,
+    watching_client: DataLayerClient,
+    case: as_VulnerabilityCase,
+) -> None:
+    """The Reporter asks about the embargo and the Vendor answers.
+
+    The shared note exchange of the embargo scenarios; it puts
+    ``add_note_to_case`` in the case ledger (DEMOMA-16-001).  Failures are
+    recorded by :func:`participant_adds_note_to_case`.
+
+    Args:
+        reporter: Session in the Reporter's container; posts the question.
+        vendor: Session in the Vendor's container; posts the reply.
+        watching_client: Client where delivery of each note is verified
+            (typically the Coordinator, who hosts the case).
+        case: The case the notes belong to.
+    """
+    question = participant_adds_note_to_case(
+        posting_client=reporter.client,
+        watching_client=watching_client,
+        poster=reporter.actor,
+        case=case,
+        note_name="Question from Reporter",
+        note_content="Could the embargo be shorter than the default?",
+    )
+    participant_adds_note_to_case(
+        posting_client=vendor.client,
+        watching_client=watching_client,
+        poster=vendor.actor,
+        case=case,
+        note_name="Vendor Status Update",
+        note_content="A fix is in progress; a shorter embargo is workable.",
+        in_reply_to=question.id_ if question is not None else None,
+    )

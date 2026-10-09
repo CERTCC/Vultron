@@ -1,7 +1,11 @@
 ---
 status: accepted
 date: 2026-09-17
+created: 2026-09-17
+updated: 2026-09-17
+revision: 1
 deciders: Allen D. Householder
+stakeholder_type: [project-contributor]
 ---
 
 # Received-Side `HandlerResult` Carries a Handler Disposition Across the Dispatcher Boundary
@@ -131,6 +135,12 @@ is nothing to invent. The two producers of `deferred` stay distinct: pre-dispatc
 This does not weaken HP-01-004. A handler reports in its own vocabulary;
 `DispatchNode` still owns the mapping onto `InboxOutcome`.
 
+`SKIPPED` is narrower than "the handler did nothing".
+A receiver that holds no role to act on a message — a CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER, or a copy naming the receiver in neither `to` nor `cc` — reports `REFUSED`, not `SKIPPED` (HP-01-005, #3752).
+The disposition is the receiver's own record of its own handling, and such a message was misaddressed by its sender; reporting it `processed` hid that.
+`SKIPPED` is reserved for a duplicate or otherwise idempotent re-delivery of a message the receiver was entitled to act on.
+That narrowing leaves one receipt with a new name: an addressee's first receipt of a message that is now pending its own decision, such as the Case Owner receiving `Offer(CaseParticipant)`, is `APPLIED` even though the handler wrote nothing, because it is neither a duplicate nor a refusal and the decision it awaits is the addressee's own.
+
 `SKIPPED` exists because `APPLIED` and `SKIPPED` collapse to the same
 `InboxOutcome.status` but are not the same event. Today both look identical — a
 line in a log file — and `received/status.py` already special-cases
@@ -193,8 +203,7 @@ state. The boundary is not valuable enough to protect at that price.
 - Good: the skip-vs-deferral-vs-refusal distinction becomes a typed fact rather
   than something a reader infers from log phrasing. A ledger entry parked pending
   its predecessor stops reporting as `processed`.
-- Good: `UseCaseResult` gains a real definition, which #3354 needs as
-  `TriggerResult`'s parent.
+- Good: `UseCaseResult` gains a real definition, which the trigger side (#3831) needs as `TriggerResult`'s parent.
 - Good: HP-01-002 and UCORG-05-002 stop contradicting each other.
 - Bad: the migration is mostly judgment, not a mechanical pass. Of the 51
   handlers, 34 carry at least one early-return guard clause and 9 more log a
@@ -213,23 +222,19 @@ state. The boundary is not valuable enough to protect at that price.
 
 ## Validation
 
-Not yet implemented. This ADR records the decision; the work is tracked
-separately, and this section will describe realized validation once it lands.
+Implemented for the received side and the dispatcher boundary; the trigger side is [ADR-0110](0110-trigger-dispatcher-port-over-verb-registry.md) (#3831, #3832, #3833).
 
-Planned:
+Realized:
 
-- An architecture ratchet (UCORG-05-004) asserting that every concrete use-case
-  class in `vultron/core/use_cases/` declares an `execute()` return annotation
-  of `UseCaseResult` or a registered subtype. The ratchet excludes trigger-side
-  classes until #3354 migrates them; that exclusion is temporary and tied to
-  that issue, not open-ended.
-- mypy: the `UseCase` Protocol declares `execute() -> UseCaseResult`, so a
-  non-conforming concrete class is reported statically.
-- Behavioural tests for the two paths a ratchet cannot see: a `REFUSED`
-  disposition reaching `InboxOutcome.status == "rejected"` with a populated
-  `failure_reason`, and an unroutable or unrecognised-semantics activity **not**
-  reporting `processed` (UCORG-05-012). The return annotations can all be correct
-  while both of these still fail.
+- The architecture ratchet `test/architecture/test_use_case_execute_returns_result.py` (UCORG-05-004) asserts that every concrete use-case class in `vultron/core/use_cases/` declares an `execute()` return annotation that resolves to `UseCaseResult` or a subtype (#3372).
+  It excludes `triggers/` until #3831 migrates them, names that issue, and fails once the exclusion is no longer needed.
+- The `UseCase` Protocol declares `execute() -> UseCaseResult`.
+  No call site is yet typed against the Protocol, so mypy does not report a non-conforming class by itself; the ratchet does.
+- `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` covers the two paths a ratchet cannot see, driving the real FastAPI dispatch adapters, dispatcher, and inbox BT with only the use case stubbed (#3373).
+  A `REFUSED` disposition reaches `InboxOutcome.status == "rejected"` with the handler's reason as `failure_reason`, and an unroutable or unrecognised-semantics activity does **not** report `processed` (UCORG-05-012).
+  The same file checks that `run_inbox_pipeline` logs a rejection at WARNING (UCORG-05-013).
+- `test_real_handler_refusal_reaches_inbox_outcome` in that file drives a real handler, not a stub. An untrusted sender's `Announce(VulnerabilityCase)` is refused, and the refusal reaches `InboxOutcome` as `rejected` (#2255).
+- `test/core/use_cases/received/test_bt_verdict.py` covers the default reading of a BT run (`verdict_from_bt`, `applied_or_raise`). In particular, an internal error or missing wiring raises rather than refusing. The per-handler disposition tests sit beside each handler's tests under `test/core/use_cases/received/` (#2255).
 
 Per this ADR's own subject matter: no Validation entry here asserts that a test
 exists until it does. ADR-0040's Validation section claimed the ratchet as
@@ -244,11 +249,13 @@ stands unchanged; it gains only a pointer here.
 
 Design note: `notes/use-case-protocol.md`.
 
-Source concern: #1769. Consumer: #2255. Trigger-side counterpart: #3354.
+Source concern: #1769. Consumer: #2255. Trigger-side counterpart: ADR-0110, planned from concern #3354 (#3831, #3832, #3833).
 Related: #2369 and #2682 (surfacing outcomes to the *sender*, which this ADR
 does not address — the 202 is already sent before a handler runs).
 
-Generated spec requirements: `specs/use-case-organization.yaml` UCORG-05-004b,
-UCORG-05-005, and UCORG-05-009 through UCORG-05-013 (this ADR also relies on the
-pre-existing UCORG-05-001 through UCORG-05-008);
+Generated spec requirements: `specs/use-case-organization.yaml` UCORG-05-005
+and UCORG-05-009 through UCORG-05-013 (this ADR also relies on the pre-existing
+UCORG-05-001 through UCORG-05-008); UCORG-05-004b, the ratchet's temporary
+trigger-side exclusion, was retired with #3831 (MS-09-001) once the trigger
+side conformed;
 `specs/handler-protocol.yaml` HP-01-002 (amended), HP-01-003, and HP-01-004.

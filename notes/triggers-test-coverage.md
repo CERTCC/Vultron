@@ -1,6 +1,9 @@
 ---
 title: "Trigger Use-Case Test Coverage and PR Scope"
 status: active
+related_specs:
+  - specs/triggerable-behaviors.yaml
+  - specs/use-case-organization.yaml
 description: >
   Coverage expectations and PR-scope discipline for trigger use cases in
   vultron/core/use_cases/triggers/, motivated by repeated high-churn in
@@ -53,10 +56,27 @@ Existing coverage anchors:
 | `SvcCreateCaseUseCase` | `test/core/use_cases/triggers/case/test_create.py` |
 | `SvcAddObjectToCaseUseCase` | `test/core/use_cases/triggers/case/test_add_object.py` |
 | `SvcAddReportToCaseUseCase` | `test/core/use_cases/triggers/case/test_add_report.py` |
+| `SvcAddOnBehalfStatusUseCase` | `test/core/use_cases/triggers/case/test_add_on_behalf_status.py` |
+| `SvcSyncLogEntryUseCase` | `test/core/use_cases/triggers/test_sync_log_entry.py` |
+
+The trigger registry (`vultron/trigger_registry/`, ADR-0110) makes the
+"every use case has a row" half of this mechanical:
+`test/architecture/test_trigger_registry_ratchets.py` fails when a
+`Svc*UseCase` under `triggers/` has no row, so a new use case must be
+registered in the same PR as its test file.
 
 When you add a new trigger use case, create the matching `test_<use_case>.py`
 file in the same PR. Do not rely on integration coverage in
 `test_trignotify.py` or scenario demos to substitute for per-use-case tests.
+
+There is no facade-level suite to lean on either: `test_service.py` (48 tests
+over the retired `TriggerService`) was ported into the per-use-case files
+above and the per-router suites when the facade went (#3833, ADR-0110). The
+route-layer checks that every router suite used to repeat per endpoint — 202,
+the store the dispatcher is handed, the queued flush — live once, parametrized
+over the registry, in
+`test/adapters/driving/fastapi/test_trigger_routes_contract.py`; a per-router
+suite carries only the verb's domain assertions.
 
 ## PR-scope discipline
 
@@ -69,16 +89,6 @@ embargo regression and vice versa.
 
 When a single PR must touch both, call it out explicitly in the PR body and
 list the integration test(s) that exercise the combined path.
-
-## Structural follow-up
-
-The module structure of `triggers/case.py` mirrored the `nodes.py` smell that
-[`specs/behavior-tree-node-design.yaml`](../specs/behavior-tree-node-design.yaml)
-BTND-07-001 addresses for BT nodes: a flat module accumulating many classes
-becomes high-blast-radius and review-hostile.
-
-That follow-up has now landed: `triggers/case.py` was split into a
-`triggers/case/` subpackage with one submodule per use case (issue #742).
 
 ## References
 

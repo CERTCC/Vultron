@@ -30,6 +30,7 @@ from vultron.bt.embargo_management.conditions import (
     EMinStateActiveOrRevise,
     EMinStateNoneOrProposeOrRevise,
 )
+from vultron.bt.messaging.message import Message
 from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.fuzzer.report_to_others import (
     AllPartiesKnown,
@@ -48,7 +49,6 @@ from vultron.bt.report_management.fuzzer.report_to_others import (
 )
 from vultron.core.states.cs import CS
 from vultron.errors import VultronError
-from vultron.bt.messaging.message import Message
 
 # from vultron.sim.communications import Message
 
@@ -128,12 +128,12 @@ def remove_recipient(obj: BtNode) -> bool:
     if current is None:
         return True
 
-    logger.debug(f"Removing {current} from potential participants list")
+    logger.debug("Removing %s from potential participants list", current)
     try:
         obj.bb.case.potential_participants.remove(current)
     except ValueError:
         logger.warning(
-            f"Unable to remove {current}, not in potential participants list"
+            "Unable to remove %s, not in potential participants list", current
         )
     obj.bb.currently_notifying = None
     return True
@@ -228,8 +228,8 @@ def bring_new_participant_up_to_speed(obj: BtNode) -> bool:
     try:
         new_val = CS[new_cs_name]
     except KeyError:
-        logger.error(f"Invalid new case state name {new_cs_name}")
-        raise VultronError(f"Invalid new case state name {new_cs_name}")
+        logger.error("Invalid new case state name %s", new_cs_name)  # noqa: TRY400  # ruff-baseline #3353
+        raise VultronError(f"Invalid new case state name {new_cs_name}")  # noqa: B904  # ruff-baseline #3353
 
     obj.bb.currently_notifying.bt.bb.q_cs = new_val
     return True

@@ -1,12 +1,16 @@
 ---
 status: accepted
 date: 2026-02-19
+created: 2026-02-19
+updated: 2026-02-19
+revision: 1
 deciders:
   - vultron maintainers
 consulted:
   - project stakeholders
 informed:
   - contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Use py_trees for Behavior Tree Execution in Handler Integration

@@ -29,9 +29,7 @@ from __future__ import annotations
 import logging
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.errors import VultronError
 
@@ -48,7 +46,7 @@ def replay_missing_entries_trigger(
 ) -> int:
     """Replay all log entries after *from_hash* to a specific peer.
 
-    Queries all :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`
+    Queries all :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry`
     records for *case_id*, finds entries with ``log_index`` strictly greater
     than the index of the entry whose ``entry_hash`` matches *from_hash*,
     and queues an ``Announce(CaseLedgerEntry)`` activity for each to *peer_id*.

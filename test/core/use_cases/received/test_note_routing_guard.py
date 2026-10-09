@@ -21,13 +21,13 @@ falls back to ``_find_case_actor_id`` and incorrectly commits.
 
 from __future__ import annotations
 
-import pytest
-
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.enums.roles import CVDRole
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.note import AddNoteToCaseReceivedUseCase
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -50,15 +50,6 @@ NOTE_ID = "https://example.org/notes/n-test"
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    import py_trees
-
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
     """The store of *actor_id*, defaulting to the case actor.
 
@@ -72,7 +63,7 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     """DataLayer as seen by the CaseActor: case + CASE_MANAGER participant + note."""
     dl = _make_dl()
 
-    ca_svc = VultronCaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
+    ca_svc = CaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
     case = as_VulnerabilityCase(
@@ -135,11 +126,13 @@ class TestAddNoteToCaseLedgerRouting:
         )
         event = make_payload(activity, receiving_actor_id=CASE_ACTOR_ID)
 
-        AddNoteToCaseReceivedUseCase(
+        result = AddNoteToCaseReceivedUseCase(
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         event_types = _ledger_event_types(dl)
         assert "add_note_to_case" in event_types, (
@@ -164,11 +157,15 @@ class TestAddNoteToCaseLedgerRouting:
         )
         event = make_payload(activity, receiving_actor_id=VENDOR_ID)
 
-        AddNoteToCaseReceivedUseCase(
+        result = AddNoteToCaseReceivedUseCase(
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
+        # HP-01-005: the note was the CASE_MANAGER's to record; a receiver
+        # without that role refuses rather than reporting a processed no-op.
+        assert result.disposition == HandlerDisposition.REFUSED
 
         event_types = _ledger_event_types(dl)
         assert "add_note_to_case" not in event_types, (
@@ -198,11 +195,13 @@ class TestAddNoteToCaseLedgerRouting:
         # Explicitly clear receiving_actor_id to exercise the fallback path.
         event = event.model_copy(update={"receiving_actor_id": None})
 
-        AddNoteToCaseReceivedUseCase(
+        result = AddNoteToCaseReceivedUseCase(
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         event_types = _ledger_event_types(dl)
         assert "add_note_to_case" in event_types, (

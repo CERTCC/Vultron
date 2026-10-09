@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Evaluate Proposed Embargo Behavior
 
 ## Requirements

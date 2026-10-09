@@ -25,21 +25,27 @@ submodules and tests call them by those names.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
 
-from sqlmodel import SQLModel
+from sqlmodel import Session, SQLModel
 
-from vultron.adapters.outbox_dead_letter import OutboxDeadLetterEntry
+from vultron.adapters.outbox_dead_letter import (
+    InboxDeadLetterEntry,
+    OutboxDeadLetterEntry,
+)
+from vultron.core.models.case import VulnerabilityCase as _VC
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 
-from .schema import VultronObjectRecord
-from .engine import dispose_actor_engines, get_actor_engine
 from . import crud, hydration, queries, queues
+from .engine import dispose_actor_engines, get_actor_engine, session_guard
+from .schema import VultronObjectRecord
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +80,19 @@ class SqliteDataLayer:
         self._engine = get_actor_engine(db_url, actor_id)
         self._enqueue_callback: Callable[[str], None] | None = enqueue_callback
         SQLModel.metadata.create_all(self._engine)
+
+    @contextmanager
+    def _session(self) -> Iterator[Session]:
+        """Open a ``Session`` on this store, serialised across threads.
+
+        Every session the adapter opens comes through here so that an
+        in-memory store's single shared connection is never used by two
+        threads at once — see :func:`~.engine.session_guard` for why that
+        lost writes (#3602).  File-backed stores pay nothing.
+        """
+        with session_guard(self._engine):
+            with Session(self._engine) as session:
+                yield session
 
     @property
     def actor_id(self) -> str:
@@ -146,7 +165,7 @@ class SqliteDataLayer:
         """
         self._enqueue_callback = callback
 
-    def __enter__(self) -> "SqliteDataLayer":
+    def __enter__(self) -> Self:
         """Support ``with SqliteDataLayer(...) as dl:`` usage."""
         return self
 
@@ -213,8 +232,6 @@ class SqliteDataLayer:
         self, case_id: str, raise_on_missing: bool = False
     ) -> "VulnerabilityCase | None":
         """Read a VulnerabilityCase by ID; returns None when not found."""
-        from vultron.core.models.case import VulnerabilityCase as _VC
-
         result = self.read(case_id, raise_on_missing=raise_on_missing)
         if result is not None and not isinstance(result, _VC):
             if raise_on_missing:
@@ -241,6 +258,12 @@ class SqliteDataLayer:
     def save(self, obj: PersistableModel) -> None:
         """Persist a domain object, overwriting any existing record."""
         crud.save(self, obj)
+
+    def save_if_unchanged(
+        self, obj: PersistableModel, expected: PersistableModel
+    ) -> bool:
+        """Replace ``obj.id_``'s record only if it still equals *expected*."""
+        return crud.save_if_unchanged(self, obj, expected)
 
     def save_many(self, objs: list[PersistableModel]) -> None:
         """Persist multiple domain objects in a single atomic transaction.
@@ -308,8 +331,6 @@ class SqliteDataLayer:
         self, short_id: str
     ) -> "VulnerabilityCase | None":
         """Find a case by its URL-safe surrogate key."""
-        from vultron.core.models.case import VulnerabilityCase as _VC
-
         result = queries.find_case_by_short_id(self, short_id)
         return result if isinstance(result, _VC) else None
 
@@ -317,8 +338,6 @@ class SqliteDataLayer:
         self, report_id: str
     ) -> "VulnerabilityCase | None":
         """Find a ``VulnerabilityCase`` referencing the given report ID."""
-        from vultron.core.models.case import VulnerabilityCase as _VC
-
         result = queries.find_case_by_report_id(self, report_id)
         return result if isinstance(result, _VC) else None
 
@@ -391,3 +410,43 @@ class SqliteDataLayer:
     def dead_letter_list(self) -> list[OutboxDeadLetterEntry]:
         """Return this actor's dead-letter entries (OX-13-004)."""
         return queues.dead_letter_list(self)
+
+    # ------------------------------------------------------------------
+    # Per-activity inbox attempt counter (IE-06-004)
+    # ------------------------------------------------------------------
+
+    def get_inbox_attempt_count(self, activity_id: str) -> int:
+        """Return this actor's cumulative processing attempt count for inbox *activity_id*."""
+        return queues.get_inbox_attempt_count(self, activity_id)
+
+    def set_inbox_attempt_count(self, activity_id: str, count: int) -> None:
+        """Upsert this actor's processing attempt count for inbox *activity_id*."""
+        queues.set_inbox_attempt_count(self, activity_id, count)
+
+    def clear_inbox_attempt_count(self, activity_id: str) -> None:
+        """Remove this actor's attempt count entry for inbox *activity_id*."""
+        queues.clear_inbox_attempt_count(self, activity_id)
+
+    # ------------------------------------------------------------------
+    # Inbox dead-letter store (IE-06-004)
+    # ------------------------------------------------------------------
+
+    def inbox_dead_letter_append(
+        self,
+        activity_id: str,
+        reason: str,
+        total_attempts: int,
+        last_error: str = "",
+    ) -> None:
+        """Write an exhausted inbox activity to this actor's dead-letter store."""
+        queues.inbox_dead_letter_append(
+            self,
+            activity_id,
+            reason,
+            total_attempts,
+            last_error,
+        )
+
+    def inbox_dead_letter_list(self) -> list[InboxDeadLetterEntry]:
+        """Return this actor's inbox dead-letter entries (IE-06-004)."""
+        return queues.inbox_dead_letter_list(self)

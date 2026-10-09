@@ -1,6 +1,5 @@
 ---
 title: "FCV-reject Scenario: Finder + Coordinator + Vendor (Vendor Rejects)"
-status: stable
 causal_edges:
   - antecedent: validate_report
     consequent: engage_case
@@ -15,13 +14,13 @@ causal_edges:
       Participant status records are created after case engagement.
   - antecedent: engage_case
     consequent: invite_actor_to_case
-    consequent_actor: coordinator
+    consequent_actor: case-actor
     note: >
       The Coordinator sends the Vendor an invitation only after the case
       is active.
   - antecedent: invite_actor_to_case
     consequent: reject_invite_actor_to_case
-    consequent_actor: coordinator
+    consequent_actor: vendor
     note: >
       The Vendor's rejection of the invitation is recorded by the CaseActor
       as a reject_invite_actor_to_case entry.  This must follow the invite.
@@ -60,10 +59,10 @@ This scenario validates the rejection path of the invite protocol (CLP-13).
 
 **Participants:**
 
-- **Finder** — discovers and reports the vulnerability.
+- **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **Coordinator** — receives the report; validates, engages, and owns the case.
 - **Vendor** — receives an invitation; **rejects** it and does not join.
-- **CaseActor** — Coordinator's internal case-management sub-actor.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. The Coordinator's platform hosts it, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -83,50 +82,39 @@ The Coordinator reviews the report and accepts it.  `validate_report` then
 
 ### 3. Participant status records are created
 
-The CaseActor records `add_participant_status_to_participant` for each initial
-participant.
+The Case Actor records `add_participant_status_to_participant` for each initial participant.
+The Finder is one of them: as the reporter, it joins the case as a signatory when the case is created, so the Coordinator never invites it.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 4. Coordinator invites the Finder
+### 4. Coordinator invites the Vendor
 
-The Coordinator sends the Finder a formal `invite_actor_to_case` entry.
-
-*Antecedent:* `engage_case` is in the ledger.
-
-### 5. Finder accepts the invitation
-
-The Finder accepts.  An `accept_invite_actor_to_case` entry is recorded.
-
-*Antecedent:* The Finder's `invite_actor_to_case` entry is in the ledger.
-
-### 6. Coordinator invites the Vendor
-
-The Coordinator identifies the Vendor and sends an `invite_actor_to_case` entry.
+The Coordinator identifies the Vendor and asks the Case Actor to invite it.
+The Case Actor sends the Invite and records it as an `invite_actor_to_case` entry, the only one in this scenario.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 7. Vendor rejects the invitation
+### 5. Vendor rejects the invitation
 
-The Vendor declines to participate.  The CaseActor records the rejection as a
+The Vendor declines to participate.  The Case Actor records the rejection as a
 `reject_invite_actor_to_case` entry.  **The Vendor is not added as a participant.**
 
 *Antecedent:* The Vendor's `invite_actor_to_case` entry is in the ledger.
 
-### 8. Finder and Coordinator exchange notes
+### 6. Finder and Coordinator exchange notes
 
 Finder and Coordinator communicate through case notes (`add_note_to_case`).
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 9. Participants publish; embargo terminates
+### 7. Participants publish; embargo terminates
 
 The Coordinator and Finder publish.  The embargo exits ACTIVE without the
 Vendor's participation.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 10. Finder and Coordinator close the case
+### 8. Finder and Coordinator close the case
 
 Finder and Coordinator each submit `close_case` entries.  The Vendor, having
 rejected the invitation, has no close entry.

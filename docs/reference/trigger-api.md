@@ -10,10 +10,9 @@ level: 400
 
 {% include-markdown "../includes/not_normative.md" %}
 
-The Vultron reference implementation exposes 23 protocol trigger endpoints at
-`POST /actors/{actor_id}/trigger/{behavior}`. Each endpoint initiates a protocol
-behavior on behalf of the specified actor; the decision to act has already been
-made by the caller.
+The Vultron reference implementation exposes its general-purpose protocol trigger endpoints at `POST /actors/{actor_id}/trigger/{behavior}`; the table below is generated from the running application, so it lists every endpoint the build knows.
+Each endpoint initiates a protocol behavior on behalf of the specified actor; the decision to act has already been made by the caller.
+Every endpoint has one row in the trigger registry (`vultron/trigger_registry/`), which records its request model, use case, result type and whether it is general-purpose or demo-only.
 
 All endpoints accept JSON request bodies, return HTTP 202 on success with the
 resulting ActivityStreams activity in the response body, and run behavior

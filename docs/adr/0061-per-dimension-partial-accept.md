@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-08-12
+created: 2026-08-12
+updated: 2026-08-12
+revision: 1
 deciders: Allen D. Householder
 consulted: Vultron protocol maintainers
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Adjudicate Received `ParticipantStatus` Per Dimension, Not as a Unit

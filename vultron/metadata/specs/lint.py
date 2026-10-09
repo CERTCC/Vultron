@@ -9,19 +9,33 @@ Usage::
 
 from __future__ import annotations
 
+import argparse
+import datetime as _dt
 import os
 import re
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 from pydantic import ValidationError
 
+from vultron.metadata.adr.lifecycle import (
+    hardened_adrs,
+    today_utc,
+    verified_dependents,
+)
+from vultron.metadata.adr.loader import load_adr_registry
+from vultron.metadata.adr.schema import AdrFrontmatter
+from vultron.metadata.specs.kind_classification import (
+    check_protocol_kind_code_references,
+)
 from vultron.metadata.specs.registry import (
     SpecRegistry,
     load_registry,
 )
-from vultron.metadata.adr.loader import load_adr_registry
+from vultron.metadata.specs.retire import retired_spec_ids
 from vultron.metadata.specs.schema import (
+    SPEC_ID_CITATION_RE,
     AdrStatus,
     BehavioralSpec,
     LintWarningCode,
@@ -29,6 +43,13 @@ from vultron.metadata.specs.schema import (
     SpecKind,
     StatementSpec,
     TriggerType,
+)
+from vultron.metadata.specs.verification import (
+    VERIFICATION_DEBT_OWNERS,
+    check_closing_pr,
+    check_verification_coverage,
+    closed_debt_owners,
+    debt_owner_refs,
 )
 
 _RATIONALE_WARN_CHARS = 500
@@ -48,8 +69,30 @@ _ADR_PROVISIONAL_MARKERS = (
 )
 
 
+def _hardened_adr_notes(
+    adr_registry: Mapping[str, AdrFrontmatter],
+    registry: SpecRegistry,
+    root: Path,
+    today: _dt.date,
+) -> list[str]:
+    """Report ADRs a tested dependent spec has hardened early (MS-14-010)."""
+    hardened = hardened_adrs(
+        dict(adr_registry),
+        verified_dependents(registry.all_specs, root),
+        today,
+    )
+    return [
+        f"[INFO] {Path(rel_path).name}: hardened early (MS-14-010); tested "
+        f"dependents {', '.join(sorted(spec_ids))} can justify a human "
+        f"promoting it to 'accepted' with a 'status_override:'"
+        for rel_path, spec_ids in sorted(hardened.items())
+    ]
+
+
 def _check_adr_status(
     adr_dir: Path | None,
+    registry: SpecRegistry | None = None,
+    today: _dt.date | None = None,
 ) -> tuple[list[str], list[str]]:
     """Validate ADR frontmatter (MS-14-001 hard, MS-14-002 advisory).
 
@@ -66,24 +109,34 @@ def _check_adr_status(
       surfaces ``decision-audit`` candidates rather than blocking CI; an ADR may
       opt out with ``lint_suppress: [status_prose_contradiction]``.
 
+    - **Not here (MS-14-007)**: a ``status`` that disagrees with the epoch
+      computed from ``updated`` and ``today`` is never a lint failure, because
+      the answer changes with the clock and no commit. The diff-based
+      ``adr-lifecycle-check`` fails a material edit that leaves it wrong, and
+      the scheduled ``adr-status-drift`` workflow reports the rest.
+    - **Informational (MS-14-007)**: with a spec ``registry``, an ADR still in
+      epoch 1 or 2 that a tested spec requirement depends on is reported as
+      hardened, so a human can promote it early.
+
     Degrades to empty lists when ``adr_dir`` is missing so the check is a no-op
     in environments without a docs/ tree.
     """
     if adr_dir is None or not adr_dir.is_dir():
         return [], []
+    today = today or today_utc()
 
     errors: list[str] = []
     warnings: list[str] = []
 
     try:
-        registry = load_adr_registry(adr_dir.parent.parent)
+        adr_registry = load_adr_registry(adr_dir.parent.parent)
     except ValueError as exc:
         # A single malformed ADR aborts registry load; surface it as the error.
         return [f"ADR frontmatter invalid (MS-14-001): {exc}"], []
     except FileNotFoundError:
         return [], []
 
-    for rel_path, fm in registry.items():
+    for rel_path, fm in adr_registry.items():
         name = Path(rel_path).name
         if fm.status is not AdrStatus.ACCEPTED:
             continue
@@ -108,6 +161,13 @@ def _check_adr_status(
                 f"provisional-ness with "
                 f"'lint_suppress: [status_prose_contradiction]'."
             )
+
+    if registry is not None:
+        warnings.extend(
+            _hardened_adr_notes(
+                adr_registry, registry, adr_dir.parent.parent, today
+            )
+        )
     return errors, warnings
 
 
@@ -165,14 +225,9 @@ _REPO_TOP_LEVEL_DIRS = frozenset(
     }
 )
 
-#: Regex for bare spec ID tokens (e.g. ``HTTP-03-005``, ``CBT-05-007``) in
-#: Python source files.  Matched with ``\b`` word boundaries so that version
-#: strings like ``1.2.3`` or ``ADR-0001`` are not mistaken for spec IDs.
-#: The pattern is intentionally specific to Vultron spec ID conventions
-#: (2–8 uppercase letters, two-digit group, three-digit index) and does not
-#: match ISO standard numbers, semantic version strings, or similar patterns
-#: seen in the vultron/ and test/ trees.
-_SPEC_ID_RE = re.compile(r"\b([A-Z]{2,8}-\d{2}-\d{3})\b")
+#: MS-04-001 requirement-ID shape, shared with the citation ratchets and
+#: bundle-fit via :data:`vultron.metadata.specs.schema.SPEC_ID_CITATION_RE`.
+_SPEC_ID_RE = SPEC_ID_CITATION_RE
 
 #: MS-15: a backticked ``SCREAMING_SNAKE_CASE`` token in spec prose, read as a
 #: reference to a module-level code symbol (e.g. ``SEMANTIC_REGISTRY``,
@@ -497,6 +552,38 @@ def _check_spec_id_prefix_consistency(registry: SpecRegistry) -> list[str]:
     return errors
 
 
+_LIFECYCLE_KEYS = ("deprecated", "superseded_by")
+
+
+def _check_retirement_rules(
+    registry: SpecRegistry, repo_root: Path
+) -> list[str]:
+    """Enforce the retirement rules (MS-09-001, MS-09-004).
+
+    A requirement that is no longer current is removed and archived in
+    ``plan/retired-specs/``, never marked ``deprecated:`` or
+    ``superseded_by:`` in place, and an ID in the archive is never declared
+    again.
+    """
+    errors: list[str] = []
+    retired = retired_spec_ids(repo_root)
+    for spec_id, spec in registry.all_specs.items():
+        for key in _LIFECYCLE_KEYS:
+            if key in spec.model_fields_set:
+                errors.append(
+                    f"Spec '{spec_id}' carries '{key}:'; remove the "
+                    f"requirement and archive it with `uv run spec-retire "
+                    f"{spec_id}` instead (MS-09-001)"
+                )
+        if spec_id in retired:
+            errors.append(
+                f"Spec '{spec_id}' is declared in specs/ but is in the "
+                f"retired archive plan/retired-specs/; a requirement ID is "
+                f"never reused, so give the new rule a new ID (MS-09-004)"
+            )
+    return errors
+
+
 def _adr_exists(adr_dir: Path, adr_number: str) -> bool:
     """Return True if an ADR file for ``adr_number`` exists in ``adr_dir``.
 
@@ -604,6 +691,26 @@ def _check_scenario_start_groups(registry: SpecRegistry) -> list[str]:
     return errors
 
 
+def sr_11_003_gate_applies(kind: SpecKind, priority: RFC2119Priority) -> bool:
+    """Whether SR-11-003's story gate covers a requirement of this kind and priority.
+
+    SR-11-003 is the one recorded exception to MS-02-003: it is deliberately
+    ``MUST``-only, not MUST-tier, because the protocol ``MUST_NOT``s with no
+    ``stories:`` are still being adjudicated (#3601) and the gate extends to
+    them as #2717's closing step once their stories exist — see the spec's
+    ``note:``. This is the only place that decision is written down;
+    ``scripts/backfill_stories.py`` selects through it too, so the exception
+    cannot drift into a second hand-written copy. When it is retired, replace
+    the member comparison with ``priority.is_must_tier`` and drop the matching
+    allowlist entry in ``test/metadata/specs/test_priority_tier_gate.py``.
+    """
+    return (
+        kind == SpecKind.PROTOCOL
+        and priority
+        == RFC2119Priority.MUST  # SR-11-003: MUST-only, see docstring
+    )
+
+
 def _check_missing_story_references(registry: SpecRegistry) -> list[str]:
     """Hard error when a ``kind: protocol`` MUST spec has no ``stories:`` (SR-11-003).
 
@@ -611,13 +718,12 @@ def _check_missing_story_references(registry: SpecRegistry) -> list[str]:
     user-story back-reference breaks the bidirectional traceability graph and is
     treated as a hard gate (exit 1).  Suppressible via
     ``lint_suppress: [missing_story_reference]`` for specs that are genuinely
-    not traceable to any story.
+    not traceable to any story. The gate's scope is
+    :func:`sr_11_003_gate_applies`.
     """
     errors: list[str] = []
     for spec_id, spec in registry.all_specs.items():
-        if spec.kind != SpecKind.PROTOCOL:
-            continue
-        if spec.priority != RFC2119Priority.MUST:
+        if not sr_11_003_gate_applies(spec.kind, spec.priority):
             continue
         if spec.stories:
             continue
@@ -635,9 +741,13 @@ def _check_missing_story_references(registry: SpecRegistry) -> list[str]:
 def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
     """Collect per-spec advisory warnings (SR-04-002).
 
-    Covers: testable_without_steps, rationale_too_long, missing_tags,
-    must_without_verification, and missing_story_reference (SHOULD/MAY).
-    All are suppressible via ``lint_suppress``.
+    Covers: testable_without_steps, rationale_too_long, missing_tags, and
+    missing_story_reference for every ``kind: protocol`` requirement below the
+    MUST tier (SR-11-004 — SHOULD, SHOULD_NOT and MAY). All are suppressible
+    via ``lint_suppress``. Unverified MUST-tier requirements are checked per
+    item, against their ``verification_debt`` markers, by
+    :func:`~vultron.metadata.specs.verification.check_verification_coverage`
+    (MS-10-006).
     """
     warnings: list[str] = []
     for spec_id, spec in registry.all_specs.items():
@@ -670,20 +780,8 @@ def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
             warnings.append(f"[WARN] {spec_id}: no tags defined")
 
         if (
-            spec.priority == RFC2119Priority.MUST
-            and not spec.verification
-            and LintWarningCode.MUST_WITHOUT_VERIFICATION not in suppressed
-        ):
-            warnings.append(
-                f"[WARN] {spec_id}: priority is MUST but has no "
-                f"verification: field (MS-05-003); add a verification: "
-                f"criterion, or suppress with "
-                f"lint_suppress: [must_without_verification]"
-            )
-
-        if (
             spec.kind == SpecKind.PROTOCOL
-            and spec.priority in (RFC2119Priority.SHOULD, RFC2119Priority.MAY)
+            and not spec.priority.is_must_tier
             and not spec.stories
             and LintWarningCode.MISSING_STORY_REFERENCE not in suppressed
         ):
@@ -747,7 +845,7 @@ class _SourceScan:
                     continue
                 seen_in_file: set[str] = set()
                 for match in _SPEC_ID_RE.finditer(text):
-                    sid = match.group(1)
+                    sid = match.group(0)
                     if sid not in seen_in_file:
                         seen_in_file.add(sid)
                         self.spec_id_citations.append((rel_str, sid))
@@ -829,14 +927,30 @@ def _check_phantom_symbols(
     return errors
 
 
+def _report_closed_debt_owners(
+    registry: SpecRegistry, debt_owners: Mapping[SpecKind, frozenset[str]]
+) -> int:
+    """Print each closed or unreadable owner as an error; return the exit code."""
+    errors = closed_debt_owners(debt_owner_refs(registry, debt_owners))
+    for e in errors:
+        print(f"[ERROR] {e}", file=sys.stderr)
+    return 1 if errors else 0
+
+
 def lint(
     spec_dir: Path,
     adr_dir: Path | None = None,
     registry: SpecRegistry | None = None,
+    *,
+    list_unverified: bool = False,
+    debt_owners: Mapping[SpecKind, frozenset[str]] | None = None,
+    check_debt_owners: bool = False,
+    closing_pr: int | None = None,
 ) -> int:
     """Validate the spec registry in ``spec_dir``.
 
-    Hard errors cause exit code 1.  Advisory warnings are printed but do not
+    Hard errors cause exit code 1.  Advisory warnings, and the per-kind
+    verification-coverage status lines (MS-10-005), are printed but do not
     affect the exit code (SR-04-001, SR-04-002).
 
     Args:
@@ -849,15 +963,34 @@ def lint(
         registry: Pre-loaded :class:`SpecRegistry` instance.  When provided,
             the ``load_registry(spec_dir)`` call is skipped, avoiding
             redundant I/O in callers that already hold a loaded registry.
+        list_unverified: Print the ID and marker of every unverified
+            MUST-tier requirement under its kind's summary line (MS-10-005
+            opt-in; ``--list-unverified`` on the CLI).
+        debt_owners: The issues that own each kind's verification backlog.
+            Defaults to the live
+            :data:`~vultron.metadata.specs.verification.VERIFICATION_DEBT_OWNERS`;
+            tests pass a fixture table.
+        check_debt_owners: Run only the open-owner check: fail on any
+            ``verification_debt`` marker or owner entry naming a closed issue
+            (MS-10-006; ``--check-debt-owners`` on the CLI), and on nothing
+            else, so an unrelated lint error cannot file the owners-closed
+            tracking issue (ARCH-18-004). Needs the ``gh`` CLI and a token, so
+            CI runs it and the pre-commit hook does not.
+        closing_pr: Also fail when this pull request closes an owner issue
+            that a marker or owner entry still names (MS-10-006;
+            ``--check-closing-pr N`` on the CLI). Needs ``gh`` and a token.
 
     Returns:
         ``0`` if no hard errors, ``1`` if any hard errors found.
     """
+    if debt_owners is None:
+        debt_owners = VERIFICATION_DEBT_OWNERS
     if adr_dir is None:
         adr_dir = spec_dir.parent / "docs" / "adr"
 
     hard_errors: list[str] = []
     warnings: list[str] = []
+    status_lines: list[str] = []
 
     if registry is None:
         try:
@@ -866,28 +999,44 @@ def lint(
             print(f"[FATAL] Registry load failed:\n{exc}", file=sys.stderr)
             return 1
 
+    if check_debt_owners:
+        return _report_closed_debt_owners(registry, debt_owners)
+
     hard_errors.extend(registry.validate_cross_references())
     hard_errors.extend(_check_prefix_consistency(registry))
     hard_errors.extend(_check_spec_id_prefix_consistency(registry))
     hard_errors.extend(_check_scenario_start_groups(registry))
+    hard_errors.extend(_check_retirement_rules(registry, spec_dir.parent))
     hard_errors.extend(_check_phantom_paths(registry, spec_dir.parent))
     source_scan = _SourceScan(spec_dir.parent)
     hard_errors.extend(_check_phantom_spec_id_citations(registry, source_scan))
     hard_errors.extend(_check_phantom_symbols(registry, source_scan))
     hard_errors.extend(_check_missing_story_references(registry))
+    hard_errors.extend(check_protocol_kind_code_references(registry))
 
     warnings.extend(_check_per_spec_advisory_warnings(registry))
+    verification_errors, verification_lines = check_verification_coverage(
+        registry, debt_owners, list_unverified
+    )
+    hard_errors.extend(verification_errors)
+    status_lines.extend(verification_lines)
+    if closing_pr is not None:
+        hard_errors.extend(check_closing_pr(registry, debt_owners, closing_pr))
 
     adr_ref_errors, adr_ref_warnings = _check_adr_references(registry, adr_dir)
     hard_errors.extend(adr_ref_errors)
     warnings.extend(adr_ref_warnings)
     hard_errors.extend(_check_missing_kind(registry))
-    adr_status_errors, adr_status_warnings = _check_adr_status(adr_dir)
+    adr_status_errors, adr_status_warnings = _check_adr_status(
+        adr_dir, registry
+    )
     hard_errors.extend(adr_status_errors)
     warnings.extend(adr_status_warnings)
 
     for w in warnings:
         print(w)
+    for line in status_lines:
+        print(line)
     for e in hard_errors:
         print(f"[ERROR] {e}", file=sys.stderr)
 
@@ -900,16 +1049,61 @@ def main() -> None:
 
     ``spec_dir`` defaults to ``specs/`` relative to the current working
     directory so that ``uv run spec-lint`` from the repository root
-    behaves identically to the pre-commit hook.
+    behaves identically to the pre-commit hook (SR-06-002, SR-04-010).
     """
-    spec_dir = Path(sys.argv[1]) if len(sys.argv) >= 2 else Path("specs")
+    parser = argparse.ArgumentParser(
+        prog="spec-lint", description="Validate the specs/*.yaml registry."
+    )
+    parser.add_argument(
+        "spec_dir",
+        nargs="?",
+        default="specs",
+        help="Directory containing spec YAML files (default: specs/)",
+    )
+    parser.add_argument(
+        "--list-unverified",
+        action="store_true",
+        help=(
+            "List the ID and verification_debt marker of every MUST or "
+            "MUST_NOT requirement with no verification: field under its "
+            "kind's summary line (MS-10-005)"
+        ),
+    )
+    parser.add_argument(
+        "--check-debt-owners",
+        action="store_true",
+        help=(
+            "Run only the owner check: fail when a verification_debt marker "
+            "or owner entry names a closed issue (MS-10-006); needs the gh "
+            "CLI and a token"
+        ),
+    )
+    parser.add_argument(
+        "--check-closing-pr",
+        type=int,
+        metavar="N",
+        help=(
+            "Fail when pull request N closes an owner issue that a "
+            "verification_debt marker or owner entry still names "
+            "(MS-10-006); needs the gh CLI and a token"
+        ),
+    )
+    args = parser.parse_args()
+    spec_dir = Path(args.spec_dir)
     if not spec_dir.is_dir():
         print(
             f"[FATAL] spec_dir '{spec_dir}' not found or not a directory",
             file=sys.stderr,
         )
         sys.exit(2)
-    sys.exit(lint(spec_dir))
+    sys.exit(
+        lint(
+            spec_dir,
+            list_unverified=args.list_unverified,
+            check_debt_owners=args.check_debt_owners,
+            closing_pr=args.check_closing_pr,
+        )
+    )
 
 
 if __name__ == "__main__":

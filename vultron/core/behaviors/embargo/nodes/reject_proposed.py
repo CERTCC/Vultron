@@ -13,11 +13,15 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Reject-proposed-embargo BT nodes (EMB-16-001).
+"""The case owner's Reject of an open embargo proposal (EP-08-003).
 
-Handles the cascade arm triggered when CS.P/X/A fires while EM is PROPOSED:
-abandon the proposed embargo via reject_embargo_invite() and queue an ER
-activity to the Case Manager.
+:class:`DecideRejectedEmbargoProposalNode` applies the owner's
+``Reject(EmbargoEvent, target=Case)`` (ER or EJ, ADR-0122) on the received
+path and in the ledger replay;
+:class:`OwnerRejectsRevisionAfterDisclosureNode` tells when that Reject must
+end the embargo instead (EMB-04-002).  The P/X/A abandonment of open
+proposals (EMB-16-001) is the CASE_MANAGER's decision, not an owner's
+Reject, and lives in :mod:`.abandon`.
 
 Extracted from lifecycle.py to keep that module under the BTND-07-004
 500-line limit.
@@ -25,13 +29,14 @@ Extracted from lifecycle.py to keep that module under the BTND-07-004
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
-from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    PortInformation,
+    DataLayerConditionWithPorts,
 )
+from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
+from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -40,196 +45,129 @@ from vultron.core.states.em import EM
 from vultron.errors import VultronError
 
 
-class RejectProposedEmbargoLifecycleNode(DataLayerActionWithPorts):
-    """Apply STRICT reject-invite transition reading embargo_id from the blackboard.
+class DecideRejectedEmbargoProposalNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
+    """Apply the case owner's rejection of an open proposal (ER / EJ, EP-08-003).
 
-    Cascade-path variant of :class:`RejectEmbargoLifecycleNode` used by
-    :func:`~vultron.core.behaviors.embargo.trigger_tree.reject_proposed_embargo_bt`.
+    The effect of ``Reject(EmbargoEvent, target=Case)``, which only the case
+    owner sends (ADR-0122); the received tree's sender guard has already
+    established that.  Calls ``EmbargoLifecycle.reject_embargo_proposal``,
+    which drives ``PROPOSED → NONE`` or ``REVISE → ACTIVE`` — or, while
+    another proposal stays open, only rejects this one (EP-08-001).  It writes
+    no consent: a participant's refusal of terms, the owner's included, is a
+    ``Reject(Invite(EmbargoEvent))``.  The received path runs it ``STRICT``
+    in the CASE_MANAGER's store; the ledger replay runs it ``OBSERVED``
+    (EP-09-007).
 
-    Reads ``embargo_id`` written by ``ReadProposedEmbargoIdNode`` so the
-    transition uses the correct proposed embargo rather than a
-    construction-time value.
-
-    EMB-16-001: abandons a proposed embargo when P/X/A fires while EM is PROPOSED.
+    Returns SUCCESS and changes nothing when the embargo is no longer an
+    open proposal (already decided, or ended by the EMB-04-002 termination
+    that ran first), so a repeated Reject is idempotent.  Returns FAILURE when
+    the case cannot be read or the lifecycle refuses the transition (for
+    example ``STRICT`` EJ with P/X/A set, EMB-04-002).
     """
 
     def __init__(
         self,
         case_id: str,
-        result_out: dict[str, object],
+        embargo_id: str,
         name: str | None = None,
+        *,
+        transition_mode: TransitionMode = TransitionMode.STRICT,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id_value = case_id
-        self._result_out = result_out
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "embargo_id": PortInformation(data_type=str, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"embargo_id": "/embargo_id"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.embargo_id: str = self.get_input("embargo_id")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        embargo_id = self.embargo_id
-
-        read_node = ReadEmStateNode(
-            case_id=self._case_id_value, result_out=self._result_out
-        )
-        read_node.datalayer = self.datalayer
-        read_status = read_node.update()
-        if read_status != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
-            return Status.FAILURE
-        em_before = self._result_out["em_before"]
-        assert isinstance(em_before, EM)
-
-        lifecycle = EmbargoLifecycle(persistence=self.datalayer)
-        try:
-            result = lifecycle.reject_embargo_invite(
-                case_id=self._case_id_value,
-                embargo_id=embargo_id,
-                actor_id=self.actor_id,
-                transition_mode=TransitionMode.STRICT,
-                em_before=em_before,
-            )
-        except VultronError as exc:
-            self._result_out["error"] = exc
-            self.feedback_message = str(exc)
-            return Status.FAILURE
-
-        self._result_out["lifecycle_result"] = result
-        self._result_out["em_after"] = result.em_after
-
-        return Status.SUCCESS
-
-
-class ReadProposedEmbargoIdNode(DataLayerActionWithPorts):
-    """Read the first proposed embargo ID from the case and write it to the blackboard.
-
-    Used by the EM PROPOSED cascade arm of ``PublicDisclosureBranchNode``
-    (EMB-16-001): when public disclosure fires while EM is PROPOSED we must
-    reject the proposed embargo.  Unlike ``ReadEmbargoIdNode`` (which reads
-    ``active_embargo``), this node reads the first entry of
-    ``proposed_embargoes``.
-
-    Returns FAILURE when the case is not found, has no proposed embargoes, or
-    the DataLayer is unavailable.  Returns SUCCESS and writes ``embargo_id``
-    to the blackboard on success.
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "embargo_id": PortInformation(data_type=str, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"embargo_id": "/embargo_id"}
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+        self.transition_mode = transition_mode
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        case, failure = self._require_case(self._case_id)
+        case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        proposed = case.proposed_embargoes
-        if not proposed:
+        if self.embargo_id not in case.proposed_embargo_ids:
             self.feedback_message = (
-                f"No proposed embargoes on case '{self._case_id}'"
+                f"Embargo '{self.embargo_id}' is not an open proposal of case"
+                f" '{self.case_id}' — nothing to decide"
             )
+            return Status.SUCCESS
+
+        try:
+            result = EmbargoLifecycle(
+                persistence=self.datalayer
+            ).reject_embargo_proposal(
+                case_id=self.case_id,
+                embargo_id=self.embargo_id,
+                actor_id=self.actor_id,
+                transition_mode=self.transition_mode,
+            )
+        except VultronError as exc:
+            self.feedback_message = str(exc)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        embargo_id = _as_id(proposed[0])
-        if embargo_id is None:
-            self.feedback_message = (
-                f"First proposed embargo on case '{self._case_id}' has no id"
-            )
-            return Status.FAILURE
-
-        self._set_output("embargo_id", embargo_id)
+        log_em_transition(
+            self.logger,
+            self.actor_id or "<unknown>",
+            self.case_id,
+            result.em_before,
+            result.em_after,
+        )
+        self.feedback_message = (
+            f"Owner rejected embargo '{self.embargo_id}' on case"
+            f" '{self.case_id}' (EM {result.em_before} → {result.em_after})"
+        )
         return Status.SUCCESS
 
 
-class SendRejectEmbargoActivityNode(_SendEmbargoActivityBase):
-    """Build and queue a ``Reject(EmbargoEvent)`` activity.
+class OwnerRejectsRevisionAfterDisclosureNode(DataLayerConditionWithPorts):
+    """True when the owner's Reject must end the embargo, not keep it (EMB-04-002).
 
-    Used as the emit step in the EM PROPOSED cascade arm
-    (EMB-16-001): reads ``embargo_id`` and ``case_manager_id`` from the
-    blackboard and constructs the outbound ER activity via
-    ``trigger_activity_factory.reject_embargo``.
-
-    Returns FAILURE (BT-14-001) when the factory is unavailable, a required
-    blackboard key is missing, or dispatch raises an exception.
-    Returns SUCCESS when the activity is created and queued.
+    SUCCESS when ``rejecting_actor_id`` is the case owner, the case is in
+    ``REVISE``, ``embargo_id`` is the last open proposal (so the Reject would
+    decide the revision, EP-08-001) and CS is already public, exploited or
+    attacked.  Returning to the prior terms is then not allowed: the EJ must
+    be answered with ET.  FAILURE in every other case, so the owner's Reject
+    is decided by :class:`DecideRejectedEmbargoProposalNode` as usual.
+    Read-only.
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(case_id=case_id, name=name)
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        rejecting_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+        self.rejecting_actor_id = rejecting_actor_id
 
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **_SendEmbargoActivityBase.INPUT_PORTS,
-        "embargo_id": PortInformation(data_type=str, required=True),
-        "case_manager_id": PortInformation(data_type=str, required=True),
-    }
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "embargo_id": "/embargo_id",
-            "case_manager_id": "/case_manager_id",
-        }
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
-    def initialise(self) -> None:
-        super().initialise()
-        self.embargo_id: str = self.get_input("embargo_id")
-        self.case_manager_id: str = self.get_input("case_manager_id")
-
-    def _on_factory_unavailable(self) -> Status:
-        self.feedback_message = (
-            "trigger_activity_factory not available"
-            " — reject embargo broadcast FAILURE (BT-14-001)"
-        )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
-
-    def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
-        return self.embargo_id, self.case_manager_id
-
-    def _call_factory(
-        self, actor_id: str, embargo_id: str, case_manager_id: str
-    ) -> tuple[str, object]:
-        assert self.trigger_activity_factory is not None
-        return self.trigger_activity_factory.reject_embargo(
-            proposal_id=embargo_id,
-            case_id=self._case_id,
-            actor=actor_id,
-            to=[case_manager_id],
-        )
-
-    def _on_outbox_write_failure(
-        self, activity_id: str, exc: Exception
-    ) -> Status:
-        self.feedback_message = (
-            f"Outbox write failed for Reject(EmbargoEvent)"
-            f" '{activity_id}': {exc}"
-        )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        if (
+            _as_id(case.attributed_to) == self.rejecting_actor_id
+            and case.em_state == EM.REVISE
+            and case.proposed_embargo_ids == [self.embargo_id]
+            and not pxa_is_embargo_eligible(case.current_status.pxa.state)
+        ):
+            self.feedback_message = (
+                f"Owner rejected revision '{self.embargo_id}' of case"
+                f" '{self.case_id}' with P/X/A set: the embargo ends (ET)"
+                " rather than returning to its prior terms (EMB-04-002)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
         return Status.FAILURE

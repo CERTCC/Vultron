@@ -11,9 +11,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import ClassVar
-
 import unittest
+from typing import ClassVar
 
 import vultron.bt.messaging.conditions as vmc
 from vultron.bt.base.node_status import NodeStatus

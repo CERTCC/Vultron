@@ -58,6 +58,10 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.close_report import (
+    CLOSE_REPORT_DETERMINISTIC,
+)
+
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.close_report import (
         CloseReportCallOutBundle,
@@ -92,10 +96,6 @@ def create_close_report_tree(
     Returns:
         Root node of the close readiness monitoring seam tree.
     """
-    from vultron.core.behaviors.call_out.bundles.close_report import (
-        CLOSE_REPORT_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else CLOSE_REPORT_DETERMINISTIC
     root = bundle.other_close_criteria_factory("OtherCloseCriteriaMet")
     logger.info("Created CloseReadinessMonitoringBT for case=%s", case_id)

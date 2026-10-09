@@ -19,7 +19,8 @@ import logging
 from typing import Any, cast
 
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories import (
     rm_close_report_activity,
     rm_invalidate_report_activity,
@@ -27,12 +28,12 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Read
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from ._base import _DUMP_KWARGS, _to_wire
-from vultron.errors import VultronAlreadyExistsError
+from ._base import _seal, _to_wire
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ def _reconstitute_offer(
             actor=offer_record.offer_actor_id,
             id_=offer_id,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
         logger.warning(
             "_reconstitute_offer: failed to reconstitute offer '%s': %s",
             offer_id,
@@ -97,11 +98,29 @@ class _ReportsMixin:
         actor: str,
         to: str,
         target: str,
+        proposed_embargo_id: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Offer(as_VulnerabilityReport)`` activity."""
+        """Create and persist an ``Offer(as_VulnerabilityReport)`` activity.
+
+        *proposed_embargo_id* names the Reporter's stored ``EmbargoEvent`` for
+        the report; the factory carries it as ``proposedEmbargo`` and refuses
+        one whose ``context`` is not the report (EP-04-009).  A name that
+        resolves to nothing raises ``VultronNotFoundError``: the use case
+        stored the event a moment ago, so its absence is a fault, not a
+        proposal to drop quietly.
+        """
         report = _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
+        proposed_embargo = (
+            _to_wire(self._dl.read(proposed_embargo_id), as_EmbargoEvent)
+            if proposed_embargo_id is not None
+            else None
+        )
         activity = rm_submit_report_activity(
-            report=report, to=to, actor=actor, target=target
+            report=report,
+            to=to,
+            actor=actor,
+            target=target,
+            proposed_embargo=proposed_embargo,
         )
         try:
             self._dl.create(activity)
@@ -136,7 +155,7 @@ class _ReportsMixin:
                     activity.id_,
                 )
             raise
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def _resolve_offer(self, offer_id: str) -> Any:
         """Read wire Offer from DL; reconstitute from VultronOfferRecord if absent."""
@@ -162,7 +181,7 @@ class _ReportsMixin:
                 "validate_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def close_report(
         self,
@@ -181,7 +200,7 @@ class _ReportsMixin:
                 "close_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def invalidate_report(
         self,
@@ -201,7 +220,7 @@ class _ReportsMixin:
                 "invalidate_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def ack_report(
         self,
@@ -219,4 +238,4 @@ class _ReportsMixin:
                 "ack_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)

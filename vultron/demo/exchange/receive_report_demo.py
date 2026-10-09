@@ -21,9 +21,10 @@ This demo script showcases three different outcomes when processing vulnerabilit
 2. Invalidate Report: ``as_TentativeReject`` - holds for reconsideration
 3. Invalidate and Close Report: ``as_TentativeReject`` + ``as_Reject`` - rejects and closes
 
-This demo uses direct inbox-to-inbox communication between actors, per the Vultron prototype
-design (see docs/reference/inbox_handler.md). Actors post activities directly to each other's
-inboxes rather than relying on outbox processing.
+This demo uses direct inbox-to-inbox communication between actors: actors post activities
+directly to each other's inboxes rather than relying on outbox processing. For the inbox
+pipeline those posts enter, see the "From HTTP delivery to behavior tree: the inbox pipeline"
+section of docs/topics/reference_architecture.md.
 
 When run as a script, this module will:
 1. Check if the API server is available
@@ -50,10 +51,37 @@ The BT logs will show tree structure before execution and final state after comp
 # Standard library imports
 import json
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.verification import (
+    verify_activity_in_inbox,
+)
+from vultron.demo.helpers.workflow import find_case_by_report_id
+from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
+    BASE_URL,
+    DataLayerClient,
+    case_actor_id_for_report,
+    check_server_availability,  # imported by test_health_check_retry
+    demo_check,
+    demo_step,
+    get_offer_from_datalayer,
+    logfmt,
+    post_to_inbox_and_wait,
+    postfmt,
+    seed_case_actor_for_report,
+    setup_demo_logging,
+    verify_object_stored,
+)
+from vultron.wire.as2.factories import (
+    create_case_activity,
+    rm_close_report_activity,
+    rm_invalidate_report_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -62,33 +90,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.verification import (
-    verify_activity_in_inbox,
-)  # noqa: F401
-from vultron.demo.utils import case_actor_id_for_report
-from vultron.demo.helpers.workflow import find_case_by_report_id
-from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
-    BASE_URL,
-    DataLayerClient,
-    check_server_availability,  # noqa: F401 — imported by test_health_check_retry
-    demo_check,
-    demo_step,
-    get_offer_from_datalayer,
-    logfmt,
-    post_to_inbox_and_wait,
-    seed_case_actor_for_report,
-    postfmt,
-    verify_object_stored,
-    setup_demo_logging,
-)
-from vultron.wire.as2.factories import (
-    create_case_activity,
-    rm_close_report_activity,
-    rm_invalidate_report_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,7 +100,7 @@ def make_submit_offer(finder, vendor, report) -> as_Offer:
     offer = rm_submit_report_activity(
         report, actor=finder.id_, target=vendor.id_, to=vendor.id_
     )
-    logger.info(f"Created SubmitReport activity: {logfmt(offer)}")
+    logger.info("Created SubmitReport activity: %s", logfmt(offer))
     return offer
 
 
@@ -110,7 +111,7 @@ def submit_to_inbox(
     vendor_id = parse_id(vendor_id)["object_id"]
 
     logger.info(
-        f"Submitting activity to {vendor_id}'s inbox: {logfmt(activity)}"
+        "Submitting activity to %s's inbox: %s", vendor_id, logfmt(activity)
     )
 
     return client.post(f"/actors/{vendor_id}/inbox/", json=postfmt(activity))
@@ -118,7 +119,7 @@ def submit_to_inbox(
 
 def find_case_by_report(
     client: DataLayerClient, report_id: str
-) -> Optional[as_VulnerabilityCase]:
+) -> as_VulnerabilityCase | None:
     """Find the ``as_VulnerabilityCase`` that references *report_id*.
 
     Public name kept for backward compatibility — imported by
@@ -143,7 +144,7 @@ def demo_validate_report(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the workflow where a vendor validates a report and creates a case.
@@ -156,7 +157,7 @@ def demo_validate_report(
 
     Note: This demo uses direct inbox-to-inbox communication. The vendor posts
     the VultronActivity activity directly to the finder's inbox rather than using outbox
-    processing, per the Vultron prototype design (see docs/reference/inbox_handler.md).
+    processing (see the inbox pipeline section of docs/topics/reference_architecture.md).
     """
     logger.info("=" * 80)
     logger.info("DEMO 1: Validate Report and Create Case")
@@ -169,7 +170,7 @@ def demo_validate_report(
             content="This is a legitimate vulnerability in the authentication module.",
             name="Authentication Bypass Vulnerability",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         report_offer = make_submit_offer(finder, vendor, report)
         # Provision the CaseActor this report's proposal will be addressed to.
         # Its id is derived from the report, and this node hosts it in
@@ -194,7 +195,7 @@ def demo_validate_report(
         with demo_check("ValidateReport activity stored"):
             response = client.get(client.dl_path(validate_activity.id_))
             logger.info(
-                f"ValidateReport stored: {json.dumps(response, indent=2)}"
+                "ValidateReport stored: %s", json.dumps(response, indent=2)
             )
 
     with demo_step("Step 3: Vendor creates case and notifies finder"):
@@ -230,7 +231,7 @@ def demo_invalidate_report(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the workflow where a vendor invalidates a report.
@@ -242,8 +243,8 @@ def demo_invalidate_report(
     docs/howto/activitypub/activities/report_vulnerability.md.
 
     Note: This demo uses direct inbox-to-inbox communication. The vendor posts
-    the invalidation response directly to the finder's inbox, per the Vultron
-    prototype design (see docs/reference/inbox_handler.md).
+    the invalidation response directly to the finder's inbox (see the inbox
+    pipeline section of docs/topics/reference_architecture.md).
     """
     logger.info("=" * 80)
     logger.info("DEMO 2: Invalidate Report (Hold for Reconsideration)")
@@ -256,7 +257,7 @@ def demo_invalidate_report(
             content="Possible vulnerability in payment processing, needs more investigation.",
             name="Potential Payment Processing Issue",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         report_offer = make_submit_offer(finder, vendor, report)
         # Provision the CaseActor this report's proposal will be addressed to.
         # Its id is derived from the report, and this node hosts it in
@@ -285,7 +286,8 @@ def demo_invalidate_report(
                 client.dl_path(invalidate_activity.id_)
             )
             logger.info(
-                f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
+                "InvalidateReport stored: %s",
+                json.dumps(invalidate_response, indent=2),
             )
 
     with demo_step("Step 3: Vendor notifies finder of invalidation"):
@@ -318,7 +320,7 @@ def demo_invalidate_and_close_report(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the workflow where a vendor invalidates a report and closes it.
@@ -330,8 +332,8 @@ def demo_invalidate_and_close_report(
     docs/howto/activitypub/activities/report_vulnerability.md.
 
     Note: This demo uses direct inbox-to-inbox communication. The vendor posts
-    response activities directly to the finder's inbox, per the Vultron
-    prototype design (see docs/reference/inbox_handler.md).
+    response activities directly to the finder's inbox (see the inbox pipeline
+    section of docs/topics/reference_architecture.md).
     """
     logger.info("=" * 80)
     logger.info("DEMO 3: Invalidate and Close Report")
@@ -344,7 +346,7 @@ def demo_invalidate_and_close_report(
             content="This is a false positive - not a real vulnerability.",
             name="False Positive Report",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         report_offer = make_submit_offer(finder, vendor, report)
         # Provision the CaseActor this report's proposal will be addressed to.
         # Its id is derived from the report, and this node hosts it in
@@ -375,11 +377,12 @@ def demo_invalidate_and_close_report(
                 client.dl_path(invalidate_activity.id_)
             )
             logger.info(
-                f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
+                "InvalidateReport stored: %s",
+                json.dumps(invalidate_response, indent=2),
             )
             close_response = client.get(client.dl_path(close_activity.id_))
             logger.info(
-                f"CloseReport stored: {json.dumps(close_response, indent=2)}"
+                "CloseReport stored: %s", json.dumps(close_response, indent=2)
             )
 
     with demo_step(
@@ -427,7 +430,7 @@ def demo_invalidate_and_close_report(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     ("Demo 1: Validate Report", demo_validate_report),
     ("Demo 2: Invalidate Report", demo_invalidate_report),
     ("Demo 3: Invalidate and Close Report", demo_invalidate_and_close_report),
@@ -436,7 +439,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ):
     """Main entry point for the receive_report demo script."""
     run_exchange_demos(

@@ -281,9 +281,10 @@ def _references_name(tree: ast.AST, name: str) -> bool:
             return True
         if isinstance(node, ast.Attribute) and node.attr == name:
             return True
-        if isinstance(node, ast.ImportFrom):
-            if any(alias.name == name for alias in node.names):
-                return True
+        if isinstance(node, ast.ImportFrom) and any(
+            alias.name == name for alias in node.names
+        ):
+            return True
     return False
 
 
@@ -404,9 +405,9 @@ def _mentions_segment(node: ast.AST, names: frozenset[str] | set[str]) -> bool:
                 and _COSMETIC_SUBSTRING in sub.value.lower()
             ):
                 return True
-        elif isinstance(sub, ast.Name) and sub.id in names:
-            return True
-        elif isinstance(sub, ast.Attribute) and sub.attr in names:
+        elif (isinstance(sub, ast.Name) and sub.id in names) or (
+            isinstance(sub, ast.Attribute) and sub.attr in names
+        ):
             return True
     return False
 
@@ -467,9 +468,9 @@ def _identity_comparisons(tree: ast.AST) -> list[str]:
         mentions = False
         for operand in operands:
             for sub in ast.walk(operand):
-                if isinstance(sub, ast.Name) and sub.id in names:
-                    mentions = True
-                elif isinstance(sub, ast.Attribute) and sub.attr in names:
+                if (isinstance(sub, ast.Name) and sub.id in names) or (
+                    isinstance(sub, ast.Attribute) and sub.attr in names
+                ):
                     mentions = True
         if mentions:
             found.append(
@@ -634,9 +635,9 @@ def _service_hosting_scans(tree: ast.AST) -> list[str]:
 
     tests_context = False
     for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute) and node.attr == _HOSTING_FIELD:
-            tests_context = True
-        elif (
+        if (
+            isinstance(node, ast.Attribute) and node.attr == _HOSTING_FIELD
+        ) or (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id == "getattr"
@@ -699,26 +700,25 @@ def test_service_hosting_ratchet_detects_the_deleted_resolver():
         "            return service\n"
         "    return None\n"
     )
-    assert _service_hosting_scans(
-        deleted_resolver
-    ), "scanner missed the deleted Service-hosting resolver"
+    assert _service_hosting_scans(deleted_resolver), (
+        "scanner missed the deleted Service-hosting resolver"
+    )
 
     attribute_form = _corpus.parse_inline(
         "def f(dl, case_id):\n"
         '    return [s for s in dl.by_type("Service") if s.context == case_id]\n'
     )
-    assert _service_hosting_scans(
-        attribute_form
-    ), "scanner missed the attribute-access form of the context test"
+    assert _service_hosting_scans(attribute_form), (
+        "scanner missed the attribute-access form of the context test"
+    )
 
     # Handling a Service without testing where it hosts is not a violation.
     benign = _corpus.parse_inline(
-        "def f(dl):\n"
-        '    return [s.id_ for s in dl.list_objects("Service")]\n'
+        'def f(dl):\n    return [s.id_ for s in dl.list_objects("Service")]\n'
     )
-    assert not _service_hosting_scans(
-        benign
-    ), "scanner flagged Service enumeration with no hosting test"
+    assert not _service_hosting_scans(benign), (
+        "scanner flagged Service enumeration with no hosting test"
+    )
 
 
 def test_ratchet_detects_a_shape_branch():
@@ -751,9 +751,9 @@ def test_ratchet_detects_a_shape_branch():
     docstring_only = _corpus.parse_inline(
         '"""Explains why .../actors/case-actor is cosmetic."""\n'
     )
-    assert not _shape_branches(
-        docstring_only
-    ), "scanner flagged a docstring mention"
+    assert not _shape_branches(docstring_only), (
+        "scanner flagged a docstring mention"
+    )
 
 
 def test_ratchet_is_not_evaded_by_binding_the_literal_to_a_name():
@@ -772,27 +772,27 @@ def test_ratchet_is_not_evaded_by_binding_the_literal_to_a_name():
         '        f"/actors/{CASE_ACTOR_SEGMENT}"\n'
         "    )\n"
     )
-    assert _shape_branches(
-        via_import
-    ), "scanner missed a branch built from the imported segment constant"
+    assert _shape_branches(via_import), (
+        "scanner missed a branch built from the imported segment constant"
+    )
 
     via_local_constant = _corpus.parse_inline(
         'SUFFIX = "/actors/case-actor"\n'
         "def f(actor_id):\n"
         "    return actor_id.endswith(SUFFIX)\n"
     )
-    assert _shape_branches(
-        via_local_constant
-    ), "scanner missed a branch built from a locally bound constant"
+    assert _shape_branches(via_local_constant), (
+        "scanner missed a branch built from a locally bound constant"
+    )
 
     aliased_import = _corpus.parse_inline(
         "from x import CASE_ACTOR_SEGMENT as SEG\n"
         "def f(a):\n"
         "    return a == SEG\n"
     )
-    assert _shape_branches(
-        aliased_import
-    ), "scanner missed a branch on an as-renamed segment import"
+    assert _shape_branches(aliased_import), (
+        "scanner missed a branch on an as-renamed segment import"
+    )
 
 
 def test_ratchet_is_not_evaded_by_the_annotated_or_tuple_binding():
@@ -808,18 +808,18 @@ def test_ratchet_is_not_evaded_by_the_annotated_or_tuple_binding():
         "def f(actor_id):\n"
         '    return actor_id.rstrip("/").endswith(_SUFFIX)\n'
     )
-    assert _shape_branches(
-        annotated
-    ), "scanner missed a branch built from an annotated constant"
+    assert _shape_branches(annotated), (
+        "scanner missed a branch built from an annotated constant"
+    )
 
     tuple_target = _corpus.parse_inline(
         '_SUFFIX, _OTHER = "/actors/case-actor", None\n'
         "def f(actor_id):\n"
         "    return actor_id.endswith(_SUFFIX)\n"
     )
-    assert _shape_branches(
-        tuple_target
-    ), "scanner missed a branch built from a tuple-bound constant"
+    assert _shape_branches(tuple_target), (
+        "scanner missed a branch built from a tuple-bound constant"
+    )
 
 
 def test_ratchet_is_not_evaded_by_comparing_against_the_built_identity():
@@ -839,9 +839,9 @@ def test_ratchet_is_not_evaded_by_comparing_against_the_built_identity():
         "def is_the_authority(actor_id):\n"
         "    return actor_id == case_actor_identity()\n"
     )
-    assert _shape_branches(
-        via_builder
-    ), "scanner missed a comparison against the built provisioning identity"
+    assert _shape_branches(via_builder), (
+        "scanner missed a comparison against the built provisioning identity"
+    )
 
 
 def test_ratchet_is_not_evaded_by_a_helper_or_a_match_statement():
@@ -851,18 +851,18 @@ def test_ratchet_is_not_evaded_by_a_helper_or_a_match_statement():
         "def f(actor_id):\n"
         "    return actor_id.endswith(_suffix())\n"
     )
-    assert _shape_branches(
-        via_helper
-    ), "scanner missed a branch built from a helper that returns the suffix"
+    assert _shape_branches(via_helper), (
+        "scanner missed a branch built from a helper that returns the suffix"
+    )
 
     via_partition = _corpus.parse_inline(
         "def f(actor_id):\n"
         '    _, sep, _ = actor_id.partition("/actors/case-actor")\n'
         "    return bool(sep)\n"
     )
-    assert _shape_branches(
-        via_partition
-    ), "scanner missed a partition()-as-shape-test"
+    assert _shape_branches(via_partition), (
+        "scanner missed a partition()-as-shape-test"
+    )
 
     via_match = _corpus.parse_inline(
         "def f(actor_id):\n"
@@ -872,9 +872,9 @@ def test_ratchet_is_not_evaded_by_a_helper_or_a_match_statement():
         "        case _:\n"
         "            return False\n"
     )
-    assert _shape_branches(
-        via_match
-    ), "scanner missed a match/case on the case-actor shape"
+    assert _shape_branches(via_match), (
+        "scanner missed a match/case on the case-actor shape"
+    )
 
 
 def test_provisioning_exemption_is_scoped_to_the_function_not_the_file():
@@ -902,6 +902,6 @@ def test_provisioning_exemption_is_scoped_to_the_function_not_the_file():
         "the renamed predicate outside case_actor_identity() must be flagged"
         " even though its module holds the provisioning exemption"
     )
-    assert all(
-        "line 4" not in hit for hit in hits
-    ), f"the exempt builder's own suffix test must not be flagged: {hits}"
+    assert all("line 4" not in hit for hit in hits), (
+        f"the exempt builder's own suffix test must not be flagged: {hits}"
+    )

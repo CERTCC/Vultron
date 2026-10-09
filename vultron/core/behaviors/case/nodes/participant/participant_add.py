@@ -20,22 +20,28 @@ from typing import cast
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
-    _queue_participant_add_notification,
+)
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     ParticipantStatus,
 )
-from vultron.core.models.vultron_types import VultronParticipant
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.states.rm import RM as _RM
 from vultron.enums.roles import CVDRole
-from vultron.core.models._helpers import _as_id
 
 
-class CreateParticipantInitialStatusNode(DataLayerActionWithPorts):
+class CreateParticipantInitialStatusNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply the participant's initial RM.ACCEPTED status via the writer node.
 
     Pre-builds a :class:`CreateParticipantStatusNode` in ``__init__`` and
@@ -55,10 +61,6 @@ class CreateParticipantInitialStatusNode(DataLayerActionWithPorts):
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.participant_actor_id = participant_actor_id
-        from vultron.core.behaviors.case.nodes.participant.status import (
-            CreateParticipantStatusNode,
-        )
-        from vultron.core.states.rm import RM as _RM
 
         self._status_node = CreateParticipantStatusNode(
             actor_id=participant_actor_id,
@@ -96,8 +98,6 @@ class CreateParticipantInitialStatusNode(DataLayerActionWithPorts):
             self.feedback_message = "actor_id not set"
             return Status.FAILURE
 
-        from vultron.core.behaviors.bridge import BTBridge
-
         result = BTBridge(datalayer=self.datalayer).execute_with_setup(
             self._status_node,
             actor_id=self.actor_id,
@@ -107,7 +107,7 @@ class CreateParticipantInitialStatusNode(DataLayerActionWithPorts):
 
 
 class CreateParticipantNode(DataLayerActionWithPorts):
-    """Create an in-memory VultronParticipant and store it on the blackboard."""
+    """Create an in-memory CaseParticipant and store it on the blackboard."""
 
     def __init__(
         self,
@@ -173,7 +173,7 @@ class CreateParticipantNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        participant = VultronParticipant(
+        participant = CaseParticipant(
             attributed_to=self.participant_actor_id,
             context=case_id,
             case_roles=self.roles,
@@ -188,7 +188,7 @@ class CreateParticipantNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class AttachParticipantToCaseNode(DataLayerActionWithPorts):
+class AttachParticipantToCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     """Attach the participant to case surfaces and persist the participant row."""
 
     def __init__(
@@ -238,7 +238,7 @@ class AttachParticipantToCaseNode(DataLayerActionWithPorts):
         if not isinstance(case_id, str):
             self.logger.error("%s: case_id not found in blackboard", self.name)
             return Status.FAILURE
-        if not isinstance(participant, VultronParticipant):
+        if not isinstance(participant, CaseParticipant):
             self.logger.error(
                 "%s: %s not found in blackboard",
                 self.name,
@@ -266,7 +266,9 @@ class AttachParticipantToCaseNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RecordParticipantAddedEventNode(DataLayerActionWithPorts):
+class RecordParticipantAddedEventNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Record participant_added event and persist case updates."""
 
     def __init__(
@@ -399,7 +401,9 @@ class CaseHasNoActiveEmbargoNode(DataLayerActionWithPorts):
         )
 
 
-class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
+class SeedParticipantAsSignatoryNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Seed the new participant as SIGNATORY when an embargo is active."""
 
     def __init__(
@@ -442,9 +446,7 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
 
         stored_case = self._stored_case
         participant = self._participant
-        if stored_case is None or not isinstance(
-            participant, VultronParticipant
-        ):
+        if stored_case is None or not isinstance(participant, CaseParticipant):
             self.logger.error(
                 "%s: %s/%s missing in blackboard",
                 self.name,
@@ -462,13 +464,9 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        if participant.embargo_consent_state not in (
-            PEC.SIGNATORY,
-            PEC.DECLINED,
-        ):
-            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
-        if active_embargo_id not in participant.accepted_embargo_ids:
-            participant.accepted_embargo_ids.append(active_embargo_id)
+        # An ACCEPTED row stays; a participant that declined this embargo is
+        # not signed (ADR-0118).
+        participant.sign_embargo(active_embargo_id)
         self.datalayer.save(participant)
         self.logger.info(
             "Seeded participant '%s' (actor '%s') as SIGNATORY"
@@ -477,65 +475,4 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
             self.participant_actor_id,
             stored_case.id_,
         )
-        return Status.SUCCESS
-
-
-class QueueAddParticipantNotificationNode(DataLayerActionWithPorts):
-    """Queue Add(CaseParticipant) outbox notification for the sender actor."""
-
-    def __init__(
-        self,
-        participant_actor_id: str,
-        report_id: str | None = None,
-        name: str | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.participant_actor_id = participant_actor_id
-        _seg = report_id.split("/")[-1] if report_id else "default"
-        self._new_participant_id_key = f"new_participant_id_{_seg}"
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "case_id": PortInformation(data_type=str, required=True),
-        "new_participant_id": PortInformation(data_type=str, required=True),
-    }
-
-    def _instance_port_remappings(self) -> dict[str, str]:
-        return {
-            "case_id": "/case_id",
-            "new_participant_id": f"/{self._new_participant_id_key}",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.case_id = self._try_get_input("case_id")
-        self.new_participant_id = self._try_get_input("new_participant_id")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        case_id = self.case_id
-        participant_id = self.new_participant_id
-        if not isinstance(case_id, str) or not isinstance(participant_id, str):
-            self.logger.error(
-                "%s: case_id/%s not found in blackboard",
-                self.name,
-                self._new_participant_id_key,
-            )
-            return Status.FAILURE
-
-        if not _queue_participant_add_notification(
-            self.datalayer,
-            self.name,
-            self.logger,
-            self.actor_id,
-            self.participant_actor_id,
-            participant_id,
-            case_id,
-            trigger_activity=self.trigger_activity_factory,
-        ):
-            return Status.FAILURE
         return Status.SUCCESS

@@ -1,11 +1,12 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
-from typing import TYPE_CHECKING
-
-from py_trees.common import Status
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.store_received_object import (
+    StoreReceivedObjectNode,
+)
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
     create_offer_ownership_transfer_tree,
@@ -16,29 +17,51 @@ from vultron.core.models.events.actor import (
     OfferCaseOwnershipTransferReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import (
-    _idempotent_create,
+    is_recipient,
     resolve_receiving_actor_id,
+)
+from vultron.core.use_cases.received._bt_verdict import (
+    applied_or_raise,
+    intake_verdict,
+    not_case_manager,
+    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
+
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class OfferCaseOwnershipTransferReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for ownership offer"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
         request: OfferCaseOwnershipTransferReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: OfferCaseOwnershipTransferReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
@@ -59,7 +82,8 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         offerer of record; nothing downstream re-checks it, because
         CLP-07-003 validates `payloadSnapshot.actor` and not `attributed_to`.
         Outside the delegated shape the sender is the offerer, which is also the
-        correct answer when the case has no CaseActor at all (CM-24-003).
+        correct answer when the case has no CaseActor at all (the retired
+        send-directly arm; see CM-24-006).
         """
         request = self._request
         delegated_author = _as_id(request.activity.attributed_to)
@@ -85,32 +109,37 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         )
         return request.actor_id
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
-        _idempotent_create(
-            self._dl,
-            request.activity_type,
-            request.activity_id,
-            request.activity,
-            "OfferCaseOwnershipTransfer",
-            request.activity_id,
-        )
-
+        # Resolve the receiver before any write: it raises when no actor owns
+        # this store, and a refusal must not leave the Offer behind (#2667).
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
 
-        case_id = _as_id(request.activity.object_)
-        if case_id is None:
-            logger.warning(
-                "OfferCaseOwnershipTransferReceived: missing case_id"
-                " on offer '%s' — skipping cascade",
-                request.activity_id,
+        # Two receivers are entitled to this Offer: the CASE_MANAGER it is
+        # addressed to (CM-21-005) and the transferee the CASE_MANAGER forwards
+        # it to.  Both are named in `to`; anyone else holds a misaddressed
+        # copy, refuses, and stores nothing (HP-01-005, #3752).
+        if not is_recipient(receiving_actor_id, request.activity):
+            verdict = HandlerResult.refused(
+                f"'{receiving_actor_id}' is not a recipient of ownership"
+                f"-transfer Offer '{request.activity_id}'"
             )
-            return
+            logger.warning(
+                "OfferCaseOwnershipTransferReceived: refused '%s': %s",
+                request.activity_id,
+                verdict.reason,
+            )
+            return verdict
 
+        case_id = _as_id(request.activity.object_)
         transferee_id = _as_id(request.activity.target)
-        original_actor_id = self._resolve_offering_actor_id(case_id)
+        original_actor_id = (
+            self._resolve_offering_actor_id(case_id)
+            if case_id is not None
+            else None
+        )
 
         # One tree, run once (CLP-10-005).  The guarded commit fires only when
         # receiving_actor_id is the CaseActor (CheckIsCaseManagerNode gate), and
@@ -120,38 +149,76 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             case_id=case_id,
             transferee_id=transferee_id,
             original_actor_id=original_actor_id,
+            store_offer=StoreReceivedObjectNode(
+                request.activity_type,
+                request.activity_id,
+                request.activity,
+                "OfferCaseOwnershipTransfer",
+                request.activity_id,
+            ),
         )
         bridge = BTBridge(
-            datalayer=self._dl, trigger_activity=self._trigger_activity
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "OfferOwnershipTransferBT did not fully succeed"
-                " for case '%s': %s",
-                case_id,
-                BTBridge.get_failure_reason(tree),
+        if case_id is None:
+            # The tree kept the Offer (intake and the store node); there is
+            # no case to act on.
+            applied_or_raise(tree, result, label="OfferOwnershipTransferBT")
+            logger.warning(
+                "OfferCaseOwnershipTransferReceived: missing case_id"
+                " on offer '%s' — refusing",
+                request.activity_id,
             )
+            return HandlerResult.refused(
+                "Offer(ownership transfer) names no case"
+            )
+        verdict = verdict_from_bt(
+            tree, result, label="OfferOwnershipTransferBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "OfferOwnershipTransferBT refused for case '%s': %s",
+                case_id,
+                verdict.reason,
+            )
+            return verdict
+        if not_case_manager(tree):
+            # The cascade is the CASE_MANAGER's; the transferee (an addressee,
+            # checked above) only stores the forwarded Offer, so what it did
+            # is what intake and the store did (HP-01-003).
+            return intake_verdict(
+                tree, result, label="OfferOwnershipTransferBT"
+            )
+        return verdict
 
 
 class AcceptCaseOwnershipTransferReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for ownership accept"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
         request: AcceptCaseOwnershipTransferReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AcceptCaseOwnershipTransferReceivedEvent = request
         self._sync_port = sync_port
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -162,41 +229,61 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             logger.warning(
                 "accept_case_ownership_transfer: missing case_id on request"
             )
-            return
+            return HandlerResult.refused(
+                "Accept(ownership transfer) names no case"
+            )
         tree = create_accept_ownership_transfer_tree(
             case_id=case_id,
             new_owner_id=new_owner_id,
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
+        verdict = verdict_from_bt(
+            tree, result, label="AcceptOwnershipTransferBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
-                "AcceptOwnershipTransferBT did not succeed"
-                " for case '%s' new_owner '%s': %s",
+                "AcceptOwnershipTransferBT refused for case '%s' new_owner"
+                " '%s': %s",
                 case_id,
                 new_owner_id,
-                BTBridge.get_failure_reason(tree),
+                verdict.reason,
             )
+        return verdict
 
 
 class RejectCaseOwnershipTransferReceivedUseCase:
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for ownership reject"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
         request: RejectCaseOwnershipTransferReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: RejectCaseOwnershipTransferReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         logger.info(
             "Actor '%s' rejected ownership transfer offer '%s' — ownership unchanged",
             request.actor_id,
             request.offer_id,
+        )
+        return HandlerResult.skipped(
+            "ownership transfer declined; nothing to undo"
         )

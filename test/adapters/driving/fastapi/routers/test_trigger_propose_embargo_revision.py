@@ -20,11 +20,14 @@ Tests for the propose-embargo-revision trigger endpoint
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
-import pytest
-from fastapi import status
 from unittest.mock import AsyncMock, patch
 
+import pytest
+from fastapi import status
+
 from vultron.core.states.em import EM
+
+from .conftest import make_case_manager
 
 FUTURE_END_TIME = "2099-12-01T00:00:00Z"
 
@@ -38,8 +41,7 @@ FUTURE_END_TIME = "2099-12-01T00:00:00Z"
 def _no_outbox_delivery():
     """Suppress real outbox delivery for every test in this module."""
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
+        "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield
@@ -148,6 +150,7 @@ def test_trigger_propose_embargo_revision_sets_em_state_to_revise(
 ):
     """propose-embargo-revision transitions case EM state from ACTIVE to REVISE."""
     case_obj, _ = case_with_embargo
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo-revision",

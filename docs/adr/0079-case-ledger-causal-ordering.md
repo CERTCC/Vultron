@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-08-26
+created: 2026-08-26
+updated: 2026-08-26
+revision: 1
 deciders: ahouseholder
 consulted: >-
   notes/case-ledger-authority.md, specs/case-ledger-processing.yaml,
@@ -11,6 +14,7 @@ consulted: >-
 informed: >-
   specs/case-ledger-processing.yaml CLP-14, CLP-15,
   specs/multi-actor-demo.yaml DEMOMA-22-005
+stakeholder_type: [project-contributor]
 ---
 
 # CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order

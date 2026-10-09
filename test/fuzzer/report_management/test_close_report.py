@@ -24,7 +24,6 @@ Tests cover:
 import py_trees
 import pytest
 from py_trees.common import Status
-from typing import Type
 
 from vultron.demo.fuzzer.base import WeightedBehavior
 from vultron.demo.fuzzer.report_management.close_report import (
@@ -39,7 +38,7 @@ from vultron.demo.fuzzer.report_management.close_report import (
 _TRIALS = 10_000
 _TOLERANCE = 0.03  # ±3 percentage points
 
-_ALL_NODES: list[tuple[Type[WeightedBehavior], float]] = [
+_ALL_NODES: list[tuple[type[WeightedBehavior], float]] = [
     (OtherCloseCriteriaMet, 1.0 / 4.0),
     (PreCloseAction, 1.0),
 ]
@@ -50,7 +49,7 @@ _ALL_NODES: list[tuple[Type[WeightedBehavior], float]] = [
 # ---------------------------------------------------------------------------
 
 
-def _run_trials(node_cls: Type[WeightedBehavior], n: int = _TRIALS) -> float:
+def _run_trials(node_cls: type[WeightedBehavior], n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
     node.setup()
@@ -66,28 +65,28 @@ def _run_trials(node_cls: Type[WeightedBehavior], n: int = _TRIALS) -> float:
 class TestAllNodesAreWeightedBehavior:
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
     def test_is_weighted_behavior_subclass(
-        self, cls: Type[WeightedBehavior], _rate: float
+        self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
-        assert issubclass(
-            cls, WeightedBehavior
-        ), f"{cls.__name__} must be a WeightedBehavior subclass"
+        assert issubclass(cls, WeightedBehavior), (
+            f"{cls.__name__} must be a WeightedBehavior subclass"
+        )
 
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
     def test_is_py_trees_behaviour(
-        self, cls: Type[WeightedBehavior], _rate: float
+        self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
         assert isinstance(cls(), py_trees.behaviour.Behaviour)
 
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
     def test_default_name_is_class_name(
-        self, cls: Type[WeightedBehavior], _rate: float
+        self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
         assert cls().name == cls.__name__
 
     def test_all_2_nodes_present(self) -> None:
-        assert (
-            len(_ALL_NODES) == 2
-        ), f"Expected 2 close-report fuzzer nodes, found {len(_ALL_NODES)}"
+        assert len(_ALL_NODES) == 2, (
+            f"Expected 2 close-report fuzzer nodes, found {len(_ALL_NODES)}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +97,7 @@ class TestAllNodesAreWeightedBehavior:
 class TestDocstrings:
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
     def test_has_non_empty_docstring(
-        self, cls: Type[WeightedBehavior], _rate: float
+        self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
         doc = cls.__doc__ or ""
         assert len(doc.strip()) > 0, f"{cls.__name__} has an empty docstring"
@@ -117,12 +116,12 @@ class TestDocstrings:
         ],
     )
     def test_docstring_has_required_section(
-        self, cls: Type[WeightedBehavior], _rate: float, section: str
+        self, cls: type[WeightedBehavior], _rate: float, section: str
     ) -> None:
         doc = (cls.__doc__ or "").lower()
-        assert (
-            section in doc
-        ), f"{cls.__name__} docstring missing '{section}' section"
+        assert section in doc, (
+            f"{cls.__name__} docstring missing '{section}' section"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +132,7 @@ class TestDocstrings:
 class TestSuccessRateAttributes:
     @pytest.mark.parametrize("cls,expected_rate", _ALL_NODES)
     def test_success_rate_attribute(
-        self, cls: Type[WeightedBehavior], expected_rate: float
+        self, cls: type[WeightedBehavior], expected_rate: float
     ) -> None:
         assert abs(cls.success_rate - expected_rate) < 1e-9, (
             f"{cls.__name__}: success_rate={cls.success_rate!r}, "
@@ -144,7 +143,7 @@ class TestSuccessRateAttributes:
 class TestUpdateReturnsValidStatus:
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
     def test_update_returns_success_or_failure(
-        self, cls: Type[WeightedBehavior], _rate: float
+        self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
         node = cls()
         node.setup()
@@ -153,7 +152,7 @@ class TestUpdateReturnsValidStatus:
 
     @pytest.mark.parametrize("cls,_rate", _ALL_NODES)
     def test_update_never_returns_running(
-        self, cls: Type[WeightedBehavior], _rate: float
+        self, cls: type[WeightedBehavior], _rate: float
     ) -> None:
         node = cls()
         node.setup()

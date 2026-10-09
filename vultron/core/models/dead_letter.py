@@ -27,13 +27,12 @@ from typing import Any, Literal
 from pydantic import Field
 
 from vultron.core.models.base import (
+    CoreRecord,
     NonEmptyString,
-    ValidatedAssignmentMixin,
-    VultronBase,
 )
 
 
-class DeadLetterRecord(ValidatedAssignmentMixin, VultronBase):
+class DeadLetterRecord(CoreRecord):
     """Record of an inbox activity whose ``object_`` URI could not be resolved.
 
     Attributes:
@@ -55,5 +54,5 @@ class DeadLetterRecord(ValidatedAssignmentMixin, VultronBase):
     actor_id: NonEmptyString
     activity_id: NonEmptyString
     activity_type: NonEmptyString | None = None
-    activity_summary: dict[str, Any] | None = None
+    activity_summary: dict[NonEmptyString, Any] | None = None
     received_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

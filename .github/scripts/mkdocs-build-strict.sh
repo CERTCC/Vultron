@@ -7,12 +7,13 @@
 # citations.
 #
 # This wrapper counts these false positives and exits with code 0 if only
-# false-positive warnings are present.
+# false-positive warnings are present and mkdocs reports it aborted for them.
 #
 # It suppresses ONLY the classified false positives. Any other non-zero exit
 # from mkdocs -- a config error, a plugin traceback, ERROR-level output -- is
-# propagated, because such a failure emits no "WARNING -" lines and would
-# otherwise be counted as zero real warnings and silently pass the gate.
+# propagated, even when a false positive was printed beside it: such a failure
+# emits no real "WARNING -" line, so without the strict-abort check it would be
+# counted as zero real warnings and silently pass the gate (#3051).
 
 set -e
 
@@ -72,12 +73,16 @@ if [ "$ERRORS" -gt 0 ]; then
     exit 1
 fi
 
-# No real warnings and no errors. If mkdocs still exited non-zero, it failed for
-# a reason this wrapper cannot classify, and there is nothing to suppress --
-# propagate rather than passing the gate on an unexplained failure.
-if [ "$MKDOCS_RC" -ne 0 ] && [ "$FALSE" -eq 0 ]; then
+# No real warnings and no errors. A non-zero exit is explained -- and so
+# forgivable -- only when mkdocs itself says it aborted for warnings, and the
+# only warnings were suppressed ones. Anything else (a traceback, a config
+# error, a plugin crash) failed for a reason this wrapper cannot classify, even
+# if a forgivable warning was printed beside it: propagate it.
+STRICT_ABORT=$(grep -c "^Aborted with .* in strict mode!" "$TEMP_OUTPUT" || true)
+STRICT_ABORT=${STRICT_ABORT:-0}
+if [ "$MKDOCS_RC" -ne 0 ] && { [ "$FALSE" -eq 0 ] || [ "$STRICT_ABORT" -eq 0 ]; }; then
     echo ""
-    echo "✗ mkdocs build --strict exited $MKDOCS_RC with no classifiable warnings"
+    echo "✗ mkdocs build --strict exited $MKDOCS_RC for a reason other than warnings"
     echo "  (see output above — likely a config error or a plugin failure)"
     exit "$MKDOCS_RC"
 fi

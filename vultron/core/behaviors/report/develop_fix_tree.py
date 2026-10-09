@@ -45,6 +45,9 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.develop_fix import (
+    DEVELOP_FIX_DETERMINISTIC,
+)
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
 )
@@ -96,10 +99,6 @@ def create_develop_fix_tree(
     Returns:
         Root node of the develop-fix behavior tree (Fallback).
     """
-    from vultron.core.behaviors.call_out.bundles.develop_fix import (
-        DEVELOP_FIX_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else DEVELOP_FIX_DETERMINISTIC
 
     result_out: dict = {}

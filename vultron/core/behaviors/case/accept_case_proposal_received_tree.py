@@ -1,7 +1,7 @@
 """BT tree for the AcceptCaseProposal received-side use case.
 
-Vendor side: handles an inbound ``Accept(as_CaseProposal)`` by recording
-the case-actor URI in the vendor's ``VultronReportCaseLink``, making it
+Report-receiver side: handles an inbound ``Accept(as_CaseProposal)`` by recording
+the case-actor URI in the receiver's ``VultronReportCaseLink``, making it
 available for the subsequent ``Create(VulnerabilityCase)`` bootstrap.
 
 Spec: ``specs/case-proposal.yaml`` CP-06-001, CP-06-003.
@@ -26,23 +26,31 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsProposalAddresseeNode,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
 logger = logging.getLogger(__name__)
 
 
-class _RecordCaseActorAcceptanceNode(DataLayerAction):
-    """Update the vendor's VultronReportCaseLink with the case-actor URI.
+class RecordCaseActorAcceptanceNode(DataLayerAction):
+    """Update the receiver's VultronReportCaseLink with the case-actor URI.
 
-    When the case-actor service accepts the proposal, the vendor records
-    the case-actor URI as ``trusted_case_actor_id`` so the subsequent
+    When the case-actor service accepts the proposal, the receiver records
+    the case-actor URI as ``case_manager_id`` so the subsequent
     ``Create(VulnerabilityCase)`` bootstrap can validate the sender
     (CP-06-003, CBT-01-006).
 
-    Returns SUCCESS even when no matching link is found, because the vendor
+    Returns SUCCESS even when no matching link is found, because the receiver
     may not always have submitted a report offer before the proposal flow
-    (e.g. relay scenarios).  Missing-link situations are logged at WARNING.
+    (e.g. relay scenarios).  Missing-link situations are logged at WARNING,
+    and ``link_found`` stays ``False`` so the handler can report the no-op
+    (#2255).
     """
 
     def __init__(
@@ -52,6 +60,7 @@ class _RecordCaseActorAcceptanceNode(DataLayerAction):
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        self.link_found = False
         self._report_id = report_id
         self._case_actor_id = case_actor_id
 
@@ -66,6 +75,7 @@ class _RecordCaseActorAcceptanceNode(DataLayerAction):
         link_id = VultronReportCaseLink.build_id(self._report_id)
         link = self.datalayer.read(link_id)
 
+        self.link_found = isinstance(link, VultronReportCaseLink)
         if not isinstance(link, VultronReportCaseLink):
             logger.warning(
                 "%s: No VultronReportCaseLink found for report '%s'"
@@ -75,7 +85,19 @@ class _RecordCaseActorAcceptanceNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        link.trusted_case_actor_id = self._case_actor_id
+        if link.case_id is not None:
+            # CP-06-005: once a case is established for the report, no reply
+            # replaces the trusted CASE_MANAGER.
+            logger.info(
+                "%s: case '%s' already established for report '%s'"
+                " — leaving case_manager_id unchanged (CP-06-005)",
+                self.name,
+                link.case_id,
+                self._report_id,
+            )
+            return Status.SUCCESS
+
+        link.case_manager_id = self._case_actor_id
         self.datalayer.save(link)
         logger.info(
             "%s: Recorded case-actor URI '%s' for report '%s' (CP-06-003)",
@@ -92,7 +114,7 @@ def create_accept_case_proposal_received_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing ``Accept(as_CaseProposal)``.
 
-    Records the case-actor URI in the vendor's ``VultronReportCaseLink``
+    Records the case-actor URI in the receiver's ``VultronReportCaseLink``
     so the subsequent ``Create(VulnerabilityCase)`` bootstrap step can
     validate the sender (CP-06-003, CBT-01-006).
 
@@ -102,13 +124,18 @@ def create_accept_case_proposal_received_tree(
             proposal (the ``actor`` of the inbound ``Accept`` activity).
 
     Returns:
-        A py_trees Sequence behaviour ready for ``BTBridge.execute_with_setup``.
+        A py_trees Sequence behaviour (sender guard, then the record)
+        ready for ``BTBridge.execute_with_setup``.
     """
-    return py_trees.composites.Sequence(
+    return create_receive_activity_tree(
         name="AcceptCaseProposalReceivedBT",
-        memory=False,
-        children=[
-            _RecordCaseActorAcceptanceNode(
+        case_id=None,
+        sender_guard=SenderIsProposalAddresseeNode(
+            report_id=report_id, sender_actor_id=case_actor_id
+        ),
+        precondition_guards=[],
+        replica_effects=[
+            RecordCaseActorAcceptanceNode(
                 report_id=report_id,
                 case_actor_id=case_actor_id,
             ),

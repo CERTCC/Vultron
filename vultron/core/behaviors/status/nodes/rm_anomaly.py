@@ -23,7 +23,6 @@ Per specs/received-status-handling.yaml RSH-06-004, RSH-06-005.
 """
 
 import logging
-from typing import cast
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
@@ -31,14 +30,14 @@ from py_trees.ports import NoDataAvailable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
+    _EmitSingleActivityBase,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 
 logger = logging.getLogger(__name__)
 
 
-class EmitRMGapNoteNode(DataLayerActionWithPorts):
+class EmitRMGapNoteNode(_EmitSingleActivityBase):
     """Emit ``Add(Note, VulnerabilityCase)`` when an RM transition anomaly is detected.
 
     Reads the ``rm_transition_anomaly`` blackboard key written by
@@ -145,9 +144,10 @@ class EmitRMGapNoteNode(DataLayerActionWithPorts):
                 actor=self.actor_id,
                 to=[self.sender_actor_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            # factory.add_note_to_case returns (id, blob); pass empty blob
+            # since no captured dict is present.
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "EmitRMGapNoteNode: queued Add(Note,Case) '%s' for RM %s"
                 " anomaly (%s → %s) in case '%s' (RSH-06-004)",
@@ -157,7 +157,7 @@ class EmitRMGapNoteNode(DataLayerActionWithPorts):
                 to_rm,
                 self.case_id,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.warning(
                 "EmitRMGapNoteNode: failed to emit note for RM anomaly"
                 " in case '%s': %s",
@@ -166,3 +166,19 @@ class EmitRMGapNoteNode(DataLayerActionWithPorts):
             )
 
         return Status.SUCCESS
+
+
+def rm_gap_note(
+    sender_actor_id: str, case_id: str | None
+) -> EmitRMGapNoteNode:
+    """Return the RSH-06-004 note emitter for the sender's RM declaration.
+
+    The one construction every received RM path uses, whether the note
+    follows an accepted gap (an effect) or a refused regression (a refusal
+    effect, CLP-10-022).
+    """
+    return EmitRMGapNoteNode(
+        sender_actor_id=sender_actor_id,
+        case_id=case_id,
+        name="EmitRMGapNote",
+    )

@@ -13,12 +13,149 @@
 
 """Shared helpers for demo test fixtures."""
 
+import contextlib
+import importlib
+from collections.abc import Iterator, Mapping, Sequence
+from types import ModuleType, SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
+from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
+from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers import invite_chain, runner
 from vultron.demo.utils import DataLayerClient
+
+# Names the invite chain (``vultron.demo.helpers.invite_chain``) calls itself.
+_CHAIN_OWNED = frozenset({"find_case_invite_for_actor"})
+# Names both a scenario and the invite chain call, so both are stubbed.
+_CHAIN_SHARED = frozenset({"wait_for_case_on_container"})
+
+
+@contextlib.contextmanager
+def patch_chain_shared(
+    demo: ModuleType, name: str, **kwargs: Any
+) -> Iterator[MagicMock]:
+    """Stub *name* on *demo* and on the invite chain with one shared mock.
+
+    Both call it (:data:`_CHAIN_SHARED`), so a test asserting on the mock sees
+    the scenario's calls and the chain's alike.
+    """
+    with patch.object(demo, name, **kwargs) as mock:
+        with patch.object(invite_chain, name, new=mock):
+            yield mock
+
+
+def mock_actor(id_: str = "urn:test:actor") -> MagicMock:
+    """A stand-in actor whose only observed attribute is ``id_``."""
+    actor = MagicMock()
+    actor.id_ = id_
+    return actor
+
+
+def mock_case(id_: str = "urn:test:case") -> MagicMock:
+    """A stand-in ``as_VulnerabilityCase`` whose only observed attribute is ``id_``."""
+    case = MagicMock()
+    case.id_ = id_
+    return case
+
+
+@contextlib.contextmanager
+def patched_report_submission(
+    demo: ModuleType,
+    *,
+    seed_fn: str,
+    seeded_actors: Sequence[MagicMock],
+    actor_lookups: Sequence[MagicMock],
+    case: MagicMock,
+    demo_patches: Mapping[str, Mapping[str, Any]],
+    session_patches: Sequence[str] = (),
+) -> Iterator[dict[str, MagicMock]]:
+    """Patch every collaborator of a scenario's ``_phase_report_submission``.
+
+    One patch stack for the call-shape tests of every scenario module (CS-22-001):
+    the seeding, report-submission and RM-triage collaborators are stubbed the
+    same way in each, and the scenario's own ``demo_gate`` / ``demo_check`` /
+    ``demo_step`` become ``nullcontext`` so a test observes call shapes, never
+    gate control flow.  ``ActorSession.invite_actor_to_case`` returns a
+    successful invite; further ``ActorSession`` methods named in
+    *session_patches* are stubbed bare.
+
+    *demo_patches* maps a name on *demo* to the ``patch.object`` kwargs for it
+    (``{}`` for a bare ``MagicMock``).  A collaborator left out of it runs for
+    real — that is how a test lets ``wait_for_replica_ledger_coverage`` execute
+    while stubbing its primitives elsewhere.
+
+    Yields the mocks by name so the test asserts on the one it cares about.
+    """
+    with contextlib.ExitStack() as stack:
+        mocks: dict[str, MagicMock] = {}
+        stack.enter_context(patch.object(demo, "reset_containers"))
+        stack.enter_context(
+            patch.object(demo, seed_fn, return_value=tuple(seeded_actors))
+        )
+        # Append a placeholder for the case-actor lookup added in #4165: the
+        # CASE_MANAGER actor looked up to call set-stub-summary before each
+        # invite in _phase_report_submission.
+        stack.enter_context(
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                side_effect=[*list(actor_lookups), MagicMock()],
+            )
+        )
+        # set_stub_summary is seeding infrastructure not under test here;
+        # stub it so tests do not fail on Pydantic validation of a MagicMock.
+        stack.enter_context(patch.object(ActorSession, "set_stub_summary"))
+        stack.enter_context(
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
+            )
+        )
+        stack.enter_context(
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case)
+        )
+        for name, kwargs in demo_patches.items():
+            # The invite chain owns the invite lookup and the invitee's
+            # replica wait (#4192); the scenario still owns its other waits.
+            if name in _CHAIN_OWNED:
+                mocks[name] = stack.enter_context(
+                    patch.object(invite_chain, name, **kwargs)
+                )
+            else:
+                mocks[name] = stack.enter_context(
+                    patch.object(demo, name, **kwargs)
+                )
+            if name in _CHAIN_SHARED:
+                stack.enter_context(
+                    patch.object(invite_chain, name, new=mocks[name])
+                )
+        mocks["invite_actor_to_case"] = stack.enter_context(
+            patch.object(
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(
+                    activity=MagicMock(id_="urn:test:invite")
+                ),
+            )
+        )
+        for name in session_patches:
+            mocks[name] = stack.enter_context(patch.object(ActorSession, name))
+        mock_vc = stack.enter_context(
+            patch.object(demo, "as_VulnerabilityCase")
+        )
+        mock_vc.model_validate.return_value = case
+        for name in ("demo_gate", "demo_check", "demo_step"):
+            stack.enter_context(
+                patch.object(
+                    demo, name, side_effect=lambda _: contextlib.nullcontext()
+                )
+            )
+        yield mocks
 
 
 def make_testclient_call(client: TestClient, base: str):
@@ -56,7 +193,7 @@ def make_testclient_call(client: TestClient, base: str):
             )
         try:
             return resp.json()
-        except Exception:
+        except Exception:  # noqa: BLE001  # ruff-baseline #3989
             return resp.text
 
     return testclient_call
@@ -75,6 +212,42 @@ def make_client(base: str, actor_id: str | None = None) -> DataLayerClient:
     replica's state.
     """
     return DataLayerClient(base_url=base, actor_id=actor_id)
+
+
+@contextlib.contextmanager
+def route_exchange_demo_at_testclient(
+    client: TestClient, demo: ModuleType, *also: ModuleType
+) -> Iterator[str]:
+    """Route an exchange demo's clients at the in-process *client*; yield the base.
+
+    Patches ``demo.BASE_URL`` and ``demo.DataLayerClient.call`` so requests go
+    through the TestClient.  The runner (``run_exchange_demos``) builds its own
+    ``DataLayerClient()`` at ``localhost:7999``, but the in-process node hosts
+    actors under ``http://testserver``, and ``ActorSession`` refuses a client
+    whose base URL is not the authority that hosts the actor (DEMOMA-26-002).
+    So the runner's client is also *built* at the test server's base.
+
+    *also* names further demo modules (e.g. ``initialize_case_demo``) whose
+    ``BASE_URL`` must point at the same server; each is patched like *demo* and
+    reloaded on exit.
+
+    Every patch is undone on exit and *demo* and each of *also* is reloaded, so
+    nothing leaks into later modules.
+    """
+    mp = MonkeyPatch()
+    base = str(client.base_url).rstrip("/") + "/api/v2"
+    try:
+        for module in (demo, *also):
+            mp.setattr(module, "BASE_URL", base, raising=False)
+        mp.setattr(
+            demo.DataLayerClient, "call", make_testclient_call(client, base)
+        )
+        mp.setattr(runner, "DataLayerClient", lambda: make_client(base))
+        yield base
+    finally:
+        mp.undo()
+        for module in (demo, *also):
+            importlib.reload(module)
 
 
 def seed_case_replica_for_actor(

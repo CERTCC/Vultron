@@ -61,6 +61,26 @@ class VultronError(Exception):
     """Base class for all Vultron exceptions"""
 
 
+class CarriesViolations:
+    """Mixin: structured multi-violation carriage for a ``VultronError``.
+
+    EH-07-003 requires an exception raised for more than one violation to keep
+    them as structured data and to render the whole set in ``str()``, so no
+    caller parses a joined message.  Subclasses set ``self.violations`` in
+    ``__init__``; this mixin owns the rendering.  It must precede
+    :class:`VultronError` in the bases so its ``__str__`` wraps
+    ``Exception.__str__``.
+    """
+
+    violations: tuple[Violation, ...] = ()
+
+    def __str__(self) -> str:
+        summary = super().__str__()
+        if not self.violations:
+            return summary
+        return _render_violations(summary, self.violations)
+
+
 class VultronNotFoundError(VultronError):
     """Raised when a requested resource cannot be found."""
 
@@ -106,15 +126,15 @@ class VultronInvalidStateTransitionError(VultronError):
 VultronConflictError = VultronInvalidStateTransitionError
 
 
-class VultronValidationError(VultronError, ValueError):
+class VultronValidationError(CarriesViolations, VultronError, ValueError):
     """Raised when domain validation of a resource or request fails.
 
     When the boundary recognised more than one violation, pass them as
     ``violations``: they are kept as structured data on the exception and
-    ``str()`` renders the whole set, so no caller has to parse the joined
-    message to recover the individual rules (EH-07-003).  This follows
-    :exc:`DemoFailureError`'s shape, the house pattern for
-    accumulate-all-then-fail (DEMOCI-01-003).
+    ``str()`` renders the whole set (via :class:`CarriesViolations`), so no
+    caller has to parse the joined message to recover the individual rules
+    (EH-07-003).  This follows :exc:`DemoFailureError`'s shape, the house
+    pattern for accumulate-all-then-fail (DEMOCI-01-003).
 
     ``ValueError`` is in the base classes for the same reason as
     :exc:`VultronProtocolViolationError` and
@@ -142,14 +162,26 @@ class VultronValidationError(VultronError, ValueError):
         violations: Iterable[Violation] | None = None,
     ):
         self.activity_id = activity_id
-        self.violations: tuple[Violation, ...] = tuple(violations or ())
+        self.violations = tuple(violations or ())
         super().__init__(message)
 
-    def __str__(self) -> str:
-        summary = super().__str__()
-        if not self.violations:
-            return summary
-        return _render_violations(summary, self.violations)
+
+class VultronNotAnEmbargoError(VultronValidationError):
+    """Raised when an embargo id resolves to a record that is not an ``EmbargoEvent``.
+
+    The type-mismatch half of the fail-closed embargo read (EMB-18-003); the
+    missing half is :exc:`VultronNotFoundError`.  It carries ``embargo_id`` so
+    a caller can tell *which* embargo was unreadable — for example the one a
+    revision replaces, as opposed to the one it activates — without parsing
+    the message.
+    """
+
+    def __init__(self, embargo_id: str, record_type: str):
+        self.embargo_id = embargo_id
+        self.record_type = record_type
+        super().__init__(
+            f"Embargo '{embargo_id}' is not an EmbargoEvent (got {record_type})."
+        )
 
 
 class VultronCanonicalEntryError(VultronError):
@@ -202,7 +234,9 @@ class VultronOutboxObjectIntegrityError(VultronError):
         super().__init__(message)
 
 
-class VultronProtocolViolationError(VultronError, ValueError):
+class VultronProtocolViolationError(
+    CarriesViolations, VultronError, ValueError
+):
     """Raised when an inbound protocol message violates a mandatory requirement.
 
     The inbound mirror of :exc:`VultronOutboxObjectIntegrityError`.  While
@@ -221,7 +255,19 @@ class VultronProtocolViolationError(VultronError, ValueError):
     letting it escape the ``model_validate()`` call.  Callers that need to
     distinguish a protocol violation from an ordinary validation failure can
     inspect ``ValidationError.errors()[0]['ctx']['error']``.
+
+    A boundary that recognised more than one violation passes them as
+    ``violations`` (EH-07-003) — first use: ``CoreObject``'s computed-field
+    contradiction check (ARCH-23-005), which names every contradicted field.
     """
+
+    def __init__(
+        self,
+        message: str,
+        violations: Iterable[Violation] | None = None,
+    ):
+        self.violations = tuple(violations or ())
+        super().__init__(message)
 
 
 class VultronReferenceResolutionError(VultronError, ValueError):
@@ -299,6 +345,18 @@ class RegistryOrderError(VultronError):
     """
 
 
+class TriggerRegistryError(VultronError):
+    """Raised when the trigger registry cannot be assembled consistently.
+
+    Raised at import time by ``vultron.trigger_registry`` when two rows share
+    a verb, when a row's ``request_model`` binds a result type other than the
+    row's ``result_type``, or when a request model is shared by rows that
+    disagree on the use case or result type — a table that cannot resolve a
+    request to one use case (ADR-0110, TRIG-12-004).  Fails fast so a bad row
+    is impossible to miss, as ``RegistryOrderError`` does for the received side.
+    """
+
+
 class UnroutableActivityError(VultronError):
     """Raised when an inbound activity cannot be routed to a case.
 
@@ -326,24 +384,25 @@ class BtNodePreconditionError(VultronError):
     """
 
 
-class VultronStatusAssertionRefusedError(VultronError):
-    """Raised when a receive-path BT wholly refuses a status assertion.
+class VultronWiringError(VultronError):
+    """Raised when a node is missing a DataLayer or port it requires.
 
-    Raised by :class:`~vultron.core.use_cases.received.status\
-.AddParticipantStatusToParticipantReceivedUseCase` when
-    ``AddParticipantStatusBT`` returns ``FAILURE`` (i.e.
-    ``FilterParticipantStatusDimensionsNode`` refused every dimension and
-    produced a filtered status indistinguishable from the participant's current
-    state).  The inbox ``DispatchNode`` catches this exception and writes
-    ``"rejected"`` to ``KEY_OUTCOME_STATUS``, surfacing the total refusal as a
-    ``rejected`` ``InboxOutcome`` rather than the silent ``202 Accepted /
-    processed`` response that previously made total refusals invisible to
-    senders.  Extends ISSUE-2255 (sender-feedback diagnostics).
+    That is a deployment or composition fault, never the sender's doing, so
+    ``BTBridge`` flags it as ``internal_error`` even though it is a
+    ``VultronError`` — and a received handler therefore raises rather than
+    reporting the message as ``REFUSED`` (#2255, ADR-0095).
+    """
 
-    Callers that need to distinguish total-refusal from a partial-accept (where
-    the BT succeeds with some dimensions filtered) can inspect the
-    ``InboxOutcome.status`` field: ``"rejected"`` means wholly refused,
-    ``"processed"`` means at least one dimension was accepted.
+
+class VultronBTInternalError(VultronError):
+    """Raised when a received-side BT failed on an internal error.
+
+    ``BTBridge`` catches a non-``VultronError`` exception escaping a node and
+    reports it as ``FAILURE`` with ``internal_error=True``.  That is a
+    programming error, not a protocol outcome, so a handler MUST NOT report it
+    as ``HandlerDisposition.REFUSED`` (ADR-0095): it re-raises it as this
+    exception so the inbox pipeline records it as a raised dispatch, traceback
+    and all, and it stays distinguishable from a refusal.
     """
 
 

@@ -22,19 +22,28 @@ Includes DR-09 regression tests verifying that short UUIDs in actor_id
 are normalised to full URIs before use.
 """
 
+import json
 import logging
-from test.conftest import seed_case_actor_replica
-from typing import cast
+from datetime import UTC
+from typing import Any, cast
 
 import pytest
+from pydantic import ValidationError
 
+from test.support.embargo_register import activate
+from test.support.received import archive_received
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
@@ -59,7 +68,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
     as_VulnerabilityCase,
 )
 
@@ -67,6 +75,7 @@ _BASE = "http://coordinator:7999/api/v2/actors"
 _UUID = "24d63c7d-6b1e-4f61-a5e1-180d27192d0b"
 _HTTP_ACTOR_ID = f"{_BASE}/{_UUID}"
 _CREATED_DLS: list[SqliteDataLayer] = []
+_CASE_MANAGER_ID = "https://example.org/actors/case-manager"
 
 
 def _make_actor_dl(actor_name: str):
@@ -104,7 +113,10 @@ def _make_case_with_case_manager(
     dl: SqliteDataLayer, owner_actor_id: str, case_actor_id: str
 ) -> as_VulnerabilityCase:
     case = as_VulnerabilityCase(
-        attributed_to=owner_actor_id, name="Test Case", content="Content"
+        attributed_to=owner_actor_id,
+        name="Test Case",
+        content="Content",
+        stub_summary="Security issue — details shared after acceptance",
     )
     owner_participant = as_CaseParticipant(
         attributed_to=owner_actor_id,
@@ -126,38 +138,199 @@ def _make_case_with_case_manager(
     return case
 
 
-class TestSvcInviteActorToCaseUseCase:
-    """Tests for the invite-actor-to-case trigger use case."""
+def _shared_case_with_case_manager(
+    owner_actor_id: str, case_actor_id: str, *dls: SqliteDataLayer
+) -> as_VulnerabilityCase:
+    """One case, with the same CASE_OWNER/CASE_MANAGER roster, in every store.
 
-    def test_invite_creates_activity_and_populates_to(self):
-        actor, dl = _make_actor_dl("Coordinator")
-        invitee, _ = _make_actor_dl("Finder")
-
-        # Seed invitee and case in actor's DL
-        dl.create(invitee)
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_,
-            name="Test Case",
-            content="Test case content",
-        )
+    The owner and the CASE_MANAGER are distinct actors with their own stores
+    (ADR-0073); each holds its replica of the same case.
+    """
+    case = as_VulnerabilityCase(
+        attributed_to=owner_actor_id,
+        name="Test Case",
+        content="Content",
+        stub_summary="Security issue — details shared after acceptance",
+    )
+    owner_participant = as_CaseParticipant(
+        attributed_to=owner_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case_manager_participant = as_CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case.actor_participant_index[owner_actor_id] = owner_participant.id_
+    case.actor_participant_index[case_actor_id] = case_manager_participant.id_
+    case.case_participants.append(owner_participant.id_)
+    case.case_participants.append(case_manager_participant.id_)
+    for dl in dls:
         dl.create(case)
+        dl.create(owner_participant)
+        dl.create(case_manager_participant)
+    return case
 
+
+def _activate_embargo(dl: SqliteDataLayer, case_id: str) -> str:
+    """Give *case_id* an ACTIVE embargo in *dl*; return the embargo id."""
+    from datetime import datetime
+
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    embargo = as_EmbargoEvent(
+        id_=f"{case_id}/embargo/e1",
+        content="Active embargo",
+        end_time=datetime(2030, 1, 1, tzinfo=UTC),
+        context=case_id,
+    )
+    dl.create(embargo)
+    case = cast(Any, dl.read(case_id))
+    activate(case, embargo.id_)
+    dl.save(case)
+    return embargo.id_
+
+
+class _OwnerDirectInvite:
+    """The owner's trigger, then the CASE_MANAGER's receipt of its Offer.
+
+    Under ADR-0109 the owner's container never emits as the CASE_MANAGER: the
+    owner sends its own ``Offer(Actor, Case)`` and the CASE_MANAGER's
+    recommend-actor received tree emits the ``Invite`` (CM-17-007).  This
+    harness runs both halves against two stores so a test can inspect either.
+    """
+
+    def __init__(self, with_active_embargo: bool = False) -> None:
+        self.owner, self.owner_dl = _make_actor_dl("CaseOwner")
+        self.manager, self.manager_dl = _make_actor_dl("CaseManager")
+        self.invitee, _ = _make_actor_dl("Invitee")
+        self.owner_dl.create(self.invitee)
+        self.owner_dl.create(self.manager)
+        self.manager_dl.create(self.owner)
+        self.case = _shared_case_with_case_manager(
+            self.owner.id_, self.manager.id_, self.owner_dl, self.manager_dl
+        )
+        if with_active_embargo:
+            _activate_embargo(self.manager_dl, self.case.id_)
+
+    def trigger(self, roles: list[CVDRole] | None = None) -> dict[str, Any]:
+        """Run the owner's trigger; return the activity it captured."""
         request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
+            actor_id=self.owner.id_,
+            case_id=self.case.id_,
+            invitee_id=self.invitee.id_,
+            roles=roles,
         )
         result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            self.owner_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.owner_dl),
+            sync_port=SyncActivityAdapter(self.owner_dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        return activity_of(result)
+
+    def deliver_to_manager(self, offer_id: str, make_payload) -> Any:
+        """Process the owner's Offer on the CASE_MANAGER's inbox."""
+        from vultron.core.use_cases.received.actor.suggest import (
+            OfferActorToCaseReceivedUseCase,
+        )
+
+        offer = self.owner_dl.read(offer_id)
+        assert offer is not None
+        event = make_payload(offer, receiving_actor_id=self.manager.id_)
+        return OfferActorToCaseReceivedUseCase(
+            self.manager_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(self.manager_dl),
+            sync_port=SyncActivityAdapter(self.manager_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        activity_data = result["activity"]
-        assert activity_data["type"] == "Invite"
-        assert activity_data["actor"] == actor.id_
-        assert invitee.id_ in activity_data.get("to", [])
+    def manager_invite(self) -> Any:
+        """The single Invite the CASE_MANAGER queued."""
+        queued = [
+            self.manager_dl.read(item)
+            for item in self.manager_dl.outbox_list()
+        ]
+        invites = [q for q in queued if isinstance(q, as_Invite)]
+        assert len(invites) == 1, f"expected one Invite, got {queued!r}"
+        return invites[0]
 
-    def test_invite_persisted_in_datalayer(self):
+    def invite(
+        self, make_payload, roles: list[CVDRole] | None = None
+    ) -> tuple[Any, dict[str, Any]]:
+        """Both halves; return the CASE_MANAGER's Invite and its wire form."""
+        offer = self.trigger(roles)
+        result = self.deliver_to_manager(offer["id"], make_payload)
+        assert result.disposition.value == "applied", result
+        invite = self.manager_invite()
+        # The body the outbox relays is the sealed one (OX-07-001), so that is
+        # the wire form a recipient sees.
+        sealed = read_sealed_body(self.manager_dl, invite.id_)
+        assert sealed is not None, "the CASE_MANAGER's Invite was not sealed"
+        return invite, json.loads(sealed.body)
+
+
+class TestSvcInviteActorToCaseUseCase:
+    """The owner-direct invite trigger (CM-17-007, CM-24-004, ADR-0109)."""
+
+    @pytest.mark.spec("CM-17-007")
+    def test_invite_sends_the_owners_own_offer_to_the_case_manager(self):
+        """The owner's activity is an Offer from the owner, to the CASE_MANAGER."""
+        harness = _OwnerDirectInvite()
+
+        activity = harness.trigger(roles=[CVDRole.VENDOR])
+
+        assert activity["type"] == "Offer"
+        assert activity["actor"] == harness.owner.id_
+        assert activity.get("to") == [harness.manager.id_]
+        assert activity.get("suggestedRoles") == ["vendor"]
+        obj = activity["object"]
+        assert (obj["id"] if isinstance(obj, dict) else obj) == (
+            harness.invitee.id_
+        )
+        assert "cc" not in activity
+
+    @pytest.mark.spec("CM-24-004")
+    def test_invite_is_queued_in_the_owners_outbox_only(self):
+        """The Offer leaves from the owner's outbox; nothing is queued as the
+        CASE_MANAGER and nothing is committed by the owner."""
+        harness = _OwnerDirectInvite()
+
+        activity = harness.trigger()
+
+        assert activity["id"] in harness.owner_dl.outbox_list()
+        stored = harness.owner_dl.read(activity["id"])
+        assert stored is not None and not isinstance(stored, as_Invite)
+        assert harness.manager_dl.outbox_list() == []
+        assert (
+            harness.owner_dl.clone_for_actor(harness.manager.id_).outbox_list()
+            == []
+        )
+        assert harness.owner_dl.list_objects("CaseLedgerEntry") == []
+
+    @pytest.mark.spec("CM-24-004")
+    def test_invite_uses_no_delegated_context(self, monkeypatch):
+        """The trigger never resolves a delegated CASE_MANAGER identity."""
+        import vultron.core.use_cases._helpers as use_case_helpers
+        import vultron.core.use_cases.triggers.actor as actor_triggers
+
+        def _forbidden(*_args, **_kwargs):
+            raise AssertionError("the owner must not emit as the CASE_MANAGER")
+
+        monkeypatch.setattr(actor_triggers, "delegated_authorship", _forbidden)
+        monkeypatch.setattr(
+            use_case_helpers, "_find_case_actor_id", _forbidden
+        )
+        harness = _OwnerDirectInvite()
+
+        activity = harness.trigger()
+
+        assert activity["actor"] == harness.owner.id_
+
+    def test_invite_raises_when_no_case_manager(self):
         actor, dl = _make_actor_dl("Coordinator")
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
@@ -165,43 +338,37 @@ class TestSvcInviteActorToCaseUseCase:
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
-
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
             case_id=case.id_,
             invitee_id=invitee.id_,
         )
-        result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
-
-        invite_id = result["activity"]["id"]
-        stored = dl.read(invite_id)
-        assert stored is not None
-        assert isinstance(stored, as_Invite)
+        with pytest.raises(VultronValidationError):
+            SvcInviteActorToCaseUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
+        assert dl.outbox_list() == []
 
     @pytest.mark.spec("AKM-05-001")
     def test_invite_proceeds_when_invitee_not_in_dl(self, caplog):
         """An invitee is named by URI; a local record is not required.
 
         This asserted a 404 before. Holding a local record was never a protocol
-        requirement — the record was read and discarded, delivery derives the
-        invitee's inbox from its URI alone, and under per-actor storage a peer's
-        record lives in *its* store, not the inviter's (ADR-0073#peer-records-in-knowers-store). So
-        the old behaviour refused invitations to actors that exist and are
-        reachable, which is every cross-node invitee in a real deployment.
+        requirement — delivery derives the invitee's inbox from its URI alone,
+        and under per-actor storage a peer's record lives in *its* store, not
+        the inviter's (ADR-0073#peer-records-in-knowers-store).
 
         With the injectable ActorDiscoveryCallOutBundle seam (ADR-0025), the
         default DETERMINISTIC backend (AlwaysSucceed) logs at DEBUG rather than
         WARNING — the seam is wired, no gap to report (AKM-05-002).
         """
         actor, dl = _make_actor_dl("Coordinator")
-        # invitee NOT seeded in actor's DL
         missing_id = "https://example.org/actors/nobody"
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="Test Case", content="Content"
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -210,23 +377,28 @@ class TestSvcInviteActorToCaseUseCase:
         )
         with caplog.at_level(logging.WARNING):
             result = SvcInviteActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
-        assert result is not None
-        # No WARNING with the default DETERMINISTIC bundle (AlwaysSucceed)
+        assert activity_of(result)["type"] == "Offer"
         assert "actor discovery returned" not in caplog.text
 
     @pytest.mark.parametrize(
-        "bad_id",
+        ("bad_id", "refused_by_model"),
         [
-            "nobody",  # bare name, no scheme
-            "/actors/nobody",  # relative path
-            "https:///actors/nobody",  # scheme but no netloc
-            "ftp://example.org/actors/nobody",  # non-HTTP scheme
+            ("nobody", True),  # bare name, no scheme
+            ("/actors/nobody", True),  # relative path
+            ("https:///actors/nobody", False),  # scheme but no netloc
+            ("ftp://example.org/actors/nobody", False),  # non-HTTP scheme
         ],
     )
-    def test_invite_rejects_undeliverable_invitee_uri(self, bad_id):
+    def test_invite_rejects_undeliverable_invitee_uri(
+        self, bad_id, refused_by_model
+    ):
         """An unknown invitee is minted, but only from a deliverable URI.
 
         Absence is not grounds for refusal (see the test above), which leaves
@@ -235,6 +407,11 @@ class TestSvcInviteActorToCaseUseCase:
         POSTed to: a typo'd or relative id would otherwise become a case
         participant that no delivery attempt can ever reach, failing far away
         in the retry loop instead of here.
+
+        Two layers refuse: an id that is not a URI at all never builds a
+        request, because the request derives from the ``UriString``-typed body
+        model (validate at the edge, ADR-0032); a URI-shaped id that is not
+        deliverable is refused by the use case.
         """
         actor, dl = _make_actor_dl("Coordinator")
         case = as_VulnerabilityCase(
@@ -242,21 +419,33 @@ class TestSvcInviteActorToCaseUseCase:
         )
         dl.create(case)
 
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=bad_id,
-        )
-        with pytest.raises(
-            VultronValidationError, match="deliverable actor URI"
-        ):
-            SvcInviteActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
-            ).execute()
+        if refused_by_model:
+            with pytest.raises(ValidationError, match="must be a URI"):
+                InviteActorToCaseTriggerRequest(
+                    actor_id=actor.id_,
+                    case_id=case.id_,
+                    invitee_id=bad_id,
+                )
+        else:
+            request = InviteActorToCaseTriggerRequest(
+                actor_id=actor.id_,
+                case_id=case.id_,
+                invitee_id=bad_id,
+            )
+            with pytest.raises(
+                VultronValidationError, match="deliverable actor URI"
+            ):
+                SvcInviteActorToCaseUseCase(
+                    dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    sync_port=SyncActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                ).execute()
 
-        assert (
-            dl.read(bad_id) is None
-        ), "a rejected invitee must not be recorded as a known actor"
+        assert dl.read(bad_id) is None, (
+            "a rejected invitee must not be recorded as a known actor"
+        )
 
     def test_invite_raises_when_case_not_in_dl(self):
         actor, dl = _make_actor_dl("Coordinator")
@@ -270,20 +459,23 @@ class TestSvcInviteActorToCaseUseCase:
             case_id=missing_case_id,
             invitee_id=invitee.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcInviteActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_invite_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
-        actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
+        _actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
-        case = as_VulnerabilityCase(
-            attributed_to=_HTTP_ACTOR_ID, name="Test Case", content="Content"
+        case = _make_case_with_case_manager(
+            dl, _HTTP_ACTOR_ID, _CASE_MANAGER_ID
         )
-        dl.create(case)
 
         # Pass the bare UUID (as the FastAPI router does from the URL path)
         request = InviteActorToCaseTriggerRequest(
@@ -292,73 +484,23 @@ class TestSvcInviteActorToCaseUseCase:
             invitee_id=invitee.id_,
         )
         result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Activity actor field must be the full canonical URI, not the short UUID
-        assert result["activity"]["actor"] == _HTTP_ACTOR_ID
-
-    def test_invite_uses_case_actor_when_present(self):
-        """PCR-08-007: when the authority is a separate actor the invite actor
-        must be that actor's ID, not the case-owner actor ID.  The case owner's
-        ID is carried in ``attributedTo`` instead.
-
-        The delegated-emit shape is unchanged by ADR-0088; only *how* the
-        authority is resolved changed.  A ``Service`` whose ``context`` was the
-        case id used to identify it; now the case's roster names it as
-        ``CVDRole.CASE_MANAGER`` (ARCH-24-004).
-        """
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-
-        actor, dl = _make_actor_dl("Vendor")
-        invitee, _ = _make_actor_dl("Coordinator")
-        dl.create(invitee)
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="PCR Test Case", content="Content"
-        )
-
-        # A distinct actor enacting CASE_MANAGER — the delegated-emit case.
-        case_actor = as_Service(
-            id_=f"{actor.id_}/case-actor",
-            name="CaseActorService",
-        )
-        dl.create(case_actor)
-        manager = as_CaseParticipant(
-            id_=f"{case.id_}/participants/case-manager",
-            context=case.id_,
-            attributed_to=case_actor.id_,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        dl.create(manager)
-        case.case_participants.append(manager.id_)
-        case.actor_participant_index[case_actor.id_] = manager.id_
-        dl.create(case)
-        # The Invite is authored as the CaseActor and committed to its ledger, so
-        # the tree runs in the CaseActor's store and that store needs the case.
-        seed_case_actor_replica(dl, case_actor.id_, case, invitee, manager)
-
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
-        )
-        result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
-
-        activity_data = result["activity"]
-        assert activity_data["type"] == "Invite"
-        # Invite actor MUST be the Case Actor Service ID (PCR-08-007)
-        assert activity_data["actor"] == case_actor.id_
-        # Case owner attribution is preserved
-        assert activity_data.get("attributedTo") == actor.id_
-        # The activity must be in the Case Actor's outbox, not the owner's
-        case_actor_outbox = dl.clone_for_actor(case_actor.id_).outbox_list()
-        assert activity_data["id"] in case_actor_outbox
+        assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
 
 
 class TestInviteRolesAndEmbargoEnrichment:
-    """AC-1 through AC-6: roles + embargo enrichment on Invite (CM-17-002/003)."""
+    """Roles and embargo enrichment on the CASE_MANAGER's Invite (CM-17-002/003).
+
+    The owner's Offer carries the roles; the CASE_MANAGER's Invite carries them
+    on, and enriches its case stub from the CASE_MANAGER's own replica.
+    """
 
     def setup_method(self):
         import py_trees
@@ -371,160 +513,107 @@ class TestInviteRolesAndEmbargoEnrichment:
         py_trees.blackboard.Blackboard.clear()
         py_trees.blackboard.Blackboard.disable_activity_stream()
 
-    def _setup_invite(self, with_embargo=False, with_active_embargo=False):
-        """Create actor, invitee, case; optionally add active embargo."""
-        from vultron.core.states.em import EM
-        from vultron.wire.as2.vocab.objects.embargo_event import (
-            as_EmbargoEvent,
-        )
-
-        actor, dl = _make_actor_dl("CaseOwner")
-        invitee, _ = _make_actor_dl("Invitee")
-        dl.create(invitee)
-        from vultron.core.models.case import VulnerabilityCase
-
-        case = VulnerabilityCase(
-            attributed_to=actor.id_, name="Test Case", content="Content"
-        )
-        dl.create(case)
-        if with_active_embargo:
-            embargo = as_EmbargoEvent(
-                id_=f"{case.id_}/embargo/e1",
-                content="Active embargo",
-                context=case.id_,
-            )
-            dl.create(embargo)
-            case.active_embargo = embargo.id_
-            case.append_case_status(em_state=EM.ACTIVE)
-            dl.save(case)
-        elif with_embargo:
-            case.active_embargo = f"{case.id_}/embargo/e1"
-            dl.save(case)
-        return actor, invitee, dl, case
-
-    def test_ac6_roles_field_accepted_in_request(self):
-        """AC-6: InviteActorToCaseTriggerRequest accepts optional roles field."""
-        actor, invitee, dl, case = self._setup_invite()
+    def test_roles_field_accepted_in_request(self):
+        """InviteActorToCaseTriggerRequest accepts an optional roles field."""
         request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
+            actor_id="https://example.org/actors/owner",
+            case_id="https://example.org/cases/c1",
+            invitee_id="https://example.org/actors/invitee",
             roles=[CVDRole.VENDOR],
         )
         assert request.roles == [CVDRole.VENDOR]
 
-    def test_ac3_roles_carried_in_invite_activity(self):
-        """AC-3: Invite wire object carries roles field with intended CVD roles."""
-        actor, invitee, dl, case = self._setup_invite()
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
-            roles=[CVDRole.VENDOR],
+    @pytest.mark.spec("CM-17-003")
+    def test_roles_carried_to_the_case_managers_invite(self, make_payload):
+        harness = _OwnerDirectInvite()
+
+        invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
+
+        assert invite.roles == ["vendor"]
+        assert wire["roles"] == ["vendor"]
+
+    @pytest.mark.spec("CM-11-019")
+    def test_no_roles_requested_is_refused(self, make_payload):
+        """CM-11-019: no roles given → CASE_MANAGER refuses to emit the Invite.
+
+        The owner sends its Offer with no roles; the CASE_MANAGER's
+        EvaluateDefaultRolesNode returns FAILURE rather than defaulting to
+        VENDOR, so OfferActorToCaseReceivedUseCase returns REFUSED.
+        """
+        from vultron.core.use_cases.received.actor.suggest import (
+            OfferActorToCaseReceivedUseCase,
         )
-        result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+
+        harness = _OwnerDirectInvite()
+        offer = harness.trigger(roles=None)
+
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
+        )
+
+        offer_obj = harness.owner_dl.read(offer["id"])
+        assert offer_obj is not None
+        event = make_payload(offer_obj, receiving_actor_id=harness.manager.id_)
+        result = OfferActorToCaseReceivedUseCase(
+            harness.manager_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(harness.manager_dl),
+            sync_port=SyncActivityAdapter(harness.manager_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = result["activity"]
-        assert "roles" in activity_data
-        assert activity_data["roles"] == ["vendor"]
-
-        invite_id = activity_data["id"]
-        stored = dl.read(invite_id)
-        assert isinstance(stored, as_Invite)
-        assert stored.roles == ["vendor"]
-
-    def test_ac3_no_roles_when_not_specified(self):
-        """AC-3 negative: Invite carries no roles when none requested."""
-        actor, invitee, dl, case = self._setup_invite()
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
+        assert result.disposition.value == "refused", (
+            f"Expected REFUSED when no roles given, got {result.disposition}"
         )
-        result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
+        assert result.reason is not None
 
-        activity_data = result["activity"]
-        assert activity_data.get("roles") is None
+    @pytest.mark.spec("CM-17-007")
+    def test_invite_is_the_case_managers_attributed_to_the_owner(
+        self, make_payload
+    ):
+        harness = _OwnerDirectInvite()
 
-    def test_ac1_active_embargo_enriches_case_stub(self):
-        """AC-1: Invite.target stub carries activeEmbargo.endTime and emState=ACTIVE."""
-        from datetime import datetime, timezone
+        _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
-        from vultron.wire.as2.vocab.objects.embargo_event import (
-            as_EmbargoEvent,
-        )
+        assert wire["actor"] == harness.manager.id_
+        assert wire.get("attributedTo") == harness.owner.id_
+        assert wire.get("to") == [harness.invitee.id_]
+        assert "cc" not in wire
 
-        actor, invitee, dl, case = self._setup_invite()
-        end_time = datetime(2030, 1, 1, tzinfo=timezone.utc)
-        embargo = as_EmbargoEvent(
-            id_=f"{case.id_}/embargo/e1",
-            content="Active embargo",
-            end_time=end_time,
-            context=case.id_,
-        )
-        dl.create(embargo)
-        from vultron.core.states.em import EM
+    @pytest.mark.spec("CM-17-002")
+    def test_active_embargo_enriches_case_stub(self, make_payload):
+        """The Invite stub carries activeEmbargo.endTime and emState=ACTIVE."""
+        harness = _OwnerDirectInvite(with_active_embargo=True)
 
-        object.__setattr__(case, "active_embargo", embargo.id_)
-        case.append_case_status(em_state=EM.ACTIVE)
-        dl.save(case)
+        _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
 
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
-        )
-        result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
-
-        activity_data = result["activity"]
-        target = activity_data.get("target", {})
+        target = wire.get("target", {})
         active_embargo = target.get("activeEmbargo")
-        assert (
-            active_embargo is not None
-        ), "activeEmbargo must be present when em_state==ACTIVE"
-        assert (
-            isinstance(active_embargo, dict) and "endTime" in active_embargo
-        ), "activeEmbargo must be a full embargo object with endTime (CM-17-002)"
-        case_status = target.get("caseStatus", {})
-        assert case_status.get("emState") in (
+        assert isinstance(active_embargo, dict), (
+            "activeEmbargo must be a full embargo object (CM-17-002)"
+        )
+        assert "endTime" in active_embargo
+        assert target.get("caseStatus", {}).get("emState") in (
             "active",
             "ACTIVE",
-        ), "caseStatus.emState must be present when em_state==ACTIVE"
-
-    def test_ac2_no_embargo_fields_when_not_active(self):
-        """AC-2: Invite.target stub has no embargo fields when em_state != ACTIVE."""
-        actor, invitee, dl, case = self._setup_invite()
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
         )
-        result = SvcInviteActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
 
-        activity_data = result["activity"]
-        target = activity_data.get("target", {})
-        assert (
-            target.get("activeEmbargo") is None
-        ), "activeEmbargo must not be present when em_state != ACTIVE"
-        assert (
-            target.get("caseStatus") is None
-        ), "caseStatus must not be present when em_state != ACTIVE"
+    @pytest.mark.spec("CM-17-002")
+    def test_no_embargo_fields_when_not_active(self, make_payload):
+        harness = _OwnerDirectInvite()
+
+        _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
+
+        target = wire.get("target", {})
+        assert target.get("activeEmbargo") is None
+        assert target.get("caseStatus") is None
 
 
 class TestRolesThreadingIntegration:
-    """AC-1 / AC-2: full roles-threading round-trip end-to-end (Issue-1405).
+    """The full roles-threading round trip (CM-17-003/004, Issue-1405).
 
-    InviteActorToCaseTriggerRequest.roles flows through the BT blackboard
-    (suggested_roles) → Invite wire object → Accept(Invite) BT →
-    VultronParticipant.case_roles.
+    The owner's request roles → the owner's Offer → the CASE_MANAGER's Invite →
+    Accept(Invite) on the CASE_MANAGER → CaseParticipant.case_roles.
     """
 
     def setup_method(self):
@@ -539,113 +628,97 @@ class TestRolesThreadingIntegration:
         py_trees.blackboard.Blackboard.disable_activity_stream()
 
     def _run_round_trip(self, roles, make_payload):
-        """Trigger Invite then Accept(Invite); return the new VultronParticipant."""
-        from typing import Any, cast
+        """Run the owner-direct invite, then Accept(Invite); return the
+        CaseParticipant the CASE_MANAGER created."""
         from unittest.mock import MagicMock
 
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.use_cases.received.actor.invite import (
             AcceptInviteActorToCaseReceivedUseCase,
         )
         from vultron.wire.as2.factories import (
             rm_accept_invite_to_case_activity,
         )
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Invite,
-        )
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Organization,
-            as_Service,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
-        # Shared DataLayer: both trigger and receive sides use it so the
-        # persisted Invite is visible when Accept is processed.
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        _CREATED_DLS.append(dl)
-
-        owner = as_Service(name="CaseOwner")
-        dl.create(owner)
-        invitee_id = "https://example.org/actors/invitee-roundtrip"
-        invitee = as_Organization(id_=invitee_id)
-        dl.create(invitee)
-        case = as_VulnerabilityCase(
-            attributed_to=owner.id_, name="Roles Round-Trip Test"
-        )
-        dl.create(case)
-
-        from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
-
-        reset_datalayer(owner.id_)
-        owner_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner.id_)
-        _CREATED_DLS.append(owner_dl)
-        owner_dl.create(owner)
-        owner_dl.create(invitee)
-        owner_dl.create(case)
-
-        request = InviteActorToCaseTriggerRequest(
-            actor_id=owner.id_,
-            case_id=case.id_,
-            invitee_id=invitee_id,
-            roles=roles,
-        )
-        result = SvcInviteActorToCaseUseCase(
-            owner_dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(owner_dl),
-        ).execute()
-
-        invite_id = result["activity"]["id"]
-        invite_obj = owner_dl.read(invite_id)
-        assert isinstance(invite_obj, as_Invite)
-        dl.create(invite_obj)
+        harness = _OwnerDirectInvite()
+        invite, _wire = harness.invite(make_payload, roles=roles)
 
         accept = rm_accept_invite_to_case_activity(
-            invite_obj, actor=invitee_id
+            invite, actor=harness.invitee.id_
         )
-        event = make_payload(accept)
-
+        event = make_payload(accept, receiving_actor_id=harness.manager.id_)
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, event, sync_port=MagicMock()
+            harness.manager_dl,
+            event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        updated_case = cast(Any, dl.read(case.id_))
-        participant_id = updated_case.actor_participant_index.get(invitee_id)
-        assert (
-            participant_id is not None
-        ), "invitee must be registered after Accept"
-        participant = cast(Any, dl.read(participant_id))
-        assert (
-            participant is not None
-        ), "participant object not found in DataLayer"
+        updated_case = cast(Any, harness.manager_dl.read(harness.case.id_))
+        participant_id = updated_case.actor_participant_index.get(
+            harness.invitee.id_
+        )
+        assert participant_id is not None, (
+            "invitee must be registered after Accept"
+        )
+        participant = cast(Any, harness.manager_dl.read(participant_id))
+        assert participant is not None
         return participant
 
-    def test_ac1_roles_vendor_reaches_participant_case_roles(
-        self, make_payload
-    ):
-        """AC-1 (CM-17-003/004): roles=[CVDRole.VENDOR] in request results in
-        VultronParticipant.case_roles=[CVDRole.VENDOR] after Accept(Invite)."""
+    @pytest.mark.spec("CM-17-004")
+    def test_roles_vendor_reaches_participant_case_roles(self, make_payload):
         participant = self._run_round_trip(
             roles=[CVDRole.VENDOR], make_payload=make_payload
         )
-        assert (
-            CVDRole.VENDOR in participant.case_roles
-        ), f"AC-1: expected CVDRole.VENDOR in case_roles, got {participant.case_roles!r}"
+        assert CVDRole.VENDOR in participant.case_roles
 
-    def test_ac2_none_roles_gives_empty_case_roles(self, make_payload):
-        """AC-2 (CM-17-003/004): roles=None in request results in
-        VultronParticipant.case_roles=[] after Accept(Invite)."""
-        participant = self._run_round_trip(
-            roles=None, make_payload=make_payload
+    @pytest.mark.spec("CM-11-019")
+    def test_no_roles_is_refused_not_defaulted(self, make_payload):
+        """CM-11-019: no roles → CASE_MANAGER refuses rather than defaulting to VENDOR.
+
+        The CASE_MANAGER must not substitute VENDOR when the inviter provides
+        no roles. The full-round-trip fails at the CASE_MANAGER's receipt of
+        the owner's Offer because EvaluateDefaultRolesNode returns FAILURE.
+        """
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
         )
-        assert (
-            participant.case_roles == []
-        ), f"AC-2: expected empty case_roles, got {participant.case_roles!r}"
+        from vultron.core.use_cases.received.actor.suggest import (
+            OfferActorToCaseReceivedUseCase,
+        )
+
+        harness = _OwnerDirectInvite()
+        offer = harness.trigger(roles=None)
+
+        offer_obj = harness.manager_dl.read(offer["id"])
+        if offer_obj is None:
+            offer_obj = harness.owner_dl.read(offer["id"])
+        assert offer_obj is not None, "Offer not found in either store"
+        event = make_payload(offer_obj, receiving_actor_id=harness.manager.id_)
+        result = OfferActorToCaseReceivedUseCase(
+            harness.manager_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(harness.manager_dl),
+            sync_port=SyncActivityAdapter(harness.manager_dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition.value == "refused", (
+            f"Expected REFUSED when no roles given, got {result.disposition}"
+        )
+        # No Invite should have been emitted by the CASE_MANAGER
+        queued = harness.manager_dl.outbox_list()
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Invite,
+        )
+
+        invites = [
+            harness.manager_dl.read(item)
+            for item in queued
+            if isinstance(harness.manager_dl.read(item), as_Invite)
+        ]
+        assert not invites, (
+            "CASE_MANAGER must not emit an Invite when no roles are given"
+        )
 
 
 class TestSvcSuggestActorToCaseUseCase:
@@ -665,12 +738,16 @@ class TestSvcSuggestActorToCaseUseCase:
             suggested_actor_id=suggested.id_,
         )
         result = SvcSuggestActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        assert result["activity"]["actor"] == actor.id_
-        assert result["activity"].get("to") == [case_actor.id_]
+        assert result.activity is not None
+        assert activity_of(result)["actor"] == actor.id_
+        assert activity_of(result).get("to") == [case_actor.id_]
 
     def test_suggest_proceeds_when_suggested_actor_missing(self, caplog):
         """A recommended actor is named by URI; a local record is not required.
@@ -700,7 +777,11 @@ class TestSvcSuggestActorToCaseUseCase:
         )
         with caplog.at_level(logging.WARNING):
             result = SvcSuggestActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert result is not None
@@ -708,35 +789,58 @@ class TestSvcSuggestActorToCaseUseCase:
         assert "actor discovery returned" not in caplog.text
 
     @pytest.mark.parametrize(
-        "bad_id",
-        ["ghost", "/actors/ghost", "https:///actors/ghost"],
+        ("bad_id", "refused_by_model"),
+        [
+            ("ghost", True),
+            ("/actors/ghost", True),
+            ("https:///actors/ghost", False),
+        ],
     )
-    def test_suggest_rejects_undeliverable_actor_uri(self, bad_id):
-        """The id is the address the eventual invitation is POSTed to."""
+    def test_suggest_rejects_undeliverable_actor_uri(
+        self, bad_id, refused_by_model
+    ):
+        """The id is the address the eventual invitation is POSTed to.
+
+        A non-URI id is refused by the ``UriString``-typed body model the
+        request derives from (ADR-0032); a URI-shaped but undeliverable one by
+        the use case.
+        """
         actor, dl = _make_actor_dl("Coordinator")
         case_actor, _ = _make_actor_dl("Case Actor")
         dl.create(case_actor)
         case = _make_case_with_case_manager(dl, actor.id_, case_actor.id_)
 
-        request = SuggestActorToCaseTriggerRequest(
-            actor_id=actor.id_,
-            case_id=case.id_,
-            suggested_actor_id=bad_id,
-        )
-        with pytest.raises(
-            VultronValidationError, match="deliverable actor URI"
-        ):
-            SvcSuggestActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
-            ).execute()
+        if refused_by_model:
+            with pytest.raises(ValidationError, match="must be a URI"):
+                SuggestActorToCaseTriggerRequest(
+                    actor_id=actor.id_,
+                    case_id=case.id_,
+                    suggested_actor_id=bad_id,
+                )
+        else:
+            request = SuggestActorToCaseTriggerRequest(
+                actor_id=actor.id_,
+                case_id=case.id_,
+                suggested_actor_id=bad_id,
+            )
+            with pytest.raises(
+                VultronValidationError, match="deliverable actor URI"
+            ):
+                SvcSuggestActorToCaseUseCase(
+                    dl,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    sync_port=SyncActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                ).execute()
 
-        assert (
-            dl.read(bad_id) is None
-        ), "a rejected candidate must not be recorded as a known actor"
+        assert dl.read(bad_id) is None, (
+            "a rejected candidate must not be recorded as a known actor"
+        )
 
     def test_suggest_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
-        actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
+        _actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
         case_actor, _ = _make_actor_dl("Case Actor")
         suggested, _ = _make_actor_dl("Vendor")
         dl.create(case_actor)
@@ -751,11 +855,15 @@ class TestSvcSuggestActorToCaseUseCase:
             suggested_actor_id=suggested.id_,
         )
         result = SvcSuggestActorToCaseUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert result["activity"]["actor"] == _HTTP_ACTOR_ID
-        assert result["activity"].get("to") == [case_actor.id_]
+        assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
+        assert activity_of(result).get("to") == [case_actor.id_]
 
     def test_suggest_raises_when_no_case_manager(self):
         actor, dl = _make_actor_dl("Coordinator")
@@ -772,14 +880,28 @@ class TestSvcSuggestActorToCaseUseCase:
         )
         with pytest.raises(VultronValidationError):
             SvcSuggestActorToCaseUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
 
 class TestSvcAcceptCaseInviteUseCase:
     """Tests for the accept-case-invite trigger use case."""
 
-    def test_accept_creates_activity(self):
+    @pytest.mark.parametrize(
+        "hold",
+        [
+            pytest.param(archive_received, id="archived-by-intake"),
+            pytest.param(
+                lambda dl, invite: dl.create(invite),
+                id="held-by-the-inbox-until-the-case-bootstrap",
+            ),
+        ],
+    )
+    def test_accept_creates_activity(self, hold):
         inviter, dl_inviter = _make_actor_dl("Coordinator")
         invitee, dl_invitee = _make_actor_dl("Finder")
         dl_inviter.create(invitee)
@@ -791,12 +913,12 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=inviter.id_,
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        dl_invitee.create(invite)
+        hold(dl_invitee, invite)
 
         request = AcceptCaseInviteTriggerRequest(
             actor_id=invitee.id_,
@@ -806,12 +928,14 @@ class TestSvcAcceptCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        assert result["activity"]["actor"] == invitee.id_
-        assert result["activity"]["inReplyTo"] == invite.id_
-        assert result["activity"].get("to") == [inviter.id_]
+        assert result.activity is not None
+        assert activity_of(result)["actor"] == invitee.id_
+        assert activity_of(result)["inReplyTo"] == invite.id_
+        assert activity_of(result).get("to") == [inviter.id_]
 
     def test_accept_raises_when_invite_missing(self):
         _, dl = _make_actor_dl("Finder")
@@ -825,7 +949,11 @@ class TestSvcAcceptCaseInviteUseCase:
 
         with pytest.raises(VultronNotFoundError):
             SvcAcceptCaseInviteUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_accept_no_type_check_on_invite(self):
@@ -850,12 +978,12 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=inviter.id_,
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        dl_invitee.create(invite)
+        archive_received(dl_invitee, invite)
 
         request = AcceptCaseInviteTriggerRequest(
             actor_id=invitee.id_,
@@ -866,8 +994,10 @@ class TestSvcAcceptCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
-        assert "activity" in result
+        assert result.activity is not None
 
     def test_accept_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
@@ -884,12 +1014,12 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=inviter.id_,
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        dl_invitee.create(invite)
+        archive_received(dl_invitee, invite)
 
         # Pass the bare UUID (as the FastAPI router does from the URL path)
         request = AcceptCaseInviteTriggerRequest(
@@ -900,9 +1030,11 @@ class TestSvcAcceptCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert result["activity"]["actor"] == _HTTP_ACTOR_ID
+        assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
 
 
 class TestSvcRejectCaseInviteUseCase:
@@ -920,12 +1052,12 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=inviter.id_,
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        dl_invitee.create(invite)
+        archive_received(dl_invitee, invite)
 
         request = RejectCaseInviteTriggerRequest(
             actor_id=invitee.id_,
@@ -935,11 +1067,13 @@ class TestSvcRejectCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        assert result["activity"]["actor"] == invitee.id_
-        assert result["activity"].get("to") == [inviter.id_]
+        assert result.activity is not None
+        assert activity_of(result)["actor"] == invitee.id_
+        assert activity_of(result).get("to") == [inviter.id_]
 
     def test_reject_raises_when_invite_missing(self):
         _, dl = _make_actor_dl("Vendor")
@@ -952,7 +1086,11 @@ class TestSvcRejectCaseInviteUseCase:
 
         with pytest.raises(VultronNotFoundError):
             SvcRejectCaseInviteUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_reject_normalises_short_uuid_actor_id(self):
@@ -970,12 +1108,12 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=as_VulnerabilityCaseStub(id_=case.id_),
+            target=case.id_,
             actor=inviter.id_,
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        dl_invitee.create(invite)
+        archive_received(dl_invitee, invite)
 
         request = RejectCaseInviteTriggerRequest(
             actor_id=_UUID,
@@ -985,9 +1123,11 @@ class TestSvcRejectCaseInviteUseCase:
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert result["activity"]["actor"] == _HTTP_ACTOR_ID
+        assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
 
 
 class TestSvcAcceptActorRecommendationUseCase:
@@ -1021,11 +1161,15 @@ class TestSvcAcceptActorRecommendationUseCase:
             case_actor_id=case_actor.id_,
         )
         result = SvcAcceptActorRecommendationUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert result.get("activity") is not None
-        activity = result["activity"]
+        assert result.activity is not None
+        activity = activity_of(result)
         assert activity["type"] == "Accept"
 
     def test_accept_raises_when_offer_not_found(self):
@@ -1038,9 +1182,13 @@ class TestSvcAcceptActorRecommendationUseCase:
             cp_offer_id="https://example.org/activities/no-such-offer",
             case_actor_id=case_actor.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcAcceptActorRecommendationUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_accept_raises_when_actor_not_found(self):
@@ -1058,8 +1206,43 @@ class TestSvcAcceptActorRecommendationUseCase:
         )
         with pytest.raises(VultronNotFoundError):
             SvcAcceptActorRecommendationUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
+
+
+def _seed_delegated_case(owner, dl, *peers):
+    """A case whose roster names a separate CASE_MANAGER (CM-24-006).
+
+    The delegated emit runs as the CASE_MANAGER, and a BT reads and writes its
+    executing actor's own store (ADR-0073), so the manager's store is seeded
+    with the case as well.
+    """
+    case = as_VulnerabilityCase(
+        attributed_to=owner.id_, name="Test Case", content="Content"
+    )
+    case_actor = as_Service(
+        id_=f"{owner.id_}/case-actor", name="CaseActorService"
+    )
+    dl.create(case_actor)
+    manager = as_CaseParticipant(
+        id_=f"{case.id_}/participants/case-manager",
+        context=case.id_,
+        attributed_to=case_actor.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(manager)
+    case.case_participants.append(manager.id_)
+    case.actor_participant_index[case_actor.id_] = manager.id_
+    dl.create(case)
+    case_actor_dl = dl.clone_for_actor(case_actor.id_)
+    _CREATED_DLS.append(case_actor_dl)
+    for obj in (owner, *peers, case, case_actor, manager):
+        case_actor_dl.create(obj)
+    return case, case_actor
 
 
 class TestSvcOfferCaseOwnershipTransferUseCase:
@@ -1069,10 +1252,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
         dl.create(transferee)
-        case = as_VulnerabilityCase(
-            attributed_to=owner.id_, name="Test Case", content="Content"
-        )
-        dl.create(case)
+        case, case_actor = _seed_delegated_case(owner, dl, transferee)
 
         from vultron.core.use_cases.triggers.actor import (
             SvcOfferCaseOwnershipTransferUseCase,
@@ -1087,22 +1267,24 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             transferee_id=transferee.id_,
         )
         result = SvcOfferCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        activity_data = result["activity"]
+        assert result.activity is not None
+        activity_data = activity_of(result)
         assert activity_data["type"] == "Offer"
-        assert activity_data["actor"] == owner.id_
+        assert activity_data["actor"] == case_actor.id_
+        assert activity_data["attributedTo"] == owner.id_
 
     def test_offer_persisted_in_datalayer(self):
         owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
         dl.create(transferee)
-        case = as_VulnerabilityCase(
-            attributed_to=owner.id_, name="Test Case", content="Content"
-        )
-        dl.create(case)
+        case, case_actor = _seed_delegated_case(owner, dl, transferee)
 
         from vultron.core.use_cases.triggers.actor import (
             SvcOfferCaseOwnershipTransferUseCase,
@@ -1117,11 +1299,15 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             transferee_id=transferee.id_,
         )
         result = SvcOfferCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        offer_id = result["activity"]["id"]
-        stored = dl.read(offer_id)
+        offer_id = activity_of(result)["id"]
+        stored = dl.clone_for_actor(case_actor.id_).read(offer_id)
         assert stored is not None
 
     def test_offer_proceeds_when_transferee_not_in_dl(self, caplog):
@@ -1136,10 +1322,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         """
         owner, dl = _make_actor_dl("Vendor")
         missing_id = "https://example.org/actors/nobody"
-        case = as_VulnerabilityCase(
-            attributed_to=owner.id_, name="Test Case", content="Content"
-        )
-        dl.create(case)
+        case, _ = _seed_delegated_case(owner, dl)
 
         from vultron.core.use_cases.triggers.actor import (
             SvcOfferCaseOwnershipTransferUseCase,
@@ -1155,7 +1338,11 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         )
         with caplog.at_level(logging.WARNING):
             result = SvcOfferCaseOwnershipTransferUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert result is not None
@@ -1179,9 +1366,13 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             case_id="https://example.org/cases/nope",
             transferee_id=transferee.id_,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
             SvcOfferCaseOwnershipTransferUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_offer_uses_case_actor_as_sender_when_present(self):
@@ -1240,10 +1431,14 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             transferee_id=transferee.id_,
         )
         result = SvcOfferCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = result["activity"]
+        activity_data = activity_of(result)
         assert activity_data["type"] == "Offer"
         # CM-24-001: Offer actor MUST be the CaseActor, not the offering actor
         assert activity_data["actor"] == case_actor.id_
@@ -1252,39 +1447,6 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         # The activity must be in the CaseActor's outbox (CM-24-004)
         case_actor_outbox = dl.clone_for_actor(case_actor.id_).outbox_list()
         assert activity_data["id"] in case_actor_outbox
-
-    def test_offer_falls_back_to_requesting_actor_when_no_case_actor(self):
-        """CM-24-003: when no CaseActor exists, the Offer actor is the offering
-        actor and attributedTo is absent."""
-        owner, dl = _make_actor_dl("Vendor")
-        transferee, _ = _make_actor_dl("Coordinator")
-        dl.create(transferee)
-        case = as_VulnerabilityCase(
-            attributed_to=owner.id_, name="Test Case", content="Content"
-        )
-        dl.create(case)
-
-        from vultron.core.use_cases.triggers.actor import (
-            SvcOfferCaseOwnershipTransferUseCase,
-        )
-        from vultron.core.use_cases.triggers.requests import (
-            OfferCaseOwnershipTransferTriggerRequest,
-        )
-
-        request = OfferCaseOwnershipTransferTriggerRequest(
-            actor_id=owner.id_,
-            case_id=case.id_,
-            transferee_id=transferee.id_,
-        )
-        result = SvcOfferCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
-
-        activity_data = result["activity"]
-        assert activity_data["type"] == "Offer"
-        # CM-24-003: falls back to requesting actor when no CaseActor
-        assert activity_data["actor"] == owner.id_
-        assert activity_data.get("attributedTo") is None
 
 
 class TestSvcAcceptCaseOwnershipTransferUseCase:
@@ -1341,11 +1503,15 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             offer_id=offer.id_,
         )
         result = SvcAcceptCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        assert "activity" in result
-        activity_data = result["activity"]
+        assert result.activity is not None
+        activity_data = activity_of(result)
         assert activity_data["type"] == "Accept"
         assert activity_data["actor"] == transferee.id_
 
@@ -1374,15 +1540,19 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             offer_id=offer.id_,
         )
         result = SvcAcceptCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        accept_id = result["activity"]["id"]
+        accept_id = activity_of(result)["id"]
         stored = dl.read(accept_id)
         assert stored is not None
 
     def test_accept_raises_when_offer_not_in_dl(self):
-        owner, dl = _make_actor_dl("Vendor")
+        _owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
         dl.create(transferee)
 
@@ -1399,7 +1569,11 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         )
         with pytest.raises(VultronNotFoundError):
             SvcAcceptCaseOwnershipTransferUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_accept_raises_when_actor_not_found(self):
@@ -1424,7 +1598,11 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         )
         with pytest.raises(VultronNotFoundError):
             SvcAcceptCaseOwnershipTransferUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_accept_raises_when_offer_has_no_case_reference(self):
@@ -1470,6 +1648,8 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
                 mock_dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(mock_dl),
+                sync_port=SyncActivityAdapter(mock_dl),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
     def test_accept_to_field_is_case_actor(self):
@@ -1511,10 +1691,14 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             offer_id=offer.id_,
         )
         result = SvcAcceptCaseOwnershipTransferUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        activity_data = result["activity"]
+        activity_data = activity_of(result)
         assert activity_data["type"] == "Accept"
         # Primary invariant of ADR-0053 CM-21-006: Accept is routed to CaseActor.
         assert case_actor.id_ in activity_data.get("to", [])
@@ -1546,9 +1730,8 @@ class TestSvcOfferCaseParticipantRoleUseCase:
             dl, request, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        assert "activity_id" in result
-        assert "activity" in result
-        assert result["activity"]["type"] == "Offer"
+        assert isinstance(result, RoleOfferResult)
+        assert result.activity["type"] == "Offer"
 
     def test_happy_path_activity_persisted(self):
         """Emitted Offer activity is readable from the DataLayer."""
@@ -1563,7 +1746,7 @@ class TestSvcOfferCaseParticipantRoleUseCase:
             dl, request, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        stored = dl.read(result["activity_id"])
+        stored = dl.read(result.activity_id)
         assert stored is not None
 
     def test_raises_when_trigger_activity_missing(self):
@@ -1597,10 +1780,7 @@ class TestActorDiscoveryCallOut:
 
         actor, dl = _make_actor_dl("Coordinator")
         missing_id = "https://example.org/actors/discovery-test"
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_, name="Discovery Test", content="Content"
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -1612,7 +1792,9 @@ class TestActorDiscoveryCallOut:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 call_out=ACTOR_DISCOVERY_DETERMINISTIC,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert result is not None
@@ -1634,12 +1816,7 @@ class TestActorDiscoveryCallOut:
 
         actor, dl = _make_actor_dl("Coordinator")
         missing_id = "https://example.org/actors/unreachable"
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_,
-            name="Discovery Fail Test",
-            content="Content",
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -1651,7 +1828,9 @@ class TestActorDiscoveryCallOut:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 call_out=fail_bundle,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         # Invite proceeds even on FAILURE — annotating, not blocking (AC-4)
@@ -1676,12 +1855,7 @@ class TestActorDiscoveryCallOut:
 
         actor, dl = _make_actor_dl("Coordinator")
         missing_id = "https://example.org/actors/unreachable2"
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_,
-            name="Minimal Record Test",
-            content="Content",
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -1692,7 +1866,9 @@ class TestActorDiscoveryCallOut:
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
             call_out=fail_bundle,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Peer recorded even on FAILURE (protocol proceeds with URI-only record)
@@ -1721,17 +1897,12 @@ class TestActorDiscoveryCallOut:
                 return Status.RUNNING
 
         running_bundle = ActorDiscoveryCallOutBundle(
-            resolve_actor_factory=lambda name: _Running(name)  # type: ignore[arg-type]
+            resolve_actor_factory=_Running  # type: ignore[arg-type]
         )
 
         actor, dl = _make_actor_dl("Coordinator")
         missing_id = "https://example.org/actors/still-resolving"
-        case = as_VulnerabilityCase(
-            attributed_to=actor.id_,
-            name="Running Backend Test",
-            content="Content",
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -1744,7 +1915,9 @@ class TestActorDiscoveryCallOut:
                 dl,
                 request,
                 trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
                 call_out=running_bundle,
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert result is not None

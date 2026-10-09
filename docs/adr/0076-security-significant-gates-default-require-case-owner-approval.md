@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-08-26
+created: 2026-08-26
+updated: 2026-08-26
+revision: 1
 deciders: Allen D. Householder
 consulted: Claude Sonnet 4.6
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Security-Significant Call-Out Gates Default to `RequireCaseOwnerApproval`

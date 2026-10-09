@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from vultron.metadata.history.types import HistoryEntryType, LearningSignalType
 
-_UTC = datetime.timezone.utc
+_UTC = datetime.UTC
 
 
 class TestNewHistoryEntry:
@@ -46,7 +46,7 @@ class TestNewHistoryEntry:
                 title="T",
                 type=HistoryEntryType.idea,
                 source="SRC",
-                timestamp=datetime.datetime(2026, 4, 28, 12, 0, 0),
+                timestamp=datetime.datetime(2026, 4, 28, 12, 0, 0),  # noqa: DTZ001 — deliberately naive
             )
 
     def test_offset_timestamp_normalised_to_utc(self, model_cls) -> None:  # type: ignore[no-untyped-def]
@@ -115,7 +115,7 @@ class TestHistoryEntryFrontmatter:
                 {
                     "title": "T",
                     "type": "idea",
-                    "timestamp": datetime.datetime(2026, 4, 28, 12, 0, 0),
+                    "timestamp": datetime.datetime(2026, 4, 28, 12, 0, 0),  # noqa: DTZ001 — deliberately naive
                     "source": "IDEA-005",
                 }
             )

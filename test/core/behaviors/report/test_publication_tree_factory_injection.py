@@ -20,25 +20,18 @@ leaf has been replaced by the draft-review-submit pipeline (ADR-0030 / BT-20-004
 """
 
 import py_trees
-import pytest
 from py_trees.common import Access, Status
 
-from vultron.core.behaviors.report.publication_tree import (
+from vultron.core.behaviors.report.publication_intent import (
     INTENT_DECISION_KEY,
     PublicationIntentDecision,
+)
+from vultron.core.behaviors.report.publication_tree import (
     create_publication_tree,
 )
 from vultron.demo.fuzzer.bundles.publication import PublicationCallOutBundle
 
 CASE_ID = "https://example.org/cases/test-001"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Clear py_trees global blackboard state between tests."""
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 class _RecordingPrepare(py_trees.behaviour.Behaviour):
@@ -106,9 +99,9 @@ def _build(decision, ran):
         prepare_exploit_factory=lambda n: _RecordingPrepare(n, ran),  # type: ignore[arg-type]
         prepare_fix_factory=lambda n: _RecordingPrepare(n, ran),  # type: ignore[arg-type]
         prepare_report_factory=lambda n: _RecordingPrepare(n, ran),  # type: ignore[arg-type]
-        draft_advisory_artifact_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
-        review_advisory_draft_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
-        revise_advisory_draft_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
+        draft_advisory_artifact_factory=_always_succeed_factory,  # type: ignore[arg-type]
+        review_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
+        revise_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
         submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),  # type: ignore[arg-type]
     )
     return create_publication_tree(case_id=CASE_ID, call_out=bundle)
@@ -190,9 +183,9 @@ def test_prepare_failure_fails_intended_arm():
         ),
         prepare_fix_factory=lambda n: _FailingPrepare(name=n),  # type: ignore[arg-type]
         prepare_report_factory=lambda n: _RecordingPrepare(n, ran),  # type: ignore[arg-type]
-        draft_advisory_artifact_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
-        review_advisory_draft_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
-        revise_advisory_draft_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
+        draft_advisory_artifact_factory=_always_succeed_factory,  # type: ignore[arg-type]
+        review_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
+        revise_advisory_draft_factory=_always_succeed_factory,  # type: ignore[arg-type]
         submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),  # type: ignore[arg-type]
     )
     tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)

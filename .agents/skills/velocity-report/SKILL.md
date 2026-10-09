@@ -65,6 +65,24 @@ Compare median days to close across types:
 - Bugs: should roughly balance (bugs fixed ≈ bugs found in a mature phase)
 - Ideas: expect deficit during active discovery; surplus signals planning is processing faster than discovering
 
+### 7. Net issues by reason (`net_issues_by_week`, `net_issues_by_month`)
+
+Each row has `closed`, `closed_other`, `opened_<reason>` counts, and `net`
+(`closed` minus the `separate-defect`, `debt`, and `deferred` issues opened).
+Excursions and Epics are excluded; duplicate and not-planned closures sit in
+`closed_other` and do not count toward `net`. Definitions:
+`.agents/skills/shared/completeness-doctrine.md` § "Net Issues: Close More Than
+You Open".
+
+- Is `net` mostly at or above zero? A run of negative weeks means the backlog is growing.
+- Which reason drives the negative weeks? `debt` and `separate-defect` are
+  discoveries; the response is to read where they cluster (the `Where:` lines).
+- Any nonzero `opened_deferred` is a process defect: name the week and find the PRs.
+- Labels start at their adoption date; earlier weeks read as zero opened, not as
+  a clean record. Say so rather than treating them as a baseline.
+- There is no flag threshold yet. Report the numbers, and once a few weeks exist,
+  say what a typical week looks like so a threshold can be chosen with evidence.
+
 ## Granularity check: monthly vs. weekly
 
 Monthly buckets smooth over short-term spikes and can reverse conclusions

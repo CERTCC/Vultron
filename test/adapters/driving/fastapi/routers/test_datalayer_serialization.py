@@ -124,9 +124,9 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(
     data = response.json()
 
     # Verify response includes vulnerabilityReports field (camelCase)
-    assert (
-        "vulnerabilityReports" in data
-    ), f"Response missing 'vulnerabilityReports' field. Keys: {list(data.keys())}"
+    assert "vulnerabilityReports" in data, (
+        f"Response missing 'vulnerabilityReports' field. Keys: {list(data.keys())}"
+    )
 
     # Verify the field contains the report
     assert isinstance(data["vulnerabilityReports"], list)
@@ -146,7 +146,7 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
         attributed_to="https://example.org/actor",
         case_participants=[],  # Empty but should be included
         vulnerability_reports=[],  # Empty but should be included
-        proposed_embargoes=[],  # Empty but should be included
+        embargo_register=[],  # Empty but should be included
         case_activity=[],  # Empty but should be included
     )
 
@@ -164,7 +164,7 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
         "caseParticipants",
         "vulnerabilityReports",
         "caseStatuses",
-        "proposedEmbargoes",
+        "embargoRegister",
         "caseActivity",
         "parentCases",
         "childCases",
@@ -172,9 +172,9 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
     ]
 
     for field in expected_fields:
-        assert (
-            field in data
-        ), f"Response missing '{field}' field. Keys: {list(data.keys())}"
+        assert field in data, (
+            f"Response missing '{field}' field. Keys: {list(data.keys())}"
+        )
 
 
 def test_get_vulnerability_report_includes_all_fields(client, datalayer):
@@ -199,9 +199,9 @@ def test_get_vulnerability_report_includes_all_fields(client, datalayer):
     data = response.json()
 
     # Verify as_VulnerabilityReport has content field (not in as_Base)
-    assert (
-        "content" in data
-    ), f"Response missing 'content' field. Keys: {list(data.keys())}"
+    assert "content" in data, (
+        f"Response missing 'content' field. Keys: {list(data.keys())}"
+    )
     assert data["content"] == "Test vulnerability content"
 
 

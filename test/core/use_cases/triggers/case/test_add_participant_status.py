@@ -84,7 +84,7 @@ class _FakeDL:
 
 def _as_persistence(dl: "_FakeDL"):
     """Cast the stub to CaseOutboxPersistence so pyright is satisfied."""
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return cast(CaseOutboxPersistence, dl)
 
@@ -346,19 +346,19 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         ).execute()
         after = set(self.dl.outbox_list())
         new_ids = after - before
-        assert (
-            new_ids
-        ), "AddParticipantStatus must queue at least one outbox activity"
+        assert new_ids, (
+            "AddParticipantStatus must queue at least one outbox activity"
+        )
         activity_id = next(iter(new_ids))
         activity = self.dl.read(activity_id)
         assert activity is not None
         to_ids = self._to_ids(activity)
-        assert (
-            self.case_actor.id_ in to_ids
-        ), f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
-        assert (
-            len(to_ids) == 1
-        ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        assert self.case_actor.id_ in to_ids, (
+            f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
+        )
+        assert len(to_ids) == 1, (
+            f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        )
 
     def test_execute_appends_status_to_sender_participant(self):
         """After execute(), sender's participant_statuses contains the new status.
@@ -386,7 +386,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             trigger_activity=self.trigger_activity,
         ).execute()
 
-        status_id = result.get("status_id")
+        status_id = result.status_id
         assert status_id is not None, "execute() must return a status_id"
 
         # The sender's own participant record must now contain the status.
@@ -474,7 +474,6 @@ class TestCreateParticipantStatusNode:
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         self.actor = as_Service(name="Reporter")
         actor_id = self.actor.id_
@@ -524,7 +523,6 @@ class TestCreateParticipantStatusNode:
             self.dl.close()
             reset_datalayer(actor_id)
             reset_datalayer(self.case_actor.id_)
-        py_trees.blackboard.Blackboard.storage.clear()
 
     def _run_node(self, **kwargs):
         """Build and execute a tree containing only CreateParticipantStatusNode."""
@@ -725,10 +723,9 @@ class TestCreateParticipantStatusNode:
         assert records, "Expected a CS narrative line at INFO for PXA advance"
         # vP promotion may fire a VF narrative first; search all records for PXA
         pxa_records = [r for r in records if "pxa → Pxa" in r.getMessage()]
-        assert (
-            pxa_records
-        ), "Expected CS narrative containing 'pxa → Pxa'; got: " + str(
-            [r.getMessage() for r in records]
+        assert pxa_records, (
+            "Expected CS narrative containing 'pxa → Pxa'; got: "
+            + str([r.getMessage() for r in records])
         )
         message = pxa_records[0].getMessage()
         assert f"Actor '{self.actor.id_}' CS: pxa → Pxa" in message
@@ -909,7 +906,7 @@ class TestCreateParticipantStatusNode:
         """CSB-16-001: same-state VF write (no actual transition) is allowed.
 
         Uses CS_vf.Vf because VENDOR participants cannot hold CS_vf.vf
-        (Vendor-implies-V, PRM-06-002, ADR-0084).
+        (Vendor-implies-V, PRM-06-002, ADR-0121).
         """
         from py_trees.common import Status
 
@@ -932,6 +929,7 @@ class TestCreateParticipantStatusNode:
         ValidateTriggerTransitionsNode.
         """
         from py_trees.common import Status
+
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.enums.roles import CVDRole
 
@@ -990,6 +988,7 @@ class TestCreateParticipantStatusNode:
     def test_ephemeral_pxa_pXa_promoted_before_write(self):
         """AC-1 / SM-09-001: pXa is promoted to PXa before writing."""
         from py_trees.common import Status
+
         from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.cs import CS_pxa
 
@@ -1011,6 +1010,7 @@ class TestCreateParticipantStatusNode:
         the ephemeral pXA is promoted to PXA at the write boundary.
         """
         from py_trees.common import Status
+
         from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.cs import CS_pxa
 
@@ -1036,6 +1036,7 @@ class TestCreateParticipantStatusNode:
         The write boundary must auto-promote VF to Vf before persisting.
         """
         from py_trees.common import Status
+
         from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.cs import CS_pxa, CS_vf
 
@@ -1065,6 +1066,7 @@ class TestCreateParticipantStatusNode:
         write must be refused at the persistence boundary.
         """
         from py_trees.common import Status
+
         from vultron.core.states.cs import CS_pxa, CS_vf
 
         self._seed_participant_vf_state(CS_vf.vf)
@@ -1082,6 +1084,7 @@ class TestCreateParticipantStatusNode:
     def test_single_vf_step_passes_compound_check(self):
         """AC-3 / SM-09-002: a valid single-dimension VF advance is accepted."""
         from py_trees.common import Status
+
         from vultron.core.states.cs import CS_vf
 
         self._seed_participant_vf_state(CS_vf.vf)
@@ -1101,6 +1104,7 @@ class TestCreateParticipantStatusNode:
         Regression test for the first-error-only bug.
         """
         from py_trees.common import Status
+
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.states.cs import CS_d, CS_vf
         from vultron.enums.roles import CVDRole
@@ -1209,7 +1213,11 @@ class TestCreateParticipantStatusNode:
         )
 
     def test_force_rm_state_permits_the_closure_stamp(self):
-        """The exempted write itself succeeds — today's closure behaviour."""
+        """The exempted write itself succeeds.
+
+        Closure no longer uses the override (RMB-14-005); the bootstrap writes
+        still do, so the exemption's own behaviour stays pinned.
+        """
         from vultron.core.behaviors.case.nodes.participant import (
             CreateParticipantStatusNode,
         )
@@ -1940,10 +1948,9 @@ class TestCrossMachineEntailments:
         The trigger path must refuse it even when RM and individual VF/D
         transitions are valid in isolation (#2893).
         """
-        from vultron.errors import VultronValidationError
-
         # Register participant as VENDOR+DEPLOYER so the D dimension guard passes.
         from vultron.enums.roles import CVDRole
+        from vultron.errors import VultronValidationError
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
@@ -1965,9 +1972,9 @@ class TestCrossMachineEntailments:
         before = self._status_count()
         with pytest.raises(VultronValidationError, match=r"CSB-15-004"):
             self._execute(d_state=CS_d.D)
-        assert (
-            self._status_count() == before
-        ), "Status count must not increase when vf≠VF + d=D (CSB-17-001)"
+        assert self._status_count() == before, (
+            "Status count must not increase when vf≠VF + d=D (CSB-17-001)"
+        )
 
 
 class TestViolationPxaEmEntailment:
@@ -2071,7 +2078,6 @@ class TestCreateParticipantStatusNodeCrossMachineOnBypassPath:
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         self.actor = as_Service(name="Vendor Bypass")
         actor_id = self.actor.id_
@@ -2115,7 +2121,6 @@ class TestCreateParticipantStatusNodeCrossMachineOnBypassPath:
             self.dl.close()
             reset_datalayer(actor_id)
             reset_datalayer(self.case_actor.id_)
-        py_trees.blackboard.Blackboard.storage.clear()
 
     def _run_node(self, **kwargs):
         from vultron.core.behaviors.case.nodes.participant import (
@@ -2161,6 +2166,7 @@ def test_validate_trigger_returns_failure_on_corrupt_participant_status():
     rehydration path — matching the test pattern at line 176 in this file.
     """
     from py_trees.common import Status
+
     from vultron.core.behaviors.case.nodes.participant.trigger_validation import (
         ValidateTriggerTransitionsNode,
     )

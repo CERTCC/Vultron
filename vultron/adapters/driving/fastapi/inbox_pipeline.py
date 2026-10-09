@@ -28,8 +28,8 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
-from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.errors import (
@@ -40,6 +40,11 @@ from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
+
+#: Re-queues one activity may consume before :class:`InboxPipeline` drops it.
+#: A failure that persists past this many retries is treated as permanent, so
+#: a message that always raises cannot loop through the inbox forever (#2901).
+MAX_REQUEUE_ATTEMPTS: int = 3
 
 
 def _scalar_actor_ref(value: object) -> str | None:
@@ -70,14 +75,56 @@ class InboxPipeline:
     def __init__(self, dispatcher: ActivityDispatcher, dl: DataLayer) -> None:
         self._dispatcher = dispatcher
         self._dl = dl
+        self._requeue_counts: dict[str, int] = {}
+
+    def _requeue(
+        self,
+        activity_id: str,
+        queue_dl: DataLayer | None,
+        actor_id: str | None,
+    ) -> bool:
+        """Re-queue *activity_id* unless its retry budget is spent.
+
+        Returns ``True`` when the item was re-queued, ``False`` when it had
+        already been re-queued :data:`MAX_REQUEUE_ATTEMPTS` times and is
+        dropped instead (#2901).
+        """
+        attempts = self._requeue_counts.get(activity_id, 0) + 1
+        if attempts > MAX_REQUEUE_ATTEMPTS:
+            logger.error(
+                "Inbox item '%s' for actor '%s' still failing after %d"
+                " re-queues — dropping (retry limit reached)",
+                activity_id,
+                actor_id,
+                MAX_REQUEUE_ATTEMPTS,
+            )
+            return False
+        self._requeue_counts[activity_id] = attempts
+        (queue_dl if queue_dl is not None else self._dl).inbox_append(
+            activity_id
+        )
+        logger.info(
+            "Re-queued inbox item '%s' for actor '%s' for retry (%d of %d)",
+            activity_id,
+            actor_id,
+            attempts,
+            MAX_REQUEUE_ATTEMPTS,
+        )
+        return True
 
     def process(self, activity_id: str) -> VultronEvent | None:
         """Process one queued activity ID.
 
         Returns the dispatched ``VultronEvent`` or ``None`` when processing is
-        deferred or an error prevents dispatch.
+        deferred or an error prevents dispatch.  A protocol violation is
+        dropped at once; any other error re-queues the item, up to
+        :data:`MAX_REQUEUE_ATTEMPTS` times per item.  The item's count is
+        cleared on every exit that does not re-queue it, so a later failure
+        starts with the full budget.
         """
         queue_dl: DataLayer | None = None
+        receiving_actor_id: str | None = None
+        requeued = False
         try:
             obj = rehydrate(activity_id, dl=self._dl)
             if not isinstance(obj, as_Activity):
@@ -126,8 +173,14 @@ class InboxPipeline:
                 )
                 return None
 
-            dispatch(event=event, dl=self._dl, dispatcher=self._dispatcher)
-            if is_case_bootstrap(event) and case_id is not None:
+            result = dispatch(
+                event=event, dl=self._dl, dispatcher=self._dispatcher
+            )
+            if (
+                result.took_effect
+                and is_case_bootstrap(event)
+                and case_id is not None
+            ):
                 _replay_pending_case_activities(
                     case_id=case_id,
                     dl=self._dl,
@@ -136,33 +189,30 @@ class InboxPipeline:
                 )
             return event
         except VultronProtocolViolationError:
-            logger.error(
+            logger.exception(
                 "Protocol violation in inbox item '%s'"
                 " — not re-queuing (permanent failure)",
                 activity_id,
-                exc_info=True,
             )
             return None
         except VultronValidationError:
-            _requeue = queue_dl if queue_dl is not None else self._dl
-            _requeue.inbox_append(activity_id)
             logger.warning(
-                "Validation error processing inbox item '%s'"
-                " — re-queuing for retry",
+                "Validation error processing inbox item '%s'",
                 activity_id,
                 exc_info=True,
             )
+            requeued = self._requeue(activity_id, queue_dl, receiving_actor_id)
             return None
         except Exception:
-            _requeue = queue_dl if queue_dl is not None else self._dl
-            _requeue.inbox_append(activity_id)
-            logger.error(
-                "Error processing inbox item '%s' in InboxPipeline"
-                " — re-queuing for retry",
+            logger.exception(
+                "Error processing inbox item '%s' in InboxPipeline",
                 activity_id,
-                exc_info=True,
             )
+            requeued = self._requeue(activity_id, queue_dl, receiving_actor_id)
             return None
+        finally:
+            if not requeued:
+                self._requeue_counts.pop(activity_id, None)
 
 
 def build_test_pipeline(dl: DataLayer) -> InboxPipeline:

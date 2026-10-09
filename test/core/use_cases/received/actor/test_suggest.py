@@ -13,36 +13,60 @@
 """Tests for actor suggestion received use cases (ADR-0026 CaseActor-routed)."""
 
 import logging
+from typing import cast
 from unittest.mock import MagicMock
 
-import py_trees
 import pytest
 
+from test.conftest import TEST_ACTOR_ID
+from test.core.use_cases.received.conftest import (
+    seed_case_owner_participant,
+    seed_case_participant,
+)
+from test.support.embargo_register import activate
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import recommend_actor_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from test.conftest import TEST_ACTOR_ID
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
 
+def _case_ref(case_id: str) -> as_VulnerabilityCase:
+    """An inline case as ``target``, as the inbox rehydrates a bare id.
+
+    The CASE_MANAGER's receipt commit refuses a bare-string ``target``, so a
+    test that reaches that commit must send what production sends.
+    """
+    return as_VulnerabilityCase(id_=case_id, name="OfferActorTest")
+
+
 class TestOfferActorToCaseReceivedUseCase:
     """Tests for the CaseActor-inbox Offer(Actor,Case) use case (CM-16)."""
 
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
+    _RECOMMENDER_ID = "https://example.org/actors/finder"
 
-    def _setup_dl(self, owner_is_local: bool = True):
-        """Return DataLayer seeded with a Service actor and a case."""
+    def _setup_dl(
+        self,
+        seed_case_manager,
+        owner_is_local: bool = True,
+        manager_id: str = TEST_ACTOR_ID,
+    ):
+        """Return DataLayer seeded with a Service actor and a case.
+
+        The receiving actor (``TEST_ACTOR_ID``, the store's owner) holds
+        ``CVDRole.CASE_MANAGER`` unless *manager_id* names somebody else
+        (BT-17-005).
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
@@ -61,43 +85,62 @@ class TestOfferActorToCaseReceivedUseCase:
             name="OfferActorTest",
             attributed_to=owner_id,
         )
+        seed_case_manager(dl, case, manager_id)
+        # The recommender must be a participant (CM-16-001).
+        seed_case_participant(dl, case, self._RECOMMENDER_ID)
         dl.create(local_actor)
         dl.create(case)
         return dl, local_actor_id, case_id
 
     def test_offer_actor_to_case_emits_offer_case_participant(
-        self, make_payload
+        self, make_payload, seed_case_manager
     ):
         """CaseActor receives Offer(Actor, Case) and emits Offer(CaseParticipant) to owner."""
         from vultron.core.models.events.actor import (
             OfferActorToCaseReceivedEvent,
         )
 
-        dl, local_actor_id, case_id = self._setup_dl()
+        dl, local_actor_id, case_id = self._setup_dl(seed_case_manager)
         recommender_id = "https://example.org/actors/finder"
         recommended_id = "https://example.org/actors/vendor-new"
         recommended = as_Actor(id_=recommended_id)
 
-        # Build Offer(Actor, Case) — the wire activity matched by OFFER_ACTOR_TO_CASE
+        # Build Offer(Actor, Case) — the wire activity matched by OFFER_ACTOR_TO_CASE.
+        # CM-11-019: roles must be explicit; no default to VENDOR.
         activity = recommend_actor_activity(
             recommended,
-            target=case_id,
+            target=_case_ref(case_id),
             actor=recommender_id,
             to=[local_actor_id],
+            suggested_roles=["vendor"],
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
-        assert isinstance(
-            event, OfferActorToCaseReceivedEvent
-        ), f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
+        assert isinstance(event, OfferActorToCaseReceivedEvent), (
+            f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
+        )
 
-        OfferActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        result = OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
-        outbox = dl.outbox_list()
-        assert (
-            len(outbox) >= 1
-        ), f"Expected at least 1 outbox entry (Offer(CaseParticipant)), got {len(outbox)}"
+        # The ledger fan-out to the recommender (CM-16-002) shares the outbox;
+        # the forward to the owner is the one Offer.
+        outbox = [
+            a
+            for a in dl.outbox_list()
+            if str(getattr(dl.read(a), "type_", "")) == "Offer"
+        ]
+        assert len(outbox) == 1, (
+            f"Expected exactly 1 outbox entry (Offer(CaseParticipant)), got {len(outbox)}"
+        )
+        queued = dl.read(outbox[0])
+        assert getattr(queued, "actor", None) == TEST_ACTOR_ID
+        assert getattr(queued, "to", None) == [local_actor_id]
 
     def test_offer_actor_to_case_runs_as_the_store_owner_without_a_request_actor(
         self, make_payload, caplog
@@ -133,16 +176,25 @@ class TestOfferActorToCaseReceivedUseCase:
         event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
-            OfferActorToCaseReceivedUseCase(dl, event).execute()
+            result = OfferActorToCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+
+        # The store holds no such case, so the recommendation is refused.
+        assert result.disposition is HandlerDisposition.REFUSED
 
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages, (
             "the no-local-actor branch is unreachable under ADR-0073 and must"
             " not be reintroduced"
         )
-        assert (
-            "unknown" not in messages
-        ), "the actor identity must never be fabricated (ARCH-15-001)"
+        assert "'unknown'" not in messages, (
+            "the actor identity must never be fabricated (ARCH-15-001)"
+        )
 
     def test_offer_actor_to_case_skips_missing_recommended_id(self, caplog):
         """Skips gracefully when recommended_id is missing from the event."""
@@ -161,12 +213,18 @@ class TestOfferActorToCaseReceivedUseCase:
         mock_event.activity = None
 
         with caplog.at_level(logging.WARNING):
-            OfferActorToCaseReceivedUseCase(dl, mock_event).execute()
+            result = OfferActorToCaseReceivedUseCase(
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
 
         assert any("missing" in r.message.lower() for r in caplog.records)
+        assert result.disposition is HandlerDisposition.REFUSED
 
     def test_offer_actor_populates_recommendation_recommender_index(
-        self, make_payload
+        self, make_payload, seed_case_manager
     ):
         """AC-1 (write-side): execute() writes activity_id→recommender_id to core state.
 
@@ -175,18 +233,14 @@ class TestOfferActorToCaseReceivedUseCase:
         Accept/Reject use cases can look up the recommender without re-reading
         the stored wire Offer (ADR-0035 DL-06-002).
         """
-        from typing import cast
-
-        from vultron.core.models.case import VulnerabilityCase
-
-        dl, local_actor_id, case_id = self._setup_dl()
+        dl, local_actor_id, case_id = self._setup_dl(seed_case_manager)
         recommender_id = "https://example.org/actors/finder"
         recommended_id = "https://example.org/actors/vendor-new"
         recommended = as_Actor(id_=recommended_id)
 
         activity = recommend_actor_activity(
             recommended,
-            target=case_id,
+            target=_case_ref(case_id),
             actor=recommender_id,
             to=[local_actor_id],
         )
@@ -194,7 +248,11 @@ class TestOfferActorToCaseReceivedUseCase:
         activity_id = activity.id_
 
         OfferActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         case = cast(VulnerabilityCase, dl.read(case_id))
@@ -206,3 +264,355 @@ class TestOfferActorToCaseReceivedUseCase:
             "recommendation_recommender_index must map activity_id → recommender_id "
             "after OfferActorToCaseReceivedUseCase runs (ADR-0035 DL-06-002)"
         )
+
+
+class TestOfferActorToCaseAtNonCaseManager:
+    """A receiver that is not the case's CASE_MANAGER refuses (#3752).
+
+    Every step of the suggest-actor flow is the CASE_MANAGER's (CM-16-002
+    through CM-16-009), so the emit branches sit behind a role gate
+    (BT-17-001).  A participant that merely holds a copy of the Offer queues
+    nothing, writes nothing, and says so as a refusal rather than a benign
+    skip (HP-01-005).
+    """
+
+    _CASE_ID = "https://example.org/cases/offer-actor-cc-case"
+    _MANAGER_ID = "https://example.org/actors/case-actor"
+    _OWNER_ID = "https://example.org/actors/owner"
+    _RECOMMENDER_ID = "https://example.org/actors/finder"
+    _RECOMMENDED_ID = "https://example.org/actors/vendor-new"
+
+    def _vendor_store(self, seed_case_manager):
+        """The receiving vendor's own store; somebody else is CASE_MANAGER."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=TEST_ACTOR_ID)
+        dl.create(as_Actor(id_=TEST_ACTOR_ID))  # type: ignore[arg-type]
+        case = as_VulnerabilityCase(
+            id_=self._CASE_ID,
+            name="OfferActorCcTest",
+            attributed_to=self._OWNER_ID,
+        )
+        seed_case_manager(dl, case, self._MANAGER_ID)
+        seed_case_participant(dl, case, self._RECOMMENDER_ID)
+        dl.create(case)
+        return dl
+
+    def _event(self, make_payload):
+        activity = recommend_actor_activity(
+            as_Actor(id_=self._RECOMMENDED_ID),
+            target=_case_ref(self._CASE_ID),
+            actor=self._RECOMMENDER_ID,
+            to=[self._MANAGER_ID],
+            cc=[TEST_ACTOR_ID],
+        )
+        return make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+
+    @pytest.mark.spec("BT-17-001")
+    @pytest.mark.spec("HP-01-005")
+    def test_offer_actor_to_case_refused_when_receiver_is_not_case_manager(
+        self, make_payload, seed_case_manager
+    ):
+        dl = self._vendor_store(seed_case_manager)
+        event = self._event(make_payload)
+
+        result = OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == [], (
+            "a receiver that is not the CASE_MANAGER must not forward an"
+            " Offer(CaseParticipant) to the Case Owner"
+        )
+
+    @pytest.mark.spec("BT-17-001")
+    def test_non_case_manager_does_not_record_the_recommender(
+        self, make_payload, seed_case_manager
+    ):
+        dl = self._vendor_store(seed_case_manager)
+        event = self._event(make_payload)
+
+        OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        case = cast(VulnerabilityCase, dl.read(self._CASE_ID))
+        assert case.recommendation_recommender_index == {}, (
+            "the recommender index is the CASE_MANAGER's; a copy-holder"
+            " must not write it"
+        )
+
+
+class TestOwnerDirectInviteAtCaseManager:
+    """The Case Owner's Offer(Actor, Case) at the CASE_MANAGER (CM-17-007).
+
+    When the recommender holds ``CVDRole.CASE_OWNER``, the recommendation is
+    already the owner's decision, so the CASE_MANAGER emits the ``Invite``
+    itself — from its own identity and outbox, committed to its ledger, and
+    with no ``cc`` (ADR-0109) — instead of asking the owner to decide.
+    """
+
+    _OWNER_ID = "https://example.org/actors/case-owner"
+    _INVITEE_ID = "https://example.org/actors/invitee"
+    _CASE_ID = "https://example.org/cases/owner-direct-invite-case"
+
+    def _setup_dl(self, seed_case_manager, with_active_embargo=False):
+        from datetime import UTC, datetime
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=TEST_ACTOR_ID)
+        case = as_VulnerabilityCase(
+            id_=self._CASE_ID,
+            name="OwnerDirect",
+            attributed_to=self._OWNER_ID,
+            stub_summary="Security issue — details shared after acceptance",
+        )
+        seed_case_manager(dl, case, TEST_ACTOR_ID)
+        owner = CaseParticipant(
+            id_=f"{case.id_}/participants/owner",
+            attributed_to=self._OWNER_ID,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        dl.create(owner)
+        case.case_participants.append(owner.id_)
+        case.actor_participant_index[self._OWNER_ID] = owner.id_
+        if with_active_embargo:
+            embargo = as_EmbargoEvent(
+                id_=f"{case.id_}/embargo/e1",
+                content="Active embargo",
+                end_time=datetime(2030, 1, 1, tzinfo=UTC),
+                context=case.id_,
+            )
+            dl.create(embargo)
+            activate(case, embargo.id_)
+        dl.create(case)
+        return dl
+
+    def _deliver(self, dl, make_payload, roles=None):
+        activity = recommend_actor_activity(
+            as_Actor(id_=self._INVITEE_ID),
+            target=_case_ref(self._CASE_ID),
+            actor=self._OWNER_ID,
+            to=[TEST_ACTOR_ID],
+            suggested_roles=roles,
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+        return OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    def _sealed_bodies(self, dl) -> list[dict]:
+        """Sealed outbox bodies, minus the ledger fan-out.
+
+        The CASE_MANAGER announces each entry it commits to every active
+        participant (SYNC-02-003); those Announce(CaseLedgerEntry) items are
+        replication, not the protocol message these tests inspect.
+        """
+        import json
+
+        from vultron.adapters.outbox_sealed_body import read_sealed_body
+
+        bodies: list[dict] = []
+        for item in dl.outbox_list():
+            sealed = read_sealed_body(dl, item)
+            assert sealed is not None
+            body: dict = json.loads(sealed.body)
+            obj = body.get("object")
+            if body.get("type") == "Announce" and (
+                isinstance(obj, dict) and obj.get("type") == "CaseLedgerEntry"
+            ):
+                continue
+            bodies.append(body)
+        return bodies
+
+    def _sealed_invite(self, dl) -> dict:
+        bodies = self._sealed_bodies(dl)
+        invites = [b for b in bodies if b.get("type") == "Invite"]
+        assert len(invites) == 1, f"expected one Invite, got {bodies!r}"
+        return invites[0]
+
+    @pytest.mark.spec("CM-17-007")
+    def test_case_manager_emits_the_invite_itself(
+        self, make_payload, seed_case_manager
+    ):
+        dl = self._setup_dl(seed_case_manager)
+
+        # CM-11-019: roles must be explicit; no default to VENDOR.
+        result = self._deliver(dl, make_payload, roles=["vendor"])
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        invite = self._sealed_invite(dl)
+        assert invite["type"] == "Invite"
+        assert invite["actor"] == TEST_ACTOR_ID
+        assert invite.get("attributedTo") == self._OWNER_ID
+        assert invite.get("to") == [self._INVITEE_ID]
+        assert "cc" not in invite
+        assert invite.get("roles") == ["vendor"]
+
+    @pytest.mark.spec("CM-17-003")
+    def test_requested_roles_are_carried(
+        self, make_payload, seed_case_manager
+    ):
+        dl = self._setup_dl(seed_case_manager)
+
+        self._deliver(dl, make_payload, roles=["coordinator"])
+
+        assert self._sealed_invite(dl).get("roles") == ["coordinator"]
+
+    @pytest.mark.spec("CM-17-006")
+    def test_invite_is_committed_to_the_case_managers_ledger(
+        self, make_payload, seed_case_manager
+    ):
+        dl = self._setup_dl(seed_case_manager)
+
+        self._deliver(dl, make_payload, roles=["vendor"])
+
+        invite_id = self._sealed_invite(dl)["id"]
+        snapshot_ids = [
+            getattr(entry, "payload_snapshot", {}).get("id")
+            for entry in dl.list_objects("CaseLedgerEntry")
+        ]
+        assert invite_id in snapshot_ids
+
+    @pytest.mark.spec("CM-17-002")
+    def test_active_embargo_enriches_the_case_stub(
+        self, make_payload, seed_case_manager
+    ):
+        dl = self._setup_dl(seed_case_manager, with_active_embargo=True)
+
+        self._deliver(dl, make_payload, roles=["vendor"])
+
+        target = self._sealed_invite(dl)["target"]
+        assert isinstance(target.get("activeEmbargo"), dict)
+        assert "endTime" in target["activeEmbargo"]
+        assert target.get("caseStatus", {}).get("emState") in (
+            "active",
+            "ACTIVE",
+        )
+
+    def test_owner_is_not_asked_to_decide(
+        self, make_payload, seed_case_manager
+    ):
+        """The fresh path's Offer(CaseParticipant) to the owner is not sent."""
+        dl = self._setup_dl(seed_case_manager)
+
+        self._deliver(dl, make_payload, roles=["vendor"])
+
+        queued = self._sealed_bodies(dl)
+        assert queued
+        # An Add(CaseParticipant) is now emitted alongside the Invite (AC-1,
+        # CM-11-006), but no Offer(CaseParticipant) should reach the owner.
+        assert any(body.get("type") == "Invite" for body in queued)
+        assert not any(body.get("type") == "Offer" for body in queued)
+
+
+class TestSuggestionFromNonParticipant:
+    """A suggestion from an actor the case does not list is refused (CM-16-001).
+
+    The CASE_MANAGER forwards a participant's suggestion to the Case Owner, so
+    letting any actor through would be an unspecified admission path (#3668,
+    HP-01-006).
+    Refusal comes before the receipt is recorded: nothing is written to the
+    case and nothing is queued, so nothing reaches the Case Owner.
+    """
+
+    _CASE_ID = "https://example.org/cases/suggest-non-participant-case"
+    _OWNER_ID = "https://example.org/actors/owner"
+    _STRANGER_ID = "https://example.org/actors/stranger"
+    _RECOMMENDED_ID = "https://example.org/actors/vendor-new"
+
+    def _store(self, seed_case_manager):
+        """The CASE_MANAGER's store; the stranger is not on the roster."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=TEST_ACTOR_ID)
+        case = as_VulnerabilityCase(
+            id_=self._CASE_ID,
+            name="SuggestNonParticipant",
+            attributed_to=self._OWNER_ID,
+        )
+        seed_case_manager(dl, case, TEST_ACTOR_ID)
+        seed_case_owner_participant(dl, case, self._OWNER_ID)
+        dl.create(case)
+        return dl
+
+    def _deliver(self, dl, make_payload, sender_id: str):
+        activity = recommend_actor_activity(
+            as_Actor(id_=self._RECOMMENDED_ID),
+            target=_case_ref(self._CASE_ID),
+            actor=sender_id,
+            to=[TEST_ACTOR_ID],
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+        return OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute(), activity
+
+    @pytest.mark.spec("CM-16-001")
+    @pytest.mark.spec("HP-01-006")
+    def test_suggestion_from_non_participant_is_refused(
+        self, make_payload, seed_case_manager
+    ):
+        """The stranger's Offer is refused by name, with no protocol effect."""
+        dl = self._store(seed_case_manager)
+
+        result, _ = self._deliver(dl, make_payload, self._STRANGER_ID)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert self._STRANGER_ID in (result.reason or "")
+        assert "participant" in (result.reason or "")
+        assert dl.outbox_list() == [], (
+            "a suggestion from a non-participant must not be forwarded to the"
+            " Case Owner"
+        )
+        case = cast(VulnerabilityCase, dl.read(self._CASE_ID))
+        assert case.recommendation_recommender_index == {}
+        assert dl.list_objects("CaseLedgerEntry") == [], (
+            "the refused Offer must not be ledgered as a case event"
+        )
+
+    @pytest.mark.spec("CM-16-001")
+    def test_suggestion_from_participant_is_forwarded(
+        self, make_payload, seed_case_manager
+    ):
+        """Control: the same Offer from a listed participant is applied."""
+        dl = self._store(seed_case_manager)
+        case = cast(VulnerabilityCase, dl.read(self._CASE_ID))
+        seed_case_participant(dl, case, self._STRANGER_ID)
+        dl.save(case)
+
+        result, _ = self._deliver(dl, make_payload, self._STRANGER_ID)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        forwarded = [
+            a
+            for a in dl.outbox_list()
+            if str(getattr(dl.read(a), "type_", "")) == "Offer"
+        ]
+        assert len(forwarded) == 1

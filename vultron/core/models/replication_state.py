@@ -20,23 +20,23 @@ from __future__ import annotations
 
 import urllib.parse
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreRecord, NonEmptyString, with_record_id
 from vultron.core.models.wire_keys import input_keys
 
 
-class VultronReplicationState(VultronObject):
+class VultronReplicationState(CoreRecord):
     """Tracks per-peer replication state for the CaseActor log fan-out.
 
     The ``id_`` is auto-computed as
     ``{case_id}/replication/{url_encoded_peer_id}`` so that the same
     peer always resolves to a stable key in the DataLayer.
 
-    Spec: SYNC-04-001, SYNC-04-002.
+    Spec: SYNC-04-001, SYNC-04-002; the embargo pause is CM-10-005/006.
     """
 
     type_: Literal["ReplicationState"] = Field(  # type: ignore[assignment]
@@ -44,10 +44,12 @@ class VultronReplicationState(VultronObject):
         validation_alias="type",
         serialization_alias="type",
     )
-    case_id: str = Field(
+    case_id: NonEmptyString = Field(
         ..., description="URI of the parent VulnerabilityCase"
     )
-    peer_id: str = Field(..., description="Full URI of the participant actor")
+    peer_id: NonEmptyString = Field(
+        ..., description="Full URI of the participant actor"
+    )
     last_acknowledged_hash: str = Field(
         default="",
         description=(
@@ -81,18 +83,19 @@ class VultronReplicationState(VultronObject):
         validation_alias="joinBackfillLastSentIndex",
         serialization_alias="joinBackfillLastSentIndex",
     )
-    last_replayed_from_hash: Optional[str] = Field(
+    last_replayed_from_hash: str | None = Field(
         default=None,
         description=(
             "entry_hash the most recent Reject-triggered replay started from,"
             " used to suppress repeated full-ledger replays to a peer that has"
-            " made no progress; None means no replay has run yet"
+            " made no progress; None means no replay has run yet, and the"
+            " empty string means the replay started from genesis"
             " (SYNC-15-003)"
         ),
         validation_alias="lastReplayedFromHash",
         serialization_alias="lastReplayedFromHash",
     )
-    last_replayed_at: Optional[datetime] = Field(
+    last_replayed_at: datetime | None = Field(
         default=None,
         description=(
             "When the most recent Reject-triggered replay was sent to this"
@@ -112,6 +115,18 @@ class VultronReplicationState(VultronObject):
         validation_alias="joinBackfillComplete",
         serialization_alias="joinBackfillComplete",
     )
+    embargo_paused_from_index: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "log_index of the first canonical entry the embargo content gate"
+            " withheld from this peer (CM-10-005); the backfill that admits"
+            " the peer starts here (CM-10-006). None means the peer's stream"
+            " is not paused"
+        ),
+        validation_alias="embargoPausedFromIndex",
+        serialization_alias="embargoPausedFromIndex",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -123,8 +138,7 @@ class VultronReplicationState(VultronObject):
         peer_id = data.get("peer_id")
         if case_id is not None and peer_id is not None:
             slug = urllib.parse.quote(peer_id, safe="")
-            data = dict(data)
-            data["id"] = f"{case_id}/replication/{slug}"
+            data = with_record_id(data, f"{case_id}/replication/{slug}")
 
         # The input may spell a backfill field either way, so read each one
         # under every spelling its own ``validation_alias`` accepts instead of

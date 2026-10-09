@@ -206,11 +206,10 @@ rules, while page-scoped rules — acronym first use, concept order, page
 furniture — are evaluated against the assembled page instead (DF-09-007).
 Quadrant, and so the voice rules, comes from every page that includes the
 fragment rather than from the fragment's own directory (DF-09-008).
-Until #3318 lands, `lint-docs` drops both `docs/includes/**` and `_*.md` from
-its target set, so a fragment you create today is unlinted and its prose needs a
-manual pass.
-Extracting a fragment therefore moves prose *out* of automated lint scope, which
-is one more reason the claims in it must be verified at the moment of the move.
+A fragment is a `lint-docs` target in its own right (since #3318), so pass the
+new fragment to `lint-docs` explicitly or lint the branch diff that contains it.
+Automated lint checks the prose, not the claims, so the claims in an extracted
+fragment are still verified at the moment of the move.
 
 ### Scope the verification budget before starting
 

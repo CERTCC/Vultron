@@ -141,5 +141,6 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=AddReportToCaseReceivedUseCase,
         phrase="{actor} added the report to the case",
         wire_activity_class=_AddReportToCaseActivity,
+        include_activity=True,
     ),
 ]

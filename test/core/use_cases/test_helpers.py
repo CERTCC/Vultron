@@ -41,17 +41,23 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.enums.roles import CVDRole
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.services.idempotent_store import idempotent_store
 from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     resolve_case_participant_id_for_actor,
     resolve_receiving_actor_id,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 
 _ACTOR_ID = "https://example.org/actors/vendor-001"
@@ -88,9 +94,9 @@ def seeded_case(
     case.add_participant(participant)
     dl.create(case)
     stored = dl.read(_CASE_ID)
-    assert isinstance(
-        stored, VulnerabilityCase
-    ), "seeded_case: DL did not return a VulnerabilityCase"
+    assert isinstance(stored, VulnerabilityCase), (
+        "seeded_case: DL did not return a VulnerabilityCase"
+    )
     return stored
 
 
@@ -409,7 +415,7 @@ class TestFindCaseActorId:
     def test_link_path_takes_precedence(
         self, cm_dl: SqliteDataLayer, cm_participant: CaseParticipant
     ) -> None:
-        """A link with trusted_case_actor_id wins over the role path.
+        """A link with case_manager_id wins over the role path.
 
         The two resolution paths disagree here on purpose: the link records
         ``case-actor-from-link`` while the roster names ``cm_participant``, so
@@ -420,7 +426,7 @@ class TestFindCaseActorId:
             VultronReportCaseLink(
                 report_id="https://example.org/reports/r1",
                 case_id=_CM_CASE_ID,
-                trusted_case_actor_id=link_actor_id,
+                case_manager_id=link_actor_id,
             )
         )
         cm_dl.create(cm_participant)
@@ -450,7 +456,7 @@ class TestFindCaseActorId:
         )
         cm_dl.create(participant)
         # Present but context-less, exactly as ADR-0041 writes it.
-        cm_dl.create(VultronCaseActor(id_=case_actor_id, name="CaseActor"))
+        cm_dl.create(CaseActor(id_=case_actor_id, name="CaseActor"))
         case = VulnerabilityCase(id_=_CM_CASE_ID, name="Role Is The Marker")
         case.add_participant(participant)
         cm_dl.create(case)
@@ -519,7 +525,7 @@ class TestFindCaseActorId:
         """
         service_id = "https://example.org/actors/case-actor-legacy"
         cm_dl.create(
-            VultronCaseActor(
+            CaseActor(
                 id_=service_id, name="Legacy CaseActor", context=_CM_CASE_ID
             )
         )
@@ -532,7 +538,7 @@ class TestFindCaseActorId:
     ) -> None:
         """Only a *completed* link records a trusted address.
 
-        A pending link carries ``trusted_case_creator_id`` — the actor a
+        A pending link carries ``case_creator_id`` — the actor a
         proposal went *to* — which is a proposal target, not a confirmed
         authority.  With no CASE_MANAGER on the roster to corroborate it, there
         is nothing to route to.
@@ -540,7 +546,7 @@ class TestFindCaseActorId:
         cm_dl.create(
             VultronReportCaseLink(
                 report_id="https://example.org/reports/other",
-                trusted_case_creator_id=(
+                case_creator_id=(
                     "https://example.org/actors/case-actor-unrelated"
                 ),
             )
@@ -674,3 +680,79 @@ class TestResolveReceivingActorId:
             resolve_receiving_actor_id(
                 cast(SqliteDataLayer, _StubWithRaisingActorId()), None
             )
+
+
+class TestIdempotentCreateReportsWhatItDid:
+    """``idempotent_store`` returns a ``HandlerResult`` (#3372, ADR-0095).
+
+    ``APPLIED`` only when it stored the object; ``SKIPPED`` with a reason on
+    every exit that stored nothing, so #2255 has a return channel to classify.
+    """
+
+    def test_stores_and_reports_applied(
+        self, dl: SqliteDataLayer, participant: CaseParticipant
+    ) -> None:
+        result = idempotent_store(
+            dl, participant.type_, participant.id_, participant, "Participant"
+        )
+        assert result == HandlerResult.applied()
+        assert dl.read(participant.id_) is not None
+
+    def test_already_stored_reports_skipped(
+        self, dl: SqliteDataLayer, participant: CaseParticipant
+    ) -> None:
+        dl.create(participant)
+        result = idempotent_store(
+            dl, participant.type_, participant.id_, participant, "Participant"
+        )
+        assert result.disposition is HandlerDisposition.SKIPPED
+        assert result.reason is not None and "already stored" in result.reason
+
+    @pytest.mark.parametrize(
+        ("type_key", "id_key"), [(None, "urn:x:1"), ("Note", None), ("", "")]
+    )
+    def test_missing_keys_report_skipped(
+        self,
+        dl: SqliteDataLayer,
+        participant: CaseParticipant,
+        type_key: str | None,
+        id_key: str | None,
+    ) -> None:
+        result = idempotent_store(dl, type_key, id_key, participant, "Note")
+        assert result.disposition is HandlerDisposition.SKIPPED
+        assert result.reason is not None
+
+    def test_create_reporting_the_id_taken_reports_skipped(
+        self, participant: CaseParticipant
+    ) -> None:
+        """A record ``read`` cannot return, yet ``create`` says exists, is held."""
+        from unittest.mock import MagicMock
+
+        from vultron.errors import VultronAlreadyExistsError
+
+        stub = MagicMock()
+        stub.read.return_value = None
+        stub.create.side_effect = VultronAlreadyExistsError(
+            "Participant", participant.id_
+        )
+        result = idempotent_store(
+            stub,
+            participant.type_,
+            participant.id_,
+            participant,
+            "Participant",
+        )
+        assert result.disposition is HandlerDisposition.SKIPPED
+        assert result.reason is not None and "already stored" in result.reason
+
+    def test_missing_object_reports_skipped(self, dl: SqliteDataLayer) -> None:
+        result = idempotent_store(dl, "Note", "urn:x:absent", None, "Note")
+        assert result.disposition is HandlerDisposition.SKIPPED
+        assert dl.read("urn:x:absent") is None
+
+    def test_bare_reference_reports_skipped(self, dl: SqliteDataLayer) -> None:
+        ref = CoreObject(id_="urn:x:bare", type_=None)
+        result = idempotent_store(dl, "Note", ref.id_, ref, "Note")
+        assert result.disposition is HandlerDisposition.SKIPPED
+        assert result.reason is not None and "bare reference" in result.reason
+        assert dl.read("urn:x:bare") is None

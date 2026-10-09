@@ -3,6 +3,7 @@
 
 from unittest.mock import MagicMock
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -11,8 +12,6 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
     _make_event,
 )
-import py_trees
-
 from vultron.core.behaviors.sync.nodes import (
     BufferOutOfOrderEntryNode,
     CheckHashMatchesNode,

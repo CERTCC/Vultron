@@ -14,20 +14,26 @@
 """Architecture ratchet: no demo_step/demo_check block may leave a variable
 unbound for a later read (issue #2308).
 
-``demo_step`` and ``demo_check`` swallow all exceptions by design: they record
-the failure on ``_demo_failures`` and continue.  When a block's body raises,
+``demo_step``, ``demo_check`` and ``demo_gate`` swallow all exceptions by
+design: they record the failure on ``_demo_failures`` and continue.  When a block's body raises,
 any variable assigned *only* inside that block is left unbound — the next read
 causes ``UnboundLocalError``, which propagates out of the demo function and
 prevents ``assert_demo_success()`` from being reached.
 
-The fix is always the same: pre-initialize the variable to a safe sentinel
-(typically ``None``) *before* the ``with demo_step/demo_check`` block.
+The preferred fix is the nested-block model (ADR-0058, ``demo_gate``
+docstring): put every step that reads the value *inside* the block that
+produces it, so a failed block skips its dependents instead of handing them a
+missing value.  Pre-initialising the variable to a sentinel (typically
+``None``) *before* the block is legitimate only when every later read is
+``None``-guarded — an unguarded sentinel merely turns ``UnboundLocalError``
+into a downstream step that posts ``None`` and blames the wrong step
+(#3038, #3887).
 
 This test walks every ``*.py`` file under ``vultron/demo/`` with the Python
 AST and fails if any function contains a variable that is:
 
-1. Assigned for the first time inside a ``demo_step`` or ``demo_check`` block
-   body (at the shallow / direct-child level of that block), AND
+1. Assigned for the first time inside a ``demo_step``, ``demo_check`` or
+   ``demo_gate`` block body (at the shallow / direct-child level of that block), AND
 2. Used (read) after the block closes in the same function scope.
 
 Once all 93 sites documented in issue #2308 are fixed this test becomes a
@@ -42,7 +48,7 @@ from test.architecture import _corpus
 
 DEMO_DIR = _corpus.REPO_ROOT / "vultron" / "demo"
 
-_GUARDED_CMS = {"demo_step", "demo_check"}
+_GUARDED_CMS = {"demo_step", "demo_check", "demo_gate"}
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +65,9 @@ def _cm_name(with_stmt: ast.With) -> str | None:
             name = (
                 fn.id
                 if isinstance(fn, ast.Name)
-                else fn.attr if isinstance(fn, ast.Attribute) else None
+                else fn.attr
+                if isinstance(fn, ast.Attribute)
+                else None
             )
             if name in _GUARDED_CMS:
                 return name
@@ -86,11 +94,11 @@ def _assigned_shallow(stmts: list) -> set:
         if isinstance(stmt, ast.Assign):
             for target in stmt.targets:
                 names.update(_store_names(target))
-        elif isinstance(stmt, ast.AugAssign):
-            names.update(_store_names(stmt.target))
-        elif isinstance(stmt, ast.AnnAssign) and stmt.value is not None:
-            names.update(_store_names(stmt.target))
-        elif isinstance(stmt, ast.For):
+        elif (
+            isinstance(stmt, ast.AugAssign)
+            or (isinstance(stmt, ast.AnnAssign) and stmt.value is not None)
+            or isinstance(stmt, ast.For)
+        ):
             names.update(_store_names(stmt.target))
         elif isinstance(stmt, ast.With):
             for item in stmt.items:
@@ -220,9 +228,9 @@ def outer():
 """)
     # 'report' appears only inside the nested def body — must not be returned
     names = _load_names(stmts)
-    assert (
-        "report" not in names
-    ), "_load_names crossed into nested FunctionDef and found 'report'"
+    assert "report" not in names, (
+        "_load_names crossed into nested FunctionDef and found 'report'"
+    )
     # 'other' is in the outer scope and must be returned
     assert "other" in names
 
@@ -294,9 +302,9 @@ def example():
     path = tmp_path / "demo_example.py"
     path.write_text(src)
     found = _violations_in_file(path)
-    assert (
-        found == []
-    ), f"False positive for optional_vars re-assignment in body: {found}"
+    assert found == [], (
+        f"False positive for optional_vars re-assignment in body: {found}"
+    )
 
 
 def test_undefended_still_catches_real_undefended_after_fixes(tmp_path):
@@ -311,28 +319,29 @@ def bad():
     path.write_text(src)
     found = _violations_in_file(path)
     vars_found = [v for _, _, v in found]
-    assert (
-        "result" in vars_found
-    ), "Real undefended 'result' was not detected after fixes"
+    assert "result" in vars_found, (
+        "Real undefended 'result' was not detected after fixes"
+    )
 
 
 def test_no_undefended_demo_step_vars():
-    """No demo_step/demo_check block may leave a variable unbound (issue #2308).
+    """No demo_step/demo_check/demo_gate block may leave a variable unbound (#2308).
 
-    Every variable whose first assignment lives inside a ``demo_step`` or
-    ``demo_check`` block body *and* is read after the block closes must be
-    pre-initialized to a safe sentinel (e.g. ``None``) before the block.
+    Every variable whose first assignment lives inside a ``demo_step``,
+    ``demo_check`` or ``demo_gate`` block body *and* is read after the block
+    closes is a defect: nest the reader inside the block (preferred), or
+    pre-initialize the name to a sentinel and ``None``-guard every later read.
     """
     violations = []
     for py_file, tree in _corpus.files_mentioning(
-        "demo_step", "demo_check", under=DEMO_DIR
+        "demo_step", "demo_check", "demo_gate", under=DEMO_DIR
     ):
         for fpath, lineno, var in _violations_in_tree(tree, py_file):
             rel = fpath.relative_to(_corpus.REPO_ROOT)
             violations.append(f"{rel}:{lineno}: undefended var '{var}'")
 
     assert violations == [], (
-        "Variables assigned only inside demo_step/demo_check blocks "
+        "Variables assigned only inside demo_step/demo_check/demo_gate blocks "
         "and read afterward without prior initialization (issue #2308):\n"
         + "\n".join(violations)
     )

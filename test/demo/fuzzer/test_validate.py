@@ -1,7 +1,7 @@
 """Tests for vultron.demo.fuzzer.report_management.validate."""
 
-import pytest
 import py_trees
+import pytest
 
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,

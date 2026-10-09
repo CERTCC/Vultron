@@ -19,16 +19,6 @@ outcome log lines in the expected format.
 
 import logging
 
-import py_trees
-import pytest
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
 
 def test_stochastic_demo_runs_without_error():
     """run_stochastic_demo() completes without raising an exception (AC-4)."""

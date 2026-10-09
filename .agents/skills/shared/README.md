@@ -22,11 +22,13 @@ Shared scripts and reference documents referenced by multiple skills.
 | `claim-issue.sh` | Sync + create branch + assign + post claim comment. Extra members are claimed onto the one branch named for `<N>`; all numbers are validated before anything is mutated | `bash .agents/skills/shared/claim-issue.sh <N> <prefix> <slug> [<OTHERS>...]` |
 | `query-epic-subissues.sh` | Emit an Epic's leaf sub-issues with the eligibility fields plus `issueType` and the Project #24 `Schedule` tier. Pipe into the `bundle-fit` console script, which applies fit and owns the rules | `bash .agents/skills/shared/query-epic-subissues.sh <EPIC> \| PYTHONPATH= uv run bundle-fit` |
 | `add-to-project.sh` | Add issue to Project #24 with Schedule | `bash .agents/skills/shared/add-to-project.sh <N> [Focus\|Now\|Next\|Later\|Someday]` |
+| `sync-epic-schedules.sh` | Raise open descendants of scheduled Epics to their Epic's Schedule tier (raise-only, from Someday/unset/off-board; reports children above the Epic, at Later, or at a non-tier value). Dry run unless `--apply` | `bash .agents/skills/shared/sync-epic-schedules.sh [--apply] [--tiers "Focus Now Next"] [<EPIC>...]` |
 | `query-now-epics.sh` | List open Epics with Schedule=Now | `bash .agents/skills/shared/query-now-epics.sh` |
 | `board-id.sh` | Resolve any board node/field/option/issue-type ID **by name** (TTL-cached) | `bash .agents/skills/shared/board-id.sh <category> [<Name>]` |
 | `freshen-branch.sh` | Rebase-free freshening onto `origin/main` **before the first push** | `bash .agents/skills/shared/freshen-branch.sh` |
 | `sync-with-main.sh` | Merge the base branch into an **already-pushed** PR branch; leaves conflicts for the caller | `bash .agents/skills/shared/sync-with-main.sh [<base-branch>]` |
 | `merge-state.sh` | Report a PR's mergeability, polling past GitHub's transient `UNKNOWN` | `bash .agents/skills/shared/merge-state.sh [<pr-number>]` |
+| `spec-amendments.sh` | List requirements whose `statement:` or `priority:` the branch changed or removed (parsed-YAML compare). Exit 1 means the PR body needs `## Spec amended` | `bash .agents/skills/shared/spec-amendments.sh [<base>] [<head>]` |
 | `graph-freshness.sh` | Check this worktree's graphify graph is present and fresh before relying on it; exit 1 means use grep/code search | `bash .agents/skills/shared/graph-freshness.sh [max-commits-behind]` |
 
 ## freshen vs sync — pick by whether the branch is pushed

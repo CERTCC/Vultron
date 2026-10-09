@@ -29,6 +29,7 @@ import pytest
 from pydantic import ValidationError
 
 from vultron.adapters.driving.fastapi import outbox_handler as oh
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.errors import VultronOutboxObjectIntegrityError
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -41,6 +42,7 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -56,23 +58,27 @@ _LINK = as_Link(href="https://example.org/objects/123")
 ACTOR_ID = "https://example.org/actors/alice"
 
 
-def _make_activity(cls, object_):
-    """Attempt to construct *cls* with the given object_, return the instance."""
-    return cls(actor=ACTOR_ID, object_=object_)
+def _make_activity(cls, object_, **fields):
+    """Attempt to construct *cls* with the given object_, return the instance.
+
+    *fields* carries any other field the class requires (for example the
+    case Invite's stub ``target``), so a refusal is about ``object_`` alone.
+    """
+    return cls(actor=ACTOR_ID, object_=object_, **fields)
 
 
-def _assert_rejects_string(cls):
+def _assert_rejects_string(cls, **fields):
     with pytest.raises(ValidationError):
-        _make_activity(cls, _STR_URI)
+        _make_activity(cls, _STR_URI, **fields)
 
 
-def _assert_rejects_link(cls):
+def _assert_rejects_link(cls, **fields):
     with pytest.raises(ValidationError):
-        _make_activity(cls, _LINK)
+        _make_activity(cls, _LINK, **fields)
 
 
-def _assert_accepts_inline(cls, obj):
-    instance = _make_activity(cls, obj)
+def _assert_accepts_inline(cls, obj, **fields):
+    instance = _make_activity(cls, obj, **fields)
     assert instance.object_ is obj or instance.object_ == obj
 
 
@@ -290,15 +296,28 @@ class TestRmInviteToCaseActivity:
     from vultron.wire.as2.vocab.activities.case import _RmInviteToCaseActivity
 
     cls = _RmInviteToCaseActivity
+    stub = {"target": as_VulnerabilityCaseStub(case_id="urn:uuid:case-1")}
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, **self.stub)
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, **self.stub)
 
     def test_accepts_inline_actor(self):
-        _assert_accepts_inline(self.cls, as_Actor())
+        _assert_accepts_inline(self.cls, as_Actor(), **self.stub)
+
+    @pytest.mark.spec("SE-08-002")
+    @pytest.mark.parametrize(
+        "target",
+        [None, "urn:uuid:case-1"],
+        ids=["no-target", "uri-target"],
+    )
+    def test_requires_a_stub_target(self, target):
+        """The stub is this Invite's discriminator, so the class requires it."""
+        fields = {} if target is None else {"target": target}
+        with pytest.raises(ValidationError):
+            _make_activity(self.cls, as_Actor(), **fields)
 
 
 # ---------------------------------------------------------------------------
@@ -313,15 +332,26 @@ class TestEmProposeEmbargoActivity:
 
     cls = _EmProposeEmbargoActivity
 
-    def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+    def test_accepts_the_terms_by_uri(self):
+        """An Invite may name its terms by URI, and is still answerable (ADR-0123)."""
+        assert _make_activity(self.cls, _STR_URI).object_ == _STR_URI
+
+    def test_the_uri_form_survives_serialize_and_parse(self):
+        sent = _make_activity(self.cls, _STR_URI)
+        received = self.cls.model_validate_json(
+            sent.model_dump_json(by_alias=True)
+        )
+        assert received.object_ == _STR_URI
 
     def test_rejects_link(self):
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
-            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
         )
 
 
@@ -340,16 +370,19 @@ class TestActivateEmbargoActivity:
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
-            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
         )
 
 
-class TestAddEmbargoToCaseActivity:
+class TestRejectEmbargoProposalActivity:
     from vultron.wire.as2.vocab.activities.embargo import (
-        _AddEmbargoToCaseActivity,
+        _RejectEmbargoProposalActivity,
     )
 
-    cls = _AddEmbargoToCaseActivity
+    cls = _RejectEmbargoProposalActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -359,7 +392,10 @@ class TestAddEmbargoToCaseActivity:
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
-            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
         )
 
 
@@ -378,7 +414,10 @@ class TestAnnounceEmbargoActivity:
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
-            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
         )
 
 
@@ -397,7 +436,10 @@ class TestRemoveEmbargoFromCaseActivity:
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
-            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
         )
 
 
@@ -560,25 +602,38 @@ def _make_outbox_dl(activity) -> MagicMock:
 
 
 def test_handle_outbox_item_raises_on_bare_string_object(caplog):
-    """handle_outbox_item MUST raise VultronOutboxObjectIntegrityError when
-    object_ is a bare string that cannot be expanded from the DataLayer.
+    """handle_outbox_item MUST raise VultronOutboxObjectIntegrityError when the
+    sealed body's ``object`` is a bare string.  Nothing is expanded from the
+    DataLayer: the handler relays the sealed body or refuses it (VM-08-003).
 
     Spec: MV-09-002
     """
-    from vultron.core.models.activity import VultronActivity
+    import json
 
-    activity = VultronActivity(
-        type_="Create",
-        actor=ACTOR_ID,
-        to=[ACTOR_ID],
-        object_=_STR_URI,
+    from vultron.adapters.outbox_sealed_body import (
+        SealedOutboundBody,
+        sealed_body_id,
+    )
+
+    activity_id = "urn:uuid:create-bare-object"
+    sealed = SealedOutboundBody(
+        id_=sealed_body_id(activity_id),
+        activity_id=activity_id,
+        body=json.dumps(
+            {
+                "id": activity_id,
+                "type": "Create",
+                "actor": ACTOR_ID,
+                "to": [ACTOR_ID],
+                "object": _STR_URI,
+            }
+        ),
     )
 
     dl = MagicMock()
-    # First read returns the activity; second read (expansion attempt) returns None.
-    dl.read.side_effect = [activity, None]
+    dl.read.side_effect = lambda id_: sealed if id_ == sealed.id_ else None
 
     emitter = AsyncMock()
 
     with pytest.raises(VultronOutboxObjectIntegrityError):
-        asyncio.run(oh.handle_outbox_item(ACTOR_ID, activity.id_, dl, emitter))
+        asyncio.run(oh.handle_outbox_item(ACTOR_ID, activity_id, dl, emitter))

@@ -28,15 +28,17 @@ violations, or validating core/wire separation.
 
 **`core-wire-rendering-port.md`**
 Why core legitimately needs wire-shaped JSON (only for
-`CaseLedgerEntry.payloadSnapshot`), why `alias_generator=to_camel` on core types
-was both an ARCH-12-003 violation and structurally insufficient, and the
-`WireRenderPort` driven seam that replaces it. Lists the five consumers of the
-old core-side aliasing, the reject-guard that MUST accompany deletion of any
-flat-field shim (SDO-03-005), and why persisted rows are unaffected.
-The decision stands; the ADR-0082 mechanism it named is **superseded by
-ADR-0099**. The pairing registry and the adapter-side translators are cancelled,
-so the port collapses to the core object's own `model_dump(by_alias=True)` plus
-the delivery-supplied `@context` — which requires amending ARCH-20-003. The
+`CaseLedgerEntry.payloadSnapshot`), and the `WireRenderPort` driven seam core
+uses to get it. Under ADR-0099 every `CoreObject` inherits
+`alias_generator=to_camel` on purpose (ARCH-12-003), so the port is the core
+object's own `model_dump(by_alias=True)`; `@context` comes from `CoreObject`'s
+`by_alias` serializer, not from delivery. Core logic MUST NOT dump its own
+objects `by_alias` (ARCH-20-001, ratchet `test_core_by_alias_dumps.py`, empty
+since #3930); every received use case and trigger is given the port. Also
+lists the five consumers of the old core-side aliasing, the `extra="forbid"`
+guard that replaces any flat-field reject-guard (SDO-03-005), and why persisted
+rows are unaffected. The ADR-0082 pairing registry and adapter-side translators
+are cancelled, and ARCH-20-003 now raises only for a non-`CoreObject`. The
 mirror-image `WireParsePort` (#2938) was **rejected**, not deferred:
 `rehydrate()` owns ID-to-object materialisation (VM-06-007). Design rationale:
 `notes/wire-core-boundary.md`.
@@ -113,12 +115,14 @@ resolving which store a read or write belongs to, rehydration of nested
 objects, or storage record migration.
 
 **`wire-artifact-immutability.md`**
-Design principle for wire Activity immutability: received artifacts MUST be
-frozen at receipt (A/B split — A = frozen ledger snapshot, B = separately
-constructed hydrated routing copy); emitted blobs MUST be frozen by the factory
+Design principle for wire Activity immutability: a received activity's evidence
+is its body, sealed as JSON text at parse because `frozen` no longer reaches the
+nested core objects (A/B split — A = the received artifact, B = separately
+constructed hydrated routing copy that carries A's evidence); emitted blobs MUST
+be frozen by the factory
 and used unchanged as both `payloadSnapshot` and delivery payload; ports are
-dumb relays (no adapter enrichment). Covers the orthogonality of lenient field
-types (`validate_assignment=False`) and post-construction immutability
+dumb relays (no adapter enrichment). Covers the orthogonality of the lenient
+wire branch (no `validate_assignment`) and post-construction immutability
 (`frozen=True`). Spec requirements: `VM-08-002`, `VM-08-003`.
 **Load when**: implementing or reviewing the inbound pipeline (inbox freeze
 point), outbound factory/port interfaces (`TriggerActivityPort`,
@@ -137,8 +141,9 @@ blast radii (25 vs 570 failures) with the `embargo_adherence` computed-field and
 `id_` round-trip findings. Also records which half of `as_ObjectRef` is
 AS2-faithful and which half is a kludge.
 **Load when**: touching core↔wire translation, the vocabulary registries,
-`_field_map`/`from_core`/`to_core`, the wire→core import allow-list, or adding a
-validator that raises on a core-branch type. Source: G02 / CONCERN-2830.
+`_field_map`/`from_core`/`to_core`, the wire→core import allow-list, adding a
+validator that raises on a core-branch type, or deciding what happens to an
+unknown key on inbound data (MV-11). Source: G02 / CONCERN-2830, IDEA-3900.
 
 **`vultron/wire/as2/factories/AGENTS.md`**
 Factory-function operating rules for outbound Vultron protocol activities.
@@ -179,14 +184,17 @@ AKM-08).
 trust or awareness logic, or working on AKM spec requirements.
 
 **`structured-logging.md`**
-Narrative log template (SL-04-006), infrastructure demotion list (SL-04-007),
-and per-module guidance for keeping actor INFO logs readable as a CVD protocol
-story. Documents the approved verb–template inventory (`Actor '<id>' RM: A → B
-for case '<id>'`), the ~10 infrastructure patterns that MUST be at DEBUG, and
-the ~8 missing INFO messages required by SL-04-001. Source: CONCERN-1968.
-**Load when**: adding a new BT node that writes RM/CS/EM state (must add INFO
-log), auditing logging levels in actor container output, or implementing
-CONCERN-1968 logging remediation.
+Log-call shape (SL-01-005: a literal template with lazy positional args, never
+an f-string — why the split matters and why `extra=` was never the alternative;
+CONCERN-3378), narrative log template (SL-04-006), infrastructure demotion list
+(SL-04-007), and per-module guidance for keeping actor INFO logs readable as a
+CVD protocol story. Documents the approved verb–template inventory (`Actor
+'<id>' RM: A → B for case '<id>'`), the infrastructure patterns that MUST be at
+DEBUG, and how correlation fields reach the record (SL-02-003: boundary filter,
+not per-call `extra=`). Source: CONCERN-1968, CONCERN-3378.
+**Load when**: writing or rewriting any log call, adding a new BT node that
+writes RM/CS/EM state (must add INFO log), auditing logging levels in actor
+container output, or implementing correlation fields on log records.
 
 **`configuration.md`**
 Design decisions for YAML-backed Pydantic configuration loading in Vultron:
@@ -207,15 +215,20 @@ Design decisions for the `UseCaseResult` type hierarchy (`HandlerResult` /
 `TriggerResult`), the `HandlerDisposition` vocabulary
 (`APPLIED`/`SKIPPED`/`DEFERRED`/`REFUSED`) and how it reaches `InboxOutcome` across the
 dispatcher boundary, the two semantically distinct request paths (`VultronEvent`
-vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the planned
-`TriggerService`/`TriggerServicePort` migration from `dict` to `TriggerResult`,
-and the ratchet test design. **None of it is implemented yet** — handlers are
-`-> None`, triggers return `dict`. ADRs:
-`docs/adr/0040-use-case-result-envelope.md` (original) and
-`docs/adr/0095-received-side-handler-result.md` (received-side half).
+vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the trigger-side
+collapse to a one-method `TriggerDispatcher` port over a verb registry with a
+typed result hierarchy, and the ratchet test design. Both sides are
+implemented: the received side and dispatcher chain, and the trigger side's
+golden OpenAPI snapshot (#3828), typed result hierarchy with one request-model
+family (#3831), verb registry with the one-method port (#3832) and route
+cutover that retired `TriggerService` (#3833, ADR-0110). ADRs:
+`docs/adr/0040-use-case-result-envelope.md` (original),
+`docs/adr/0095-received-side-handler-result.md` (received-side half), and
+`docs/adr/0110-trigger-dispatcher-port-over-verb-registry.md` (trigger-side half).
 **Load when**: implementing a new use case, reviewing the `execute()` contract,
-working on `UseCase` Protocol or `TriggerServicePort` signatures, threading a
-handler verdict to `InboxOutcome`, or debugging return-type ratchet failures.
+working on the `UseCase` or trigger driving port, adding a trigger verb,
+threading a handler verdict to `InboxOutcome`, or debugging return-type ratchet
+failures.
 
 **`inbox-orchestration.md`**
 Design decisions for the core BT-backed inbox orchestration module: why
@@ -318,13 +331,14 @@ may be sent as a stub or must be inlined or referenced by URI, or scoping
 privacy/redaction features.
 
 **`bt-integration.md`**
-Core BT design decisions: when to use BTs vs procedural code, py_trees
+Core BT design decisions: when to use BTs vs procedural code, the four
+received-side stages (intake → guards → commit → effects, ADR-0111), py_trees
 patterns, simulation-to-prototype translation strategy, actor isolation,
 concurrency model, RM state machine context, EvaluateCasePriority direction,
 composability, and open architecture questions.
 **Load when**: making architecture decisions about BT structure, deciding
-whether a new use case needs a BT, or implementing a BT-backed use case
-from scratch.
+whether a new use case needs a BT, implementing a BT-backed use case from
+scratch, or deciding where a DataLayer write belongs in a received-side tree.
 
 **`bt-canonical-reference.md`**
 Canonical CVD Protocol Behavior Tree structural reference: trunk-removed
@@ -394,10 +408,12 @@ Source: CONCERN-2829.
 **`received-status-authorization.md`**
 Two-gate design for received-side CaseStatus canonicalization: StatusAdoptionGate
 (in `add_participant_status_tree`) for status adoption authorization,
-EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (in `add_case_status_tree`)
-for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, self-addressed
-Add(CaseStatus) threading pattern, and migration from PublicDisclosureBranchNode.
-Derived from IDEA-1836 / ADR-0046.
+EmbargoTeardownAuthorizationGate + ThreatTerminationBranchNode (in both
+`add_case_status_tree` and `add_participant_status_tree`) for embargo teardown.
+Documents CASE_OWNER gospel-bypass rationale, the direct
+`EmitCaseStatusUpdateNode` write between the gates, and (ADR-0108) the per-machine
+act / declaration / ledger inventory: the pipeline, not the message, is the authority.
+Derived from IDEA-1836 / ADR-0046; extended by CONCERN-3473 / ADR-0108.
 **Load when**: implementing #1836 or any changes to received-side status handling,
 StatusAdoptionGate, EmbargoTeardownAuthorizationGate, or ThreatTerminationBranchNode;
 understanding the sentinel actor integration pattern.
@@ -554,12 +570,25 @@ embargo status transitions, or debugging action rule filtering.
 Canonical communication model for post-case-creation participant messaging:
 all messages route through the CASE_MANAGER only
 (`participant → CASE_MANAGER → CaseLedgerEntry → broadcast → participants`). Covers
-the routing rule, its rationale, the `case_addressees()` antipattern, how to
+the routing rule, its rationale, the roster-wide recipient antipattern, how to
 resolve the CASE_MANAGER ID, and the automatic `CaseLedgerEntry + broadcast`
 cascade. Normative requirements: `specs/participant-case-replica.yaml` PCR-08.
 **Load when**: implementing any trigger use case or BT that causes a
 participant to send a case-scoped message, debugging out-of-band note or
 embargo delivery, or auditing outbound activity addressing.
+
+**`case-joining.md`**
+How an actor joins a case (ADR-0114, ADR-0121): the stub Invite creates an
+inert participant record, `Accept`/`Reject` of the stub decides whether it
+joins, and a joined participant judges the case by replying to a full-case
+Invite that carries a ledger-position floor. Defines *active* versus *inert*,
+the `Offer` ("take this") versus `Invite` ("take part in this") distinction,
+records what the earlier join model got wrong, and how removal and
+reinstatement withdraw and restore entitlement without deleting the record
+(ADR-0116).
+**Load when**: touching invitations, participant creation, recipient
+selection for case content, the accept-invite trees, invitee RM triage, or
+`Add`/`Remove(CaseParticipant)`.
 
 **`case-ledger-authority.md`**
 Assertion recording model for report / proto-case / case flows: implicit
@@ -597,27 +626,27 @@ relationship to AppendOnlyLedger/LedgerFanout implementation phases.
 `Announce(CaseLedgerEntry)` inbound handler.
 
 **`participant-embargo-consent.md`**
-Design decisions for per-participant embargo acceptance tracking: a 5-state
-consent machine (`UNBOUND`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED`),
-embargo meta-protocol delivery to `DECLINED`/`LAPSED` participants, and the
-`Accept(Invite(case))` → implicit consent rule. Records why `UNBOUND` means
-*not bound by any embargo terms* rather than pre-consent (ADR-0048, ADR-0091),
-so `ACCEPT`/`DECLINE` are valid directly from it, and the direct-assignment
-pitfall that silently desyncs `ParticipantStatus.consent` from the emitted
-ledger snapshot.
+Design decisions for per-participant embargo consent, recorded as one row per
+(participant, embargo) — `INVITED`, `ACCEPTED`, `DECLINED`, `EXPIRED` (ADR-0122) —
+with "signatory" and "lapsed" derived from the rows and the active embargo,
+embargo meta-protocol delivery to non-signatories, and the
+`Accept(Invite(case))` → implicit consent rule. Records why a missing row means
+*not bound by any embargo terms* rather than pre-consent (ADR-0048), so
+`ACCEPT`/`DECLINE` are valid directly from it, and the direct-assignment pitfall.
 **Load when**: implementing per-participant EM state tracking, working on the
-embargo consent state machine in `vultron/core/states/`, writing any PEC state
-change, or debugging `embargo_adherence` / `emConsentState` semantics.
+consent transition table in `vultron/core/states/`, writing any PEC change, or
+debugging signatory / lapsed semantics.
 
 **`embargo-lifecycle.md`**
-Target architecture for EM state management: the inline-`EMAdapter`
-instantiation anti-pattern, the current fragmentation across trigger use cases,
-received use cases, and BT behaviors, and the planned `EmbargoLifecycle`
-service (#538) that will consolidate all EM + PEC transitions.
-**Load when**: implementing any embargo state transition in trigger or received
-use cases, designing the `EmbargoLifecycle` service (#538), auditing inline
-`create_em_machine()` instantiations, or working on the post-#538
-`triggers/embargo.py` cleanup (#516).
+Architecture of EM state management: the `EmbargoLifecycle` service
+(`vultron/core/services/embargo_lifecycle/`, a per-responsibility package
+since #3760) that owns every embargo register step and PEC transition (#538),
+the embargo register from which EM is derived (ADR-0122), the P/X/A
+embargo-eligibility guards, and the earliest-expiration resolution order for
+open proposals (EP-08).
+**Load when**: implementing any embargo state change in trigger or received
+use cases or BT nodes, changing or extending `EmbargoLifecycle` or the
+embargo register, or reading EM state.
 
 ---
 
@@ -625,10 +654,10 @@ use cases, designing the `EmbargoLifecycle` service (#538), auditing inline
 
 **`codebase-structure.md`**
 Module conventions and known gaps: top-level modules, enum refactoring,
-`vultron_types.py` split (TECHDEBT-14), `CVDRoles` design decision, BT
-module boundary (`vultron/bt/` vs `vultron/core/behaviors/`), demo script
-patterns (`demo_step` / `demo_check`), docstring/markdown compatibility,
-bulk module-rename lessons, and known documentation gaps.
+`CVDRoles` design decision, BT module boundary (`vultron/bt/` vs
+`vultron/core/behaviors/`), demo script patterns (`demo_step` /
+`demo_check`), docstring/markdown compatibility, bulk module-rename
+lessons, and known documentation gaps.
 **Load when**: adding or moving modules, following established code
 organization conventions, or orienting to the module boundary rules.
 
@@ -684,7 +713,7 @@ to be hand-edited.
 FastAPI and test infrastructure patterns: router test override pattern
 (`_shared_dl`, `dependency_overrides`), circular import fix pattern
 (`_helpers.py`), FastAPI `response_model` / `status_code` conventions,
-health check and Docker health check design, Black/pyright config notes,
+health check and Docker health check design, formatter/type-checker pragma notes,
 Python 3.14 compatibility deferral, surrogate-key routing collision
 handling, and logger name verification.
 **Load when**: writing FastAPI router tests, debugging import cycles,
@@ -704,8 +733,7 @@ logic.
 
 **`triggerable-behaviors-resolved.md`**
 Resolved trigger implementation design decisions and audit results: P30-1
-(outbox diff strategy), P30-2 (report triggers procedural), P30-3 (case
-triggers procedural), BT requirement for trigger use cases, general-purpose
+(outbox diff strategy), BT requirement for trigger use cases, general-purpose
 vs demo-only trigger classification, trigger audit results, wrapper pattern,
 sync-log-entry context field, and testing patterns.
 **Load when**: verifying whether a trigger use case requires a BT, looking up
@@ -728,10 +756,11 @@ reads as flakiness, why the timeout *method* sets what a trip costs while the
 ceiling only sets how often, measuring the markers collected items really carry
 instead of grepping declarations, fixture/blackboard isolation, py_trees test
 patterns, assertion-quality traps (vacuous asserts, "falls back to" tests, bare
-`MagicMock`), and test layout rules for module splits.
+`MagicMock`), test layout rules for module splits, and why a two-sided count
+pin races concurrent PRs.
 **Load when**: writing or debugging tests, diagnosing an order-dependent or
-apparently-flaky failure, auditing marker or timeout-tier coverage, or reviewing
-a test for vacuous assertions.
+apparently-flaky failure, auditing marker or timeout-tier coverage, reviewing
+a test for vacuous assertions, or designing a ratchet baseline.
 
 **`flaky-tests.md`**
 Fast-lookup catalog of known flaky tests and CI jobs → tracking issue numbers.
@@ -744,20 +773,21 @@ the current set of known-flaky tests.
 **`devcontainer-tooling.md`**
 Environment-level pitfalls in this devcontainer: why every tool runs under
 `uv run`, why `PYTHONPATH` must be cleared, the `UV_NO_SYNC=1` workaround for a
-root-owned venv, the broken `gh` credential-helper path, and the hard-linked
-`.agents/` and `.claude/` skill trees.
-**Load when**: a tool fails to start, `git push` cannot authenticate, or you are
+root-owned venv, pushing to `origin` with `-u` rather than a token URL, and the
+`.claude/skills` symlink to `.agents/skills`.
+**Load when**: a tool fails to start, `git push` fails (auth or no upstream), or you are
 about to edit a skill file.
 
 **`lint-tooling.md`**
-Lint and format gate policy (ADR-0095): ruff as the sole Python linter and
+Lint and format gate policy (ADR-0094): ruff as the sole Python linter and
 formatter, why `select` names families while `ignore` is curated by exception,
 what makes an acceptable exclusion reason (IMPLTS-07-019), and why `RUF100`
 rather than a bespoke test is the ratchet for baselined findings
-(IMPLTS-07-020). Records the two notable exclusions — provisional `PLC0415`
-(#3350) and provisional `G004` (#3378) — and the commit-loop habits that change when the
-flake8 hook is retired. **Decided but not yet built**: the configuration it
-describes lands with #3352; flake8, black and isort are still the live gate.
+(IMPLTS-07-020). Records the `PLC0415` policy (CS-05-005/006: enabled by #3949
+after #3352, with `test/**` exempted and each genuine cycle break marked until
+its removal in #3950), the `G004` resolution (SL-01-005: enabled by #3991, which
+rewrites every f-string log call and leaves no provisional entry in `ignore`),
+and the commit-loop habits that changed when the flake8 hook was retired.
 **Load when**: editing `[tool.ruff]`, adding or removing an `ignore` entry,
 baselining a new rule, tightening the ruleset, or wiring a lint step into CI or
 pre-commit.
@@ -766,8 +796,8 @@ pre-commit.
 Pitfalls when writing or reading GitHub Actions workflows: PyYAML resolving bare
 `on:` to `True`, matrix booleans failing differently at job- vs. step-level
 `if:`, `actionlint` and block-scalar indentation, single-quoted apostrophes, the
-mandatory `notify-failure` wiring, and how to read a red job that never ran its
-assertions.
+mandatory `notify-failure` wiring, why a `GITHUB_TOKEN`-raised event never triggers
+another workflow, and how to read a red job that never ran its assertions.
 **Load when**: adding or editing a `.github/workflows/` file, or diagnosing a CI
 failure whose logs do not match the test it blames.
 
@@ -796,6 +826,16 @@ flow). Normative requirements: `specs/demo-ci.yaml` DEMOCI-11-010.
 **Load when**: adding a scenario to or removing one from the planned register,
 designing a new demo scenario, or working out which of the two registers a
 scenario belongs in (see [demo-scenario-registry.md](demo-scenario-registry.md)).
+
+**`demo-interactive-ui.md`**
+Design for the stakeholder-facing interactive demo UI (ADR-0104): the
+React/ReactFlow app from `origin/feature/demo-ui` as the vehicle, the real
+system's case ledgers watched live as the source of truth, an operator-side
+dashboard with no case identity (the watching half of a Sentinel), and the
+prototype-only SSE ledger stream it reads. Also holds the presentation scenario
+set, the CYOA branch points, and the Task sequence under epic #676.
+**Load when**: working on `ui/`, the demo ledger stream endpoint, or any
+presentation-facing demo work.
 
 **`cvd-recipe-injects.md`**
 Classification of all 21 CERT Guide to CVD problem-solving recipes as Vultron
@@ -941,9 +981,9 @@ or editing a section landing page, or planning any documentation reorganization.
 Source: CONCERN-3512.
 
 **`reader-facing-docs-audit.md`**
-The dated audit (#3526) of every reader-facing `docs/` page against ADR-0102:
-the routing ledger (level, stakeholder type, verdict, and owning remediation
-task for each page), the ten pages reclassified as working record, the finding
+The dated audit (#3526) of every reader-facing `docs/` page against ADR-0102
+(its per-page routing ledger is archived now that every remediation task has
+closed): the ten pages reclassified as working record, the finding
 that no page narrows `cvd-practitioner`, and the cross-page rulings a page-local
 fixer cannot make — which of four concept registries wins, where the Background
 essay goes, which Case State, PEC, case-proposal and discovery page owns each
@@ -969,7 +1009,7 @@ behavior simulator reference, Do Work behaviors, and ISO crosswalks. Also the
 fragment/assembly-unit model for `{% include-markdown %}` pages: why nav
 exclusion (`not_in_nav`) is not a lint-scope class, which style rules are
 page-scoped vs. per-sentence, and why the include graph is not a tree
-(DF-09-007 through DF-09-009, ADR-0092) — plus the planned `codespell`
+(DF-09-007 through DF-09-009, ADR-0092) — plus the `codespell`
 configuration and its three silent hazards (ADR-0092, #3318).
 **Load when**: evaluating where new documentation belongs, cross-referencing
 Vultron docs to ISO/CVD process standards, or changing the target set, exemption
@@ -981,8 +1021,9 @@ new context" insight, the two witness sessions (#3342 over `specs/`, #3002 over
 `docs/`), and what agents must do when moving or republishing content (verify
 every claim against its authority; prefer `{% include-markdown %}` over copying).
 Records the three fragment mechanics that bite — placement beside the host pages,
-include paths relative to the including file, and the fact that extraction moves
-prose out of `lint-docs`' target set until #3318 lands.
+include paths relative to the including file, and the fact that a fragment is a
+`lint-docs` target in its own right (DF-09-007) while its claims still need
+verifying at the move.
 Normative anchors: DF-10-001, DF-10-002.
 **Load when**: performing any documentation sweep (naming, Diátaxis extraction,
 page split), or deciding how to share content across two docs/ locations.
@@ -1014,25 +1055,35 @@ accepts for `kind`, `priority`, and `rel_type`; keys silently dropped by
 `spec-dump`; the protocol-coverage ratchet and its strict-`xfail` pattern; and
 the audit passes required when retiring a name or splitting a compound
 requirement; why a priority gate names a tier (`MUST_NOT` with `MUST`), never a
-keyword; and the four rules that make a ceiling ratchet end at zero.
+keyword; and the four rules that make the per-requirement `verification_debt`
+backlog end at zero.
 **Load when**: adding or editing any `specs/*.yaml` entry, choosing a `kind:`
 for a new entry, writing any lint check or ratchet that selects by priority, or
 debugging a spec-lint / `spec-dump` failure. Pair with
 `specs-vs-adrs.md` for *whether* the requirement belongs in a spec at all.
 
 **`rfc-spec-authoring.md`**
-Structural and editorial decisions for building `docs/reference/vultron-spec/`
-from the existing `draft-vultron-spec.md` outline. Covers file layout and naming
-conventions (`_` prefix, semantic slugs), DAG-first authoring workflow, source
-treatment rules, annex → source page mapping, §4.6 rewrite sources, and the
-resolved open questions table for issue #3255.
-**Load when**: working on issue #3255 (write full Vultron Protocol Specification),
-planning the modular document structure, or authoring new spec sections.
+Structural and editorial conventions for the Protocol Specification under
+`docs/reference/vultron-spec/`: the page map (routing landing page, six body
+pages, seven annex pages, Open Questions, hidden `full.md`) and the fragments
+each page includes, fragment naming, the per-annex fragments and shared tip, the
+section citation convention (number plus name), annex sources, source treatment,
+and the DAG-first authoring workflow.
+**Load when**: adding, moving or splitting a specification section or page,
+linking or citing a specification section, or authoring new spec sections.
+
+**`rfc-review-rubric.md`**
+Living checklist for reviewing the Protocol Specification against the codebase,
+specs and design: structural completeness per page, terminology, protocol model
+fidelity, cross-reference integrity (links to the owning page, citations with
+number and name), and the checks already mechanized by CI.
+**Load when**: reviewing or revising the Protocol Specification, or adding a
+check after a review round.
 
 **`notes-frontmatter.md`**
 Design decisions for YAML frontmatter schema in `notes/*.md` files: required
 fields (`title`, `status`), valid `status` values, `superseded_by` rule, schema
-Pydantic model, loader, pre-commit hook, and migration checklist.
+Pydantic model, loader, and pre-commit hook.
 **Load when**: adding frontmatter to a new notes file, modifying the frontmatter
 schema, or debugging `validate-notes-frontmatter` pre-commit failures.
 

@@ -240,5 +240,5 @@ def test_bundles_are_frozen():
 
     with pytest.raises(FrozenInstanceError):
         VALIDATION_DETERMINISTIC.credibility_factory = (  # type: ignore[misc]
-            lambda n: AlwaysFail(n)
+            AlwaysFail
         )

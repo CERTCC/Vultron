@@ -2,7 +2,6 @@ id: DF
 title: Diátaxis documentation requirements
 description: >-
   Brief requirements for organizing project documentation according to the Diátaxis framework.
-version: 1.4.0
 scope:
 - prototype
 - production
@@ -21,6 +20,7 @@ groups:
   - id: DF-01-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Ensure each documentation page maps to exactly one of the four user needs (Learning,
       Goals, Information, or Understanding).
@@ -59,50 +59,59 @@ groups:
   - id: DF-03-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Author tutorials as practical lessons that help learners acquire new skills through
       guided, hands-on experience.
   - id: DF-03-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Require that each tutorial is an activity where the learner learns by doing.
   - id: DF-03-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Ensure tutorials produce visible results early and often to maintain learner confidence.
   - id: DF-03-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Use first-person plural ("we") in the tutorial narrative to establish tutor/learner
       rapport.
   - id: DF-03-005
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Forbid alternative learning paths within a single tutorial's primary flow; present a
       single prescribed learning path.
   - id: DF-03-006
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Exclude in-depth explanations and theoretical discussions from the body of tutorials;
       link to explanatory pages for background.
   - id: DF-03-007
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Require every tutorial step to produce a comprehensible result that gives immediate
       feedback.
   - id: DF-03-008
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       State at the start of each tutorial exactly what the learner will have accomplished.
   - id: DF-03-009
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Point out specific signs or changes the learner should notice during the tutorial.
   - id: DF-03-010
@@ -114,6 +123,7 @@ groups:
   - id: DF-03-011
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Tutorials MUST reserve first-person plural ("we") for the shared journey and use second
       person ("you") for the learner's own actions, possessions, and state.
@@ -129,28 +139,33 @@ groups:
   - id: DF-04-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Present how-to guides as goal-oriented directions that resolve a specific real-world
       task or problem.
   - id: DF-04-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Assume the reader is a competent user with required basic skills; surface prerequisites
       explicitly rather than embedding lessons.
   - id: DF-04-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Require how-to titles to state exactly what the guide shows the user how to do (e.g.,
       start with "How to ...").
   - id: DF-04-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Use conditional imperatives (e.g., "If you want X, do Y") when the step applies only under a specific condition.
   - id: DF-04-005
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Exclude pedagogical teaching, background history, and extended lessons from how-to bodies.
   - id: DF-04-006
@@ -161,6 +176,7 @@ groups:
   - id: DF-04-007
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Omit unnecessary steps that do not contribute directly to the specified goal.
   - id: DF-04-008
     priority: SHOULD
@@ -169,30 +185,73 @@ groups:
       provide a short "Prerequisites" or "Starting points" section (or link to one) that handles
       different starting states and messy real-world setups instead of embedding multiple
       alternative flows.
+  - id: DF-04-009
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A how-to guide MAY cover the same demonstration as a tutorial. When it does, it
+      SHOULD lead with the task — what the reader's actor sends, in order, with its
+      branches, and how to verify the result — and place the demonstration's invocation
+      last, as confirmation. A how-to guide with nothing to place before the
+      demonstration's invocation SHOULD be a tutorial instead.
+    rationale: >-
+      Overlap across quadrants is not duplication when each page answers its own
+      reader's question: "I need my actor to propose an embargo" is work, answered by
+      the activities to send; "I want to see an embargo negotiation happen" is study,
+      answered by the demo. Leading a how-to with the command the tutorial opens with
+      writes it to the tutorial's question. DF-01-003 forbids mixing quadrants within a
+      page and says nothing about two pages; this item covers the pair.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-01-003
+  - id: DF-04-010
+    priority: SHOULD
+    kind: process
+    statement: >-
+      When a how-to guide and a tutorial show the same demonstration, the section both
+      pages show SHOULD be one `{% include-markdown %}` fragment that both include, and
+      the how-to guide's `level` SHOULD be higher than the tutorial's.
+    rationale: >-
+      Two copies of a demo invocation and its expected result drift apart; one fragment
+      cannot (DF-10-002), and placement stays with each host page, so DF-04-009's
+      ordering survives. A fragment with two hosts satisfies both hosts' quadrant rules
+      (DF-09-008). A how-to assumes a competent reader (DF-04-002), and the tutorial is
+      where that competence comes from, so the how-to sits above it and may link down to
+      it (DF-11-002).
+    relationships:
+    - rel_type: refines
+      spec_id: DF-04-009
+    - rel_type: depends_on
+      spec_id: DF-11-002
 - id: DF-05
   title: Reference
   specs:
   - id: DF-05-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Produce reference material that is neutral, objective, and technical in tone.
   - id: DF-05-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Structure reference content to mirror the physical or logical architecture of the system
       or code being described.
   - id: DF-05-003
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Keep reference content dry and free from instruction, discussion, or opinion.
   - id: DF-05-004
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: State facts about behaviors, commands, parameters, versions, and limitations.
   - id: DF-05-005
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Use consistent, standard patterns and formatting in reference documents to make information
       easy to find.
@@ -205,6 +264,7 @@ groups:
   - id: DF-05-007
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Reference material MUST make the system, not the reader, the grammatical subject of its
       descriptive sentences.
@@ -220,11 +280,13 @@ groups:
   - id: DF-06-001
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Provide explanatory material that focuses on understanding and context for a topic.
   - id: DF-06-002
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Address "Why?" questions by discussing history, design decisions, or technical constraints.
   - id: DF-06-003
@@ -235,6 +297,7 @@ groups:
   - id: DF-06-004
     priority: MUST_NOT
     kind: process
+    verification_debt: '#2571'
     statement: >-
       Exclude practical instructions and dry technical descriptions that belong in Tutorials,
       How-to, or Reference.
@@ -245,6 +308,7 @@ groups:
   - id: DF-06-006
     priority: MUST
     kind: process
+    verification_debt: '#2571'
     statement: Weave connections to related topics to build a web of understanding.
   - id: DF-06-007
     priority: MAY
@@ -315,18 +379,24 @@ groups:
     adr:
       - ADR-0092
     statement: >-
-      Acronyms MUST be expanded on first use on each rendered `docs/` page, where "page" means
-      the page as published rather than the source file it was authored in.
+      Acronyms MUST be expanded on first use on each rendered `docs/` page, where "page"
+      means the page as published rather than the source file it was authored in. Site
+      navigation rendered by the theme (the sidebar and tabs) is not page content and is
+      exempt. In a generated listing of child pages, each entry is one unit: an acronym
+      in an entry's link label is expanded on first use when that entry's own
+      description expands it.
     rationale: >-
-      First use resets per page because readers arrive from search results and deep links rather
-      than by reading in nav order. Site-wide `abbr` tooltips do not survive print output and are
-      invisible in raw Markdown. "Page" names the rendered artifact because an assembled page has
-      one first use, not one per fragment: applied to the Protocol Specification's fragments
-      standalone, the rule would demand twelve expansions of "VFD" and ten of "RM" on one rendered
-      page. See DF-09-007.
+      First use resets per page because readers arrive from search results and deep
+      links rather than by reading in nav order. Site-wide `abbr` tooltips do not
+      survive print output and are invisible in raw Markdown. "Page" names the rendered
+      artifact because an assembled page has one first use, not one per fragment
+      (DF-09-007). A generated listing reuses navigation labels as link text, so each
+      entry's description carries the expansion.
     verification: >-
-      Inspection of a page assembled from `{% include-markdown %}` fragments confirms each
-      acronym is expanded once in the rendered output.
+      Inspection of a page assembled from `{% include-markdown %}` fragments confirms
+      each acronym is expanded once in the rendered output, and inspection of a
+      generated landing page confirms each entry whose label carries an acronym expands
+      it in its description.
   - id: DF-09-004
     priority: MUST
     kind: process
@@ -483,8 +553,9 @@ groups:
       Copied prose drifts silently: one copy is updated, the other is not, and both pass lint
       because neither is wrong by itself. DRY is already a project standard (CS-22-001) and the
       tree already assembles pages from fragments, so this names the existing mechanism as the
-      required one. Extraction moves prose out of `lint-docs`' target set until #3318 lands,
-      raising rather than lowering the DF-10-001 obligation. Placement and include-path mechanics:
+      required one. An extracted fragment stays in `lint-docs`' target set for sentence- and
+      block-scoped rules (DF-09-007), but the claims it carries are still verified at the moment
+      of the move (DF-10-001). Placement and include-path mechanics:
       `notes/documentation-sweeps.md`.
     verification: >-
       Inspection confirms that content appearing on more than one page either (a) uses
@@ -538,7 +609,11 @@ groups:
       concept edge is a hyperlink supplies the escape: linking out satisfies the rule.
     verification: >-
       A check compares each page's declared `level` against the levels of the pages it
-      depends on and fails on any dependency whose level is higher.
+      depends on and fails on any dependency whose level is higher. `docs-level-order`
+      implements it: a page that is a glossary term's canonical introduction declares
+      the term in `introduces:`, and the first unlinked prose use of the term on a
+      lower-level page is a finding at `path:line:col`, with pre-existing violations in
+      a shrink-only baseline that names a reason for each.
   - id: DF-11-003
     priority: MUST
     kind: process
@@ -563,9 +638,11 @@ groups:
       about that requirement arises rather than in sequence; the reader-facing index that
       introduces them stays leveled (#3526). Exclusion is demotion, not retirement (#3281).
     verification: >-
-      Inspection of `mkdocs.yml` confirms no working-record page appears in the
-      reader-facing navigation, and that each remains reachable through a routing page or a
-      `not_in_nav` entry rather than being unreferenced.
+      `uv run docs-frontmatter` fails when a page matched by `WORKING_RECORD_PATTERNS`
+      (`vultron/metadata/docs/page_schema.py`) is listed in the `mkdocs.yml` nav or matched
+      by no `not_in_nav` pattern, and
+      `test/metadata/docs/test_working_record_routing.py` fails when a working-record page
+      is not reached by following links from `docs/about/project_record.md`.
   - id: DF-11-012
     priority: MUST
     kind: process
@@ -611,17 +688,37 @@ groups:
       - ADR-0102
     statement: >-
       Section landing pages that enumerate their section's contents MUST be generated from
-      page frontmatter and gated by a check mode, and MUST NOT be hand-maintained.
+      page frontmatter and gated by a check mode, and MUST NOT be hand-maintained. Every
+      `index.md` that opens a navigation group, or that is the only navigation entry for a
+      directory holding reader pages the navigation omits, MUST declare in its frontmatter
+      which of three shapes it is: `generated`, the enumeration above; `routing`, an index
+      whose links to its members are part of its framing or of a themed grouping that is
+      editorial content, which is exempt from generation and MUST instead be checked to link
+      every member of its section; or `rendered`, an enumeration produced at build time from
+      a registry (DEMOCI-11-009), which is exempt because nothing is committed to drift.
     rationale: >-
       Every section landing page was a hand-written duplicate of the navigation and every
       one had drifted from it — children missing, order disagreeing, and one describing a
       retired taxonomy to readers. The defect class is the duplication, so correcting
       individual omissions does not prevent recurrence. Two existing tools supply the
       pattern: `vultron/metadata/adr/index_gen.py` and `demo-scenarios-sync` (ADR-0098).
+      The two exempt shapes exist because generation fixes an index that under-routes and
+      cannot express an argument or a theme; what a routing page owes instead is
+      completeness, which is derivable and therefore checked — the split DEMOCI-11-007
+      already makes between what is generated and what is checked. The declaration is
+      required rather than defaulted so a sub-section cannot be left undecided by omission.
+      The per-page decisions and their reasons are in `notes/site-information-architecture.md`.
     verification: >-
-      The generator's `--check` mode runs as a pre-commit hook and in CI, failing when a
-      generated landing page differs from what frontmatter implies. Per DF-09-009 the check
-      fails rather than passes when it resolves no targets.
+      The generator's `--check` mode (`uv run docs-site --check`) runs as a pre-commit hook
+      and in CI, failing when a generated landing page differs from what frontmatter
+      implies, when a section index declares no shape or an unknown one, or when a routing
+      index does not link a member of its section — the group's navigation members plus any
+      reader page in its own directory the navigation omits. A link counts when the index
+      writes it or carries it in a fragment it includes uncut (no `start=` or `end=`), so
+      cards shared with another page route both (DF-10-002). Per DF-09-009 the check fails
+      rather than passes when it resolves no generated page.
+      `test/metadata/docs/test_site_sync.py` pins the committed set of generated, routing,
+      and rendered indexes.
   - id: DF-11-006
     priority: SHOULD
     kind: process

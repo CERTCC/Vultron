@@ -40,28 +40,50 @@ import logging
 from typing import TYPE_CHECKING, Any, cast, overload
 
 import py_trees
-from pydantic import BaseModel
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from pydantic import BaseModel
 
+from vultron.core.behaviors.emit_capable import EmitCapable
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
-from vultron.core.ports.case_persistence import (
-    CasePersistence,
-    CaseOutboxPersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.states.rm import RM
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronValidationError, VultronWiringError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
+
+# Feedback a node sets when it was composed without a dependency it needs.
+# A received handler raises on these rather than refusing the sender (#2255).
+DATALAYER_UNAVAILABLE = "DataLayer not available"
+DATALAYER_OR_ACTOR_UNAVAILABLE = "DataLayer or actor_id not available"
+TRIGGER_FACTORY_UNAVAILABLE = "trigger_activity_factory not available"
+WIRE_RENDER_PORT_UNAVAILABLE = (
+    "wire_render_port not available; core cannot render the AS2 shape itself"
+    " (ARCH-20-001)"
+)
+# The received event was not placed on the blackboard (``activity=`` omitted
+# from ``execute_with_setup``): the intake node cannot record what arrived.
+ACTIVITY_UNAVAILABLE = "received activity not available"
+WIRING_UNAVAILABLE_MESSAGES = frozenset(
+    {
+        DATALAYER_UNAVAILABLE,
+        DATALAYER_OR_ACTOR_UNAVAILABLE,
+        TRIGGER_FACTORY_UNAVAILABLE,
+        WIRE_RENDER_PORT_UNAVAILABLE,
+        ACTIVITY_UNAVAILABLE,
+    }
+)
 
 
 @overload
@@ -121,7 +143,10 @@ def read_rm_states(
             "Non-canonical ParticipantStatus shape for participant"
             f" '{participant_id}': {exc}"
         )
-        node.logger.error(f"{node.name}: {node.feedback_message}")
+        log = node_logger(node)
+        log.error(  # noqa: TRY400  # ruff-baseline #3353
+            "%s: %s", node.name, node.feedback_message
+        )
         return None
 
 
@@ -188,19 +213,20 @@ def require_case(
     SYNC-02-002 / ADR-0073) and case-under-construction flows where absence
     legitimately precedes a create.
     """
+    log = node_logger(node)
     datalayer = getattr(node, "datalayer", None)
     if datalayer is None:
-        node.feedback_message = "DataLayer not available"
-        node.logger.error(f"{node.name}: {node.feedback_message}")
+        node.feedback_message = DATALAYER_UNAVAILABLE
+        log.error("%s: %s", node.name, node.feedback_message)
         return None, Status.FAILURE  # type: ignore[return-value]
     if not case_id:
         node.feedback_message = "no case_id available to resolve case"
-        node.logger.error(f"{node.name}: {node.feedback_message}")
+        log.error("%s: %s", node.name, node.feedback_message)
         return None, Status.FAILURE  # type: ignore[return-value]
     case = datalayer.read_case(case_id)
     if not isinstance(case, VulnerabilityCase):
         node.feedback_message = f"case '{case_id}' not found in DataLayer"
-        node.logger.error(f"{node.name}: {node.feedback_message}")
+        log.error("%s: %s", node.name, node.feedback_message)
         return None, Status.FAILURE  # type: ignore[return-value]
     return case, None
 
@@ -229,9 +255,12 @@ def resolve_case_replica(
         return None
     case = datalayer.read_case(case_id)
     if not isinstance(case, VulnerabilityCase):
-        node.logger.debug(
-            f"{node.name}: case '{case_id}' not present in local replica;"
-            " skipping apply (SYNC-02-002)"
+        log = node_logger(node)
+        log.debug(
+            "%s: case '%s' not present in local replica;"
+            " skipping apply (SYNC-02-002)",
+            node.name,
+            case_id,
         )
         return None
     return case
@@ -262,12 +291,10 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
         # py_trees creates self.logger = logging.Logger(name) with parent=None,
         # so messages are silently dropped.  Replace with a proper managed logger
         # so BT node log messages propagate through the standard logging hierarchy.
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.wire_render_port: WireRenderPort | None = None
 
     def setup(self, **kwargs: Any) -> None:
         """Set up blackboard access for DataLayer and actor_id."""
@@ -298,22 +325,24 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
 
         if self.datalayer is None:
             self.logger.error(
-                f"{self.name}: DataLayer not found in blackboard"
+                "%s: DataLayer not found in blackboard", self.name
             )
         if self.actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not found in blackboard")
+            self.logger.error(
+                "%s: actor_id not found in blackboard", self.name
+            )
 
     def _require_datalayer(self) -> Status | None:
         """Return FAILURE if ``self.datalayer`` is not set, else None."""
         if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
+            self.feedback_message = DATALAYER_UNAVAILABLE
             return Status.FAILURE
         return None
 
     def _require_datalayer_and_actor(self) -> Status | None:
         """Return FAILURE if ``datalayer`` or ``actor_id`` is not set, else None."""
         if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
             return Status.FAILURE
         return None
 
@@ -366,13 +395,11 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         # py_trees creates self.logger = logging.Logger(name) with parent=None,
         # so messages are silently dropped.  Replace with a proper managed logger
         # so BT node log messages propagate through the standard logging hierarchy.
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.trigger_activity_factory: "TriggerActivityPort | None" = None
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.trigger_activity_factory: TriggerActivityPort | None = None
+        self.wire_render_port: WireRenderPort | None = None
 
     def setup(self, **kwargs: Any) -> None:
         """Set up blackboard access for DataLayer, actor_id, and trigger_activity_factory."""
@@ -414,22 +441,24 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
 
         if self.datalayer is None:
             self.logger.error(
-                f"{self.name}: DataLayer not found in blackboard"
+                "%s: DataLayer not found in blackboard", self.name
             )
         if self.actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not found in blackboard")
+            self.logger.error(
+                "%s: actor_id not found in blackboard", self.name
+            )
 
     def _require_datalayer(self) -> Status | None:
         """Return FAILURE if ``self.datalayer`` is not set, else None."""
         if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
+            self.feedback_message = DATALAYER_UNAVAILABLE
             return Status.FAILURE
         return None
 
     def _require_datalayer_and_actor(self) -> Status | None:
         """Return FAILURE if ``datalayer`` or ``actor_id`` is not set, else None."""
         if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
             return Status.FAILURE
         return None
 
@@ -448,7 +477,7 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
     def _require_factory(self) -> Status | None:
         """Return FAILURE if ``trigger_activity_factory`` is not set, else None."""
         if self.trigger_activity_factory is None:
-            self.feedback_message = "trigger_activity_factory not available"
+            self.feedback_message = TRIGGER_FACTORY_UNAVAILABLE
             return Status.FAILURE
         return None
 
@@ -495,9 +524,7 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
 
     def __init__(self, name: str):
         super().__init__(name=name)
-        self.logger = logging.getLogger(
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
 
@@ -550,13 +577,13 @@ class DataLayerConditionWithPorts(BehaviourWithPorts):
 
     def _require_datalayer(self) -> Status | None:
         if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
+            self.feedback_message = DATALAYER_UNAVAILABLE
             return Status.FAILURE
         return None
 
     def _require_datalayer_and_actor(self) -> Status | None:
         if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
             return Status.FAILURE
         return None
 
@@ -582,8 +609,8 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
     """Base class for typed-Ports BT action nodes with DataLayer access.
 
     Declares ``datalayer``, ``actor_id``, and optionally
-    ``trigger_activity_factory`` as input ports, remapped to BTBridge flat
-    keys.  Subclasses extend ``INPUT_PORTS`` / ``OUTPUT_PORTS`` (e.g.
+    ``trigger_activity_factory`` and ``wire_render_port`` as input ports,
+    remapped to BTBridge flat keys.  Subclasses extend ``INPUT_PORTS`` / ``OUTPUT_PORTS`` (e.g.
     ``{**DataLayerActionWithPorts.INPUT_PORTS, ...}``) and implement
     ``update()``.
 
@@ -594,12 +621,11 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
 
     def __init__(self, name: str):
         super().__init__(name=name)
-        self.logger = logging.getLogger(
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
-        self.trigger_activity_factory: "TriggerActivityPort | None" = None
+        self.trigger_activity_factory: TriggerActivityPort | None = None
+        self.wire_render_port: WireRenderPort | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         "datalayer": PortInformation(data_type=object, required=True),
@@ -607,6 +633,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         "trigger_activity_factory": PortInformation(
             data_type=object, required=False
         ),
+        "wire_render_port": PortInformation(data_type=object, required=False),
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {}
@@ -637,6 +664,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
                 "datalayer": _DL_KEY,
                 "actor_id": _ACTOR_KEY,
                 "trigger_activity_factory": "/trigger_activity_factory",
+                "wire_render_port": "/wire_render_port",
                 **self._domain_port_remappings(),
                 **self._instance_port_remappings(),
             }
@@ -657,18 +685,36 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
             )
         except (NoDataAvailable, NotImplementedError):
             self.trigger_activity_factory = None
+        try:
+            self.wire_render_port = self.get_input("wire_render_port")
+        except (NoDataAvailable, NotImplementedError):
+            self.wire_render_port = None
 
     def _require_datalayer(self) -> Status | None:
         if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
+            self.feedback_message = DATALAYER_UNAVAILABLE
             return Status.FAILURE
         return None
 
     def _require_datalayer_and_actor(self) -> Status | None:
         if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
             return Status.FAILURE
         return None
+
+    def _require_wire_render_port(self) -> "WireRenderPort":
+        """Return the rendering port, or raise if the tree was built without it.
+
+        Core never produces the AS2 shape of an object itself (ARCH-20-001), so
+        a node that needs it has no fallback: a missing port is a composition
+        fault, never the sender's doing.  Raises
+        :class:`~vultron.errors.VultronWiringError`, which ``BTBridge`` reports
+        as an internal error and a received handler re-raises rather than
+        refusing the sender (#2255, ADR-0095).
+        """
+        if self.wire_render_port is None:
+            raise VultronWiringError(WIRE_RENDER_PORT_UNAVAILABLE)
+        return self.wire_render_port
 
     def _require_case(
         self, case_id: "str | None"
@@ -684,7 +730,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
 
     def _require_factory(self) -> Status | None:
         if self.trigger_activity_factory is None:
-            self.feedback_message = "trigger_activity_factory not available"
+            self.feedback_message = TRIGGER_FACTORY_UNAVAILABLE
             return Status.FAILURE
         return None
 
@@ -694,7 +740,7 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         )
 
 
-class _EmitSingleActivityBase(DataLayerActionWithPorts):
+class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
     """Base class for emit nodes that create one activity and queue it in the actor's outbox.
 
     Subclasses override ``_call_factory()`` (required) to invoke the
@@ -762,14 +808,14 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return f
         try:
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
@@ -809,8 +855,8 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
             }
         )
 
-    def _participant_actor_id(self, participant: object) -> str:
-        actor_ref = getattr(participant, "attributed_to")
+    def _participant_actor_id(self, participant: CaseParticipant) -> str:
+        actor_ref = participant.attributed_to
         return (
             actor_ref
             if isinstance(actor_ref, str)
@@ -947,8 +993,11 @@ class ReadObject(DataLayerConditionWithPorts):
             name: Optional custom name (defaults to "ReadObject_{table}_{last_segment}")
         """
         # Use last part of ID for blackboard key (URL-safe)
-        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
-        display_name = name or f"ReadObject_{table}_{object_id.split('/')[-1]}"
+        self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = (
+            name
+            or f"ReadObject_{table}_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        )
         super().__init__(name=display_name)
         self.table = table
         self.object_id = object_id
@@ -984,19 +1033,19 @@ class ReadObject(DataLayerConditionWithPorts):
                 self.feedback_message = (
                     f"Object not found: {self.table}/{self.object_id}"
                 )
-                self.logger.debug(self.feedback_message)
+                self.logger.debug("%s", self.feedback_message)
                 return Status.FAILURE
 
             self._set_output("object_data", record)
             self.feedback_message = f"Read {self.table}/{self.object_id}"
-            self.logger.debug(self.feedback_message)
+            self.logger.debug("%s", self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error reading {self.table}/{self.object_id}: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1023,8 +1072,10 @@ class UpdateObject(DataLayerActionWithPorts):
             name: Optional custom name (defaults to "UpdateObject_{last_segment}")
         """
         # Use last part of ID for blackboard key (URL-safe)
-        self.blackboard_key = f"object_{object_id.split('/')[-1]}"
-        display_name = name or f"UpdateObject_{object_id.split('/')[-1]}"
+        self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = (
+            name or f"UpdateObject_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        )
         super().__init__(name=display_name)
         self.object_id = object_id
         self.updates = updates
@@ -1068,7 +1119,7 @@ class UpdateObject(DataLayerActionWithPorts):
                 self.feedback_message = (
                     f"Object not in blackboard: {self.object_id}"
                 )
-                self.logger.error(self.feedback_message)
+                self.logger.error("%s", self.feedback_message)
                 return Status.FAILURE
 
             # Build an updated StorableRecord without importing the adapter-layer Record.
@@ -1108,12 +1159,12 @@ class UpdateObject(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"Updated {self.object_id} with {len(self.updates)} fields"
             )
-            self.logger.info(self.feedback_message)
+            self.logger.info("%s", self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"Error updating {self.object_id}: {e}"
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
@@ -1161,7 +1212,7 @@ class CreateObject(DataLayerAction):
                 self.feedback_message = (
                     "Object data missing required 'id_' field"
                 )
-                self.logger.error(self.feedback_message)
+                self.logger.error("%s", self.feedback_message)
                 return Status.FAILURE
 
             # Get type from data, default to table name
@@ -1179,18 +1230,18 @@ class CreateObject(DataLayerAction):
             self.datalayer.create(storable)
 
             self.feedback_message = f"Created {self.table}/{object_id}"
-            self.logger.info(self.feedback_message)
+            self.logger.info("%s", self.feedback_message)
             return Status.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"Error creating object in {self.table}: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
-class UpdateActorOutbox(DataLayerActionWithPorts):
+class UpdateActorOutbox(DataLayerActionWithPorts, EmitCapable):
     """
     Update actor's outbox with a new activity.
 
@@ -1250,7 +1301,7 @@ class UpdateActorOutbox(DataLayerActionWithPorts):
             activity_id = self.activity_id
             if activity_id is None:
                 self.logger.error(
-                    f"{self.name}: activity_id not found in blackboard"
+                    "%s: activity_id not found in blackboard", self.name
                 )
                 return Status.FAILURE
 
@@ -1269,6 +1320,8 @@ class UpdateActorOutbox(DataLayerActionWithPorts):
 
             return Status.SUCCESS
 
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
+                "%s: Error updating actor outbox: %s", self.name, e
+            )
             return Status.FAILURE

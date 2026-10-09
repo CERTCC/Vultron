@@ -146,9 +146,9 @@ def test_detector_catches_synthetic_violation(tmp_path: Path) -> None:
         "        bridge.execute_with_setup(tree=t, actor_id=receiving_actor_id)\n",
         encoding="utf-8",
     )
-    assert not _collect_violations(
-        ok_file
-    ), "Detector produced a false positive for receiving_actor_id usage"
+    assert not _collect_violations(ok_file), (
+        "Detector produced a false positive for receiving_actor_id usage"
+    )
 
     ok_inline_file = tmp_path / "synthetic_ok_inline.py"
     ok_inline_file.write_text(
@@ -162,6 +162,6 @@ def test_detector_catches_synthetic_violation(tmp_path: Path) -> None:
         "        )\n",
         encoding="utf-8",
     )
-    assert not _collect_violations(
-        ok_inline_file
-    ), "Detector produced a false positive for defensive inline form"
+    assert not _collect_violations(ok_inline_file), (
+        "Detector produced a false positive for defensive inline form"
+    )

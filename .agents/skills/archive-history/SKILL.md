@@ -96,7 +96,7 @@ git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>"
 ### Step 5 — Push
 
 ```bash
-git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" HEAD
+git push -u origin HEAD
 ```
 
 ---

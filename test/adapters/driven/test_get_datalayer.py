@@ -35,7 +35,7 @@ def reset_singleton():
     # Clear config cache without reloading — monkeypatch reverts env vars
     # AFTER this teardown, so calling reload_config() here would lock in
     # the test's env state rather than the session-level conftest defaults.
-    _cfg_module._config_cache = None
+    _cfg_module.clear_config_cache()
 
 
 def test_get_datalayer_returns_sqlite_instance():

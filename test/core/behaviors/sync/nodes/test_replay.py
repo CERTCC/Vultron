@@ -8,14 +8,13 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
 from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
     OWNER_ACTOR_ID,
     PARTICIPANT_ACTOR_ID,
     _make_entry,
 )
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import (
     CollectAndSortCaseLedgerEntriesNode,
     CollectLogEntryRecipientsNode,
@@ -26,12 +25,12 @@ from vultron.core.behaviors.sync.nodes import (
     SendLogEntryToEachNode,
     SendMissingEntriesNode,
 )
-from vultron.core.models.case import VulnerabilityCase, VultronCase
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.enums.roles import CVDRole
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -67,6 +66,25 @@ def datalayer():
     return SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER_ACTOR_ID)
 
 
+@pytest.fixture
+def case_obj(datalayer):
+    """A case that seats the replaying peer as a joined participant.
+
+    Shadows the package fixture: replay is case content, so a peer outside
+    the roster is refused (CM-10-004).
+    """
+    participant = CaseParticipant(
+        id_=f"{CASE_ID}/participants/reporter",
+        attributed_to=PARTICIPANT_ACTOR_ID,
+        context=CASE_ID,
+    )
+    datalayer.create(participant)
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case.add_participant(participant)
+    datalayer.save(case)
+    return case
+
+
 @pytest.mark.spec("SYNC-03-002")
 def test_replay_missing_entries_node_is_sequence_with_named_leaf_nodes():
     tree = ReplayMissingEntriesNode(name="ReplayMissingEntries")
@@ -79,7 +97,7 @@ def test_replay_missing_entries_node_is_sequence_with_named_leaf_nodes():
 
 @pytest.mark.spec("SYNC-03-002")
 def test_send_missing_entries_node_replays_entries_after_divergence(
-    bridge, case_actor
+    bridge, case_actor, case_obj
 ):
     first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
@@ -130,9 +148,9 @@ class TestFindCaseActorNode:
     """``FindCaseActorNode`` resolves an *address* from the role (ADR-0088).
 
     It publishes ``case_actor_id`` for the downstream announce/replay nodes and
-    ``case_id`` for the role gate in ``create_reject_log_entry_tree``.  It does
-    not decide authority — that is the separate ``CheckIsCaseManagerNode`` in
-    that tree (ARCH-24-005).
+    ``case_id`` for later nodes.  It does not decide authority — that is the
+    factory's CASE_MANAGER gate in ``create_reject_log_entry_tree``
+    (ARCH-24-005).
     """
 
     @pytest.mark.spec("ARCH-24-001")
@@ -166,9 +184,7 @@ class TestFindCaseActorNode:
         ``context == case_id`` scan found nothing here and the node failed.
         """
         _seed_case_with_manager(datalayer, MANAGER_ACTOR_ID)
-        datalayer.create(
-            VultronCaseActor(id_=MANAGER_ACTOR_ID, name="CaseActor")
-        )
+        datalayer.create(CaseActor(id_=MANAGER_ACTOR_ID, name="CaseActor"))
         event = _make_reject_event(tail_hash="")
 
         result = bridge.execute_with_setup(
@@ -195,7 +211,7 @@ class TestFindCaseActorNode:
         roster the honest answer is FAILURE.
         """
         datalayer.create(
-            VultronCaseActor(
+            CaseActor(
                 id_="https://example.org/actors/some-other-case-actor",
                 name="Unrelated CaseActor",
                 context="https://example.org/cases/a-different-case",
@@ -292,7 +308,7 @@ def test_fanout_log_entry_node_is_sequence_with_named_leaf_nodes():
 
 @pytest.mark.spec("SYNC-03-002")
 def test_replay_missing_entries_node_replays_from_divergence(
-    bridge, datalayer, case_actor
+    bridge, datalayer, case_actor, case_obj
 ):
     first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
@@ -317,10 +333,9 @@ def test_replay_missing_entries_node_replays_from_divergence(
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
 
 
-@pytest.mark.spec("SYNC-02-001")
-@pytest.mark.spec("SYNC-02-003")
-def test_fanout_log_entry_node_sends_to_case_addressees(bridge, datalayer):
-    case_obj = VultronCase(
+def _seed_owner_and_participant_case(datalayer) -> None:
+    """Seed a case whose only peer of the owner is the participant."""
+    case_obj = VulnerabilityCase(
         id_=CASE_ID,
         attributed_to=OWNER_ACTOR_ID,
         actor_participant_index={
@@ -328,7 +343,17 @@ def test_fanout_log_entry_node_sends_to_case_addressees(bridge, datalayer):
             PARTICIPANT_ACTOR_ID: f"{CASE_ID}/participants/reporter",
         },
     )
+    for actor_id, pid in case_obj.actor_participant_index.items():
+        datalayer.save(
+            CaseParticipant(id_=pid, attributed_to=actor_id, context=CASE_ID)
+        )
     datalayer.save(case_obj)
+
+
+@pytest.mark.spec("SYNC-02-001")
+@pytest.mark.spec("SYNC-02-003")
+def test_fanout_log_entry_node_sends_to_active_participants(bridge, datalayer):
+    _seed_owner_and_participant_case(datalayer)
     entry = _make_entry(0)
     sync_port = MagicMock(spec=SyncActivityPort)
 
@@ -345,3 +370,127 @@ def test_fanout_log_entry_node_sends_to_case_addressees(bridge, datalayer):
     assert kwargs["entry"].id_ == entry.id_
     assert kwargs["actor_id"] == OWNER_ACTOR_ID
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
+
+
+@pytest.mark.spec("SYNC-02-003")
+@pytest.mark.spec("BT-14-001")
+def test_fanout_log_entry_node_without_sync_port_is_a_wiring_fault(
+    bridge, datalayer
+):
+    """No port is a wiring fault, never a silent SUCCESS (#4113).
+
+    The close-case tree runs this node outside the commit tree, so its own
+    check is the only guard on that path.
+    """
+    _seed_owner_and_participant_case(datalayer)
+
+    result = bridge.execute_with_setup(
+        tree=FanOutLogEntryNode(case_id=CASE_ID, name="FanOutLogEntry"),
+        actor_id=OWNER_ACTOR_ID,
+        log_entry=_make_entry(0),
+    )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "sync_port" in result.feedback_message
+    assert datalayer.outbox_list() == []
+
+
+# ---------------------------------------------------------------------------
+# SYNC-15-012: a replay does not re-queue an Announce the outbox still holds
+# ---------------------------------------------------------------------------
+
+
+def _adapter(datalayer):
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+
+    return SyncActivityAdapter(datalayer)
+
+
+def _queued_announces(datalayer) -> list[tuple[str, list[str]]]:
+    """``(entry id, recipients)`` for every Announce row in the outbox, in order."""
+    rows = []
+    for activity_id in datalayer.outbox_list():
+        activity = datalayer.read(activity_id)
+        rows.append((activity.object_.id_, [str(r) for r in activity.to]))
+    return rows
+
+
+def _replay(bridge, case_actor, sync_port, entries, *, from_index: int):
+    return bridge.execute_with_setup(
+        tree=SendMissingEntriesNode(name="SendMissingEntries"),
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+        case_actor_id=case_actor.id_,
+        replay_entry=entries[-1],
+        replay_peer_id=PARTICIPANT_ACTOR_ID,
+        replay_case_ledger_entries=entries,
+        replay_from_index=from_index,
+    )
+
+
+@pytest.mark.spec("SYNC-15-012")
+def test_replay_skips_entries_whose_announce_to_this_peer_is_still_queued(
+    bridge, datalayer, case_actor, case_obj
+):
+    """Only the entries not already pending for the peer are queued again.
+
+    ``second`` is still in the outbox for the participant from an earlier
+    replay; ``third`` is pending for a *different* peer, which says nothing
+    about this one.  The replay queues ``third`` for the participant and
+    nothing else — through the real sync adapter, which is where the outbox
+    is consulted (DL-06-004), not in the node (DL-06-001).
+    """
+    first = _make_entry(0)
+    second = _make_entry(1, first.entry_hash)
+    third = _make_entry(2, second.entry_hash)
+    adapter = _adapter(datalayer)
+    adapter.send_announce_log_entry(
+        entry=second, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+    )
+    adapter.send_announce_log_entry(
+        entry=third,
+        actor_id=case_actor.id_,
+        to=["https://example.org/actors/other"],
+    )
+    before = _queued_announces(datalayer)
+
+    result = _replay(
+        bridge, case_actor, adapter, [first, second, third], from_index=0
+    )
+
+    assert result.status == Status.SUCCESS
+    added = _queued_announces(datalayer)[len(before) :]
+    assert added == [(third.id_, [PARTICIPANT_ACTOR_ID])]
+
+
+@pytest.mark.spec("SYNC-15-012")
+@pytest.mark.spec("SYNC-15-011")
+def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
+    bridge, datalayer, case_actor, case_obj
+):
+    """When every entry is already queued, nothing is queued and no cooldown starts."""
+    from vultron.core.behaviors.sync.nodes.replay_guard import _read_state
+
+    first = _make_entry(0)
+    second = _make_entry(1, first.entry_hash)
+    adapter = _adapter(datalayer)
+    adapter.send_announce_log_entry(
+        entry=second, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+    )
+    before = _queued_announces(datalayer)
+
+    result = _replay(
+        bridge, case_actor, adapter, [first, second], from_index=0
+    )
+
+    assert result.status == Status.SUCCESS
+    assert _queued_announces(datalayer) == before
+    assert (
+        _read_state(
+            datalayer, case_id=first.case_id, peer_id=PARTICIPANT_ACTOR_ID
+        )
+        is None
+    )

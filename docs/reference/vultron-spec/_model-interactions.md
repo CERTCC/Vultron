@@ -13,9 +13,11 @@ so. The cascades below are the complete set that this specification requires.
 
 ### 10.1 Admitting a Participant
 
-When an actor accepts an invitation, the CASE_MANAGER admits it to the case and
-delivers the case content. The steps are ordered because each one supplies a
-precondition for the next.
+When an actor accepts the stub Invite, the CASE_MANAGER admits it to the case and
+delivers the case content. The CASE_MANAGER created the actor's inert participant
+record, at RM state `Received`, when it sent the stub Invite
+([§11.2 Invitation and Acceptance](interactions.md#112-invitation-and-acceptance-n)).
+The steps are ordered because each one supplies a precondition for the next.
 
 ```mermaid
 ---
@@ -25,53 +27,60 @@ sequenceDiagram
     autonumber
     participant I as Invited actor
     participant CM as CASE_MANAGER
-    participant P as Existing participants
+    participant P as Active participants
 
-    I->>CM: Accept(Invite)
+    I->>CM: Accept(Invite(Actor, VulnerabilityCaseStub))
     CM->>CM: Commit ledger entry for the acceptance
     CM->>P: Announce(CaseLedgerEntry)
-    CM->>I: Announce(CaseLedgerEntry)
-    CM->>CM: Create CaseParticipant, RM state Received
-    CM->>CM: Record embargo consent, if an embargo is in force
+    CM->>CM: Record effect: RM stays Received, embargo consent Accepted
     CM->>I: Announce(VulnerabilityCase) — full case content
     CM->>I: Prior ledger entries, oldest first
+    CM->>I: Invite(Actor, VulnerabilityCase) — full-case Invite
 ```
 
-On receiving `Accept(Invite)`, the CASE_MANAGER MUST perform these five steps in
-this order:
+On receiving `Accept(Invite)`, the CASE_MANAGER MUST perform these four steps in
+this order (CM-17-004):
 
 1. Commit a ledger entry recording the acceptance, and send that entry to every
-   participant.
-2. Create the participant's `CaseParticipant` record with RM state `Received`.
-3. Record the participant's embargo consent, if an embargo is in force.
-4. Send `Announce(VulnerabilityCase)` carrying the full case snapshot.
-5. Send the ledger entries committed before this participant joined, oldest
-   first.
+   active participant.
+2. Record the acceptance's effect on the participant: its RM state stays
+   `Received`, and its embargo consent for the active embargo, if any, becomes
+   `Accepted`.
+3. When the participant is now active, send `Announce(VulnerabilityCase)`
+   carrying the full case snapshot, then replay the ledger entries committed
+   before this participant joined, oldest first.
+4. Send the full-case Invite, which asks the participant to judge the case.
 
 !!! note "Recall: report management states"
     {% include-markdown "./includes/_rm-states-table.md" %}
 
-    Full definitions are in [§6.1](index.md#61-states).
+    Full definitions are in [§6.1 States](tracking-models.md#61-states).
 
-Steps 2, 3 and 4 MUST occur in that order. Step 4 delivers the content that
-step 3 authorizes, and step 2 establishes the RM state that step 4's delivery
-gate tests ([§9.7](index.md#97-gating-full-case-delivery)).
+Step 3 delivers the content that step 2 authorizes: the embargo consent recorded
+in step 2 is what the delivery gate tests
+([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
+Step 4 follows the replay, so the participant judges a case it already holds.
 
 ### 10.2 Embargo Revision and Termination Cascades
 
-A change to the shared embargo state propagates to every participant's consent
+A change to the embargo in force propagates to every participant's consent
 state, because consent is given to specific terms.
+A change that is only proposed does not.
 
 !!! note "Recall: embargo management states"
     {% include-markdown "./includes/_em-states-table.md" %}
 
-    Full definitions are in [§7.1](index.md#71-states).
+    Full definitions are in [§7.1 States](tracking-models.md#71-states).
 
-- **EM enters `Revised`.** The CASE_MANAGER MUST transition every participant
-  currently at PEC `SIGNATORY` to `LAPSED`. Consent to the previous terms does
-  not carry over to revised terms.
-- **EM enters `Exited`.** The CASE_MANAGER MUST reset every participant's PEC
-  machine to `UNBOUND`. No embargo is in scope, so no consent is either.
+- **EM enters `Revised`.** No consent changes.
+  The prior embargo is still in force and every signatory to it remains `SIGNATORY`; the CASE_MANAGER records the proposer as having accepted the terms it proposed.
+- **EM returns to `Active` with revised terms.** Consent is recorded per embargo, so the CASE_MANAGER re-evaluates every participant's position against the new terms.
+  If the revised embargo ends no later than the one it replaces, every signatory to the replaced terms is carried over as a signatory of the revised terms.
+  If it ends later, a signatory that has not accepted the revised terms is no longer a signatory to the active embargo, which is the `LAPSED` position; nothing is written to record it.
+  A participant that has already accepted the revised terms is a signatory to them.
+- **EM returns to `Active` because the owner rejected the revision.** No consent changes; the prior terms stand.
+- **EM enters `Exited`.** No embargo is in scope, so no participant is a signatory to one, which is the terminal `UNBOUND_EXITED` position.
+  The CASE_MANAGER writes nothing to record it, and a terminated embargo cannot be re-invited (ADR-0118).
 - **After a teardown.** The CASE_MANAGER SHOULD commit and send a fresh
   `Announce(CaseLedgerEntry)` so every participant learns that the embargo
   ended.
@@ -79,7 +88,7 @@ state, because consent is given to specific terms.
 !!! note "Recall: participant embargo consent states"
     {% include-markdown "./includes/_pec-states-table.md" %}
 
-    Full definitions are in [§9.1](index.md#91-states).
+    Full definitions are in [§9.1 States](tracking-models.md#91-states).
 
 ### 10.3 Status Adoption: The Two-Seam Model
 
@@ -96,14 +105,14 @@ claim as truth" are separate decisions with separate authority.
 A participant reports an observation by sending `Add(ParticipantStatus)` to the
 CASE_MANAGER. A participant does not send `Add(CaseStatus)`: writing canonical
 case status is reserved to the CASE_MANAGER
-([§5.4.1](index.md#541-single-writer-authority)).
+([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
 
 The CASE_MANAGER records the claim in the case ledger first, and then decides
 whether to adopt it as canonical:
 
 - The CASE_MANAGER MUST adopt a Case Owner's report without seeking approval.
   Asking the Case Owner to approve its own report would be circular
-  ([§12.4.4](index.md#1244-case-owner-authority)).
+  ([§12.4.4 Case Owner Authority](conformance.md#1244-case-owner-authority)).
 - For every other sender, the CASE_MANAGER MUST obtain Case Owner authorization
   before adopting the report as canonical case state. This is the default
   posture, and it is deliberate: without it, any admitted participant could
@@ -134,7 +143,7 @@ state requires:
 
 - The CASE_MANAGER MUST check whether the adopted status set Public Aware,
   Exploit Public, or Attacks Observed
-  ([§8.2](index.md#82-pxa-public-aware-exploit-public-attacks-observed)).
+  ([§8.2 PXA — Public Aware, Exploit Public, Attacks Observed](tracking-models.md#82-pxa-public-aware-exploit-public-attacks-observed)).
 - If any of those is now set, the CASE_MANAGER MUST evaluate embargo teardown.
 - **This check MUST run after the canonical write, never before.** What is
   written is the `CaseStatus` record holding the case's shared EM and PXA
@@ -158,7 +167,7 @@ without a change to the other.
 !!! note "Where the gate model applies"
     Seam 1 governs any reported status. Its authorization question matters most
     for the participant-agnostic PXA values, which any participant may report
-    ([§12.4.2](index.md#1242-participant-agnostic-cs-transitions-pxa)) —
+    ([§12.4.2 Participant-Agnostic CS Transitions (PXA)](conformance.md#1242-participant-agnostic-cs-transitions-pxa)) —
     including reports about other participants.
 
 !!! info "See also"

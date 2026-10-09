@@ -7,6 +7,7 @@ description: >
   late joiners, and CASE_MANAGER authority after trust establishment.
 related_specs:
   - specs/case-bootstrap-trust.yaml
+  - specs/architecture.yaml (ARCH-12-003)
   - specs/participant-case-replica.yaml
   - specs/actor-knowledge-model.yaml
   - specs/case-management.yaml
@@ -14,6 +15,9 @@ related_notes:
   - notes/participant-case-replica.md
   - notes/activitystreams-semantics.md
   - notes/actor-knowledge-model.md
+  - notes/datalayer-design.md
+  - notes/devcontainer-tooling.md
+  - notes/case-proposal.md
 relevant_packages:
   - vultron/core/use_cases/received
   - vultron/core/use_cases/triggers
@@ -106,11 +110,25 @@ case during bootstrap.
 After a valid bootstrap, persist all of the following together:
 
 - `report_id -> case_id`
-- `case_id -> trusted_case_creator_id`
-- `case_id -> trusted_case_actor_id`
+- `case_id -> case_creator_id`
+- `case_id -> case_manager_id`
 
 This prevents the receiver from having to re-derive trust from later traffic
 and gives handlers a stable basis for rejecting spoofed or stale senders.
+
+The two actor-id fields on `VultronReportCaseLink` were named
+`trusted_case_creator_id` and `trusted_case_actor_id` until #4020. CodeQL's
+`py/clear-text-logging-sensitive-data` heuristic reads any name containing
+"trusted" as a secret, so every log line printing an actor id resolved
+through them was flagged — yet both values are public ActivityPub URIs.
+Name an actor-id field for the role it records, not for the trust relation.
+A row still carrying an old key is refused on load, with a reason naming the
+store reset (`RetiredFieldsRecord`, #4128); it is never aliased onto the
+new name. The refusal is load-bearing: `VultronReportCaseLink` is a
+`CoreRecord`, which refuses unknown keys (`extra="forbid"`, #4186) but only with
+a bare "extra inputs are not permitted"; the declaration is what names the
+rename and the store reset to the operator.
+See [datalayer-design](datalayer-design.md) § "Renaming a Stored Field".
 
 ---
 
@@ -153,11 +171,15 @@ CASE_MANAGER: Create(VulnerabilityCase, actor=case_actor_id, inline participants
 
 The `Create(VulnerabilityCase)` from the CASE_MANAGER IS the bootstrap. The
 sender is the CASE_MANAGER (not the report receiver), so the trust anchor the
-receiver validates is `trusted_case_actor_id` from the `Accept(CaseProposal)`
+receiver validates is `case_manager_id` from the `Accept(CaseProposal)`
 recorded earlier in `accept_case_proposal_received_tree.py`.
+That `Accept` is recorded only when its sender is the actor the vendor addressed
+the proposal to (`case_creator_id`), and never once a case is established for
+the report, so an unrelated actor cannot plant itself as the trust anchor
+(CP-06-005, CBT-02-003).
 
 The `Create(VulnerabilityCase)` payload MUST embed participant objects inline
-so `_store_embedded_participants` can seed them on the receiver's replica.
+so `store_embedded_participants` can seed them on the receiver's replica.
 
 ## Layer and Import Rules
 
@@ -175,15 +197,15 @@ so `_store_embedded_participants` can seed them on the receiver's replica.
 ## Testing Patterns
 
 ```python
-def test_bootstrap_create_establishes_trusted_case_actor(
+def test_bootstrap_create_records_case_manager(
     dl, report_submitter, report_receiver, submitted_report, bootstrap_activity
 ):
     event = build_event(bootstrap_activity, actor_id=report_submitter.id_)
     CreateVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
     trust = dl.read(case_bootstrap_trust_id(submitted_report.id_))
-    assert trust.trusted_case_creator_id == report_receiver.id_
-    assert trust.trusted_case_actor_id is not None
+    assert trust.case_creator_id == report_receiver.id_
+    assert trust.case_manager_id is not None
 ```
 
 ```python

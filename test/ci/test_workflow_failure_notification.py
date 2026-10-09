@@ -15,15 +15,21 @@ and at least one step uses it in ``close`` mode (CISEC-05-002).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
 
+from test.ci._workflows import triggers
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 NOTIFY_FAILURE_USES = "./.github/actions/notify-failure"
+NOTIFY_FAILURE_ACTION = (
+    REPO_ROOT / ".github" / "actions" / "notify-failure" / "action.yml"
+)
 DEMO_WORKFLOW = WORKFLOWS_DIR / "demo-integration.yml"
 
 
@@ -38,8 +44,7 @@ def _load_workflow(path: Path) -> dict[str, Any]:
 
 def _is_qualifying(wf_data: dict[str, Any]) -> bool:
     """Return True when the workflow triggers on push-to-main or schedule."""
-    # PyYAML 1.1 parses the bare `on:` key as Python True, not the string "on".
-    on = wf_data.get(True, wf_data.get("on", {}))  # type: ignore[call-overload]
+    on = triggers(wf_data)
     if not isinstance(on, dict):
         return False
     if "schedule" in on:
@@ -71,7 +76,7 @@ def _qualifying_workflow_files() -> list[Path]:
     for wf in sorted(WORKFLOWS_DIR.glob("*.yml")):
         try:
             data = _load_workflow(wf)
-        except Exception:  # pragma: no cover
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989  # pragma: no cover
             continue
         if _is_qualifying(data):
             files.append(wf)
@@ -144,6 +149,22 @@ def test_qualifying_workflow_notify_step_has_workflow_label(wf: Path) -> None:
         )
 
 
+AGGREGATE_FAILURE = "contains(needs.*.result, 'failure')"
+AGGREGATE_CANCELLED_EXCLUSION = "!contains(needs.*.result, 'cancelled')"
+AGGREGATE_CANCELLED_INCLUSION = "|| contains(needs.*.result, 'cancelled')"
+
+
+def _step_guards(wf: Path, mode: str) -> list[str]:
+    """Return the normalized ``if:`` guard of every notify-failure step in
+    ``wf`` running in ``mode`` (``"notify"`` or ``"close"``)."""
+    data = _load_workflow(wf)
+    return [
+        _normalize_expr(str(step.get("if", "")))
+        for step in _notify_failure_steps(data)
+        if step.get("with", {}).get("mode") == mode
+    ]
+
+
 @pytest.mark.parametrize(
     "wf", _qualifying_workflow_files(), ids=lambda p: p.name
 )
@@ -153,37 +174,86 @@ def test_notify_step_does_not_file_on_cancellation(wf: Path) -> None:
 
     A push-to-main run cancelled by the concurrency group is not an actual
     failure — a newer run is authoritative. The notify step's ``if:`` guard
-    must therefore require a genuine failure AND exclude cancellation, and must
-    not use the ``|| contains(needs.*.result, 'cancelled')`` pattern that files
-    on cancellation directly.
+    must therefore require a genuine failure and must not use the
+    ``|| contains(needs.*.result, 'cancelled')`` pattern that files on
+    cancellation directly.
     """
-    data = _load_workflow(wf)
-    notify_steps = [
-        s
-        for s in _notify_failure_steps(data)
-        if s.get("with", {}).get("mode") == "notify"
-    ]
-    for step in notify_steps:
-        guard = _normalize_expr(str(step.get("if", "")))
-        # Never file on cancellation directly.
-        assert "|| contains(needs.*.result, 'cancelled')" not in guard, (
+    for guard in _step_guards(wf, "notify"):
+        assert AGGREGATE_CANCELLED_INCLUSION not in guard, (
             f"{wf.name}: the notify (file) step must NOT file on cancellation "
-            f"via `|| contains(needs.*.result, 'cancelled')` (CISEC-05-006, "
-            f"#3249). Current guard: {guard!r}"
+            f"via `{AGGREGATE_CANCELLED_INCLUSION}` (CISEC-05-006, #3249). "
+            f"Current guard: {guard!r}"
         )
-        # The `needs.*.result` aggregate idiom can observe a `failure` laundered
-        # from a cancelled run (a cancelled upstream job leaving a downstream job
-        # to hard-fail on a missing artifact, #3249), so it MUST pair the failure
-        # check with an explicit cancellation exclusion. The `failure()` status
-        # function excludes cancellation inherently and needs no extra guard.
-        if "contains(needs.*.result, 'failure')" in guard:
-            assert "!contains(needs.*.result, 'cancelled')" in guard, (
-                f"{wf.name}: a notify (file) step that keys on "
-                f"`contains(needs.*.result, 'failure')` must also exclude "
-                f"cancelled runs via `!contains(needs.*.result, 'cancelled')` "
-                f"so a superseded run does not file a spurious ci:main-failure "
-                f"issue (CISEC-05-006, #3249). Current guard: {guard!r}"
-            )
+
+
+@pytest.mark.parametrize(
+    "wf", _qualifying_workflow_files(), ids=lambda p: p.name
+)
+def test_notify_step_files_on_failure_mixed_with_cancellation(
+    wf: Path,
+) -> None:
+    """CISEC-05-006 (#3293, #3294): a genuine failure must be filed even when
+    a sibling job in the same run was cancelled.
+
+    When a job fails and a newer push then cancels the jobs still running,
+    ``needs.*.result`` holds both ``failure`` and ``cancelled``. A guard of
+    the form ``contains(needs.*.result, 'failure') &&
+    !contains(needs.*.result, 'cancelled')`` is false for that run, so the
+    observed failure is never filed — for python-app.yml when lint jobs are
+    cancelled alongside failing tests (#3293), and for demo-integration.yml
+    when the invariant harness is cancelled after a demo leg failed (#3294).
+
+    The cancellation exclusion was defense in depth against a *laundered*
+    failure (a cancelled upstream job leaving a downstream job to hard-fail
+    on a missing artifact, #3249). That path is closed at its source by the
+    harness skip guard (DEMOCI-04-007, checked by
+    ``test_invariant_harness_skipped_when_demo_cancelled``), so every
+    ``failure`` in the aggregate is genuine and the notify step must not
+    require the absence of ``cancelled``.
+
+    The property holds for every notify guard, not only aggregate-keyed
+    ones: a ``failure()`` guard passes trivially, and a guard keyed on a
+    single job's result (``needs.test.result == 'failure'``) would be
+    suppressed by the exclusion just the same, so no guard is exempt.
+    """
+    for guard in _step_guards(wf, "notify"):
+        assert AGGREGATE_CANCELLED_EXCLUSION not in guard, (
+            f"{wf.name}: a notify (file) step must not require "
+            f"`{AGGREGATE_CANCELLED_EXCLUSION}` — that "
+            f"suppresses a genuine failure whenever a sibling job in the same "
+            f"run was cancelled (CISEC-05-006, #3293, #3294). Skip artifact "
+            f"consumers on a cancelled producer instead (DEMOCI-04-007). "
+            f"Current guard: {guard!r}"
+        )
+
+
+@pytest.mark.parametrize(
+    "wf", _qualifying_workflow_files(), ids=lambda p: p.name
+)
+def test_close_step_does_not_close_on_cancellation(wf: Path) -> None:
+    """CISEC-05-002 (#3293, #3294): the close step must not declare recovery
+    on a cancelled (concurrency-superseded) run.
+
+    The notify step dropped its cancellation exclusion because a genuine
+    ``failure`` sitting beside a ``cancelled`` result is still genuine
+    (``test_notify_step_files_on_failure_mixed_with_cancellation``). The
+    close step is the mirror image: an aggregate holding no ``failure`` but a
+    ``cancelled`` result proves nothing about the commit — the cancelled job
+    might have failed had it run to completion — so an aggregate-keyed close
+    guard MUST keep ``!contains(needs.*.result, 'cancelled')``. A guard keyed
+    on the ``success()`` status function is already safe: ``success()`` is
+    false on cancellation, so it never contains the aggregate at all.
+    """
+    for guard in _step_guards(wf, "close"):
+        if AGGREGATE_FAILURE not in guard:
+            continue  # keyed on success(), which is false on cancellation
+        assert AGGREGATE_CANCELLED_EXCLUSION in guard, (
+            f"{wf.name}: a close step keyed on the `needs.*.result` aggregate "
+            f"must also require `{AGGREGATE_CANCELLED_EXCLUSION}` — a "
+            f"superseded run must not retire the ci:main-failure issue on a "
+            f"commit it never finished checking (CISEC-05-002, #3293, "
+            f"#3294). Current guard: {guard!r}"
+        )
 
 
 def test_invariant_harness_skipped_when_demo_cancelled() -> None:
@@ -198,7 +268,8 @@ def test_invariant_harness_skipped_when_demo_cancelled() -> None:
     cancelled demo runs so it is *skipped* (not failed) in that case, leaving
     the ``notify`` job to correctly defer to the superseding run.
 
-    See DEMOCI-04-007 and ``notes/ci-workflow-authoring.md``.
+    See DEMOCI-04-007 and ``notes/demo-ci-invariants.md`` § Cancellation
+    Safety.
     """
     data = _load_workflow(DEMO_WORKFLOW)
     job = data.get("jobs", {}).get("invariant-harness")
@@ -212,4 +283,83 @@ def test_invariant_harness_skipped_when_demo_cancelled() -> None:
         "(needs.demo.result != 'cancelled'), so a concurrency-cancelled "
         "push-to-main run does not cascade into a spurious ci:main-failure "
         f"issue (DEMOCI-04-007, #3249). Current guard: {guard!r}"
+    )
+
+
+def _notify_action_run_scripts() -> list[str]:
+    """Return the ``run:`` script of every step in the composite action."""
+    data = yaml.safe_load(NOTIFY_FAILURE_ACTION.read_text())
+    steps = data.get("runs", {}).get("steps", [])
+    return [str(step["run"]) for step in steps if "run" in step]
+
+
+def _notify_action_create_script() -> str:
+    """Return the one composite-action step script that runs ``gh issue create``."""
+    scripts = _notify_action_run_scripts()
+    assert scripts, f"{NOTIFY_FAILURE_ACTION} has no run: steps"
+    creating = [s for s in scripts if "gh issue create" in s]
+    assert len(creating) == 1, (
+        "Expected exactly one step in notify-failure/action.yml to run "
+        f"`gh issue create`; found {len(creating)} (CISEC-05-007)."
+    )
+    return creating[0]
+
+
+def test_notify_action_sets_bug_issue_type() -> None:
+    """CISEC-05-007: a failure issue must carry the Bug type, in both arms.
+
+    ``gh issue create`` cannot set an issue type, and a ``bug`` label applied
+    with ``GITHUB_TOKEN`` never fires the label-to-issue-type workflow, so the
+    action has to resolve the repository's ``Bug`` type by name and apply it
+    through the ``updateIssue`` mutation itself. The resolution is by *name*:
+    a hardcoded node ID would break silently if the type were re-created. The
+    same helper runs on the comment-on-existing arm so an issue left untyped
+    by a failed assignment is repaired on the next notify run.
+    """
+    script = _notify_action_create_script()
+    assert "issueTypes" in script and 'select(.name == "Bug")' in script, (
+        "The notify-failure action must resolve the repository's `Bug` issue "
+        "type by name via the `issueTypes` GraphQL field (CISEC-05-007)."
+    )
+    assert "updateIssue" in script and "issueTypeId" in script, (
+        "The notify-failure action must apply the Bug type to the new issue "
+        "via the `updateIssue` mutation's `issueTypeId` (CISEC-05-007)."
+    )
+    assert '--label "bug"' not in script and "--label bug" not in script, (
+        "The notify-failure action must not rely on a `bug` label for the "
+        "label-to-issue-type workflow: GITHUB_TOKEN events never trigger it "
+        "(CISEC-05-007)."
+    )
+    calls = re.findall(r"^\s*ensure_bug_type \"", script, flags=re.MULTILINE)
+    assert len(calls) == 2, (
+        "ensure_bug_type must run once on the create arm and once on the "
+        "comment-on-existing arm, so an issue left untyped by a transient "
+        f"mutation failure is repaired on the next run; found {len(calls)} "
+        "call(s) (CISEC-05-007)."
+    )
+
+
+def test_notify_action_fails_visibly_without_bug_type() -> None:
+    """CISEC-05-007: no ``Bug`` type in the repository is a loud step failure.
+
+    The guard has to come *after* a jq expression that tolerates a null
+    ``issueTypes`` connection (an owner with no issue types at all); otherwise
+    ``set -e`` kills the step before the ``::error::`` line can name the issue.
+    """
+    script = _notify_action_create_script()
+    assert "(.data.repository.issueTypes.nodes // [])" in script, (
+        "The Bug-type lookup must default a null `issueTypes` connection to "
+        "an empty list, or jq aborts the step before the guard runs "
+        "(CISEC-05-007)."
+    )
+    assert 'if [ -z "$bug_type_id" ]' in script, (
+        "The notify-failure action must guard on an empty Bug type ID "
+        "(CISEC-05-007)."
+    )
+    guard = script.index('if [ -z "$bug_type_id" ]')
+    guard_body = script[guard : script.index("fi", guard)]
+    assert "::error::" in guard_body and "exit 1" in guard_body, (
+        "A missing `Bug` issue type must fail the step with an `::error::` "
+        "annotation, not leave the filed issue silently untyped "
+        "(CISEC-05-007)."
     )

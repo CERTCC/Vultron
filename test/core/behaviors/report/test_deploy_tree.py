@@ -23,12 +23,11 @@ Covers all acceptance criteria:
 - AC-3: Unit tests covering tree structure and factory delegation.
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
@@ -46,10 +45,10 @@ from vultron.core.behaviors.report.deploy_mitigation_tree import (
     create_deploy_mitigation_tree,
 )
 from vultron.core.behaviors.report.deploy_tree import create_deploy_tree
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -263,8 +262,8 @@ def test_tree_ascii_contains_both_arm_names():
 
 
 @pytest.fixture
-def deployer_participant() -> VultronParticipant:
-    return VultronParticipant(
+def deployer_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/deployer-comb-cp-001",
         attributed_to=DEPLOYER_ACTOR_ID,
         context=CASE_ID,
@@ -275,9 +274,9 @@ def deployer_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_deployer(
     bt_scenario: BTTestScenario,
-    deployer_participant: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+    deployer_participant: CaseParticipant,
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Deploy Combinator Case",
         case_participants=[deployer_participant.id_],
@@ -306,7 +305,7 @@ def _seed_status(
     bt_scenario.dl.create(status)
 
     case = bt_scenario.dl.read(case_id)
-    if not isinstance(case, VultronCase):
+    if not isinstance(case, VulnerabilityCase):
         return
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id:
@@ -318,7 +317,7 @@ def _seed_status(
 
 def test_fix_arm_success_skips_mitigation_arm(
     bt_scenario: BTTestScenario,
-    case_with_deployer: VultronCase,
+    case_with_deployer: VulnerabilityCase,
 ) -> None:
     """Fix arm succeeds via CSinStateFixDeployed → DeployMitigationBT never ticked (issue #2002 AC-1).
 
@@ -337,7 +336,7 @@ def test_fix_arm_success_skips_mitigation_arm(
 
 def test_all_fix_arms_fail_mitigation_arm_rescues(
     bt_scenario: BTTestScenario,
-    case_with_deployer: VultronCase,
+    case_with_deployer: VulnerabilityCase,
 ) -> None:
     """All four fix arms fail → DeployMitigationBT ticks and succeeds (issue #2002 AC-2).
 
@@ -355,7 +354,7 @@ def test_all_fix_arms_fail_mitigation_arm_rescues(
     )
 
     fix_bundle = DeployFixCallOutBundle(
-        monitoring_requirement_factory=lambda name: AlwaysFail(name),
+        monitoring_requirement_factory=AlwaysFail,
     )
     tree = create_deploy_tree(
         case_id=CASE_ID,

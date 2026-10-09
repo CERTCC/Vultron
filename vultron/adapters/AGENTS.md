@@ -80,7 +80,8 @@ for:
 - **DataLayer Identity Contract: Canonical URI Must Match** — the actor_id
   used to construct a DataLayer for queue reads MUST be the actor's canonical
   URI (`actor.id_`), and MUST exactly match the one the writing store was
-  built with. Use `get_canonical_actor_dl()` from `deps.py`; do NOT pass the
+  built with. Resolve it through `get_actor_dl()` / `get_trigger_dl()` from
+  `deps.py`; do NOT pass the
   raw URL path segment. Violating this reads a *different actor's* store, so
   outbound activities are silently dropped (BUG-2026040901).
 
@@ -90,7 +91,7 @@ See [notes/codebase-structure-fastapi-patterns.md](../../notes/codebase-structur
 - FastAPI response\_model Filtering
 - Health Check Readiness Gap
 - Docker Health Check Coordination
-- Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
+- The Formatter Can Invalidate Inline Type-Checker Suppressions
 
 See [notes/codebase-structure.md](../../notes/codebase-structure.md) for:
 
@@ -122,6 +123,57 @@ object is now only a URI pointer to the collection endpoint.
 <!-- Source: ISSUE-1515 (ADR-0034) -->
 
 ---
+
+### The Inbox Has No Read Surface; `inbox_list()` Is a Processing Queue, Not a Mailbox
+
+The inbox path accepts POST only and answers every other method with 405
+(IE-02-003, IE-02-004). Do not add a GET that renders "what this actor
+received", and do not add receipt bookkeeping to the actor record to feed one:
+
+- **`inbox_list()` is not a record of receipt.** The POST route hands the
+  activity straight to `run_inbox_pipeline`; the DataLayer `inbox` queue holds
+  only deferred or re-queued deliveries — activities replayed by
+  `inbox_pending_queue.py` after a case bootstrap, or retried after a failed
+  attempt — and the pipeline drains it as it processes them. A read over it
+  reports an empty inbox after every successful delivery — the stub #3141
+  reported and #3844 removed.
+- **Removing the GET does not produce the 405.** `actors_get` is declared as
+  `@router.get("/{actor_id:path}")`, so an unrouted GET on `/inbox` or
+  `/inbox/` falls into the profile route and answers 404. The inbox path needs
+  an explicit method refusal declared ahead of that catch-all.
+- **`CoreActor.inbox` is a URI string** (ARCH-12-006), so any helper that
+  reaches for `actor.inbox.items` is a no-op in production. The route-level
+  receipt-recording and duplicate-guard helpers deleted in #3844 passed their
+  tests only because those tests supplied an inbox with an `.items` list — a
+  wire `as_Organization` in one file, a hand-rolled stub actor in another.
+  A test of an actor-record helper must build a `CoreActor`.
+- **The activity itself is already stored.** Ingress writes the received
+  activity into the actor's store under its activity type; ingress storage is
+  also where redelivery is detected (IE-10-001).
+- **Who may look, and where.** Reading an actor's received mail is an operator
+  concern, served by the datalayer router over that actor's own store
+  (`/actors/{id}/datalayer/...`). A sender learns what became of what it posted
+  from the reply activities delivered to *its* inbox — never by reading the
+  recipient's. Trigger-side outcome observability is a separate question
+  (#2369, #2886).
+
+<!-- Source: CONCERN-3141 -->
+
+---
+
+### The Outbox Delivers the Sealed Body, Never a Re-Read (OX-07-001, VM-08-003)
+
+Every adapter that persists an outbound activity also seals its JSON text
+(`vultron/adapters/outbox_sealed_body.py`), and the outbox handler relays that text
+byte for byte. It never reads the activity record back, because a re-read is a
+reconstruction from whatever the store holds now. It refuses, and never repairs, a body
+whose `object` the factory left as a bare URI or `Link` (`outbox_delivery.py`), and it
+drops a queued id that has no sealed body with an ERROR. Core records
+`json.loads(activity_blob)` as the ledger `payloadSnapshot` with no stripping or
+`context` patch, so the ledger and the wire carry the same blob. A factory whose blob
+the commit boundary refuses is fixed in the factory, never downstream (#2654, #2655).
+See [case-ledger-authority](../../notes/case-ledger-authority.md) and
+[outbox](../../notes/outbox.md).
 
 ### URL-Keyed IDs in FastAPI Path Segments
 

@@ -64,11 +64,12 @@ For each finding where `decision_outcome` is `fix-now` and `severity` is `FAIL`
 or `IMPROVE`:
 
 > Note: findings with `severity: NEW-ISSUE` are handled exclusively in Phase 3,
-> regardless of their `decision_outcome`. Do not process them here.
+> regardless of their `decision_outcome`. Do not process them here. Phase 9
+> docs-currency findings are handled in Phase 3b.
 
 1. Apply the fix (edit files as needed).
 2. Do not commit yet — batch all fixes, then commit once at the end of this phase.
-3. After all fixes are applied: `uv run black <changed files>` then commit:
+3. After all fixes are applied: `uv run ruff format` then commit:
 
    ```text
    fix(pr-execute): address <N> findings from triage
@@ -90,7 +91,8 @@ Deferring" and "The Two Gates".
 
 **`fix-now-file`** (an "also" excursion you fix now):
 
-1. File a GitHub issue via `manage-github-issue` capturing the finding.
+1. File a GitHub issue via `manage-github-issue` capturing the finding, with
+   `--opened-as excursion`.
 2. Add the issue to Project #24: `bash .agents/skills/shared/add-to-project.sh <N>`.
 3. **Fix it in this PR** (fold into the Phase 2 batch). Add `- Closes #N` to the
    PR body and a one-line "why" in the Changes section (see `pr-body-guide.md`).
@@ -98,15 +100,18 @@ Deferring" and "The Two Gates".
 
 **`defer-ask`** (Gate 1 — second-order work genuinely too big to finish now):
 
-1. File a GitHub issue via `manage-github-issue` and add it to Project #24.
+1. File a GitHub issue via `manage-github-issue` with `--opened-as deferred`
+   and add it to Project #24.
 2. Post the deferral-ask (see "No User Prompts (Except Two)" below): describe
    the remainder in plain language with a **measured remainder** (what you did,
    what concretely remains, the ratio) — not an attempt count.
 3. **On explicit approval**: record `outcome: deferred-ask` with `issue_number`
    and leave the work for the filed issue.
-4. **On silence or no approval**: fix it now (fold into the Phase 2 batch),
-   `- Closes #N`, and record `outcome: fixed`. Silence is never consent to
-   defer.
+4. **On silence or no approval**: DEFER is unavailable. Fix it now (fold into
+   the Phase 2 batch), `- Closes #N`, and record `outcome: fixed`. If it cannot
+   be finished, hold the PR: record `outcome: halted`, mark the PR draft/blocked
+   with the unfinished item stated, and stop. Never leave the work on the filed
+   issue and let the PR proceed. Silence is never consent to defer.
 
 Only *second-order* findings are eligible for `defer-ask`. A first-order
 finding is never deferred — fix it.
@@ -129,6 +134,41 @@ closed. Nor does citing the PR that surfaced it: a merged PR number is not a
 tracking reference. In the 2026-09-02 audit, nearly every finding parked this way
 was eventually re-found and filed by a later session — the deferral bought
 nothing but the rediscovery cost, and four findings fell through entirely.
+
+### Phase 3b — Refresh the `Docs:` Line
+
+Execute's fix commits can change behavior that `docs/` describes, which makes
+the PR body's `Docs:` line stale (PD-03-007, PD-03-008). After Phases 2–3 and
+before the CI loop:
+
+1. Diff the fix commits this run made, and answer `check-docs-sync` Q1 and
+   Q2 against that diff: which `docs/` pages describe what those commits
+   changed. If triage flagged the `Docs:` line as missing or placeholder,
+   answer them against the whole PR diff (`git diff origin/<base_ref>...HEAD`)
+   instead — the author never recorded a determination. Phase 9
+   docs-currency findings from triage already name their pages; this phase
+   owns them, and Phase 2 skips them.
+2. For each affected page, apply the update the way `check-docs-sync` Step 3
+   does (`lint-docs` gate, then `build-docs`), and commit it as
+   `docs: sync docs/ for PR #<number>`.
+3. Rewrite the PR body's `Docs:` line so it lists every page the PR now
+   updates, in the forms of `.agents/skills/shared/pr-body-guide.md`
+   § "Implementation PR rules", then `gh pr edit <number> --body-file <file>`.
+   When the fix commits touch no described behavior, leave the line as written
+   unless triage flagged it.
+4. Record the result in the artifact's `docs_refresh` block (see
+   [REFERENCE.md](REFERENCE.md) § "Execute Artifact Schema").
+5. Add a `results` entry for every Phase 9 docs-currency finding this phase
+   owns, so `results` still covers every triage finding. A page update gets
+   `outcome: fixed` with the docs commit as `commit_ref`. A fix that only
+   rewrote the `Docs:` line (for example a placeholder replaced by
+   `Docs: no docs impact — …`) has no commit: record `commit_ref: null` and
+   `fix_kind: "pr-body"`, and `pr-verify` checks it against the live body.
+
+Phase 5's CI-fix commits land after this phase. Before Phase 6 writes the
+artifact, repeat steps 1–3 for any CI-fix commit, add it to
+`docs_refresh.fix_commits_checked`, and append any further docs commit to
+`docs_refresh.docs_commit_refs`.
 
 ### Phase 4 — Resolve Review Thread Comments
 
@@ -172,8 +212,21 @@ iterations:
 2. Before filing or deferring: assess whether a fix is straightforward and
    context is in hand. If yes, fix it now — a pre-existing failure you can
    resolve is still a failure worth resolving.
-3. Only file a bug issue and record `outcome: skipped` if the fix is genuinely
-   non-trivial or requires design work outside this PR's scope.
+3. Only file a bug issue (`--opened-as separate-defect`) and record `outcome: skipped` if the fix is genuinely
+   non-trivial or requires design work outside this PR's scope. `skipped` does
+   not clear the check: the CI stays red, `final_ci_status` is `"failing"`, and
+   `pr-verify` returns `GAPS-FOUND`. "Pre-existing" never makes a red check
+   mergeable (`completeness-doctrine.md` § "Never Merge on Red").
+4. **Rerun exception.** A failed check may be re-run once only if it is already
+   tracked by an open `flaky-test` issue with a reproduction (see
+   [REFERENCE.md](REFERENCE.md) § "Flaky Test Dedup"); cite that issue in
+   `skip_reason`. A rerun that passes with no such issue is not evidence —
+   file the issue with the reproduction (`--opened-as separate-defect`) and
+   leave the PR held.
+5. **Never bypass a pre-commit hook** (`--no-verify`, `SKIP=`),
+   including the spec-lint hook. Fix what the hook reports and re-stage. The
+   sole exception is the devcontainer `actionlint` hang
+   (`notes/devcontainer-tooling.md`).
 
 Commit CI fixes separately from Phase 2 fixes:
 
@@ -200,7 +253,7 @@ Resolution Rules". Read both sides before editing. Never resolve by
 wholesale `--ours`/`--theirs` on a file you have not read.
 
 ```bash
-uv run black <changed files>
+uv run ruff format
 git add <resolved files>
 git commit --no-edit
 ```
@@ -218,7 +271,7 @@ the merge-state finding as `outcome: skipped` with the conflicted paths and stop
 #### Step 3 — Run local tests
 
 ```bash
-uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -20 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -20 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
 ```
 
 If `pr_metadata.needs_integration_tests` is true, also run:
@@ -244,8 +297,19 @@ After tests pass, run the xfail ratchet per [REFERENCE.md](REFERENCE.md)
 #### Step 4 — Push
 
 ```bash
-git push
+upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)
+if [[ "$upstream" == */"<head_ref>" ]]; then
+  git push
+else
+  git push -u origin "HEAD:<head_ref>"
+fi
 ```
+
+A branch already tracking the PR head (including a fork remote from
+`gh pr checkout`) keeps its bare push. One with no upstream, or tracking
+`<base_ref>` because it was created from it, is pushed to the PR head by name
+and gets that as its upstream — never to a branch named after the local
+checkout, which would leave the PR head unmoved (#3893).
 
 If git demands a force-push, stop — something rewrote history and that needs
 a human.
@@ -307,8 +371,9 @@ always fix-now; a gate is the exception, not the reflex.
 > (If no response, I'll fix it now rather than defer.)"
 
 Wait for a response. **On silence: fix it now** — fold the work in, `- Closes #N`,
-record `outcome: fixed`. Silence is never approval to defer. Do not present an
-attempt count in place of a measured remainder.
+record `outcome: fixed`. If it cannot be finished, hold the PR (`outcome: halted`,
+draft/blocked). Silence is never approval to defer, and an unsupervised run has
+no DEFER. Do not present an attempt count in place of a measured remainder.
 
 **Gate 2 — `inversion-halt`**: do not file or act autonomously. Post the
 inversion-ask:

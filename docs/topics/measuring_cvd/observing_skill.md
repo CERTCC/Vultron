@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+description: >
+  The skill coefficient applied to Microsoft security updates and to commodity exploit data.
 ---
 
 # Observing CVD in the Wild

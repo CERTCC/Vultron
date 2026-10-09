@@ -19,31 +19,35 @@ Verifies CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
 
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
-from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
-from vultron.enums.roles import CVDRole
-from vultron.core.use_cases.query.action_rules import (
-    ActionRulesRequest,
-    GetActionRulesUseCase,
-)
-from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.core.models.case_status import CaseStatus
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
+)
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.core.use_cases.query.action_rules import (
+    ActionRule,
+    ActionRulesRequest,
+    ActionRulesResult,
+    GetActionRulesUseCase,
+)
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
 )
 
 ACTOR_ID = "https://example.org/actors/alice"
 CASE_ID = "https://example.org/cases/c1"
 PARTICIPANT_ID = "https://example.org/participants/p1"
+EMBARGO_ID = "https://example.org/cases/c1/embargoes/e1"
 
 
 @pytest.fixture
@@ -60,9 +64,13 @@ def dl():
         name="Test Case",
         case_participants=[PARTICIPANT_ID],
         actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
+        # EM is derived from the embargo register (ADR-0122), never set on a
+        # status.
+        embargo_register=register(active=EMBARGO_ID),
         case_statuses=[  # type: ignore[arg-type]
             CaseStatus(
-                em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa, context=CASE_ID  # type: ignore[call-arg]
+                pxa_state=CS_pxa.Pxa,  # type: ignore[call-arg]
+                context=CASE_ID,
             )
         ],
     )
@@ -114,54 +122,54 @@ class TestGetActionRulesUseCase:
             "cs_state",
             "actions",
         }
-        assert expected_keys.issubset(result.keys())
+        assert isinstance(result, ActionRulesResult)
+        assert set(result.model_dump()) == expected_keys
 
     def test_happy_path_state_values(self, dl, request_):
         """States in the response match what was stored."""
         result = GetActionRulesUseCase(dl=dl, request=request_).execute()
 
-        assert result["rm_state"] == RM.ACCEPTED
-        assert result["em_state"] == EM.ACTIVE
-        assert result["vf_state"] == CS_vf.VF.value
-        assert result["pxa_state"] == CS_pxa.Pxa.name
+        assert result.rm_state == RM.ACCEPTED
+        assert result.em_state == EM.ACTIVE
+        assert result.vf_state == CS_vf.VF.value
+        assert result.pxa_state == CS_pxa.Pxa.name
         assert (
-            result["cs_state"]
-            == CS_vf.VF.value + CS_d.d.value + CS_pxa.Pxa.name
+            result.cs_state == CS_vf.VF.value + CS_d.d.value + CS_pxa.Pxa.name
         )
 
     def test_happy_path_role(self, dl, request_):
         """Participant role is reflected in the response."""
         result = GetActionRulesUseCase(dl=dl, request=request_).execute()
-        assert CVDRole.VENDOR.value in result["role"]
+        assert CVDRole.VENDOR.value in result.role
 
     def test_happy_path_ids(self, dl, request_):
         """IDs in the response match the stored object IDs."""
         result = GetActionRulesUseCase(dl=dl, request=request_).execute()
-        assert result["participant_id"] == PARTICIPANT_ID
-        assert result["participant_actor_id"] == ACTOR_ID
-        assert result["case_id"] == CASE_ID
+        assert result.participant_id == PARTICIPANT_ID
+        assert result.participant_actor_id == ACTOR_ID
+        assert result.case_id == CASE_ID
 
     def test_short_case_key_resolves_to_case(self, dl):
         """Short surrogate key resolves successfully for action lookup."""
         req = ActionRulesRequest(case_id="c1", actor_id=ACTOR_ID)
         result = GetActionRulesUseCase(dl=dl, request=req).execute()
-        assert result["participant_id"] == PARTICIPANT_ID
+        assert result.participant_id == PARTICIPANT_ID
 
     def test_short_case_key_resolution_ignores_non_case_id_collision(self, dl):
         """Case lookup prefers case surrogate resolution over non-case collisions."""
         dl.create(as_Note(id_="c1", content="collision"))
         req = ActionRulesRequest(case_id="c1", actor_id=ACTOR_ID)
         result = GetActionRulesUseCase(dl=dl, request=req).execute()
-        assert result["participant_id"] == PARTICIPANT_ID
+        assert result.participant_id == PARTICIPANT_ID
 
     def test_happy_path_actions_is_list(self, dl, request_):
-        """actions key is a non-empty list of dicts with name and description."""
+        """actions is a non-empty list of named, described ActionRules."""
         result = GetActionRulesUseCase(dl=dl, request=request_).execute()
-        assert isinstance(result["actions"], list)
-        assert len(result["actions"]) > 0
-        for action in result["actions"]:
-            assert "name" in action
-            assert "description" in action
+        assert len(result.actions) > 0
+        for action in result.actions:
+            assert isinstance(action, ActionRule)
+            assert action.name
+            assert action.description
 
     def test_case_not_found_raises(self, dl):
         """Missing case raises VultronNotFoundError."""
@@ -218,8 +226,8 @@ class TestGetActionRulesUseCase:
         )
         result = GetActionRulesUseCase(dl=layer, request=req).execute()
 
-        assert result["em_state"] == EM.EMBARGO_MANAGEMENT_NONE
-        assert result["pxa_state"] == CS_pxa.pxa.name
+        assert result.em_state == EM.EMBARGO_MANAGEMENT_NONE
+        assert result.pxa_state == CS_pxa.pxa.name
 
     def test_no_participant_statuses_defaults(self, dl):
         """When participant has no as_ParticipantStatus entries, RM/VFD default."""
@@ -235,7 +243,7 @@ class TestGetActionRulesUseCase:
             name="Default Participant Status Case",
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
-            case_statuses=[CaseStatus(em_state=EM.NONE, context=CASE_ID)],  # type: ignore[arg-type,call-arg]
+            case_statuses=[CaseStatus(context=CASE_ID)],
         )
         layer.create(case)
         participant = as_CaseParticipant(
@@ -253,18 +261,20 @@ class TestGetActionRulesUseCase:
         )
         result = GetActionRulesUseCase(dl=layer, request=req).execute()
 
-        assert result["rm_state"] == RM.START
-        assert result["vf_state"] == CS_vf.vf.value
+        assert result.rm_state == RM.START
+        assert result.vf_state == CS_vf.vf.value
 
     def test_em_state_variations(self, dl):
         """Different EM states are correctly reflected."""
-        for em in [
-            EM.NONE,
-            EM.PROPOSED,
-            EM.ACTIVE,
-            EM.REVISE,
-            EM.EXITED,
-        ]:
+        revision_id = f"{EMBARGO_ID}-revision"
+        registers = {
+            EM.NONE: register(),
+            EM.PROPOSED: register(proposed=[EMBARGO_ID]),
+            EM.ACTIVE: register(active=EMBARGO_ID),
+            EM.REVISE: register(active=EMBARGO_ID, proposed=[revision_id]),
+            EM.EXITED: register(terminated=EMBARGO_ID),
+        }
+        for em, embargo_register in registers.items():
             layer = SqliteDataLayer(
                 "sqlite:///:memory:",
                 # Its own actor, therefore its own store: sharing ACTOR_ID with the
@@ -278,9 +288,11 @@ class TestGetActionRulesUseCase:
                 id_=CASE_ID,
                 case_participants=[PARTICIPANT_ID],
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
+                embargo_register=embargo_register,
                 case_statuses=[  # type: ignore[arg-type]
                     CaseStatus(
-                        em_state=em, pxa_state=CS_pxa.pxa, context=CASE_ID  # type: ignore[call-arg]
+                        pxa_state=CS_pxa.pxa,  # type: ignore[call-arg]
+                        context=CASE_ID,
                     )
                 ],
             )
@@ -297,9 +309,9 @@ class TestGetActionRulesUseCase:
                 actor_id=ACTOR_ID,
             )
             result = GetActionRulesUseCase(dl=layer, request=req).execute()
-            assert (
-                result["em_state"] == em
-            ), f"Expected {em!r}, got {result['em_state']!r}"
+            assert result.em_state == em, (
+                f"Expected {em!r}, got {result.em_state!r}"
+            )
 
     def test_participant_lookup_raises_on_index_mismatch(self):
         layer = SqliteDataLayer(
@@ -353,4 +365,4 @@ class TestGetActionRulesUseCase:
 
         req = ActionRulesRequest(case_id=CASE_ID, actor_id=ACTOR_ID)
         result = GetActionRulesUseCase(dl=layer, request=req).execute()
-        assert result["participant_id"] == PARTICIPANT_ID
+        assert result.participant_id == PARTICIPANT_ID

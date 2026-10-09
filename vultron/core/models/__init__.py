@@ -10,8 +10,8 @@ from vultron.core.models.actor import (
 )
 from vultron.core.models.base import (
     CoreObject,
+    CoreRecord,
     ValidatedAssignmentMixin,
-    VultronObject,
 )
 from vultron.core.models.registry import (
     CORE_VOCABULARY,
@@ -22,12 +22,12 @@ __all__ = [
     "CORE_VOCABULARY",
     "CoreActor",
     "CoreObject",
+    "CoreRecord",
     "ValidatedAssignmentMixin",
     "VultronApplication",
     "VultronGroup",
     "VultronOrganization",
     "VultronPerson",
     "VultronService",
-    "VultronObject",
     "find_in_core_vocabulary",
 ]

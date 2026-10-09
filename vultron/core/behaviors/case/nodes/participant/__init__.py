@@ -21,25 +21,14 @@ preserving its public import surface.
 
 Composite subtrees (``Sequence``/``Selector`` subclasses) for participant
 workflows are defined in ``participant_tree.py`` at the process-area root
-(BTND-07-003).  They are re-exported here for backward compatibility via
-module ``__getattr__`` (PEP 562) to avoid circular imports.
+(BTND-07-003).  They are not re-exported here: ``participant_tree.py``
+imports leaf nodes from this package, so a re-export would close an import
+cycle (CS-05-003).
 """
-
-import importlib
-from typing import TYPE_CHECKING
 
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
-    _queue_participant_add_notification,
     resolve_participant_state_from_dl,
-)
-from vultron.core.behaviors.case.nodes.participant.owner import (
-    AttachOwnerParticipantToCaseNode,
-    CreateOwnerInitialStatusNode,
-    CreateOwnerParticipantNode,
-    PersistOwnerCaseNode,
-    RecordOwnerJoinedEventNode,
-    _effective_case_roles,
 )
 from vultron.core.behaviors.case.nodes.participant.participant_add import (
     AttachParticipantToCaseNode,
@@ -47,7 +36,6 @@ from vultron.core.behaviors.case.nodes.participant.participant_add import (
     CaseHasNoActiveEmbargoNode,
     CreateParticipantInitialStatusNode,
     CreateParticipantNode,
-    QueueAddParticipantNotificationNode,
     RecordParticipantAddedEventNode,
     SeedParticipantAsSignatoryNode,
 )
@@ -60,16 +48,7 @@ from vultron.core.behaviors.case.nodes.participant.trigger_validation import (
 
 __all__ = [
     "_create_and_attach_participant",
-    "_effective_case_roles",
-    "_queue_participant_add_notification",
     "resolve_participant_state_from_dl",
-    "CreateOwnerInitialStatusNode",
-    "CreateOwnerParticipantNode",
-    "AttachOwnerParticipantToCaseNode",
-    "PersistOwnerCaseNode",
-    "RecordOwnerJoinedEventNode",
-    # composite subtrees — lazy via __getattr__
-    "CreateCaseOwnerParticipant",
     "CreateParticipantInitialStatusNode",
     "CreateParticipantNode",
     "AttachParticipantToCaseNode",
@@ -77,37 +56,6 @@ __all__ = [
     "CaseHasActiveEmbargoNode",
     "CaseHasNoActiveEmbargoNode",
     "SeedParticipantAsSignatoryNode",
-    # composite subtrees — lazy via __getattr__
-    "SeedParticipantAsSignatoryIfEmbargoActiveNode",
-    "QueueAddParticipantNotificationNode",
-    # composite subtrees — lazy via __getattr__
-    "CreateCaseParticipantNode",
     "CreateParticipantStatusNode",
     "ValidateTriggerTransitionsNode",
 ]
-
-# TYPE_CHECKING stubs so mypy resolves composite names to their actual types.
-# At runtime these imports are skipped; the lazy __getattr__ below handles them.
-if TYPE_CHECKING:
-    from vultron.core.behaviors.case.participant_tree import (  # noqa: F401
-        CreateCaseOwnerParticipant,
-        CreateCaseParticipantNode,
-        SeedParticipantAsSignatoryIfEmbargoActiveNode,
-    )
-
-# Composite subtrees live in participant_tree.py (BTND-07-003).
-# Re-exported lazily here to avoid circular imports with that module.
-_COMPOSITE_COMPAT: dict[str, str] = {
-    "CreateCaseOwnerParticipant": "vultron.core.behaviors.case.participant_tree",
-    "SeedParticipantAsSignatoryIfEmbargoActiveNode": "vultron.core.behaviors.case.participant_tree",
-    "CreateCaseParticipantNode": "vultron.core.behaviors.case.participant_tree",
-}
-
-
-def __getattr__(name: str) -> object:
-    if name in _COMPOSITE_COMPAT:
-        mod = importlib.import_module(_COMPOSITE_COMPAT[name])
-        obj = getattr(mod, name)
-        globals()[name] = obj  # cache to avoid repeated lookup
-        return obj
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

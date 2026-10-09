@@ -20,20 +20,35 @@ from tree-structure assertions.
 import logging
 from typing import cast
 
+import pytest
+
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.use_cases.received.case.update import (
     UpdateCaseReceivedUseCase,
+)
+from vultron.wire.as2.factories import (
+    update_case_activity,
 )
 from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.wire.as2.factories import (
-    update_case_activity,
 )
 
 #: The actor receiving these Update(VulnerabilityCase) messages.
@@ -46,12 +61,32 @@ from vultron.wire.as2.factories import (
 RECEIVER_ID = "https://example.org/actors/update-receiver"
 
 
+def _seat(dl, case, actor_id, participant_id, **fields):
+    """Store a participant record for *actor_id* and index it on *case*.
+
+    The case-update broadcast reads each roster entry's record to decide
+    whether it is active (CM-10-004, CM-10-007); an index entry with no
+    record behind it is not provably entitled and gets nothing.
+    """
+    from vultron.core.models.case_participant import CaseParticipant
+
+    dl.create(
+        CaseParticipant(
+            id_=participant_id,
+            attributed_to=actor_id,
+            context=case.id_,
+            **fields,
+        )
+    )
+    case.actor_participant_index[actor_id] = participant_id
+
+
 def _make_receiver_the_case_manager(dl, case, receiver_id=None):
     """Give *receiver_id* the CASE_MANAGER role on *case*, in ``dl``.
 
     ``GuardedBroadcastCaseUpdateBT`` gates the announce on
     ``CheckIsCaseManagerNode``, which reads the **role** resolved from the case —
-    not the presence of a ``VultronCaseActor`` service entity. A service-only
+    not the presence of a ``CaseActor`` service entity. A service-only
     fixture makes the gate correctly *skip*, so nothing is announced and the test
     proves nothing (BT-17-005).
 
@@ -92,6 +127,9 @@ class TestCaseUseCases:
             name="Original Name",
             attributed_to=owner_id,
         )
+        # RSH-08-003/#3814: ApplyCaseUpdateNode now runs only at the case's
+        # CASE_MANAGER, so the receiving store must hold that role.
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(
@@ -114,13 +152,16 @@ class TestCaseUseCases:
         )
 
         with caplog.at_level(logging.INFO):
-            UpdateCaseReceivedUseCase(dl, event).execute()
+            result = UpdateCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         stored = dl.read(case.id_)
         assert stored is not None
         stored = cast(as_VulnerabilityCase, stored)
         assert stored.name == "Updated Name"
         assert stored.content == "New content"
+        assert result.disposition == HandlerDisposition.APPLIED
 
     def test_update_case_rejects_non_owner(
         self, monkeypatch, caplog, make_payload
@@ -148,13 +189,32 @@ class TestCaseUseCases:
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         with caplog.at_level(logging.WARNING):
-            UpdateCaseReceivedUseCase(dl, event).execute()
+            result = UpdateCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         stored = dl.read(case.id_)
         assert stored is not None
         stored = cast(as_VulnerabilityCase, stored)
         assert stored.name == "Original Name"
         assert any("not the owner" in r.message for r in caplog.records)
+        # HP-01-003: a non-owner update is refused, not reported as applied.
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "not the owner" in result.reason
+
+    def test_update_case_without_case_id_is_refused(self, make_payload):
+        """HP-01-003: an Update with no case id is malformed, so REFUSED."""
+        from unittest.mock import MagicMock
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVER_ID)
+        event = MagicMock()
+        event.case_id = None
+
+        result = UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
 
     def test_update_case_idempotent(self, monkeypatch, make_payload):
         """update_case with same data produces the same result (last-write-wins)."""
@@ -168,6 +228,8 @@ class TestCaseUseCases:
             name="Original",
             attributed_to=owner_id,
         )
+        # RSH-08-003/#3814: the apply runs only at the CASE_MANAGER.
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(
@@ -188,18 +250,22 @@ class TestCaseUseCases:
             _mock_rehydrate_idempotent,
         )
 
-        UpdateCaseReceivedUseCase(dl, event).execute()
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         stored = dl.read(case.id_)
         assert stored is not None
         stored = cast(as_VulnerabilityCase, stored)
         assert stored.name == "Updated"
 
-    def test_update_case_warns_when_participant_has_not_accepted_embargo(
+    def test_update_case_reports_participant_not_signatory_to_embargo(
         self, monkeypatch, caplog, make_payload
     ):
-        """update_case ledgers WARNING per CM-10-004 when a participant has not accepted the active embargo."""
+        """update_case reports a participant not a signatory to the active embargo as inert (CM-10-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -209,6 +275,7 @@ class TestCaseUseCases:
         embargo = as_EmbargoEvent(
             id_="https://example.org/embargoes/em1",
             context="https://example.org/cases/uc4",
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
 
@@ -216,7 +283,6 @@ class TestCaseUseCases:
             id_="https://example.org/participants/p1",
             attributed_to=actor_id,
             context="https://example.org/cases/uc4",
-            accepted_embargo_ids=[],
         )
         dl.create(participant)
 
@@ -224,9 +290,12 @@ class TestCaseUseCases:
             id_="https://example.org/cases/uc4",
             name="Original",
             attributed_to=owner_id,
-            active_embargo=embargo.id_,
+            embargo_register=register(active=embargo.id_),
         )
         case.actor_participant_index[actor_id] = participant.id_
+        # RSH-08-003/#3814: the exclusion-resolving effect runs only at the
+        # CASE_MANAGER, so the receiving store must hold that role.
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(
@@ -237,18 +306,22 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        with caplog.at_level(logging.WARNING):
-            UpdateCaseReceivedUseCase(dl, event).execute()
+        with caplog.at_level(logging.INFO):
+            UpdateCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         assert any(
-            "has not accepted" in r.message and "CM-10-004" in r.message
+            actor_id in r.message
+            and "not active" in r.message
+            and "CM-10-004" in r.message
             for r in caplog.records
         )
 
-    def test_update_case_no_warning_when_all_participants_accepted_embargo(
+    def test_update_case_logs_no_withholding_when_all_participants_accepted_embargo(
         self, monkeypatch, caplog, make_payload
     ):
-        """update_case does NOT warn when all participants have accepted the active embargo (CM-10-004)."""
+        """update_case reports nobody inert when every participant is a signatory (CM-10-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -258,6 +331,7 @@ class TestCaseUseCases:
         embargo = as_EmbargoEvent(
             id_="https://example.org/embargoes/em2",
             context="https://example.org/cases/uc5",
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
 
@@ -265,7 +339,11 @@ class TestCaseUseCases:
             id_="https://example.org/participants/p2",
             attributed_to=actor_id,
             context="https://example.org/cases/uc5",
-            accepted_embargo_ids=[embargo.id_],
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                )
+            ],
         )
         dl.create(participant)
 
@@ -273,7 +351,7 @@ class TestCaseUseCases:
             id_="https://example.org/cases/uc5",
             name="Original",
             attributed_to=owner_id,
-            active_embargo=embargo.id_,
+            embargo_register=register(active=embargo.id_),
         )
         case.actor_participant_index[actor_id] = participant.id_
         dl.create(case)
@@ -286,15 +364,17 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        with caplog.at_level(logging.WARNING):
-            UpdateCaseReceivedUseCase(dl, event).execute()
+        with caplog.at_level(logging.INFO):
+            UpdateCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
-        assert not any("has not accepted" in r.message for r in caplog.records)
+        assert not any("not active" in r.message for r in caplog.records)
 
-    def test_update_case_no_warning_when_no_active_embargo(
+    def test_update_case_logs_no_withholding_when_no_active_embargo(
         self, monkeypatch, caplog, make_payload
     ):
-        """update_case does NOT warn when there is no active embargo (CM-10-004)."""
+        """update_case reports nobody inert when there is no active embargo (CM-10-004)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -306,7 +386,6 @@ class TestCaseUseCases:
             id_="https://example.org/participants/p3",
             attributed_to=actor_id,
             context="https://example.org/cases/uc6",
-            accepted_embargo_ids=[],
         )
         dl.create(participant)
 
@@ -314,7 +393,6 @@ class TestCaseUseCases:
             id_="https://example.org/cases/uc6",
             name="Original",
             attributed_to=owner_id,
-            active_embargo=None,
         )
         case.actor_participant_index[actor_id] = participant.id_
         dl.create(case)
@@ -327,15 +405,28 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        with caplog.at_level(logging.WARNING):
-            UpdateCaseReceivedUseCase(dl, event).execute()
+        with caplog.at_level(logging.INFO):
+            UpdateCaseReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
-        assert not any("has not accepted" in r.message for r in caplog.records)
+        assert not any("not active" in r.message for r in caplog.records)
 
-    def test_update_case_ignores_non_participant_objects_in_embargo_check(
-        self, make_payload
+    @pytest.mark.parametrize(
+        "inert", ["no-record", "not-signatory", "not-joined"]
+    )
+    @pytest.mark.spec("CM-10-004")
+    def test_update_case_withholds_from_inert_participant(
+        self, make_payload, inert
     ):
-        """Non-participant objects referenced by the case must not be excluded."""
+        """An inert roster entry gets no case update; a signatory does.
+
+        Entitlement is read from the record (CM-10-004).  An entry pointing at
+        some other object cannot show the actor is active, so the shared
+        selection leaves it out rather than leaking content (CM-10-007); a
+        record that is not a signatory to the active embargo, or that never
+        joined, is inert (ADR-0114).
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -346,6 +437,7 @@ class TestCaseUseCases:
         embargo = as_EmbargoEvent(
             id_="https://example.org/embargoes/em6b",
             context=case_id,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
 
@@ -356,7 +448,7 @@ class TestCaseUseCases:
         )
         dl.create(bogus_ref)
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,
@@ -368,9 +460,40 @@ class TestCaseUseCases:
             id_=case_id,
             name="Original",
             attributed_to=owner_id,
-            active_embargo=embargo.id_,
+            embargo_register=register(active=embargo.id_),
         )
-        case.actor_participant_index[actor_id] = bogus_ref.id_
+        if inert == "no-record":
+            case.actor_participant_index[actor_id] = bogus_ref.id_
+        else:
+            _seat(
+                dl,
+                case,
+                actor_id,
+                f"{case_id}/participants/alice",
+                embargo_consents=[
+                    EmbargoConsent(
+                        embargo_id=embargo.id_,
+                        state=(
+                            EmbargoConsentState.INVITED
+                            if inert == "not-signatory"
+                            else EmbargoConsentState.ACCEPTED
+                        ),
+                    )
+                ],
+                joined=inert != "not-joined",
+            )
+        signatory = "https://example.org/users/dave"
+        _seat(
+            dl,
+            case,
+            signatory,
+            f"{case_id}/participants/dave",
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                )
+            ],
+        )
         _make_receiver_the_case_manager(dl, case)
         dl.create(case)
 
@@ -382,26 +505,33 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         outbox_items = dl.outbox_list()
         assert len(outbox_items) == 1
-
-        broadcast_id = outbox_items[0]
-        broadcast = dl.read(broadcast_id)
-        assert broadcast is not None
-        broadcast = cast(VultronActivity, broadcast)
-        assert broadcast.to is not None
-        assert actor_id in broadcast.to
+        broadcast = cast(VultronActivity, dl.read(outbox_items[0]))
+        assert broadcast.to == [signatory]
 
     # ------------------------------------------------------------------
     # Broadcast tests (CM-06-001, CM-06-002)
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("CM-06-003")
+    @pytest.mark.parametrize(
+        "receiving_actor_id",
+        [RECEIVER_ID, None],
+        ids=["explicit-receiver", "store-owner-fallback"],
+    )
     def test_update_case_broadcasts_announce_to_participants(
-        self, make_payload
+        self, make_payload, receiving_actor_id
     ):
-        """After a case update, the CaseActor outbox contains an Announce."""
+        """After a case update, the CaseActor outbox contains an Announce.
+
+        With no ``receiving_actor_id`` the tree runs as the store's owner, never
+        the sender, so the CASE_MANAGER gate still passes (BT-17-006, #2667).
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=RECEIVER_ID,
@@ -410,7 +540,7 @@ class TestCaseUseCases:
         participant_id = "https://example.org/users/alice"
         case_id = "https://example.org/cases/bc1"
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,
@@ -423,8 +553,8 @@ class TestCaseUseCases:
             name="Original",
             attributed_to=owner_id,
         )
-        case.actor_participant_index[participant_id] = (
-            "https://example.org/participants/p-bc1"
+        _seat(
+            dl, case, participant_id, "https://example.org/participants/p-bc1"
         )
         _make_receiver_the_case_manager(dl, case)
         dl.create(case)
@@ -433,9 +563,11 @@ class TestCaseUseCases:
             id_=case_id, name="Updated", attributed_to=owner_id
         )
         activity = update_case_activity(updated_case, actor=owner_id)
-        event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
+        event = make_payload(activity, receiving_actor_id=receiving_actor_id)
 
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         # The announce is authored by the actor holding CASE_MANAGER — the
         # receiver — and queued in that same actor's store, so both halves of the
@@ -464,6 +596,8 @@ class TestCaseUseCases:
         case = as_VulnerabilityCase(
             id_=case_id, name="Original", attributed_to=owner_id
         )
+        # RSH-08-003/#3814: the apply runs only at the CASE_MANAGER.
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(
@@ -473,7 +607,9 @@ class TestCaseUseCases:
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
         # Should not raise
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         stored = dl.read(case_id)
         assert stored is not None
@@ -489,7 +625,7 @@ class TestCaseUseCases:
         owner_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/bc3"
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,
@@ -508,7 +644,9 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
         assert queued_ids == []
@@ -526,7 +664,7 @@ class TestCaseUseCases:
         alice = "https://example.org/users/alice"
         bob = "https://example.org/users/bob"
 
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,
@@ -537,12 +675,8 @@ class TestCaseUseCases:
         case = as_VulnerabilityCase(
             id_=case_id, name="Original", attributed_to=owner_id
         )
-        case.actor_participant_index[alice] = (
-            "https://example.org/participants/p-bc4-alice"
-        )
-        case.actor_participant_index[bob] = (
-            "https://example.org/participants/p-bc4-bob"
-        )
+        _seat(dl, case, alice, "https://example.org/participants/p-bc4-alice")
+        _seat(dl, case, bob, "https://example.org/participants/p-bc4-bob")
         _make_receiver_the_case_manager(dl, case)
         dl.create(case)
 
@@ -552,7 +686,9 @@ class TestCaseUseCases:
         activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity, receiving_actor_id=RECEIVER_ID)
 
-        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         queued_ids = dl.outbox_list()
         broadcast_id = queued_ids[0]

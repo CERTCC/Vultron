@@ -3,6 +3,11 @@ title: Known Flaky Tests
 status: active
 related_notes:
   - notes/testing-pitfalls.md
+  - notes/sync-ledger-replication.md
+  - notes/bt-integration.md
+  - notes/outbox-delivery-reliability.md
+  - notes/datalayer-design.md
+  - notes/git-workflow-pitfalls.md
 ---
 
 # Known Flaky Tests
@@ -30,6 +35,18 @@ and fall through to Level 2 (GitHub label search).
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
 | `test/demo/test_delivery_fallback_speed.py::test_demo_completes_under_5_seconds` | #2738 | 2026-08-26 |
 
+> Note: the two `test_datalayer_get_existing_actor*` entries (#3732, #3726)
+> were **a wire-format defect, not nondeterminism**, and were removed
+> 2026-09-29 with the fix. `as_Actor` derived an actor's `inbox`/`outbox`
+> collections stamped with `now_utc()`; the datalayer read path keeps only the
+> endpoint URI (ARCH-12-006) and rebuilt the collection — stamped again — on
+> read, so the round-trip equality held only when create and read shared a
+> wall-clock second. A derived endpoint is an address and now carries no
+> stamp. The two tests pin the clock an hour ahead between create and read
+> (`test/support/clock.py`), so they now fail deterministically if the
+> regression returns. See `notes/datalayer-design.md` § "A Default Minted
+> From the Clock Cannot Round-Trip Through a Field That Does Not Store It".
+>
 > Note: the two `test_integration_script_scenarios` entries were **hard-broken
 > on `main`, not flaky** — they failed deterministically. #2114 added a test that
 > scrapes `DEMO=` from `demo-integration.yml` while #2118/#2119 moved the
@@ -116,17 +133,78 @@ No open entries.
 
 | Job name | Issue | Last blocked |
 |---|---|---|
-| `fcvcv Demo Integration` | #2819 | 2026-08-28 |
-| `fcvcv Invariant Harness` | #2819 | 2026-08-28 |
-| `fvcv-extension` | #2422 | 2026-08-26 |
-| `fccv-extension` | #2422 | 2026-08-26 |
+| `fcvcv Demo Integration` | #2898 | 2026-09-28 |
+| `fcvcv Invariant Harness` | #2898 | 2026-09-28 |
+| `fvcv-extension` | #2898 | 2026-08-26 |
+| `fccv-extension` | #2898 | 2026-08-26 |
 | `fv Demo Integration` | #3033 | 2026-09-02 |
 | `fv Invariant Harness` | #3033 | 2026-09-02 |
-| `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
-| `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
-| `fcv-reject Demo Integration` | #2390 | 2026-08-19 |
-| `fcv-reject Invariant Harness` | #2390 | 2026-08-19 |
+| `fvcv-handoff Demo Integration` — `AddCaseParticipantReceivedBT did not succeed … case not found` / `wait_for_case_participants` timeout | #2257 | 2026-08-18 |
+| `fvcv-handoff Invariant Harness` (downstream of the row above) | #2257 | 2026-08-18 |
+| `fvcv-handoff Demo Integration` — `Case attributed_to updated to Coordinator on Vendor1's DataLayer (AC-1)` timeout | #3602 | 2026-09-23 |
+| `fcv-reject Demo Integration` | #3033 | 2026-09-02 |
+| `fcv-reject Demo Integration` — `Finder ledger coverage (sync-verification phase)` timeout on `0…11` | #4113 | 2026-10-01 |
+| `fcv-reject Invariant Harness` | #3033 | 2026-09-02 |
+| `fccv-handoff Demo Integration` — `M6 receiver: pxa_state is not public-aware, found None` | #3903 | 2026-09-30 |
+| `fcv Demo Integration` — `M6 receiver: pxa_state is not public-aware, found None` | #3903 | 2026-09-30 |
 
+> **Root fix landed 2026-09-29 for the #2898 / #3033 rows** (one PR closing
+> both). Two faults compounded: the CaseActor queued its initialization ledger
+> fan-out ahead of `Create(VulnerabilityCase)` (and the add-participant entry
+> ahead of a late joiner's `Announce(VulnerabilityCase)`), so every replica took
+> the SYNC-15 pre-genesis reject/replay path on the normal route; and the inbox
+> background task ran the synchronous BT pipeline on the event loop, so each
+> delivery to a busy container cost a full BT tick (CP-09-009, CM-17-009,
+> IE-06-003). **Do not delete these rows on issue closure** (#3033 AC-4):
+> delete them only after the post-merge `demo-integration.yml` runs on `main`
+> have stayed green for these jobs — the closed issue is the fix record, the
+> green runs are the evidence the flake is gone.
+>
+> **Root fix landed for the #3602 row (ADR-0112, one PR closing #3602 and
+> #3878).** The CaseActor's outbox was drained concurrently by every inbound
+> activity's background task and the `OutboxMonitor`, so a ledger fan-out
+> reached a replica scrambled; each forward gap drew a `Reject`, each `Reject`
+> a full-suffix replay, and the replays queued ahead of the next entry's
+> fan-out to every other peer — the `log/15` Announce to Vendor1 waited 14.4 s
+> *in the queue* behind 77 replay rows for the Coordinator (run 35917721682).
+> Fixed by one drain per actor with per-recipient lanes (OX-01-004/005/006),
+> lane-ordered re-queue (OX-13-012) and replay dedup (SYNC-15-012); the phase
+> now gates on the CaseActor's own commit before reading any replica. Same
+> deletion rule as the #2898 / #3033 rows: **keep until post-merge `main` runs
+> stay green for this signature.**
+>
+> `fccv-handoff Demo Integration` / `fcv Demo Integration` **M6 `pxa_state`
+> rows added 2026-09-29 → #3903**: the first `main` run after #3883
+> (36623680376) failed both at the publication milestone with a signature
+> closed #1839 once carried; distinct from every ownership/fan-out gate above.
+> **Root fix landed 2026-09-30 (PR closing #3903; #3981 was the auto-filed
+> tracker):** `verify_publicly_disclosed` polled `pxa_state` on the reporter
+> replica only (the #2376 fix) and then read the receiver replica once. The
+> CaseActor's ledger fan-out reaches each replica independently, and in run
+> 36770113456 the receiver applied the entry 66 ms after that read. The helper
+> now polls every replica it asserts, for `EM.EXITED` as well as `pxa_state`.
+> Same deletion rule as above: **keep until post-merge `main` runs stay green
+> for this signature.**
+>
+> `fcv-reject Demo Integration` / `fcv-reject Invariant Harness` were
+> **repointed from closed #2390 to #3033 on 2026-09-29**: the 2026-09-02
+> occurrences on `main` (`7dd4c49b`) and PR #3018 failed on the same
+> `run_direct_path_rm_triage()` replica gate as `fv`, with the coordinator as
+> the waiting actor. `fvcv-extension` / `fccv-extension` were **repointed from
+> closed #2422 to #2898 on 2026-09-29**: both scenarios carry the #2819 drain
+> workaround and share the late-joiner path #2898 fixes; no fresh failure was
+> gathered for them, so treat the rows as provisional and delete them with the
+> others.
+>
+> `fcvcv Demo Integration` / `fcvcv Invariant Harness` were **repointed to
+> #2898 on 2026-09-28**. #2819 (CaseActor invite race, vendor v2) is closed; its
+> fix was a per-scenario ledger drain, and #2898 tracks the delivery-ordering
+> race underneath it. Fresh occurrence on PR #3819: the third `validate-report`
+> trigger POST (to `vendor-deployer`) hit the 30s client timeout while the vendor
+> replayed the ledger from genesis (`ReconstructChainTail` pre-genesis window,
+> then `SendRejectLogEntry` hash mismatches). `main` at the merge base passed;
+> the PR's diff never runs on that path.
+>
 > `fv Demo Integration` / `fv Invariant Harness` were **repointed to #3033 on
 > 2026-09-02**.  #2422 (vendor RM.RECEIVED timeout at M3, cascading
 > `notify-fix-ready` 422 from the cross-machine entailment guard, then vfd_state
@@ -138,10 +216,6 @@ No open entries.
 > coordinator/engage-case), distinct window.  Confirmed 2026-09-02 on PR #3029:
 > failed once, passed on re-run with all 25 checks green, `main` green throughout.
 > Invariant Harness fails as a downstream consequence of incomplete devlogs.
->
-> `fvcv-extension` / `fccv-extension` still cite #2422 and so are also pointing
-> at a closed issue; no fresh evidence was gathered for those two jobs.  Verify
-> before deleting or repointing them.
 >
 > **Do not delete a row merely because its issue closed.**  Check whether the
 > flake still reproduces first — a closed tracker plus an observed failure means

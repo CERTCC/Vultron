@@ -1,12 +1,16 @@
 ---
 status: accepted
 date: 2026-03-10
+created: 2026-03-10
+updated: 2026-03-10
+revision: 1
 deciders:
   - vultron maintainers
 consulted:
   - project stakeholders
 informed:
   - contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Standardize Object IDs to URI Form

@@ -51,12 +51,18 @@ def parse_duration(value: Any) -> timedelta | None:
             # are bad input and become a clean ValueError (→ 422), not a 500.
             raise ValueError(f"Invalid ISO 8601 duration: {value!r}") from exc
         if not isinstance(parsed, timedelta):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
                 f"Duration must not include years or months (calendar units"
                 f" are not allowed): {value!r}"
             )
         return cast(timedelta, parsed)
     raise TypeError(f"Unsupported duration value: {value!r}")
+
+
+#: Path segment under an actor's id at which its policy is published
+#: (EP-02-001); also the tail of the policy's own id, see
+#: :meth:`EmbargoPolicy.build_id`.
+EMBARGO_POLICY_PATH_SUFFIX = "embargo-policy"
 
 
 class EmbargoPolicy(CoreObject):
@@ -116,6 +122,20 @@ class EmbargoPolicy(CoreObject):
         default=None,
         description="Free-text description of the Actor's embargo preferences",
     )
+
+    @classmethod
+    def build_id(cls, actor_id: str) -> str:
+        """Return the id of the policy *actor_id* publishes: its endpoint URL.
+
+        An actor publishes one policy, at ``GET /actors/{actor_id}/embargo-policy``
+        (EP-02-001), so the record carries that URL as its id.  The policy
+        lives inline on the actor's profile (EP-01-001), so a publish
+        overwrites that one field; the stable id lets the record in the
+        profile and the record at the endpoint be recognisably the same
+        (EP-02-002).  A policy constructed without an explicit id (a test
+        fixture) takes a fresh URN.
+        """
+        return f"{actor_id}/{EMBARGO_POLICY_PATH_SUFFIX}"
 
     @field_validator(
         "preferred_duration",

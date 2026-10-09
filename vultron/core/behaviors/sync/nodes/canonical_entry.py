@@ -29,11 +29,16 @@ Spec: CLP-07, CLP-12.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from vultron.core.models._helpers import as_utc, parse_published
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.rsvp_deadline import (
+    HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
+    INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
+    INVITE_EXPIRED_SNAPSHOT_TYPE,
+)
 from vultron.core.models.wire_keys import wire_key
 from vultron.errors import VultronCanonicalEntryError
 
@@ -42,7 +47,7 @@ logger = logging.getLogger(__name__)
 #: How CLP-07 spells ``CaseLedgerEntry.payload_snapshot`` in every requirement it
 #: states, read from the field's own alias so the diagnostics below can quote the
 #: spec's spelling without core logic typing an AS2 name (ADR-0099 detail 2).
-_PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", VultronCaseLedgerEntry)
+_PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", CaseLedgerEntry)
 
 # Every ``(activity_type, object_type)`` pair that may appear as a canonical
 # ledger ``payloadSnapshot``.  Audited against the CaseActor-authoritative
@@ -61,6 +66,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Reject", "Offer"),  # close_report (RC)
     ("Read", "Offer"),  # ack_report (RK, ADR-0021)
     ("Add", "Note"),
+    ("Remove", "Note"),  # remove_note_from_case
     ("Add", "VulnerabilityReport"),  # add_report_to_case
     ("Add", "CaseStatus"),  # add_case_status_to_case
     ("Add", "ParticipantStatus"),
@@ -73,15 +79,30 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Join", "VulnerabilityCase"),
     ("Ignore", "VulnerabilityCase"),
     ("Leave", "VulnerabilityCase"),
+    # The full-case Invite names its case by URI (CM-11-010); the stub Invite
+    # carries the stub, a type of its own (CM-11-013).
     ("Invite", "VulnerabilityCase"),
+    ("Invite", "VulnerabilityCaseStub"),
     ("Accept", "Invite"),
     ("Reject", "Invite"),
+    # RI: the full-case Invite's tentative refusal (VAM-04-013).  A stub
+    # Invite has no TentativeReject (CM-11-007).
+    ("TentativeReject", "Invite"),
     ("Announce", "VulnerabilityCase"),
     ("Offer", "CaseParticipant"),
     ("Add", "CaseParticipant"),
-    # CaseActor-authored synthetic lapse event (CM-28-009, ADR-0065 §5).
-    # Distinct from ("Reject", "Invite") which records an explicit refusal.
-    ("Lapse", "Invite"),
+    # The Case Owner's removal request, committed as received (CM-31-005,
+    # ADR-0116).  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
+    ("Remove", "CaseParticipant"),
+    # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
+    # ADR-0118).  Distinct from ("Reject", "Invite"), an explicit refusal.
+    (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
+    # CASE_MANAGER-authored no-op acknowledgement of a late Accept when the
+    # embargo is no longer active (EMB-17-004, ADR-0118).
+    (INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE, "Invite"),
+    # CASE_MANAGER-authored honour decision for a late Accept when the embargo
+    # is still active and matching (EMB-17-001, ADR-0118).
+    (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
 )
 # Signatures the CaseActor itself is authorized to author (CLP-07-003).  Per
 # CLP-12-002 this MUST be a superset of every pair the CaseActor emits during
@@ -96,13 +117,19 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Invite", "EmbargoEvent"),
         ("Offer", "CaseParticipant"),
         ("Invite", "VulnerabilityCase"),
+        ("Invite", "VulnerabilityCaseStub"),
         ("Offer", "VulnerabilityCase"),
         ("Leave", "VulnerabilityCase"),
         ("Accept", "Offer"),
         ("Reject", "Offer"),
         ("Add", "CaseParticipant"),
-        # CaseActor-authored synthetic lapse event (CM-28-009, ADR-0065 §5)
-        ("Lapse", "Invite"),
+        # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
+        # ADR-0118)
+        (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
+        # CASE_MANAGER-authored no-op acknowledgement (EMB-17-004, ADR-0118)
+        (INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE, "Invite"),
+        # CASE_MANAGER-authored honour decision (EMB-17-001, ADR-0118)
+        (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
         # native case-initialization entries (ADR-0041, CM-22-003)
         ("Create", "VulnerabilityCase"),
         ("Add", "VulnerabilityReport"),
@@ -129,9 +156,14 @@ _ACTOR_TYPES: frozenset[str] = frozenset(
 ) | {"CoreActor"}
 
 
-def _snapshot_object_type(snapshot: dict[str, Any]) -> str | None:
-    # Invite(Actor, target=Case): object_ is the actor; use target.type so the
-    # signature resolves to ('Invite','VulnerabilityCase') not ('Invite','Org').
+def _snapshot_object_type(
+    snapshot: dict[str, Any], case_id: str
+) -> str | None:
+    # Invite(Actor, target=...): object_ is the actor; use target.type so the
+    # signature resolves to ('Invite','VulnerabilityCaseStub') for the stub
+    # Invite, or ('Invite','VulnerabilityCase'), not ('Invite','Org').
+    # A target that is the case URI itself names the same thing (see
+    # ``_bare_inline_object_path``), so it resolves the same way.
     obj = snapshot.get("object") or snapshot.get("object_")
     if not isinstance(obj, dict):
         return None
@@ -144,24 +176,38 @@ def _snapshot_object_type(snapshot: dict[str, Any]) -> str | None:
             target_type = target.get("type") or target.get("type_")
             if isinstance(target_type, str) and target_type:
                 return target_type
+        if isinstance(target, str) and target == case_id:
+            return "VulnerabilityCase"
     return object_type
 
 
 def _bare_inline_object_path(
-    value: Any, path: str = _PAYLOAD_SNAPSHOT
+    value: Any, case_id: str, path: str = _PAYLOAD_SNAPSHOT
 ) -> str | None:
+    """Return the path of the first bare-string inline-object value, or ``None``.
+
+    A ``target`` that is the entry's own case URI is not a substitution
+    requiring an out-of-band lookup (CLP-07-006): the entry is *about* that
+    case, every replica holds it, and the factories address a case by its URI
+    (AKM-02-003).  It is therefore accepted at any depth.  Every other bare
+    string in an inline-object slot is refused.
+    """
     if isinstance(value, dict):
         for key, child in value.items():
             child_path = f"{path}.{key}"
             if key in _INLINE_OBJECT_KEYS and isinstance(child, str):
+                if key == "target" and child == case_id:
+                    continue
                 return child_path
-            nested_path = _bare_inline_object_path(child, child_path)
+            nested_path = _bare_inline_object_path(child, case_id, child_path)
             if nested_path is not None:
                 return nested_path
         return None
     if isinstance(value, list):
         for index, item in enumerate(value):
-            nested_path = _bare_inline_object_path(item, f"{path}[{index}]")
+            nested_path = _bare_inline_object_path(
+                item, case_id, f"{path}[{index}]"
+            )
             if nested_path is not None:
                 return nested_path
     return None
@@ -292,7 +338,7 @@ def _validate_entry_timestamps(
             "within" if regression <= skew_tolerance else "outside",
             skew_tolerance,
         )
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     if (
         future_tolerance is not None
         and entry_published > now + future_tolerance
@@ -337,10 +383,10 @@ def _validate_canonical_entry(
         )
 
     activity_type = _snapshot_type(payload_snapshot)
-    object_type = _snapshot_object_type(payload_snapshot)
+    object_type = _snapshot_object_type(payload_snapshot, case_id)
     signature = (activity_type or "", object_type or "")
 
-    bare_reference_path = _bare_inline_object_path(payload_snapshot)
+    bare_reference_path = _bare_inline_object_path(payload_snapshot, case_id)
     if bare_reference_path is not None:
         raise VultronCanonicalEntryError(
             f"{event_type}: {bare_reference_path} must be an inline object, "

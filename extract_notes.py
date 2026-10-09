@@ -57,11 +57,11 @@ def main():
 
     notes = []
     # walk through the docs directory and process each .md file
-    for root, dirs, files in os.walk(docs_dir):
+    for root, _dirs, files in os.walk(docs_dir):
         for file in files:
             if file.endswith(".md"):
                 file_path = os.path.join(root, file)
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, encoding="utf-8") as f:
                     content = f.read()
                     # Process the content to extract notes
                     # This is a placeholder for the actual extraction logic

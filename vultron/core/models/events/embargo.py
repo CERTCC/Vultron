@@ -1,24 +1,23 @@
 """Per-semantic inbound domain event types for embargo activities."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import field_validator
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.predicates.addressing import normalise_actor_id
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from vultron.core.models.case import VulnerabilityCase as VultronCase
-    from vultron.core.models.embargo_event import (
-        EmbargoEvent as VultronEmbargoEvent,
-    )
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.embargo_event import EmbargoEvent
 else:
-    VultronCase = object
-    VultronEmbargoEvent = object
+    VulnerabilityCase = object
+    EmbargoEvent = object
 
 
 class CreateEmbargoEventReceivedEvent(VultronEvent):
@@ -33,32 +32,55 @@ class CreateEmbargoEventReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def embargo(self) -> "VultronEmbargoEvent | None":
-        return cast("VultronEmbargoEvent | None", self.object_)
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.object_)
 
 
-class AddEmbargoEventToCaseReceivedEvent(VultronEvent):
-    """Actor added an EmbargoEvent to a VulnerabilityCase."""
+class _OwnerEmbargoDecisionEvent(VultronEvent):
+    """The case owner's decision on an embargo proposal (ADR-0122).
 
-    semantic_type: Literal[MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE] = (
-        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE
-    )
+    ``Accept`` or ``Reject`` of the ``EmbargoEvent`` itself, with the case
+    as ``target`` — not of the ``Invite`` that proposed it, which is each
+    sender's own consent.
+    """
 
     @property
     def embargo_id(self) -> str | None:
         return self.object_id
 
     @property
-    def embargo(self) -> "VultronEmbargoEvent | None":
-        return cast("VultronEmbargoEvent | None", self.object_)
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.object_)
 
     @property
     def case_id(self) -> str | None:
         return self.target_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.target)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.target)
+
+
+class ActivateEmbargoOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
+    """The case owner activated a proposed embargo on the case.
+
+    ``Accept(EmbargoEvent, target=VulnerabilityCase)`` (ADR-0122).
+    """
+
+    semantic_type: Literal[MessageSemantics.ACTIVATE_EMBARGO_ON_CASE] = (
+        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE
+    )
+
+
+class RejectEmbargoProposalOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
+    """The case owner rejected a proposed embargo on the case.
+
+    ``Reject(EmbargoEvent, target=VulnerabilityCase)`` (ADR-0122).
+    """
+
+    semantic_type: Literal[
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE
+    ] = MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE
 
 
 class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
@@ -73,16 +95,16 @@ class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def embargo(self) -> "VultronEmbargoEvent | None":
-        return cast("VultronEmbargoEvent | None", self.object_)
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.object_)
 
     @property
     def case_id(self) -> str | None:
         return self.origin_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.origin)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.origin)
 
 
 class AnnounceEmbargoEventToCaseReceivedEvent(VultronEvent):
@@ -93,12 +115,20 @@ class AnnounceEmbargoEventToCaseReceivedEvent(VultronEvent):
     )
 
     @property
+    def embargo_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.object_)
+
+    @property
     def case_id(self) -> str | None:
         return self.context_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.context)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.context)
 
 
 class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
@@ -116,7 +146,7 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         if v is None:
             return None
         if not isinstance(v, datetime):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
                 f"rsvp_deadline must be a datetime, got {type(v).__name__}"
             )
         if v.tzinfo is None:
@@ -124,48 +154,48 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
                 "rsvp_deadline must be timezone-aware"
                 " (naive datetime rejected per EP-07-002)"
             )
-        return v.astimezone(timezone.utc)
+        return v.astimezone(UTC)
 
     @property
     def case_id(self) -> str | None:
         return self.context_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.context)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.context)
 
     @property
     def to_recipients(self) -> list[str]:
-        """The activity's ``to:`` addressees, in declaration order.
+        """The activity's distinct ``to:`` addressees, in declaration order.
 
-        Falsy entries are dropped.  An empty list means the activity carries
-        no recipient at all, which is an OX-08-001 violation upstream.
+        Each is given in its canonical spelling (no trailing slash, #2667),
+        and two entries naming the same actor count once, so ``[X, X + "/"]``
+        is one recipient, not two.  Falsy entries are dropped.  An empty list
+        means the activity carries no recipient at all, which is an OX-08-001
+        violation upstream.
         """
-        return [recipient for recipient in self.activity.to or [] if recipient]
+        canonical = (
+            normalise_actor_id(recipient)
+            for recipient in self.activity.to or []
+            if recipient
+        )
+        return list(dict.fromkeys(canonical))
 
     @property
     def invitee_id(self) -> str | None:
-        """The sole actor being invited to the embargo, when there is one.
+        """The Invite's sole distinct ``to`` recipient; ``None`` otherwise.
 
-        This is a *different* question from ``receiving_actor_id``, which is
-        the actor whose replica the message is being applied to.  Per ADR-0022
-        the invitee is leaf-node data threaded into the tree, never the BT's
-        execution identity, so it MUST be read from the message rather than
-        inferred from which store the message landed in.
+        The invitee of an ``Invite(EmbargoEvent)`` is its sole ``to``
+        recipient (EP-09-010).  This is a *different* question from
+        ``receiving_actor_id``, the actor whose replica the message is being
+        applied to: per ADR-0022 the invitee is leaf-node data read from the
+        message, never inferred from which store the message landed in.
 
-        Returns ``None`` in two cases, and callers MUST NOT quietly substitute
-        another identity in either:
-
-        * no ``to:`` recipient at all — an OX-08-001 violation upstream;
-        * more than one ``to:`` recipient — with several addressees the
-          invitee is *replica-relative*, so only the receiving side can say
-          which one this store is applying the invitation to.  Picking the
-          first would give every recipient after the first a PEC transition
-          and RSVP deadline on someone else's record (CM-28-001, CM-28-003).
-
-        Received-side callers should therefore use
+        ``None`` means the Invite is a misrouting — no recipient (an
+        OX-08-001 violation upstream) or several — and callers MUST NOT
+        substitute another identity.  Received-side callers use
         ``vultron.core.use_cases.received.embargo.resolve_invitee_id()``,
-        which resolves the multi-recipient case by addressee membership.
+        which refuses such an Invite with the recipient count.
 
         Note this is *not* the same derivation as
         ``AcceptInviteActorToCaseReceivedEvent.invitee_id``, which reads the
@@ -200,16 +230,16 @@ class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def embargo(self) -> "VultronEmbargoEvent | None":
-        return cast("VultronEmbargoEvent | None", self.inner_object)
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.inner_object)
 
     @property
     def case_id(self) -> str | None:
         return self.inner_context_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.inner_context)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.inner_context)
 
 
 class RejectInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
@@ -232,13 +262,13 @@ class RejectInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def embargo(self) -> "VultronEmbargoEvent | None":
-        return cast("VultronEmbargoEvent | None", self.inner_object)
+    def embargo(self) -> "EmbargoEvent | None":
+        return cast("EmbargoEvent | None", self.inner_object)
 
     @property
     def case_id(self) -> str | None:
         return self.inner_context_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.inner_context)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.inner_context)

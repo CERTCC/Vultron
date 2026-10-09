@@ -1,7 +1,7 @@
 """Use cases for CaseActor-routed actor-suggestion activities (ADR-0026)."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.suggest_actor_tree import (
@@ -10,17 +10,33 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
 from vultron.core.models.events.actor import (
     OfferActorToCaseReceivedEvent,
 )
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import (
+    not_case_manager_refusal,
+    verdict_from_bt,
+)
 
 if TYPE_CHECKING:
+    from vultron.config.actor import ActorConfig
+    from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
+
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    SenderEntitlementKind,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class OfferActorToCaseReceivedUseCase:
-    """CaseActor received Offer(Actor, Case) from a recommending participant.
+    """The CASE_MANAGER received Offer(Actor, Case) from a recommending participant.
 
     Delegates to :func:`create_recommend_actor_to_case_received_tree` via
     BTBridge to commit the ledger entry and DM Offer(CaseParticipant) to the
@@ -31,19 +47,37 @@ class OfferActorToCaseReceivedUseCase:
     VulnerabilityCase.recommendation_recommender_index so downstream
     Accept/Reject use cases can look up the recommender without re-reading the
     stored wire Offer (ADR-0035 DL-06-002, CLP-10-005).
+
+    Every effect is gated on the receiving actor holding
+    ``CVDRole.CASE_MANAGER`` for the case (BT-17-001).  Any other receiver of
+    a copy does nothing and refuses (HP-01-005, #3752).
+
+    Only a participant of the case may suggest an actor (CM-16-001): an Offer
+    from anyone else is refused before the case ledger is written, so nothing is
+    forwarded to the Case Owner (HP-01-006, #3668).
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    )
 
     def __init__(
         self,
         dl: CasePersistence,
         request: OfferActorToCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request = request
         self._trigger_activity = trigger_activity
+        self._actor_config = actor_config
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         activity_id = request.activity_id
         recommender_id = request.actor_id
@@ -54,10 +88,12 @@ class OfferActorToCaseReceivedUseCase:
         if not recommended_id or not case_id:
             logger.warning(
                 "OfferActorToCaseReceived: missing recommended_id or case_id"
-                " in event '%s' — skipping",
+                " in event '%s' — refusing",
                 activity_id,
             )
-            return
+            return HandlerResult.refused(
+                "Offer(Actor, Case) is missing its recommended actor or case"
+            )
 
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -88,10 +124,28 @@ class OfferActorToCaseReceivedUseCase:
             case_id=case_id,
             offer_content=offer_content,
             suggested_roles=suggested_roles,
+            actor_config=self._actor_config,
         )
         bridge = BTBridge(
-            datalayer=self._dl, trigger_activity=self._trigger_activity
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         )
-        bridge.execute_with_setup(
+        result = bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
         )
+        verdict = verdict_from_bt(
+            tree, result, label="RecommendActorToCaseReceivedBT"
+        )
+        if verdict.disposition is not HandlerDisposition.REFUSED:
+            refusal = not_case_manager_refusal(tree, self._dl, case_id)
+            if refusal is not None:
+                verdict = refusal
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "OfferActorToCaseReceived: refused '%s': %s",
+                activity_id,
+                verdict.reason,
+            )
+        return verdict

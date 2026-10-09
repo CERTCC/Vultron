@@ -53,14 +53,14 @@ Closes #2236.
 from typing import NamedTuple
 
 from vultron.core.states.cs import (
-    CS_d,
-    CS_pxa,
-    CS_vf,
     D_FIX_DEPLOYED,
     PXA_ATTACKS_OBSERVED,
     PXA_EXPLOIT_PUBLIC,
     PXA_PUBLIC_AWARE,
     VF_FIX_READY,
+    CS_d,
+    CS_pxa,
+    CS_vf,
 )
 from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE
 from vultron.core.states.rm import RM
@@ -250,14 +250,13 @@ def composite_state_violations(
         combination violates both.
     """
     violations: list[EntailmentViolation] = []
-    if vf is not None:
-        if (msg := violation_rm_vf_entailment(rm, vf)) is not None:
-            violations.append(
-                EntailmentViolation("vf", msg, reads=("rm", "vf"))
-            )
-    if d is not None:
-        if (msg := violation_rm_d_entailment(rm, d)) is not None:
-            violations.append(EntailmentViolation("d", msg, reads=("rm", "d")))
+    if (
+        vf is not None
+        and (msg := violation_rm_vf_entailment(rm, vf)) is not None
+    ):
+        violations.append(EntailmentViolation("vf", msg, reads=("rm", "vf")))
+    if d is not None and (msg := violation_rm_d_entailment(rm, d)) is not None:
+        violations.append(EntailmentViolation("d", msg, reads=("rm", "d")))
     if (msg := violation_vf_d_entailment(vf, d)) is not None:
         # VF↔D constrains a pair: `d` is preferred (deployment is the dependent
         # claim), but refusing `vf` resolves the same contradiction when `vf` is

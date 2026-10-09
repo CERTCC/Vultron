@@ -78,7 +78,6 @@ _VALID_STATUS = {
     "object": {
         "attributedTo": ACTOR_A,
         "rmState": "VALID",
-        "emConsentState": "SIGNATORY",
         "cvdRole": ["FINDER"],
         "vfState": "vf",
         "caseStatus": {"pxaState": "pxa"},
@@ -89,7 +88,6 @@ _ACCEPTED_STATUS = {
     "object": {
         "attributedTo": ACTOR_A,
         "rmState": "ACCEPTED",
-        "emConsentState": "SIGNATORY",
         "cvdRole": ["FINDER"],
         "vfState": "VF",
         "caseStatus": {"pxaState": "Pxa"},
@@ -101,7 +99,6 @@ _CLOSED_STATUS = {
     "object": {
         "attributedTo": ACTOR_A,
         "rmState": "CLOSED",
-        "emConsentState": "UNBOUND",
         "cvdRole": ["FINDER"],
         "vfState": "VF",
         "dState": "D",

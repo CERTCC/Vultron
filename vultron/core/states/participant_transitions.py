@@ -47,11 +47,16 @@ definition there.
 
 Spec: EH-07-001, EH-07-002, BTND-10-001, BTND-10-002, BTND-10-003,
 CSB-15-001, CSB-15-002, CSB-16-001, CSB-16-002, CSB-17-001, CSB-18-001,
-PRM-06-002, SM-09-002.  ADR: ADR-0086, ADR-0084.
+PRM-06-002, SM-09-002.  ADR: ADR-0086, ADR-0121.
 """
 
 from collections.abc import Sequence
 
+from vultron.core.predicates.participants import vendor_vf_invariant_ok
+from vultron.core.predicates.roles import (
+    has_deployer_role,
+    has_vendor_role,
+)
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -67,12 +72,13 @@ from vultron.core.states.cs_invariants import (
     cs_from_dimensions,
     is_valid_cs_transition,
 )
-from vultron.core.predicates.participants import vendor_vf_invariant_ok
-from vultron.core.predicates.roles import (
-    has_deployer_role,
-    has_vendor_role,
+from vultron.core.states.rm import (
+    RM,
+    RMDeclaration,
+    RMRule,
+    classify_rm_declaration,
+    is_valid_rm_transition,
 )
-from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole
 from vultron.errors import Violation
 
@@ -91,10 +97,30 @@ _VENDOR_ONLY_VF: dict[CS_vf, str] = {
 }
 
 
-def _rm_violations(current_rm: RM, requested_rm: RM | None) -> list[Violation]:
-    """CSB-16-001: the requested RM state must be an adjacent step."""
+def _rm_violations(
+    current_rm: RM, requested_rm: RM | None, rm_rule: RMRule
+) -> list[Violation]:
+    """The RM rule *rm_rule* names, applied to the requested state.
+
+    ``TRANSITION`` requires an adjacent step (CSB-16-001).  ``DECLARATION``
+    requires only that the move is not a regression under the received-side
+    acceptance rule (RSH-06-001, RSH-06-002, RSH-06-006).
+    """
     if requested_rm is None or requested_rm == current_rm:
         return []
+    if rm_rule is RMRule.DECLARATION:
+        if (
+            classify_rm_declaration(current_rm, requested_rm)
+            is not RMDeclaration.REGRESSION
+        ):
+            return []
+        return [
+            Violation(
+                f"Refused backward RM declaration {current_rm!r} →"
+                f" {requested_rm!r} (RSH-06-002)",
+                dimensions=("rm",),
+            )
+        ]
     if is_valid_rm_transition(current_rm, requested_rm):
         return []
     return [
@@ -130,7 +156,7 @@ def _vf_violations(
         violations.append(
             Violation(
                 f"Vendor-implies-V: a CVDRole.VENDOR participant cannot assert"
-                f" {requested_vf!r} (PRM-06-002, ADR-0084)",
+                f" {requested_vf!r} (PRM-06-002, ADR-0121)",
                 dimensions=("vf",),
             )
         )
@@ -293,9 +319,9 @@ def _classify(violations: Sequence[Violation]) -> list[Violation]:
     .composite_state_invariants.EntailmentViolation.reads` is required rather than
     defaulted: an empty ``dimensions`` would be labelled root unconditionally.
     """
-    assert all(
-        violation.dimensions for violation in violations
-    ), "every Violation must name the dimensions its rule reads (EH-07-002)"
+    assert all(violation.dimensions for violation in violations), (
+        "every Violation must name the dimensions its rule reads (EH-07-002)"
+    )
     faulted: set[str] = {
         violation.dimensions[0]
         for violation in violations
@@ -322,6 +348,7 @@ def participant_transition_violations(
     requested_pxa: CS_pxa | None = None,
     actor_roles: Sequence[CVDRole] = (),
     validate_rm_transition: bool = True,
+    rm_rule: RMRule = RMRule.TRANSITION,
 ) -> list[Violation]:
     """Return every rule the proposed ``ParticipantStatus`` write violates.
 
@@ -347,8 +374,9 @@ def participant_transition_violations(
         requested_pxa: The PXA state being asserted, or ``None``.
         actor_roles: The asserting actor's ``CVDRole`` list, for the role gates.
         validate_rm_transition: Whether to apply the RM adjacency rule.  Only
-            the enumerated sanctioned self-declared-Leave override (CM-23-012,
-            resolving #3106) sets this ``False`` — see ``force_rm_state`` on
+            the enumerated bootstrap writes of a participant's first status set
+            this ``False`` — closure never does (RMB-14-005) — see
+            ``force_rm_state`` on
             :class:`~vultron.core.behaviors.case.nodes.participant.status\
             .CreateParticipantStatusNode`.  It drops one *rule* from the set and
             never suppresses another rule's violation (BTND-10-002): the
@@ -357,6 +385,13 @@ def participant_transition_violations(
             :func:`_classify`'s faulted set, so a multi-dimension violation
             reading ``rm`` reports root instead of derived.  Moot in practice —
             every override call site asserts RM only.
+        rm_rule: Which RM rule applies when ``validate_rm_transition`` is set.
+            ``TRANSITION`` (the default) is the adjacency rule every local
+            write is held to.  ``DECLARATION`` is the received-side acceptance
+            rule, for a write that records the state a sender declared about
+            itself: a non-adjacent forward move is legal and only a regression
+            is refused (RSH-06-001, RSH-06-002, RSH-06-006).  Every other rule
+            in the set applies unchanged either way.
 
     Returns:
         One :class:`~vultron.errors.Violation` per violated rule, each naming
@@ -370,7 +405,7 @@ def participant_transition_violations(
 
     violations: list[Violation] = [
         *(
-            _rm_violations(current_rm, requested_rm)
+            _rm_violations(current_rm, requested_rm, rm_rule)
             if validate_rm_transition
             else []
         ),

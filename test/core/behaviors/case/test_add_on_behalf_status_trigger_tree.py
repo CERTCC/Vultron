@@ -13,19 +13,36 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Structural tests for add_on_behalf_status_trigger_bt (CSB-15-004 wiring).
+"""Structural tests for add_on_behalf_status_trigger_bt.
 
 Verifies that CheckSomeVendorAtVFNode is included in the tree when d_state is
-non-None and excluded when d_state is None.
+non-None and excluded when d_state is None (CSB-15-004), and that the tree
+creates no participant: the target-is-participant guard precedes every write
+(PRM-06-006).
 """
 
 import py_trees.behaviour
+import pytest
 
 from vultron.core.behaviors.case.add_on_behalf_status_trigger_tree import (
     add_on_behalf_status_trigger_bt,
+    on_behalf_required_roles,
+)
+from vultron.core.behaviors.case.nodes.on_behalf_guards import (
+    CheckOnBehalfAuthorizedNode,
+    CheckOnBehalfTargetIsParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.participant import (
+    CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckSomeVendorAtVFNode,
+)
+from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.sender.nodes.actions import (
+    ConstructActivitiesNode,
+    QueueToOutboxNode,
+    ResolveCaseManagerNode,
 )
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.enums.roles import CVDRole
@@ -43,7 +60,6 @@ def _make_tree(
         case_id=CASE_ID,
         asserting_actor_id=ASSERTING_ACTOR_ID,
         target_actor_id=TARGET_ACTOR_ID,
-        required_roles=[CVDRole.DEPLOYER],
         vf_state=vf_state,
         d_state=d_state,
         result_out={},
@@ -74,3 +90,96 @@ def test_causal_gate_absent_when_d_state_none() -> None:
     """
     tree = _make_tree(d_state=None, vf_state=CS_vf.Vf)
     assert CheckSomeVendorAtVFNode.__name__ not in _child_type_names(tree)
+
+
+#: Every node in the tree that is not a read-only condition: the status
+#: write and the sender sub-tree (resolve the Case Manager, build, queue).
+#: An allow-list, so a newly added writer — a participant-minting node
+#: included — fails the test without anyone having to list it here.
+_ALLOWED_NON_CONDITION_NODES = (
+    CreateParticipantStatusNode,
+    ResolveCaseManagerNode,
+    ConstructActivitiesNode,
+    QueueToOutboxNode,
+)
+
+
+@pytest.mark.spec("PRM-06-006")
+@pytest.mark.parametrize(
+    "dimension",
+    [
+        {"vf_state": CS_vf.Vf},
+        {"d_state": CS_d.D},
+        {"vf_state": CS_vf.Vf, "d_state": CS_d.D},
+    ],
+    ids=["v-to-V", "d-to-D", "both"],
+)
+def test_every_guard_precedes_the_only_write(dimension) -> None:
+    """The tree never creates a participant; its guards all run before the
+    single status write, so a refusal leaves nothing behind (PRM-06-006)."""
+    tree = _make_tree(**dimension)
+    names = _child_type_names(tree)
+    write_at = names.index(CreateParticipantStatusNode.__name__)
+    guard_at = names.index(CheckOnBehalfTargetIsParticipantNode.__name__)
+    assert names[0] == CheckOnBehalfAuthorizedNode.__name__
+    assert guard_at < write_at
+    assert all(
+        isinstance(child, DataLayerConditionWithPorts)
+        for child in tree.children[:write_at]
+    ), "only read-only condition nodes may precede the status write"
+    unexpected = [
+        type(node).__name__
+        for node in tree.iterate()
+        if not isinstance(
+            node,
+            (
+                py_trees.composites.Composite,
+                DataLayerConditionWithPorts,
+                *_ALLOWED_NON_CONDITION_NODES,
+            ),
+        )
+    ]
+    assert unexpected == [], (
+        f"on-behalf tree may write only the status and the outbox: {unexpected}"
+    )
+
+
+@pytest.mark.spec("PRM-06-003", "PRM-06-004")
+@pytest.mark.parametrize(
+    ("dimension", "roles"),
+    [
+        ({"vf_state": CS_vf.Vf}, [CVDRole.VENDOR]),
+        ({"d_state": CS_d.D}, [CVDRole.DEPLOYER]),
+        (
+            {"vf_state": CS_vf.Vf, "d_state": CS_d.D},
+            [CVDRole.VENDOR, CVDRole.DEPLOYER],
+        ),
+    ],
+    ids=["v-to-V", "d-to-D", "both"],
+)
+def test_target_guard_requires_the_role_of_each_asserted_dimension(
+    dimension, roles
+) -> None:
+    """The guard's roles come from the dimensions, so they cannot disagree."""
+    assert (
+        on_behalf_required_roles(
+            dimension.get("vf_state"), dimension.get("d_state")
+        )
+        == roles
+    )
+    guard = next(
+        node
+        for node in _make_tree(**dimension).iterate()
+        if isinstance(node, CheckOnBehalfTargetIsParticipantNode)
+    )
+    assert guard._required_roles == roles
+
+
+def test_tree_with_no_dimension_fails_fast() -> None:
+    """An assertion with no dimension has no role to check (ARCH-10-001)."""
+    with pytest.raises(ValueError, match="vf_state or d_state"):
+        _make_tree()
+    with pytest.raises(ValueError, match="at least one"):
+        CheckOnBehalfTargetIsParticipantNode(
+            case_id=CASE_ID, target_actor_id=TARGET_ACTOR_ID, required_roles=[]
+        )

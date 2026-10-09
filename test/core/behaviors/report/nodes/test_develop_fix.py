@@ -17,19 +17,19 @@
 
 import pytest
 
-from vultron.core.behaviors.report.nodes.deploy_fix import RMinStateDeferred
-from vultron.core.behaviors.report.nodes.conditions import (
-    _CheckParticipantRMStateBase,
-    CheckRMStateAccepted,
-)
-from vultron.core.models.case import VultronCase
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.report import VultronReport
-from vultron.core.states.rm import RM
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateAccepted,
+    _CheckParticipantRMStateBase,
+)
+from vultron.core.behaviors.report.nodes.deploy_fix import RMinStateDeferred
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.states.rm import RM
 
 # ---------------------------------------------------------------------------
 # AC-3: _CheckParticipantRMStateBase base-class contract
@@ -64,12 +64,12 @@ def test_rm_in_state_deferred_target_rm() -> None:
 @pytest.fixture
 def case_with_accepted_participant(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
-) -> tuple[VultronCase, VultronParticipant]:
+    actor: CaseActor,
+    report: VulnerabilityReport,
+) -> tuple[VulnerabilityCase, CaseParticipant]:
     """Case whose participant is in RM.ACCEPTED."""
     case_id = "https://example.org/cases/case-accepted-001"
-    participant = VultronParticipant(
+    participant = CaseParticipant(
         id_="https://example.org/participants/vendor-accepted-001",
         attributed_to=actor.id_,
         context=case_id,
@@ -91,7 +91,7 @@ def case_with_accepted_participant(
             ),
         ],
     )
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=case_id,
         name="Accepted Participant Case",
         vulnerability_reports=[report.id_],
@@ -106,12 +106,12 @@ def case_with_accepted_participant(
 @pytest.fixture
 def case_with_deferred_participant(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
-) -> tuple[VultronCase, VultronParticipant]:
+    actor: CaseActor,
+    report: VulnerabilityReport,
+) -> tuple[VulnerabilityCase, CaseParticipant]:
     """Case whose participant is in RM.DEFERRED."""
     case_id = "https://example.org/cases/case-deferred-001"
-    participant = VultronParticipant(
+    participant = CaseParticipant(
         id_="https://example.org/participants/vendor-deferred-001",
         attributed_to=actor.id_,
         context=case_id,
@@ -133,7 +133,7 @@ def case_with_deferred_participant(
             ),
         ],
     )
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=case_id,
         name="Deferred Participant Case",
         vulnerability_reports=[report.id_],
@@ -147,8 +147,8 @@ def case_with_deferred_participant(
 
 def test_check_rm_state_accepted_succeeds_when_accepted(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    case_with_accepted_participant: tuple[VultronCase, VultronParticipant],
+    actor: CaseActor,
+    case_with_accepted_participant: tuple[VulnerabilityCase, CaseParticipant],
 ) -> None:
     """CheckRMStateAccepted returns SUCCESS when actor RM is ACCEPTED."""
     case, _ = case_with_accepted_participant
@@ -161,8 +161,8 @@ def test_check_rm_state_accepted_succeeds_when_accepted(
 
 def test_check_rm_state_accepted_fails_when_deferred(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    case_with_deferred_participant: tuple[VultronCase, VultronParticipant],
+    actor: CaseActor,
+    case_with_deferred_participant: tuple[VulnerabilityCase, CaseParticipant],
 ) -> None:
     """CheckRMStateAccepted returns FAILURE when actor RM is DEFERRED."""
     case, _ = case_with_deferred_participant
@@ -175,8 +175,8 @@ def test_check_rm_state_accepted_fails_when_deferred(
 
 def test_rm_in_state_deferred_succeeds_when_deferred(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    case_with_deferred_participant: tuple[VultronCase, VultronParticipant],
+    actor: CaseActor,
+    case_with_deferred_participant: tuple[VulnerabilityCase, CaseParticipant],
 ) -> None:
     """RMinStateDeferred returns SUCCESS when actor RM is DEFERRED."""
     case, _ = case_with_deferred_participant
@@ -189,8 +189,8 @@ def test_rm_in_state_deferred_succeeds_when_deferred(
 
 def test_rm_in_state_deferred_fails_when_accepted(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    case_with_accepted_participant: tuple[VultronCase, VultronParticipant],
+    actor: CaseActor,
+    case_with_accepted_participant: tuple[VulnerabilityCase, CaseParticipant],
 ) -> None:
     """RMinStateDeferred returns FAILURE when actor RM is ACCEPTED."""
     case, _ = case_with_accepted_participant
@@ -203,7 +203,7 @@ def test_rm_in_state_deferred_fails_when_accepted(
 
 def test_check_rm_state_accepted_fails_without_case(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
+    actor: CaseActor,
 ) -> None:
     """CheckRMStateAccepted returns FAILURE when case is not found."""
     result = bt_scenario.run(
@@ -218,11 +218,11 @@ def test_check_rm_state_accepted_fails_without_case(
 
 def test_check_rm_state_accepted_fails_without_participant(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
 ) -> None:
     """CheckRMStateAccepted returns FAILURE when actor has no participant."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_="https://example.org/cases/no-participant",
         name="No Participant Case",
         vulnerability_reports=[report.id_],

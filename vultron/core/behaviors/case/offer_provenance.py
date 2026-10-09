@@ -18,7 +18,8 @@
 One lookup, used on both sides of the CaseProposal round-trip: the receiver of
 the report resolves it from its own store to put on the proposal (CP-01-007),
 and the CaseActor tries it first before falling back to what the proposal
-carried (ADR-0041 AC-4).
+carried (ADR-0041 AC-4).  ``offer_provenance_from_proposal`` reads what the
+proposal carried.
 
 ``VultronOfferRecord`` is keyed by ``offer_id`` (``build_id``), so answering
 "which offer brought this report?" means a scan. That is acceptable here
@@ -28,6 +29,7 @@ because both callers run once per case initialization, not per message.
 from typing import TYPE_CHECKING
 
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.wire_keys import wire_key
 
 if TYPE_CHECKING:
     from vultron.core.ports.case_persistence import CasePersistence
@@ -51,3 +53,24 @@ def find_offer_for_report(
         if raw.report_id == report_id:
             return raw.offer_id, raw.offer_actor_id
     return None, None
+
+
+def offer_provenance_from_proposal(
+    proposal_dict: dict | None,
+) -> tuple[str | None, str | None]:
+    """Return ``(offer_id, offer_actor_id)`` carried on the proposal (CP-01-007).
+
+    Both spellings are accepted for the same reason
+    ``StoreProposalReportNode._report_from_proposal_dict`` accepts both: which
+    one a caller has depends on whether its dump used ``by_alias``.
+    """
+
+    def _pick(field: str) -> str | None:
+        # The AS2 spelling of the snapshot key is derived from the core field
+        # name, not typed here (ADR-0099 detail 2).
+        raw = (proposal_dict or {}).get(wire_key(field, VultronOfferRecord))
+        if not isinstance(raw, str):
+            raw = (proposal_dict or {}).get(field)
+        return raw if isinstance(raw, str) and raw else None
+
+    return _pick("offer_id"), _pick("offer_actor_id")

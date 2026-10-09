@@ -20,11 +20,14 @@ Tests for the reject-embargo trigger endpoint
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
-import pytest
-from fastapi import status
 from unittest.mock import AsyncMock, patch
 
+import pytest
+from fastapi import status
+
 from vultron.core.states.em import EM
+
+from .conftest import make_case_manager
 
 # ---------------------------------------------------------------------------
 # Module-level fixture: suppress outbox delivery retries
@@ -35,8 +38,7 @@ from vultron.core.states.em import EM
 def _no_outbox_delivery():
     """Suppress real outbox delivery for every test in this module."""
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
+        "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield
@@ -123,6 +125,7 @@ def test_trigger_reject_embargo_sets_em_state_to_none(
 ):
     """reject-embargo transitions case EM state from PROPOSED to NONE."""
     case_obj, proposal, _ = case_with_proposal
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/reject-embargo",

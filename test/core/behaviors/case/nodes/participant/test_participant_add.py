@@ -20,30 +20,30 @@ from typing import Any, cast
 import py_trees
 import pytest
 
-from vultron.core.behaviors.case.nodes import (
-    CreateCaseParticipantNode,
-)
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import activate
 from vultron.core.behaviors.case.nodes.participant import (
     AttachParticipantToCaseNode,
     CaseHasActiveEmbargoNode,
     CaseHasNoActiveEmbargoNode,
     CreateParticipantInitialStatusNode,
     CreateParticipantNode,
-    QueueAddParticipantNotificationNode,
     RecordParticipantAddedEventNode,
-    SeedParticipantAsSignatoryIfEmbargoActiveNode,
     SeedParticipantAsSignatoryNode,
 )
-from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.vultron_types import (
-    VultronCase,
-    VultronCaseActor,
+from vultron.core.behaviors.case.participant_tree import (
+    CreateCaseParticipantNode,
+    SeedParticipantAsSignatoryIfEmbargoActiveNode,
 )
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from test.core.behaviors.bt_harness import BTTestScenario
 
 
 class TestCreateCaseParticipantNode:
@@ -57,8 +57,8 @@ class TestCreateCaseParticipantNode:
     def test_creates_and_attaches_participant(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        case_obj: VultronCase,
+        actor: CaseActor,
+        case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,
     ) -> None:
@@ -77,8 +77,8 @@ class TestCreateCaseParticipantNode:
     def test_records_participant_added_event(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        case_obj: VultronCase,
+        actor: CaseActor,
+        case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,
     ) -> None:
@@ -111,7 +111,6 @@ class TestCreateCaseParticipantNode:
             CreateParticipantInitialStatusNode,
             RecordParticipantAddedEventNode,
             SeedParticipantAsSignatoryIfEmbargoActiveNode,
-            QueueAddParticipantNotificationNode,
         ]
 
     def test_embargo_seed_is_conditional_subtree(self) -> None:
@@ -126,15 +125,20 @@ class TestCreateCaseParticipantNode:
         ]
         assert type(node.children[1]) is CaseHasNoActiveEmbargoNode
 
-    def test_emits_add_participant_activity(
+    @pytest.mark.spec("CM-31-011")
+    def test_sends_no_add_participant_activity(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        case_obj: VultronCase,
+        actor: CaseActor,
+        case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,
     ) -> None:
-        """CreateCaseParticipantNode queues AddParticipantToCaseActivity."""
+        """Seating a participant queues no ``Add(CaseParticipant)``.
+
+        That message is the Case Owner's request to reinstate a removed
+        participant, and only that (CM-31-011, ADR-0116).
+        """
         bt_scenario.run(
             CreateCaseParticipantNode(
                 actor_id=finder_actor_id, roles=[CVDRole.FINDER]
@@ -144,32 +148,28 @@ class TestCreateCaseParticipantNode:
         )
 
         outbox_ids = bt_scenario.dl.clone_for_actor(actor_id).outbox_list()
-        add_activities: list[as_Add] = []
-        for oid in outbox_ids:
-            obj = bt_scenario.dl.read(oid)
-            if isinstance(obj, as_Add):
-                add_activities.append(obj)
-        assert any(
-            act.type_ == "Add"
-            and isinstance(act.object_, as_CaseParticipant)
-            and getattr(act.target, "id_", act.target) == case_obj.id_
-            for act in add_activities
-        )
+        assert not [
+            oid
+            for oid in outbox_ids
+            if isinstance(bt_scenario.dl.read(oid), as_Add)
+        ]
 
     @pytest.mark.spec("CM-10-001")
     @pytest.mark.spec("CM-14-005")
     def test_seeds_participant_as_signatory_when_embargo_active(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        case_obj: VultronCase,
+        actor: CaseActor,
+        case_obj: VulnerabilityCase,
         actor_id: str,
         finder_actor_id: str,
     ) -> None:
-        embargo = EmbargoEvent(context=case_obj.id_)
+        embargo = EmbargoEvent(
+            context=case_obj.id_, end_time=days_from_now_utc(45)
+        )
         bt_scenario.dl.create(embargo)
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        object.__setattr__(stored_case, "active_embargo", embargo.id_)
+        activate(stored_case, embargo.id_)
         bt_scenario.dl.save(stored_case)
 
         bt_scenario.run(
@@ -183,5 +183,8 @@ class TestCreateCaseParticipantNode:
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
         participant_id = stored_case.actor_participant_index[finder_actor_id]
         participant = cast(Any, bt_scenario.dl.read(participant_id))
-        assert participant.embargo_consent_state == PEC.SIGNATORY
-        assert embargo.id_ in participant.accepted_embargo_ids
+        assert (
+            participant.consent_for(embargo.id_)
+            == EmbargoConsentState.ACCEPTED
+        )
+        assert participant.is_signatory(embargo.id_)

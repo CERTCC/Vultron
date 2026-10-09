@@ -5,52 +5,42 @@ description: >
   layers and the state machines participants use to track a shared case.
 stakeholder_type: [platform-developer]
 level: 400
+contents: routing
 ---
 
 # Vultron Protocol Specification
 
+{% include-markdown "./_full-page-tip.md" %}
+
 {% include-markdown "./_abstract.md" %}
 
-{% include-markdown "./_introduction.md" %}
+## Parts
 
-{% include-markdown "./_terminology.md" %}
+The specification is published one part per page.
+The parts are listed in reading order, and each page holds the sections listed beside it, from the introduction to the Internet Assigned Numbers Authority (IANA) and security considerations.
 
-{% include-markdown "./_protocol-overview.md" %}
+- [Introduction and Overview](introduction.md): §1 Introduction, §2 Terminology, and §3 Protocol Overview.
+- [Protocol Layers](layers.md): §4 Semantic Layer — Message Meanings and §5 Syntactic Layer — Wire Format.
+- [Case Tracking Models](tracking-models.md): §6 Report Management (RM) State Machine, §7 Embargo Management (EM) State Machine, §8 Case State (CS) Dimensions, and §9 Participant Embargo Consent (PEC) State Machine.
+- [Interactions and Lifecycle](interactions.md): §10 Model Interactions and Cascade Rules and §11 Participant Lifecycle Within a Case.
+- [Conformance](conformance.md): §12 Conformance.
+- [Considerations and References](considerations.md): §13 IANA and Namespace Considerations, §14 Security Considerations, and §15 References.
 
-{% include-markdown "./_semantic-layer.md" %}
+## Annexes
 
-{% include-markdown "./_syntactic-layer.md" %}
+The annexes illustrate and explain the protocol, and nothing in them is normative.
 
-{% include-markdown "./_rm-state-machine.md" %}
+Annexes A and B trace Coordinated Vulnerability Disclosure (CVD) cases from first contact to closure.
 
-{% include-markdown "./_em-state-machine.md" %}
+- [Annex A Worked Example: Single-Vendor CVD](annex-a-single-vendor.md)
+- [Annex B Worked Example: Multi-Party CVD](annex-b-multi-party.md)
+- [Annex C Notation Reference](annex-c-notation.md)
+- [Annex D Possible Case Histories](annex-d-case-histories.md)
+- [Annex E Relationship to ActivityPub](annex-e-activitypub.md)
+- [Annex F Behavior Trees as an Implementation Pattern](annex-f-behavior-trees.md)
+- [Annex G Capability Shapes](annex-g-capability-shapes.md)
 
-{% include-markdown "./_cs-dimensions.md" %}
+## Open Questions and the Single-Page Edition
 
-{% include-markdown "./_pec-state-machine.md" %}
-
-{% include-markdown "./_model-interactions.md" %}
-
-{% include-markdown "./_participant-lifecycle.md" %}
-
-{% include-markdown "./_conformance/_intro.md" %}
-
-{% include-markdown "./_conformance/_capability-sets.md" %}
-
-{% include-markdown "./_conformance/_role-taxonomy.md" %}
-
-{% include-markdown "./_conformance/_role-requirements.md" %}
-
-{% include-markdown "./_conformance/_conformance-testing.md" %}
-
-{% include-markdown "./_iana.md" %}
-
-{% include-markdown "./_security.md" %}
-
-{% include-markdown "./_references.md" %}
-
-{% include-markdown "./_annexes.md" %}
-
-{% include-markdown "./_conformance/_capability-shapes.md" %}
-
-{% include-markdown "./_open-questions.md" %}
+[Open Questions](open-questions.md) collects the questions this version of the specification leaves unresolved.
+[The single-page edition](full.md) holds every section and annex in order, for printing or for searching the whole text at once.

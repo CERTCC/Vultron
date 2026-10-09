@@ -18,31 +18,32 @@
 import logging
 from typing import Any, cast
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Status
 
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.store_scope import same_authority
 from vultron.errors import VultronError
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+# A plain py_trees node's ``self.logger`` is py_trees' own logger, whose
+# ``debug()`` takes a single message and no lazy args; use a stdlib logger.
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Reset the process-global blackboard before every test.
+def enable_blackboard_activity_stream():
+    """Enable the blackboard activity stream before every test.
 
     setup_tree() writes /is_leader (and other keys) to Blackboard.storage.
-    Tests that call setup_tree() directly — without going through
-    execute_with_setup()'s managed_keys cleanup — would otherwise leave
-    /is_leader permanently on the blackboard, contaminating later tests.
+    Tests that call setup_tree() directly bypass execute_with_setup()'s
+    managed_keys cleanup; the root ``clear_py_trees_blackboard`` fixture
+    clears that storage around every test (TB-06-005).
     """
     py_trees.blackboard.Blackboard.enable_activity_stream()
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 # Test behavior nodes for verifying bridge functionality
@@ -85,8 +86,8 @@ class RunNTimes(py_trees.behaviour.Behaviour):
 
     def update(self) -> Status:
         self.tick_count += 1
-        self.logger.debug(
-            f"RunNTimes: tick {self.tick_count}/{self.target_ticks}"
+        logger.debug(
+            "RunNTimes: tick %s/%s", self.tick_count, self.target_ticks
         )
 
         if self.tick_count < self.target_ticks:
@@ -681,6 +682,66 @@ def test_get_failure_reason_finds_first_failing_child():
     assert result == "Failure"
 
 
+class _FailWith(py_trees.behaviour.Behaviour):
+    def __init__(self, name: str, message: str) -> None:
+        super().__init__(name=name)
+        self._message = message
+
+    def update(self) -> Status:
+        self.feedback_message = self._message
+        return Status.FAILURE
+
+
+def test_get_failure_reason_names_last_selector_attempt():
+    """A failed Selector reports its final attempt, not its first guard.
+
+    Receive trees put a cheap "already done?" check first and the real work
+    last. The first child failing is what sent the Selector on to the next
+    one, so reporting it names the harmless check instead of the cause.
+    """
+    root = py_trees.composites.Selector(name="Root", memory=False)
+    root.add_children(
+        [
+            _FailWith("AlreadyDone", "not yet done"),
+            _FailWith("DoIt", "invalid RM transition"),
+        ]
+    )
+    root.setup_with_descendants()
+    root.tick_once()
+    assert BTBridge.get_failure_reason(root) == "invalid RM transition"
+
+
+def test_get_failure_reason_skips_selector_that_succeeded():
+    """A Selector that recovered is not where a failed Sequence failed."""
+    fallback = py_trees.composites.Selector(name="Fallback", memory=False)
+    fallback.add_children(
+        [_FailWith("Guard", "benign"), AlwaysSucceed(name="Ok")]
+    )
+    root = py_trees.composites.Sequence(name="Root", memory=False)
+    root.add_children([fallback, _FailWith("Commit", "commit failed")])
+    root.setup_with_descendants()
+    root.tick_once()
+    assert BTBridge.get_failure_reason(root) == "commit failed"
+
+
+def test_leader_skip_is_flagged_on_result(bridge, test_actor_id):
+    """A leadership skip is a typed fact, not a message to pattern-match."""
+    bridge.is_leader = lambda: False
+    result = bridge.execute_with_setup(
+        tree=AlwaysSucceed(), actor_id=test_actor_id
+    )
+    assert result.status == Status.FAILURE
+    assert result.leader_skipped is True
+
+
+def test_ordinary_failure_is_not_flagged_leader_skipped(bridge, test_actor_id):
+    result = bridge.execute_with_setup(
+        tree=AlwaysFail(), actor_id=test_actor_id
+    )
+    assert result.status == Status.FAILURE
+    assert result.leader_skipped is False
+
+
 # Log-level tests
 
 
@@ -701,9 +762,9 @@ def test_final_bt_state_logged_at_debug(
         r for r in caplog.records if "Final BT state" in r.message
     ]
     assert final_state_records, "Expected 'Final BT state' log entry"
-    assert all(
-        r.levelno == logging.DEBUG for r in final_state_records
-    ), f"Expected DEBUG but got {final_state_records[0].levelname}"
+    assert all(r.levelno == logging.DEBUG for r in final_state_records), (
+        f"Expected DEBUG but got {final_state_records[0].levelname}"
+    )
 
 
 def test_bt_structure_logged_at_debug(bridge, test_actor_id, caplog):
@@ -1482,7 +1543,7 @@ class _NestedExecution(py_trees.behaviour.Behaviour):
     """Run a second ``execute_with_setup`` from inside a tick.
 
     Many production nodes do exactly this — ``case/nodes/lifecycle.py`` and
-    ``status/nodes/case_status.py`` among them.  The node records what the
+    ``case_status_snapshot.py`` among them.  The node records what the
     process-global blackboard held immediately before and after the inner call,
     which is the window the outer tree's remaining ticks read from.
     """
@@ -1910,3 +1971,23 @@ class TestNestedExecutionKeyIsolation:
         assert after["/activity"] == {"type": "Create", "id": "outer-activity"}
         assert after["/case_id"] == "outer-case"
         assert after["/actor_id"] == test_actor_id
+
+
+class _RaiseWiring(py_trees.behaviour.Behaviour):
+    def update(self) -> Status:
+        from vultron.errors import VultronWiringError
+
+        raise VultronWiringError("sync_port must be injected")
+
+
+def test_wiring_error_is_flagged_internal():
+    """A missing port is our fault, not the peer's (#2255)."""
+    bridge = BTBridge(
+        datalayer=SqliteDataLayer("sqlite:///:memory:", actor_id="a")
+    )
+    result = bridge.execute_with_setup(_RaiseWiring(name="W"), actor_id="a")
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "VultronWiringError: sync_port must be injected" in (
+        result.feedback_message
+    )

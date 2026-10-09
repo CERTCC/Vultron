@@ -30,6 +30,7 @@ from vultron.core.use_cases.triggers.requests import (
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
     LeaveCaseTriggerRequest,
+    SetStubSummaryTriggerRequest,
 )
 
 from .add_object import SvcAddObjectToCaseUseCase
@@ -40,6 +41,7 @@ from .create import SvcCreateCaseUseCase
 from .defer import SvcDeferCaseUseCase
 from .engage import SvcEngageCaseUseCase
 from .leave import SvcLeaveCaseUseCase
+from .set_stub_summary import SvcSetStubSummaryUseCase
 
 __all__ = [
     "AddObjectToCaseTriggerRequest",
@@ -50,6 +52,7 @@ __all__ = [
     "DeferCaseTriggerRequest",
     "EngageCaseTriggerRequest",
     "LeaveCaseTriggerRequest",
+    "SetStubSummaryTriggerRequest",
     "SvcAddObjectToCaseUseCase",
     "SvcAddOnBehalfStatusUseCase",
     "SvcAddParticipantStatusUseCase",
@@ -58,4 +61,5 @@ __all__ = [
     "SvcDeferCaseUseCase",
     "SvcEngageCaseUseCase",
     "SvcLeaveCaseUseCase",
+    "SvcSetStubSummaryUseCase",
 ]

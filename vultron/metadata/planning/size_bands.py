@@ -143,7 +143,7 @@ def _floors(
     """
     floors: dict[str, int] = {}
     previous: int | None = None
-    for label, ceiling in zip(labels, ceilings):
+    for label, ceiling in zip(labels, ceilings, strict=False):
         floors[label] = 0 if previous is None else previous + 1
         if ceiling is not None:
             previous = ceiling
@@ -216,7 +216,11 @@ def markdown_table() -> str:
 def _git(*args: str) -> str:
     """Run a read-only git command, raising with its own stderr on failure."""
     result = subprocess.run(
-        ["git", *args], capture_output=True, text=True, cwd=repo_root()
+        ["git", *args],
+        capture_output=True,
+        text=True,
+        cwd=repo_root(),
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(

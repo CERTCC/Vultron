@@ -36,7 +36,7 @@ Three kinds of thing live here:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
@@ -82,7 +82,7 @@ ACTIVITY_ID = "urn:uuid:11111111-1111-1111-1111-111111111111"
 #: both the rendered payload and the rendered store response stay deterministic
 #: across docs builds.  (The activity's own top-level timestamps default to build
 #: time and are stripped in :func:`create_report_activity_body`.)
-_FIXED_TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
+_FIXED_TS = datetime(2026, 1, 1, tzinfo=UTC)
 
 #: Command the reader runs to start the reference implementation.
 SERVER_COMMAND = (

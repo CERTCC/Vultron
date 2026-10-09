@@ -46,9 +46,7 @@ class CaseStatus(CoreObject):
         serialization_alias="type",
     )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
-    attributed_to: NonEmptyString | None = (
-        None  # pyright: ignore[reportGeneralTypeIssues]
-    )
+    attributed_to: NonEmptyString | None = None  # pyright: ignore[reportGeneralTypeIssues]
     # Each dimension serializes to its bare state value (ADR-0099 detail 5), so
     # the alias alone produces the flat wire shape the AS2 form has always used:
     # ``em`` -> ``{"emState": "NONE"}``.  ``AliasChoices`` keeps the legacy flat

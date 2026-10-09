@@ -17,11 +17,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from vultron.core.models.base import CoreObject
+from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.enums import VultronActorType
 
 
@@ -35,7 +36,10 @@ class CoreActor(CoreObject):
 
     Note: inbox and outbox are now simple string URIs representing the
     actor's ActivityStreams collection endpoints. Queue persistence is
-    delegated to the DataLayer, accessed via DataLayer.
+    delegated to the DataLayer, accessed via DataLayer.  An endpoint that
+    arrives absent or ``None`` is derived from ``id_`` (``{id_}/inbox``),
+    because these classes are also the wire form (ADR-0099) and ActivityPub
+    requires every actor to publish both (ISSUE-3616).
     """
 
     model_config = ConfigDict(
@@ -43,57 +47,107 @@ class CoreActor(CoreObject):
         validate_by_name=True,
     )
 
-    inbox: str | None = None
-    outbox: str | None = None
+    # Never empty once validated: ``""`` only means "not supplied", and
+    # ``_derive_endpoints_from_id`` replaces it.  ActivityPub requires every
+    # actor to publish both endpoints (ISSUE-3616).  Not ``NonEmptyString``:
+    # assigning ``None`` or ``""`` must re-derive the address, and a
+    # field-level constraint would reject it before the model validator runs.
+    # The derived address does not follow a later change to ``id_``.
+    inbox: str = ""
+    outbox: str = ""
 
     @field_validator("inbox", "outbox", mode="before")
     @classmethod
-    def _coerce_collection_to_uri(cls, v: Any) -> str | None:
+    def _coerce_collection_to_uri(cls, v: Any) -> str:
         """Coerce a collection object to its URI string.
 
         When reading back from storage, inbox/outbox may be stored as a full
         collection dict (from wire-layer as_Service/as_Actor) rather than a
         plain string URI. Extract the id_ or id field for backward compat.
+        ``None`` or a collection without an id reads as ``""``, the "not
+        supplied" value ``_derive_endpoints_from_id`` fills.  A collection
+        model whose ``id_`` was never set (the parser expands an inline
+        id-less collection before this runs) counts as having no id: its
+        ``id_`` is a freshly minted ``urn:uuid:`` nobody routes to.
         """
-        if v is None or isinstance(v, str):
-            return v
+        if v is None:
+            return ""
+        if isinstance(v, str):
+            return v.strip()
         if isinstance(v, dict):
-            return v.get("id_") or v.get("id") or None
-        return getattr(v, "id_", None) or getattr(v, "id", None) or None
+            return str(v.get("id_") or v.get("id") or "").strip()
+        fields_set = getattr(v, "model_fields_set", None)
+        if fields_set is not None and "id_" not in fields_set:
+            return ""
+        return str(
+            getattr(v, "id_", None) or getattr(v, "id", None) or ""
+        ).strip()
 
-    following: Any | None = None
-    followers: Any | None = None
-    liked: Any | None = None
-    streams: Any | None = None
-    preferred_username: str | None = None
+    @model_validator(mode="after")
+    def _derive_endpoints_from_id(self) -> Self:
+        """Fill an absent, ``None`` or empty ``inbox``/``outbox`` from ``id_``.
+
+        Mirrors ``as_Actor.set_collections`` so a Vultron actor publishes the
+        same addresses whichever branch built it.  Written with
+        ``object.__setattr__`` so ``validate_assignment`` does not re-enter
+        this validator, and recorded in ``model_fields_set`` so an
+        ``exclude_unset`` dump still carries the derived address.
+        """
+        for field_name in ("inbox", "outbox"):
+            if not getattr(self, field_name).strip():
+                object.__setattr__(
+                    self, field_name, f"{self.id_}/{field_name}"
+                )
+                self.model_fields_set.add(field_name)
+        return self
+
+    preferred_username: NonEmptyString | None = None
     endpoints: Any | None = None
-    embargo_policy: Any | None = Field(
+    embargo_policy: EmbargoPolicy | None = Field(
         default=None,
-        description="The actor's stated embargo preferences.",
+        description=(
+            "The actor's published embargo policy, carried inline as part of"
+            " the profile (EP-01-001)."
+        ),
     )
 
+    @field_validator("embargo_policy", mode="before")
+    @classmethod
+    def _refuse_policy_reference(cls, v: Any) -> Any:
+        """Refuse a policy named by URL, the pre-#4027 stored shape (EP-01-001).
 
-class CoreActorCollection(CoreObject):
-    """Minimal ordered-collection shape used for actor inbox/outbox fields."""
+        The old embargo-policy PUT stored the policy as a free-standing
+        record and put its URL on the actor.  The policy is now a field of
+        the profile, so a URL is refused with a message saying so, rather
+        than a bare type error; a store written before the change must be
+        reset, because no silent conversion is made.
+        """
+        if isinstance(v, str):
+            raise ValueError(  # noqa: TRY004 — Pydantic needs ValueError
+                f"embargoPolicy is a reference ({v!r}), but the policy must be"
+                " carried inline in the actor profile (EP-01-001); an actor"
+                " record stored by the pre-#4027 embargo-policy PUT holds this"
+                " shape, and its store must be reset"
+            )
+        return v
 
-    model_config = ConfigDict(
-        populate_by_name=True,
-        validate_by_name=True,
-        validate_by_alias=True,
-    )
+    @model_validator(mode="after")
+    def _embargo_policy_names_this_actor(self) -> Self:
+        """Refuse a profile carrying another actor's policy (EP-01-001).
 
-    context_: str = Field(
-        default="https://www.w3.org/ns/activitystreams",
-        validation_alias="@context",
-        serialization_alias="@context",
-    )
-    type_: Literal["OrderedCollection"] = Field(
-        default="OrderedCollection",
-        validation_alias="type",
-        serialization_alias="type",
-    )
-    items: list[str] = Field(default_factory=list)
-    current: int = 0
+        The policy is a field of the profile, so the actor it applies to is
+        the profile's own.  A profile whose ``embargoPolicy.actorId`` names
+        someone else would hand that actor's terms to whoever reads this
+        profile as its owner's actor default (CP-01-010).
+        """
+        policy = self.embargo_policy
+        if policy is not None and policy.actor_id != self.id_:
+            raise ValueError(
+                f"embargoPolicy.actorId {policy.actor_id!r} differs from the"
+                f" profile id {self.id_!r}: an actor profile carries only its"
+                " own embargo policy (EP-01-001, CP-01-010)"
+            )
+        return self
 
 
 class VultronPerson(CoreActor):
@@ -173,7 +227,6 @@ class VultronGroup(CoreActor):
 
 __all__ = [
     "CoreActor",
-    "CoreActorCollection",
     "VultronApplication",
     "VultronGroup",
     "VultronOrganization",

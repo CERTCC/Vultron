@@ -1,10 +1,23 @@
 repos:
-  - repo: https://github.com/psf/black
-    rev: 26.1.0  # Use the latest stable version
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
     hooks:
-      - id: black
-        language_version: py313
-        args: ["."]
+      # Mechanical floor for SG-37 (American spelling) over docs/ prose
+      # (ADR-0092, DF-09-001). Dictionary and exclusions come from
+      # [tool.codespell] in pyproject.toml. Two guards are load-bearing and
+      # both must stay:
+      #  - `--write-changes` lives HERE, not in pyproject.toml, so a manual
+      #    `codespell docs/` is read-only (as markdownlint carries `--fix`).
+      #  - `files:` restricts the hook to docs/*.md. Run over the repo root with
+      #    write-changes, codespell "corrects" the ignore-regex in its own
+      #    config and destroys the pattern protecting py_trees.behaviour.
+      #    pyproject.toml is also in the config's `skip` for the same reason.
+      # codespell cannot see a code fence, an inline code span, or a link or
+      # include target: protect such a token with ignore-regex, never by
+      # editing around the hook.
+      - id: codespell
+        args: ["--write-changes"]
+        files: ^docs/.*\.md$
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.7
@@ -56,15 +69,34 @@ repos:
         exclude: ^docs/adr/(index|README)\.md$
         pass_filenames: false
 
+      - id: adr-lifecycle-check
+        name: ADR edits respect the lifecycle epochs
+        entry: uv run python -m vultron.metadata.adr.lifecycle
+        language: system
+        files: ^docs/adr/.*\.md$
+        exclude: ^docs/adr/(index|README)\.md$
+
       - id: validate-docs-page-frontmatter
         name: Validate docs page stakeholder_type and level
         entry: uv run python -m vultron.metadata.docs.page_frontmatter
         language: system
         # Every docs page (DF-11-001), plus the inputs that change the verdict
         # without touching a page: the nav, which decides what is an include
-        # fragment; the schema, patterns and baseline; and the nav and
-        # frontmatter readers they use.
+        # fragment, and not_in_nav, which working record must match; the
+        # schema and patterns; and the nav and frontmatter readers they use.
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/page_.*|vultron/metadata/(base|file_loading)\.py)$
+        pass_filenames: false
+
+      - id: docs-level-order
+        name: Docs pages depend on no page above their own level
+        entry: uv run docs-level-order
+        language: system
+        # Every input that changes the verdict (DF-11-002): any docs page (its
+        # level, its introduces:, its prose and links), the nav, which decides
+        # what is an include fragment; the glossary is a docs page; and the
+        # checker, its scanner, baseline and the readers they use.
+        # test_the_committed_docs_tree_passes is the CI backstop.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/(level_(order|baseline).*|concept_(scan|registry)\.py|baseline_file\.py|page_.*|glossary_index\.py)|vultron/metadata/(base|file_loading|markdown_tables)\.py)$
         pass_filenames: false
 
       - id: docs-site-sync
@@ -80,10 +112,10 @@ repos:
         pass_filenames: false
 
       - id: adr-index-sync
-        name: ADR index and nav in sync
+        name: ADR index in sync, and no ADR in the nav
         entry: uv run python -m vultron.metadata.adr.index_gen --check
         language: system
-        files: ^(docs/adr/.*\.md|mkdocs\.yml)$
+        files: ^(docs/adr/.*\.md|mkdocs\.yml|vultron/metadata/base\.py|vultron/metadata/adr/index_gen\.py)$
         pass_filenames: false
 
       - id: demo-scenarios-sync
@@ -97,13 +129,16 @@ repos:
         # Three kinds of input make the committed artifacts stale, so all three
         # are watched (DEMOCI-11-005): the @scenario decorators in the scenario
         # modules, the renderers that turn them into tables and JSON, and the
-        # artifacts themselves — the last so a hand-edit is caught too.
+        # artifacts themselves — the last so a hand-edit is caught too. The
+        # scenario narrative pages are watched as well, because --check also
+        # refuses a page for an unregistered scenario or one that declares a
+        # maturity claim (DEMOCI-11-012).
         #
         # Not covered: a commit that *only deletes* a scenario module and its
         # derived files. pre-commit's staged-file list excludes deletions, so no
         # pattern can match one; test_committed_artifacts_are_in_sync in
         # test/metadata/test_demo_scenario_artifacts.py is the backstop there.
-        files: ^(vultron/demo/scenario/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md)$
+        files: ^(vultron/demo/scenario/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md|docs/topics/scenarios/.*\.md)$
         pass_filenames: false
 
       - id: wire-context-sync
@@ -121,22 +156,22 @@ repos:
         files: ^(vultron/wire/as2/vocab/.*\.py|vultron/metadata/wire_context/.*\.py|docs/ns/context\.jsonld)$
         pass_filenames: false
 
-      - id: flake8
-        name: flake8 (with CC gate)
-        # Routed through run-if-changed.sh so this whole-tree lint is skipped
-        # when the sources, .flake8, and uv.lock are unchanged since the last
-        # successful flake8 run (e.g. the run-linters pass just before commit).
-        # Same cache key + inputs as the skills, so they share one cache entry.
-        entry: .agents/skills/shared/run-if-changed.sh
+      - id: ruff
+        name: ruff (lint + format check)
+        # Invoked directly, not through run-if-changed.sh: the whole-tree run
+        # takes about a second, so a fingerprint lookup would cost a real share
+        # of the work it saves (ADR-0094). Fail-only, like every hook here: fix
+        # with `uv run ruff check --fix` and `uv run ruff format`.
+        # pre-commit appends the staged filenames; `force-exclude = true` in
+        # [tool.ruff] makes ruff apply the config's exclusions to them, so this
+        # hook and the CI job agree about scope (IMPLTS-07-021).
+        entry: bash -c 'uv run ruff check "$@" && uv run ruff format --check "$@"' --
         language: system
-        args:
-          ["flake8", "vultron/", "test/", ".flake8", "uv.lock", "--",
-           "uv", "run", "flake8", "vultron/", "test/"]
-        pass_filenames: false
+        files: (\.pyi?|^pyproject\.toml)$
 
       - id: spec-lint
         name: Spec registry linter
         entry: uv run python -m vultron.metadata.specs.lint specs/
         language: system
-        files: ^specs/.*\.yaml$
+        files: ^(specs/.*\.yaml|docs/adr/.*\.md|vultron/metadata/adr/.*\.py)$
         pass_filenames: false

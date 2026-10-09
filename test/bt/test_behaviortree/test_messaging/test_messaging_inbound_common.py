@@ -15,7 +15,7 @@
 
 import unittest
 from collections import deque
-from typing import Any, Deque, cast
+from typing import Any, cast
 
 from pydantic import BaseModel
 
@@ -31,7 +31,7 @@ from vultron.bt.messaging.inbound._behaviors.common import (
 
 class MockState:
     current_message: object | None = None
-    incoming_messages: Deque["MockMsg"] = deque()
+    incoming_messages: deque["MockMsg"] = deque()
     msgs_received_this_tick: list["MockMsg"] = []
 
 

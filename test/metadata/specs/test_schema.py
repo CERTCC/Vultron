@@ -4,14 +4,14 @@ Covers: SpecIdStr validation, StatementSpec, BehavioralSpec, SpecGroup,
 SpecFile, SpecRegistry round-trip, and load_registry helpers.
 """
 
-import yaml
 import pytest
+import yaml
 from pydantic import ValidationError
 
-from vultron.metadata.specs.registry import load_registry
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import (
     AdrStatus,
     BehavioralSpec,
@@ -19,9 +19,10 @@ from vultron.metadata.specs.schema import (
     LintWarningCode,
     Postcondition,
     Precondition,
-    RFC2119Priority,
-    RelationType,
     Relationship,
+    RelationType,
+    RFC2119Priority,
+    RFC2119Tier,
     Scope,
     SpecFile,
     SpecGroup,
@@ -374,7 +375,6 @@ def test_spec_file_valid():
         id="AB",
         title="Test File",
         description="A test file",
-        version="0.1",
         scope=[Scope.PRODUCTION],
         groups=[
             SpecGroup(
@@ -403,7 +403,6 @@ def test_spec_file_no_file_level_kind():
         id="AB",
         title="Test File",
         description="A test file",
-        version="0.1",
         scope=[Scope.PRODUCTION],
         groups=[
             SpecGroup(
@@ -424,13 +423,40 @@ def test_spec_file_no_file_level_kind():
     assert not hasattr(sf, "kind")
 
 
+@pytest.mark.spec("SR-02-013")
+def test_spec_file_rejects_version_field():
+    with pytest.raises(ValidationError, match="version"):
+        SpecFile.model_validate(
+            {
+                "id": "AB",
+                "title": "Test File",
+                "description": "A test file",
+                "version": "1.0.0",
+                "scope": ["production"],
+                "groups": [
+                    {
+                        "id": "AB-01",
+                        "title": "Group",
+                        "specs": [
+                            {
+                                "id": "AB-01-001",
+                                "priority": "MUST",
+                                "statement": "AB-01-001 MUST work",
+                                "kind": "protocol",
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+
+
 def test_spec_file_requires_scope():
     with pytest.raises(ValidationError):
         SpecFile(  # type: ignore[call-arg]
             id="AB",
             title="Test File",
             description="A test file",
-            version="0.1",
             groups=[
                 SpecGroup(
                     id="AB-01",
@@ -454,7 +480,6 @@ def test_spec_file_empty_scope_rejected():
             id="AB",
             title="Test File",
             description="A test file",
-            version="0.1",
             scope=[],
             groups=[
                 SpecGroup(
@@ -479,7 +504,6 @@ def test_spec_file_empty_groups_rejected():
             id="AB",
             title="Test File",
             description="A test file",
-            version="0.1",
             scope=[Scope.PRODUCTION],
             groups=[],
         )
@@ -495,7 +519,6 @@ def test_registry_duplicate_spec_id_raises(tmp_path):
         "id": "DUP",
         "title": "Dup File",
         "description": "Duplicate spec IDs",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -573,7 +596,6 @@ def test_effective_tags_file_level_inherited(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "tags": ["protocol"],
         "groups": [
@@ -601,7 +623,6 @@ def test_effective_tags_spec_overrides_file(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "tags": ["protocol"],
         "groups": [
@@ -630,7 +651,6 @@ def test_effective_tags_empty_when_neither_spec_nor_file(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -657,7 +677,6 @@ def test_effective_tags_graph_node_populated(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "tags": ["protocol"],
         "groups": [
@@ -686,7 +705,6 @@ def test_effective_kind_spec_override(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -890,7 +908,6 @@ def test_behavioral_spec_round_trips_through_yaml(tmp_path):
         "id": "BTB",
         "title": "Behavioral Test Spec",
         "description": "Tests BehavioralSpec fields round-trip through YAML",
-        "version": "0.1",
         "scope": ["prototype", "production"],
         "groups": [
             {
@@ -1008,7 +1025,6 @@ def test_load_registry_process_kind(tmp_path):
         "id": "DP",
         "title": "Process spec file",
         "description": "Spec file for process kind smoke test",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -1199,7 +1215,6 @@ def test_statement_spec_stories_yaml_round_trip(tmp_path):
         "id": "TST",
         "title": "Test",
         "description": "Test",
-        "version": "0.1",
         "scope": ["production"],
         "groups": [
             {
@@ -1226,3 +1241,34 @@ def test_statement_spec_stories_yaml_round_trip(tmp_path):
 def test_story_id_str_type_is_exported():
     """StoryIdStr is importable from schema (SR-11-002)."""
     assert StoryIdStr is not None
+
+
+# ---------------------------------------------------------------------------
+# RFC2119Priority.tier — the shared tiering (MS-02-003, MS-02-004)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("priority", "tier", "is_must"),
+    [
+        (RFC2119Priority.MUST, RFC2119Tier.MUST, True),
+        (RFC2119Priority.MUST_NOT, RFC2119Tier.MUST, True),
+        (RFC2119Priority.SHOULD, RFC2119Tier.SHOULD, False),
+        (RFC2119Priority.SHOULD_NOT, RFC2119Tier.SHOULD, False),
+        (RFC2119Priority.MAY, RFC2119Tier.MAY, False),
+    ],
+)
+@pytest.mark.spec("MS-02-004")
+def test_priority_tier_pairs_each_negation_with_its_positive(
+    priority, tier, is_must
+):
+    """A negative keyword is the same tier as its positive (MS-02-003)."""
+    assert priority.tier is tier
+    assert priority.is_must_tier is is_must
+
+
+@pytest.mark.spec("MS-02-004")
+def test_priority_tier_mapping_is_total():
+    """Every member has a tier (a missing one raises KeyError here, not at the
+    first spec that carries it) and every tier has a member."""
+    assert {p.tier for p in RFC2119Priority} == set(RFC2119Tier)

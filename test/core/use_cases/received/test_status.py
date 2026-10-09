@@ -15,10 +15,21 @@
 import json
 from typing import cast
 
+import pytest
+
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.dimensions import (
+    EmDimension,
+    RmDimension,
+)
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
@@ -27,6 +38,8 @@ from vultron.core.use_cases.received.status import (
     CreateCaseStatusReceivedUseCase,
     CreateParticipantStatusReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     add_status_to_participant_activity,
@@ -40,10 +53,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.models.dimensions import (
-    EmDimension,
-    RmDimension,
 )
 
 
@@ -72,10 +81,13 @@ class TestStatusUseCases:
 
         event = make_payload(activity)
 
-        CreateCaseStatusReceivedUseCase(dl, event).execute()
+        result = CreateCaseStatusReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.get(status.type_, status.id_)
         assert stored is not None
+        assert result.disposition == HandlerDisposition.APPLIED
 
     def test_create_case_status_idempotent(self, monkeypatch, make_payload):
         """create_case_status skips storing a duplicate as_CaseStatus."""
@@ -99,10 +111,13 @@ class TestStatusUseCases:
         )
         event = make_payload(activity)
 
-        CreateCaseStatusReceivedUseCase(dl, event).execute()
+        result = CreateCaseStatusReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.get(status.type_, status.id_)
         assert stored is not None
+        assert result.disposition == HandlerDisposition.SKIPPED
 
     def test_add_case_status_to_case_appends_status(
         self, monkeypatch, make_payload
@@ -115,11 +130,18 @@ class TestStatusUseCases:
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cs3",
             name="Add Status Case",
+            # attributed_to anchors the per-case ledger genesis the gated
+            # commit needs (CLP-08-005).
+            attributed_to="https://test.example/api/v2/actors/test-actor",
         )
         status = as_CaseStatus(
             id_="https://example.org/cases/case_cs3/statuses/s3",
             context=case.id_,
         )
+        # RSH-08-003/#3814: appending the CaseStatus is now CASE_MANAGER-gated,
+        # so the store's own actor must hold the role for the write to run,
+        # which also runs the guarded commit (sync_port injected below).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(status)
 
@@ -128,13 +150,29 @@ class TestStatusUseCases:
         )
         event = make_payload(activity)
 
-        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+        result = AddCaseStatusToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         case = dl.read(case.id_)
         assert case is not None
         case = cast(as_VulnerabilityCase, case)
         status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
         assert status.id_ in status_ids
+        assert result.disposition == HandlerDisposition.APPLIED
+
+        # HP-01-003: a redelivered Add of a status already present is a
+        # no-op, not a refusal.
+        again = AddCaseStatusToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert again.disposition == HandlerDisposition.SKIPPED
 
     def test_add_case_status_blocks_invalid_em_transition(
         self, monkeypatch, make_payload
@@ -171,15 +209,19 @@ class TestStatusUseCases:
         )
         event = make_payload(activity)
 
-        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+        result = AddCaseStatusToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         updated_case = dl.read(case.id_)
         assert updated_case is not None
         updated_case = cast(as_VulnerabilityCase, updated_case)
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
-        assert (
-            bad_status.id_ not in status_ids
-        ), "Bad status should not have been appended"
+        assert bad_status.id_ not in status_ids, (
+            "Bad status should not have been appended"
+        )
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason
 
     def test_refused_case_status_emits_processing_fault(self, make_payload):
         """On genuine BT FAILURE, emit_processing_fault is called toward the sender (ASK-07-001)."""
@@ -220,7 +262,10 @@ class TestStatusUseCases:
         mock_trigger.emit_processing_fault.return_value = "urn:uuid:fault-1"
 
         AddCaseStatusToCaseReceivedUseCase(
-            dl, event, trigger_activity=mock_trigger
+            dl,
+            event,
+            trigger_activity=mock_trigger,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         mock_trigger.emit_processing_fault.assert_called_once()
@@ -264,7 +309,10 @@ class TestStatusUseCases:
         event = make_payload(activity)
 
         AddCaseStatusToCaseReceivedUseCase(
-            dl, event, trigger_activity=None
+            dl,
+            event,
+            trigger_activity=None,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
     def test_refused_participant_status_emits_processing_fault(
@@ -321,35 +369,31 @@ class TestStatusUseCases:
         mock_trigger = MagicMock()
         mock_trigger.emit_processing_fault.return_value = "urn:uuid:fault-2"
 
-        import pytest
-
-        from vultron.errors import VultronStatusAssertionRefusedError
-
-        with pytest.raises(VultronStatusAssertionRefusedError):
-            AddParticipantStatusToParticipantReceivedUseCase(
-                dl, event, trigger_activity=mock_trigger
-            ).execute()
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=mock_trigger,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED
 
         mock_trigger.emit_processing_fault.assert_called_once()
         call_kwargs = mock_trigger.emit_processing_fault.call_args
         to_arg = call_kwargs.kwargs.get("to") or call_kwargs.args[3]
         assert sender_id in to_arg
 
-    def test_wholly_refused_participant_status_raises_assertion_refused(
+    @pytest.mark.spec("HP-01-003")
+    def test_wholly_refused_participant_status_returns_refused(
         self, make_payload
     ):
-        """Wholly-refused BT raises VultronStatusAssertionRefusedError (AC-2, ISSUE-3199).
+        """Wholly-refused BT returns REFUSED (AC-2, ISSUE-3199, #2255).
 
         When FilterParticipantStatusDimensionsNode refuses every dimension (the
         filtered status is indistinguishable from the current state), execute()
-        must raise VultronStatusAssertionRefusedError so that the inbox
-        DispatchNode can write "rejected" to KEY_OUTCOME_STATUS and surface a
-        rejected InboxOutcome rather than a silent 202 Accepted / processed.
+        returns ``HandlerResult.refused`` so that the inbox DispatchNode writes
+        "rejected" to KEY_OUTCOME_STATUS and surfaces a rejected InboxOutcome
+        rather than a silent 202 Accepted / processed (HP-01-003).
         """
-        import pytest
-
-        from vultron.errors import VultronStatusAssertionRefusedError
-
         receiver_id = "https://example.org/users/vendor-ps-ac2"
         sender_id = "https://example.org/users/vendor-ps-ac2"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
@@ -394,15 +438,26 @@ class TestStatusUseCases:
         )
         event = make_payload(activity, receiving_actor_id=receiver_id)
 
-        with pytest.raises(VultronStatusAssertionRefusedError):
-            AddParticipantStatusToParticipantReceivedUseCase(
-                dl, event
-            ).execute()
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
 
-    def test_add_case_status_allows_valid_em_transition(
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "wholly refused" in result.reason
+
+    def test_add_case_status_refuses_an_em_move_the_register_has_not_made(
         self, monkeypatch, make_payload
     ):
-        """Valid EM transition is permitted; status is appended."""
+        """A status asserting EM other than the case's derived EM is refused.
+
+        EM is derived from the embargo register and is never moved by a
+        status (ADR-0122, RSH-05-023): even ``NONE → PROPOSED``, a move the
+        EM machine once allowed, is refused, and the case's EM is carried
+        forward unchanged.
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -419,26 +474,33 @@ class TestStatusUseCases:
         case.case_statuses.append(initial_status)  # type: ignore[arg-type]
         dl.create(case)
 
-        # NONE → PROPOSED is a valid transition
-        good_status = as_CaseStatus(
-            id_="https://example.org/cases/case_em_valid/statuses/s_good",
+        # NONE → PROPOSED with no proposal in the register
+        asserted_status = as_CaseStatus(
+            id_="https://example.org/cases/case_em_valid/statuses/s_asserted",
             context=case.id_,
             em=EmDimension(state=EM.PROPOSED),
         )
-        dl.create(good_status)
+        dl.create(asserted_status)
 
         activity = add_status_to_case_activity(
-            good_status, target=case, actor="https://example.org/users/vendor"
+            asserted_status,
+            target=case,
+            actor="https://example.org/users/vendor",
         )
         event = make_payload(activity)
 
-        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+        result = AddCaseStatusToCaseReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         updated_case = dl.read(case.id_)
         assert updated_case is not None
         updated_case = cast(as_VulnerabilityCase, updated_case)
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
-        assert good_status.id_ in status_ids
+        assert asserted_status.id_ not in status_ids
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert updated_case.em_state == EM.NONE
+        assert updated_case.current_status.em.state == EM.NONE
 
     def test_create_participant_status_stores_status(
         self, monkeypatch, make_payload
@@ -463,7 +525,9 @@ class TestStatusUseCases:
 
         event = make_payload(activity)
 
-        CreateParticipantStatusReceivedUseCase(dl, event).execute()
+        CreateParticipantStatusReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         stored = dl.get(pstatus.type_, pstatus.id_)
         assert stored is not None
@@ -476,10 +540,15 @@ class TestStatusUseCases:
             "sqlite:///:memory:",
             actor_id="https://example.org/users/vendor",
         )
+        # RSH-08-003/#3814: the append is now CASE_MANAGER-gated.  The subject
+        # participant is the store's own actor, so holding CASE_MANAGER lets
+        # the gated write run while leaving it a non-owner (so the adoption
+        # call-out still withholds, keeping the SKIPPED assertion below).
         participant = as_CaseParticipant(
             id_="https://example.org/cases/case_ps2/participants/p2",
             context="https://example.org/cases/case_ps2",
             attributed_to="https://example.org/users/vendor",
+            case_roles=[CVDRole.CASE_MANAGER],
         )
         pstatus = as_ParticipantStatus(
             id_="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
@@ -488,6 +557,8 @@ class TestStatusUseCases:
         case_ps2 = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ps2",
             name="PS Case 2",
+            # Genesis anchor for the gated commit (CLP-08-005).
+            attributed_to="https://example.org/users/vendor",
         )
         # Register the vendor actor as a participant so step 1 passes
         case_ps2.case_participants.append(participant.id_)
@@ -509,7 +580,18 @@ class TestStatusUseCases:
             receiving_actor_id="https://example.org/users/vendor",
         )
 
-        AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        # The default call-out withholds adoption of a non-owner's claim
+        # (RSH-07-001).  The append lands, and a withheld adoption is not a
+        # refusal of the assertion (RSH-05-022), so it is SKIPPED (#2255).
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert result.reason is not None
+        assert "CASE_OWNER approval required" in result.reason
 
         participant = dl.read(participant.id_)
         assert participant is not None
@@ -527,59 +609,62 @@ class TestStatusUseCases:
         Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back to
         dl.actor_id (vendor), so the status is appended rather than dropped.
         """
-        import py_trees
 
-        py_trees.blackboard.Blackboard.storage.clear()
-        try:
-            vendor_id = "https://example.org/users/vendor-nostamp"
-            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=vendor_id)
+        vendor_id = "https://example.org/users/vendor-nostamp"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=vendor_id)
 
-            participant = as_CaseParticipant(
-                id_="https://example.org/cases/case_ps_nostamp/participants/p",
-                context="https://example.org/cases/case_ps_nostamp",
-                attributed_to=vendor_id,
-            )
-            pstatus = as_ParticipantStatus(
-                id_=(
-                    "https://example.org/cases/case_ps_nostamp"
-                    "/participants/p/statuses/s"
-                ),
-                context="https://example.org/cases/case_ps_nostamp",
-            )
-            case = as_VulnerabilityCase(
-                id_="https://example.org/cases/case_ps_nostamp",
-                name="PS No-Stamp Test",
-            )
-            case.case_participants.append(participant.id_)
-            case.actor_participant_index[vendor_id] = participant.id_
-            dl.create(participant)
-            dl.create(pstatus)
-            dl.create(case)
+        # RSH-08-003/#3814: the append is CASE_MANAGER-gated; the store owner
+        # (also the subject) holds the role so the gated write runs.
+        participant = as_CaseParticipant(
+            id_="https://example.org/cases/case_ps_nostamp/participants/p",
+            context="https://example.org/cases/case_ps_nostamp",
+            attributed_to=vendor_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        pstatus = as_ParticipantStatus(
+            id_=(
+                "https://example.org/cases/case_ps_nostamp"
+                "/participants/p/statuses/s"
+            ),
+            context="https://example.org/cases/case_ps_nostamp",
+        )
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ps_nostamp",
+            name="PS No-Stamp Test",
+            # Genesis anchor for the gated commit (CLP-08-005).
+            attributed_to=vendor_id,
+        )
+        case.case_participants.append(participant.id_)
+        case.actor_participant_index[vendor_id] = participant.id_
+        dl.create(participant)
+        dl.create(pstatus)
+        dl.create(case)
 
-            activity = add_status_to_participant_activity(
-                pstatus,
-                target=participant,
-                actor=vendor_id,
-                context=case,
-            )
-            event = make_payload(activity, receiving_actor_id=None)
+        activity = add_status_to_participant_activity(
+            pstatus,
+            target=participant,
+            actor=vendor_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=None)
 
-            AddParticipantStatusToParticipantReceivedUseCase(
-                dl, event
-            ).execute()
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
-            refreshed = dl.read(participant.id_)
-            assert refreshed is not None
-            refreshed = cast(as_CaseParticipant, refreshed)
-            status_ids = [
-                getattr(s, "id_", s) for s in refreshed.participant_statuses
-            ]
-            assert pstatus.id_ in status_ids, (
-                "Status must be appended even when receiving_actor_id is absent"
-                " (store-owner fallback, CLP-10-005)"
-            )
-        finally:
-            py_trees.blackboard.Blackboard.storage.clear()
+        refreshed = dl.read(participant.id_)
+        assert refreshed is not None
+        refreshed = cast(as_CaseParticipant, refreshed)
+        status_ids = [
+            getattr(s, "id_", s) for s in refreshed.participant_statuses
+        ]
+        assert pstatus.id_ in status_ids, (
+            "Status must be appended even when receiving_actor_id is absent"
+            " (store-owner fallback, CLP-10-005)"
+        )
 
     def test_add_case_status_to_case_rejects_empty_status_id(self, caplog):
         """execute() logs a warning and returns early when status_id is empty string."""
@@ -596,12 +681,14 @@ class TestStatusUseCases:
         mock_event.receiving_actor_id = None
 
         with caplog.at_level(logging.WARNING):
-            try:
-                AddCaseStatusToCaseReceivedUseCase(dl, mock_event).execute()
-            except Exception:
-                pass  # pre-fix: guard misses "" and BT setup fails
+            result = AddCaseStatusToCaseReceivedUseCase(
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
 
         assert "missing status_id or case_id" in caplog.text
+        assert result.disposition == HandlerDisposition.REFUSED
 
     def test_add_participant_status_to_participant_rejects_empty_status_id(
         self, caplog
@@ -622,14 +709,14 @@ class TestStatusUseCases:
         mock_event.receiving_actor_id = None
 
         with caplog.at_level(logging.WARNING):
-            try:
-                AddParticipantStatusToParticipantReceivedUseCase(
-                    dl, mock_event
-                ).execute()
-            except Exception:
-                pass  # pre-fix: guard misses "" and BT setup fails
+            result = AddParticipantStatusToParticipantReceivedUseCase(
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
 
         assert "missing status_id" in caplog.text
+        assert result.disposition == HandlerDisposition.REFUSED
 
 
 # ---------------------------------------------------------------------------
@@ -647,7 +734,7 @@ class TestParticipantStatusLogEntryCascade:
         # receiving_actor_id they pass), so this is the CaseActor's own store.
         case_actor_id = f"{case_id}/actor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
-        case_actor = VultronCaseActor(
+        case_actor = CaseActor(
             id_=case_actor_id,
             name=f"CaseActor for {case_id}",
             attributed_to=actor_id,
@@ -731,25 +818,35 @@ class TestParticipantStatusLogEntryCascade:
         event = make_payload(activity, receiving_actor_id=case_actor_id)
         sync_port = SyncActivityAdapter(dl)
         AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "add_participant_status_to_participant"
         )
 
-    def test_no_fanout_without_sync_port(self, make_payload):
-        """No fan-out Announce(CaseLedgerEntry) is sent when sync_port is None.
+    @pytest.mark.spec("SYNC-02-002")
+    @pytest.mark.spec("BT-14-001")
+    def test_status_without_sync_port_raises_as_wiring_fault(
+        self, make_payload
+    ):
+        """A missing sync_port fails the commit instead of skipping fan-out.
 
-        The log entry IS committed locally, but no outbox messages are queued
-        for delivery to participants.
+        ``RequireSyncPortNode`` raises ``VultronWiringError`` before the entry
+        is minted (#4113).  ``CommitCaseLedgerEntryNode`` carries the nested
+        bridge's ``internal_error`` across the hop, so the handler raises
+        ``VultronBTInternalError`` rather than reporting the sender as refused
+        (ADR-0095).  The status is not attached and nothing is announced.
         """
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
@@ -770,20 +867,31 @@ class TestParticipantStatusLogEntryCascade:
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
-        AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=None
-        ).execute()
+        with pytest.raises(VultronBTInternalError, match="sync_port"):
+            AddParticipantStatusToParticipantReceivedUseCase(
+                dl,
+                event,
+                sync_port=None,
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
 
-        # Log entry MUST be committed locally even without a sync_port.
+        stored = dl.read(participant.id_)
+        assert stored is not None
+        assert pstatus.id_ not in [
+            getattr(st, "id_", st) for st in stored.participant_statuses
+        ]
+
+        # The port guard refuses before the mint, so no entry is written
+        # that no replica would ever receive.
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
-        assert len(entries) == 1
+        assert entries == []
 
-        # But no outbox activities should be queued for fan-out.
+        # Nothing is announced to participants.
         assert dl.outbox_list() == []
 
     def test_terminal_closed_update_does_not_commit_log_entry(
@@ -826,20 +934,19 @@ class TestParticipantStatusLogEntryCascade:
         sync_port = SyncActivityAdapter(dl)
 
         before_count = len(participant.participant_statuses)
-        import pytest
-
-        from vultron.errors import VultronStatusAssertionRefusedError
-
-        with pytest.raises(VultronStatusAssertionRefusedError):
-            AddParticipantStatusToParticipantReceivedUseCase(
-                dl, event, sync_port=sync_port
-            ).execute()
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED
 
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert entries == []
 
@@ -872,7 +979,10 @@ class TestParticipantStatusLogEntryCascade:
         event = make_payload(activity, receiving_actor_id=case_actor_id)
         sync_port = SyncActivityAdapter(dl)
         uc = AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         )
 
         uc.execute()
@@ -881,8 +991,8 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
 
@@ -921,14 +1031,17 @@ class TestParticipantStatusLogEntryCascade:
         )
         event = make_payload(activity, receiving_actor_id=non_case_actor_id)
         AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=SyncActivityAdapter(dl)
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert entries == []
 
@@ -980,13 +1093,14 @@ class TestParticipantStatusLogEntryCascade:
             event,
             trigger_activity=mock_trigger,
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
-            cast(VultronCaseLedgerEntry, obj)
+            cast(CaseLedgerEntry, obj)
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
         assert entries[0].payload_snapshot.get("actor") == reporter_actor_id
@@ -1041,7 +1155,7 @@ class TestParticipantStatusLogEntryCascade:
 
         actor_id = "https://example.org/users/vendor"
         case_id = "https://example.org/cases/st_le_abs"
-        dl, case_actor_id, participant, pstatus = self._make_dl(
+        dl, _case_actor_id, participant, pstatus = self._make_dl(
             case_id, actor_id
         )
         case = cast(as_VulnerabilityCase, dl.read(case_id))
@@ -1056,19 +1170,22 @@ class TestParticipantStatusLogEntryCascade:
         event = make_payload(activity, receiving_actor_id=None)
         sync_port = SyncActivityAdapter(dl)
         AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1, (
             "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
             " and commit an add_participant_status_to_participant ledger entry"
         )
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "add_participant_status_to_participant"
         )

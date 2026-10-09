@@ -4,7 +4,6 @@ description: >-
   Requirements for encrypted messaging and actor key management using ActivityPub extension
   conventions. Ensures that sensitive vulnerability information can be protected in transit
   between actors.
-version: 1.0.0
 scope:
 - prototype
 - production
@@ -62,6 +61,7 @@ groups:
   - id: ENC-01-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Private keys MUST be stored securely and MUST NOT be logged or included in API responses
     scope:
@@ -90,6 +90,7 @@ groups:
   - id: ENC-01-006
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A new key pair MUST NOT be generated on process resumption for an existing actor identity.
     rationale: >-
       Generating a new key pair on restart breaks any encrypted channel established
@@ -140,7 +141,7 @@ groups:
   specs:
   - id: ENC-03-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Decryption of inbound encrypted activities MUST occur in the inbox handler before the
       activity is passed to semantic extraction or dispatch
@@ -155,8 +156,6 @@ groups:
       spec_id: SE-01-001
     - rel_type: implements
       spec_id: VP-15-003
-    lint_suppress:
-    - missing_story_reference
   - id: ENC-03-002
     priority: MUST
     kind: protocol
@@ -177,6 +176,7 @@ groups:
   - id: ENC-03-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The decryption layer MUST be separate from semantic extraction logic; the two concerns
       MUST NOT be mixed

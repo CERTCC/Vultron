@@ -23,8 +23,8 @@ This demo script showcases the following workflows:
 3. Participant status workflow: vendor creates a as_ParticipantStatus for a
    participant → adds it to that participant
 
-Each demo starts from an initialized case with a single FinderReporter
-participant so the status update workflows can be demonstrated in isolation.
+Each demo starts from an initialized case with a single FINDER
+participant, seated through its stub Invite, so the status update workflows can be demonstrated in isolation.
 
 This corresponds to the workflow documented in:
     docs/howto/activitypub/activities/status_updates.md
@@ -38,8 +38,38 @@ When run as a script, this module will:
 """
 
 import logging
-from typing import Optional, Sequence, Tuple
+from collections.abc import Sequence
 
+from vultron.core.models.dimensions import (
+    EmDimension,
+    PxaDimension,
+    RmDimension,
+)
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.verification import _fetch_participant
+from vultron.demo.helpers.workflow import setup_initialized_case
+from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
+    BASE_URL,
+    DataLayerClient,
+    demo_check,
+    demo_step,
+    log_case_state,
+    post_to_inbox_and_wait,
+    ref_id,
+    setup_demo_logging,
+    verify_object_stored,
+)
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import (
+    add_note_to_case_activity,
+    add_status_to_case_activity,
+    add_status_to_participant_activity,
+    create_case_status_activity,
+    create_status_for_participant_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Remove,
@@ -49,45 +79,12 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
 )
-from vultron.enums.roles import CVDRole
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
-from vultron.core.states.cs import CS_pxa
-from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
-    BASE_URL,
-    DataLayerClient,
-    demo_check,
-    demo_step,
-    log_case_state,
-    post_to_inbox_and_wait,
-    ref_id,
-    verify_object_stored,
-    setup_demo_logging,
-)
-from vultron.wire.as2.factories import (
-    add_note_to_case_activity,
-    add_status_to_case_activity,
-    add_status_to_participant_activity,
-    create_case_status_activity,
-    create_status_for_participant_activity,
-)
-
-from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.verification import _fetch_participant
-from vultron.demo.helpers.workflow import setup_initialized_case
-from vultron.core.models.dimensions import (
-    EmDimension,
-    PecDimension,
-    PxaDimension,
-    RmDimension,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,8 +94,8 @@ def _setup_initialized_case(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-) -> Tuple[as_VulnerabilityCase, as_CaseParticipant]:
-    """Set up a case with one FinderReporter participant.
+) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
+    """Set up a case with one FINDER participant.
 
     Delegates to the shared :func:`~vultron.demo.helpers.workflow.setup_initialized_case`
     and then looks up the finder's participant record for callers that need it.
@@ -130,7 +127,7 @@ def demo_notes_workflow(
     logger.info("DEMO: Notes Workflow")
     logger.info("=" * 80)
 
-    case, participant = _setup_initialized_case(client, finder, vendor)
+    case, _participant = _setup_initialized_case(client, finder, vendor)
 
     note = None
     with demo_step("Step 1: Vendor creates note"):
@@ -168,6 +165,9 @@ def demo_notes_workflow(
                     )
 
     with demo_step("Step 3: Vendor removes note from case"):
+        # The vendor is this case's CASE_OWNER and its CASE_MANAGER
+        # (setup_initialized_case), so its inbox is the manager's inbox and the
+        # sender is the note's author: the Remove(Note) is entitled (CM-30-001).
         remove_note_activity = as_Remove(
             actor=vendor.id_,
             object_=note,
@@ -247,7 +247,6 @@ def demo_status_workflow(
             context=participant.id_,
             rm=RmDimension(state=RM.RECEIVED),
             attributed_to=finder.id_,
-            consent=PecDimension(state=PEC.UNBOUND),
             cvd_role=[CVDRole.FINDER],
             case_status=case_status,
         )
@@ -283,7 +282,7 @@ _ALL_DEMOS = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the status updates demo demo script."""
     run_exchange_demos(

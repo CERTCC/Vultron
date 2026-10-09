@@ -29,6 +29,7 @@ factory.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -39,6 +40,7 @@ from test.ci.invariants.common import (
     check_cross_actor_hash_agreement,
     check_cross_actor_payload_actor_agreement,
     check_cs_state_transitions_observed,
+    check_event_type_count,
     check_event_type_present,
     check_genesis_entry_present,
     check_hash_chain,
@@ -55,17 +57,20 @@ from test.ci.invariants.common import (
     check_per_actor_replica_participant_status_schema_completeness,
     check_per_actor_replica_rm_closed_termination,
     check_rm_closed_termination,
+    check_unique_payload_snapshot_ids,
+    load_actor_names,
     load_narrative_edges,
 )
 
 
-def make_universal_invariant_tests(  # noqa: C901
+def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested test closure; each is simple
     replicas_fixture: str,
     chain_actors: list,
     expected_event_types: list,
     check_fix_ready: bool = True,
     *,
     narrative_path: str | None = None,
+    joined_invitees: int = 0,
 ) -> dict[str, Any]:
     """Return the universal invariant test functions keyed by name.
 
@@ -91,6 +96,12 @@ def make_universal_invariant_tests(  # noqa: C901
         carries the machine-readable ``causal_edges:`` front-matter block.
         When provided, injects ``test_invariant_16_causal_edges_in_ledger_order``.
         When absent, that test is omitted (DEMOMA-22-005).
+    joined_invitees:
+        How many actors the scenario invites to join the case (each accepts
+        its stub Invite).  When positive, injects
+        ``test_invariant_17_every_joined_invitee_judged_the_case``: the
+        ledger holds a full-case Invite and a reply to it for each of them
+        (CM-11-010, CM-11-011), whatever the invitee's role.
     """
     calling_module = sys._getframe(1).f_globals.get("__name__", __name__)
 
@@ -127,10 +138,9 @@ def make_universal_invariant_tests(  # noqa: C901
         """All actors agree on payloadSnapshot.actor for every shared logIndex."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_cross_actor_payload_actor_agreement(replicas)
-        assert (
-            not violations
-        ), "Cross-actor payloadSnapshot.actor mismatches:\n" + "\n".join(
-            violations[:20]
+        assert not violations, (
+            "Cross-actor payloadSnapshot.actor mismatches:\n"
+            + "\n".join(violations[:20])
         )
 
     @pytest.mark.case_ledger_invariants
@@ -163,9 +173,9 @@ def make_universal_invariant_tests(  # noqa: C901
         """No participant changes RM state after first reaching CLOSED."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_no_rm_state_oscillation(replicas)
-        assert (
-            not violations
-        ), "RM state oscillation after CLOSED:\n" + "\n".join(violations)
+        assert not violations, (
+            "RM state oscillation after CLOSED:\n" + "\n".join(violations)
+        )
 
     @pytest.mark.case_ledger_invariants
     def test_invariant_7_log_terminates_all_rm_closed(
@@ -174,15 +184,15 @@ def make_universal_invariant_tests(  # noqa: C901
         """The log terminates with every participant in RM=CLOSED."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_rm_closed_termination(replicas)
-        assert (
-            not violations
-        ), f"Participants not in RM=CLOSED at log end: {violations}"
+        assert not violations, (
+            f"Participants not in RM=CLOSED at log end: {violations}"
+        )
 
     @pytest.mark.case_ledger_invariants
     def test_invariant_9_participant_status_schema_completeness(
         request: pytest.FixtureRequest,
     ) -> None:
-        """Every ParticipantStatus snapshot includes emConsentState and cvdRole list."""
+        """Every ParticipantStatus snapshot includes a cvdRole list."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_participant_status_schema_completeness(replicas)
         assert not violations, (
@@ -265,9 +275,9 @@ def make_universal_invariant_tests(  # noqa: C901
         violations = check_cs_state_transitions_observed(
             replicas, check_fix_ready=check_fix_ready
         )
-        assert (
-            not violations
-        ), "Missing CS-transition observations:\n" + "\n".join(violations)
+        assert not violations, (
+            "Missing CS-transition observations:\n" + "\n".join(violations)
+        )
 
     @pytest.mark.case_ledger_invariants
     def test_invariant_clp13_no_rejected_invite_entries(
@@ -280,6 +290,19 @@ def make_universal_invariant_tests(  # noqa: C901
             f"Found {len(violations)} stale-disposition invite_actor_to_case"
             f" entries (CLP-13-001/CLP-04-007 violation):\n"
             + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    @pytest.mark.spec("CLP-07-002")
+    def test_invariant_clp07_unique_payload_snapshot_ids(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """No replica records one activity twice (CLP-07-002, ADR-0109)."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_unique_payload_snapshot_ids(replicas)
+        assert not violations, (
+            f"{len(violations)} activity id(s) recorded more than once on a"
+            f" replica (CLP-07-002 violation):\n" + "\n".join(violations)
         )
 
     @pytest.mark.case_ledger_invariants
@@ -385,6 +408,7 @@ def make_universal_invariant_tests(  # noqa: C901
         "test_invariant_14_no_gaps_in_log_indices": test_invariant_14_no_gaps_in_log_indices,
         "test_invariant_15_cs_state_transitions_observed": test_invariant_15_cs_state_transitions_observed,
         "test_invariant_clp13_no_rejected_invite_entries": test_invariant_clp13_no_rejected_invite_entries,
+        "test_invariant_clp07_unique_payload_snapshot_ids": test_invariant_clp07_unique_payload_snapshot_ids,
         "test_invariant_clp14_timestamp_invariants": test_invariant_clp14_timestamp_invariants,
         "test_invariant_per_actor_replica_no_rm_state_oscillation": test_invariant_per_actor_replica_no_rm_state_oscillation,
         "test_invariant_per_actor_replica_rm_closed_termination": test_invariant_per_actor_replica_rm_closed_termination,
@@ -405,11 +429,16 @@ def make_universal_invariant_tests(  # noqa: C901
             machine-readable ``causal_edges:`` list, then verifies that for each
             observable edge (antecedent, consequent) there exists at least one
             antecedent entry that precedes at least one consequent entry in the
-            authoritative log.
+            authoritative log, and that the consequent entries considered are
+            those whose recorded actor is the edge's ``consequent_actor``.
             """
             replicas = request.getfixturevalue(replicas_fixture)
             edges = load_narrative_edges(_narrative_path)
-            violations = check_causal_edges(replicas, edges)
+            violations = check_causal_edges(
+                replicas,
+                edges,
+                load_actor_names(Path(_narrative_path).stem),
+            )
             assert not violations, (
                 f"{len(violations)} causal-edge ordering violation(s):\n"
                 + "\n".join(violations)
@@ -420,6 +449,40 @@ def make_universal_invariant_tests(  # noqa: C901
         )
         result["test_invariant_16_causal_edges_in_ledger_order"] = (
             test_invariant_16_causal_edges_in_ledger_order
+        )
+
+    if joined_invitees > 0:
+        _joined_invitees = joined_invitees
+
+        @pytest.mark.case_ledger_invariants
+        @pytest.mark.parametrize(
+            "event_type",
+            ["invite_actor_to_full_case", "accept_invite_actor_to_full_case"],
+        )
+        def test_invariant_17_every_joined_invitee_judged_the_case(
+            event_type: str,
+            request: pytest.FixtureRequest,
+        ) -> None:
+            """Each joined invitee is sent the full-case Invite and replies to it.
+
+            After an invitee accepts its stub Invite the CASE_MANAGER sends the
+            full-case Invite, and the invitee judges the case by accepting it
+            (CM-11-010, CM-11-011).  The scenario invites
+            ``joined_invitees`` actors, so each event type appears exactly
+            that many times: a floor alone is satisfied by a double commit
+            for one invitee while another is never sent the Invite (#4120).
+            """
+            replicas = request.getfixturevalue(replicas_fixture)
+            violations = check_event_type_count(
+                replicas,
+                event_type,
+                min_count=_joined_invitees,
+                max_count=_joined_invitees,
+            )
+            assert not violations, violations[0] if violations else ""
+
+        result["test_invariant_17_every_joined_invitee_judged_the_case"] = (
+            test_invariant_17_every_joined_invitee_judged_the_case
         )
 
     for fn in result.values():

@@ -5,12 +5,15 @@ cross-kind relationship links, ValueError for unknown/empty kind,
 and SpecTag.BEHAVIORAL detection.
 """
 
-import yaml
-import pytest
+import re
 
+import pytest
+import yaml
+
+from vultron.metadata.docs.anchor_ids import anchor_ids_in
+from vultron.metadata.specs.docs_render import render_for_kind
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import SpecKind, SpecTag
-from vultron.metadata.specs.docs_render import render_for_kind
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -20,7 +23,6 @@ GENERAL_YAML = {
     "id": "GEN",
     "title": "General Test Specs",
     "description": "A general kind spec for testing docs_render",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -74,7 +76,6 @@ DOMAIN_YAML = {
     "id": "DOM",
     "title": "Domain Test Specs",
     "description": "A domain kind spec with relationships",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -103,7 +104,6 @@ BEHAVIORAL_YAML = {
     "id": "BHV",
     "title": "Behavioral Test Specs",
     "description": "A domain spec with BehavioralSpec items",
-    "version": "0.1",
     "tags": ["behavioral"],
     "scope": ["production"],
     "groups": [
@@ -219,6 +219,13 @@ def test_render_for_kind_file_title_h2(general_registry):
     assert "## General Test Specs" in md
 
 
+@pytest.mark.spec("SR-01-003")
+def test_render_for_kind_prints_file_id_without_version(general_registry):
+    md = render_for_kind("protocol", general_registry)
+    assert "*File ID*: `GEN`" in md
+    assert "Version" not in md
+
+
 def test_render_for_kind_group_title_h3(general_registry):
     md = render_for_kind("protocol", general_registry)
     assert "### General Group" in md
@@ -247,6 +254,68 @@ def test_render_for_kind_anchors_present(general_registry):
 # ---------------------------------------------------------------------------
 # Cross-kind relationship links
 # ---------------------------------------------------------------------------
+
+#: A ``_cross_link`` as rendered: ``[ID](#id)`` on the same kind page or
+#: ``[ID](../<slug>/#id)`` on another. Requirement IDs are upper-case with
+#: two-digit group and three-digit item parts.
+_CROSS_LINK_RE = re.compile(
+    r"\[(?P<id>[A-Z][A-Z0-9]{1,7}-\d{2}-\d{3})\]"
+    r"\((?:\.\./(?P<slug>[a-z]+)/)?#(?P<fragment>[a-z0-9-]+)\)"
+)
+
+
+def test_render_for_kind_cross_links_resolve():
+    """Every ``#fragment`` the Related column prints exists on its target page.
+
+    The ``anchor_ids`` hook makes exec-emitted ids *linkable*, but MkDocs
+    never sees a link an exec block prints, so nothing in the build validates
+    the Related column (``notes/documentation-strategy.md`` § "Exec-Block
+    Anchors Are Invisible to --strict, Too"). This test is that check, over
+    the real ``specs/`` registry and all four kind pages. SR-09-002 routes a
+    requirement to its own kind's page only, so a same-page ``#x`` must be an
+    id on this page and a ``../slug/#x`` an id on that slug's page. Zero
+    collected links is a failure, not a pass (DF-09-009).
+    """
+    registry = load_registry()
+    pages = {
+        kind.value: render_for_kind(kind.value, registry) for kind in SpecKind
+    }
+    # The hook's own collector, so the test and the build agree on what an
+    # id is; ids here are raw HTML in the markdown the exec block prints.
+    ids = {slug: anchor_ids_in(md) for slug, md in pages.items()}
+
+    links = 0
+    dangling: list[str] = []
+    for slug, md in pages.items():
+        for match in _CROSS_LINK_RE.finditer(md):
+            links += 1
+            target = match.group("slug") or slug
+            fragment = match.group("fragment")
+            if target not in ids:
+                dangling.append(f"{slug}: {match.group(0)} -> unknown page")
+            elif fragment not in ids[target]:
+                dangling.append(
+                    f"{slug}: {match.group(0)} -> no id on {target}"
+                )
+
+    assert links > 0, "no _cross_link links collected; the pattern is stale"
+    assert not dangling, "\n".join(dangling)
+
+
+def test_cross_link_pattern_matches_both_forms(cross_kind_registry):
+    """Guard the regex above against drift in ``_cross_link``'s output."""
+    same = render_for_kind("protocol", cross_kind_registry)
+    other = render_for_kind("architecture", cross_kind_registry)
+    same_hits = [m.groupdict() for m in _CROSS_LINK_RE.finditer(same)]
+    other_hits = [m.groupdict() for m in _CROSS_LINK_RE.finditer(other)]
+    assert {"id": "GEN-01-001", "slug": None, "fragment": "gen-01-001"} in (
+        same_hits
+    )
+    assert {
+        "id": "GEN-01-001",
+        "slug": "protocol",
+        "fragment": "gen-01-001",
+    } in other_hits
 
 
 def test_render_for_kind_same_kind_link(cross_kind_registry):
@@ -360,7 +429,7 @@ def test_behavioral_spec_empty_scope_raises():
     """BehavioralSpec must still reject scope=[] (parent validator not shadowed)."""
     from vultron.metadata.specs.schema import BehavioralSpec, RFC2119Priority
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         BehavioralSpec(
             id="BHV-01-001",
             priority=RFC2119Priority.MUST,
@@ -378,7 +447,7 @@ def test_behavioral_spec_empty_preconditions_raises():
         Scope,
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         BehavioralSpec(
             id="BHV-01-001",
             priority=RFC2119Priority.MUST,
@@ -412,7 +481,6 @@ PIPE_YAML = {
     "id": "PIP",
     "title": "Pipe Test Specs",
     "description": "Spec with a pipe char in the statement",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -451,7 +519,6 @@ MULTI_REL_YAML = {
     "id": "MRL",
     "title": "Multi-Rel Specs",
     "description": "Spec with two relationships",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -538,9 +605,9 @@ def test_render_for_kind_real_registry_produces_output(
     # At minimum one spec ID pattern should appear
     import re
 
-    assert re.search(
-        r"[A-Z]{2,8}-\d{2}-\d{3}", md
-    ), f"No spec IDs found in rendered output for kind={kind.value!r}"
+    assert re.search(r"[A-Z]{2,8}-\d{2}-\d{3}", md), (
+        f"No spec IDs found in rendered output for kind={kind.value!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -555,7 +622,6 @@ MIXED_KIND_FILE_YAML = {
     "id": "MIX",
     "title": "Mixed Kind Specs",
     "description": "File with general and implementation items",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -590,7 +656,6 @@ MIXED_KIND_GROUP_YAML = {
     "id": "MGR",
     "title": "Mixed Group Items",
     "description": "File with a group containing items of mixed kinds",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -620,7 +685,6 @@ IMPL_ANCHOR_YAML = {
     "id": "IMP",
     "title": "Implementation Anchor",
     "description": "Provides implementation-kind items for the test registry",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {
@@ -660,7 +724,7 @@ def test_group_kind_override_appears_on_overridden_kind_page(
     project page even though its file has kind=general."""
     md = render_for_kind("project", mixed_kind_file_registry)
     assert "MIX-02-001" in md, (
-        "Item from group with kind=project should appear on " "project page"
+        "Item from group with kind=project should appear on project page"
     )
 
 
@@ -671,8 +735,7 @@ def test_group_kind_override_absent_from_wrong_kind_page(
     general page."""
     md = render_for_kind("protocol", mixed_kind_file_registry)
     assert "MIX-02-001" not in md, (
-        "Item from group with kind=project should NOT appear on "
-        "general page"
+        "Item from group with kind=project should NOT appear on general page"
     )
 
 
@@ -682,9 +745,9 @@ def test_inherited_kind_group_appears_on_file_kind_page(
     """SR-09-001: a group that inherits file kind=general appears on the
     general page."""
     md = render_for_kind("protocol", mixed_kind_file_registry)
-    assert (
-        "MIX-01-001" in md
-    ), "Item inheriting file kind=general should appear on general page"
+    assert "MIX-01-001" in md, (
+        "Item inheriting file kind=general should appear on general page"
+    )
 
 
 def test_item_kind_override_appears_on_overridden_page(
@@ -693,9 +756,9 @@ def test_item_kind_override_appears_on_overridden_page(
     """SR-09-001: an item with kind=project appears on the
     project page even though its group and file have kind=general."""
     md = render_for_kind("project", mixed_kind_group_registry)
-    assert (
-        "MGR-01-002" in md
-    ), "Item with kind=project should appear on project page"
+    assert "MGR-01-002" in md, (
+        "Item with kind=project should appear on project page"
+    )
 
 
 def test_item_kind_override_suppressed_on_wrong_page(
@@ -704,12 +767,12 @@ def test_item_kind_override_suppressed_on_wrong_page(
     """SR-09-002: an item with kind=project is suppressed on the
     general page while the rest of the group still renders."""
     md = render_for_kind("protocol", mixed_kind_group_registry)
-    assert (
-        "MGR-01-001" in md
-    ), "General item should still appear on general page"
-    assert (
-        "MGR-01-002" not in md
-    ), "Implementation item must be suppressed on the general page"
+    assert "MGR-01-001" in md, (
+        "General item should still appear on general page"
+    )
+    assert "MGR-01-002" not in md, (
+        "Implementation item must be suppressed on the general page"
+    )
 
 
 def test_mixed_group_appears_on_both_kind_pages(mixed_kind_group_registry):

@@ -67,9 +67,8 @@ it, so no external lookup is needed.
 
 ### The one approved exception
 
-The `target` field of an `Invite` activity in selective-disclosure scenarios
-is permitted to carry a case stub — a typed object with `id`, `type`, and
-minimal fields for informed consent — rather than the full case object.
+The `target` field of an `Invite` activity in selective-disclosure scenarios is permitted to carry a case stub rather than the full case object.
+The [protocol specification §11.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#112-invitation-and-acceptance-n) defines what a case stub carries.
 This is the only approved exception to the full-inline-object rule (AKM-02-003).
 
 All other outbound initiating activities — `Create`, `Offer`, `Invite`,
@@ -113,7 +112,7 @@ malformed message.
 Building an implementation that passes this test requires constructing
 activities with full objects at the point of creation, not after the fact.
 The failure mode — a bare URI where an object is expected — is silent in
-many frameworks: the activity serialises, is transmitted, and arrives
+many frameworks: the activity serializes, is transmitted, and arrives
 looking syntactically valid. The failure only appears when the recipient
 tries to act on it.
 

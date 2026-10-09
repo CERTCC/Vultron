@@ -69,9 +69,9 @@ class TestDocstring:
     )
     def test_docstring_has_required_section(self, section: str) -> None:
         doc = (OtherWork.__doc__ or "").lower()
-        assert (
-            section in doc
-        ), f"OtherWork docstring missing '{section}' section"
+        assert section in doc, (
+            f"OtherWork docstring missing '{section}' section"
+        )
 
 
 # ---------------------------------------------------------------------------

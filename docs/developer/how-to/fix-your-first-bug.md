@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # How to fix your first bug
 
 Use this guide when you've encountered a bug in Vultron and want to fix it
@@ -183,7 +187,7 @@ a real app with test data; trigger a workflow; verify the result.
 **Run the test**:
 
 ```bash
-uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 The `-m ""` flag includes integration tests (CI runs both).
@@ -227,13 +231,13 @@ Run these checks **in order**:
 ### 1. Format your code
 
 ```bash
-uv run black vultron/ test/
+uv run ruff format
 ```
 
 ### 2. Run linters
 
 ```bash
-uv run flake8 vultron/ test/
+uv run ruff check
 uv run mypy
 uv run pyright
 ```
@@ -245,14 +249,14 @@ If any checks fail, fix them and reformat.
 Run the **default unit test command**:
 
 ```bash
-uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 If you touched any files under `vultron/demo/` or `test/demo/`, run the
 full suite including integration tests:
 
 ```bash
-uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Read the tail output. All tests should pass.
@@ -277,17 +281,11 @@ Read the tail output. All tests should pass.
 
 ### Test fails with "blackboard key not found" or random failures
 
-**Likely cause**: Behavior tree blackboard is shared between tests (global
-state).
+**Likely cause**: Behavior tree blackboard is shared between tests (global state), and a node left a key behind.
 
-**Solution**: Clear the blackboard in your test's `conftest.py`:
-
-```python
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-```
+**Solution**: Do not add a clearing fixture of your own.
+The root `test/conftest.py` already clears `py_trees.blackboard.Blackboard.storage` before and after every test (`clear_py_trees_blackboard`).
+If a test still sees a stale key, the leak is inside one test: a node that writes its output key only on some paths breaks BT-17-003, which requires it to write `None` on a no-op path.
 
 ### Data layer test fails with "constraint violation"
 
@@ -307,7 +305,7 @@ multi-layer scenario.
 **Solution**: Run the full suite locally before pushing:
 
 ```bash
-uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 If tests still pass locally, check for timing or environment differences

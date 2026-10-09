@@ -1,15 +1,24 @@
 ---
 title: Architecture Ratchet Corpus
 status: active
+related_specs:
+  - specs/architecture.yaml
+  - specs/testability.yaml
 related_notes:
   - notes/wire-core-boundary.md
+  - notes/spec-authoring-rules.md
+  - notes/testing-pitfalls.md
+  - notes/domain-validation.md
 ---
 
 # Architecture Ratchet Corpus
 
 Design decisions and measurements for the shared corpus pattern in
 `test/architecture/`. Normative requirements are in
-`specs/testability.yaml` TB-13.
+`specs/testability.yaml` TB-13. Why a new baseline should be a named set or a
+per-item marker, never a bare count pinned to its live value, is in
+[testing-pitfalls](testing-pitfalls.md) § "A Two-Sided Count Pin Races Every
+Concurrent PR".
 
 ---
 
@@ -95,6 +104,39 @@ Known xdist hazards in this codebase:
 
 A compatibility audit (TB-13-005) is a prerequisite before enabling xdist.
 
+## Ratchets That Start From a Live Object
+
+Some ratchets start from a live object — a routed use case, a tree factory —
+rather than from a file scan. Two rules keep them inside TB-13:
+
+- **Get the definition from the shared parse.**
+  `_corpus.function_definition(fn, mentioning=...)` returns the cached AST node
+  that defines `fn`; `inspect.getsource` plus `parse_inline` re-reads the file
+  and parses each function a second time. With `mentioning`, a module that
+  contains none of the fragments is skipped unparsed (TB-13-008).
+  `_corpus.source_of(path)` gives a `(path, tree)` holder the cached text.
+- **Pause the collector around an AST-heavy derivation.**
+  Parsing and walking a few hundred modules allocates hundreds of thousands of
+  nodes, and each allocation threshold triggers a collection that walks the
+  whole pytest heap. Inside a suite run that doubled the commit-inventory scan
+  (0.35 s to 0.78 s). `@_corpus.gc_paused()` on the derivation, plus a
+  per-process `functools.cache`, keeps each test under the TB-13-004 budget.
+
+`_ledger_commit_inventory.py` shows both, and a third trick: it finds the
+names that *may* reach a commit with a text-only fixed point over
+`_corpus` sources, and parses only the modules that mention one of them.
+That fixed point is `_corpus.names_reaching(seeds, under=...)`: it parses
+nothing, follows top-level import and assignment aliases, and with
+`classes=False` follows functions only (a class span holds every method, so
+one writing method would make every caller of the class match). The
+state-write ratchet uses it to find helper functions that reach a DataLayer
+write, so a seam list never has to name them. It then runs its class-level
+fixed point twice: first over `_corpus.class_spans` text, which
+over-approximates every call the AST can see, then over the AST of only the
+candidate classes (`_corpus.paths_under`, `_corpus.tree_of`). Prefiltering
+files by *mentioning* a class name instead parses every module that imports
+one, which tripled that scan.
+
 ## Spec Requirements
 
 See `specs/testability.yaml` TB-13-001 through TB-13-005.
@@ -116,3 +158,68 @@ requirement that mandates it. See ARCH-22-003 and
 [notes/wire-core-boundary.md](wire-core-boundary.md).
 
 Source: CONCERN-2830
+
+## Every Non-Empty Baseline Names an Owner
+
+A ratchet baseline records *what* is exempt, not *who* retires it. When the
+issue that created a baseline closes with entries left, the test stays green and
+the debt goes unseen (CONCERN-3927). ARCH-18-003 closes that gap with a comment
+beside each baseline:
+
+- `# owner: #N` — the open issue that drives the baseline to its terminal
+  value (empty set, or the ceiling's floor).
+- `# permanent: <reference>` — the issue, ADR, or spec requirement that made the
+  baseline permanent by design. A permanent marker that cites nothing fails. The
+  ratchet-versus-pinned-exemption-set split is ARCH-18-005; see the next section.
+
+Two checks, split by what they need:
+
+- **Offline, in the unit suite.** Scans `test/` for ratchet-named constants and
+  fails when a non-empty one has neither marker. It never calls GitHub, so it
+  gives the same answer on every run.
+- **Online, outside the merge path (ARCH-18-004).** A scheduled CI job asks
+  GitHub whether each cited owner is still open and files or updates one tracking
+  issue when one is closed. It does not fail the build. A hard failure would turn
+  `main` red when an unrelated issue closes — the same race as a two-directional
+  count pin, where two pull requests that are each green land together and
+  `main` goes red (`plan/history/2609/learning/ISSUE-3828.md`).
+
+MS-10-006 is the precedent: the spec-corpus ceiling table in
+`vultron/metadata/specs/verification.py` already requires an owner per non-zero
+ceiling, but checks only that one is named, not that it is still open.
+
+## Ratchets and Pinned Exemption Sets Are Different Things
+
+Both are exact sets checked with bidirectional equality (ARCH-18-001), so a
+reader cannot tell them apart from the assertion. What differs is whether an
+end state exists (ARCH-18-005):
+
+- A **ratchet** has a terminal value — an empty set or a zero ceiling — and an
+  `# owner: #N` issue that drives it there. Each entry is a defect awaiting a
+  fix. Only ratchets are open debt.
+- A **pinned exemption set** has no terminal value and no owner. Each entry is
+  exempt by a recorded decision, so the set grows when a new site falls under
+  that decision and shrinks when a site goes away. It carries
+  `# permanent: <reference>` (ARCH-18-003), and its module says "pinned
+  exemption set", not "ratchet" or "backlog".
+
+Several sets began as shrinking backlogs and were later decided to be permanent,
+but their files still called them ratchets, so a count of open debt included
+them (#3933). Their entries vary with the code, so this table names the
+decision rather than a count (MS-16-001):
+
+| Constant | File | Why it is a pin |
+|---|---|---|
+| `_RM_FORCE_QUARANTINE` | `test_participant_status_validation.py` | bootstrap writes of a first status, which has no predecessor for the RM adjacency rule (BTND-10-001); closure never forces (RMB-14-005) |
+| `_DECLARED_EXCLUSIONS` | `test_participant_status_validation.py` | ADR-0089 end state: two writer exclusions (receive and replica-apply paths) plus the permanent non-writer over-catch |
+| `_DECLARED_EXCLUSIONS` | `test_no_broad_except_outside_bt_update.py` | framework, bridge and persistence boundaries, each justified inline (CS-23-001) |
+| `KNOWN_ALLOWLIST` | `test_case_resolution_uses_helpers.py` | the ADR-0087 regime exceptions |
+| `AUDITED_SITES` | `test_vfd_rm_pxa_write_sites.py` | the list *is* the BTND-10-001 audit |
+| `BLANK_SENTINEL_FIELDS` | `test_core_reference_fields_reject_blank.py` | documented "not yet" sentinels (CS-08-001, #3877) |
+| `_SANCTIONED_SHADOWS` | `test_vocab_registry_keys.py` | the enumerated `as_Vultron*` exception (VM-01-008) |
+
+The writer exclusions in `test_participant_status_validation.py` looked like
+candidates for a separate ratchet. They are not: ADR-0089 names the receive path
+and the replica-apply path as its deliberate end state, dispositions the emit
+evaluator must not apply (ADR-0061, RSH-05-021). An entry that *is* awaiting a
+fix leaves the pinned set for its own ratchet constant with an owner.

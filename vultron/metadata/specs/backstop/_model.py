@@ -17,6 +17,8 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
+from vultron.metadata.specs.schema import RFC2119Priority
+
 SOURCE_PREFIX = "vultron/"
 TEST_PREFIX = "test/"
 MAX_EVIDENCE = 3
@@ -69,12 +71,15 @@ class Requirement:
     group: str
     topic: str
     statement: str
-    priority: str = "MUST"
+    priority: RFC2119Priority = RFC2119Priority.MUST
 
     @property
     def mandatory(self) -> bool:
-        """``MUST``/``MUST_NOT``; a SHOULD or MAY cannot block a build."""
-        return self.priority in ("MUST", "MUST_NOT")
+        """The MUST tier; a SHOULD or MAY cannot block a build (SR-12-010).
+
+        Tiering comes from the shared definition (MS-02-004), not a member list.
+        """
+        return self.priority.is_must_tier
 
 
 @dataclass
@@ -106,7 +111,7 @@ class BackstopReport:
 
 #: Stand-in for an ID absent from the registry, so an unknown ID is treated as
 #: mandatory rather than silently dropped from the MUST tier.
-_ADVISORY = Requirement("", "", "", "", "MUST")
+_ADVISORY = Requirement("", "", "", "", RFC2119Priority.MUST)
 
 
 @dataclass

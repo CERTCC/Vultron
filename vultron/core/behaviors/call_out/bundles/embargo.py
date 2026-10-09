@@ -107,10 +107,10 @@ class EmbargoCallOutBundle(CallOutBundle):
     on_embargo_reject_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
-    case_owner_approves_embargo_response_factory: (
-        CallOutBackendFactory
-    ) = field(
-        default=_always_succeed  # type: ignore[assignment]
+    case_owner_approves_embargo_response_factory: CallOutBackendFactory = (
+        field(
+            default=_always_succeed  # type: ignore[assignment]
+        )
     )
     embargo_exit_policy_guard_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]

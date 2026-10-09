@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 <!-- This file is auto-generated. Do not edit. -->
 
 # VFDPXa

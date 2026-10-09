@@ -103,6 +103,8 @@ produces the effect, read from its own container) and express it with
    - `wait_for_case_on_container` — a case replica arrived.
    - `find_case_invite_for_actor` — an invite arrived.
    - `wait_for_object_stored` — an arbitrary object arrived in a DataLayer.
+   - `wait_for_report_submission_stored` — the submitted report and its Offer
+     arrived in the Receiver's own store (`reporter_submits_report`).
 2. If a poll times out reliably in CI, the underlying delivery path needs
    investigation (retry parameters, health checks, container startup order) — not
    a workaround in the demo script.
@@ -112,6 +114,19 @@ single backend directly and uses `post_to_inbox_and_wait` as its normal
 mechanism; there is no second container for the transport to cross. This rule
 governs `vultron/demo/scenario/`, where actors live in separate containers and
 the delivery path is the thing under test.
+
+**Scope reaches the helpers a scenario calls.** The rule binds
+`vultron/demo/helpers/` code that a scenario runs on its behalf, not only the
+scenario module. A helper that carries mail is the same violation one call
+removed. `reporter_submits_report`'s `reporter_client` arm did so for every
+scenario: it POSTed the Offer to the Receiver's inbox after the `submit-report`
+trigger's own outbox drain had already delivered it, so each run double-delivered
+the report (#3980). The hand delivery dated from #1872, when the CaseActor's
+per-case slug was derived after the trigger returned and the outbox delivery
+404'd. The CaseActor is now one stable identity per container, known before any
+report exists, so provision it *before* the trigger and wait on the Receiver's
+own store for the effect. The Offer lands asynchronously, so a one-shot read is
+not a gate (EDF-06-003).
 
 **No self-delivery exception.** An actor does not need to POST to its own inbox
 to update its own replica either — activities route through the CASE_MANAGER, which
@@ -148,6 +163,22 @@ the root cause; extraction-first prevents the problem from recurring.
 This rule applies to scenario files in `vultron/demo/scenario/`. Exchange demos
 under `vultron/demo/exchange/` are lower-level and may duplicate less when a full
 helper would add more abstraction than value.
+
+**Worked example — the invite chain.** PR #3886 hand-nested the same
+invite → deliver → answer → replica chain in every scenario and skipped this rule
+because the variants "do not extract into one helper without a flag per
+variant". That is a design task, not a skip reason: `run_case_invite_chain` in
+`helpers/invite_chain.py` takes the variants as parameters (who asks, accept or
+reject, the sender check, timeouts) and a `then` callback for what follows. On
+an accept it carries the whole join sequence for every invitee, whatever its
+role: stub Invite, stub Accept, `Announce` and replay, the full-case Invite, and
+the invitee's reply to it (CM-11-010, CM-11-011); the CI invariants'
+`joined_invitees` count pins one full-case Invite and one reply per invitee. A
+callback, not a `with` block, because `demo_gate` suppresses an exception
+before a generator-based context manager could yield. The ratchet
+`test_demo_scenarios_use_invite_chain_helper.py` fails on a scenario that calls
+a chain link directly. A consolidation like this must not change what a demo
+reports as pass or fail (#4192).
 
 Normative: `specs/multi-actor-demo.yaml` DEMOMA-17-001 — a MUST-level
 specialisation of the project-wide SHOULD rule CS-22-001 in
@@ -229,15 +260,24 @@ now has to treat the return as possibly-absent.
 
 **How to apply:**
 
+- **Prefer nesting over a sentinel.** When a value is produced inside a
+  `demo_step` / `demo_gate` body in scenario code, put every step that reads it
+  *inside* that body (ADR-0058's nested-block model, `demo_gate` docstring). A
+  failed block then skips its dependents outright. Do **not** pre-initialise the
+  name to `None` and read it after the block: the sentinel satisfies the
+  unbound-variable ratchet while handing `None` (or `.activity` on `None`) to the
+  next step, which then fails — or crashes the run — for the wrong reason
+  (#3038, #3887).
 - Type any such helper `-> Optional[T]` (e.g. `participant_adds_note_to_case` in
   `vultron/demo/helpers/notes.py` returns `Optional[as_Note]`).
 - In callers, treat `None` as "this step failed and `demo_step` already recorded
   it" — do not raise. Guard every `.id_` (or other attribute) access on the
-  returned value.
+  returned value. This is the fallback when the reader cannot be nested (the
+  value crosses a phase-function boundary, for example).
 - Skip dependent steps when the value is `None`, e.g. by making the next step's
   `in_reply_to` conditional on the prior result being present.
 
-Source: ISSUE-2390
+Source: ISSUE-2390, amended by ISSUE-3038
 
 ---
 
@@ -270,13 +310,14 @@ directly from the latter. It has now bitten the project twice:
    `demo_step`, `demo_check`, or `demo_gate` — use `demo_gate` when dependent
    steps follow inside the block, `demo_check` for an independent bounded check.
 2. **Prefer wrapping inside the shared helper** when one exists, so all callers
-   inherit the fix (DRY). `drain_phase1_ledger` in
-   `vultron/demo/helpers/polling.py` is the reference pattern: it wraps each
-   per-replica poll in a demo context internally (lazy-importing the context
-   manager from `vultron.demo.utils` to avoid a circular import). Note that when
-   the wrap lives in the helper and the dependent steps live in the scenario,
-   `demo_check` and `demo_gate` behave identically — the block contains only the
-   wait, so nothing is skipped either way; pick the label that reads true.
+   inherit the fix (DRY). `wait_for_replica_ledger_coverage` in
+   `vultron/demo/helpers/sync.py` is the reference pattern: it wraps each
+   per-replica poll in a demo context internally, and
+   `wait_for_participants_on_replicas` in `vultron/demo/helpers/polling.py`
+   does the same for the participant-index wait. Note that when the wrap lives
+   in the helper and the dependent steps live in the scenario, `demo_check` and
+   `demo_gate` behave identically — the block contains only the wait, so
+   nothing is skipped either way; pick the label that reads true.
 3. Keep the raising primitive raising for its unit tests — add the accumulation
    wrap in a scenario-facing helper, not in the low-level `_poll_until` /
    `wait_for_case_participants` primitives that tests depend on.
@@ -286,6 +327,81 @@ architecture ratchet enforces that scenario `_phase_*` functions do not call a
 known raising wait outside a demo context.
 
 Source: CONCERN-3384 (generalising the #1772/#1802 fix)
+
+---
+
+## Replica Sync Verification Is One Shared Helper, Not a Per-Scenario Phase Body
+
+Every multi-actor scenario needs the same guard between its report-submission
+and notes phases: the Finder must hold the case replica, and every replica must
+have contiguous ledger coverage up to the authority's tail. All but the
+fcv-reject scenario then go on to wait for every replica's participant index and
+to compare a couple of replicas against the authority's state. Every scenario
+also needs the coverage half of that again after case closure, before the
+ledger dump.
+
+**Why this matters:** the concern that filed #3042 believed the pre-notes race
+guard existed in fcv-reject only. It was in fact present everywhere — as one
+copy per scenario module of the `_phase_sync_verification` body, plus one copy
+per module of the post-closure coverage wait. That is why the race-window fix
+in #2756 had to touch most of those modules, why the timeouts drifted (literals
+of 15 s or 45 s by replica label in most modules, 30 s or 45 s in fcvcv
+after #2337, and no timeout at all — so the primitive's own default — in fv,
+fvv and fcv-reject), and why every scenario test file except fcv-reject's
+carries the same "skip the coverage wait when the Finder case never arrives"
+unit test. The guard was never missing; the single place to fix it was.
+
+**How to apply:**
+
+1. The read-authority-tail-then-poll-each-replica loop lives once, as
+   `wait_for_replica_ledger_coverage` in `vultron/demo/helpers/sync.py`. It
+   takes the authority client, an ordered list of `(replica_client, label)`
+   pairs, the case id and the late-joiner clients; it applies the named timeout
+   constants from `vultron/demo/helpers/polling.py` (`LEDGER_COVERAGE_TIMEOUT`
+   by default, `LATE_JOINER_COVERAGE_TIMEOUT` for a late joiner — the widest
+   budgets any copy carried, so sharing the loop tightened nothing) and wraps
+   each per-replica wait in a demo context itself, the same way
+   `wait_for_participants_on_replicas` does. Called with `causal=True` (the
+   default) it is the `demo_gate` before the notes phase and the Phase 1
+   drain before Phase 2 (`phase_label="Phase 1 drain before Phase 2"`); with
+   `causal=False` and `phase_label="close phase"` it is the `demo_check` after
+   case closure, labelled temporal per EDF-06-006. It returns the replicas
+   whose wait passed, so a dependent step can be gated on coverage per
+   replica. There is no other copy of the loop: `drain_phase1_ledger` in
+   `polling.py` was the last one, invisible to the DEMOMA-23-006 ratchet while
+   that ratchet scanned scenario modules only, so the ratchet now parses every
+   module under `vultron/demo/` except `helpers/sync.py` (#3906).
+2. A scenario's `_phase_sync_verification` is a thin call to
+   `run_sync_verification_phase`, declaring only its authority (client, label,
+   actor id), the Finder, its replicas, late joiners, expected participant set,
+   and which replica pairs to state-check. A replica whose coverage gate failed
+   is not state-checked: the gate already recorded the failure and the
+   comparison would only cascade (EDF-06-005, #1911). An authority with no
+   entries to cover is likewise one recorded failure naming the authority, and
+   no replica is state-checked — the writer is at fault, not the fan-out, so
+   the failure must not be left for a replica-side check to misattribute.
+   Scenario-specific extras
+   — the two-actor fv scenario's check that the dedicated case-actor container
+   stayed unused — follow the helper call as separate steps. A scenario with no
+   participant expectation (fcv-reject) declares none and no participant wait
+   runs.
+3. A scenario module never calls `wait_for_contiguous_ledger_coverage` or
+   `_get_log_entries_for_case` directly (DEMOMA-23-006). The architecture
+   ratchet `test/architecture/test_demo_scenario_coverage_via_shared_helper.py`
+   fails if one does, on a call or an import.
+4. Timeouts are named constants passed as parameters, never literals in a
+   scenario file. The shared defaults already carry the widest budget any
+   scenario needed (fcvcv's non-late-joiner replicas, #2337, are covered by
+   `LEDGER_COVERAGE_TIMEOUT`); a scenario that needs another budget passes a
+   different constant, and its regression test asserts the parameter the helper
+   applies, not a literal.
+
+Normative: `specs/multi-actor-demo.yaml` DEMOMA-23-005 (the shared coverage
+helper), DEMOMA-23-006 (no direct primitive call from a scenario module), and
+DEMOMA-23-007 (the thin phase), refining DEMOMA-17-001, DEMOMA-22-002, and
+DEMOCI-01-011.
+
+Source: CONCERN-3042, #3846
 
 ---
 

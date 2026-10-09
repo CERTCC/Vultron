@@ -16,24 +16,35 @@ import logging
 
 import pytest
 
+from test.support.embargo_register import activate, register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import VultronObject
-from vultron.core.models.case import VultronCase
+from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
 )
-from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.engage_defer import (
     DeferCaseReceivedUseCase,
     EngageCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Announce,
+)
 
 
 class TestEngageDeferCaseBTFailureReason:
@@ -69,7 +80,7 @@ class TestEngageDeferCaseBTFailureReason:
         return EngageCaseReceivedEvent(
             activity_id="https://example.org/activities/engage-001",
             actor_id=actor_id,
-            object_=VultronObject(id_=case_id),
+            object_=CoreObject(id_=case_id),
             semantic_type=MessageSemantics.ENGAGE_CASE,
         )
 
@@ -79,22 +90,77 @@ class TestEngageDeferCaseBTFailureReason:
         return DeferCaseReceivedEvent(
             activity_id="https://example.org/activities/defer-001",
             actor_id=actor_id,
-            object_=VultronObject(id_=case_id),
+            object_=CoreObject(id_=case_id),
             semantic_type=MessageSemantics.DEFER_CASE,
         )
+
+    @pytest.mark.parametrize(
+        "use_case", [EngageCaseReceivedUseCase, DeferCaseReceivedUseCase]
+    )
+    def test_missing_case_id_is_refused(self, dl, use_case):
+        """HP-01-003: an Engage/Defer with no case id is malformed."""
+        from unittest.mock import MagicMock
+
+        event = MagicMock()
+        event.case_id = None
+
+        result = use_case(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    def test_engage_naming_an_unheld_embargo_is_refused_and_stores_nothing(
+        self, dl, actor_id, case_id
+    ):
+        """EMB-18-003: a carried snapshot naming an unreadable embargo is
+        refused before its participants are stored."""
+        participant = CaseParticipant(
+            id_=f"{case_id}/participants/vendor",
+            attributed_to=actor_id,
+            context=case_id,
+        )
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="engage snapshot",
+            embargo_register=register(
+                active=f"{case_id}/embargo_events/unheld"
+            ),
+            case_participants=[participant],
+        )
+        event = EngageCaseReceivedEvent(
+            activity_id="https://example.org/activities/engage-002",
+            actor_id=actor_id,
+            object_=case,
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+        )
+
+        result = EngageCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "EMB-18-003" in (result.reason or "")
+        assert dl.read(participant.id_) is None
 
     def test_engage_case_failure_reason_is_nonempty(
         self, dl, actor_id, case_id, caplog
     ):
         """EngageCaseBT WARNING includes a non-empty failure reason.
 
-        When CheckParticipantExists fails (no participant record),
+        When SenderIsActiveParticipantNode fails (no participant record),
         the warning must name the failing node, not end with a bare colon.
         """
         event = self._engage_event(actor_id, case_id)
 
         with caplog.at_level(logging.WARNING):
-            EngageCaseReceivedUseCase(dl, event).execute()
+            result = EngageCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+
+        # HP-01-003: an actor with no participant record is refused.
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason
 
         records = [
             r
@@ -113,13 +179,23 @@ class TestEngageDeferCaseBTFailureReason:
     ):
         """DeferCaseBT WARNING includes a non-empty failure reason.
 
-        When CheckParticipantExists fails (no participant record),
+        When SenderIsActiveParticipantNode fails (no participant record),
         the warning must name the failing node, not end with a bare colon.
         """
         event = self._defer_event(actor_id, case_id)
 
         with caplog.at_level(logging.WARNING):
-            DeferCaseReceivedUseCase(dl, event).execute()
+            result = DeferCaseReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+
+        # HP-01-003: an actor with no participant record is refused.
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason
 
         records = [
             r
@@ -135,7 +211,7 @@ class TestEngageDeferCaseBTFailureReason:
 
 
 class TestEngageCaseStoresEmbeddedParticipants:
-    """EngageCaseReceivedUseCase must call _store_embedded_participants (#573).
+    """EngageCaseReceivedUseCase must call store_embedded_participants (#573).
 
     Regression tests: when Join(VulnerabilityCase) arrives with inline
     participant objects, those objects must be persisted as independent
@@ -160,13 +236,13 @@ class TestEngageCaseStoresEmbeddedParticipants:
 
     @pytest.fixture
     def case_with_inline_participant(self):
-        """VultronCase carrying a fully inline VultronParticipant."""
-        participant = VultronParticipant(
+        """VulnerabilityCase carrying a fully inline CaseParticipant."""
+        participant = CaseParticipant(
             id_=self._PARTICIPANT_ID,
             attributed_to=self._ACTOR_ID,
             context=self._CASE_ID,
         )
-        case = VultronCase(id_=self._CASE_ID)
+        case = VulnerabilityCase(id_=self._CASE_ID)
         object.__setattr__(case, "case_participants", [participant])
         return case
 
@@ -185,10 +261,16 @@ class TestEngageCaseStoresEmbeddedParticipants:
         """Embedded CaseParticipant is persisted before EngageCaseBT runs.
 
         Even when the BT fails (no pre-registered participant in the DataLayer),
-        _store_embedded_participants must run first and persist the inline
+        store_embedded_participants must run first and persist the inline
         participant object (#573 regression).
         """
-        EngageCaseReceivedUseCase(dl, engage_event_with_inline_case).execute()
+        EngageCaseReceivedUseCase(
+            dl,
+            engage_event_with_inline_case,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         stored = dl.read(self._PARTICIPANT_ID)
         assert stored is not None, (
@@ -200,10 +282,10 @@ class TestEngageCaseStoresEmbeddedParticipants:
     def test_bare_string_participant_is_not_stored(self, dl):
         """When case_participants contains bare strings, nothing is stored.
 
-        _store_embedded_participants is idempotent on strings; no error and
+        store_embedded_participants is idempotent on strings; no error and
         no false record is created (#573 does not regress bare-string path).
         """
-        case_str_participants = VultronCase(id_=self._CASE_ID)
+        case_str_participants = VulnerabilityCase(id_=self._CASE_ID)
         object.__setattr__(
             case_str_participants, "case_participants", [self._PARTICIPANT_ID]
         )  # bare string
@@ -213,14 +295,50 @@ class TestEngageCaseStoresEmbeddedParticipants:
             object_=case_str_participants,
             semantic_type=MessageSemantics.ENGAGE_CASE,
         )
-        EngageCaseReceivedUseCase(dl, event).execute()
+        EngageCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         stored = dl.read(self._PARTICIPANT_ID)
         assert stored is None, (
-            "_store_embedded_participants must skip bare string participant "
-            "refs — no VultronParticipant record should be created for a bare "
+            "store_embedded_participants must skip bare string participant "
+            "refs — no CaseParticipant record should be created for a bare "
             "string"
         )
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_case_naming_an_unheld_embargo_is_refused(
+        self, dl, case_with_inline_participant
+    ):
+        """A case naming an embargo this store cannot read stores nothing."""
+        activate(
+            case_with_inline_participant,
+            f"{self._CASE_ID}/embargo_events/unheld",
+        )
+        event = EngageCaseReceivedEvent(
+            activity_id="https://example.org/activities/engage-4032",
+            actor_id=self._ACTOR_ID,
+            object_=case_with_inline_participant,
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+        )
+
+        result = EngageCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "EMB-18-003" in (result.reason or "")
+        assert dl.read(self._PARTICIPANT_ID) is None
+        assert dl.read(self._CASE_ID) is None
+        assert dl.list_objects("EmbargoEvent") == []
 
 
 class TestEngageCaseLedgerCommit:
@@ -248,53 +366,56 @@ class TestEngageCaseLedgerCommit:
 
     @pytest.fixture
     def seeded_dl(self, dl):
-        from vultron.core.models.vultron_types import VultronCaseActor
+        return self._seed(dl)
 
-        dl.create(VultronCaseActor(id_=self._SENDER_ID, name="Vendor"))
+    @classmethod
+    def _seed(cls, dl: SqliteDataLayer) -> SqliteDataLayer:
+        """*dl*'s replica of the case: vendor participant plus the CM."""
+        from vultron.core.models.case_actor import CaseActor
 
-        vendor_p = VultronParticipant(
-            id_=self._VENDOR_PARTICIPANT_ID,
-            attributed_to=self._SENDER_ID,
-            context=self._CASE_ID,
+        dl.create(CaseActor(id_=cls._SENDER_ID, name="Vendor"))
+
+        vendor_p = CaseParticipant(
+            id_=cls._VENDOR_PARTICIPANT_ID,
+            attributed_to=cls._SENDER_ID,
+            context=cls._CASE_ID,
             participant_statuses=[
                 ParticipantStatus(
-                    attributed_to=self._SENDER_ID,
-                    context=self._CASE_ID,
+                    attributed_to=cls._SENDER_ID,
+                    context=cls._CASE_ID,
                     rm=RmDimension(state=RM.RECEIVED),
                 ),
                 ParticipantStatus(
-                    attributed_to=self._SENDER_ID,
-                    context=self._CASE_ID,
+                    attributed_to=cls._SENDER_ID,
+                    context=cls._CASE_ID,
                     rm=RmDimension(state=RM.VALID),
                 ),
             ],
         )
         dl.create(vendor_p)
 
-        dl.create(
-            VultronCaseActor(id_=self._CASE_MANAGER_ID, name="Coordinator")
-        )
+        dl.create(CaseActor(id_=cls._CASE_MANAGER_ID, name="Coordinator"))
 
-        cm_p = VultronParticipant(
-            id_=self._CM_PARTICIPANT_ID,
-            attributed_to=self._CASE_MANAGER_ID,
-            context=self._CASE_ID,
+        cm_p = CaseParticipant(
+            id_=cls._CM_PARTICIPANT_ID,
+            attributed_to=cls._CASE_MANAGER_ID,
+            context=cls._CASE_ID,
             case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
         )
         dl.create(cm_p)
 
         # attributed_to triggers genesis_hash computation (CLP-08-001/002).
-        case = VultronCase(
-            id_=self._CASE_ID,
+        case = VulnerabilityCase(
+            id_=cls._CASE_ID,
             name="Ledger Commit Regression Case #2300",
-            attributed_to=self._CASE_MANAGER_ID,
+            attributed_to=cls._CASE_MANAGER_ID,
             case_participants=[
-                self._VENDOR_PARTICIPANT_ID,
-                self._CM_PARTICIPANT_ID,
+                cls._VENDOR_PARTICIPANT_ID,
+                cls._CM_PARTICIPANT_ID,
             ],
             actor_participant_index={
-                self._SENDER_ID: self._VENDOR_PARTICIPANT_ID,
-                self._CASE_MANAGER_ID: self._CM_PARTICIPANT_ID,
+                cls._SENDER_ID: cls._VENDOR_PARTICIPANT_ID,
+                cls._CASE_MANAGER_ID: cls._CM_PARTICIPANT_ID,
             },
         )
         dl.create(case)
@@ -308,12 +429,12 @@ class TestEngageCaseLedgerCommit:
             activity_id=f"{self._CASE_ID}/activities/engage-2300",
             actor_id=self._SENDER_ID,
             receiving_actor_id=self._CASE_MANAGER_ID,
-            object_=VultronObject(id_=self._CASE_ID),
+            object_=CoreObject(id_=self._CASE_ID),
             semantic_type=MessageSemantics.ENGAGE_CASE,
             activity=VultronActivity(
                 type_="Join",
                 actor=self._SENDER_ID,
-                object_=VultronCase(id_=self._CASE_ID),
+                object_=VulnerabilityCase(id_=self._CASE_ID),
                 context=self._CASE_ID,
             ),
         )
@@ -328,22 +449,105 @@ class TestEngageCaseLedgerCommit:
         it via the "not a case manager" guard.  Regression for #2300.
         """
         from vultron.core.models.case_ledger_entry import (
-            VultronCaseLedgerEntry,
+            CaseLedgerEntry,
         )
 
-        EngageCaseReceivedUseCase(seeded_dl, self._engage_event()).execute()
+        EngageCaseReceivedUseCase(
+            seeded_dl,
+            self._engage_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
+        ).execute()
 
         entries = seeded_dl.list_objects("CaseLedgerEntry")
         engage_entries = [
             e
             for e in entries
-            if isinstance(e, VultronCaseLedgerEntry)
-            and e.event_type == "engage_case"
+            if isinstance(e, CaseLedgerEntry) and e.event_type == "engage_case"
         ]
         assert len(engage_entries) == 1, (
             "Expected exactly one 'engage_case' ledger entry when "
             "receiving_actor_id is the CaseManager — regression for #2300"
         )
+
+    @staticmethod
+    def _queued_announces(dl: SqliteDataLayer) -> list[as_Announce]:
+        """Queued case-update Announces, minus the ledger fan-out.
+
+        Each committed entry is also announced to the participants
+        (SYNC-02-003); that replication is not the case broadcast checked here.
+        """
+        queued = [dl.read(activity_id) for activity_id in dl.outbox_list()]
+        return [
+            a
+            for a in queued
+            if isinstance(a, as_Announce)
+            and not isinstance(a.object_, CaseLedgerEntry)
+        ]
+
+    def test_engage_received_by_case_manager_broadcasts(self, seeded_dl):
+        """Control: the CASE_MANAGER announces the updated case (CM-06-001)."""
+        EngageCaseReceivedUseCase(
+            seeded_dl,
+            self._engage_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
+        ).execute()
+
+        announces = self._queued_announces(seeded_dl)
+        assert len(announces) == 1
+        assert announces[0].actor == self._CASE_MANAGER_ID
+
+    def test_engage_received_by_non_case_manager_does_not_broadcast(self):
+        """A participant that is not the CASE_MANAGER announces nothing.
+
+        ``BroadcastCaseUpdateNode`` authors the ``Announce`` as the executing
+        actor, so without a role gate every replica that received the Join
+        re-broadcast canonical case state under its own name.
+        """
+        finder_id = "https://example.org/actors/finder-2300"
+        dl = self._seed(
+            SqliteDataLayer("sqlite:///:memory:", actor_id=finder_id)
+        )
+        event = self._engage_event().model_copy(
+            update={"receiving_actor_id": finder_id}
+        )
+
+        EngageCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert self._queued_announces(dl) == []
+
+    def test_engage_without_receiving_actor_executes_as_store_owner(
+        self, seeded_dl
+    ):
+        """No ``receiving_actor_id`` → the store's owner, never the sender.
+
+        The fallback used to be ``request.actor_id``, so the CASE_MANAGER's own
+        replica ran the tree as the vendor and skipped its commit (BT-17-006).
+        """
+        event = self._engage_event().model_copy(
+            update={"receiving_actor_id": None}
+        )
+
+        EngageCaseReceivedUseCase(
+            seeded_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
+        ).execute()
+
+        assert [
+            e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
+        ] == ["engage_case"]
 
     def test_engage_case_transitions_vendor_rm_to_accepted(self, seeded_dl):
         """EngageCaseReceivedUseCase still transitions the engaging actor's RM to ACCEPTED.
@@ -351,10 +555,17 @@ class TestEngageCaseLedgerCommit:
         Verifies that fixing the receiving_actor_id does not break the RM
         transition for the sending actor (the actor who engaged the case).
         """
-        EngageCaseReceivedUseCase(seeded_dl, self._engage_event()).execute()
+        result = EngageCaseReceivedUseCase(
+            seeded_dl,
+            self._engage_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         updated = seeded_dl.read(self._VENDOR_PARTICIPANT_ID)
-        assert isinstance(updated, VultronParticipant)
+        assert isinstance(updated, CaseParticipant)
         latest_status = updated.participant_statuses[-1]
         assert latest_status.rm.state == RM.ACCEPTED
 
@@ -380,10 +591,10 @@ class TestDeferCaseLedgerCommit:
 
     @pytest.fixture
     def seeded_dl(self, dl):
-        from vultron.core.models.vultron_types import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        dl.create(VultronCaseActor(id_=self._SENDER_ID, name="Vendor"))
-        vendor_p = VultronParticipant(
+        dl.create(CaseActor(id_=self._SENDER_ID, name="Vendor"))
+        vendor_p = CaseParticipant(
             id_=self._VENDOR_PARTICIPANT_ID,
             attributed_to=self._SENDER_ID,
             context=self._CASE_ID,
@@ -401,17 +612,15 @@ class TestDeferCaseLedgerCommit:
             ],
         )
         dl.create(vendor_p)
-        dl.create(
-            VultronCaseActor(id_=self._CASE_MANAGER_ID, name="Coordinator")
-        )
-        cm_p = VultronParticipant(
+        dl.create(CaseActor(id_=self._CASE_MANAGER_ID, name="Coordinator"))
+        cm_p = CaseParticipant(
             id_=self._CM_PARTICIPANT_ID,
             attributed_to=self._CASE_MANAGER_ID,
             context=self._CASE_ID,
             case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
         )
         dl.create(cm_p)
-        case = VultronCase(
+        case = VulnerabilityCase(
             id_=self._CASE_ID,
             name="Defer Ledger Commit Regression #2300",
             attributed_to=self._CASE_MANAGER_ID,
@@ -432,15 +641,35 @@ class TestDeferCaseLedgerCommit:
             activity_id=f"{self._CASE_ID}/activities/defer-2300",
             actor_id=self._SENDER_ID,
             receiving_actor_id=self._CASE_MANAGER_ID,
-            object_=VultronObject(id_=self._CASE_ID),
+            object_=CoreObject(id_=self._CASE_ID),
             semantic_type=MessageSemantics.DEFER_CASE,
             activity=VultronActivity(
                 type_="Ignore",
                 actor=self._SENDER_ID,
-                object_=VultronCase(id_=self._CASE_ID),
+                object_=VulnerabilityCase(id_=self._CASE_ID),
                 context=self._CASE_ID,
             ),
         )
+
+    def test_defer_without_receiving_actor_executes_as_store_owner(
+        self, seeded_dl
+    ):
+        """No ``receiving_actor_id`` → the store's owner, never the sender."""
+        event = self._defer_event().model_copy(
+            update={"receiving_actor_id": None}
+        )
+
+        DeferCaseReceivedUseCase(
+            seeded_dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
+        ).execute()
+
+        assert [
+            e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
+        ] == ["defer_case"]
 
     def test_defer_case_commits_ledger_entry_when_receiving_actor_is_case_manager(
         self, seeded_dl
@@ -451,17 +680,22 @@ class TestDeferCaseLedgerCommit:
         defer path. Regression for #2300.
         """
         from vultron.core.models.case_ledger_entry import (
-            VultronCaseLedgerEntry,
+            CaseLedgerEntry,
         )
 
-        DeferCaseReceivedUseCase(seeded_dl, self._defer_event()).execute()
+        DeferCaseReceivedUseCase(
+            seeded_dl,
+            self._defer_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
+        ).execute()
 
         entries = seeded_dl.list_objects("CaseLedgerEntry")
         defer_entries = [
             e
             for e in entries
-            if isinstance(e, VultronCaseLedgerEntry)
-            and e.event_type == "defer_case"
+            if isinstance(e, CaseLedgerEntry) and e.event_type == "defer_case"
         ]
         assert len(defer_entries) == 1, (
             "Expected exactly one 'defer_case' ledger entry when "
@@ -470,10 +704,17 @@ class TestDeferCaseLedgerCommit:
 
     def test_defer_case_transitions_vendor_rm_to_deferred(self, seeded_dl):
         """DeferCaseReceivedUseCase still transitions the deferring actor's RM to DEFERRED."""
-        DeferCaseReceivedUseCase(seeded_dl, self._defer_event()).execute()
+        result = DeferCaseReceivedUseCase(
+            seeded_dl,
+            self._defer_event(),
+            trigger_activity=TriggerActivityAdapter(seeded_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(seeded_dl),
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         updated = seeded_dl.read(self._VENDOR_PARTICIPANT_ID)
-        assert isinstance(updated, VultronParticipant)
+        assert isinstance(updated, CaseParticipant)
         latest_status = updated.participant_statuses[-1]
         assert latest_status.rm.state == RM.DEFERRED
 
@@ -523,9 +764,9 @@ class TestRegistrySuppliesTheTriggeringActivity:
         event = extract_event(activity)
 
         assert event.semantic_type == expected_semantics
-        assert (
-            event.activity is not None
-        ), f"{factory_name}: registry did not carry the triggering activity"
+        assert event.activity is not None, (
+            f"{factory_name}: registry did not carry the triggering activity"
+        )
         # The snapshot built from it needs both of these; the event itself has
         # neither, which is why the missing activity aborted the commit.
         assert event.activity.type_

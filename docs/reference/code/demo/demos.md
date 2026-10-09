@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Demo Scripts
 
 Individual protocol-fragment exchange demo scripts in `vultron.demo.exchange`.
@@ -32,6 +36,12 @@ Each script can be run standalone via
 ## establish-embargo
 
 ::: vultron.demo.exchange.establish_embargo_demo
+    options:
+        heading_level: 3
+
+## report-with-embargo
+
+::: vultron.demo.exchange.report_with_embargo_demo
     options:
         heading_level: 3
 

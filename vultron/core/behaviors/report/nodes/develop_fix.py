@@ -35,29 +35,32 @@ References
 """
 
 import logging
-from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.behaviors.case.nodes.participant.status import (
-    CreateParticipantStatusNode,
-)
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
-from vultron.core.behaviors.report.nodes.develop_fix_conditions import (  # noqa: F401
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
+)
+from vultron.core.behaviors.report.nodes.develop_fix_conditions import (
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.states.cs import CS_vf
 
 logger = logging.getLogger(__name__)
 
 
-class TransitionCStoFixReady(DataLayerActionWithPorts):
+class TransitionCStoFixReady(DataLayerActionWithPorts, StateWriteCapable):
     """Persist a VF=VF ParticipantStatus snapshot for the actor in this case.
 
     Advances the actor's VF dimension to ``CS_vf.VF`` (fix ready) and
@@ -123,8 +126,6 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         # result (internal_error) rather than raising, so no broad catch is
         # needed here — an escaping exception would be a bridge-contract
         # violation that must surface loudly (CS-23-001).
-        from vultron.core.behaviors.bridge import BTBridge
-
         result = BTBridge(datalayer=self.datalayer).execute_with_setup(
             tree=self._vendor_aware_node,
             actor_id=self._actor_id,
@@ -141,8 +142,6 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
             return Status.FAILURE
 
         try:
-            from vultron.core.behaviors.bridge import BTBridge
-
             result = BTBridge(datalayer=self.datalayer).execute_with_setup(
                 tree=self._fix_ready_node,
                 actor_id=self._actor_id,
@@ -156,14 +155,14 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
                     self._case_id,
                 )
             return result.status
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Error transitioning to VF=VF: %s", self.name, e
             )
             return Status.FAILURE
 
 
-class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
+class _EmitParticipantStatusActivityBase(_EmitSingleActivityBase):
     """Shared guard+factory-dispatch+outbox-write skeleton for
     ``Add(ParticipantStatus)`` trigger activities (BTND-07-005).
 
@@ -241,9 +240,10 @@ class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
                 actor=self._actor_id,
                 to=to,
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            # factory.add_participant_status_to_participant returns str only;
+            # pass an empty blob since no captured dict is present.
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "Actor '%s' emitted %s for case '%s'",
                 self._actor_id,
@@ -251,8 +251,8 @@ class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
                 self._case_id,
             )
             return Status.SUCCESS
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Error emitting participant-status activity: %s",
                 self.name,
                 e,

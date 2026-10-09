@@ -1,9 +1,14 @@
 ---
 status: accepted
 date: 2026-08-26
+created: 2026-08-26
+updated: 2026-08-26
+revision: 1
 deciders: ahouseholder
-consulted: notes/wire-artifact-immutability.md, notes/datalayer-design.md, notes/activity-factories.md, notes/core-wire-rendering-port.md, docs/adr/0017-domain-wire-object-separation.md, docs/adr/0064-core-branch-validate-assignment.md, docs/adr/0073-per-actor-storage-isolation.md
+consulted: notes/wire-artifact-immutability.md, notes/datalayer-design.md, notes/activity-factories.md, notes/core-wire-rendering-port.md, docs/adr/archived/0017-domain-wire-object-separation.md, docs/adr/0064-core-branch-validate-assignment.md, docs/adr/0073-per-actor-storage-isolation.md
 informed: specs/vocabulary-model.yaml
+stakeholder_type: [project-contributor]
+partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
 ---
 
 # Treat Wire Activities as Immutable Artifacts; Freeze at Receipt and at Factory Seal
@@ -73,6 +78,12 @@ Two distinct objects serve the two needs of the inbound pipeline:
 
 A is never modified to produce B. If rehydration fails, A remains intact.
 
+How A is held changed after this decision.
+`frozen=True` covers only the class that declares it, and ADR-0099 detail 3 made every paired nested object a mutable core class, so a frozen envelope no longer makes the received activity immutable.
+A is now the received body itself: `parse_activity` seals it as JSON text before anything expands or validates it, and ingress rehydration carries that text onto B (#3584).
+That mechanism is recorded in ADR-0099's **Amends** list; the principle, that A is the evidence and B is never it, is unchanged.
+This is why `status:` stays `accepted` with `partially_superseded_by:` rather than `superseded`: the outbound half of this decision is unaffected.
+
 ### Outbound: frozen blob pipeline
 
 1. **Factory** (`vultron/wire/as2/factories/`) constructs the wire object
@@ -82,6 +93,10 @@ A is never modified to produce B. If rehydration fails, A remains intact.
 3. **Core** uses the exact same blob for both `CaseLedgerEntry.payloadSnapshot`
    and outbox delivery.
 4. **Adapter** delivers the blob unchanged — no enrichment, no expansion.
+
+How step 4 gets the blob (amended by #2654/#2655): the outbox queues activity ids, and the activity *record* is a dehydrated, rehydrated-on-read reconstruction, not the blob.
+So the adapter that persists an outbound activity also *seals* the blob's text as a `SealedOutboundBody` record keyed by the activity id (`vultron/adapters/outbox_sealed_body.py`), and the outbox handler delivers that text without reading the activity record at all (OX-07-001).
+The `ActivityEmitter` port carries the sealed JSON text, not an activity object.
 
 The factory is solely responsible for completeness. Adapter enrichment
 compensates for an incomplete factory and creates a ledger/delivery gap.
@@ -106,8 +121,7 @@ compensates for an incomplete factory and creates a ledger/delivery gap.
 
 ## Validation
 
-- `test/architecture/test_wire_artifact_immutability.py`: xfail tests for
-  VM-08-002 and VM-08-003; promote to passing once implementation is complete.
+- `test/architecture/test_wire_artifact_immutability.py`: for every class reachable in a parsed example activity, tampering with its instances leaves the received evidence equal to the delivered body (VM-08-002); and the VM-08-003 trigger-port return-type check.
 - `specs/vocabulary-model.yaml` VM-08-002 and VM-08-003 (MUST-level requirements).
 
 ## More Information
@@ -116,8 +130,8 @@ Implementation tracked in:
 
 - #2652 — add `frozen=True` to wire branch `as_Object` + ratchet test
 - #2653 — redesign `TriggerActivityPort` to return frozen wire blob (size:L)
-- #2654 — remove `_drop_bare_inline_refs` from emit nodes (blocked by #2653)
-- #2655 — remove `outbox_delivery.py` enrichment mutations (blocked by #2653)
+- #2654 — remove `_drop_bare_inline_refs` from emit nodes (done: the snapshot is `json.loads(activity_blob)`; the factory sets `context`; the commit boundary accepts a bare `target` naming the entry's own case)
+- #2655 — remove `outbox_delivery.py` enrichment mutations (done: the handler relays the *sealed body*)
 - #2656 — A/B split in inbox pipeline (blocked by #2652)
 
 Source: CONCERN-2545. Design rationale: `notes/wire-artifact-immutability.md`.

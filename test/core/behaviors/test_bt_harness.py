@@ -22,15 +22,15 @@ Covers:
 - assert_failure: rejects a crash masquerading as a protocol FAILURE
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTExecutionResult
-from test.core.behaviors.bt_harness import BTTestScenario
 
 
 class TestBTScenarioFactory:

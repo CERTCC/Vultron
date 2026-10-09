@@ -19,7 +19,6 @@ avoids duplication when future multi-actor scenarios need the same checks.
 """
 
 import logging
-from typing import Optional
 
 import httpx2 as httpx
 
@@ -55,7 +54,7 @@ def _fetch_participant(
     case_id: str,
     actor_id: str,
     dl_actor_id: str | None = None,
-) -> Optional[as_CaseParticipant]:
+) -> as_CaseParticipant | None:
     """Fetch the as_CaseParticipant record for *actor_id* in *case_id*.
 
     Args:
@@ -216,6 +215,7 @@ def _check_participant_rm_state_in(
     actor_id: str,
     expected_states: "set[RM]",
     label: str,
+    dl_actor_id: str | None = None,
 ) -> None:
     """Assert actor's latest participant rm_state is in *expected_states*.
 
@@ -230,8 +230,14 @@ def _check_participant_rm_state_in(
         actor_id: Full URI of the actor to check.
         expected_states: Set of acceptable ``RM`` values.
         label: Human-readable label for ``AssertionError`` messages.
+        dl_actor_id: When provided, read from this actor's store on *client*
+            instead of the client's own default store.  Needed when the
+            authoritative record is held by a self-hosted CaseActor rather
+            than the container's primary actor (ADR-0073).
     """
-    participant = _fetch_participant(client, case_id, actor_id)
+    participant = _fetch_participant(
+        client, case_id, actor_id, dl_actor_id=dl_actor_id
+    )
     if participant is None:
         raise AssertionError(
             f"{label}: participant for actor '{actor_id}' not found"
@@ -416,7 +422,14 @@ def _all_fetchable_participants_rm_closed(
         # No projection step: as_CaseParticipant *is* CaseParticipant
         # (ADR-0099 detail 3), so validating the fetched payload already yields the
         # core object ``all_participants_rm_closed`` expects.
-        core_participants.append(as_CaseParticipant(**p_data))
+        participant = as_CaseParticipant(**p_data)
+        if not participant.joined:
+            # Inert (never-joined) participants are excluded from the active-closure
+            # check.  A rejected invitee's RM.CLOSED state is confirmed at the
+            # point of rejection (M2 check); replica sync for inert records is
+            # not guaranteed across containers (ADR-0114, CM-11-007).
+            continue
+        core_participants.append(participant)
     if not core_participants:
         # No locally-fetchable participants — cannot confirm closure.
         return False
@@ -430,12 +443,12 @@ def verify_activity_in_inbox(
 ) -> bool:
     """Check whether *activity_id* was received and stored by the actor.
 
-    Checks the DataLayer directly for the activity record — the authoritative
-    approach for single-backend exchange-demo tests.  The inbound pipeline
-    stores every processed activity in the DataLayer, so a lookup by ID is
-    sufficient to confirm receipt.  The actor-profile ``inbox.items`` path is
-    not used because ``_record_inbox_receipt`` is a no-op when ``inbox`` is a
-    string URI rather than a collection object.
+    Checks the actor's store directly for the activity record — the
+    authoritative approach for exchange-demo tests.  Ingress stores every
+    received activity in the receiving actor's store, so a lookup by ID is
+    sufficient to confirm receipt.  The inbox path itself has no read surface
+    (IE-02-004): receipt is verified through the actor's store, which is what
+    the datalayer client reads here.
 
     Args:
         client: DataLayerClient for the target container.
@@ -478,8 +491,8 @@ def verify_receiver_case_state(
     report_id: str,
     receiver_actor_id: str,
     reporter_actor_id: str,
-    question_note_id: Optional[str] = None,
-    reply_note_id: Optional[str] = None,
+    question_note_id: str | None = None,
+    reply_note_id: str | None = None,
 ) -> as_VulnerabilityCase:
     """Assert the final authoritative case state on the receiver container.
 
@@ -549,7 +562,7 @@ def verify_receiver_case_state(
 
 
 def verify_case_actor_unused(
-    case_actor_client: Optional[DataLayerClient],
+    case_actor_client: DataLayerClient | None,
     case_id: str,
 ) -> None:
     """Verify the dedicated CaseActor container remains unused in D5-2.

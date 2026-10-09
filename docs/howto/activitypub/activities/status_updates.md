@@ -17,6 +17,7 @@ You finish with the update committed to the case ledger and replicated to every 
 
 - A case you are seated on, and your own `CaseParticipant` record.
 - For a participant status, the dimension you are reporting: `vf_state` and `d_state` apply only to a Vendor or a Deployer.
+  The letters in these fields are the substates of the [CVD Case State Model](../../../topics/process_models/cs/cs_model.md#cvd-case-substates).
 
 ---
 
@@ -45,7 +46,7 @@ Set `d_state` from `d` to `D`.
 That is Fix Deployed (CD).
 
 Send only your own status.
-Participant status is self-declaratory, so a participant asserting another participant's state is a protocol violation outside the narrow externally-evidenced exceptions (ADR-0084).
+Participant status is self-declaratory, so a participant asserting another participant's state is a protocol violation outside the narrow externally-evidenced exceptions (PRM-06-001, ADR-0121).
 
 ---
 

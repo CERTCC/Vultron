@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-09-01
+created: 2026-09-01
+updated: 2026-09-01
+revision: 1
 deciders: sei-ahouseholder
 consulted: sei-ahouseholder
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # The Formal Message Set and the AS2 Wire Vocabulary Are Deliberately Different Shapes; the Mapping Is the Reconciling Artifact

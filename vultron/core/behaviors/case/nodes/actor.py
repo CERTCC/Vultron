@@ -30,338 +30,29 @@ Composite subtrees assembling these leaf nodes are defined in the sibling
 ``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules at
 the process-area root per BTND-07-003:
 
-- ``invite_actor_to_case_trigger_bt``
 - ``accept_case_invite_trigger_bt``
 - ``reject_case_invite_trigger_bt``
 - ``create_accept_ownership_transfer_tree``
 """
 
-import json
 import logging
-from typing import Any, cast
+from typing import Any
 
 from py_trees.common import Status
-from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
-from pydantic import ValidationError
+from py_trees.ports import BehaviourWithPorts, PortInformation
 
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    _EmitSingleActivityBase,
+from vultron.core.behaviors.case.nodes.invite_actor_emit import (  # noqa: F401
+    EmitInviteActorToCaseNode,
 )
 from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
     EmitAcceptCaseInviteNode,
     EmitRejectCaseInviteNode,
 )
-from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
-    _drop_bare_inline_refs,
+from vultron.core.behaviors.case.nodes.participant.roles import (
+    suggested_roles_key,
 )
-from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
-from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
-)
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.enums.roles import CVDRole, serialize_roles
-
-
-class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
-    """Create Invite(Actor, Case) and queue in the Case Actor's outbox.
-
-    Uses ``trigger_activity_factory.invite_actor_to_case()`` with
-    ``actor=self.actor_id`` (expected to be the Case Actor URI),
-    ``to=[invitee_id]``, and ``cc=[case_actor_id]`` when ``case_actor_id``
-    is provided so ASGI self-delivery routes the Invite to the CaseActor's
-    own inbox for canonical ledger archival (CLP-10-001).  An optional
-    ``attributed_to`` carries the original requesting actor when the invite
-    is sent from the Case Actor identity (PCR-08-007).
-
-    Roles are resolved via ``_read_suggested_roles()``, which uses two paths:
-
-    1. **Injected roles** (``roles`` constructor parameter): used when the
-       node is instantiated from a stored ``Offer(CaseParticipant)`` in the
-       DataLayer (ISSUE-1745).  The stored Offer is the trusted source because
-       the received ``Accept`` is untrusted — the accepting actor may have
-       modified or omitted roles.  This path is used in BT execution 2, where
-       the blackboard is empty.
-    2. **Blackboard fallback**: used in the single-execution path where
-       ``EvaluateDefaultRolesNode`` wrote ``suggested_roles`` to the blackboard
-       in the same ``BTBridge.execute_with_setup()`` call (CM-17-003).
-
-    Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
-    ``target`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
-    and factory project it to an enriched ``as_VulnerabilityCaseStub`` — including
-    ``end_time`` when ``em_state == EM.ACTIVE`` — without violating the
-    core→wire import boundary (ARCH-01-001, CM-17-002).
-    """
-
-    def __init__(
-        self,
-        invitee_id: str,
-        case_id: str,
-        case_actor_id: str | None = None,
-        attributed_to: str | None = None,
-        captured: dict | None = None,
-        roles: list[str] | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(captured=captured, name=name)
-        self.invitee_id = invitee_id
-        self.case_id = case_id
-        self.case_actor_id = case_actor_id
-        self.attributed_to = attributed_to
-        self._injected_roles = roles
-        self._suggested_roles_bb = None
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **_EmitSingleActivityBase.INPUT_PORTS,
-        "suggested_roles": PortInformation(data_type=list, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"suggested_roles": "/suggested_roles"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._suggested_roles_bb = None
-        try:
-            self._suggested_roles_bb = self.get_input("suggested_roles")
-        except (NoDataAvailable, NotImplementedError):
-            pass
-
-    def _read_suggested_roles(self) -> list[str] | None:
-        # Use injected roles (from stored Offer via DataLayer) when available
-        # (ISSUE-1745: blackboard is empty in a separate BT execution).
-        if self._injected_roles is not None:
-            return self._injected_roles if self._injected_roles else None
-        roles = self._suggested_roles_bb
-        if isinstance(roles, list):
-            return serialize_roles(roles)
-        return None
-
-    def _call_factory(self) -> tuple[str, str]:
-        """Build Invite(Actor, Case) activity and commit the ledger correlation marker."""
-        cc = [self.case_actor_id] if self.case_actor_id else None
-        roles = self._read_suggested_roles()
-        if roles is not None and not roles:
-            raise ValueError(
-                f"suggested_roles for actor '{self.invitee_id}' is empty"
-                " — cannot emit Invite(Actor, Case) without at least one role"
-            )
-        # CM-17-002: pass the full case object so the adapter+factory can
-        # project it to an enriched stub (with end_time) when em_state==ACTIVE.
-        assert self.datalayer is not None and self.actor_id is not None
-        assert self.trigger_activity_factory is not None
-        # Regime 3 (ADR-0087): the case is *optional enrichment* here, not
-        # coordination state — the Invite is fully specified by invitee/case_id/
-        # actor/roles, and the factory tolerates target=None (CM-17-002 only
-        # enriches the stub when the case is present and em_state==ACTIVE). A
-        # missing local case therefore emits a bare stub rather than failing;
-        # this read is deliberately unguarded (conformance allowlist).
-        case = self.datalayer.read_case(self.case_id)
-        activity_id, activity_blob = (
-            self.trigger_activity_factory.invite_actor_to_case(
-                invitee_id=self.invitee_id,
-                case_id=self.case_id,
-                actor=self.actor_id,
-                to=[self.invitee_id],
-                cc=cc,
-                attributed_to=self.attributed_to,
-                roles=roles,
-                target=case,
-            )
-        )
-        activity_dict: dict = (
-            json.loads(activity_blob) if activity_blob else {}
-        )
-        snapshot: dict = (
-            _drop_bare_inline_refs(activity_dict) if activity_dict else {}
-        )
-        if not snapshot.get("context"):
-            snapshot["context"] = self.case_id
-        commit_tree = create_commit_log_entry_tree(
-            case_id=self.case_id,
-            object_id=activity_id,
-            event_type="invite_actor_to_case",
-            payload_snapshot=snapshot,
-        )
-        result = BTBridge(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer)
-        ).execute_with_setup(tree=commit_tree, actor_id=self.actor_id)
-        if result.status != Status.SUCCESS:
-            raise RuntimeError(
-                f"ledger commit failed for"
-                f" invite_actor_to_case/{self.invitee_id}"
-            )
-        return activity_id, activity_blob
-
-    def _on_success(self, activity_id: str, activity_blob: str) -> None:
-        self.logger.info(
-            "Actor '%s' emitted Invite(Actor, Case) to '%s' for case '%s'",
-            self.actor_id,
-            self.invitee_id,
-            self.case_id,
-        )
-
-
-class ProposeCaseToActorNode(DataLayerActionWithPorts):
-    """Send ``Create(as_CaseProposal)`` to the registered case-actor service.
-
-    Reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
-    ``CreateCaseActorNode`` / ``ResolveCaseActorUrlsNode``), resolves the
-    linked ``VulnerabilityReport`` ID from the case record, and delegates
-    activity construction and persistence to
-    ``trigger_activity_factory.create_case_proposal()`` so the wire layer
-    handles serialization (CP-01-004: report must be embedded inline, not
-    as a URI reference).
-
-    This node MUST run AFTER ``CreateCaseActorNode`` succeeds, because the
-    case-actor identity must exist in the DataLayer before the proposal can
-    be addressed to it (CP-04-002).
-
-    Returns FAILURE when:
-
-    - DataLayer, ``actor_id``, or ``trigger_activity_factory`` is unavailable.
-    - ``case_id`` or ``case_actor_id`` is missing from the blackboard.
-    - The case is not found in the DataLayer.
-    - No ``VulnerabilityReport`` is linked to the case (CP-01-004).
-    - ``trigger_activity_factory.create_case_proposal()`` raises an exception.
-
-    Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
-    """
-
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "case_id": PortInformation(data_type=str, required=False),
-        "case_actor_id": PortInformation(data_type=str, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id", "case_actor_id": "/case_actor_id"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._case_id_bb = None
-        self._case_actor_id_bb = None
-        try:
-            self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
-            pass
-        try:
-            self._case_actor_id_bb = self.get_input("case_actor_id")
-        except (NoDataAvailable, NotImplementedError):
-            pass
-
-    def _read_blackboard_ids(self) -> tuple[str, str] | None:
-        """Read case_id and case_actor_id from ports.
-
-        Returns ``(case_id, case_actor_id)`` on success, or ``None`` after
-        setting ``feedback_message`` on any error.
-        """
-        case_id = self._case_id_bb
-        if not isinstance(case_id, str) or not case_id:
-            self.feedback_message = "case_id not found in blackboard"
-            return None
-
-        case_actor_id = self._case_actor_id_bb
-        if not isinstance(case_actor_id, str) or not case_actor_id:
-            self.feedback_message = "case_actor_id not found in blackboard"
-            return None
-
-        return case_id, case_actor_id
-
-    def _get_report_id(self, case_id: str) -> str | None:
-        """Return the first VulnerabilityReport URI linked to *case_id*.
-
-        Returns the report ID string on success, or ``None`` after setting
-        ``feedback_message`` on any error.
-        """
-        # Regime 1 (ADR-0087): building a CaseProposal requires the case; a
-        # missing DataLayer / case yields the canonical FAILURE feedback+log via
-        # the helper, and this method maps that to its None → caller-FAILURE
-        # contract.
-        case, failure = self._require_case(case_id)
-        if failure is not None:
-            return None
-
-        if not case.vulnerability_reports:
-            self.feedback_message = (
-                f"No VulnerabilityReport linked to case '{case_id}'"
-                " — cannot build CaseProposal (CP-01-004)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return None
-
-        raw = case.vulnerability_reports[0]
-        # vulnerability_reports entries may be string URIs or ref objects.
-        if isinstance(raw, str):
-            return raw
-        return str(getattr(raw, "id_", raw))
-
-    def _build_proposal(self, case_id: str, case_actor_id: str) -> str | None:
-        """Call factory and enqueue outbox item; return activity_id or None."""
-        report_id = self._get_report_id(case_id)
-        if report_id is None:
-            return None
-        assert self.trigger_activity_factory is not None
-        assert self.actor_id is not None
-        assert self.datalayer is not None
-        # CP-01-007: see ProposeReportCaseToActorNode — the CaseActor cannot look
-        # the offer up in a sibling's store, so it travels on the proposal.
-        offer_id, offer_actor_id = find_offer_for_report(
-            self.datalayer, report_id
-        )
-        try:
-            activity_id, _ = (
-                self.trigger_activity_factory.create_case_proposal(
-                    actor=self.actor_id,
-                    report_id=report_id,
-                    case_actor_id=case_actor_id,
-                    offer_id=offer_id,
-                    offer_actor_id=offer_actor_id,
-                )
-            )
-        except (ValidationError, ValueError) as exc:
-            # The proposal could not be built from the report — a malformed
-            # report (ValidationError) or a missing/invalid one (ValueError,
-            # e.g. report not found).  Fail the node with a message; a
-            # programming error (TypeError, AttributeError) must surface loudly
-            # instead (CS-23-001).
-            self.feedback_message = f"create_case_proposal failed: {exc}"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return None
-        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity_id)
-        return activity_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return f
-
-        ids = self._read_blackboard_ids()
-        if ids is None:
-            return Status.FAILURE
-        case_id, case_actor_id = ids
-
-        activity_id = self._build_proposal(case_id, case_actor_id)
-        if activity_id is None:
-            return Status.FAILURE
-
-        self.logger.info(
-            "%s: Queued Create(as_CaseProposal) '%s' to outbox"
-            " for case-actor '%s' (case '%s')",
-            self.name,
-            activity_id,
-            case_actor_id,
-            case_id,
-        )
-        return Status.SUCCESS
+from vultron.core.behaviors.node_logger import node_logger
+from vultron.enums.roles import CVDRole
 
 
 class EvaluateDefaultRolesNode(BehaviourWithPorts):
@@ -389,17 +80,16 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         recommendation_id: str,
         injected_roles: list[str] | None = None,
         name: str | None = None,
+        require_explicit_roles: bool = False,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.suggested_actor_id = suggested_actor_id
         self.case_id = case_id
         self.recommendation_id = recommendation_id
-        self.logger = logging.getLogger(  # type: ignore[assignment]
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-        )
+        self.logger = node_logger(self)  # type: ignore[assignment]
         self._injected_roles = self._coerce_injected_roles(injected_roles)
-        _seg = recommendation_id.split("/")[-1]
-        self._roles_key = f"suggested_roles_{_seg}"
+        self._roles_key = suggested_roles_key(recommendation_id)
+        self._require_explicit_roles = require_explicit_roles
 
     def _coerce_injected_roles(
         self, injected_roles: list[str] | None
@@ -450,8 +140,20 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
         )
 
     def _compute_roles(self) -> list[CVDRole]:
-        """Return roles for the suggested actor; override for custom policy."""
-        return [CVDRole.VENDOR]
+        """Return default roles for the suggested actor (CM-16-003).
+
+        When ``require_explicit_roles`` is ``False`` (the default), returns
+        ``[CVDRole.VENDOR]`` — the protocol default for a participant
+        recommendation (CM-16-003), so the suggest-actor path works without
+        the recommender specifying roles.
+
+        When ``require_explicit_roles`` is ``True``, returns ``[]``, causing
+        FAILURE so that the caller (e.g., the Case Owner's direct invite path)
+        is forced to supply roles explicitly (CM-11-019).  Set this flag for
+        the ``owner_direct_invite`` sub-tree; leave it unset for the
+        ``fresh_path`` sub-tree that handles participant recommendations.
+        """
+        return [] if self._require_explicit_roles else [CVDRole.VENDOR]
 
     def update(self) -> Status:
         roles = (
@@ -460,11 +162,19 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
             else self._compute_roles()
         )
         if not roles:
-            self.feedback_message = (
-                f"{self.name}: _compute_roles() returned an empty list "
-                f"for actor '{self.suggested_actor_id}' — cannot assign roles"
-            )
-            self.logger.error(self.feedback_message)
+            if self._require_explicit_roles and not self._injected_roles:
+                self.feedback_message = (
+                    f"{self.name}: no roles specified for actor"
+                    f" '{self.suggested_actor_id}'"
+                    f" — inviter must give the invitee's roles (CM-11-019)"
+                )
+            else:
+                self.feedback_message = (
+                    f"{self.name}: _compute_roles() returned an empty list"
+                    f" for actor '{self.suggested_actor_id}'"
+                    f" — cannot assign roles"
+                )
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
         self._set_output("suggested_roles", roles)
         self.logger.debug(

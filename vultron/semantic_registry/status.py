@@ -54,6 +54,7 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=CreateCaseStatusReceivedUseCase,
         phrase="{actor} created a case status record",
         wire_activity_class=_CreateCaseStatusActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_CASE_STATUS_TO_CASE,
@@ -72,6 +73,7 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=CreateParticipantStatusReceivedUseCase,
         phrase="{actor} created a participant status record",
         wire_activity_class=_CreateStatusForParticipantActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,

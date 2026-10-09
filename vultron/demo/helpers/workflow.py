@@ -21,51 +21,60 @@ persona (finder, vendor).
 """
 
 import logging
-from typing import Optional, Tuple
+from datetime import datetime
 
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
+from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.invite_chain import (
+    DEMO_STUB_SUMMARY,
+    CaseInviter,
+    run_case_invite_chain,
+)
 from vultron.demo.helpers.polling import (
     _poll_until,
     case_actor_participant_id_in,
+    find_case_actor_participant_id,
+    find_case_invite_for_actor,
     find_ownership_transfer_offer_for_actor,
     resolve_case_actor_store_id,
-    wait_for_case_participants,
-    wait_for_event_type_in_ledger,
     wait_for_initialized_case,
     wait_for_participant_rm_state,
+    wait_for_report_submission_stored,
 )
-from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.seeding import get_actor_by_id
+from vultron.demo.helpers.verification import _fetch_participant
 from vultron.demo.utils import (
-    seed_case_actor_for_report,
     DataLayerClient,
+    case_references_report,
     demo_check,
     demo_gate,
     demo_step,
     get_offer_from_datalayer,
     log_case_state,
+    logfmt,
     post_to_inbox_and_wait,
     ref_id,
+    seed_case_actor,
+    seed_case_actor_for_report,
     verify_object_stored,
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
+    activate_embargo_activity,
     add_report_to_case_activity,
-    create_case_activity,
     offer_case_ownership_transfer_activity,
     parse_submit_report_offer,
-    rm_accept_invite_to_case_activity,
-    rm_invite_to_case_activity,
+    reject_embargo_proposal_activity,
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Create,
     as_Offer,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -75,51 +84,52 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 logger = logging.getLogger(__name__)
 
+#: The one report every scenario submits, stated once for both arms of
+#: :func:`reporter_submits_report`.
+_DEMO_REPORT_NAME = "Remote Code Execution in Network Stack"
+_DEMO_REPORT_CONTENT = (
+    "A critical remote code execution vulnerability was discovered "
+    "in the network stack component. An attacker can exploit this "
+    "issue to execute arbitrary code with elevated privileges."
+)
 
-def _provision_case_actor(receiver_client, report) -> None:
-    """Provision the CaseActor this report's proposal will be addressed to.
 
-    ``ProposeReportCaseToActorNode`` derives the CaseActor's URI from the report
-    and delivery is an ordinary HTTP POST to that actor's inbox (ADR-0042). The
-    inbox route resolves the actor from the store its URI names (ADR-0073), so
-    the CaseActor has to be a hosted actor *before* the proposal is delivered —
-    otherwise the POST answers 404 and the round-trip never starts.
+def _provision_case_actor(receiver_client) -> None:
+    """Provision the CaseActor the receiver's report proposal is addressed to.
 
-    Called from both arms of :func:`reporter_submits_report`. It used to sit only
-    in the ``reporter_client is None`` arm, so every scenario that passes a
-    reporter client — the FV demo among them — delivered the proposal to an actor
-    that did not exist. The visible symptom was two phases later and nowhere near
-    the cause: "Expected as_VulnerabilityCase to be created after
-    validate-report", then ``'NoneType' object has no attribute 'id_'``. Only the
-    router's own delivery warning named the 404, and it is a WARNING in a passing
-    step.
+    ``ProposeReportCaseToActorNode`` sends its proposal to the container's
+    CaseActor, and delivery is an ordinary HTTP POST to that actor's inbox
+    (ADR-0042).  The inbox route resolves the actor from the store its URI names
+    (ADR-0073), so the CaseActor has to be a hosted actor *before* the Offer
+    reaches the receiver -- otherwise the POST answers 404 and the round-trip
+    never starts.
 
-    Both arms need it and neither can do it earlier: the report id is not known
-    until the offer exists.
+    The CaseActor's identity is stable: one per container, independent of the
+    report (#1872, closed).  So provisioning needs no report id and runs *before*
+    the ``submit-report`` trigger in both arms of :func:`reporter_submits_report`.
+    It used to run after the trigger because the id was per-report; by then the
+    trigger's outbox had already delivered the Offer.
     """
-    report_id = getattr(report, "id_", None)
-    if not isinstance(report_id, str) or not report_id:
-        logger.warning(
-            "_provision_case_actor: report has no id; cannot derive the"
-            " CaseActor to provision, so its proposal will 404 on delivery"
-        )
-        return
-    seed_case_actor_for_report(receiver_client, report_id)
+    seed_case_actor(receiver_client)
 
 
 def reporter_submits_report(
     receiver_client: DataLayerClient,
     reporter: as_Actor,
     receiver: as_Actor,
-    reporter_client: Optional[DataLayerClient] = None,
-) -> Tuple[as_VulnerabilityReport, as_Offer]:
+    reporter_client: DataLayerClient | None = None,
+    proposed_embargo_end_time: datetime | None = None,
+) -> tuple[as_VulnerabilityReport, as_Offer]:
     """Reporter creates a vulnerability report and submits it to the receiver.
 
     When ``reporter_client`` is provided (e.g. in a multi-container Docker
     demo), the report and offer are created via the reporter container's
     ``submit-report`` trigger endpoint so that the reporter container logs tell
-    the full process-flow story (D5-6a).  The resulting offer is then delivered
-    to the receiver container's inbox.
+    the full process-flow story (D5-6a).  The trigger's own outbox is the sole
+    delivery of the offer to the receiver's inbox; this function never re-posts
+    it.  The receiver's CaseActor has a stable identity (#1872), so it is
+    provisioned before the trigger, and the function then waits for the report
+    and offer to land in the receiver's own store (EDF-06-002, EDF-06-003).
 
     When ``reporter_client`` is ``None`` (e.g. single-container integration
     tests), the report and offer are constructed in memory and posted directly
@@ -128,15 +138,27 @@ def reporter_submits_report(
     **Default embargo — no explicit negotiation required.**
     When the receiver processes the submitted report,
     ``InitializeDefaultEmbargoNode`` automatically initializes the embargo
-    using the receiver's published default policy.  Because the reporter
+    using the receiver's published default policy, or the configured
+    protocol default when none is published (EP-04-005).  Because the reporter
     submits without a counter-proposal, this constitutes *tacit acceptance*
     of the receiver's default (EP-04-001), and the case reaches ``EM.ACTIVE``
     immediately — no ``ProposeEmbargo`` / ``AcceptEmbargo`` message exchange
-    occurs.  This is intentional protocol behavior, not a missing step.  All
-    demo scenarios that call this function exercise this default path.  A
-    demo that includes an explicit embargo-negotiation round-trip is
-    implementing the *negotiated path* (EP-04-003), which is distinct.
-    See ``notes/embargo-default-semantics.md`` for the full model.
+    occurs.  This is intentional protocol behavior, not a missing step.  Every
+    call that leaves ``proposed_embargo_end_time`` unset exercises this
+    default path.
+
+    **Negotiated path (EP-04-003).**  When ``proposed_embargo_end_time`` is
+    given, the Reporter states embargo terms *with* the submission: the Offer
+    carries an ``EmbargoEvent`` ending then as ``proposedEmbargo``
+    (EP-04-004), and at case creation the CASE_MANAGER activates the shorter
+    of those terms and the receiver's actor default, registering the longer
+    as a pending revision (``EM.REVISE``).  Still no ``ProposeEmbargo`` /
+    ``AcceptEmbargo`` exchange is visible — the negotiation is settled at
+    creation — so a reader distinguishes the two paths by whether terms were
+    stated on the Offer, not by the messages on the wire.  The
+    ``report-with-embargo`` exchange demo is the negotiated path's
+    demonstration.  See ``notes/embargo-default-semantics.md`` for the full
+    model.
 
     Args:
         receiver_client: Client connected to the receiver's container.
@@ -145,17 +167,16 @@ def reporter_submits_report(
         reporter_client: Optional client connected to the reporter container.
             When provided, the submit-report trigger is called on the reporter
             container; when absent the legacy in-memory path is used.
+        proposed_embargo_end_time: The Reporter's proposed embargo end for this
+            report, timezone-aware and in the future; ``None`` proposes
+            nothing.
 
     Returns:
         Tuple of ``(report, offer)``.
     """
     if reporter_client is not None:
-        report_name = "Remote Code Execution in Network Stack"
-        report_content = (
-            "A critical remote code execution vulnerability was discovered "
-            "in the network stack component. An attacker can exploit this "
-            "issue to execute arbitrary code with elevated privileges."
-        )
+        with demo_step("Provision the receiver's CaseActor"):
+            _provision_case_actor(receiver_client)
         result = None
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
@@ -163,51 +184,57 @@ def reporter_submits_report(
             result = ActorSession(
                 client=reporter_client, actor=reporter
             ).submit_report(
-                report_name=report_name,
-                report_content=report_content,
+                report_name=_DEMO_REPORT_NAME,
+                report_content=_DEMO_REPORT_CONTENT,
                 recipient_id=receiver.id_,
+                proposed_embargo_end_time=proposed_embargo_end_time,
             )
         offer_dict = (result.offer or {}) if result is not None else {}
         report, offer = parse_submit_report_offer(offer_dict)
-        # Deliver the offer from the reporter to the receiver's inbox.
-        # Per ADR-0012 (per-actor DataLayer isolation) the trigger stores the
-        # offer only in the reporter's namespace; the receiver must receive
-        # it explicitly via inbox delivery so SubmitReportReceivedUseCase runs
-        # and creates the case at RM.RECEIVED (ADR-0015).
-        with demo_step("Deliver reporter's offer to receiver's inbox"):
-            _provision_case_actor(receiver_client, report)
-            post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
+        # No hand delivery: the trigger's outbox already delivered the offer
+        # (ADR-0012 isolation means it is stored only in the reporter's
+        # namespace until that delivery lands). Gate on the effect in the
+        # receiver's own store instead, naming the receiver rather than relying
+        # on `receiver_client`'s binding (ADR-0073).
+        with demo_check("Report and offer stored in receiver's DataLayer"):
+            wait_for_report_submission_stored(
+                receiver_client, receiver.id_, report.id_, offer.id_
+            )
     else:
         report = as_VulnerabilityReport(
             attributed_to=reporter.id_,
-            name="Remote Code Execution in Network Stack",
-            content=(
-                "A critical remote code execution vulnerability was discovered "
-                "in the network stack component. An attacker can exploit this "
-                "issue to execute arbitrary code with elevated privileges."
-            ),
+            name=_DEMO_REPORT_NAME,
+            content=_DEMO_REPORT_CONTENT,
+        )
+        proposed_embargo = (
+            as_EmbargoEvent(
+                context=report.id_, end_time=proposed_embargo_end_time
+            )
+            if proposed_embargo_end_time is not None
+            else None
         )
         offer = rm_submit_report_activity(
             report,
             actor=reporter.id_,
             target=receiver.id_,
             to=receiver.id_,
+            proposed_embargo=proposed_embargo,
         )
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
         ):
-            _provision_case_actor(receiver_client, report)
+            _provision_case_actor(receiver_client)
             post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
-    # These checks name the receiver explicitly rather than relying on
-    # `receiver_client`'s binding. The check text says whose replica it is about,
-    # so the read should say so too — and not every caller binds its client, in
-    # which case `dl_path` refuses to guess (ADR-0073).
-    with demo_check("Report stored in receiver's DataLayer"):
-        verify_object_stored(
-            receiver_client, report.id_, actor_id=receiver.id_
-        )
-    with demo_check("Offer stored in receiver's DataLayer"):
-        verify_object_stored(receiver_client, offer.id_, actor_id=receiver.id_)
+        # These checks name the receiver explicitly rather than relying on
+        # `receiver_client`'s binding (ADR-0073).
+        with demo_check("Report stored in receiver's DataLayer"):
+            verify_object_stored(
+                receiver_client, report.id_, actor_id=receiver.id_
+            )
+        with demo_check("Offer stored in receiver's DataLayer"):
+            verify_object_stored(
+                receiver_client, offer.id_, actor_id=receiver.id_
+            )
     logger.info("Report submitted: %s", ref_id(report))
     return report, offer
 
@@ -289,28 +316,27 @@ def run_invite_path_rm_triage(
     invited_obj: as_Actor,
     timeout_seconds: float = 20.0,
 ) -> None:
-    """Run the full RM triage cycle for an invite-path participant (CM-11-002).
+    """Run the RM triage cycle for an invite-path participant (CM-11-011).
 
-    Invited actors join via Accept(Invite) and receive the case via
-    Announce(VulnerabilityCase) with embedded reports + the canonical
-    Offer(VulnerabilityReport) ledger backfill.  The VultronOfferRecord is
-    created from the ledger entry by ApplyOfferReportFromLedgerNode.
+    An invited actor joins via ``Accept(Invite(Actor, VulnerabilityCaseStub))``
+    and receives the case, then the ledger replay, then the CASE_MANAGER's
+    full-case Invite.  It never answers the reporter's
+    ``Offer(VulnerabilityReport)``: it was not sent that Offer (CM-11-020,
+    ADR-0121).  It judges the case by replying to the full-case Invite, and
+    :func:`~vultron.demo.helpers.invite_chain.run_case_invite_chain` sends that
+    reply for every invitee before this runs.
 
     Steps:
-    1. Wait for add_report_to_case ledger entry in invited actor's ledger;
-       SYNC processing of this entry creates the VultronOfferRecord.
-    2. Trigger validate-report (RM → VALID).
-    3. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
-    4. Trigger engage-case (RM → ACCEPTED).
-    5. Poll until CaseActor reflects RM.ACCEPTED.
+    1. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
+    2. Trigger engage-case (RM → ACCEPTED).
+    3. Poll until CaseActor reflects RM.ACCEPTED.
 
     Args:
         invited_client: Client for the invited actor's container.
         invited_actor: The invited actor's local replica (e.g. vendor2_in_vendor2).
-        offer: The original submit-report Offer activity.
-        report: The VulnerabilityReport in the case.
-        finder: The actor that originally submitted the Offer (unused; kept for
-            call-site compatibility).
+        offer: Unused; kept for call-site compatibility.
+        report: Unused; kept for call-site compatibility.
+        finder: Unused; kept for call-site compatibility.
         auth_client: Client for the container that hosts the CaseActor (e.g.
             the coordinating actor's or vendor1_client).  The CaseActor's own
             store is what gets read through it when the case has one — see
@@ -320,28 +346,6 @@ def run_invite_path_rm_triage(
         invited_obj: The invited actor's top-level object (used for actor_id lookup).
         timeout_seconds: Polling timeout per wait call (default 20s).
     """
-    offer_id = getattr(offer, "id_", str(offer))
-
-    # Wait for the add_report_to_case ledger entry to appear in the invited
-    # actor's ledger before triggering validate-report.  This entry's SYNC
-    # processing runs ApplyOfferReportFromLedgerNode, which creates the
-    # VultronOfferRecord — the prerequisite for validate-report to succeed.
-    with demo_check(
-        "add_report_to_case ledger entry backfilled before validate-report"
-    ):
-        wait_for_event_type_in_ledger(
-            client=invited_client,
-            case_id=case.id_,
-            event_type="add_report_to_case",
-            timeout_seconds=timeout_seconds,
-        )
-
-    receiver_validates_report(
-        receiver_client=invited_client,
-        receiver=invited_actor,
-        offer_id=offer_id,
-    )
-
     # Read the CaseActor's own store, not the store of the actor that hosts it:
     # the CaseActor applies the participant RM transition to its own replica and
     # emits no add_participant_status_to_participant ledger entry for it, so the
@@ -361,7 +365,7 @@ def run_invite_path_rm_triage(
         )
 
     # Gate engage-case on the invited actor's OWN RM.VALID commit.
-    # validate-report returns HTTP 202 before its ParticipantStatus write
+    # The reply trigger returns HTTP 202 before its ParticipantStatus write
     # lands, so engaging without the gate races the async commit and yields
     # TransitionParticipantRMtoAccepted (HTTP 422).  Mirrors the direct-path
     # causal gate in run_direct_path_rm_triage (ADR-0058).
@@ -571,7 +575,7 @@ def _load_case_from_datalayer(
         return as_VulnerabilityCase.model_validate(
             client.get(client.dl_path(item, actor_id=actor_id))
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
         logger.warning("Could not fetch case %s: %s", item, exc)
         return None
 
@@ -580,7 +584,7 @@ def find_case_by_report_id(
     client: DataLayerClient,
     report_id: str,
     actor_id: str | None = None,
-) -> Optional[as_VulnerabilityCase]:
+) -> as_VulnerabilityCase | None:
     """Find the first ``as_VulnerabilityCase`` referencing *report_id*.
 
     Args:
@@ -609,15 +613,7 @@ def find_case_by_report_id(
         if case is None:
             continue
 
-        report_ids = [
-            (
-                report
-                if isinstance(report, str)
-                else getattr(report, "id_", str(report))
-            )
-            for report in (case.vulnerability_reports or [])
-        ]
-        if report_id in report_ids:
+        if case_references_report(case, report_id):
             return case
     return None
 
@@ -625,7 +621,7 @@ def find_case_by_report_id(
 def find_case_for_offer(
     client: DataLayerClient,
     offer_id: str,
-) -> Optional[as_VulnerabilityCase]:
+) -> as_VulnerabilityCase | None:
     """Find the as_VulnerabilityCase associated with a report offer.
 
     Args:
@@ -705,6 +701,164 @@ def wait_for_case_for_offer(
     return found["case"]
 
 
+def wait_for_case_by_report(
+    client: DataLayerClient,
+    report_id: str,
+    actor_id: str,
+    timeout_seconds: float = 20.0,
+    poll_interval: float = 0.5,
+) -> as_VulnerabilityCase:
+    """Poll *actor_id*'s store on *client* until the case for *report_id* exists.
+
+    The canonical case is created by the CaseActor in *its own* store when it
+    accepts the vendor's ``Create(CaseProposal)`` (ADR-0041, ADR-0073), some
+    time after the report Offer was delivered — a background task on the
+    receiver, then another on the CaseActor.  Pass the CaseActor's id to read
+    the canonical case, or a participant's id to wait for that participant's
+    replica of it.  This is :func:`find_case_by_report_id`'s polling wrapper
+    and lives beside it for the reason :func:`wait_for_case_for_offer` gives.
+
+    Args:
+        client: DataLayerClient connected to the container hosting *actor_id*.
+        report_id: Full URI of the ``as_VulnerabilityReport``.
+        actor_id: Whose store to read — the CaseActor's for the canonical case.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between polls.
+
+    Returns:
+        The ``as_VulnerabilityCase`` referencing *report_id* in that store.
+
+    Raises:
+        AssertionError: If no such case appears within *timeout_seconds*.
+    """
+    found: dict[str, as_VulnerabilityCase] = {}
+
+    def _check() -> bool:
+        case = find_case_by_report_id(client, report_id, actor_id=actor_id)
+        if case is None:
+            return False
+        found["case"] = case
+        return True
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for a VulnerabilityCase referencing report"
+        f" {report_id!r} in the store of {actor_id!r} at {client.base_url}"
+        " — the CaseActor's Create(CaseProposal) handling may not have"
+        " completed (ADR-0041)",
+        swallow_exceptions=True,
+    )
+    return found["case"]
+
+
+def create_case_via_trigger(
+    client: DataLayerClient,
+    vendor: as_Actor,
+    name: str,
+    content: str,
+    stub_summary: str | None = None,
+) -> as_VulnerabilityCase:
+    """Mint a case through the ``trigger/create-case`` endpoint.
+
+    The trigger registers *vendor* as CASE_OWNER and CASE_MANAGER
+    (CM-02-014, CM-02-015).
+    A case injected as ``Create(VulnerabilityCase)`` has no CASE_MANAGER, so
+    the CASE_MANAGER-gated received handlers (``Add(Report, Case)``) refuse
+    it.
+
+    Returns:
+        A stub ``as_VulnerabilityCase`` carrying the new case's id.
+    """
+    trigger_result = ActorSession(client=client, actor=vendor).create_case(
+        name=name, content=content
+    )
+    case_id = trigger_result.case_id
+    if not case_id:
+        raise ValueError("create-case trigger did not return a case_id")
+    verify_object_stored(client, case_id)
+    return as_VulnerabilityCase.model_validate(
+        {
+            "id": case_id,
+            "attributed_to": vendor.id_,
+            "name": name,
+            "content": content,
+            **({"stub_summary": stub_summary} if stub_summary else {}),
+        }
+    )
+
+
+def seat_participant_through_stub_invite(
+    client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    owner: as_Actor,
+    invitee: as_Actor,
+    role: CVDRole,
+) -> as_CaseParticipant:
+    """Seat *invitee* on *case* the one way a member joins: the stub Invite.
+
+    *owner*, the Case Owner, asks the CASE_MANAGER to invite *invitee*
+    (``Offer(Actor)``, CM-17-007); the CASE_MANAGER sends the stub Invite,
+    creates the inert record, and seats *invitee* when its ``Accept``
+    arrives (ADR-0114, CM-17-004).  The chain is
+    :func:`~vultron.demo.helpers.invite_chain.run_case_invite_chain`, driven
+    through the triggers in one container.  ``Add(CaseParticipant)`` never
+    seats a member: it is the Case Owner's request to reinstate a removed
+    one (CM-31-011, ADR-0116).
+
+    Args:
+        client: DataLayerClient for the container hosting every actor.
+        case: The case to seat *invitee* on.
+        owner: The Case Owner, who asks for the invitation.
+        invitee: The actor joining the case.
+        role: The CVD role the Invite names for the new member.
+
+    Returns:
+        The participant record the CASE_MANAGER created, as its store holds it.
+
+    Raises:
+        ValueError: The CASE_MANAGER's case does not seat *invitee*.
+    """
+    # The CASE_MANAGER builds the stub Invite from its own copy of the case,
+    # which needs a summary (CM-17-010).  A separate CaseActor is seeded by
+    # the chain; an owner that is its own CASE_MANAGER is seeded here, with
+    # the summary the caller gave the case when it has one.
+    case_actor_id = find_case_actor_participant_id(client, case.id_)
+    if case_actor_id is None:
+        ActorSession(client=client, actor=owner).with_case(
+            case
+        ).quiet().set_stub_summary(case.stub_summary or DEMO_STUB_SUMMARY)
+    run_case_invite_chain(
+        case=case,
+        invitee_name=invitee.name or invitee.id_,
+        # The invitee's own store, where the Invite and its replica land.
+        invitee_client=client.model_copy(update={"actor_id": invitee.id_}),
+        invitee=invitee,
+        invitee_in_own_container=invitee,
+        inviter=CaseInviter(
+            name=owner.name or owner.id_,
+            client=client,
+            actor=owner,
+            role=role,
+        ),
+        case_manager_client=client if case_actor_id is not None else None,
+    )
+    case_manager_id = case_actor_id or owner.id_
+    participant = _fetch_participant(
+        client, case.id_, invitee.id_, dl_actor_id=case_manager_id
+    )
+    if participant is None:
+        raise ValueError(
+            f"'{invitee.id_}' is not seated on case '{case.id_}' after"
+            " accepting its stub Invite"
+        )
+    log_case_state(
+        client, case.id_, f"after {invitee.name or invitee.id_} joined"
+    )
+    return participant
+
+
 def setup_initialized_case(
     client: DataLayerClient,
     finder: as_Actor,
@@ -717,7 +871,7 @@ def setup_initialized_case(
     ``[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER]`` (CM-02-014, CM-02-015).
     Use :func:`setup_canonical_case` for any exchange that requires a separate
     CaseActor service identity — ownership transfer among them — or the routing
-    silently degrades to the direct peer-to-peer path (CM-24-003).
+    silently degrades to the direct peer-to-peer path (a failure under CM-24-006).
 
     Performs the standard 7-step setup shared by ``invite_actor_demo``,
     ``suggest_actor_demo``, and ``status_updates_demo``:
@@ -726,8 +880,10 @@ def setup_initialized_case(
     2. Vendor validates the report
     3. Vendor creates the case (via trigger endpoint — registers CASE_OWNER+CASE_MANAGER)
     4. Vendor adds the report to the case
-    5. Vendor creates the finder participant record
-    6. Vendor adds the finder participant to the case
+    5. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
+       sends the stub Invite
+    6. Finder accepts, which seats it as FINDER (ADR-0114;
+       ``Add(CaseParticipant)`` only reinstates, CM-31-011)
     7. Logs final case state
 
     Args:
@@ -757,21 +913,15 @@ def setup_initialized_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    trigger_result = ActorSession(client=client, actor=vendor).create_case(
+    case = create_case_via_trigger(
+        client,
+        vendor,
         name="RCE Case — Web Framework",
         content="Tracking the RCE vulnerability in the web framework.",
-    )
-    case_id = trigger_result.case_id
-    if not case_id:
-        raise ValueError("create-case trigger did not return a case_id")
-    verify_object_stored(client, case_id)
-    case = as_VulnerabilityCase.model_validate(
-        {
-            "id": case_id,
-            "attributed_to": vendor.id_,
-            "name": "RCE Case — Web Framework",
-            "content": "Tracking the RCE vulnerability in the web framework.",
-        }
+        stub_summary=(
+            "Remote code execution in web framework"
+            " — details shared after acceptance."
+        ),
     )
 
     add_report_activity = add_report_to_case_activity(
@@ -779,23 +929,9 @@ def setup_initialized_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
-    participant = as_CaseParticipant(
-        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
-        attributed_to=finder.id_,
-        context=case.id_,
+    seat_participant_through_stub_invite(
+        client, case, owner=vendor, invitee=finder, role=CVDRole.FINDER
     )
-    create_participant_activity = as_Create(
-        actor=vendor.id_,
-        object_=participant,
-        context=case.id_,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
-    verify_object_stored(client, participant.id_)
-
-    add_participant_activity = add_participant_to_case_activity(
-        participant, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
 
     log_case_state(client, case.id_, "after setup")
     logger.info("✓ Setup: Case initialized with report and finder participant")
@@ -809,7 +945,7 @@ def setup_canonical_case(
     report_name: str,
     report_content: str,
     validation_content: str,
-) -> Tuple[as_VulnerabilityCase, str]:
+) -> tuple[as_VulnerabilityCase, str]:
     """Create a **CaseActor-owned** case and return it with the CaseActor's URI.
 
     Unlike :func:`setup_initialized_case`, which has the vendor mint the case
@@ -825,7 +961,7 @@ def setup_canonical_case(
     than :func:`setup_initialized_case`: a vendor-minted case has **no**
     ``CASE_MANAGER`` participant, so there is no CaseActor to address and the
     routing silently degrades to the direct peer-to-peer path it is meant to
-    replace (CM-24-003).
+    replace (a failure under CM-24-006).
 
     Args:
         client: DataLayerClient for the container hosting all three actors.
@@ -866,6 +1002,16 @@ def setup_canonical_case(
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     case = wait_for_initialized_case(client, report.id_)
+    # Attach a stub_summary so demo Invites carry the required non-empty
+    # summary (CM-17-010, MV-10-001, #4165).  The BT-created case never has
+    # this field; set it on the local object before any Invite factory call.
+    case = case.model_copy(
+        update={
+            "stub_summary": (
+                f"{report_name} — details shared after acceptance."
+            )
+        }
+    )
     # Resolve the CaseActor from the case's own participant index, not from
     # config: `case_actor_id_for_report` answers "which CaseActor would *this
     # node* address", which is a different question and returns `""` when no
@@ -943,79 +1089,74 @@ def await_forwarded_ownership_transfer_offer(
     )
 
 
-def case_actor_invites_actor_to_case(
+def find_case_manager_actor_id(
+    client: DataLayerClient, vendor_id: str, case_id: str
+) -> str | None:
+    """Return the CASE_MANAGER actor ID by reading the case participant roster (ADR-0088).
+
+    Authority is the ``CVDRole.CASE_MANAGER`` role — hosting location is not
+    consulted (ARCH-24-004, CM-02-013).
+    """
+    try:
+        case_data = client.get(client.dl_path(case_id, actor_id=vendor_id))
+        case_obj = as_VulnerabilityCase(**case_data)
+    except Exception:  # noqa: BLE001  # ruff-baseline #3326
+        return None
+
+    for p_ref in case_obj.case_participants:
+        pid = ref_id(p_ref) or str(p_ref)
+        if not pid:
+            continue
+        try:
+            p_data = client.get(client.dl_path(pid, actor_id=vendor_id))
+            p = as_CaseParticipant(**p_data)
+            if CVDRole.CASE_MANAGER in p.case_roles:
+                attr = p.attributed_to
+                return (
+                    attr
+                    if isinstance(attr, str)
+                    else getattr(attr, "id_", None)
+                )
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3326
+            continue
+    return None
+
+
+def case_manager_invites_actor(
     client: DataLayerClient,
     case: as_VulnerabilityCase,
-    inviter: as_Actor,
-    invitee: as_Actor,
-    case_actor_id: str,
-    roles: Optional[list[str]] = None,
-    timeout_seconds: float = 15.0,
-) -> None:
-    """Add *invitee* to *case* via the CaseActor-routed Invite/Accept handshake.
+    vendor: as_Actor,
+    coordinator: as_Actor,
+    invite_actor_id: str,
+) -> str:
+    """Have *vendor* trigger the stub Invite of *coordinator*; return its id.
 
-    The ``Invite`` is sent **by** the CaseActor with ``attributed_to`` naming the
-    participant who asked for it, and the ``Accept`` is addressed **to** the
-    CaseActor, which is the actor that creates the ``CaseParticipant`` record
-    (ADR-0026, PCR-08-007, PCR-08-008).
-
-    This handshake — not the standalone ``Create(CaseParticipant)`` +
-    ``AddParticipantToCase`` pair — is what a canonical case needs: the
-    authoritative case lives in the CaseActor's store (ADR-0073), and the
-    standalone pair delivered to the case owner's inbox only ever updates the
-    *owner's* replica.  Any later CaseActor-side effect that resolves the new
-    participant — the ``CVDRole.CASE_OWNER`` grant on ownership transfer
-    (CM-21-002) among them — reads the CaseActor's copy and would find nothing.
-
-    Args:
-        client: DataLayerClient for the container hosting the actors.
-        case: The case to add the invitee to.
-        inviter: The participant on whose behalf the CaseActor invites.
-        invitee: The actor being invited.
-        case_actor_id: URI of the CaseActor for *case*.
-        roles: CVD role strings to request for the invitee.  ``None`` leaves
-            the role assignment to the CaseActor's default.
-        timeout_seconds: Budget for the participant-visibility gate.
+    The CASE_MANAGER sends and records the Invite (CM-17-007, ADR-0109), so
+    the coordinator answers that Invite and not one the demo builds: a reply
+    to an Invite the CASE_MANAGER has no record of is refused (CM-11-017).
+    The trigger also records the inert participant at invite-send time
+    (ADR-0114, CM-11-006).
     """
-    invitee_label = invitee.name or invitee.id_
-    # Built before the step, not inside it: `invite` is read by the Accept below,
-    # and a construction failure inside a `demo_step` would leave it unbound so
-    # the next block raises UnboundLocalError instead of the real cause (#2308).
-    invite = rm_invite_to_case_activity(
-        invitee,
-        actor=case_actor_id,
-        target=case.id_,
-        to=[invitee.id_],
-        attributed_to=inviter.id_,
-        roles=roles,
-        content=f"We're inviting you to participate in {case.name}.",
+    # Seed stub_summary on the CASE_MANAGER's DataLayer copy: the invite BT
+    # reads the case from the CASE_MANAGER's store and the BT-created case
+    # has none (CM-17-010, MV-10-001, #4165).
+    ActorSession(
+        client=client, actor=get_actor_by_id(client, invite_actor_id)
+    ).with_case(case).quiet().set_stub_summary(
+        "Vulnerability report — details shared after acceptance."
     )
-    with demo_step(
-        f"CaseActor invites {invitee_label} to the case"
-        f" (on behalf of {inviter.name or inviter.id_})"
-    ):
-        post_to_inbox_and_wait(client, invitee.id_, invite)
-
-    with demo_step(f"{invitee_label} accepts the case invitation"):
-        accept = rm_accept_invite_to_case_activity(
-            invite,
-            actor=invitee.id_,
-            to=[case_actor_id],
-            content=f"Accepting invitation to participate in {case.name}.",
-        )
-        post_to_inbox_and_wait(client, case_actor_id, accept)
-
-    with demo_gate(
-        f"{invitee_label} is a participant on the CaseActor's replica"
-    ):
-        wait_for_case_participants(
-            vendor_client=client.model_copy(
-                update={"actor_id": case_actor_id}
-            ),
-            case_id=case.id_,
-            expected_actor_ids={invitee.id_},
-            timeout_seconds=timeout_seconds,
-        )
+    ActorSession(client=client, actor=vendor).with_case(
+        case
+    ).quiet().invite_actor_to_case(
+        invitee_id=str(coordinator.id_), roles=[CVDRole.COORDINATOR]
+    )
+    invite_id = find_case_invite_for_actor(
+        client=client.model_copy(update={"actor_id": coordinator.id_}),
+        case_id=case.id_,
+        invitee_id=str(coordinator.id_),
+    )
+    logger.info("CASE_MANAGER Invite for coordinator: %s", invite_id)
+    return invite_id
 
 
 def setup_two_participant_case(
@@ -1026,15 +1167,17 @@ def setup_two_participant_case(
 ) -> as_VulnerabilityCase:
     """Create a case with two participants (vendor + coordinator) as a precondition.
 
-    Performs the 6-step shared setup used by ``establish_embargo_demo`` and
-    ``manage_embargo_demo``:
+    Builds on :func:`setup_initialized_case`, so the vendor mints the case
+    through the ``trigger/create-case`` endpoint and holds
+    ``CASE_OWNER`` and ``CASE_MANAGER`` on it, then invites the coordinator.
+    Used by ``establish_embargo_demo`` and ``manage_embargo_demo``, whose
+    embargo messages are accepted only from a sender with standing on a case
+    that names a CASE_MANAGER (ADR-0115, EP-09).
 
-    1. Finder submits report → vendor inbox
-    2. Vendor validates the report
-    3. Vendor creates the case
-    4. Vendor adds the report to the case
-    5. Vendor creates and adds the finder participant
-    6. Vendor invites coordinator; coordinator accepts → coordinator added
+    1. The 7-step initialised case (:func:`setup_initialized_case`)
+    2. The coordinator is seated through its stub Invite
+       (:func:`seat_participant_through_stub_invite`), which raises when it
+       is not seated
 
     Args:
         client: DataLayerClient for the shared (or single) container.
@@ -1046,76 +1189,92 @@ def setup_two_participant_case(
         The newly created ``as_VulnerabilityCase`` with vendor and coordinator
         as participants.
     """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        content="A use-after-free vulnerability in the network stack.",
-        name="Use-After-Free in Network Stack",
+    case = setup_initialized_case(client, finder, vendor)
+    seat_participant_through_stub_invite(
+        client,
+        case,
+        owner=vendor,
+        invitee=coordinator,
+        role=CVDRole.COORDINATOR,
     )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
-    verify_object_stored(client, report.id_)
-
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer,
-        actor=vendor.id_,
-        content="Confirmed — use-after-free via unsanitized network input.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-
-    case = as_VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name="UAF Case — Network Stack",
-        content="Tracking the use-after-free vulnerability in the network stack.",
-    )
-    create_case_act = create_case_activity(case, actor=vendor.id_)
-    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
-    verify_object_stored(client, case.id_)
-
-    add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
-
-    participant = as_CaseParticipant(
-        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
-        attributed_to=finder.id_,
-        context=case.id_,
-    )
-    create_participant_activity = as_Create(
-        actor=vendor.id_,
-        object_=participant,
-        context=case.id_,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
-    verify_object_stored(client, participant.id_)
-
-    add_participant_activity = add_participant_to_case_activity(
-        participant, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
-
-    invite = rm_invite_to_case_activity(
-        coordinator,
-        actor=vendor.id_,
-        target=case.id_,
-        to=[coordinator.id_],
-        content=f"Inviting you to participate in {case.name}.",
-    )
-    post_to_inbox_and_wait(client, coordinator.id_, invite)
-
-    accept = rm_accept_invite_to_case_activity(
-        invite,
-        actor=coordinator.id_,
-        to=[vendor.id_],
-        content=f"Accepting invitation to {case.name}.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, accept)
 
     log_case_state(client, case.id_, "after setup (two participants)")
     logger.info(
         "✓ Setup: Case initialized with vendor and coordinator participants"
     )
     return case
+
+
+def _send_owner_embargo_decision(
+    client: DataLayerClient,
+    owner: as_Actor,
+    case_manager_id: str,
+    case: as_VulnerabilityCase,
+    embargo: as_EmbargoEvent,
+    *,
+    accept: bool,
+    summary: str,
+) -> None:
+    """Send the case owner's decision on a proposal to the CASE_MANAGER.
+
+    The owner decides for the case with ``Accept`` or ``Reject`` of the
+    ``EmbargoEvent`` itself, the case as ``target`` (ADR-0122) — never of
+    the Invite that proposed it, which is only the owner's own consent.
+    """
+    build = (
+        activate_embargo_activity
+        if accept
+        else reject_embargo_proposal_activity
+    )
+    decision = build(
+        embargo,
+        actor=owner.id_,
+        target=case.id_,
+        context=case.id_,
+        to=[case_manager_id],
+        summary=summary,
+    )
+    logger.info(
+        "Sending the owner's %s: %s",
+        "activation" if accept else "rejection",
+        logfmt(decision),
+    )
+    post_to_inbox_and_wait(client, case_manager_id, decision)
+
+
+def owner_activates_embargo(
+    client: DataLayerClient,
+    owner: as_Actor,
+    case_manager_id: str,
+    case: as_VulnerabilityCase,
+    embargo: as_EmbargoEvent,
+) -> None:
+    """The case owner activates a proposed embargo (EA / EC, ADR-0122)."""
+    _send_owner_embargo_decision(
+        client,
+        owner,
+        case_manager_id,
+        case,
+        embargo,
+        accept=True,
+        summary=f"Activating the proposed embargo for {case.name}.",
+    )
+
+
+def owner_rejects_embargo_proposal(
+    client: DataLayerClient,
+    owner: as_Actor,
+    case_manager_id: str,
+    case: as_VulnerabilityCase,
+    embargo: as_EmbargoEvent,
+) -> None:
+    """The case owner rejects a proposed embargo (ER / EJ, ADR-0122)."""
+    _send_owner_embargo_decision(
+        client,
+        owner,
+        case_manager_id,
+        case,
+        embargo,
+        accept=False,
+        summary=f"Rejecting the proposed embargo for {case.name}.",
+    )

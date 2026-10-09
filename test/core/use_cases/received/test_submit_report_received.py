@@ -25,8 +25,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import SubmitReportReceivedEvent
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import SubmitReportReceivedUseCase
 
@@ -62,9 +63,9 @@ class TestSubmitReportLogMessages:
         """
         import logging
 
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        report = VultronReport(id_="https://example.org/reports/r-log-1")
+        report = VulnerabilityReport(id_="https://example.org/reports/r-log-1")
         activity = VultronActivity(
             id_="https://example.org/activities/submit-log-1",
             type_="Offer",
@@ -85,7 +86,7 @@ class TestSubmitReportLogMessages:
             actor_id="https://example.org/actors/vendor",
         )
         # CreateCaseParticipantNode reads the vendor actor from DataLayer.
-        dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
+        dl.save(CaseActor(id_="https://example.org/actors/vendor"))
 
         with caplog.at_level(logging.INFO):
             SubmitReportReceivedUseCase(
@@ -93,12 +94,12 @@ class TestSubmitReportLogMessages:
             ).execute()
 
         log_text = " ".join(r.message for r in caplog.records)
-        assert (
-            "https://example.org/actors/vendor" in log_text
-        ), "Log must include the vendor (receiving) actor ID"
-        assert (
-            "https://example.org/reports/r-log-1" in log_text
-        ), "Log must include the report ID"
+        assert "https://example.org/actors/vendor" in log_text, (
+            "Log must include the vendor (receiving) actor ID"
+        )
+        assert "https://example.org/reports/r-log-1" in log_text, (
+            "Log must include the report ID"
+        )
 
 
 class TestSubmitReportCreatesCase:
@@ -121,9 +122,9 @@ class TestSubmitReportCreatesCase:
         vendor_id: str = VENDOR_ID,
         finder_id: str = FINDER_ID,
     ):
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        report = VultronReport(id_=report_id)
+        report = VulnerabilityReport(id_=report_id)
         activity = VultronActivity(
             id_=offer_id,
             type_="Offer",
@@ -143,7 +144,7 @@ class TestSubmitReportCreatesCase:
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
         dl.save(report)
-        vendor_actor = VultronCaseActor(id_=vendor_id)
+        vendor_actor = CaseActor(id_=vendor_id)
         dl.save(vendor_actor)
         return event, dl
 
@@ -160,9 +161,9 @@ class TestSubmitReportCreatesCase:
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         link = dl.read(link_id)
-        assert isinstance(
-            link, VultronReportCaseLink
-        ), "Expected a pending VultronReportCaseLink (ADR-0041)"
+        assert isinstance(link, VultronReportCaseLink), (
+            "Expected a pending VultronReportCaseLink (ADR-0041)"
+        )
         assert link.report_id == self.REPORT_ID
         assert link.case_id is None
 
@@ -225,9 +226,9 @@ class TestSubmitReportCreatesCase:
             if isinstance(obj, VultronReportCaseLink)
             and obj.report_id == self.REPORT_ID
         ]
-        assert (
-            len(links) == 1
-        ), "Expected exactly one VultronReportCaseLink after idempotent calls"
+        assert len(links) == 1, (
+            "Expected exactly one VultronReportCaseLink after idempotent calls"
+        )
 
     def test_submit_report_uses_store_owner_when_no_receiving_actor(self):
         """When receiving_actor_id is absent the store owner processes the submission.
@@ -237,50 +238,45 @@ class TestSubmitReportCreatesCase:
         is persisted and a pending VultronReportCaseLink is written rather than
         the submission being dropped.
         """
-        import py_trees
 
-        py_trees.blackboard.Blackboard.storage.clear()
-        try:
-            report = VultronReport(
-                id_="https://example.org/reports/r-nostamp-1"
-            )
-            activity = VultronActivity(
-                id_="https://example.org/activities/offer-nostamp-1",
-                type_="Offer",
-                actor=self.FINDER_ID,
-                to=[self.VENDOR_ID],
-            )
-            event = SubmitReportReceivedEvent(
-                semantic_type=MessageSemantics.SUBMIT_REPORT,
-                activity_id="https://example.org/activities/offer-nostamp-1",
-                actor_id=self.FINDER_ID,
-                object_=report,
-                activity=activity,
-                receiving_actor_id=None,
-            )
-            from vultron.core.models.case_actor import VultronCaseActor
+        report = VulnerabilityReport(
+            id_="https://example.org/reports/r-nostamp-1"
+        )
+        activity = VultronActivity(
+            id_="https://example.org/activities/offer-nostamp-1",
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=[self.VENDOR_ID],
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id="https://example.org/activities/offer-nostamp-1",
+            actor_id=self.FINDER_ID,
+            object_=report,
+            activity=activity,
+            receiving_actor_id=None,
+        )
+        from vultron.core.models.case_actor import CaseActor
 
-            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
-            dl.save(report)
-            dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
+        dl.save(report)
+        dl.save(CaseActor(id_=self.VENDOR_ID))
 
-            SubmitReportReceivedUseCase(
-                dl, event, trigger_activity=TriggerActivityAdapter(dl)
-            ).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
-            stored = dl.read(report.id_)
-            assert stored is not None, (
-                "Report must be persisted even when receiving_actor_id is absent"
-                " (store-owner fallback, CLP-10-005)"
-            )
-            link_id = VultronReportCaseLink.build_id(report.id_)
-            link = dl.read(link_id)
-            assert isinstance(link, VultronReportCaseLink), (
-                "VultronReportCaseLink must be created when store owner is in"
-                " activity.to and receiving_actor_id is absent (CLP-10-005)"
-            )
-        finally:
-            py_trees.blackboard.Blackboard.storage.clear()
+        stored = dl.read(report.id_)
+        assert stored is not None, (
+            "Report must be persisted even when receiving_actor_id is absent"
+            " (store-owner fallback, CLP-10-005)"
+        )
+        link_id = VultronReportCaseLink.build_id(report.id_)
+        link = dl.read(link_id)
+        assert isinstance(link, VultronReportCaseLink), (
+            "VultronReportCaseLink must be created when store owner is in"
+            " activity.to and receiving_actor_id is absent (CLP-10-005)"
+        )
 
     def test_submit_report_skips_case_creation_when_not_in_to(self):
         """SubmitReportReceivedUseCase skips BT when receiving actor not in to.
@@ -288,7 +284,9 @@ class TestSubmitReportCreatesCase:
         If Offer.to is absent (or receiving actor is not listed), the use case
         logs a WARNING and returns without creating a case (HP-09-001).
         """
-        report = VultronReport(id_="https://example.org/reports/r-no-to-1")
+        report = VulnerabilityReport(
+            id_="https://example.org/reports/r-no-to-1"
+        )
         activity = VultronActivity(
             id_="https://example.org/activities/offer-no-to-1",
             type_="Offer",
@@ -312,9 +310,9 @@ class TestSubmitReportCreatesCase:
         ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
-        assert (
-            all_cases == []
-        ), "Expected no VulnerabilityCase when receiving actor not in to"
+        assert all_cases == [], (
+            "Expected no VulnerabilityCase when receiving actor not in to"
+        )
 
 
 class TestSubmitReportAutoCreateCasePolicy:
@@ -326,9 +324,9 @@ class TestSubmitReportAutoCreateCasePolicy:
     OFFER_ID = "https://example.org/activities/offer-policy-1"
 
     def _make_event_and_dl(self):
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         activity = VultronActivity(
             id_=self.OFFER_ID,
             type_="Offer",
@@ -347,7 +345,7 @@ class TestSubmitReportAutoCreateCasePolicy:
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
-        dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+        dl.save(CaseActor(id_=self.VENDOR_ID))
         return event, dl
 
     def test_auto_create_disabled_stores_report_and_offer_no_case(self):
@@ -388,7 +386,7 @@ class TestSubmitReportAutoCreateCasePolicy:
         from vultron.config.actor import ActorConfig
 
         event, dl = self._make_event_and_dl()
-        dl.save(VultronReport(id_=self.REPORT_ID))
+        dl.save(VulnerabilityReport(id_=self.REPORT_ID))
         SubmitReportReceivedUseCase(
             dl,
             event,
@@ -402,7 +400,7 @@ class TestSubmitReportAutoCreateCasePolicy:
     def test_no_actor_config_creates_case(self):
         """AC-1: absent ActorConfig preserves always-send-proposal behavior (ADR-0041)."""
         event, dl = self._make_event_and_dl()
-        dl.save(VultronReport(id_=self.REPORT_ID))
+        dl.save(VulnerabilityReport(id_=self.REPORT_ID))
         SubmitReportReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
@@ -427,7 +425,7 @@ class TestOfferAddressingSemantics:
         target: str | None = None,
         receiving_actor_id: str | None = None,
     ) -> SubmitReportReceivedEvent:
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         activity = VultronActivity(
             id_=self.OFFER_ID,
             type_="Offer",
@@ -446,14 +444,14 @@ class TestOfferAddressingSemantics:
         )
 
     def _make_dl(self) -> SqliteDataLayer:
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
-        dl.save(VultronReport(id_=self.REPORT_ID))
-        dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+        dl.save(VulnerabilityReport(id_=self.REPORT_ID))
+        dl.save(CaseActor(id_=self.VENDOR_ID))
         return dl
 
     def test_receiving_actor_in_to_creates_case(self):
@@ -468,12 +466,51 @@ class TestOfferAddressingSemantics:
         ).execute()
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
-        assert isinstance(
-            dl.read(link_id), VultronReportCaseLink
-        ), "Expected pending VultronReportCaseLink when receiving actor in to"
+        assert isinstance(dl.read(link_id), VultronReportCaseLink), (
+            "Expected pending VultronReportCaseLink when receiving actor in to"
+        )
 
+    @pytest.mark.spec("CLP-10-021")
+    def test_submit_report_trailing_slash_recipient_creates_case(self):
+        """A trailing slash on the ``to:`` entry still addresses the receiver.
+
+        ``receiving_actor_id`` is canonicalised by the inbox adapter while the
+        sender's ``to:`` is not, so exact string membership discarded an Offer
+        that had in fact been delivered to this actor (HP-09-001, #2667).
+        """
+        event = self._make_event(
+            to=[self.VENDOR_ID + "/"], receiving_actor_id=self.VENDOR_ID
+        )
+        dl = self._make_dl()
+
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        assert isinstance(dl.read(link_id), VultronReportCaseLink)
+
+    def test_submit_report_short_id_recipient_is_not_the_receiver(self):
+        """A bare slug in ``to:`` is not treated as this actor's URI.
+
+        ``vendor`` names an actor under *some* authority, not necessarily
+        this one, so normalisation stops at the trailing slash.
+        """
+        event = self._make_event(
+            to=["vendor"], receiving_actor_id=self.VENDOR_ID
+        )
+        dl = self._make_dl()
+
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        assert dl.read(link_id) is None
+
+    @pytest.mark.spec("HP-10-001")
     def test_receiving_actor_in_cc_logs_warning_no_case(self, caplog):
-        """HP-09-002: Receiving actor in Offer.cc → WARNING logged, no case."""
+        """HP-10-001: Receiving actor in Offer.cc → WARNING logged, no case."""
         import logging
 
         event = self._make_event(
@@ -487,17 +524,18 @@ class TestOfferAddressingSemantics:
             ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
-        assert (
-            all_cases == []
-        ), "Expected no case when receiving actor only in cc"
+        assert all_cases == [], (
+            "Expected no case when receiving actor only in cc"
+        )
 
         warning_text = " ".join(
             r.message for r in caplog.records if r.levelno >= logging.WARNING
         )
-        assert (
-            "cc" in warning_text.lower()
-        ), "Expected a WARNING mentioning cc addressing"
+        assert "cc" in warning_text.lower(), (
+            "Expected a WARNING mentioning cc addressing"
+        )
 
+    @pytest.mark.spec("HP-09-001")
     def test_receiving_actor_in_neither_logs_warning_no_case(self, caplog):
         """HP-09-001: Receiving actor in neither to nor cc → WARNING, no case."""
         import logging
@@ -513,17 +551,19 @@ class TestOfferAddressingSemantics:
             ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
-        assert (
-            all_cases == []
-        ), "Expected no case when receiving actor not in to or cc"
+        assert all_cases == [], (
+            "Expected no case when receiving actor not in to or cc"
+        )
 
         warning_text = " ".join(
             r.message for r in caplog.records if r.levelno >= logging.WARNING
         )
-        assert (
-            self.VENDOR_ID in warning_text
-        ), "Expected WARNING to mention the receiving actor ID"
+        assert self.VENDOR_ID in warning_text, (
+            "Expected WARNING to mention the receiving actor ID"
+        )
 
+    @pytest.mark.spec("HP-09-001")
+    @pytest.mark.spec("HP-09-002")
     def test_offer_target_not_consulted_to_wins(self):
         """HP-09-002: Offer.target is not consulted; to field determines proposal (ADR-0041).
 
@@ -547,6 +587,7 @@ class TestOfferAddressingSemantics:
             " even if target differs"
         )
 
+    @pytest.mark.spec("HP-09-002")
     def test_offer_target_set_but_not_in_to_no_case(self):
         """HP-09-002 inverse: target=VENDOR_ID but to=[OTHER_ID] → no case.
 
@@ -565,9 +606,9 @@ class TestOfferAddressingSemantics:
         ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
-        assert (
-            all_cases == []
-        ), "Expected no case when receiving actor in target but not in to"
+        assert all_cases == [], (
+            "Expected no case when receiving actor in target but not in to"
+        )
 
 
 class TestSubmitReportStoresOfferRecord:
@@ -584,9 +625,9 @@ class TestSubmitReportStoresOfferRecord:
     OFFER_ID = "https://example.org/activities/offer-rec-1"
 
     def _make_event_and_dl(self):
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         activity = VultronActivity(
             id_=self.OFFER_ID,
             type_="Offer",
@@ -605,7 +646,7 @@ class TestSubmitReportStoresOfferRecord:
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,  # the receiving vendor's own store
         )
-        dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+        dl.save(CaseActor(id_=self.VENDOR_ID))
         return event, dl
 
     def test_stores_offer_record_on_received(self):
@@ -619,9 +660,9 @@ class TestSubmitReportStoresOfferRecord:
 
         record_id = VultronOfferRecord.build_id(self.OFFER_ID)
         record = dl.read(record_id)
-        assert isinstance(
-            record, VultronOfferRecord
-        ), "Expected VultronOfferRecord stored for received Offer"
+        assert isinstance(record, VultronOfferRecord), (
+            "Expected VultronOfferRecord stored for received Offer"
+        )
         assert record.offer_id == self.OFFER_ID
         assert record.report_id == self.REPORT_ID
         assert record.offer_actor_id == self.FINDER_ID
@@ -643,6 +684,236 @@ class TestSubmitReportStoresOfferRecord:
         records = [
             r for r in dl.get_all("OfferRecord") if r.get("id_") == record_id
         ]
+        assert len(records) == 1, (
+            "Expected exactly one VultronOfferRecord after idempotent calls"
+        )
+
+
+class TestSubmitReportUnresolvableReceiver:
+    """No receiver → nothing is written (#2667).
+
+    The report, Offer and OfferRecord used to be stored *before* the receiver
+    was resolved, so a refusal left them behind in a store nobody owned.
+    """
+
+    FINDER_ID = "https://example.org/users/finder"
+    VENDOR_ID = "https://example.org/actors/vendor"
+    REPORT_ID = "https://example.org/reports/r-anon-1"
+    OFFER_ID = "https://example.org/activities/offer-anon-1"
+
+    def test_submit_report_unresolvable_receiver_writes_nothing(
+        self, anonymous_store
+    ):
+        from vultron.core.models.offer_record import VultronOfferRecord
+        from vultron.errors import VultronValidationError
+
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=[self.VENDOR_ID],
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.FINDER_ID,
+            object_=VulnerabilityReport(id_=self.REPORT_ID),
+            activity=activity,
+            receiving_actor_id=None,
+        )
+        inner = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
+
+        with pytest.raises(VultronValidationError):
+            SubmitReportReceivedUseCase(
+                anonymous_store(inner), event
+            ).execute()
+
+        assert inner.read(self.REPORT_ID) is None
+        assert inner.read(self.OFFER_ID) is None
+        assert inner.read(VultronOfferRecord.build_id(self.OFFER_ID)) is None
+
+
+class TestSubmitReportDisposition:
+    """Each SubmitReportReceivedUseCase exit reports what it did (#2255)."""
+
+    VENDOR_ID = "https://example.org/actors/vendor"
+    OTHER_ID = "https://example.org/actors/other"
+    FINDER_ID = "https://example.org/users/finder"
+    REPORT_ID = "https://example.org/reports/r-disp-1"
+    OFFER_ID = "https://example.org/activities/offer-disp-1"
+
+    def _run(self, to=None, cc=None, report=True, actor_config=None, dl=None):
+        from vultron.core.models.case_actor import CaseActor
+
+        report_obj = (
+            VulnerabilityReport(id_=self.REPORT_ID) if report else None
+        )
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=to,
+            cc=cc,
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.FINDER_ID,
+            object_=report_obj,
+            activity=activity,
+            receiving_actor_id=self.VENDOR_ID,
+        )
+        if dl is None:
+            dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
+            dl.save(CaseActor(id_=self.VENDOR_ID))
+        result = SubmitReportReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            actor_config=actor_config,
+        ).execute()
+        return result, dl
+
+    @pytest.mark.spec("HP-01-003")
+    def test_primary_recipient_is_applied(self):
+        result, _ = self._run(to=[self.VENDOR_ID])
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_redelivery_after_proposal_is_skipped(self):
+        _, dl = self._run(to=[self.VENDOR_ID])
+        result, _ = self._run(to=[self.VENDOR_ID], dl=dl)
+        assert result.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("HP-10-001")
+    def test_cc_only_is_refused(self):
+        result, _ = self._run(cc=[self.VENDOR_ID])
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "cc" in result.reason
+
+    @pytest.mark.spec("HP-01-005")
+    def test_not_a_recipient_is_refused(self):
+        result, _ = self._run(to=[self.OTHER_ID])
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "not a recipient" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    def test_auto_create_disabled_is_skipped(self):
+        from vultron.config.actor import ActorConfig
+
+        result, _ = self._run(
+            to=[self.VENDOR_ID],
+            actor_config=ActorConfig(auto_create_case=False),
+        )
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert result.reason and "auto_create_case" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    def test_no_report_id_is_skipped(self):
+        result, _ = self._run(to=[self.VENDOR_ID], report=False)
+        assert result.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_proposal_flow_failure_raises(self, monkeypatch):
+        """A failed proposal flow is this actor's fault, not the sender's."""
+        import py_trees
+
+        from vultron.core.behaviors.case import receive_report_case_tree
+        from vultron.errors import VultronBTInternalError
+
+        monkeypatch.setattr(
+            receive_report_case_tree,
+            "create_receive_report_case_tree",
+            lambda **_: py_trees.behaviours.Failure(name="ProposeFailed"),
+        )
+        with pytest.raises(
+            VultronBTInternalError, match="ReceiveReportCaseBT"
+        ):
+            self._run(to=[self.VENDOR_ID])
+
+
+class TestSubmitReportKeepsWhatArrived:
+    """Report, Offer and offer record survive every non-case disposition.
+
+    The writes are effect nodes of the receive tree, not ``execute()`` work, so
+    each exit has to keep them itself (CM-15-001, CLP-10-018).
+    """
+
+    VENDOR_ID = "https://example.org/actors/vendor"
+    OTHER_ID = "https://example.org/actors/other"
+    FINDER_ID = "https://example.org/users/finder"
+    REPORT_ID = "https://example.org/reports/r-keep-1"
+    OFFER_ID = "https://example.org/activities/offer-keep-1"
+
+    def _run(self, to, report=True, actor_config=None):
+        from vultron.core.models.case_actor import CaseActor
+
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=to,
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.FINDER_ID,
+            object_=VulnerabilityReport(id_=self.REPORT_ID)
+            if report
+            else None,
+            activity=activity,
+            receiving_actor_id=self.VENDOR_ID,
+        )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
+        dl.save(CaseActor(id_=self.VENDOR_ID))
+        result = SubmitReportReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            actor_config=actor_config,
+        ).execute()
+        return result, dl
+
+    def _assert_kept(self, dl, *, record=True):
+        from vultron.core.models.offer_record import VultronOfferRecord
+
+        assert dl.read(self.REPORT_ID) is not None
+        assert self.OFFER_ID in [r.get("id_") for r in dl.get_all("Offer")]
         assert (
-            len(records) == 1
-        ), "Expected exactly one VultronOfferRecord after idempotent calls"
+            dl.read(VultronOfferRecord.build_id(self.OFFER_ID)) is not None
+        ) is record
+
+    @pytest.mark.spec("CM-15-001")
+    def test_auto_create_disabled_keeps_everything(self):
+        from vultron.config.actor import ActorConfig
+
+        result, dl = self._run(
+            [self.VENDOR_ID], actor_config=ActorConfig(auto_create_case=False)
+        )
+        assert result.disposition == HandlerDisposition.SKIPPED
+        self._assert_kept(dl)
+
+    @pytest.mark.spec("CLP-10-018")
+    def test_not_a_recipient_still_keeps_everything(self):
+        result, dl = self._run([self.OTHER_ID])
+        assert result.disposition == HandlerDisposition.REFUSED
+        self._assert_kept(dl)
+        assert dl.get_all("VulnerabilityCase") == []
+
+    @pytest.mark.spec("CLP-10-018")
+    def test_offer_without_report_keeps_the_offer_only(self):
+        result, dl = self._run([self.VENDOR_ID], report=False)
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert self.OFFER_ID in [r.get("id_") for r in dl.get_all("Offer")]
+        assert dl.read(self.REPORT_ID) is None
+
+    def test_execute_writes_nothing_itself(self):
+        """The ratchet charges nothing to the handler (CLP-10-005)."""
+        import inspect
+
+        from vultron.core.use_cases.received import report
+
+        source = inspect.getsource(report)
+        assert "_store_submit_report_dependencies" not in source
+        assert "_store_dependency_idempotently" not in source

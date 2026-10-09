@@ -45,18 +45,19 @@ Environment variables
 """
 
 from vultron.config.actor import ActorConfig
-from vultron.config.ledger import LedgerConfig
 from vultron.config.app import (
     AppConfig,
     DatabaseConfig,
     RunMode,
     ServerConfig,
     YamlConfigSource,
+    clear_config_cache,
     config_override,
     get_config,
     load_actor_config,
     reload_config,
 )
+from vultron.config.ledger import LedgerConfig
 
 __all__ = [
     "ActorConfig",
@@ -66,6 +67,7 @@ __all__ = [
     "RunMode",
     "ServerConfig",
     "YamlConfigSource",
+    "clear_config_cache",
     "config_override",
     "get_config",
     "load_actor_config",

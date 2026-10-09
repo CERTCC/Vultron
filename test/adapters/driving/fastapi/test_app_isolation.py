@@ -75,8 +75,8 @@ def test_create_app_datalayers_are_isolated(app1, app2):
 
 def test_create_app_datalayer_override_not_clobbered(app1):
     """A pre-registered dependency_overrides entry is not overwritten."""
-    from vultron.adapters.driving.fastapi.deps import get_actor_dl
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
     custom_dl = SqliteDataLayer(
         db_url="sqlite:///:memory:", actor_id="custom-actor"
@@ -98,11 +98,11 @@ def test_create_app_per_app_dispatcher_on_state(app1):
 
 
 def test_create_app_does_not_mutate_global_dispatcher(app1):
-    """create_app() lifespan must not overwrite the module-level _DISPATCHER."""
-    original = ih._DISPATCHER
+    """create_app() lifespan must not overwrite the module-level _DISPATCHER_SLOT."""
+    original = ih._DISPATCHER_SLOT.value
 
     with TestClient(app1):
-        assert ih._DISPATCHER is original
+        assert ih._DISPATCHER_SLOT.value is original
 
 
 def test_create_app_dispatchers_are_distinct(app1, app2):

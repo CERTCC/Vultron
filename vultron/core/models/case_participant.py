@@ -15,8 +15,7 @@
 
 """Domain representation of a case participant and role subclasses.
 
-``CaseParticipant`` is the canonical core type.  ``VultronParticipant`` is
-kept as a backward-compatibility alias.
+``CaseParticipant`` is the canonical core type.
 
 Several convenience subclasses are provided that auto-set ``case_roles`` via
 model validators:
@@ -34,6 +33,7 @@ model validators:
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from datetime import datetime
 from typing import Any, ClassVar, Literal
 
@@ -41,19 +41,22 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.core.models._helpers import _new_urn
 from vultron.core.models.base import CoreObject, NonEmptyString
-from vultron.errors import VultronValidationError
-from vultron.core.models.dimensions import (
-    PecDimension,
-    RmDimension,
-)
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
-    coerce_em_consent_state,
+    participant_status_rm_state,
 )
-from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+    PEC_Trigger,
+    consent_after,
+    consent_trigger_is_legal,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +88,32 @@ class CaseParticipant(CoreObject):
     )
     case_roles: list[CVDRole] = Field(default_factory=list)
     participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
-    accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
-    embargo_consent_state: PEC = Field(default=PEC.UNBOUND)
+    # Consent is per (participant, embargo) (ADR-0122, CM-10-001, CM-18-001):
+    # one row for each embargo this participant was asked about, and the only
+    # record of consent.  Bound-by-the-active-embargo and lapsed are lookups
+    # over these rows (``is_signatory``, ``has_lapsed``), never stored.
+    embargo_consents: list[EmbargoConsent] = Field(default_factory=list)
+    # The participant has joined the case: it was seated by the case
+    # initialization sequence (CM-14-001) or it accepted its stub Invite
+    # (CM-10-004, ADR-0114).  One input to the case-level active check
+    # (``VulnerabilityCase.is_active_participant``), never the answer itself.
+    # Replicated with the record so every replica derives the same answer.
+    # Defaults to True because a record seated by case initialization has
+    # joined; the record the stub Invite creates (CM-11-006) sets False
+    # explicitly, and the Accept of that Invite flips it to True.
+    joined: bool = True
+    # The removal fact (CM-31-001, ADR-0116): the id of the ``Remove`` activity
+    # that took this participant out of active participation, or ``None`` when
+    # it is not removed.  Removal keeps the record on the roster; this fact is
+    # the second input to the case-level active check
+    # (``VulnerabilityCase.is_active_participant``), never the answer itself.
+    # The Case Owner's ``Remove(CaseParticipant)`` sets it (#4080) and
+    # its ``Add(CaseParticipant)`` clears it (#4081).  Storing the activity id
+    # rather than a flag keeps the fact replicable from the ledger entry
+    # that records it, and names that entry for the reinstatement backfill
+    # (CM-10-006).  ``NonEmptyString | None`` follows "if present, then
+    # non-empty" (CS-08-002).
+    removal_activity: NonEmptyString | None = None
     participant_case_name: NonEmptyString | None = None
     # Local bookkeeping, not an AS2 property: the deadline by which this actor's
     # own implementation wants an RSVP.  Kept in the stored row and dropped from
@@ -128,18 +155,10 @@ class CaseParticipant(CoreObject):
         if not data.get("id") and not data.get("id_"):
             data["id"] = _new_urn()
         id_val = data.get("id") or data.get("id_")
-        _consent_state = coerce_em_consent_state(
-            data.get("embargo_consent_state", PEC.UNBOUND)
-        )
         data["participant_statuses"] = [
             ParticipantStatus(
                 context=data.get("context") or id_val,
                 attributed_to=data.get("attributed_to"),
-                consent=(
-                    PecDimension(state=_consent_state)
-                    if _consent_state is not None
-                    else None
-                ),
                 cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
             ),
         ]
@@ -150,31 +169,188 @@ class CaseParticipant(CoreObject):
             return
         latest = self.participant_statuses[-1]
         latest.cvd_role = coerce_cvd_roles(self.case_roles)
-        _consent_state = coerce_em_consent_state(self.embargo_consent_state)
-        latest.consent = (
-            PecDimension(state=_consent_state)
-            if _consent_state is not None
-            else None
+
+    def consent_for(self, embargo_id: str) -> EmbargoConsentState | None:
+        """This participant's consent to *embargo_id*; ``None`` when never asked."""
+        for row in self.embargo_consents:
+            if row.embargo_id == embargo_id:
+                return row.state
+        return None
+
+    def accepts_pec_trigger(
+        self, embargo_id: str, trigger: PEC_Trigger
+    ) -> bool:
+        """True when *trigger* is legal from the current row for *embargo_id*.
+
+        The read-only twin of :meth:`apply_pec_transition`, for a caller that applies
+        a trigger only where CM-18-003 allows it.  Asking first, rather than
+        catching the refusal, keeps the write path fail-closed for every
+        caller that does not opt into the no-op.
+        """
+        return consent_trigger_is_legal(self.consent_for(embargo_id), trigger)
+
+    def apply_pec_transition(
+        self, embargo_id: str, trigger: PEC_Trigger
+    ) -> None:
+        """Apply *trigger* to the consent row for *embargo_id*.
+
+        The single authoritative consent-write path (CM-18-005, CM-18-006,
+        ADR-0122): fail-closed against the transition table, creating the row
+        on first contact.  Raises
+        :exc:`~vultron.errors.VultronInvalidStateTransitionError` on an
+        illegal trigger.  The caller persists the record.
+        """
+        new_state = consent_after(self.consent_for(embargo_id), trigger)
+        self._set_consent(embargo_id, new_state)
+
+    def apply_pec_transition_if_legal(
+        self, embargo_id: str, trigger: PEC_Trigger
+    ) -> bool:
+        """Apply *trigger* when CM-18-003 allows it; True when the row moved.
+
+        The one "apply where legal" shape for every caller that treats an
+        illegal trigger as a recorded no-op rather than a fault.  The caller
+        persists the record.
+        """
+        if not self.accepts_pec_trigger(embargo_id, trigger):
+            return False
+        self.apply_pec_transition(embargo_id, trigger)
+        return True
+
+    def _set_consent(
+        self, embargo_id: str, state: EmbargoConsentState
+    ) -> None:
+        rows = [r for r in self.embargo_consents if r.embargo_id != embargo_id]
+        self.embargo_consents = [
+            *rows,
+            EmbargoConsent(embargo_id=embargo_id, state=state),
+        ]
+
+    def invited_embargo_ids(self) -> list[str]:
+        """Ids of the embargoes this participant was invited to and has not answered."""
+        return [
+            r.embargo_id
+            for r in self.embargo_consents
+            if r.state == EmbargoConsentState.INVITED
+        ]
+
+    def is_signatory(self, active_embargo_id: str | None) -> bool:
+        """True when this participant has accepted the embargo in force.
+
+        "Signatory" is a lookup, not a state: the row for the active embargo
+        says ``ACCEPTED`` (CM-18-001).  With no embargo in force nobody is a
+        signatory.
+        """
+        return (
+            active_embargo_id is not None
+            and self.consent_for(active_embargo_id)
+            == EmbargoConsentState.ACCEPTED
         )
 
-    def apply_pec_transition(self, trigger: PEC_Trigger) -> None:
-        """Apply *trigger* to the PEC state machine and sync ParticipantStatus.
+    def has_lapsed(
+        self,
+        active_embargo_id: str | None,
+        open_proposal_ids: Collection[str] = (),
+    ) -> bool:
+        """True when it accepted an earlier embargo but not the one in force.
 
-        Uses ``PecDimension.transition()`` for fail-closed FSM validation
-        (raises ``VultronInvalidStateTransitionError`` on an illegal trigger),
-        then updates ``embargo_consent_state`` and syncs the latest
-        ``ParticipantStatus.consent`` via ``_sync_latest_status_metadata()``.
-
-        This is the single authoritative consent-write path (CM-18-005,
-        CM-18-006, ADR-0048).  All sites that record a PEC change MUST call
-        this method instead of assigning ``embargo_consent_state`` directly.
+        Derived (CM-18-001): the participant holds an ``ACCEPTED`` row for
+        some other embargo and has no accepting row for the active one.  An
+        ``ACCEPTED`` row for one of *open_proposal_ids* does not count: the
+        participant accepted a revision it was never bound by, so it has
+        nothing to lapse from.  A ``DECLINED`` row for the active embargo is a
+        refusal, not a lapse; a participant that was never bound by anything
+        has not lapsed either.
         """
-        current_pec = coerce_em_consent_state(self.embargo_consent_state)
-        if current_pec is None:
-            current_pec = PEC.UNBOUND
-        new_dim = PecDimension(state=current_pec).transition(trigger)
-        self.embargo_consent_state = new_dim.state
-        self._sync_latest_status_metadata()
+        if active_embargo_id is None:
+            return False
+        if self.consent_for(active_embargo_id) in (
+            EmbargoConsentState.ACCEPTED,
+            EmbargoConsentState.DECLINED,
+        ):
+            return False
+        return any(
+            r.state == EmbargoConsentState.ACCEPTED
+            and r.embargo_id not in open_proposal_ids
+            for r in self.embargo_consents
+        )
+
+    def sign_embargo(self, embargo_id: str) -> bool:
+        """Sign *embargo_id*, the embargo in force; True when now ACCEPTED.
+
+        The one seeding shape for a participant that consents to the active
+        embargo without an answer of its own (CM-14-005, CM-10-001): apply
+        ``ACCEPT`` where CM-18-003 allows it.  A participant that declined
+        this embargo is left as it is, so the content gate (CM-10-004) never
+        admits an actor whose row says it is not bound.  The caller persists
+        the record.
+        """
+        self.apply_pec_transition_if_legal(embargo_id, PEC_Trigger.ACCEPT)
+        return self.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
+
+    @property
+    def removed(self) -> bool:
+        """True when this participant carries the removal fact (CM-31-001).
+
+        One input to the case-level active check, not a partial answer to
+        it: a participant that is not removed may still be inert (it has not
+        joined, or is not a signatory to the active embargo).  Use
+        :meth:`VulnerabilityCase.is_active_participant` to decide
+        entitlement (CM-31-002).
+        """
+        return self.removal_activity is not None
+
+    def record_removal(self, removal_activity_id: str) -> bool:
+        """Set the removal fact from the ``Remove`` activity that decided it.
+
+        The one write of :attr:`removal_activity` for a removal (CM-31-001):
+        the CASE_MANAGER calls it for the Case Owner's received
+        ``Remove(CaseParticipant)``, and a replica calls it when it replays
+        that activity's ledger entry (CM-31-007), so both record the same
+        fact.  The record stays on the roster, and its status history and
+        embargo consent rows are untouched (CM-31-008).  A participant that
+        is already removed keeps its first removal: the call is a no-op and
+        returns ``False``.  The caller persists the record.
+
+        Returns:
+            ``True`` when the fact was set, ``False`` when already removed.
+        """
+        if self.removed:
+            return False
+        self.removal_activity = removal_activity_id
+        return True
+
+    def clear_removal(self) -> bool:
+        """Clear the removal fact: the participant is reinstated (CM-31-011).
+
+        The one write that reverses :meth:`record_removal`.  The CASE_MANAGER
+        calls it for the Case Owner's received ``Add(CaseParticipant)``, and a
+        replica calls it when it replays that activity's ledger entry, so both
+        hold the same record.  Nothing else changes: the participant does not
+        accept again, and its status history and embargo consent rows stay as
+        they were (ADR-0116).  A participant that is not removed is left as it
+        is: the call is a no-op and returns ``False``.  The caller persists
+        the record.
+
+        Returns:
+            ``True`` when the fact was cleared, ``False`` when not removed.
+        """
+        if not self.removed:
+            return False
+        self.removal_activity = None
+        return True
+
+    @property
+    def rm_closed(self) -> bool:
+        """True when any recorded RM state is ``CLOSED``.
+
+        ``CLOSED`` is terminal (ADR-0085), so any status recording it means the
+        participant has closed, whatever the order of the history.
+        """
+        return any(
+            participant_status_rm_state(status) == RM.CLOSED
+            for status in self.participant_statuses
+        )
 
     @property
     def participant_status(self) -> ParticipantStatus | None:
@@ -269,8 +445,9 @@ class CaseParticipant(CoreObject):
                 self,
             )
             if raise_when_missing:
+                # S608 false positive: "delete from" is prose, not SQL.
                 raise KeyError(
-                    f"Role {role} was not present to delete from participant.case_roles"
+                    f"Role {role} was not present to delete from participant.case_roles"  # noqa: S608
                 )
         self.case_roles = list(roles)
         self._sync_latest_status_metadata()
@@ -304,19 +481,11 @@ def _seed_accepted_status(data: Any) -> Any:
     if not data.get("id") and not data.get("id_"):
         data["id"] = _new_urn()
     id_val = data.get("id") or data.get("id_")
-    _consent_state = coerce_em_consent_state(
-        data.get("embargo_consent_state", PEC.UNBOUND)
-    )
     data["participant_statuses"] = [
         ParticipantStatus(
             context=data.get("context") or id_val,
             attributed_to=data.get("attributed_to"),
             rm=RmDimension(state=RM.ACCEPTED),
-            consent=(
-                PecDimension(state=_consent_state)
-                if _consent_state is not None
-                else None
-            ),
             cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
         )
     ]
@@ -497,12 +666,3 @@ class CaseActorParticipant(CaseParticipant):
             if isinstance(latest, ParticipantStatus):
                 latest.cvd_role = coerce_cvd_roles(roles)
         return data
-
-
-# ---------------------------------------------------------------------------
-# Backward-compatibility alias
-# ---------------------------------------------------------------------------
-
-#: Alias kept for backward compatibility.  New code should import
-#: :class:`CaseParticipant` directly.
-VultronParticipant = CaseParticipant

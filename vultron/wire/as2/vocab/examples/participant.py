@@ -11,6 +11,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
+from vultron.core.states.cs import CS_vf
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import (
+    add_participant_to_case_activity,
+    remove_participant_from_case_activity,
+    rm_accept_invite_to_case_activity,
+    rm_invite_to_case_activity,
+    rm_reject_invite_to_case_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -21,6 +35,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
+    _example_stamp,
     case,
     finder,
     vendor,
@@ -28,22 +43,8 @@ from vultron.wire.as2.vocab.examples._base import (
 from vultron.wire.as2.vocab.examples.status import (
     participant_status,
 )
-from vultron.core.states.cs import CS_vf
-from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
-    remove_participant_from_case_activity,
-    rm_accept_invite_to_case_activity,
-    rm_invite_to_case_activity,
-    rm_reject_invite_to_case_activity,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
-    VfDimension,
-)
 
 
 def _participant_for(
@@ -131,6 +132,7 @@ def add_finder_participant_to_case() -> as_Add:
 
 
 def add_coordinator_participant_to_case() -> as_Add:
+    """The Case Owner (the vendor) reinstates a removed coordinator (CM-31-011)."""
     _vendor = vendor()
     _case = case()
 
@@ -138,7 +140,7 @@ def add_coordinator_participant_to_case() -> as_Add:
         coordinator_participant(),
         actor=_vendor.id_,
         target=_case.id_,
-        content="We're adding the coordinator as a participant to this case.",
+        content="We're reinstating the coordinator in this case.",
     )
     return activity
 
@@ -146,14 +148,20 @@ def add_coordinator_participant_to_case() -> as_Add:
 def rm_invite_to_case() -> as_Invite:
     _vendor = vendor()
     _coordinator = _COORDINATOR
-    _case = case()
+    _case = case(
+        stub_summary=(
+            "A memory-corruption vulnerability in widget"
+            " — details shared after acceptance."
+        )
+    )
     _activity = rm_invite_to_case_activity(
         _coordinator,
         id_=f"{_case.id_}/invitation/1",
         actor=_vendor.id_,
-        target=_case.id_,
+        target=_case,
         to=_coordinator.id_,
         content=f"We're inviting you to participate in {_case.name}.",
+        **_example_stamp(),
     )
     return _activity
 
@@ -214,6 +222,7 @@ def case_participant() -> as_CaseParticipant:
         context="https://vultron.example/cases/1",
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[participant_status()],
+        **_example_stamp(),
     )
     return participant
 
@@ -224,7 +233,12 @@ def coordinator_participant() -> as_CaseParticipant:
 
 
 def invite_to_case():
-    _case = case()
+    _case = case(
+        stub_summary=(
+            "A memory-corruption vulnerability in widget"
+            " — details shared after acceptance."
+        )
+    )
     _coordinator = _COORDINATOR
     _vendor = vendor()
 
@@ -232,9 +246,10 @@ def invite_to_case():
         _coordinator,
         id_=f"{_case.id_}/invitation/1",
         actor=_vendor.id_,
-        target=_case.id_,
+        target=_case,
         to=_coordinator.id_,
         content=f"We're inviting you to participate in case {_case.name}.",
+        **_example_stamp(),
     )
     return activity
 

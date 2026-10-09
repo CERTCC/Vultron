@@ -22,7 +22,8 @@ attaches it to the associated VulnerabilityCase.
 
 Structure:
 
-    CreateNoteBT (Sequence)
+    CreateNoteBT (Sequence, via create_receive_activity_tree)
+    ├─ IntakeReceivedActivityNode  # Archive the Create(Note) as received
     ├─ SaveNoteNode          # Upsert note into DataLayer (idempotent)
     └─ AttachNoteToCaseNode  # Attach note to case if case_id present (idempotent)
 
@@ -33,11 +34,14 @@ import logging
 
 import py_trees
 
-from vultron.core.models.note import VultronNote
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
 from vultron.core.behaviors.note.nodes import (
     AttachNoteToCaseNode,
     SaveNoteNode,
 )
+from vultron.core.models.note import VultronNote
 
 logger = logging.getLogger(__name__)
 
@@ -64,15 +68,34 @@ def create_note_tree(
     Returns:
         Root node of the CreateNoteBT behavior tree (Sequence).
     """
-    root = py_trees.composites.Sequence(
+    # SaveNoteNode upserts the Note object itself, which every replica keeps
+    # (CLP-10-017); attaching it to the case is canonical case state only the
+    # CASE_MANAGER writes (RSH-08-003).  ``add_note_to_case`` is committed and
+    # replayed (Note slot), so a replica learns the attachment from the ledger
+    # fan-out, not from the direct Create(Note) (#3814).  A note that names no
+    # case attaches to nothing, so the gated node is omitted entirely then.
+    manager_effects: list[py_trees.behaviour.Behaviour] = []
+    if case_id is not None:
+        manager_effects.append(
+            AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id)
+        )
+    root = create_receive_activity_tree(
         name="CreateNoteBT",
-        memory=False,
-        children=[
-            SaveNoteNode(note_obj=note_obj),
-            AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id),
-        ],
+        case_id=None,
+        precondition_guards=[],
+        replica_effects=[SaveNoteNode(note_obj=note_obj)],
+        manager_effects=manager_effects or None,
+        manager_case_id=case_id if manager_effects else None,
+        manager_gate_name=(
+            "AttachNoteToCaseIfCaseManager" if manager_effects else None
+        ),
+        # A receiver that does not hold the named case is simply not its
+        # CASE_MANAGER (not a Regime-1 anomaly): it keeps the Note object but
+        # attaches nothing, and takes the attachment from the ledger
+        # (RSH-08-003, ADR-0087 Regime 3).
+        manager_case_may_be_absent=bool(manager_effects),
     )
     logger.info(
-        f"Created CreateNoteBT for note={note_obj.id_}, case={case_id}"
+        "Created CreateNoteBT for note=%s, case=%s", note_obj.id_, case_id
     )
     return root

@@ -152,9 +152,9 @@ class TestExchangeActorRoster:
         from vultron.demo.utils import _EXCHANGE_ACTORS
 
         for slug, name, actor_type in _EXCHANGE_ACTORS:
-            assert (
-                "/" not in slug and ":" not in slug
-            ), f"{slug!r} must be a bare slug for the node to expand"
+            assert "/" not in slug and ":" not in slug, (
+                f"{slug!r} must be a bare slug for the node to expand"
+            )
             assert name and actor_type
 
     def test_the_roster_covers_the_three_exchange_roles(self):

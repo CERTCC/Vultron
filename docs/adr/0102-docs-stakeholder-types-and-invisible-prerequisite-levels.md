@@ -1,6 +1,10 @@
 ---
 status: accepted-provisional
+status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-09-23
+created: 2026-09-23
+updated: 2026-09-23
+revision: 1
 deciders: Allen Householder
 consulted: CERT/CC Vultron team
 informed: Vultron contributors
@@ -286,6 +290,12 @@ in the repository.
 varies from case to case; a type is ontological, identity-formed, and slow to
 change. `docs/reference/terms.md` defines roles held in a case and is not a
 register of reader types.
+
+**Amended 2026-09-28 (#3624):** `docs/reference/terms.md` was merged into the glossary's "CVD Roles and Participants" section and retired.
+
+**Amended 2026-09-28 (#3617):** the generate-and-gate rule for landing pages extends to every `index.md` that opens a navigation group, with two declared exempt shapes: a routing page, checked to link every member of its section, and a listing rendered at build time from a registry.
+The per-page decisions are in `notes/site-information-architecture.md` § "Sub-section index decisions".
+That section defines roles held in a case and is not a register of reader types; the distinction above stands, and stakeholder-type descriptions must not be added to it.
 
 This decision makes the stakeholder-type enumeration authoritative and retires
 the competing audience lists in `docs/index.md` and in #607/#3511.

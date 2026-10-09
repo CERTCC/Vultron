@@ -13,18 +13,19 @@
 
 """Tests for the core VulnerabilityCase domain model (step 6 of issue #699)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
+from test.support.embargo_register import activate, terminate
 from vultron.core.models.base import CoreObject
-from vultron.core.models.case import VulnerabilityCase, VultronCase
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
     FinderParticipant,
-    VendorParticipant,
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.core.states.em import EM
 from vultron.errors import VultronValidationError
 
 _ACTOR = "https://example.org/actor"
@@ -102,18 +103,6 @@ class TestVulnerabilityCaseRegistration:
         assert CORE_VOCABULARY["VulnerabilityCase"] is VulnerabilityCase
 
 
-class TestVulnerabilityCaseBackwardCompatAlias:
-    """VultronCase must be an alias for VulnerabilityCase."""
-
-    def test_alias_is_same_class(self):
-        assert VultronCase is VulnerabilityCase
-
-    def test_alias_construction_works(self):
-        c = VultronCase(attributed_to=_ACTOR)
-        assert isinstance(c, VulnerabilityCase)
-        assert c.type_ == "VulnerabilityCase"
-
-
 class TestVulnerabilityCaseCurrentStatus:
     """current_status returns the most recent materialized CaseStatus."""
 
@@ -145,12 +134,12 @@ class TestVulnerabilityCaseCurrentStatus:
         older = CaseStatus(
             id_="urn:uuid:00000000-0000-0000-0000-000000000001",
             context=_CASE_ID,
-            updated=datetime(2020, 1, 1, tzinfo=timezone.utc),
+            updated=datetime(2020, 1, 1, tzinfo=UTC),
         )
         newer = CaseStatus(
             id_="https://coord.example/status/1",
             context=_CASE_ID,
-            updated=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            updated=datetime(2026, 1, 1, tzinfo=UTC),
         )
         c = VulnerabilityCase(id_=_CASE_ID)
         c.case_statuses = [older, newer]
@@ -158,7 +147,7 @@ class TestVulnerabilityCaseCurrentStatus:
 
     @pytest.mark.parametrize(
         "stamp",
-        [datetime(2026, 1, 1, tzinfo=timezone.utc), None],
+        [datetime(2026, 1, 1, tzinfo=UTC), None],
         ids=["equal", "absent"],
     )
     def test_current_status_tie_goes_to_the_last_appended(
@@ -244,49 +233,24 @@ class TestVulnerabilityCaseAddParticipant:
             case.add_participant(participant)
 
 
-class TestVulnerabilityCaseRemoveParticipant:
-    """remove_participant removes from list and index."""
+class TestVulnerabilityCaseActiveEmbargoView:
+    """active_embargo is a view of the register's ACTIVE entry (ADR-0122)."""
 
-    def test_remove_participant_clears_from_list(
+    def test_activation_makes_the_embargo_active(
         self, case: VulnerabilityCase
     ):
-        p = VendorParticipant(
-            id_="urn:uuid:part-1",
-            attributed_to="https://example.org/vendor",
-        )
-        case.add_participant(p)
-        case.remove_participant("urn:uuid:part-1")
-        assert p.id_ not in case.case_participants
-
-    def test_remove_participant_clears_from_index(
-        self, case: VulnerabilityCase
-    ):
-        p = VendorParticipant(
-            id_="urn:uuid:part-1",
-            attributed_to="https://example.org/vendor",
-        )
-        case.add_participant(p)
-        case.remove_participant("urn:uuid:part-1")
-        assert "https://example.org/vendor" not in case.actor_participant_index
-
-    def test_remove_nonexistent_participant_is_noop(
-        self, case: VulnerabilityCase
-    ):
-        case.remove_participant("urn:uuid:no-such")
-        assert case.case_participants == []
-
-
-class TestVulnerabilityCaseSetEmbargo:
-    """set_embargo updates active_embargo field."""
-
-    def test_set_embargo_stores_id(self, case: VulnerabilityCase):
-        case.set_embargo("urn:uuid:embargo-1")
+        activate(case, "urn:uuid:embargo-1")
         assert case.active_embargo == "urn:uuid:embargo-1"
+        assert case.active_embargo_id == "urn:uuid:embargo-1"
+        assert case.em_state == EM.ACTIVE
 
-    def test_set_embargo_clears_with_none(self, case: VulnerabilityCase):
-        case.set_embargo("urn:uuid:embargo-1")
-        case.set_embargo(None)
+    def test_termination_leaves_no_active_embargo(
+        self, case: VulnerabilityCase
+    ):
+        activate(case, "urn:uuid:embargo-1")
+        terminate(case)
         assert case.active_embargo is None
+        assert case.em_state == EM.EXITED
 
 
 class TestVulnerabilityCaseRecordActivity:
@@ -400,5 +364,10 @@ class TestVulnerabilityCaseWireRoundTrip:
             id_="urn:uuid:vc-rt",
             attributed_to="https://example.org/actor",
         )
-        core_case.set_embargo("urn:uuid:embargo-1")
+        activate(core_case, "urn:uuid:embargo-1")
         assert core_case.active_embargo == "urn:uuid:embargo-1"
+        restored = VulnerabilityCase.model_validate(
+            core_case.model_dump(by_alias=True)
+        )
+        assert restored.active_embargo_id == "urn:uuid:embargo-1"
+        assert restored.em_state == EM.ACTIVE

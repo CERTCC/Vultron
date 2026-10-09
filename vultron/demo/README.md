@@ -28,6 +28,7 @@ distinct techniques:
 | `initialize-participant` | Initializing a standalone CaseParticipant             |
 | `invite-actor`           | Inviting an actor to participate in a case            |
 | `establish-embargo`      | Establishing a coordinated disclosure embargo         |
+| `report-with-embargo`    | Reporter proposes embargo terms with the report       |
 | `acknowledge`            | Acknowledging receipt of a vulnerability report       |
 | `status-updates`         | Posting case status updates and notes                 |
 | `suggest-actor`          | Suggesting an actor for a case                        |

@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+description: >
+  The twelve desired orderings and the partial order they induce over the histories.
 ---
 
 # On the Desirability of Possible Histories
@@ -130,7 +132,7 @@ desired orderings $\mathbb{D}$ as follows:
 
 {% include-markdown "./_ordered_pairs_events.md" %}
 
-    {% include-markdown "./_history_constraints.md" %}
+{% include-markdown "./_history_constraints.md" %}
 
 !!! tip "Ordering vs. Timing"
 
@@ -227,7 +229,7 @@ This partial order requires a formal definition of which desiderata are met by a
     diagram represents an individual history $h_a$ from
     the 70 possible histories in $\mathcal{H}$; labels correspond to the index of
     the table. 
-    The figure follows the partiarl order defined above, in that $h_a$ is higher in the order than
+    The figure follows the partial order defined above, in that $h_a$ is higher in the order than
     $h_b$ when $h_a$ contains all the desiderata from $h_b$ and at least one
     more. Histories that do not share a path are incomparable (formally, two
     histories incomparable if both 

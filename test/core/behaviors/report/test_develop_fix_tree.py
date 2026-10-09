@@ -25,12 +25,11 @@ Covers all acceptance criteria from issue #1812:
 - AC-8: Tree root is a Fallback; guards short-circuit before inner Sequence
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.develop_fix import (
     DEVELOP_FIX_DETERMINISTIC,
@@ -50,10 +49,10 @@ from vultron.core.behaviors.report.nodes.develop_fix import (
     TransitionCStoFixReady,
     _EmitParticipantStatusActivityBase,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -79,8 +78,8 @@ def bt_scenario():
 
 
 @pytest.fixture
-def vendor_participant() -> VultronParticipant:
-    return VultronParticipant(
+def vendor_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/vendor-cp-001",
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,
@@ -89,8 +88,8 @@ def vendor_participant() -> VultronParticipant:
 
 
 @pytest.fixture
-def coordinator_participant() -> VultronParticipant:
-    return VultronParticipant(
+def coordinator_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/coordinator-cp-001",
         attributed_to=COORDINATOR_ACTOR_ID,
         context=CASE_ID,
@@ -101,9 +100,9 @@ def coordinator_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_vendor(
     bt_scenario: BTTestScenario,
-    vendor_participant: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+    vendor_participant: CaseParticipant,
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[vendor_participant.id_],
@@ -126,11 +125,11 @@ def coordinator_scenario():
 @pytest.fixture
 def coordinator_case(
     coordinator_scenario: BTTestScenario,
-    vendor_participant: VultronParticipant,
-    coordinator_participant: VultronParticipant,
-) -> VultronCase:
+    vendor_participant: CaseParticipant,
+    coordinator_participant: CaseParticipant,
+) -> VulnerabilityCase:
     """The same two-participant case, seeded in the coordinator's store."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -151,10 +150,10 @@ def coordinator_case(
 @pytest.fixture
 def case_with_vendor_and_coordinator(
     bt_scenario: BTTestScenario,
-    vendor_participant: VultronParticipant,
-    coordinator_participant: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+    vendor_participant: CaseParticipant,
+    coordinator_participant: CaseParticipant,
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -183,7 +182,7 @@ def _seed_rm_state(
 
     # Append to participant's statuses list
     case = bt_scenario.dl.read(case_id)
-    if not isinstance(case, VultronCase):
+    if not isinstance(case, VulnerabilityCase):
         return
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id:
@@ -206,7 +205,7 @@ def _seed_vf_state(
     bt_scenario.dl.create(status)
 
     case = bt_scenario.dl.read(case_id)
-    if not isinstance(case, VultronCase):
+    if not isinstance(case, VulnerabilityCase):
         return
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id:
@@ -394,7 +393,7 @@ class TestCheckIsVendorRoleNode:
     def test_success_for_coordinator_non_vendor(
         self,
         coordinator_scenario: BTTestScenario,
-        coordinator_case: VultronCase,
+        coordinator_case: VulnerabilityCase,
     ) -> None:
         result = coordinator_scenario.run(
             CheckIsVendorRoleNode(
@@ -407,7 +406,7 @@ class TestCheckIsVendorRoleNode:
     def test_failure_for_vendor_actor(
         self,
         bt_scenario: BTTestScenario,
-        case_with_vendor: VultronCase,
+        case_with_vendor: VulnerabilityCase,
     ) -> None:
         result = bt_scenario.run(
             CheckIsVendorRoleNode(case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID),
@@ -431,7 +430,7 @@ class TestCheckCSFixNotYetReady:
     def test_failure_when_vfd_not_ready(
         self,
         bt_scenario: BTTestScenario,
-        case_with_vendor: VultronCase,
+        case_with_vendor: VulnerabilityCase,
     ) -> None:
         """FAILURE when VF state is vf (fix not yet developed)."""
         _seed_vf_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, None)
@@ -444,7 +443,7 @@ class TestCheckCSFixNotYetReady:
     def test_success_when_vfd_state_is_VFd(
         self,
         bt_scenario: BTTestScenario,
-        case_with_vendor: VultronCase,
+        case_with_vendor: VulnerabilityCase,
     ) -> None:
         """SUCCESS when VF state is VF (fix ready)."""
         _seed_vf_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vf.VF)
@@ -457,7 +456,7 @@ class TestCheckCSFixNotYetReady:
     def test_success_when_vfd_state_is_VFD(
         self,
         bt_scenario: BTTestScenario,
-        case_with_vendor: VultronCase,
+        case_with_vendor: VulnerabilityCase,
     ) -> None:
         """SUCCESS when VF state is VF and D=D (deployed; fix also ready)."""
         _seed_vf_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vf.VF)
@@ -484,7 +483,7 @@ class TestCheckRMStateAccepted:
     def test_success_when_rm_accepted(
         self,
         bt_scenario: BTTestScenario,
-        case_with_vendor: VultronCase,
+        case_with_vendor: VulnerabilityCase,
     ) -> None:
         _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
         result = bt_scenario.run(
@@ -497,7 +496,7 @@ class TestCheckRMStateAccepted:
     def test_failure_when_rm_not_accepted(
         self,
         bt_scenario: BTTestScenario,
-        case_with_vendor: VultronCase,
+        case_with_vendor: VulnerabilityCase,
     ) -> None:
         _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.RECEIVED)
         result = bt_scenario.run(
@@ -523,7 +522,7 @@ class TestTransitionCStoFixReady:
     def test_success_and_creates_vfd_status(
         self,
         bt_scenario: BTTestScenario,
-        case_with_vendor: VultronCase,
+        case_with_vendor: VulnerabilityCase,
     ) -> None:
         _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
         result_out: dict = {}
@@ -548,7 +547,7 @@ class TestTransitionCStoFixReady:
     def test_fix_ready_logged_in_narrative_form(
         self,
         bt_scenario: BTTestScenario,
-        case_with_vendor: VultronCase,
+        case_with_vendor: VulnerabilityCase,
         caplog,
     ) -> None:
         """AC-13: the f→F transition reads as a CVD milestone at INFO.
@@ -616,8 +615,8 @@ CASE_MANAGER_ACTOR_ID = "https://example.org/actors/case-manager-001"
 
 
 @pytest.fixture
-def case_manager_participant() -> VultronParticipant:
-    return VultronParticipant(
+def case_manager_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/cm-cp-001",
         attributed_to=CASE_MANAGER_ACTOR_ID,
         context=CASE_ID,
@@ -628,10 +627,10 @@ def case_manager_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_vendor_and_case_manager(
     bt_scenario: BTTestScenario,
-    vendor_participant: VultronParticipant,
-    case_manager_participant: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+    vendor_participant: CaseParticipant,
+    case_manager_participant: CaseParticipant,
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -654,7 +653,7 @@ class TestEmitCFActivity:
     def test_success_emits_cf_activity(
         self,
         bt_scenario: BTTestScenario,
-        case_with_vendor_and_case_manager: VultronCase,
+        case_with_vendor_and_case_manager: VulnerabilityCase,
     ) -> None:
         """SUCCESS when status_id present and CASE_MANAGER participant exists."""
         _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
@@ -677,7 +676,7 @@ class TestEmitCFActivity:
     def test_failure_when_result_out_empty(
         self,
         bt_scenario: BTTestScenario,
-        case_with_vendor: VultronCase,
+        case_with_vendor: VulnerabilityCase,
     ) -> None:
         """FAILURE when status_id / participant_id not pre-populated."""
         node = EmitCFActivity(
@@ -689,7 +688,7 @@ class TestEmitCFActivity:
     def test_failure_when_no_case_manager(
         self,
         bt_scenario: BTTestScenario,
-        case_with_vendor: VultronCase,
+        case_with_vendor: VulnerabilityCase,
     ) -> None:
         """FAILURE when no CASE_MANAGER participant is present."""
         _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
@@ -736,7 +735,7 @@ def test_inner_sequence_has_four_children():
 @pytest.mark.spec("BT-06-006")
 def test_guard_short_circuits_for_non_vendor(
     coordinator_scenario: BTTestScenario,
-    coordinator_case: VultronCase,
+    coordinator_case: VulnerabilityCase,
 ) -> None:
     """Non-vendor actor: CheckIsVendorRoleNode returns SUCCESS → Fallback succeeds."""
     tree = create_develop_fix_tree(
@@ -749,7 +748,7 @@ def test_guard_short_circuits_for_non_vendor(
 @pytest.mark.spec("BT-06-006")
 def test_guard_short_circuits_when_fix_already_ready(
     bt_scenario: BTTestScenario,
-    case_with_vendor: VultronCase,
+    case_with_vendor: VulnerabilityCase,
 ) -> None:
     """Vendor actor with VF state: CheckCSFixNotYetReady → SUCCESS → Fallback succeeds."""
     _seed_vf_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vf.VF)

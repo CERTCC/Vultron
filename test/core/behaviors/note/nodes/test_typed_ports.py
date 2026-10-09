@@ -22,6 +22,7 @@ execution via BTTestScenario for one representative node per note sub-module.
 import pytest
 from py_trees.ports import NoDataAvailable
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.note.nodes.creation import (
     CreateNoteNode,
 )
@@ -31,7 +32,6 @@ from vultron.core.behaviors.note.nodes.storage import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.note import VultronNote
-from test.core.behaviors.bt_harness import BTTestScenario
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-001"

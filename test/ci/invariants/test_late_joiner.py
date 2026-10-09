@@ -136,7 +136,7 @@ class TestFullHistoryNoViolation:
     def test_late_actor_has_superset_of_early(self):
         early = _chain("super", 3)
         extra_entry = _entry(3, _SHA256("super:3"), early[-1]["entryHash"])
-        late = list(early) + [extra_entry]
+        late = [*list(early), extra_entry]
         replicas = {"early": early, "late": late}
         violations = check_late_joiner_has_full_history(
             replicas, early_actor="early", late_actor="late"

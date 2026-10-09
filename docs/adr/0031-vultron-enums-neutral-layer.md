@@ -1,7 +1,11 @@
 ---
 status: accepted
 date: 2026-07-10
+created: 2026-07-10
+updated: 2026-07-10
+revision: 1
 deciders: Allen D. Householder
+stakeholder_type: [project-contributor]
 ---
 
 # Introduce `vultron/enums/` as a Bottom-of-Stack Neutral Layer for Cross-Cutting Enumerations

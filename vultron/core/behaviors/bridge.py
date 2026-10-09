@@ -38,8 +38,9 @@ Per specs/sync-ledger-replication.yaml:
 
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import py_trees
 from py_trees.common import Status
@@ -51,7 +52,11 @@ from vultron.core.behaviors.blackboard_scope import (
 )
 from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronError
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronError,
+    VultronWiringError,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -89,13 +94,19 @@ class BTExecutionResult:
       ``SUCCESS``) and is never flagged.
     - Nodes that run a sub-tree through their own ``BTBridge`` discard the inner
       result's flag and return a bare ``Status.FAILURE``, so a crash inside a
-      nested subtree is not visible in the outer result.
+      nested subtree is not visible in the outer result.  The exception is
+      ``CommitCaseLedgerEntryNode``, which raises ``VultronBTInternalError``
+      when its nested commit reports one, so a missing sync port on a
+      received commit is not read as a refusal (#4113).
     """
 
     status: Status
     feedback_message: str = ""
     errors: list[str] | None = None
     internal_error: bool = False
+    # The tree never ran: this node is not the replication leader. A caller
+    # reports that as "not my job", so it must not have to match the message.
+    leader_skipped: bool = False
 
 
 def _default_is_leader() -> bool:
@@ -245,7 +256,9 @@ class BTBridge:
             or self.datalayer
         )
 
-    def _ports_for_store(self, store: CasePersistence) -> tuple[
+    def _ports_for_store(
+        self, store: CasePersistence
+    ) -> tuple[
         "TriggerActivityPort | None",
         "SyncActivityPort | None",
         "WireRenderPort | None",
@@ -263,10 +276,12 @@ class BTBridge:
         "not found in DataLayer for actor …", skips delivery, and the invitee is
         never told it was invited (ISSUE-2548).
 
-        This is the delegated-emit path the class docstring on
-        ``SvcInviteActorToCaseUseCase`` describes: a trigger addressed to the case
-        owner runs with ``actor_id`` set to the CaseActor, so the two references
-        disagree by construction rather than by mistake.
+        A trigger that still runs a delegated emit locally has this shape: the
+        trigger is addressed to the requesting participant but runs with
+        ``actor_id`` set to the CaseActor, so the two references disagree by
+        construction rather than by mistake.  CM-24-004 (ADR-0109) retires that
+        shape — #3821 for the invite, #3822 for the ownership-transfer offer — and the reconciliation
+        stays for the triggers that have not moved yet.
 
         A port this bridge was not given is *inherited* from the blackboard
         rather than left alone, because the blackboard is process-global
@@ -335,7 +350,7 @@ class BTBridge:
             - BT-05-002: Sets up py_trees context with DataLayer access
             - BT-05-003: Populates blackboard with activity and actor state
         """
-        self.logger.debug(f"Setting up BT for actor {actor_id}")
+        self.logger.debug("Setting up BT for actor %s", actor_id)
 
         # Create py_trees BehaviourTree wrapper
         bt = py_trees.trees.BehaviourTree(root=tree)
@@ -402,12 +417,13 @@ class BTBridge:
             )
             setattr(blackboard, key, value)
 
-        self.logger.info(f"BT setup complete for actor {actor_id}")
+        self.logger.info("BT setup complete for actor %s", actor_id)
 
         # BT scaffolding, not protocol story — DEBUG only (SL-04-007).
+        # Guard kept: unicode_tree() is a call, which lazy args do not skip.
         if self.logger.isEnabledFor(logging.DEBUG):
             tree_repr = unicode_tree(tree, show_status=True)
-            self.logger.debug(f"BT structure:\n{tree_repr}")
+            self.logger.debug("BT structure:\n%s", tree_repr)
 
         return bt
 
@@ -454,20 +470,28 @@ class BTBridge:
             prefix: Which boundary was crossed — ``"BT setup failed"`` or
                 ``"BT execution failed"``.  The two must stay distinguishable
                 so an execution error is never reported as a setup error.
-            internal_error: Classification, as described above.
+            internal_error: Classification, as described above.  A
+                ``VultronWiringError`` is always internal: a missing DataLayer
+                or port is our composition fault, not the protocol's, whatever
+                base class it shares (#2255).  A ``VultronBTInternalError`` is
+                internal too: a node raises it to carry a nested bridge's
+                ``internal_error`` across the hop (#4113).
 
         Returns:
             A FAILURE ``BTExecutionResult`` carrying the composed message as
             both ``feedback_message`` and the sole entry in ``errors``.
         """
+        internal_error = internal_error or isinstance(
+            e, (VultronWiringError, VultronBTInternalError)
+        )
         if internal_error:
             error_msg = (
                 f"{prefix} with internal error: {type(e).__name__}: {e}"
             )
-            self.logger.exception(error_msg)
+            self.logger.exception("%s", error_msg)
         else:
             error_msg = f"{prefix}: {type(e).__name__}: {e}"
-            self.logger.warning(error_msg)
+            self.logger.warning("%s", error_msg)
 
         return BTExecutionResult(
             status=Status.FAILURE,
@@ -544,9 +568,10 @@ class BTBridge:
                         detail,
                     )
                     # Tree dump is scaffolding, not story — DEBUG (SL-04-007).
+                    # Guard kept: lazy args do not skip the unicode_tree call.
                     if self.logger.isEnabledFor(logging.DEBUG):
                         tree_repr = unicode_tree(bt.root, show_status=True)
-                        self.logger.debug(f"Final BT state:\n{tree_repr}")
+                        self.logger.debug("Final BT state:\n%s", tree_repr)
 
                     return BTExecutionResult(
                         status=root_status,
@@ -556,7 +581,7 @@ class BTBridge:
 
                 # RUNNING: continue ticking
                 if root_status == Status.RUNNING:
-                    self.logger.debug(f"BT still running (tick {iteration})")
+                    self.logger.debug("BT still running (tick %s)", iteration)
                     continue
 
                 # INVALID: should not happen during execution
@@ -564,7 +589,7 @@ class BTBridge:
                     # Not a protocol outcome — a tree in INVALID mid-execution
                     # is malformed, so retrying it cannot converge.
                     error_msg = f"BT entered INVALID state at tick {iteration}"
-                    self.logger.error(error_msg)
+                    self.logger.error("%s", error_msg)
                     errors.append(error_msg)
                     return BTExecutionResult(
                         status=Status.FAILURE,
@@ -579,7 +604,7 @@ class BTBridge:
             error_msg = (
                 f"BT execution exceeded max iterations ({max_iterations})"
             )
-            self.logger.error(error_msg)
+            self.logger.error("%s", error_msg)
             errors.append(error_msg)
             return BTExecutionResult(
                 status=Status.FAILURE,
@@ -602,7 +627,7 @@ class BTBridge:
             # this handler used to build.
             return self._exception_result(e, prefix="BT execution failed")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             # Anything else is a programming error — a wrong-typed port, a
             # missing attribute, a bad key.  Still caught, because a half-ticked
             # tree must not escape into a FastAPI background task, but flagged
@@ -660,7 +685,7 @@ class BTBridge:
             result = bridge.execute_with_setup(
                 tree=ValidateReportBT(...),
                 actor_id=actor_id,
-                activity=dispatchable.payload
+                activity=request,
             )
 
         Args:
@@ -718,10 +743,11 @@ class BTBridge:
                     "BT execution skipped: this node is not the replication"
                     " leader"
                 )
-                self.logger.warning(msg)
+                self.logger.warning("%s", msg)
                 return BTExecutionResult(
                     status=Status.FAILURE,
                     feedback_message=msg,
+                    leader_skipped=True,
                 )
             # Execution-scoped blackboard keys: each lives for exactly one BT
             # execution and is reset to its pre-execution state in the finally
@@ -747,6 +773,19 @@ class BTBridge:
                 # node owns "clean up when the Sequence aborts", so the bridge
                 # does, exactly once, for every outcome.
                 "ledger_payload_object_override",
+                # Published by ResolveCreationTimeRevisionNode, read by
+                # InitializeCreationEmbargoNode (EP-04-011).  The writer ticks
+                # only on the creation arm, so a redelivery that skips that arm
+                # would otherwise hand the reader the previous execution's value.
+                "creation_time_revision_candidate",
+                # Published by the RM adjudication guards
+                # (FilterParticipantStatusDimensionsNode,
+                # AdjudicateRMDeclarationNode), read by EmitRMGapNoteNode.
+                # The note runs as a refusal effect (CLP-10-022) whenever any
+                # precondition guard refuses, including one ahead of the
+                # adjudication that never ticked it, so a previous
+                # execution's anomaly must not survive to be noted again.
+                "rm_transition_anomaly",
                 # The executing actor's identity is execution-scoped too, and for
                 # a sharper reason than the ports above.  Every node base in
                 # `helpers.py` re-reads `/actor_id` into `self.actor_id` in
@@ -761,7 +800,7 @@ class BTBridge:
                 # `self.datalayer.actor_id` and `/actor_id` the same actor, and
                 # the three sites that pass the store's own actor to a nested
                 # call (`case/nodes/leave/advance.py` twice,
-                # `sync/nodes/close_case_effect.py`) therefore usually pass the
+                # `case/nodes/close_case_effect.py`) therefore usually pass the
                 # value already on the blackboard.  Where they do not — a case
                 # whose CASE_MANAGER sits on another container after a handoff
                 # (CP-08-003) — `OwnerLeaveSeq`
@@ -809,7 +848,7 @@ class BTBridge:
                     )
                 except VultronError as e:
                     return self._exception_result(e, prefix="BT setup failed")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
                     return self._exception_result(
                         e, prefix="BT setup failed", internal_error=True
                     )
@@ -825,7 +864,7 @@ class BTBridge:
                     return self._exception_result(
                         e, prefix="BT execution failed"
                     )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
                     return self._exception_result(
                         e, prefix="BT execution failed", internal_error=True
                     )
@@ -870,29 +909,32 @@ class BTBridge:
     ) -> str:
         """Return a human-readable explanation for a tree that returned FAILURE.
 
-        Performs a depth-first walk of the tree and returns the
-        ``feedback_message`` of the first node whose status is
-        ``Status.FAILURE``.  If no node carries a message, the class name of
-        that node is returned instead.  If the tree succeeded (or is still
-        RUNNING), an empty string is returned.
+        Follows the chain of FAILURE nodes down from the root and returns the
+        ``feedback_message`` of the leaf it ends at, or that leaf's class name
+        when it carries no message.  At each failed composite it follows the
+        *last* failed child: a failed Sequence has exactly one, and in a failed
+        Selector every child failed, so the last is the final attempt.  The
+        first is usually the cheap "already done?" guard whose failure is what
+        sent the Selector on, and naming it hides the real cause.  A decorator
+        that failed while its child did not (an ``Inverter``) is itself the
+        leaf.  If the tree succeeded (or is still RUNNING), an empty string is
+        returned.
 
         Args:
             tree: Root behavior node to inspect.
 
         Returns:
-            First FAILURE node's ``feedback_message``, its class name, or
-            ``""`` when no FAILURE node is found.
+            The failing leaf's ``feedback_message``, its class name, or
+            ``""`` when the tree did not fail.
         """
-        stack = [tree]
-        while stack:
-            node = stack.pop()
-            if node.status == Status.FAILURE:
-                if not node.children:
-                    # Leaf node — this is the actual source of failure.
-                    return node.feedback_message or node.__class__.__name__
-                # Composite node — the failure originates in a child.
-                stack.extend(reversed(node.children))
-        return ""
+        node = tree
+        if node.status != Status.FAILURE:
+            return ""
+        while True:
+            failed = [c for c in node.children if c.status == Status.FAILURE]
+            if not failed:
+                return node.feedback_message or node.__class__.__name__
+            node = failed[-1]
 
     @staticmethod
     def get_tree_visualization(

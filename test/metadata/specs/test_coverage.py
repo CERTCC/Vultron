@@ -21,7 +21,6 @@ _PROTOCOL_YAML = {
     "id": "CVG",
     "title": "Coverage Test Specs",
     "description": "Minimal spec file for coverage reporter tests",
-    "version": "0.1",
     "scope": ["production"],
     "groups": [
         {

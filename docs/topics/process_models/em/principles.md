@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [cvd-practitioner]
-level: 300
+level: 200
+description: >
+  What an embargo is for, and the norms Participants follow while one is in force.
 ---
 
 # Embargo Principles
@@ -130,7 +132,7 @@ Participants. There are a few good reasons to exit an embargo early.
 Note that a Participant leaving an embargo is not necessarily the same
 as the embargo itself terminating.
 Embargo termination corresponds to the $q^{em} \in \{A,R\} \xrightarrow{t} X$ transition in the
-[EM model](index.md) and reflects a consensus among case Participants that the embargo no longer
+[EM formal model](formal_model.md#terminate-embargo) and reflects a consensus among case Participants that the embargo no longer
 applies. A Participant leaving an *Active* embargo means that the
 embargo agreement between other Participants remains intact, but that
 the leaving Participant is no longer involved in the case.
@@ -150,12 +152,12 @@ the leaving Participant is no longer involved in the case.
 
 !!! tip inline end "Embargo Engagement and Adherence"
 
-    We return to these concepts with the `case_engagement` and
-    `embargo_adherence` attributes described in
+    We return to these concepts with the `case_engagement` attribute and the
+    per-embargo consent rows described in
     [Case Model](../../case_lifecycle/case_model.md).
-    For the per-participant consent state machine that drives
-    `embargo_adherence`, see
-    [Participant Embargo Consent](participant-embargo-consent.md).
+    For the per-(participant, embargo) consent state machine,
+    see
+    [Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md).
 
 These points imply a need for Participants to track the status of other
 Participants with respect to their adherence to the embargo and
@@ -194,3 +196,8 @@ obligation*.
 
 A discussion of how to decide who to invite to participate in a
 CVD case is addressed in [Adding Participants](working_with_others.md).
+
+## Doing It on the Wire
+
+- [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — propose, accept and activate an embargo.
+- [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) — change or end an active embargo.

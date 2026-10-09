@@ -22,18 +22,20 @@ Covers:
 - AC-4 (issue #1808): isolated-node port tests + early-error-detection tests.
 """
 
-import pytest
 import py_trees
+import pytest
 from py_trees.ports import NoDataAvailable
 
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.helpers import (
-    DataLayerConditionWithPorts,
     DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.report.nodes.conditions import (
-    CheckRMStateValid,
     CheckRMStateReceivedOrInvalid,
+    CheckRMStateValid,
     EnsureEmbargoExists,
     EvaluateReportCredibility,
 )
@@ -41,11 +43,10 @@ from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionRMtoValid,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.report import VultronReport
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -97,7 +98,6 @@ class TestDataLayerConditionWithPortsContract:
 
     def test_missing_required_port_raises_at_get_input(self) -> None:
         """NoDataAvailable raised when required port not on blackboard (BTND-03-011)."""
-        py_trees.blackboard.Blackboard.storage.clear()
 
         class _MinimalNode(DataLayerConditionWithPorts):
             def update(self):
@@ -110,7 +110,6 @@ class TestDataLayerConditionWithPortsContract:
 
     def test_get_input_reads_btbridge_flat_key(self) -> None:
         """get_input('datalayer') reads the /datalayer key written by BTBridge."""
-        py_trees.blackboard.Blackboard.storage.clear()
         dl = _fresh_dl()
         _write_btbridge_keys(dl)
 
@@ -159,7 +158,6 @@ class TestCheckRMStateValidPorts:
         assert CheckRMStateValid.output_ports() == {}
 
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        py_trees.blackboard.Blackboard.storage.clear()
         node = CheckRMStateValid(report_id=REPORT_ID)
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
@@ -168,8 +166,8 @@ class TestCheckRMStateValidPorts:
     def test_via_bt_scenario_when_valid(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
-        report = VultronReport(id_=REPORT_ID, name="R1", content="c")
+        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
         bt_scenario.seed(actor, report, link)
         result = bt_scenario.run(
@@ -180,8 +178,8 @@ class TestCheckRMStateValidPorts:
     def test_via_bt_scenario_when_not_valid(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
-        report = VultronReport(id_=REPORT_ID, name="R1", content="c")
+        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         bt_scenario.seed(actor, report)
         result = bt_scenario.run(
             CheckRMStateValid(report_id=REPORT_ID), actor_id=ACTOR_ID
@@ -193,9 +191,9 @@ class TestCheckRMStateValidPorts:
     ) -> None:
         """sender_actor_id overrides blackboard actor_id (ADR-0022 single-BT)."""
         SENDER_ID = "https://example.org/actors/reporter"
-        actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
-        sender = VultronCaseActor(id_=SENDER_ID, name="Reporter")
-        report = VultronReport(id_=REPORT_ID, name="R1", content="c")
+        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        sender = CaseActor(id_=SENDER_ID, name="Reporter")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
         bt_scenario.seed(actor, sender, report, link)
         # Tree runs under ACTOR_ID (blackboard actor_id = ACTOR_ID);
@@ -219,7 +217,6 @@ class TestCheckRMStateReceivedOrInvalidPorts:
         assert "actor_id" in ports
 
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        py_trees.blackboard.Blackboard.storage.clear()
         node = CheckRMStateReceivedOrInvalid(report_id=REPORT_ID)
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
@@ -228,8 +225,8 @@ class TestCheckRMStateReceivedOrInvalidPorts:
     def test_success_when_no_valid_status(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
-        report = VultronReport(id_=REPORT_ID, name="R1", content="c")
+        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         bt_scenario.seed(actor, report)
         result = bt_scenario.run(
             CheckRMStateReceivedOrInvalid(report_id=REPORT_ID),
@@ -240,8 +237,8 @@ class TestCheckRMStateReceivedOrInvalidPorts:
     def test_failure_when_already_valid(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
-        report = VultronReport(id_=REPORT_ID, name="R1", content="c")
+        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
         bt_scenario.seed(actor, report, link)
         result = bt_scenario.run(
@@ -266,7 +263,6 @@ class TestEnsureEmbargoExistsPorts:
         assert "case_id" in ports
 
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        py_trees.blackboard.Blackboard.storage.clear()
         node = EnsureEmbargoExists(report_id=REPORT_ID)
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
@@ -275,8 +271,8 @@ class TestEnsureEmbargoExistsPorts:
     def test_failure_when_no_case_id_published(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
-        report = VultronReport(id_=REPORT_ID, name="R1", content="c")
+        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         bt_scenario.seed(actor, report)
         result = bt_scenario.run(
             EnsureEmbargoExists(report_id=REPORT_ID), actor_id=ACTOR_ID
@@ -286,17 +282,14 @@ class TestEnsureEmbargoExistsPorts:
     def test_success_when_case_has_active_embargo(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
-        report = VultronReport(id_=REPORT_ID, name="R1", content="c")
-        # active_embargo is a str | None URI field on VulnerabilityCase
+        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         case = VulnerabilityCase(
             name="Test Case",
             vulnerability_reports=[REPORT_ID],
             attributed_to=ACTOR_ID,
         )
-        object.__setattr__(
-            case, "active_embargo", "https://example.org/embargos/em-001"
-        )
+        activate(case, "https://example.org/embargos/em-001")
         bt_scenario.seed(actor, report, case)
         result = bt_scenario.run(
             EnsureEmbargoExists(report_id=REPORT_ID),
@@ -308,8 +301,8 @@ class TestEnsureEmbargoExistsPorts:
     def test_failure_when_case_has_no_active_embargo(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
-        report = VultronReport(id_=REPORT_ID, name="R1", content="c")
+        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         case = VulnerabilityCase(
             name="Test Case",
             vulnerability_reports=[REPORT_ID],
@@ -342,13 +335,13 @@ class TestTransitionRMtoValid:
     def test_creates_rm_valid_status_record(
         self, bt_scenario: BTTestScenario
     ) -> None:
+        from test.support.participant_status import advance_participant_rm
         from vultron.core.models.activity import VultronOffer
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.enums.roles import CVDRole
-        from test.support.participant_status import advance_participant_rm
 
-        actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
-        report = VultronReport(id_=REPORT_ID, name="R1", content="c")
+        actor = CaseActor(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
         offer = VultronOffer(
             id_=OFFER_ID, actor=ACTOR_ID, object_=REPORT_ID, target=ACTOR_ID
         )

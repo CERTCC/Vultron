@@ -16,22 +16,40 @@
 """Embargo-domain trigger activity construction for TriggerActivityAdapter."""
 
 import logging
+from datetime import datetime, timedelta
 from typing import Any, cast
 
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.adapters.outbox_sealed_body import derived_activity_id, is_sealed
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories import (
+    activate_embargo_activity,
     announce_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
+    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-from ._base import _DUMP_KWARGS, _to_wire
-from vultron.errors import VultronAlreadyExistsError
+from ._base import _seal, _to_wire
 
 logger = logging.getLogger(__name__)
+
+
+def _attribution(attributed_to: str | None) -> dict[str, str]:
+    """``attributed_to`` as a factory keyword, only when given (CM-24-002).
+
+    Absent, the factory keeps its default of no attribution, so an activity
+    the CASE_MANAGER decides on its own names nobody else.
+    """
+    return {} if attributed_to is None else {"attributed_to": attributed_to}
+
+
+def _reject_id(actor: str, proposal_id: str) -> str:
+    """The id of *actor*'s ``Reject`` of the Invite *proposal_id*."""
+    return derived_activity_id("embargo-reject", actor, proposal_id)
 
 
 class _EmbargoMixin:
@@ -45,11 +63,36 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
+        activity_id: str | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        min_rsvp_window: timedelta | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(as_EmbargoEvent, Case)`` proposal."""
+        """Create and persist an ``Invite(as_EmbargoEvent, Case)`` proposal.
+
+        ``attributed_to`` names the proposer of a relayed proposal (CM-24-002);
+        it is forwarded only when given so a participant's own proposal keeps
+        the factory's default of no attribution.  ``activity_id`` likewise:
+        given, it is the Invite's id (EP-04-011); absent, the factory mints one.
+        So are ``rsvp_deadline`` (the Invite's ``endTime``, CM-28-012) and the
+        ``published`` instant and ``min_rsvp_window`` floor the factory
+        validates it against (EP-07-002, EP-07-006).
+        """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
+        optional: dict[str, Any] = {
+            key: value
+            for key, value in (
+                ("attributed_to", attributed_to),
+                ("id_", activity_id),
+                ("rsvp_deadline", rsvp_deadline),
+                ("published", published),
+                ("min_rsvp_window", min_rsvp_window),
+            )
+            if value is not None
+        }
         activity = em_propose_embargo_activity(
-            embargo=embargo, context=case_id, actor=actor, to=to
+            embargo=embargo, context=case_id, actor=actor, to=to, **optional
         )
         try:
             self._dl.create(activity)
@@ -58,7 +101,7 @@ class _EmbargoMixin:
                 "propose_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_embargo(
         self,
@@ -79,7 +122,7 @@ class _EmbargoMixin:
                 "accept_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def reject_embargo(
         self,
@@ -88,10 +131,19 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Reject(Invite)`` embargo-reject activity."""
+        """Create and persist a ``Reject(Invite)`` embargo-reject activity.
+
+        The id is derived from the rejecting actor and the Invite, so an
+        actor's rejection of one Invite is one activity (ID-04-004) and
+        :meth:`requeue_embargo_refusal` can tell it was sent.
+        """
         proposal = cast(Any, self._dl.read(proposal_id))
         activity = em_reject_embargo_activity(
-            proposal=proposal, context=case_id, actor=actor, to=to
+            proposal=proposal,
+            context=case_id,
+            actor=actor,
+            to=to,
+            id_=_reject_id(actor, proposal_id),
         )
         try:
             self._dl.create(activity)
@@ -100,7 +152,83 @@ class _EmbargoMixin:
                 "reject_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
+
+    def activate_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the owner's ``Accept(as_EmbargoEvent, target=case)``.
+
+        ``context`` names the case as well, so the snapshot the CASE_MANAGER
+        commits carries the case URI there (VM-08-003, #4085).
+        """
+        embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
+        activity = activate_embargo_activity(
+            embargo=embargo,
+            target=case_id,
+            context=case_id,
+            actor=actor,
+            to=to,
+        )
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "activate_embargo: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return _seal(self._dl, activity)
+
+    def reject_embargo_proposal(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the owner's ``Reject(as_EmbargoEvent, target=case)``.
+
+        ``context`` names the case as well, so the snapshot the CASE_MANAGER
+        commits carries the case URI there (VM-08-003, #4085).
+        """
+        embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
+        activity = reject_embargo_proposal_activity(
+            embargo=embargo,
+            target=case_id,
+            context=case_id,
+            actor=actor,
+            to=to,
+        )
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "reject_embargo_proposal: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return _seal(self._dl, activity)
+
+    def requeue_embargo_refusal(self, actor: str, proposal_id: str) -> bool:
+        """Whether *actor* already rejected the Invite *proposal_id*.
+
+        The sealed body is written before the caller queues the ``Reject``, so
+        a sealed ``Reject`` that is no longer pending may have been delivered
+        or may never have been queued; the queue cannot say which.  It is
+        queued again under the same id and body, which the receiver
+        deduplicates, so a failure between the two writes never loses the ER
+        (ID-04-005).  A ``Reject`` still pending is left alone.
+        """
+        reject_id = _reject_id(actor, proposal_id)
+        if not is_sealed(self._dl, reject_id):
+            return False
+        if reject_id not in self._dl.outbox_list():
+            self._dl.outbox_append(reject_id)
+        return True
 
     def announce_embargo(
         self,
@@ -108,11 +236,16 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Announce(as_EmbargoEvent)`` activity."""
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = announce_embargo_activity(
-            embargo=embargo, context=case_id, actor=actor, to=to
+            embargo=embargo,
+            context=case_id,
+            actor=actor,
+            to=to,
+            **_attribution(attributed_to),
         )
         try:
             self._dl.create(activity)
@@ -121,7 +254,7 @@ class _EmbargoMixin:
                 "announce_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def terminate_embargo(
         self,
@@ -129,11 +262,22 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Remove(as_EmbargoEvent, origin=case)`` ET activity."""
+        """Create and persist a ``Remove(as_EmbargoEvent, origin=case)`` ET activity.
+
+        ``context`` names the case as well: the CASE_MANAGER commits its own
+        teardown as a canonical entry, whose snapshot must carry the case URI
+        in ``context`` (VM-08-003, #4085).
+        """
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = remove_embargo_from_case_activity(
-            embargo=embargo, origin=case_id, actor=actor, to=to
+            embargo=embargo,
+            origin=case_id,
+            context=case_id,
+            actor=actor,
+            to=to,
+            **_attribution(attributed_to),
         )
         try:
             self._dl.create(activity)
@@ -142,4 +286,4 @@ class _EmbargoMixin:
                 "terminate_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)

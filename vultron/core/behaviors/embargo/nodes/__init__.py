@@ -18,19 +18,60 @@
 Re-exports all public node classes from submodules for backward compatibility.
 """
 
+from vultron.core.behaviors.embargo.nodes.abandon import (
+    ABANDONED_PROPOSALS_KEY,
+    AbandonEmbargoProposalsLifecycleNode,
+    ApplyEmbargoAbandonmentFromLedgerNode,
+    CommitEmbargoAbandonmentNode,
+    LeaveAbandonmentToCaseManagerNode,
+    ReadOpenEmbargoProposalsNode,
+)
+from vultron.core.behaviors.embargo.nodes.activation_effect import (
+    EMBARGO_ACTIVATION_EVENT_TYPE,
+    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
+    ApplyEmbargoActivationFromLedgerNode,
+    ApplyEmbargoProposalRejectionFromLedgerNode,
+    IsActivateEmbargoEventNode,
+    IsRejectEmbargoProposalEventNode,
+)
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
 )
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
     HasCaseStatusesNode,
     IsActiveEmbargoNode,
     IsCloseBlockedByActiveEmbargoNode,
     IsProposedEmbargoNode,
+    IsRejectableEmbargoNode,
     LookupParticipantNode,
-    OptionalLookupParticipantNode,
     ValidateCaseExistsNode,
+)
+from vultron.core.behaviors.embargo.nodes.em_state import (
+    ReadEmStateNode,
+    read_case_em_state,
+)
+from vultron.core.behaviors.embargo.nodes.ending_notice import (
+    ApplyAnnouncedEmbargoRevisionNode,
+    AwaitsEmbargoEndingNoticeNode,
+    CaptureActiveEmbargoNode,
+    SendEmbargoEndingNoticesNode,
+    embargo_ending_notice_nodes,
+)
+from vultron.core.behaviors.embargo.nodes.expiry import (
+    ApplyHonourLateAcceptFromLedgerNode,
+    ApplyInviteExpiryFromLedgerNode,
+    ApplyInviteExpiryNoopFromLedgerNode,
+    EvaluateInviteExpiryNode,
+    HonourLateAcceptNode,
+    InviteExpiryChangedConsentNode,
+    InviteExpiryNeedsApplyNode,
+    RecordInviteExpiryNode,
+)
+from vultron.core.behaviors.embargo.nodes.invite_answer import (
+    CanAnswerEmbargoInviteNode,
+    OwnerMayAutoAcceptEmbargoNode,
+    SendEmbargoInviteAnswerNode,
 )
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     AcceptEmbargoLifecycleNode,
@@ -40,63 +81,168 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
     SendTerminateEmbargoActivityNode,
     SetEmbargoActiveNode,
     TerminateEmbargoLifecycleNode,
+    ValidateEmbargoProposalStateNode,
     ValidateEmbargoRevisionStateNode,
 )
-from vultron.core.behaviors.embargo.nodes.reject_proposed import (
-    ReadProposedEmbargoIdNode,
-    RejectProposedEmbargoLifecycleNode,
-    SendRejectEmbargoActivityNode,
+from vultron.core.behaviors.embargo.nodes.manager_commit import (
+    COMMITTED_ACTIVITY_KEY,
+    EMBARGO_TEARDOWN_EVENT_TYPE,
+    CommitEmbargoDecisionNode,
+    CommitEmbargoTeardownNode,
+    EmbargoActivityBuilder,
+    IndexOwnEmbargoProposalNode,
+)
+from vultron.core.behaviors.embargo.nodes.manager_consent import (
+    ManagerHoldsUndecidedEmbargoStakeNode,
+    RecordManagerEmbargoConsentNode,
+    record_manager_embargo_consent_tree,
+)
+from vultron.core.behaviors.embargo.nodes.owner_decision import (
+    ActivateEmbargoLifecycleNode,
+    IsOpenEmbargoProposalNode,
+    OwnerMayActivateEmbargoNode,
+    RejectEmbargoProposalLifecycleNode,
+    SendOwnerEmbargoDecisionNode,
 )
 from vultron.core.behaviors.embargo.nodes.proposal import (
     CreateAndStoreInviteNode,
+    IndexReceivedEmbargoProposalNode,
     RecordParticipantAcceptanceNode,
-    RemoveStaleAcceptanceNode,
-    UpdateParticipantEmbargoPecNode,
+    RecordParticipantRejectionNode,
+)
+from vultron.core.behaviors.embargo.nodes.reinvite import (
+    ReinviteStaleAccepterNode,
+)
+from vultron.core.behaviors.embargo.nodes.reject_proposed import (
+    DecideRejectedEmbargoProposalNode,
+    OwnerRejectsRevisionAfterDisclosureNode,
+)
+from vultron.core.behaviors.embargo.nodes.relay import (
+    EMBARGO_INVITE_EVENT_TYPE,
+    CollectEmbargoInviteRecipientsNode,
+    EmbargoProposalNotYetRecordedNode,
+    EmStateAdmitsProposalNode,
+    RelayEmbargoInviteToEachNode,
+    case_manager_admits_proposal_guard,
+)
+from vultron.core.behaviors.embargo.nodes.relay_effect import (
+    ApplyEmbargoAcceptanceFromLedgerNode,
+    ApplyEmbargoInviteFromLedgerNode,
+    ApplyEmbargoProposalFromLedgerNode,
+    ApplyEmbargoReinviteFromLedgerNode,
+    ApplyEmbargoRejectionFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
     HasEmbargoActiveNode,
-    RemoveFromProposedEmbargoesNode,
-    ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
+)
+from vultron.core.behaviors.embargo.nodes.terminate import (
+    TeardownAskPendingNode,
+    ask_case_manager_to_terminate_once,
 )
 
 __all__ = [
+    # Invite answer (EP-09-003)
+    "CanAnswerEmbargoInviteNode",
+    "OwnerMayAutoAcceptEmbargoNode",
+    "SendEmbargoInviteAnswerNode",
     # Conditions
     "ValidateCaseExistsNode",
     "IsActiveEmbargoNode",
+    "IsRejectableEmbargoNode",
+    "OwnerRejectsRevisionAfterDisclosureNode",
     "IsCloseBlockedByActiveEmbargoNode",
     "IsProposedEmbargoNode",
     "HasActiveEmbargoNode",
     "HasCaseStatusesNode",
     "LookupParticipantNode",
-    "OptionalLookupParticipantNode",
     # EM state read
     "ReadEmStateNode",
+    "read_case_em_state",
     # Teardown
     "HasEmbargoActiveNode",
     "ClearActiveEmbargoNode",
-    "ResetParticipantConsentNode",
     "ApplyEmbargoTeardownNode",
-    "RemoveFromProposedEmbargoesNode",
     "SendAnnounceEmbargoEventNode",
+    # The case owner's decision on a proposal (ADR-0122) and its replay
+    "ActivateEmbargoLifecycleNode",
+    "IsOpenEmbargoProposalNode",
+    "OwnerMayActivateEmbargoNode",
+    "RejectEmbargoProposalLifecycleNode",
+    "SendOwnerEmbargoDecisionNode",
+    # Embargo-ending notices to unreached signatories (CM-31-009, CM-31-010)
+    "ApplyAnnouncedEmbargoRevisionNode",
+    "CaptureActiveEmbargoNode",
+    "AwaitsEmbargoEndingNoticeNode",
+    "SendEmbargoEndingNoticesNode",
+    "embargo_ending_notice_nodes",
+    # The case owner's decision replayed from the ledger (RSH-08-004)
+    "EMBARGO_ACTIVATION_EVENT_TYPE",
+    "EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE",
+    "ApplyEmbargoActivationFromLedgerNode",
+    "ApplyEmbargoProposalRejectionFromLedgerNode",
+    "IsActivateEmbargoEventNode",
+    "IsRejectEmbargoProposalEventNode",
+    # Relay (EP-09)
+    "EMBARGO_INVITE_EVENT_TYPE",
+    "CollectEmbargoInviteRecipientsNode",
+    "EmStateAdmitsProposalNode",
+    "EmbargoProposalNotYetRecordedNode",
+    "ReinviteStaleAccepterNode",
+    "RelayEmbargoInviteToEachNode",
+    # CASE_MANAGER decision commit (EP-09-008, #4085)
+    "EMBARGO_TEARDOWN_EVENT_TYPE",
+    "CommitEmbargoDecisionNode",
+    "CommitEmbargoTeardownNode",
+    "COMMITTED_ACTIVITY_KEY",
+    "IndexOwnEmbargoProposalNode",
+    "IndexReceivedEmbargoProposalNode",
+    # The manager's own consent row (EP-09-002, #4180)
+    "ManagerHoldsUndecidedEmbargoStakeNode",
+    "RecordManagerEmbargoConsentNode",
+    "record_manager_embargo_consent_tree",
+    "EmbargoActivityBuilder",
+    # Relay ledger replay (EP-09-007)
+    "ApplyEmbargoProposalFromLedgerNode",
+    "ApplyEmbargoInviteFromLedgerNode",
+    "ApplyEmbargoReinviteFromLedgerNode",
+    "ApplyEmbargoAcceptanceFromLedgerNode",
+    "ApplyEmbargoRejectionFromLedgerNode",
+    # P/X/A abandonment of open proposals (EMB-16-001, #4131)
+    "ABANDONED_PROPOSALS_KEY",
+    "ReadOpenEmbargoProposalsNode",
+    "AbandonEmbargoProposalsLifecycleNode",
+    "CommitEmbargoAbandonmentNode",
+    "LeaveAbandonmentToCaseManagerNode",
+    "ApplyEmbargoAbandonmentFromLedgerNode",
+    "case_manager_admits_proposal_guard",
+    # Invite expiry: evaluation (CM-28-014, BT-17-001) and replay (ADR-0118)
+    "ApplyHonourLateAcceptFromLedgerNode",
+    "ApplyInviteExpiryFromLedgerNode",
+    "ApplyInviteExpiryNoopFromLedgerNode",
+    "EvaluateInviteExpiryNode",
+    "HonourLateAcceptNode",
+    "InviteExpiryChangedConsentNode",
+    "InviteExpiryNeedsApplyNode",
+    "RecordInviteExpiryNode",
     # Proposal
-    "UpdateParticipantEmbargoPecNode",
     "CreateAndStoreInviteNode",
     "RecordParticipantAcceptanceNode",
-    "RemoveStaleAcceptanceNode",
+    "RecordParticipantRejectionNode",
     # Lifecycle
     "PersistEmbargoEventNode",
+    "ValidateEmbargoProposalStateNode",
     "ValidateEmbargoRevisionStateNode",
     "ProposeEmbargoLifecycleNode",
     "AcceptEmbargoLifecycleNode",
     "RejectEmbargoLifecycleNode",
     "TerminateEmbargoLifecycleNode",
     "ReadEmbargoIdNode",
-    "ReadProposedEmbargoIdNode",
-    "RejectProposedEmbargoLifecycleNode",
+    "DecideRejectedEmbargoProposalNode",
     "SendTerminateEmbargoActivityNode",
-    "SendRejectEmbargoActivityNode",
     "SetEmbargoActiveNode",
+    "TeardownAskPendingNode",
+    "ask_case_manager_to_terminate_once",
 ]

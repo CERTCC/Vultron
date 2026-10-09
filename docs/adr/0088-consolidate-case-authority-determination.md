@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-09-14
+created: 2026-09-14
+updated: 2026-09-14
+revision: 1
 deciders: Allen D. Householder
 consulted:
 informed:
+stakeholder_type: [project-contributor]
 ---
 
 # Authority Is the CASE_MANAGER Role; "Case Actor" Names the Prototype Actor That Enacts It, Not the Authority

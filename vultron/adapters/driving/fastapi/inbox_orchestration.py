@@ -32,18 +32,26 @@ import asyncio
 import logging
 from typing import Any, cast
 
+from vultron.adapters.driving.fastapi import inbox_port_factories
 from vultron.adapters.driving.fastapi.inbox_handler import dispatch
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
-from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+from vultron.adapters.driving.fastapi.inbox_storage import (
     _store_inbox_activity,
     _store_nested_inbox_object,
 )
-from vultron.core.models.events import VultronEvent
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.behaviors.inbox import (
+    InboxOutcome,
+    InboxOutcomeStatus,
+    process_payload,
+)
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events import VultronEvent
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.errors import VultronParseError
@@ -82,6 +90,23 @@ def _is_inline_ledger_entry_announce(activity: as_Activity) -> bool:
     return getattr(nested, "type_", None) == "CaseLedgerEntry"
 
 
+def _carry_received_evidence(
+    artifact: as_Activity, routing_copy: as_Activity
+) -> as_Activity:
+    """Give the hydrated routing copy (B) its artifact's (A) received evidence.
+
+    The by-ID re-read builds B from storage, which never kept the body, so
+    without this the evidence sealed at parse would stop at the first pipeline
+    step and core would only ever see the rebuilt form (VM-08-002, ISSUE-3584).
+    The evidence is the artifact's; B only carries it, which is why the text is
+    copied rather than re-derived from B.
+    """
+    evidence = artifact.received_evidence_json
+    if evidence is not None:
+        routing_copy.seal_received_evidence(evidence)
+    return routing_copy
+
+
 class FastAPIIngressAdapter:
     """Ingress adapter for the FastAPI driving adapter.
 
@@ -102,15 +127,12 @@ class FastAPIIngressAdapter:
 
     Args:
         dl: Shared DataLayer (for storing activities and rehydration).
-        body: Raw request-body dict, used to re-parse inline nested
-            objects with their specific vocabulary classes.
     """
 
-    def __init__(
-        self, dl: DataLayer, body: dict[str, Any] | None = None
-    ) -> None:
+    def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
-        self._body = body or {}
+        # Whether ``parse`` wrote this delivery, or found the id already held.
+        self._stored_this_delivery = False
 
     def parse(
         self,
@@ -122,8 +144,10 @@ class FastAPIIngressAdapter:
         """
         if isinstance(payload, as_Activity):
             # Already parsed (e.g., passed directly from the router DI).
-            _store_nested_inbox_object(self._dl, payload, self._body)
-            _store_inbox_activity(self._dl, payload)
+            _store_nested_inbox_object(self._dl, payload)
+            self._stored_this_delivery = _store_inbox_activity(
+                self._dl, payload
+            )
             return payload
 
         if not isinstance(payload, dict):
@@ -141,8 +165,8 @@ class FastAPIIngressAdapter:
             )
             return None
 
-        _store_nested_inbox_object(self._dl, activity, payload)
-        _store_inbox_activity(self._dl, activity)
+        _store_nested_inbox_object(self._dl, activity)
+        self._stored_this_delivery = _store_inbox_activity(self._dl, activity)
         return activity
 
     def rehydrate(self, activity: as_Activity) -> as_Activity:
@@ -176,18 +200,32 @@ class FastAPIIngressAdapter:
         the read.
         """
         if _is_inline_ledger_entry_announce(activity):
-            return self._hydrate_in_place(activity)
+            return _carry_received_evidence(
+                activity, self._hydrate_in_place(activity)
+            )
 
         result = rehydrate(activity.id_, dl=self._dl)
-        if isinstance(result, as_Activity):
+        if not isinstance(result, as_Activity):
+            return activity
+        if not self._stored_this_delivery:
+            # The by-id read rebuilt an *earlier* delivery under this id, so
+            # this body's evidence would describe a different activity than
+            # the one routed (VM-08-002).
+            logger.info(
+                "FastAPIIngressAdapter.rehydrate: activity %s (actor %s) was"
+                " already stored; routing the stored copy without this"
+                " delivery's received evidence.",
+                activity.id_,
+                getattr(activity.actor, "id_", activity.actor),
+            )
             return result
-        return activity
+        return _carry_received_evidence(activity, result)
 
     def _hydrate_in_place(self, activity: as_Activity) -> as_Activity:
         """Expand reference fields on the *parsed* activity, without a re-read."""
         try:
             hydrated = self._dl.hydrate(activity)
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326  # pragma: no cover - defensive
             logger.warning(
                 "FastAPIIngressAdapter.rehydrate: hydrate failed (%s);"
                 " returning parsed activity unchanged.",
@@ -268,12 +306,12 @@ class FastAPIDispatchAdapter:
         self._actor_id = actor_id
         self._dispatcher = dispatcher
 
-    def dispatch(self, event: VultronEvent) -> None:
-        """Inject receiving actor ID and dispatch the event."""
+    def dispatch(self, event: VultronEvent) -> HandlerResult:
+        """Inject receiving actor ID, dispatch, and return the verdict."""
         scoped_event = event.model_copy(
             update={"receiving_actor_id": self._actor_id}
         )
-        dispatch(
+        return dispatch(
             event=scoped_event,
             dl=self._dl,
             dispatcher=self._dispatcher,
@@ -337,9 +375,30 @@ class FastAPIQueuePort:
         )
 
 
+def _warn_if_rejected(
+    outcome: InboxOutcome, actor_id: str, *, replayed: bool
+) -> None:
+    """Log a rejected outcome at WARNING (UCORG-05-013).
+
+    Every outcome is logged at DEBUG; a refusal is also logged here so it is
+    visible in an actor log at the default level. ``processed`` and
+    ``deferred`` stay at DEBUG — both are expected, routine outcomes.
+    """
+    if outcome.status is not InboxOutcomeStatus.REJECTED:
+        return
+    logger.warning(
+        "Inbox activity rejected (actor_id=%s activity_id=%s context_id=%s"
+        " replayed=%s): %s",
+        actor_id,
+        outcome.activity_id,
+        outcome.context_id,
+        replayed,
+        outcome.failure_reason,
+    )
+
+
 async def run_inbox_pipeline(
     payload: dict[str, Any] | bytes | str | Any,
-    body: dict[str, Any] | None,
     actor_dl: DataLayer,
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
@@ -350,7 +409,10 @@ async def run_inbox_pipeline(
     Calls :func:`~vultron.core.behaviors.inbox.process_payload` for the
     immediate payload, then processes any replayed activities that were
     pushed back to the inbox queue (e.g., after bootstrap dispatch), and
-    finally drains the outbox.
+    finally drains the outbox.  The synchronous BT work runs in a worker
+    thread so the ASGI event loop keeps serving while a handler executes
+    (IE-06-002, BT-11-002); only the outbox drain, which is async I/O, runs on
+    the loop.
 
     This function is the background task scheduled by ``post_actor_inbox``.
     It is the ONLY place that constructs the adapter instances, satisfying
@@ -358,8 +420,6 @@ async def run_inbox_pipeline(
 
     Args:
         payload: Raw inbox payload (JSON body dict or as_Activity).
-        body: Raw JSON request body dict, forwarded from the endpoint for
-            nested-object re-parsing (preserves domain-specific fields).
         actor_dl: The receiving actor's DataLayer — ingress, dispatch, queues
             and stored activities alike.  Before ADR-0073 a separate shared
             DataLayer was threaded alongside it; the two only differed because
@@ -368,10 +428,7 @@ async def run_inbox_pipeline(
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
     """
-    from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-    from vultron.core.behaviors.inbox import process_payload
-
-    ingress = FastAPIIngressAdapter(dl=actor_dl, body=body)
+    ingress = FastAPIIngressAdapter(dl=actor_dl)
     dispatch_adp = FastAPIDispatchAdapter(
         dl=actor_dl, actor_id=actor_id, dispatcher=dispatcher
     )
@@ -386,13 +443,24 @@ async def run_inbox_pipeline(
     # stored.  Without this lock, two HTTP POSTs that arrive close together
     # create two asyncio Tasks that can run in any order; if entry N+1's
     # task runs first, the hash-chain check fails → spurious Reject (issue #1525).
-    async with _get_actor_lock(actor_id):
-        outcome = process_payload(payload, ingress, dispatch_adp, queue)
+    # The receiving actor's RSVP windows govern inbound embargo invites
+    # (EP-07-001, EP-07-002); None applies the protocol defaults.
+    actor_config = inbox_port_factories._resolve_actor_config()
+
+    def _process_and_replay() -> None:
+        """The synchronous BT work for one delivery, plus its replays.
+
+        Runs on a worker thread (see below), so it must not touch asyncio.
+        """
+        outcome = process_payload(
+            payload, ingress, dispatch_adp, queue, actor_config=actor_config
+        )
         logger.debug(
             "run_inbox_pipeline: status=%s context_id=%s",
             outcome.status,
             outcome.context_id,
         )
+        _warn_if_rejected(outcome, actor_id, replayed=False)
 
         # Process any replayed activities (pushed back to the queue by
         # DeferCheckNode/DispatchNode replay after bootstrap).
@@ -402,12 +470,33 @@ async def run_inbox_pipeline(
             if item_id is None:
                 break
             replay_outcome = process_payload(
-                item_id, stored_ingress, dispatch_adp, queue
+                item_id,
+                stored_ingress,
+                dispatch_adp,
+                queue,
+                actor_config=actor_config,
             )
             logger.debug(
                 "run_inbox_pipeline: replayed status=%s context_id=%s",
                 replay_outcome.status,
                 replay_outcome.context_id,
             )
+            _warn_if_rejected(replay_outcome, actor_id, replayed=True)
+
+    async with _get_actor_lock(actor_id):
+        # Off the event loop, deliberately.  Starlette runs an ``async``
+        # background task on the loop itself, and ``process_payload`` is
+        # synchronous — BT ticks, the BT global lock, SQLite I/O.  Called
+        # inline it stalls the whole container for every inbound activity: no
+        # HTTP response goes out, no delivery from a peer is accepted, the
+        # co-hosted OutboxMonitor coroutine cannot drain, and a trigger route
+        # waiting on the BT lock from its threadpool thread starves (IE-06-002,
+        # BT-11-002).  The fv/fcvcv demo flakes were the CaseActor's outbox
+        # paying one full BT tick per delivery on the vendor container (#3033,
+        # #2898).  ``asyncio.to_thread`` matches what the sync trigger routes
+        # already do; the BT global RLock serialises BT execution across
+        # threads, and the per-actor lock above (held across the thread hop)
+        # keeps this actor's deliveries FIFO (BT-11-001, #1525).
+        await asyncio.to_thread(_process_and_replay)
 
     await outbox_handler(actor_id, actor_dl, emitter=emitter)

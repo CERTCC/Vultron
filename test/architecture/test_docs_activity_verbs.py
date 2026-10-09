@@ -82,6 +82,8 @@ import functools
 import re
 from types import MappingProxyType
 
+from test.architecture import _corpus
+
 # The complete pattern set lives in the private module.  ``extractor/__init__``
 # re-exports only 48 of the 51, so importing the public surface would leave the
 # unexported patterns invisible to this ratchet — the same silent gap a
@@ -89,8 +91,6 @@ from types import MappingProxyType
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.extractor import _instances
 from vultron.wire.as2.extractor._pattern import ActivityPattern
-
-from test.architecture import _corpus
 
 _ACTIVITIES_ROOT = (
     _corpus.REPO_ROOT / "vultron" / "wire" / "as2" / "vocab" / "activities"
@@ -100,7 +100,7 @@ _ACTIVITIES_ROOT = (
 _CLASS_DECL = re.compile(r"^class (\w+Activity)\((as_\w+)\)", re.MULTILINE)
 
 # Every activity class declaration, whatever its bases. Used to prove
-# _CLASS_DECL did not silently skip one (a mixin, or a black-wrapped
+# _CLASS_DECL did not silently skip one (a mixin, or a formatter-wrapped
 # declaration, would not match the single-base form above).
 _ANY_CLASS_DECL = re.compile(r"^class (\w+Activity)\(", re.MULTILINE)
 
@@ -176,8 +176,9 @@ _FORM_ALIASES = MappingProxyType({"ActivateEmbargo": "AddEmbargoToCase"})
 #: A node id absent here may carry no qualifier at all.
 _EXPECTED_QUALIFIER = MappingProxyType(
     {
-        "ActivateEmbargo": "inReplyTo: Invite(Event)",
-        "AddEmbargoToCase": "no inReplyTo",
+        # The case owner's decisions name the case they decide for (ADR-0122).
+        "ActivateEmbargo": "target: VulnerabilityCase",
+        "RejectEmbargoProposal": "target: VulnerabilityCase",
     }
 )
 
@@ -186,9 +187,6 @@ _EXPECTED_QUALIFIER = MappingProxyType(
 #: a reason; this is not a place to park an unexplained failure.
 _UNREGISTERED_FORMS_BY_DESIGN = MappingProxyType(
     {
-        # establish_embargo.md: polling across candidate embargoes has a
-        # factory but no registered pattern, so no receiver dispatches it.
-        "Question(anyOf=[Event])": "no registered pattern (#3433)",
         # acknowledge.md: named as the form that matches nothing, to warn an
         # implementer off sending the bare report instead of its Offer.
         "Read(VulnerabilityReport)": "counter-example (MSM-01-008)",
@@ -327,7 +325,7 @@ def test_class_verb_map_covers_every_activity_class():
     """Every activity class declaration must land in the map.
 
     ``_CLASS_DECL`` matches only a single ``(as_X)`` base on one physical line.
-    A mixin (``class _FooActivity(as_Create, SomeMixin)``) or a black-wrapped
+    A mixin (``class _FooActivity(as_Create, SomeMixin)``) or a formatter-wrapped
     declaration would not match, dropping that activity from the map — and,
     because an unmapped name is skipped rather than reported, silently
     unchecking every pairing the docs assert for it.  Asserting equality rather
@@ -397,13 +395,13 @@ def test_mermaid_labels_are_the_canonical_as2_form():
     the formal protocol never names it comes from the reference tree's own heading,
     so asserting it here would only re-state a hand-maintained list.
 
-    The wire line may carry a trailing ``, <qualifier>`` naming the field that
-    distinguishes two activities sharing one wire form. ``ActivateEmbargo`` and
-    ``AddEmbargoToCase`` are both ``Add(Event)`` and are told apart by
-    ``inReplyTo``, so the qualifier is *checked* against
-    ``_EXPECTED_QUALIFIER`` rather than stripped — it is the only thing
-    distinguishing them, and discarding it let a label assert the exact opposite
-    of the truth while this test passed.
+    The wire line may carry a trailing ``, <qualifier>`` naming a field the
+    reader needs to tell an activity apart, such as the case ``target`` of the
+    case owner's ``Accept``/``Reject(Event)``. The qualifier is *checked*
+    against ``_EXPECTED_QUALIFIER`` rather than stripped: when two activities
+    once shared ``Add(Event)`` and were told apart only by ``inReplyTo``,
+    discarding it let a label assert the exact opposite of the truth while this
+    test passed.
 
     An unresolvable node id is a failure, not a skip.  Skipping it silently is
     the same false-clean signal DF-09-009 forbids, and it hid ``ActivateEmbargo``

@@ -2,13 +2,16 @@
 title: Participant Role Management Design Notes
 status: active
 description: >
-  Design decisions and implementation guidance for the VultronParticipant and
-  CaseParticipant role-management API (add_role, remove_role, has_role, roles
+  Design decisions and implementation guidance for the CaseParticipant
+  role-management API (add_role, remove_role, has_role, roles
   property). Source: IDEA-26050401.
 related_specs:
   - specs/participant-role-management.yaml
+  - specs/case-management.yaml
+related_notes:
+  - notes/case-joining.md
 relevant_packages:
-  - vultron/core/models/participant.py
+  - vultron/core/models/case_participant.py
   - vultron/wire/as2/vocab/objects/case_participant.py
   - vultron/core/use_cases/query/action_rules.py
   - vultron/core/predicates/participants.py
@@ -26,7 +29,7 @@ relevant_packages:
 | Where do new tests go? | New `test/core/models/test_participant.py` | Mirrors source layout; keeps `test_base.py` focused on the base model contract |
 | Should core code read `case_roles` directly? | No — use `roles` property | Decouples callers from storage field; allows future representation changes |
 | What does the `roles` property return? | `list[CVDRole]` | Keeps callers working with domain types; `.value` extraction stays at call sites |
-| Should `CaseParticipant` match the `VultronParticipant` interface? | Yes — full parity | Callers should not need to know which class they hold to manage roles |
+| Should the wire participant match the core participant interface? | Yes — they are one class (`as_CaseParticipant` is `CaseParticipant`, ADR-0099) | Callers should not need to know which layer they hold to manage roles |
 | Should wire-layer `model_validator` role inits use `add_role()`? | Yes | Routes all role mutations through the single invariant-check point |
 | Should an architecture test enforce the no-direct-mutation rule? | Yes, with ≤1 s budget | Machine-checkable enforcement; targeted scan stays fast |
 | Should an architecture test enforce the no-direct-read rule (`getattr(*, "case_roles")`)? | Yes — `test_no_getattr_case_roles_read_in_core()` added in PR #1443 | Complements the mutation ratchet; enforces PRM-01-003 |
@@ -54,15 +57,29 @@ state whenever the target happens to equal the current state.
 
 ## Assertion Authority and On-Behalf Exceptions (PRM-06)
 
-Participant status is self-declaratory by default (PRM-06-001, ADR-0084). Two
+Participant status is self-declaratory by default (PRM-06-001, ADR-0121). Two
 narrow on-behalf exceptions exist:
 
 - **v→V** (`CS_vf.Vf`): a Case Manager or Case Owner MAY assert vendor awareness
-  on behalf of a notified-but-not-joined vendor (PRM-06-003).
+  on behalf of a vendor participant whose notification is evidenced — typically
+  an inert invitee that has not yet replied to its stub Invite (PRM-06-003).
 - **d→D** (`CS_d.D`): the same asserting actors MAY assert deployer deployment
-  under externally-evidenced exceptional circumstances (PRM-06-004).
+  under externally-evidenced exceptional circumstances (PRM-06-004). The
+  RM↔D entailment still applies, so it succeeds only for a deployer whose RM
+  state is consistent with deployment.
 - **f→F** (`CS_vf.VF`) is always Vendor-only and cannot be asserted on behalf
   of another actor (PRM-06-005).
+
+The two on-behalf exceptions target an **existing** participant only. An
+on-behalf assertion for an actor that is not a participant is refused before
+any write and never creates one (PRM-06-006, ADR-0121): a status update is
+never a way into a case — joining is the Invite flow
+([case-joining.md](case-joining.md), ADR-0114).
+`CheckOnBehalfTargetIsParticipantNode` enforces this as the second guard of the
+on-behalf tree, ahead of the only write: it refuses, naming the target, when
+the target is not in `actor_participant_index` or lacks the asserted
+dimension's role (`VENDOR` for `v→V`, `DEPLOYER` for `d→D`). The tree has no
+node that creates or attaches a participant (#4047).
 
 The **Vendor-implies-V invariant** (PRM-06-002): a participant holding
 `CVDRole.VENDOR` cannot assert `CS_vf.vf` (vendor-unaware) — a vendor that

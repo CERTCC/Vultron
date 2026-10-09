@@ -23,22 +23,23 @@ Spec: specs/triggerable-behaviors.yaml TRIG-09.
 
 import pytest
 
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.use_cases.triggers.case import SvcCreateCaseUseCase
 from vultron.core.use_cases.triggers.requests import CreateCaseTriggerRequest
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
 )
 
 # ---------------------------------------------------------------------------
@@ -60,6 +61,10 @@ def _make_actor_dl(actor_name: str):
 def _activity_in_outbox(actor, dl: SqliteDataLayer) -> bool:
     """Check if actor's outbox has any items queued."""
     return len(dl.outbox_list()) > 0
+
+
+#: A recipient for the ``Create``; without one nothing is queued (OX-08-001).
+_RECIPIENT = "https://example.org/actors/finder"
 
 
 def _get_outbox_activity_id(actor, dl: SqliteDataLayer) -> str | None:
@@ -84,12 +89,46 @@ class TestSvcCreateCaseUseCase:
         self.dl.clear_all()
         reset_datalayer(self.actor.id_)
 
+    @pytest.mark.spec("CLP-08-002")
+    def test_create_case_trigger_anchors_the_genesis_hash_to_the_owner(self):
+        """The owner's own creation path hashes on the owner (ADR-0117).
+
+        The proposal path is pinned to the same formula in
+        ``TestCLP08002GenesisHashAnchoredToTheOwner``; this is the other half,
+        run through the real trigger rather than a hand-built case.
+        """
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_ledger import compute_genesis_hash
+
+        request = CreateCaseTriggerRequest(
+            actor_id=self.actor.id_, name="Genesis Case", content="c"
+        )
+        SvcCreateCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        (case,) = [
+            obj
+            for obj in self.dl.list_objects("VulnerabilityCase")
+            if getattr(obj, "name", "") == "Genesis Case"
+        ]
+        assert isinstance(case, VulnerabilityCase)
+        assert case.published is not None
+        assert case.genesis_hash == compute_genesis_hash(
+            case_id=case.id_,
+            created_at=case.published,
+            owner_actor_id=self.actor.id_,
+        )
+
     def test_create_case_happy_path_without_report(self):
         """SvcCreateCaseUseCase creates a case and queues CreateCaseActivity."""
         request = CreateCaseTriggerRequest(
             actor_id=self.actor.id_,
             name="Test Vulnerability Case",
             content="A test case for a vulnerability",
+            to=[_RECIPIENT],
         )
         result = SvcCreateCaseUseCase(
             self.dl,
@@ -116,14 +155,12 @@ class TestSvcCreateCaseUseCase:
         assert getattr(case, "attributed_to", "") == self.actor.id_
 
         # Verify activity was queued in outbox
-        assert _activity_in_outbox(
-            self.actor, self.dl
-        ), "Activity should be queued in actor's outbox"
+        assert _activity_in_outbox(self.actor, self.dl), (
+            "Activity should be queued in actor's outbox"
+        )
 
         # Verify result contains activity
-        assert "activity" in result, "Result should contain 'activity' key"
-        activity_dict = result["activity"]
-        assert activity_dict is not None
+        activity_dict = activity_of(result)
         assert activity_dict.get("type") == "Create"
 
     def test_create_case_with_linked_report(self):
@@ -140,6 +177,7 @@ class TestSvcCreateCaseUseCase:
             name="Test Case With Report",
             content="Case linked to report",
             report_id=report.id_,
+            to=[_RECIPIENT],
         )
         result = SvcCreateCaseUseCase(
             self.dl,
@@ -159,13 +197,13 @@ class TestSvcCreateCaseUseCase:
         # Verify report is linked
         case = self.dl.read(case_id)
         vul_reports = getattr(case, "vulnerability_reports", [])
-        assert (
-            report.id_ in vul_reports
-        ), f"Report {report.id_} should be linked to case"
+        assert report.id_ in vul_reports, (
+            f"Report {report.id_} should be linked to case"
+        )
 
         # Verify activity queued
         assert _activity_in_outbox(self.actor, self.dl)
-        assert "activity" in result
+        assert result.activity is not None
 
     def test_create_case_raises_when_actor_not_found(self):
         """SvcCreateCaseUseCase raises VultronNotFoundError when actor not found."""
@@ -253,15 +291,16 @@ class TestSvcCreateCaseUseCase:
             if isinstance(to, list)
             else ([to] if isinstance(to, str) else [])
         )
-        assert (
-            case_actor.id_ in to_ids
-        ), f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
-        assert (
-            len(to_ids) == 1
-        ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        assert case_actor.id_ in to_ids, (
+            f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
+        )
+        assert len(to_ids) == 1, (
+            f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        )
 
     @pytest.mark.spec("CM-02-014")
     @pytest.mark.spec("CM-02-015")
+    @pytest.mark.spec("CM-24-006")
     def test_create_case_trigger_registers_owner_and_manager(self):
         """SvcCreateCaseUseCase registers CASE_OWNER+CASE_MANAGER participant (CM-02-014, CM-02-015)."""
         from vultron.core.participants.authority import resolve_case_manager_id
@@ -286,29 +325,29 @@ class TestSvcCreateCaseUseCase:
         assert raw_case_id is not None, "Case should have been created"
 
         case_obj = self.dl.read_case(raw_case_id)
-        assert (
-            case_obj is not None
-        ), "Case must be readable as VulnerabilityCase"
+        assert case_obj is not None, (
+            "Case must be readable as VulnerabilityCase"
+        )
 
         manager_id = resolve_case_manager_id(case_obj, self.dl)
-        assert (
-            manager_id is not None
-        ), "CASE_MANAGER must be registered at case creation (CM-02-014, CM-02-015)"
-        assert (
-            manager_id == self.actor.id_
-        ), "CASE_MANAGER must be the creating actor"
+        assert manager_id is not None, (
+            "CASE_MANAGER must be registered at case creation (CM-02-014, CM-02-015)"
+        )
+        assert manager_id == self.actor.id_, (
+            "CASE_MANAGER must be the creating actor"
+        )
 
         all_roles: set[CVDRole] = set()
         for pid in case_obj.actor_participant_index.values():
             p = self.dl.read(pid)
             if p is not None:
                 all_roles.update(getattr(p, "case_roles", []))
-        assert (
-            CVDRole.CASE_OWNER in all_roles
-        ), "CASE_OWNER must be registered (CM-02-014)"
-        assert (
-            CVDRole.CASE_MANAGER in all_roles
-        ), "CASE_MANAGER must be registered (CM-02-014)"
+        assert CVDRole.CASE_OWNER in all_roles, (
+            "CASE_OWNER must be registered (CM-02-014)"
+        )
+        assert CVDRole.CASE_MANAGER in all_roles, (
+            "CASE_MANAGER must be registered (CM-02-014)"
+        )
 
     def test_create_case_activity_queued_in_delivery_queue(self):
         """SvcCreateCaseUseCase queues activity in delivery queue for outbox_handler."""
@@ -316,6 +355,7 @@ class TestSvcCreateCaseUseCase:
             actor_id=self.actor.id_,
             name="Test Case",
             content="Test content",
+            to=[_RECIPIENT],
         )
         result = SvcCreateCaseUseCase(
             self.dl,
@@ -324,13 +364,37 @@ class TestSvcCreateCaseUseCase:
         ).execute()
 
         # Verify activity ID is in result
-        assert "activity" in result
-        activity_dict = result["activity"]
+        activity_dict = activity_of(result)
         activity_id = activity_dict.get("id")
         assert activity_id is not None
 
         # Verify activity was queued in outbox
         outbox_activity_id = _get_outbox_activity_id(self.actor, self.dl)
-        assert (
-            outbox_activity_id == activity_id
-        ), "Activity ID in outbox should match returned activity ID"
+        assert outbox_activity_id == activity_id, (
+            "Activity ID in outbox should match returned activity ID"
+        )
+
+    @pytest.mark.spec("OX-08-001")
+    @pytest.mark.parametrize("to", [None, []], ids=["absent", "empty"])
+    def test_create_case_with_no_recipient_queues_nothing(self, to):
+        """With no ``to`` the case is created but no ``Create`` is queued.
+
+        The outbox refuses an activity addressed to no one (OX-08-001), so a
+        queued row could only ever be dead-lettered (OX-13-013).
+        """
+        request = CreateCaseTriggerRequest(
+            actor_id=self.actor.id_,
+            name="Local Case",
+            content="Test content",
+            to=to,
+        )
+        result = SvcCreateCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert result.case_id is not None
+        assert self.dl.read(result.case_id) is not None
+        assert activity_of(result).get("type") == "Create"
+        assert self.dl.outbox_list() == []

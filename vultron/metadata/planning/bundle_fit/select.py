@@ -30,9 +30,10 @@ from vultron.metadata.planning.bundle_fit.model import (
     Rejection,
     schedule_rank,
 )
+from vultron.metadata.specs.schema import SPEC_ID_CITATION_RE
 
 # A fully-qualified spec requirement ID (CS-23-001, DEMOCI-11-002).
-_SPEC_ID_RE = re.compile(r"\b[A-Z]{2,8}-\d{2}-\d{3}\b")
+_SPEC_ID_RE = SPEC_ID_CITATION_RE
 # A repo-relative path with an extension (vultron/core/x.py, specs/outbox.yaml).
 _PATH_RE = re.compile(r"\b(?:[\w.-]+/)+[\w.-]+\.\w{2,5}\b")
 

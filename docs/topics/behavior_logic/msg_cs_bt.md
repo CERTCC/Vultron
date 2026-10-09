@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Process CS Messages Behavior
 
 ## Requirements
@@ -11,7 +15,7 @@ The behavioral requirements for this tree are specified in the
 - [CSB-04](../../reference/specs/protocol.md#csb-04) — Receive CP (Public Aware)
 - [CSB-05](../../reference/specs/protocol.md#csb-05) — Receive CX (Exploit Public)
 - [CSB-06](../../reference/specs/protocol.md#csb-06) — Receive CA (Attacks Observed)
-- [CSB-07](../../reference/specs/protocol.md#csb-07) — Receive CE (CS Error)
+- [CSB-07](../../reference/specs/project.md#csb-07) — Receive CE (CS Error)
 - [CSB-08](../../reference/specs/protocol.md#csb-08) — Receive CK (CS Acknowledgment)
 - [CSB-16](../../reference/specs/protocol.md#csb-16) — CS Write-Boundary Transition Validation
 - [CSB-17](../../reference/specs/protocol.md#csb-17) — CS Compound State and History Validity
@@ -66,7 +70,7 @@ flowchart LR
 ```
 
 We are still working through the children of [Receive Messages](msg_intro_bt.md) behavior tree.
-And as we've come to expect, a precondition check leads to a fallback node in which CS acknowledgement
+And as we've come to expect, a precondition check leads to a fallback node in which CS acknowledgment
 messages (*CK*) receive no further attention and return *Success*.
 
 The main CS message-handling sequence comes next, with all matching incoming messages resulting in emission of an

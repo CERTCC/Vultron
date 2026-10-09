@@ -27,18 +27,10 @@ Each test exercises a different domain to show the pattern is universal.
 import logging
 
 import py_trees
-import pytest
 
 from vultron.core.behaviors.call_out import unwrap_call_out
 
 logger = logging.getLogger(__name__)
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 # ---------------------------------------------------------------------------

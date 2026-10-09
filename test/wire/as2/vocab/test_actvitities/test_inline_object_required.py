@@ -23,6 +23,7 @@ import unittest
 import pytest
 from pydantic import ValidationError
 
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,
     _RecommendActorActivity,
@@ -55,11 +56,11 @@ from vultron.wire.as2.vocab.activities.case_participant import (
 )
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
-    _AddEmbargoToCaseActivity,
     _AnnounceEmbargoActivity,
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
+    _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.report import (
@@ -130,7 +131,11 @@ _NOTE = as_Note(name="Test Note")
 # class.
 _STATUS = as_CaseStatus(context=_CASE.id_)
 _PARTICIPANT_STATUS = as_ParticipantStatus(context=_CASE.id_)
-_EMBARGO = as_EmbargoEvent(name="Embargo Event", context="urn:uuid:case-123")
+_EMBARGO = as_EmbargoEvent(
+    name="Embargo Event",
+    context="urn:uuid:case-123",
+    end_time=days_from_now_utc(45),
+)
 _PARTICIPANT = as_CaseParticipant(attributed_to=_ACTOR.id_)
 _LOG_ENTRY = as_CaseLedgerEntry(
     case_id=_CASE.id_,
@@ -139,12 +144,14 @@ _LOG_ENTRY = as_CaseLedgerEntry(
 )
 
 _SUBMIT = _RmSubmitReportActivity(actor=_ACTOR, object_=_REPORT)
-_STUB = as_VulnerabilityCaseStub(id_=_CASE.id_)
+_STUB = as_VulnerabilityCaseStub(case_id=_CASE.id_)
 _INVITE = _RmInviteToCaseActivity(actor=_ACTOR, object_=_ACTOR, target=_STUB)
 _LEAVE = _RmCloseCaseActivity(actor=_ACTOR, object_=_CASE)
 _PROPOSE = _EmProposeEmbargoActivity(
     actor=_ACTOR,
-    object_=as_EmbargoEvent(name="Embargo Event", context=_CASE.id_),
+    object_=as_EmbargoEvent(
+        name="Embargo Event", context=_CASE.id_, end_time=days_from_now_utc(45)
+    ),
     context=_CASE.id_,
 )
 _RECOMMEND = _RecommendActorActivity(
@@ -486,11 +493,11 @@ class TestNoneObjectRejected(unittest.TestCase):
     def test_activate_embargo_rejects_missing(self):
         self._assert_missing_rejected(_ActivateEmbargoActivity)
 
-    def test_add_embargo_to_case_rejects_none(self):
-        self._assert_none_rejected(_AddEmbargoToCaseActivity)
+    def test_reject_embargo_proposal_rejects_none(self):
+        self._assert_none_rejected(_RejectEmbargoProposalActivity)
 
-    def test_add_embargo_to_case_rejects_missing(self):
-        self._assert_missing_rejected(_AddEmbargoToCaseActivity)
+    def test_reject_embargo_proposal_rejects_missing(self):
+        self._assert_missing_rejected(_RejectEmbargoProposalActivity)
 
     def test_announce_embargo_rejects_none(self):
         self._assert_none_rejected(_AnnounceEmbargoActivity)

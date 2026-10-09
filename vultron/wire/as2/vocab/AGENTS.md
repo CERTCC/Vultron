@@ -11,9 +11,12 @@
    `@activitystreams_activity` decorators. Registration is automatic via
    `as_Base.__init_subclass__` when a class sets `type_` to `Literal[...]`.
 
-2. `find_in_vocabulary()` checks `WIRE_TYPE_MAP`, then `VOCABULARY`, then falls
-   back to `CORE_TYPE_MAP` (core domain types that MUST NOT appear in the wire
-   `VOCABULARY` per ARCH-12-003). It MUST raise `KeyError` for names not
+2. `find_in_vocabulary()` checks `WIRE_TYPE_MAP`, then `VOCABULARY`, and stops
+   there by default: a wire caller only ever gets a class the wire registry
+   holds (VM-06-008). Only a persistence read path that reconstructs whatever
+   was stored passes `include_core=True` to fall back to `CORE_TYPE_MAP` (core
+   domain types that MUST NOT appear in the wire `VOCABULARY` per
+   ARCH-12-003), and it says why in a comment at the call. It MUST raise `KeyError` for names not
    found in any registry — never return `None`. Callers that previously
    checked `if vocab_cls is not None` must use `try/except KeyError` instead.
    Do NOT add core-layer types to `VOCABULARY` as a workaround for a
@@ -33,19 +36,23 @@
    shadows, enumerated in the ratchet `test/architecture/test_vocab_registry_keys.py`,
    which fails on any other collision.
 
-## `as_Object.model_config` Is Load-Bearing — Do Not Remove It
+## The Wire Branch Inherits Nothing From Core
 
-`as_Object` in `vultron/wire/as2/vocab/base/objects/base.py` carries
-`model_config = ConfigDict(validate_assignment=False)`. This blocks cross-branch
-MRO inheritance of `validate_assignment=True` (set by `ValidatedAssignmentMixin`
-on `VultronObject`) from propagating to all 65 wire vocabulary classes (ARCH-12-002
-requires the wire branch to stay lenient for inbound AS2 data).
+`as_Base` in `vultron/wire/as2/vocab/base/base.py` stands on
+`pydantic.BaseModel` directly (ARCH-12-001), and `as_Object.model_config` is
+just `ConfigDict(frozen=True)`. The old `validate_assignment=False` override on
+`as_Object` and the `_is_core_branch` sentinel are gone: they existed only to
+cancel what the wire branch inherited from the shared core root, which
+ADR-0099 detail 4 deleted. `validate_assignment` now lives on the core
+`CoreRecord` root, which no wire class inherits, so the wire branch stays
+lenient for inbound AS2 data without an override (ARCH-21-002).
 
-Any change to `VultronObject.model_config` MUST also update `as_Object.model_config`
-if the change should not propagate to wire subclasses. See
-`notes/core-wire-rendering-port.md` § "`as_Object.model_config` Override Is Load-Bearing
-Infrastructure" for the full rationale.
-*Source: ISSUE-2294*
+Do not make a wire class subclass `CoreRecord` or `CoreObject` to reuse a
+field or hook. Ratchet: `test_wire_vocabulary_inherits_nothing_from_core` in
+`test/architecture/test_hierarchy_invariants.py`. Rationale:
+`notes/core-wire-rendering-port.md` § "The `as_Object.model_config` override is
+gone, and why".
+*Source: ISSUE-2294, ADR-0099*
 
 ## Related Files
 

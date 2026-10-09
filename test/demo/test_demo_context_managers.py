@@ -489,5 +489,5 @@ class TestUnboundLocalErrorRegression:
             pytest.fail(
                 f"reporter_submits_report raised UnboundLocalError: {exc!r}"
             )
-        except Exception:
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3989
             pass  # downstream errors (e.g. VultronActivityConstructionError) are expected

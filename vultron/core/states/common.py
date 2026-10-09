@@ -26,7 +26,7 @@ def mermaid_machine(M: Machine):
     lines = []
     lines.append("```mermaid")
     lines.append("flowchart LR")
-    for trigger_name in M.events.keys():
+    for trigger_name in M.events:
         # Fetch transitions associated with this trigger
         transitions = M.get_transitions(trigger=trigger_name)
 

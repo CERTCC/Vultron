@@ -17,23 +17,25 @@
 Implements CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
 """
 
-from pydantic import BaseModel
 from typing import cast
+
+from pydantic import BaseModel
 
 from vultron.core.case_states.patterns.potential_actions import (
     action as get_actions,
 )
 from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.use_case_result import UseCaseResult
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.scoring.utils import enum2title
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.use_cases.triggers._helpers import resolve_case
 from vultron.core.use_cases._helpers import (
     resolve_case_participant_id_for_actor,
 )
+from vultron.core.use_cases.triggers._helpers import resolve_case
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 
@@ -42,6 +44,33 @@ class ActionRulesRequest(BaseModel):
 
     case_id: str
     actor_id: str
+
+
+class ActionRule(BaseModel):
+    """One CVD action valid in the participant's current case state."""
+
+    name: str
+    description: str
+
+
+class ActionRulesResult(UseCaseResult):
+    """Typed result of ``GetActionRulesUseCase`` (UCORG-05-001, -005).
+
+    Field names are the keys of the ``GET .../action-rules`` response body,
+    which the router produces with ``model_dump(mode="json")``.
+    """
+
+    participant_id: str
+    participant_actor_id: str
+    case_id: str
+    role: list[str]
+    rm_state: str
+    em_state: str
+    vf_state: str
+    d_state: str
+    pxa_state: str
+    cs_state: str
+    actions: list[ActionRule]
 
 
 def _resolve_participant_id_from_actor(
@@ -73,7 +102,7 @@ class GetActionRulesUseCase:
         self._dl = dl
         self._request = request
 
-    def execute(self) -> dict:
+    def execute(self) -> ActionRulesResult:
         dl = self._dl
         case_id = self._request.case_id
         actor_id = self._request.actor_id
@@ -111,9 +140,8 @@ class GetActionRulesUseCase:
         em_state: EM = EM.EMBARGO_MANAGEMENT_NONE
         pxa_state: CS_pxa = CS_pxa.pxa
         if has_case_statuses(case):
-            current_cs = case.current_status
-            em_state = current_cs.em.state
-            pxa_state = current_cs.pxa.state
+            em_state = case.em_state
+            pxa_state = case.current_status.pxa.state
 
         # 5. Build the combined 6-character CS state string (VFD + PXA)
         vf_str = vf_state.value if vf_state is not None else CS_vf.vf.value
@@ -126,19 +154,19 @@ class GetActionRulesUseCase:
         # 7. Collect participant roles as string names
         roles = [r.value for r in participant.roles]
 
-        return {
-            "participant_id": str(participant.id_),
-            "participant_actor_id": participant_actor_id,
-            "case_id": case_id,
-            "role": roles,
-            "rm_state": rm_state.name,
-            "em_state": em_state.name,
-            "vf_state": vf_str,
-            "d_state": d_str,
-            "pxa_state": pxa_state.name,
-            "cs_state": cs_state,
-            "actions": [
-                {"name": a.name, "description": enum2title(a)}
+        return ActionRulesResult(
+            participant_id=str(participant.id_),
+            participant_actor_id=participant_actor_id,
+            case_id=case_id,
+            role=roles,
+            rm_state=rm_state.name,
+            em_state=em_state.name,
+            vf_state=vf_str,
+            d_state=d_str,
+            pxa_state=pxa_state.name,
+            cs_state=cs_state,
+            actions=[
+                ActionRule(name=a.name, description=enum2title(a))
                 for a in valid_actions
             ],
-        }
+        )

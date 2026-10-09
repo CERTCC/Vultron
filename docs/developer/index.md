@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Vultron Developer Docs
 
 This section is for **Vultron maintainers and contributors** working inside

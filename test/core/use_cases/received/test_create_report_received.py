@@ -14,6 +14,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -24,7 +26,11 @@ from vultron.core.models.events.report import (
     CreateReportReceivedEvent,
     SubmitReportReceivedEvent,
 )
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.use_cases.received.case import CreateCaseReceivedUseCase
 from vultron.core.use_cases.received.report import (
     CreateReportReceivedUseCase,
@@ -66,7 +72,7 @@ class TestUseCaseExecution:
 
         mock_dl = MagicMock()
         result = CreateReportReceivedUseCase(mock_dl, event).execute()
-        assert result is None
+        assert result == HandlerResult.applied()
 
     def test_create_case_executes_with_valid_semantics(self, make_payload):
         """CreateCaseReceivedUseCase executes when semantics match."""
@@ -78,9 +84,14 @@ class TestUseCaseExecution:
         )
         event = make_payload(create_activity)
 
-        mock_dl = MagicMock()
-        result = CreateCaseReceivedUseCase(mock_dl, event).execute()
-        assert result is None
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        result = CreateCaseReceivedUseCase(dl, event).execute()
+        # No ReportCaseLink and no CASE_MANAGER in the snapshot: an untrusted
+        # Create is refused (HP-01-003, ADR-0041 AC-5).
+        assert result.disposition == HandlerDisposition.REFUSED
 
     def test_use_case_executes_with_real_datalayer(self, make_payload):
         """CreateReportReceivedUseCase executes without raising on real DataLayer."""
@@ -96,19 +107,21 @@ class TestUseCaseExecution:
         )
         event = make_payload(create_activity)
         result = CreateReportReceivedUseCase(dl, event).execute()
-        assert result is None
+        assert result == HandlerResult.applied()
 
 
 class TestCreateReportNoStandaloneParticipantStatus:
     """CreateReportReceivedUseCase must NOT create standalone ParticipantStatus.
 
-    Per IDEA-260408-01-6: RM history lives in VultronParticipant.participant_statuses
+    Per IDEA-260408-01-6: RM history lives in CaseParticipant.participant_statuses
     within case objects, not in standalone ParticipantStatus records.
     """
 
     def test_create_report_does_not_persist_participant_status(self):
         """CreateReportReceivedUseCase stores the report and activity only."""
-        report = VultronReport(id_="https://example.org/reports/r-persist-1")
+        report = VulnerabilityReport(
+            id_="https://example.org/reports/r-persist-1"
+        )
         activity = VultronActivity(
             id_="https://example.org/activities/create-p1",
             type_="Create",
@@ -136,7 +149,9 @@ class TestCreateReportNoStandaloneParticipantStatus:
 
     def test_create_report_still_stores_report_and_activity(self):
         """CreateReportReceivedUseCase still stores the report and activity."""
-        report = VultronReport(id_="https://example.org/reports/r-store-1")
+        report = VulnerabilityReport(
+            id_="https://example.org/reports/r-store-1"
+        )
         activity = VultronActivity(
             id_="https://example.org/activities/create-store-1",
             type_="Create",
@@ -157,9 +172,9 @@ class TestCreateReportNoStandaloneParticipantStatus:
         CreateReportReceivedUseCase(dl, event).execute()
 
         stored_report = dl.read("https://example.org/reports/r-store-1")
-        assert (
-            stored_report is not None
-        ), "as_VulnerabilityReport should be stored"
+        assert stored_report is not None, (
+            "as_VulnerabilityReport should be stored"
+        )
 
 
 class TestDuplicateReportHandling:
@@ -177,7 +192,7 @@ class TestDuplicateReportHandling:
         activity_id: str,
         vendor_id: str = "https://example.org/actors/vendor",
     ):
-        report = VultronReport(id_=report_id)
+        report = VulnerabilityReport(id_=report_id)
         activity = VultronActivity(
             id_=activity_id,
             type_="Offer",
@@ -205,7 +220,7 @@ class TestDuplicateReportHandling:
         """
         import logging
 
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
         from vultron.core.use_cases.received import report as report_use_cases
 
         monkeypatch.setattr(
@@ -225,7 +240,7 @@ class TestDuplicateReportHandling:
         # Simulate inbox pre-storage of the nested objects.
         dl.save(report)
         # CreateCaseParticipantNode reads the vendor actor from DataLayer.
-        dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
+        dl.save(CaseActor(id_="https://example.org/actors/vendor"))
 
         with caplog.at_level(logging.WARNING):
             SubmitReportReceivedUseCase(
@@ -247,7 +262,7 @@ class TestDuplicateReportHandling:
         """
         import logging
 
-        report = VultronReport(
+        report = VulnerabilityReport(
             id_="https://example.org/reports/r-dup-create-1"
         )
         activity = VultronActivity(
@@ -279,3 +294,35 @@ class TestDuplicateReportHandling:
             "No WARNING should be emitted when as_VulnerabilityReport is "
             f"pre-stored by inbox endpoint; got: {[r.message for r in warning_records]}"
         )
+
+
+class TestCreateReportDisposition:
+    @pytest.mark.spec("HP-01-003")
+    def test_store_failure_raises(self, make_payload, monkeypatch):
+        """Every CreateReportReceivedBT failure is a local storage fault (#2255).
+
+        The tree only stores the report and the activity, so its failure says
+        nothing about the sender's message and must not read as a refusal.
+        """
+        import py_trees
+
+        from vultron.core.behaviors.report import received_report_trees
+        from vultron.errors import VultronBTInternalError
+
+        monkeypatch.setattr(
+            received_report_trees,
+            "create_report_received_tree",
+            lambda request: py_trees.behaviours.Failure(name="StoreFailed"),
+        )
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        report = as_VulnerabilityReport(name="TEST-004", content="x")
+        event = make_payload(
+            as_Create(actor="https://example.org/users/tester", object_=report)
+        )
+        with pytest.raises(
+            VultronBTInternalError, match="CreateReportReceivedBT"
+        ):
+            CreateReportReceivedUseCase(dl, event).execute()

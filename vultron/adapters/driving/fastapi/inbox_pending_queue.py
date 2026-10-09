@@ -22,12 +22,13 @@ before the local case replica exists (CBT-03-003, CBT-03-004).
 #  in the U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from datetime import timezone
+from datetime import UTC, datetime
 
+from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.config import get_config
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent, resolve_case_context_id
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.factories.case import bootstrap_replay_question_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -114,8 +115,6 @@ def _expire_pending_case_activities(
     queues (no subsequent traffic) are reclaimed when bootstrap or a
     new activity arrives.
     """
-    from datetime import datetime
-
     if timeout_seconds is None:
         timeout_seconds = get_config().pre_bootstrap_queue_timeout_seconds
 
@@ -124,10 +123,10 @@ def _expire_pending_case_activities(
     if not isinstance(pending, VultronPendingCaseInbox):
         return False
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     queued_at = pending.queued_at
     if queued_at.tzinfo is None:
-        queued_at = queued_at.replace(tzinfo=timezone.utc)
+        queued_at = queued_at.replace(tzinfo=UTC)
     age_seconds = (now - queued_at).total_seconds()
     if age_seconds < timeout_seconds:
         return False
@@ -155,10 +154,13 @@ def _expire_pending_case_activities(
         try:
             question = bootstrap_replay_question_activity(
                 actor=actor_id,
-                to=pending.case_actor_id,
+                to=[pending.case_actor_id],
                 case_id=case_id,
             )
             dl.save(question)
+            # Sealed in the store whose outbox carries it: that is where the
+            # handler looks for the body it delivers (VM-08-003).
+            seal_outbound_body(queue_dl, question)
             queue_dl.outbox_append(question.id_)
             logger.info(
                 "Sent bootstrap replay Question '%s' to '%s' for case '%s'",

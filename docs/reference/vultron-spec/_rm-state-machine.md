@@ -6,23 +6,23 @@ received a report and has to decide what to do with it. This section specifies t
 states that decision moves through and the transitions between them.
 
 !!! note "Behavioral Layer — §6 through §11"
-    [§6](index.md#6-report-management-rm-state-machine-n)–[§11](index.md#11-participant-lifecycle-within-a-case-n) together specify the five state machines of the Vultron protocol:
-    **RM** ([§6](index.md#6-report-management-rm-state-machine-n)), **EM** ([§7](index.md#7-embargo-management-em-state-machine-n)), **VFD and PXA** ([§8](index.md#8-case-state-cs-dimensions-n), together the CS dimension),
-    and **PEC** ([§9](index.md#9-participant-embargo-consent-pec-state-machine-n)). Model interactions and cascade rules are in [§10](index.md#10-model-interactions-and-cascade-rules-n); the
-    participant lifecycle is in [§11](index.md#11-participant-lifecycle-within-a-case-n).
+    [§6 Report Management (RM) State Machine](tracking-models.md#6-report-management-rm-state-machine-n) through [§11 Participant Lifecycle Within a Case](interactions.md#11-participant-lifecycle-within-a-case-n) together specify the five state machines of the Vultron protocol:
+    **RM** ([§6 Report Management (RM) State Machine](tracking-models.md#6-report-management-rm-state-machine-n)), **EM** ([§7 Embargo Management (EM) State Machine](tracking-models.md#7-embargo-management-em-state-machine-n)), **VFD and PXA** ([§8 Case State (CS) Dimensions](tracking-models.md#8-case-state-cs-dimensions-n), together the CS dimension),
+    and **PEC** ([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)). Model interactions and cascade rules are in [§10 Model Interactions and Cascade Rules](interactions.md#10-model-interactions-and-cascade-rules-n); the
+    participant lifecycle is in [§11 Participant Lifecycle Within a Case](interactions.md#11-participant-lifecycle-within-a-case-n).
 
     **On scope: PEC.** The Participant Embargo Consent machine was not part of
     the original four-machine design. It is fully normative here; its provenance
     is recorded at its definition site
-    ([§9](index.md#9-participant-embargo-consent-pec-state-machine-n)).
+    ([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
 
-    **Two conventions apply throughout [§6](index.md#6-report-management-rm-state-machine-n)–[§11](index.md#11-participant-lifecycle-within-a-case-n):**
+    **Two conventions apply throughout [§6 Report Management (RM) State Machine](tracking-models.md#6-report-management-rm-state-machine-n) through [§11 Participant Lifecycle Within a Case](interactions.md#11-participant-lifecycle-within-a-case-n):**
 
     - A participant maintains its own state **and** a model of other
       participants' states. Where a transition rule applies to one and not the
-      other, this is stated explicitly ([§8.4](index.md#84-receiving-cs-messages-own-state-vs-model-of-others)).
+      other, this is stated explicitly ([§8.4 Receiving CS Messages: Own State vs. Model of Others](tracking-models.md#84-receiving-cs-messages-own-state-vs-model-of-others)).
     - Transitions listed without a named trigger are driven by the corresponding
-      protocol message from [§4](index.md#4-semantic-layer-message-meanings-n).
+      protocol message from [§4 Semantic Layer — Message Meanings](layers.md#4-semantic-layer-message-meanings-n).
 
 ### 6.1 States
 
@@ -37,7 +37,7 @@ rather than a disagreement to reconcile.
 The states divide into three groups. Start and Received precede any assessment.
 Invalid and Valid record the outcome of triage. Deferred, Accepted and Closed
 record what the participant decided to do about a report it considers valid —
-except Invalid, which can also be closed directly.
+except that Received and Invalid can also be closed directly.
 
 !!! info "See also"
     - [Report Management Process Model](../../topics/process_models/rm/index.md)
@@ -55,6 +55,7 @@ does not change any other participant's RM state.
 | Start | receive | receipt of `RS` | Received |
 | Received | validate | `RV` | Valid |
 | Received | invalidate | `RI` | Invalid |
+| Received | close | `RC` | Closed |
 | Invalid | validate | `RV` | Valid |
 | Valid | accept | `RA` | Accepted |
 | Valid | defer | `RD` | Deferred |
@@ -64,12 +65,12 @@ does not change any other participant's RM state.
 | Deferred | close | `RC` | Closed |
 | Accepted | close | `RC` | Closed |
 
-These eleven transitions are the complete set. Three consequences are worth
-stating, because each is a plausible assumption that does not hold:
+These twelve transitions are the complete set.
+Three consequences are worth stating, because each is a plausible assumption that does not hold:
 
-- **A report cannot be closed from every state.** Only Invalid, Deferred and
-  Accepted are closable. A participant at Start, Received or Valid MUST reach one
-  of those states before it can close.
+- **A report cannot be closed from every state.** Only Received, Invalid, Deferred and Accepted are closable.
+  A participant at Start or Valid MUST reach one of those states before it can close.
+  A `Reject` sent from Received is the Received → Closed transition, and a participant at Valid that leaves a case is recorded as Valid → Deferred → Closed.
 - **Valid does not return to Invalid.** Invalidation is available only from
   Received. Once a participant has assessed a report as valid it does not
   re-invalidate it; if it decides to stop work, it defers or closes.
@@ -83,14 +84,17 @@ stating, because each is a plausible assumption that does not hold:
 ### 6.3 Per-Participant RM Tracking
 
 Each participant tracks its own RM state independently; a participant is the
-authority on its own RM state ([§5.4.1](index.md#541-single-writer-authority)).
+authority on its own RM state ([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
 
-Received is the entry state for a participant joining a case, reached by
-several paths:
+Received is the entry state for a participant joining a case, reached by several paths:
 
-- **Invited participant** — on `Accept(Invite)`. This records willingness to
-  join and, where an embargo is active, consent to it. It does **not** constitute
-  validation of the report: the invitee has seen only a case stub at that point.
+- **Invited participant** — the CASE_MANAGER creates an inert participant record at RM Received when it sends the stub `Invite` ([CM-11-006](../../reference/vultron-spec/../specs/protocol.md#cm-11-006)).
+  `Accept(Invite)` activates the inert record, recording willingness to join and, where an embargo is active, consent to it.
+  `Reject(Invite)` closes the record (RM Received → Closed) and retains it as history ([CM-11-007](../../reference/vultron-spec/../specs/protocol.md#cm-11-007)).
+  Neither transition constitutes validation of the report: the invitee has seen only a case stub at that point.
+  After the participant joins, the CASE_MANAGER sends the case and the ledger, then a second Invite, the full-case Invite, carrying its ledger position as a floor ([CM-11-010](../../reference/vultron-spec/../specs/protocol.md#cm-11-010)).
+  The participant judges the case by answering it, with its own ledger position: `Accept` (RV, Received → Valid), `TentativeReject` (RI, Received → Invalid) or `Reject` (RC, Received → Closed) ([CM-11-011](../../reference/vultron-spec/../specs/protocol.md#cm-11-011)).
+  A reply behind the floor, or naming a ledger entry the CASE_MANAGER does not hold, is refused ([CM-11-012](../../reference/vultron-spec/../specs/protocol.md#cm-11-012)).
 - **Direct report recipient** — on receiving a report.
 - **Case proposal recipient** — on receiving a `CaseProposal`.
 
@@ -98,13 +102,12 @@ The triage cycle (`RECEIVED → VALID | INVALID → ACCEPTED | DEFERRED`) is a
 distinct subsequent step that the participant runs **after** the full case
 replica has been delivered to it.
 
-!!! note "`Accept(Invite)` does not mean RM Accepted"
-    Two different protocol acts are easily conflated: *joining a case* and
-    *accepting a report for action*. `Accept(Invite)` is the former. A
-    participant cannot accept what it has not seen, and the CASE_MANAGER MUST NOT
-    treat a participant as having committed to the case until it receives an RM
-    status message from that participant confirming the transition.
+!!! note "Two Invites, two different acts"
+    *Joining a case* and *judging a case* are different protocol acts, and each has its own Invite.
+    The stub Invite asks whether the actor will join: `Accept(Invite)` joins it and consents to the embargo, and leaves RM at Received.
+    The full-case Invite asks whether the case is valid: its `Accept` is RV (Received → Valid), and RM Accepted is reached only by a later `Join(VulnerabilityCase)`.
+    A participant cannot accept what it has not seen, so the CASE_MANAGER MUST NOT treat a participant as having committed to the case until it receives an RM status message from that participant confirming the transition.
 
-    See [§9.7](index.md#97-gating-full-case-delivery) for why this matters to case delivery.
+    See [§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery) for why this matters to case delivery.
 
 ---

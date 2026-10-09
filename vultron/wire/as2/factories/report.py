@@ -42,6 +42,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TentativeReject,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -75,6 +76,7 @@ def rm_create_report_activity(
 def rm_submit_report_activity(
     report: as_VulnerabilityReport,
     to: as_Actor | str,
+    proposed_embargo: as_EmbargoEvent | None = None,
     **kwargs,
 ) -> as_Offer:
     """Build an Offer(as_VulnerabilityReport) — the RS message when no case exists.
@@ -83,6 +85,10 @@ def rm_submit_report_activity(
         report: The ``as_VulnerabilityReport`` to submit.
         to: The recipient actor object or actor ID URI string.  The factory
             always normalizes this to a single-element ``to`` list.
+        proposed_embargo: The Reporter's proposed embargo terms for this
+            report (EP-04-004).  Its ``context`` MUST be the report's id
+            (EP-04-009): the case does not exist yet, and the CASE_MANAGER
+            rewrites the context to the case at creation.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``context``).
 
@@ -91,10 +97,22 @@ def rm_submit_report_activity(
         ``to`` list contains the given recipient.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails, or if
+            *proposed_embargo* names a subject other than *report*.
     """
+    if proposed_embargo is not None and proposed_embargo.context != report.id_:
+        raise VultronActivityConstructionError(
+            "rm_submit_report_activity: proposed_embargo.context"
+            f" {proposed_embargo.context!r} must be the report id"
+            f" {report.id_!r} (EP-04-009)"
+        )
     try:
-        return _RmSubmitReportActivity(object_=report, to=[to], **kwargs)
+        return _RmSubmitReportActivity(
+            object_=report,
+            to=[to],
+            proposed_embargo=proposed_embargo,
+            **kwargs,
+        )
     except ValidationError as exc:
         raise VultronActivityConstructionError(
             "rm_submit_report_activity: invalid arguments"

@@ -18,9 +18,9 @@
 Covers the DEMOMA-07-003 steps (step 3 raw re-broadcast removed per DEMOMA-07-005)
 and StatusAdoptionGate authorization (ADR-0046, RSH-01-001 to RSH-01-004):
 
-  1. VerifySenderIsParticipantNode             — unknown sender is rejected
+  1. SenderIsActiveParticipantNode             — unknown sender is rejected
   2. AppendParticipantStatusNode               — status appended, RM regression rejected
-  StatusAdoptionGate: CheckIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
+  StatusAdoptionGate: SenderIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
   StatusAdoptionGate: StatusAdoptionGate                   — Fallback: bypass or call-out (RSH-01-002)
   StatusAdoptionGate: EmitCaseStatusUpdateNode             — direct ledger write (RSH-01-003, RSH-04-004)
 
@@ -38,9 +38,11 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
@@ -48,8 +50,12 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     StatusAuthorizationCallOutBundle,
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
-    CheckIsCaseOwnerNode,
+from vultron.core.behaviors.case_status_snapshot import (
+    EmitCaseStatusUpdateNode,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsActiveParticipantNode,
+    SenderIsCaseOwnerNode,
 )
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
@@ -62,14 +68,10 @@ from vultron.core.behaviors.status.nodes import (
     AppendStatusAndSaveParticipantNode,
     CheckStatusNotAlreadyAppendedNode,
     CloseNotYetEmittedConditionNode,
-    EmitAddCaseStatusToSelfNode,
-    EmitCaseStatusUpdateNode,
     EmitRMGapNoteNode,
     LoadParticipantNode,
-    PublicDisclosureBranchNode,
     ResolveAndPersistStatusObjectNode,
     ValidateRMTransitionNode,
-    VerifySenderIsParticipantNode,
 )
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 from vultron.core.behaviors.status.nodes.threat_termination import (
@@ -77,6 +79,10 @@ from vultron.core.behaviors.status.nodes.threat_termination import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_status_to_participant_activity
@@ -84,10 +90,6 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
-    VfDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -106,12 +108,6 @@ STATUS_ID = "https://example.org/cases/case-01/participants/vendor/statuses/s1"
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Clear py_trees global blackboard storage between tests."""
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture
@@ -135,7 +131,11 @@ def dl(executing_actor_id):
 
 @pytest.fixture
 def bridge(dl):
-    return BTBridge(datalayer=dl)
+    return BTBridge(
+        datalayer=dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    )
 
 
 @pytest.fixture
@@ -189,18 +189,22 @@ def populated_dl(dl, case, participant, case_manager_participant, status_obj):
 
 @pytest.fixture
 def populated_bridge(populated_dl):
-    return BTBridge(datalayer=populated_dl)
+    return BTBridge(
+        datalayer=populated_dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(populated_dl),
+    )
 
 
 # ---------------------------------------------------------------------------
-# Step 1: VerifySenderIsParticipantNode
+# Step 1: SenderIsActiveParticipantNode
 # ---------------------------------------------------------------------------
 
 
-class TestVerifySenderIsParticipantNode:
+class TestSenderIsActiveParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_known_sender_succeeds(self, populated_bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
@@ -212,7 +216,7 @@ class TestVerifySenderIsParticipantNode:
 
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_sender_fails(self, populated_bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=OUTSIDER_ID,
             case_id=CASE_ID,
@@ -224,7 +228,7 @@ class TestVerifySenderIsParticipantNode:
 
     def test_missing_case_fails(self, bridge):
         """No case in DataLayer → FAILURE."""
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id="https://example.org/cases/nonexistent",
@@ -235,7 +239,7 @@ class TestVerifySenderIsParticipantNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_falls_back_to_dl_lookup(self, populated_bridge):
         """When case_id is None, node resolves case_id from status.context."""
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id=None,
@@ -560,7 +564,11 @@ class TestAppendParticipantStatusSubtree:
 
     def test_idempotent_when_already_present(self, populated_dl, status_obj):
         """Running the subtree twice does not duplicate the status."""
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
+        )
 
         def _make_tree():
             return append_participant_status_tree(
@@ -581,7 +589,11 @@ class TestAppendParticipantStatusSubtree:
         ]
 
         # Second call must be idempotent — count must not increase
-        bridge2 = BTBridge(datalayer=populated_dl)
+        bridge2 = BTBridge(
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
+        )
         result2 = bridge2.execute_with_setup(
             tree=_make_tree(), actor_id=ACTOR_ID
         )
@@ -695,117 +707,6 @@ class TestAppendParticipantStatusSubtree:
 
 
 # ---------------------------------------------------------------------------
-# Step 4: PublicDisclosureBranchNode
-# ---------------------------------------------------------------------------
-
-
-class TestPublicDisclosureBranchNode:
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_skips_when_no_pxa_state(self, populated_bridge, status_obj):
-        """Status without case_status.pxa_state → skips teardown, SUCCESS."""
-        node = PublicDisclosureBranchNode(
-            status_obj=status_obj,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_skips_when_status_is_none(self, populated_bridge):
-        node = PublicDisclosureBranchNode(
-            status_obj=None,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_skips_when_sender_is_not_case_owner(
-        self, populated_dl, populated_bridge, status_obj
-    ):
-        """CASE_MANAGER sender (not CASE_OWNER) → skips teardown, SUCCESS."""
-        from vultron.core.states.cs import CS_pxa
-        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
-
-        # ``context`` is required by core CaseStatus; omitting it made the
-        # nested status unprojectable to the core shape (#2232).
-        cs = as_CaseStatus(context=CASE_ID)
-        object.__setattr__(cs, "pxa_state", CS_pxa.Pxa)  # public-aware
-        object.__setattr__(status_obj, "case_status", cs)
-        populated_dl.save(status_obj)
-
-        node = PublicDisclosureBranchNode(
-            status_obj=status_obj,
-            sender_actor_id=CASE_MANAGER_ID,  # not CASE_OWNER
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_triggers_teardown_on_public_aware_case_owner(
-        self, populated_dl, populated_bridge, case, status_obj
-    ):
-        """CS.P + CASE_OWNER sender → embargo terminated (EM=EXITED), but
-        FAILURE when no broadcast factory (BT-14-001).
-
-        State transitions are committed before broadcast; the FAILURE propagates
-        from the missing factory so callers can handle delivery errors.
-        """
-        from vultron.core.states.cs import CS_pxa
-        from vultron.core.states.em import EM
-        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
-        from vultron.wire.as2.vocab.objects.embargo_event import (
-            as_EmbargoEvent,
-        )
-
-        # Give the case an active embargo in ACTIVE state
-        embargo = as_EmbargoEvent(
-            id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
-        )
-        case.active_embargo = embargo.id_
-        case.append_case_status(em_state=EM.ACTIVE)
-        populated_dl.create(embargo)
-        populated_dl.save(case)
-
-        # ``context`` is required by core CaseStatus; omitting it made the
-        # nested status unprojectable to the core shape (#2232).
-        cs = as_CaseStatus(context=CASE_ID)
-        object.__setattr__(cs, "pxa_state", CS_pxa.Pxa)  # public-aware
-        object.__setattr__(status_obj, "case_status", cs)
-        populated_dl.save(status_obj)
-
-        # ACTOR_ID holds CASE_OWNER role (see `participant` fixture)
-        node = PublicDisclosureBranchNode(
-            status_obj=status_obj,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        # No factory → broadcast fails → FAILURE (BT-14-001)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.FAILURE
-
-        from typing import cast as c
-
-        from vultron.core.models.case import VulnerabilityCase
-
-        # State was still applied before the broadcast attempt
-        updated = c(VulnerabilityCase, populated_dl.read(CASE_ID))
-        assert updated.current_status.em.state == EM.EXITED
-        assert updated.active_embargo is None
-
-
-# ---------------------------------------------------------------------------
 # Step 5: AllParticipantsRMClosedConditionNode (DEMOMA-07-006)
 # ---------------------------------------------------------------------------
 
@@ -845,7 +746,11 @@ class TestAllParticipantsRMClosedConditionNode:
         case_manager_participant.participant_statuses.append(closed_cm)
         populated_dl.save(case_manager_participant)
 
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
+        )
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
@@ -868,7 +773,11 @@ class TestAllParticipantsRMClosedConditionNode:
         participant.participant_statuses.append(closed_vendor)
         populated_dl.save(participant)
 
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
+        )
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         # CaseActor is not RM.CLOSED → FAILURE (ADR-0051 removes the old skip)
@@ -924,7 +833,11 @@ class TestCloseNotYetEmittedConditionNode:
         populated_dl.create(leave_activity)
         populated_dl.outbox_append(leave_activity.id_)
 
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
+        )
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
@@ -944,7 +857,11 @@ class TestCloseNotYetEmittedConditionNode:
         populated_dl.create(leave_activity)
         populated_dl.outbox_append(leave_activity.id_)
 
-        bridge = BTBridge(datalayer=populated_dl)
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
+        )
         node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
@@ -960,24 +877,27 @@ class TestAddParticipantStatusTree:
         return BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
 
     @pytest.mark.spec("RSH-01-001")
     @pytest.mark.spec("RSH-01-003")
     @pytest.mark.spec("RSH-04-004")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_full_tree_succeeds_for_case_owner_sender(
         self,
         populated_dl,
         make_payload,
     ):
-        """End-to-end: CASE_OWNER sender bypasses StatusAdoptionGate → status
-        appended, CaseStatus committed directly to ledger (RSH-01-001 to RSH-01-003,
-        RSH-04-004).
+        """End-to-end: a CASE_OWNER sender's status is adopted at the
+        CASE_MANAGER → status appended, CaseStatus committed directly to ledger
+        (RSH-01-001 to RSH-01-003, RSH-04-004).
 
-        EmitCaseStatusUpdateNode writes the post-adoption CaseStatus directly
-        to the case without routing through the inbox seam.  Runs with
-        actor_id=ACTOR_ID (not CASE_MANAGER) to skip the guarded ledger-commit
-        subtree.
+        RSH-08-003 (#3814): the adoption pipeline (append → StatusAdoptionGate
+        → EmitCaseStatusUpdateNode) now runs only at the CASE_MANAGER, so the
+        tree executes in the CASE_MANAGER's store; the gospel bypass keys on
+        the *sender's* CASE_OWNER role, which is ACTOR_ID.
         """
         from vultron.core.models.case import VulnerabilityCase as CoreCase
 
@@ -992,14 +912,15 @@ class TestAddParticipantStatusTree:
         event = make_payload(activity)
         bridge = self._bridge_with_factory(populated_dl)
         tree = add_participant_status_tree(request=event, case_id=CASE_ID)
-        # actor_id=ACTOR_ID → not CASE_MANAGER → guarded ledger commit is skipped
         case_before = populated_dl.read(CASE_ID)
         initial_status_count = (
             len(case_before.case_statuses)
             if isinstance(case_before, CoreCase)
             else 0
         )
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
+        )
         assert result.status == Status.SUCCESS
 
         p = populated_dl.read(PARTICIPANT_ID)
@@ -1011,9 +932,9 @@ class TestAddParticipantStatusTree:
         # CaseStatus directly to the case (no inbox routing).
         case_after = populated_dl.read(CASE_ID)
         assert isinstance(case_after, CoreCase)
-        assert (
-            len(case_after.case_statuses) > initial_status_count
-        ), "EmitCaseStatusUpdateNode must append a new CaseStatus to the case"
+        assert len(case_after.case_statuses) > initial_status_count, (
+            "EmitCaseStatusUpdateNode must append a new CaseStatus to the case"
+        )
 
     @pytest.mark.executes_as(OUTSIDER_ID)
     def test_full_tree_fails_for_unknown_sender(
@@ -1021,7 +942,7 @@ class TestAddParticipantStatusTree:
         populated_dl,
         make_payload,
     ):
-        """Unknown sender → VerifySenderIsParticipantNode fails, tree halts."""
+        """Unknown sender → SenderIsActiveParticipantNode fails, tree halts."""
         activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
             target=as_CaseParticipant(
@@ -1051,18 +972,18 @@ class TestAddParticipantStatusTree:
         """Non-CASE_OWNER sender with AlwaysFail call-out → blocked at gate
         (RSH-01-002): StatusAdoptionGate denied — Add(CaseStatus) NOT emitted to outbox.
 
-        Uses CASE_MANAGER_ID as the sender (not CASE_OWNER) so CheckIsCaseOwnerNode
+        Uses CASE_MANAGER_ID as the sender (not CASE_OWNER) so SenderIsCaseOwnerNode
         returns FAILURE, routing to the AlwaysFail call-out which also fails.
         Executes as ACTOR_ID (vendor) to skip the guarded ledger-commit subtree.
         """
         bridge = self._bridge_with_factory(populated_dl)
         reject_bundle = StatusAuthorizationCallOutBundle(
-            status_adoption_gate_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
+            status_adoption_gate_factory=AlwaysFail  # type: ignore[arg-type]
         )
         cm_status_id = f"{STATUS_ID}/cm"
         cm_status = as_ParticipantStatus(id_=cm_status_id, context=CASE_ID)
         populated_dl.create(cm_status)
-        # CASE_MANAGER_ID is NOT CASE_OWNER — CheckIsCaseOwnerNode will return FAILURE
+        # CASE_MANAGER_ID is NOT CASE_OWNER — SenderIsCaseOwnerNode will return FAILURE
         cm_activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(id_=cm_status_id, context=CASE_ID),
             target=as_CaseParticipant(
@@ -1082,11 +1003,11 @@ class TestAddParticipantStatusTree:
         # Execute as the vendor (ACTOR_ID) — not CASE_MANAGER → ledger commit skipped
         result = bridge.execute_with_setup(tree=cm_tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
-        # Outbox must be empty: guard blocked before EmitAddCaseStatusToSelfNode
+        # Outbox must be empty: guard blocked before EmitCaseStatusUpdateNode
         outbox = populated_dl.outbox_list()
-        assert (
-            len(outbox) == 0
-        ), "StatusAdoptionGate denied — no Add(CaseStatus) must be in outbox"
+        assert len(outbox) == 0, (
+            "StatusAdoptionGate denied — no Add(CaseStatus) must be in outbox"
+        )
 
     @pytest.mark.spec("RSH-07-001")
     @pytest.mark.spec("RSH-01-002")
@@ -1109,7 +1030,7 @@ class TestAddParticipantStatusTree:
         cm_status_id = f"{STATUS_ID}/cm-default"
         cm_status = as_ParticipantStatus(id_=cm_status_id, context=CASE_ID)
         populated_dl.create(cm_status)
-        # CASE_MANAGER_ID is NOT CASE_OWNER — CheckIsCaseOwnerNode returns FAILURE → call-out fires
+        # CASE_MANAGER_ID is NOT CASE_OWNER — SenderIsCaseOwnerNode returns FAILURE → call-out fires
         cm_activity = add_status_to_participant_activity(
             status=cm_status,
             target=as_CaseParticipant(
@@ -1134,27 +1055,31 @@ class TestAddParticipantStatusTree:
         all_nodes = _collect_nodes(cm_tree)
         assert any(
             isinstance(n, RequireCaseOwnerApprovalNode) for n in all_nodes
-        ), "RequireCaseOwnerApprovalNode must be present in the tree when using DETERMINISTIC bundle"
+        ), (
+            "RequireCaseOwnerApprovalNode must be present in the tree when using DETERMINISTIC bundle"
+        )
 
         result = bridge.execute_with_setup(tree=cm_tree, actor_id=ACTOR_ID)
-        assert (
-            result.status == Status.FAILURE
-        ), "Non-CASE_OWNER sender must be blocked by RequireCaseOwnerApproval (RSH-07-001)"
+        assert result.status == Status.FAILURE, (
+            "Non-CASE_OWNER sender must be blocked by RequireCaseOwnerApproval (RSH-07-001)"
+        )
         outbox = populated_dl.outbox_list()
-        assert (
-            len(outbox) == 0
-        ), "RequireCaseOwnerApproval blocked — no Add(CaseStatus) must be in outbox"
+        assert len(outbox) == 0, (
+            "RequireCaseOwnerApproval blocked — no Add(CaseStatus) must be in outbox"
+        )
 
-    @pytest.mark.spec("RSH-01-004")
+    @pytest.mark.spec("RSH-03-001")
     @pytest.mark.spec("RSH-03-003")
-    def test_no_side_effects_execute_directly_rsh_01_004(
+    def test_legacy_public_disclosure_branch_absent(
         self,
         populated_dl,
         make_payload,
     ):
-        """add_participant_status_tree must NOT execute embargo teardown
-        directly (RSH-01-004).  After SUCCESS the tree has no PublicDisclosureBranchNode
-        in its children."""
+        """The legacy ``PublicDisclosureBranchNode`` is not in the tree.
+
+        Teardown runs in ``add_participant_status_tree`` only through the
+        ``TeardownEffects`` sequence (gate → ``ThreatTerminationBranchNode``,
+        RSH-01-004, RSH-03-001); the CS.P-only predecessor must be gone."""
         activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
             target=as_CaseParticipant(
@@ -1177,8 +1102,41 @@ class TestAddParticipantStatusTree:
         node_types = [type(n).__name__ for n in all_nodes]
         assert "PublicDisclosureBranchNode" not in node_types, (
             "PublicDisclosureBranchNode must NOT be in add_participant_status_tree "
-            "(RSH-01-004: side-effects belong in add_case_status_tree)"
+            "(RSH-03-001: ThreatTerminationBranchNode under TeardownEffects "
+            "replaced it)"
         )
+
+    @pytest.mark.spec("RSH-03-004")
+    def test_teardown_branch_is_given_the_statuss_sender(
+        self,
+        populated_dl,
+        make_payload,
+    ):
+        """The tree hands ``ThreatTerminationBranchNode`` the status's sender.
+
+        RSH-03-004 decides at a replica whether the CASE_MANAGER declared the
+        P/X/A status; without the sender the skip never fires (#4149)."""
+        from vultron.core.behaviors.status.nodes.threat_termination import (
+            _DeclaredByCaseManagerNode,
+        )
+
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        declared = [
+            n
+            for n in tree.iterate()
+            if isinstance(n, _DeclaredByCaseManagerNode)
+        ]
+        assert [n.sender_actor_id for n in declared] == [ACTOR_ID]
 
     @pytest.mark.spec("RSH-01-001")
     @pytest.mark.spec("RSH-01-002")
@@ -1211,21 +1169,21 @@ class TestAddParticipantStatusTree:
         node_names = [n.name for n in all_nodes]
         node_types = [type(n).__name__ for n in all_nodes]
 
-        assert (
-            "EmitCaseStatusUpdate" in node_names
-        ), "EmitCaseStatusUpdateNode must be present (RSH-01-001, RSH-04-004)"
-        assert (
-            EmitCaseStatusUpdateNode.__name__ in node_types
-        ), "EmitCaseStatusUpdateNode type must appear in tree (RSH-04-004)"
-        assert (
-            "EmitAddCaseStatusToSelf" not in node_names
-        ), "EmitAddCaseStatusToSelfNode must NOT be in tree (replaced by RSH-04-004)"
-        assert (
-            "StatusAdoptionGate" in node_names
-        ), "StatusAdoptionGate must be present (RSH-01-001)"
-        assert (
-            "CheckIsCaseOwner" in node_names
-        ), "CheckIsCaseOwnerNode must be present inside StatusAdoptionGate (RSH-01-002)"
+        assert "EmitCaseStatusUpdate" in node_names, (
+            "EmitCaseStatusUpdateNode must be present (RSH-01-001, RSH-04-004)"
+        )
+        assert EmitCaseStatusUpdateNode.__name__ in node_types, (
+            "EmitCaseStatusUpdateNode type must appear in tree (RSH-04-004)"
+        )
+        assert "EmitAddCaseStatusToSelf" not in node_names, (
+            "EmitAddCaseStatusToSelfNode must NOT be in tree (replaced by RSH-04-004)"
+        )
+        assert "StatusAdoptionGate" in node_names, (
+            "StatusAdoptionGate must be present (RSH-01-001)"
+        )
+        assert "SenderIsCaseOwner" in node_names, (
+            "SenderIsCaseOwnerNode must be present inside StatusAdoptionGate (RSH-01-002)"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1262,12 +1220,12 @@ class TestNoAutoCloseSequenceInTree:
         tree = add_participant_status_tree(request=event, case_id=CASE_ID)
         all_nodes = self._all_nodes(tree)
         node_names = [n.name for n in all_nodes]
-        assert (
-            "AutoCloseSequence" not in node_names
-        ), "AutoCloseSequence must be removed per ADR-0050"
-        assert (
-            "AutoCloseIfCaseManager" not in node_names
-        ), "AutoCloseIfCaseManager must be removed per ADR-0050"
+        assert "AutoCloseSequence" not in node_names, (
+            "AutoCloseSequence must be removed per ADR-0050"
+        )
+        assert "AutoCloseIfCaseManager" not in node_names, (
+            "AutoCloseIfCaseManager must be removed per ADR-0050"
+        )
 
     def test_no_emit_close_case_node(self, make_payload):
         """EmitCloseCaseNode must not appear in add_participant_status_tree."""
@@ -1286,22 +1244,22 @@ class TestNoAutoCloseSequenceInTree:
         event = make_payload(activity)
         tree = add_participant_status_tree(request=event, case_id=CASE_ID)
         all_nodes = self._all_nodes(tree)
-        assert not any(
-            isinstance(n, EmitCloseCaseNode) for n in all_nodes
-        ), "EmitCloseCaseNode must not be in add_participant_status_tree (ADR-0050)"
+        assert not any(isinstance(n, EmitCloseCaseNode) for n in all_nodes), (
+            "EmitCloseCaseNode must not be in add_participant_status_tree (ADR-0050)"
+        )
 
 
 # ---------------------------------------------------------------------------
-# StatusAdoptionGate: CheckIsCaseOwnerNode (RSH-01-002)
+# StatusAdoptionGate: SenderIsCaseOwnerNode (RSH-01-002)
 # ---------------------------------------------------------------------------
 
 
-class TestCheckIsCaseOwnerNode:
+class TestSenderIsCaseOwnerNode:
     @pytest.mark.spec("RSH-01-002")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_case_owner_returns_success(self, populated_bridge):
         """CASE_OWNER sender → SUCCESS (gospel bypass)."""
-        node = CheckIsCaseOwnerNode(
+        node = SenderIsCaseOwnerNode(
             sender_actor_id=ACTOR_ID,  # has CASE_OWNER role in fixture
             case_id=CASE_ID,
         )
@@ -1314,7 +1272,7 @@ class TestCheckIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_non_owner_returns_failure(self, populated_bridge):
         """CASE_MANAGER sender (not CASE_OWNER) → FAILURE (proceeds to call-out)."""
-        node = CheckIsCaseOwnerNode(
+        node = SenderIsCaseOwnerNode(
             sender_actor_id=CASE_MANAGER_ID,  # has CASE_MANAGER role, not CASE_OWNER
             case_id=CASE_ID,
         )
@@ -1326,7 +1284,7 @@ class TestCheckIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_unknown_actor_returns_failure(self, populated_bridge):
         """Actor not in actor_participant_index → FAILURE."""
-        node = CheckIsCaseOwnerNode(
+        node = SenderIsCaseOwnerNode(
             sender_actor_id=OUTSIDER_ID,
             case_id=CASE_ID,
         )
@@ -1338,7 +1296,7 @@ class TestCheckIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_returns_failure(self, bridge):
         """No case in DataLayer → FAILURE."""
-        node = CheckIsCaseOwnerNode(
+        node = SenderIsCaseOwnerNode(
             sender_actor_id=ACTOR_ID,
             case_id="https://example.org/cases/nonexistent",
         )
@@ -1348,102 +1306,12 @@ class TestCheckIsCaseOwnerNode:
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_no_case_id_returns_failure(self, bridge):
         """No case_id at all → FAILURE."""
-        node = CheckIsCaseOwnerNode(
+        node = SenderIsCaseOwnerNode(
             sender_actor_id=ACTOR_ID,
             case_id=None,
         )
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
-# StatusAdoptionGate: EmitAddCaseStatusToSelfNode (RSH-01-003)
-# ---------------------------------------------------------------------------
-
-
-class TestEmitAddCaseStatusToSelfNode:
-    def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
-        return BTBridge(
-            datalayer=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-        )
-
-    @pytest.mark.spec("RSH-01-003")
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_emits_activity_and_queues_in_outbox(self, dl):
-        """With a factory and embedded case_status: activity queued in outbox."""
-        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
-
-        cs = as_CaseStatus(id_=f"{STATUS_ID}/cs", context=CASE_ID)
-        status_with_cs = as_ParticipantStatus(
-            id_=f"{STATUS_ID}/with-cs",
-            context=CASE_ID,
-            case_status=cs,
-        )
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Test")
-        dl.create(case)
-        dl.create(status_with_cs)
-
-        bridge = self._bridge_with_factory(dl)
-        node = EmitAddCaseStatusToSelfNode(
-            participant_status_id=status_with_cs.id_,
-            case_id=CASE_ID,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-        assert result.status == Status.SUCCESS
-
-        outbox = dl.outbox_list()
-        assert len(outbox) > 0, "Activity should be queued in outbox"
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_fails_without_factory(self, populated_bridge):
-        """No TriggerActivityPort → FAILURE (BT-14-001)."""
-        node = EmitAddCaseStatusToSelfNode(
-            participant_status_id=STATUS_ID,
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.FAILURE
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_fails_when_participant_status_id_empty(self, populated_dl):
-        """Empty participant_status_id → FAILURE."""
-        bridge = self._bridge_with_factory(populated_dl)
-        node = EmitAddCaseStatusToSelfNode(
-            participant_status_id="", case_id=CASE_ID
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-        assert result.status == Status.FAILURE
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_fails_when_case_id_none(self, populated_dl):
-        """None case_id → FAILURE."""
-        bridge = self._bridge_with_factory(populated_dl)
-        node = EmitAddCaseStatusToSelfNode(
-            participant_status_id=STATUS_ID, case_id=None
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-        assert result.status == Status.FAILURE
-
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_returns_success_when_status_has_no_case_status(
-        self, populated_dl
-    ):
-        """ParticipantStatus with no embedded case_status → SUCCESS (soft skip).
-
-        No canonical update to emit; the Sequence must continue to
-        AutoCloseIfCaseManager (DEMOMA-07-003 step 5), so the node returns
-        SUCCESS rather than blocking the sequence with FAILURE.
-        """
-        bridge = self._bridge_with_factory(populated_dl)
-        # STATUS_ID in the fixture has no embedded case_status
-        node = EmitAddCaseStatusToSelfNode(
-            participant_status_id=STATUS_ID, case_id=CASE_ID
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-        assert result.status == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------
@@ -1489,7 +1357,7 @@ class TestStatusAuthorizationCallOutBundle:
     def test_custom_bundle_with_always_fail(self, populated_bridge):
         """Custom bundle with AlwaysFail factory → call-out denies approval."""
         bundle = StatusAuthorizationCallOutBundle(
-            status_adoption_gate_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
+            status_adoption_gate_factory=AlwaysFail  # type: ignore[arg-type]
         )
         node = bundle.status_adoption_gate_factory(
             "CaseOwnerApprovesStatusUpdate"
@@ -1532,6 +1400,8 @@ class TestRejectionValidatorBeforeCommit:
         return BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
 
     @pytest.mark.spec("CLP-10-009")
@@ -1604,9 +1474,7 @@ class TestRejectionValidatorBeforeCommit:
             actor=ACTOR_ID,
             context=as_VulnerabilityCase(id_=CASE_ID, name="Fix1 Regression"),
         )
-        event = make_payload(activity).model_copy(
-            update={"activity": activity}
-        )
+        event = make_payload(activity)
 
         bridge = self._bridge_with_factory(dl)
         tree = add_participant_status_tree(request=event, case_id=CASE_ID)
@@ -1697,9 +1565,9 @@ class TestRejectionValidatorBeforeCommit:
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
-        assert (
-            result.status == Status.FAILURE
-        ), "A fully rejected update must fail before GuardedCommit"
+        assert result.status == Status.FAILURE, (
+            "A fully rejected update must fail before GuardedCommit"
+        )
 
         entries = [
             e
@@ -1731,6 +1599,8 @@ class TestEmitRMGapNoteNode:
         return BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
 
     def _set_anomaly(self, anomaly_type: str, from_rm: RM, to_rm: RM) -> None:
@@ -1770,9 +1640,9 @@ class TestEmitRMGapNoteNode:
         assert result.status == Status.SUCCESS
 
         outbox = populated_dl.outbox_list()
-        assert (
-            len(outbox) == 1
-        ), "Gap anomaly should emit exactly one Add(Note,Case)"
+        assert len(outbox) == 1, (
+            "Gap anomaly should emit exactly one Add(Note,Case)"
+        )
 
     @pytest.mark.spec("RSH-06-004")
     def test_regression_anomaly_emits_note(self, populated_dl):
@@ -1788,9 +1658,9 @@ class TestEmitRMGapNoteNode:
         assert result.status == Status.SUCCESS
 
         outbox = populated_dl.outbox_list()
-        assert (
-            len(outbox) == 1
-        ), "Regression anomaly should emit exactly one Add(Note,Case)"
+        assert len(outbox) == 1, (
+            "Regression anomaly should emit exactly one Add(Note,Case)"
+        )
 
     def test_no_case_id_is_noop_success(self, populated_dl):
         """case_id=None → SUCCESS with no outbox entry (no case context)."""
@@ -1935,9 +1805,41 @@ class TestAddParticipantStatusTeardownWiring:
         node_names = [n.name for n in all_nodes]
         node_types_map = {n.name: type(n).__name__ for n in all_nodes}
 
-        assert (
-            "TeardownEffectsOrSkip" in node_names
-        ), "TeardownEffectsOrSkip wrapper must be present (RSH-04-004)"
-        assert (
-            node_types_map["TeardownEffectsOrSkip"] == "FailureIsSuccess"
-        ), "TeardownEffectsOrSkip must be a FailureIsSuccess decorator"
+        assert "TeardownEffectsOrSkip" in node_names, (
+            "TeardownEffectsOrSkip wrapper must be present (RSH-04-004)"
+        )
+        assert node_types_map["TeardownEffectsOrSkip"] == "FailureIsSuccess", (
+            "TeardownEffectsOrSkip must be a FailureIsSuccess decorator"
+        )
+
+    @pytest.mark.spec("RSH-01-004")
+    @pytest.mark.spec("RSH-02-001")
+    def test_teardown_effects_begin_with_authorization_gate(
+        self, make_payload
+    ):
+        """``TeardownEffects`` is a Sequence whose first child is the gate.
+
+        RSH-01-004: side-effects run only after the canonical write and pass
+        through ``EmbargoTeardownAuthorizationGate`` before executing, so the
+        gate must be the first child of the ``TeardownEffects`` Sequence.
+        """
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        all_nodes = self._collect_nodes(tree)
+        teardown = [n for n in all_nodes if n.name == "TeardownEffects"]
+        assert len(teardown) == 1, "exactly one TeardownEffects Sequence"
+        children = list(getattr(teardown[0], "children", []))
+        assert children, "TeardownEffects must have children"
+        assert children[0].name == "EmbargoTeardownAuthorizationGate", (
+            "TeardownEffects must begin with EmbargoTeardownAuthorizationGate"
+            " (RSH-01-004, RSH-02-001)"
+        )

@@ -42,10 +42,13 @@ hand-rolled predecessors:
 - **A pipe table inside a fence is an example, not a table.**  A caller that
   requires exactly one table under a heading would otherwise break the moment
   someone documents that table's shape in a code block beneath it.
-- **A fence may be indented.**  CommonMark allows 1–3 leading spaces, which is
-  the normal form inside a list item and the form mkdocs-material admonitions
-  require; a reader anchored at column 0 tracks none of them and so silently
-  loses both guarantees above.  See :data:`_FENCE_RE`.
+- **A fence may be indented, by any amount.**  CommonMark allows 1–3 leading
+  spaces, the normal form inside a list item; mkdocs-material nests a fence
+  four spaces deep inside an admonition or a content tab, and a fence inside a
+  nested list item sits at four or more as well.  A reader anchored at column
+  0, or stopping at three spaces, tracks none of those and so silently loses
+  both guarantees above.  One rule at any indentation is used instead; see
+  :data:`_FENCE_RE`.
 - **A delimiter row ends the table above it.**  Two tables with no blank line
   between them are two tables, not one with the second's header as a data row.
 - **``\\|`` is a literal pipe, not a separator.**  Splitting on every pipe
@@ -63,18 +66,26 @@ from dataclasses import dataclass
 #: An ATX heading: one to six leading hashes, then whitespace, then the text.
 _HEADING_RE = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<text>.*?)\s*$")
 
-#: A fence opener or closer. The info string after the ticks is ignored; only
-#: the run length matters, because a longer run closes a shorter one.
+#: A fence opener or closer, at any indentation. The info string after the
+#: ticks is ignored; only the run length and character matter, because a
+#: closer must use the opener's character and be at least as long.
 #:
-#: The 1–3 leading spaces CommonMark permits are matched deliberately, not
-#: incidentally. An indented fence is the normal form inside a list item, and
-#: this repository uses them in the files this module parses — ``MD046`` is
-#: switched off in ``.markdownlint-cli2.yaml`` precisely because mkdocs-material
-#: admonitions need indented blocks. Anchoring hard at column 0 would leave
-#: every one of those fences untracked, so a ``#`` or a pipe table inside one
-#: would be read as real content: the exact hazard the module docstring below
-#: claims to absorb, failing silently in the most common case.
-_FENCE_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
+#: Leading whitespace is matched deliberately, and without a ceiling. CommonMark
+#: permits 1–3 spaces, the normal form inside a list item, and this repository
+#: uses them in the files this module parses — ``MD046`` is switched off in
+#: ``.markdownlint-cli2.yaml`` precisely because mkdocs-material admonitions
+#: need indented blocks. Those admonitions, and content tabs, nest a fence at
+#: *four* spaces, which strict CommonMark would read as an indented code block;
+#: a fence inside a nested list item sits at four or more as well. The only
+#: input the strict reading gets right — an indented code block whose content
+#: happens to start with three backticks — does not occur in this repository,
+#: while the four-space fences do. Stopping at three spaces would leave every
+#: one of them untracked, so a ``#`` or a pipe table inside one would be read
+#: as real content: the exact hazard the module docstring claims to absorb,
+#: failing silently in the most common case. A per-caller switch was tried
+#: (#3648) and rejected: it is a choice every new caller would have to get
+#: right (#3685).
+_FENCE_RE = re.compile(r"^\s*(?P<fence>`{3,}|~{3,})")
 
 #: A table's delimiter row: ``|---|:---:|---|``. Its presence is what promotes
 #: the line above it from prose-containing-pipes to a table header.
@@ -202,6 +213,34 @@ class MarkdownTable:
         )
 
 
+def fenced_lines(text: str) -> frozenset[int]:
+    """Return the 1-based numbers of lines inside a fenced code block.
+
+    Opener and closer lines are included. A closer must use the opener's
+    character and be at least as long; a shorter run inside a longer block is
+    literal content, not a close. A fence is recognised at any indentation
+    (see :data:`_FENCE_RE`), so a block nested inside an admonition, a content
+    tab, or a nested list item is tracked like one at column 0.
+    """
+    fenced: set[int] = set()
+    fence: str | None = None
+    for number, line in enumerate(text.splitlines(), start=1):
+        opener = _FENCE_RE.match(line)
+        run = opener.group("fence") if opener is not None else None
+        if fence is None and run is not None:
+            fence = run
+            fenced.add(number)
+        elif fence is not None:
+            fenced.add(number)
+            if (
+                run is not None
+                and len(run) >= len(fence)
+                and run[0] == fence[0]
+            ):
+                fence = None
+    return frozenset(fenced)
+
+
 def iter_sections(text: str) -> tuple[MarkdownSection, ...]:
     """Partition *text* at ATX headings, ignoring hashes inside code fences.
 
@@ -213,42 +252,20 @@ def iter_sections(text: str) -> tuple[MarkdownSection, ...]:
     heading = ""
     level = 0
     body: list[tuple[int, str]] = []
-    fenced: set[int] = set()
-    fence: str | None = None
+    fenced = fenced_lines(text)
 
     for number, line in enumerate(text.splitlines(), start=1):
-        opener = _FENCE_RE.match(line)
-        run = opener.group("fence") if opener is not None else None
-        if fence is None and run is not None:
-            fence = run
-            fenced.add(number)
-        elif fence is not None:
-            fenced.add(number)
-            # A closing fence must use the same character and be at least as
-            # long as the one it opened; a shorter run inside a longer block is
-            # literal content, not a close.
-            if (
-                run is not None
-                and len(run) >= len(fence)
-                and run[0] == fence[0]
-            ):
-                fence = None
-
-        match = None if fence is not None else _HEADING_RE.match(line)
+        match = None if number in fenced else _HEADING_RE.match(line)
         if match is None:
             body.append((number, line))
             continue
 
-        sections.append(
-            MarkdownSection(heading, level, tuple(body), frozenset(fenced))
-        )
+        sections.append(MarkdownSection(heading, level, tuple(body), fenced))
         heading = match.group("text")
         level = len(match.group("hashes"))
         body = []
 
-    sections.append(
-        MarkdownSection(heading, level, tuple(body), frozenset(fenced))
-    )
+    sections.append(MarkdownSection(heading, level, tuple(body), fenced))
     return tuple(sections)
 
 
@@ -308,6 +325,7 @@ def iter_tables(text: str) -> tuple[MarkdownTable, ...]:
 __all__ = [
     "MarkdownSection",
     "MarkdownTable",
+    "fenced_lines",
     "iter_sections",
     "iter_tables",
     "split_row",

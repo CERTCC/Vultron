@@ -10,46 +10,21 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-import importlib
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 
-from test.demo._helpers import make_testclient_call
-from vultron.demo.exchange import invite_actor_demo as demo
-from vultron.demo.exchange import initialize_case_demo as init_demo
+from test.demo._helpers import route_exchange_demo_at_testclient
+from vultron.demo.exchange import (
+    initialize_case_demo as init_demo,
+    invite_actor_demo as demo,
+)
 
 
 @pytest.fixture(scope="module")
 def demo_env(client):
-    """Sets up the demo environment, patching BASE_URL and DataLayerClient.call."""
-    mp = MonkeyPatch()
-    base = str(client.base_url).rstrip("/") + "/api/v2"
-    try:
-        mp.setattr(demo, "BASE_URL", base)
-        mp.setattr(init_demo, "BASE_URL", base)
-        mp.setattr(
-            demo.DataLayerClient, "call", make_testclient_call(client, base)
-        )
-        # Patch the default base_url so DataLayerClient() (no args) in
-        # runner.py picks up the TestClient URL. _assert_client_hosts_actor
-        # compares client.base_url against actor.id_, so the authorities must
-        # match for trigger-endpoint calls to pass. Requires model_rebuild to
-        # take effect (Pydantic v2 bakes defaults into compiled validators).
-        _original_base_url_default = demo.DataLayerClient.model_fields[
-            "base_url"
-        ].default
-        demo.DataLayerClient.model_fields["base_url"].default = base
-        demo.DataLayerClient.model_rebuild(force=True)
+    """Routes the demo's clients at the in-process TestClient."""
+    with route_exchange_demo_at_testclient(client, demo, init_demo):
         yield
-    finally:
-        demo.DataLayerClient.model_fields["base_url"].default = (
-            _original_base_url_default
-        )
-        demo.DataLayerClient.model_rebuild(force=True)
-        mp.undo()
-        importlib.reload(demo)
-        importlib.reload(init_demo)
 
 
 @pytest.mark.parametrize(
@@ -69,9 +44,10 @@ def test_demo(demo_env, demo_fn, caplog):
 
     For the reject path, verifies:
     - Case initialized with report and finder participant
-    - Invite sent to coordinator inbox
+    - invite-actor-to-case trigger fired (creates inert participant, CM-11-006)
+    - Invite also delivered to coordinator inbox
     - Coordinator rejection sent to vendor inbox
-    - Participant list unchanged (coordinator not added)
+    - Coordinator in actor_participant_index at RM.CLOSED (DEMOMA-27-002)
     """
     import logging
 
@@ -97,7 +73,7 @@ def test_setup_initialized_case_registers_case_manager(demo_env, client):
     base = str(client.base_url).rstrip("/") + "/api/v2"
     dl_client = DataLayerClient(base_url=base, actor_id=None)
     seed_exchange_actors(dl_client)
-    finder, vendor, coordinator = discover_actors(dl_client)
+    finder, vendor, _coordinator = discover_actors(dl_client)
 
     case = setup_initialized_case(dl_client, finder, vendor)
 
@@ -106,6 +82,6 @@ def test_setup_initialized_case_registers_case_manager(demo_env, client):
     assert stored_case is not None, "Case should be stored in vendor DataLayer"
 
     manager_id = resolve_case_manager_id(stored_case, vendor_dl)
-    assert (
-        manager_id is not None
-    ), "CASE_MANAGER must be registered at case creation (CM-02-014, CM-02-015)"
+    assert manager_id is not None, (
+        "CASE_MANAGER must be registered at case creation (CM-02-014, CM-02-015)"
+    )

@@ -24,13 +24,16 @@ from vultron.core.behaviors.case.update_support import (
     broadcast_case_update,
     find_excluded_actor_ids,
 )
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.models.events.case import UpdateCaseReceivedEvent
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.events.case import UpdateCaseReceivedEvent
+from vultron.errors import VultronError
 
 
 class CheckCaseUpdateOwnerNode(DataLayerConditionWithPorts):
@@ -127,7 +130,7 @@ class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class ApplyCaseUpdateNode(DataLayerActionWithPorts):
+class ApplyCaseUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     """Apply mutable fields from the inbound update payload to the case."""
 
     def __init__(
@@ -167,7 +170,7 @@ class ApplyCaseUpdateNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
+class BroadcastCaseUpdateNode(DataLayerActionWithPorts, EmitCapable):
     """Broadcast the updated case to eligible participants (CM-06-001).
 
     MUST be wrapped in a ``CheckIsCaseManagerNode`` gate: only the case's
@@ -202,12 +205,29 @@ class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: case must exist (ADR-0087)
+        if (f := self._require_factory()) is not None:
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return f
+        assert self.trigger_activity_factory is not None
 
-        broadcast_case_update(
-            self.datalayer,
-            self.case_id,
-            case,
-            self.actor_id,
-            excluded_actor_ids=self.excluded_actor_ids,
-        )
+        try:
+            broadcast_case_update(
+                self.datalayer,
+                self.case_id,
+                case,
+                self.actor_id,
+                self.trigger_activity_factory,
+                excluded_actor_ids=self.excluded_actor_ids,
+            )
+        except VultronError as exc:
+            # The adapter refuses to build an Announce it cannot complete —
+            # e.g. a report the case names that this store does not hold
+            # (CBT-01-007).  That is a reported outcome of this node, not a
+            # fault in the service (BT-HELPER-01).
+            self.feedback_message = (
+                f"{self.name}: could not broadcast case '{self.case_id}':"
+                f" {exc}"
+            )
+            self.logger.warning("%s", self.feedback_message)
+            return Status.FAILURE
         return Status.SUCCESS

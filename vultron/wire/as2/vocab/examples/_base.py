@@ -12,6 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import random
+from datetime import UTC, datetime
+from typing import TypedDict
 from uuid import uuid4
 
 from pydantic import BaseModel
@@ -31,6 +33,37 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 _EXAMPLE_BASE_URL = "https://demo.vultron.local/"
 
+#: The fixed moment the pinned example objects are stamped with.
+#:
+#: Tests compare an activity's embedded object against a second call to the
+#: same builder, and two clock reads that straddle a tick differ — at second
+#: precision for the ``published`` and ``updated`` default stamps, at minute
+#: precision for an embargo ``start_time`` (#4095).  So every object a test
+#: compares that way (the embargo, note, participant, participant and case
+#: status, invite and vendor-profile builders) is pinned to this moment.
+#: Outer activities still take their ``published`` stamp from the clock;
+#: tests compare those by ``id_`` only.  The date is fixed, so it is in the
+#: past.
+EXAMPLE_TIMESTAMP: datetime = datetime(2026, 6, 1, 19, 12, tzinfo=UTC)
+
+
+class _ExampleStamp(TypedDict):
+    """The ``published``/``updated`` keyword pair, typed for ``**`` unpacking."""
+
+    published: datetime
+    updated: datetime
+
+
+def _example_stamp() -> _ExampleStamp:
+    """``published`` and ``updated`` pinned to :data:`EXAMPLE_TIMESTAMP`.
+
+    Pass as ``**_example_stamp()`` to an object that would otherwise stamp the
+    clock through its ``published``/``updated`` default factories.
+    """
+    return _ExampleStamp(
+        published=EXAMPLE_TIMESTAMP, updated=EXAMPLE_TIMESTAMP
+    )
+
 
 def _make_id(object_type: str) -> str:
     return f"{_EXAMPLE_BASE_URL}{object_type}/{uuid4()}"
@@ -43,7 +76,7 @@ organization_base_url = f"{base_url}/organizations"
 report_base_url = f"{base_url}/reports"
 
 # generated once per run so all examples in a single run share the same case number
-case_number = random.randint(10000000, 99999999)
+case_number = random.randint(10000000, 99999999)  # noqa: S311 — sample data
 
 _FINDER = as_Person(name="Finn der Vul", id_=f"{user_base_url}/finndervul")
 _VENDOR = as_Organization(
@@ -129,7 +162,7 @@ def case(random_id=False, **kwargs) -> as_VulnerabilityCase:
             f"kwargs must not override identity fields: {sorted(overlap)!r}"
         )
     if random_id:
-        _case_number = random.randint(10000000, 99999999)
+        _case_number = random.randint(10000000, 99999999)  # noqa: S311 — sample data
         return as_VulnerabilityCase(
             name=f"{_VENDOR.name} Case #{_case_number}",
             id_=_make_id("VulnerabilityCase"),
@@ -187,12 +220,21 @@ def _strip_published_udpated(obj: as_Base | BaseModel) -> as_Base | BaseModel:
 
 
 def _to_json(obj: object, **kwargs: object) -> str:
-    """Serialize *obj* to a JSON string, excluding None values and using aliases."""
+    """Serialize *obj* to a JSON string, excluding None values and using aliases.
+
+    Serialized as a sender delivers it (``outbox_delivery``): a field typed as a
+    parent class dumps its value's *own* fields, so an inline subclass such as a
+    ``CaseProposal`` under ``object`` keeps the ``object``/``target`` a receiver
+    requires instead of being cut down to the parent's shape.
+    """
+    kwargs.setdefault("serialize_as_any", True)
     if hasattr(obj, "to_json"):
         return obj.to_json(**kwargs)  # type: ignore[union-attr,no-any-return]
     if isinstance(obj, BaseModel):
         return obj.model_dump_json(
-            exclude_none=True, by_alias=True, **kwargs  # type: ignore[arg-type]
+            exclude_none=True,
+            by_alias=True,
+            **kwargs,  # type: ignore[arg-type]
         )
     raise TypeError(f"obj must be serializable to JSON: {obj}")
 

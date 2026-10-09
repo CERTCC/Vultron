@@ -18,21 +18,21 @@
 import pytest
 from py_trees.composites import Sequence
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseActivity,
     CreateCaseNode,
 )
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.report import VultronReport
 from vultron.core.models.activity import VultronOffer
-from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.report import VulnerabilityReport
 
 
 def test_create_case_node(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
 ) -> None:
     """CreateCaseNode creates a VulnerabilityCase in the DataLayer."""
     result = bt_scenario.run(
@@ -47,10 +47,34 @@ def test_create_case_node(
     assert case.attributed_to == actor.id_
 
 
+@pytest.mark.spec("CLP-08-002")
+def test_create_case_node_anchors_the_genesis_hash_to_the_owner(
+    bt_scenario: BTTestScenario,
+    actor: CaseActor,
+    report: VulnerabilityReport,
+) -> None:
+    """A case its owner creates hashes on the owner (ADR-0117)."""
+    from vultron.core.models.case_ledger import compute_genesis_hash
+
+    bt_scenario.assert_success(
+        bt_scenario.run(
+            CreateCaseNode(report_id=report.id_), actor_id=actor.id_
+        )
+    )
+
+    case = bt_scenario.assert_case_exists()
+    assert case.published is not None
+    assert case.genesis_hash == compute_genesis_hash(
+        case_id=case.id_,
+        created_at=case.published,
+        owner_actor_id=actor.id_,
+    )
+
+
 def test_create_case_node_idempotency(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
 ) -> None:
     """CreateCaseNode handles duplicate case creation gracefully."""
     result1 = bt_scenario.run(
@@ -68,12 +92,12 @@ def test_create_case_node_idempotency(
 
 def test_create_case_activity(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
     """CreateCaseActivity creates activity with recipients and embedded case."""
-    reporter = VultronCaseActor(
+    reporter = CaseActor(
         id_="https://example.org/actors/reporter",
         name="Reporter Co",
     )
@@ -98,23 +122,25 @@ def test_create_case_activity(
     activity_id = next(iter(create_activities))
     activity_data = create_activities[activity_id]
 
-    assert activity_data.get("type_") == "Create"
+    assert (
+        activity_data.get("type") == "Create"
+    )  # wire-facing key (ARCH-23-005)
     assert activity_data.get("to"), "CreateCaseActivity should have recipients"
-    assert (
-        actor.id_ not in activity_data["to"]
-    ), "Sender actor should be excluded from 'to' recipients"
-    assert (
-        reporter.id_ in activity_data["to"]
-    ), "Reporter (report.attributed_to) should be in 'to' recipients"
-    assert isinstance(
-        activity_data.get("object_"), str
-    ), "CreateCaseActivity object_ should be stored as the case ID string"
+    assert actor.id_ not in activity_data["to"], (
+        "Sender actor should be excluded from 'to' recipients"
+    )
+    assert reporter.id_ in activity_data["to"], (
+        "Reporter (report.attributed_to) should be in 'to' recipients"
+    )
+    assert isinstance(activity_data.get("object_"), str), (
+        "CreateCaseActivity object_ should be stored as the case ID string"
+    )
 
 
 def test_create_case_activity_missing_case_id(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
     """CreateCaseActivity fails if no preceding CreateCaseNode set case_id."""
@@ -132,8 +158,8 @@ def test_create_case_activity_missing_case_id(
 
 def test_update_actor_outbox(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
     """UpdateActorOutbox appends activity to actor's outbox."""
@@ -158,7 +184,7 @@ def test_update_actor_outbox(
 
 def test_update_actor_outbox_missing_activity_id(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
+    actor: CaseActor,
 ) -> None:
     """UpdateActorOutbox fails if no preceding node set activity_id."""
     result = bt_scenario.run(UpdateActorOutbox(), actor_id=actor.id_)
@@ -167,8 +193,8 @@ def test_update_actor_outbox_missing_activity_id(
 
 def test_update_actor_outbox_logs_create_activity_type(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -190,8 +216,8 @@ def test_update_actor_outbox_logs_create_activity_type(
 
 def test_update_actor_outbox_logs_case_id_in_message(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     caplog: pytest.LogCaptureFixture,
 ) -> None:

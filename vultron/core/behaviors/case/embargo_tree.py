@@ -24,40 +24,92 @@ than in the ``nodes/`` subpackage, which is reserved for leaf
 
 Subtrees defined here:
 
-- ``InitializeDefaultEmbargoNode`` — composed subtree for default embargo
-  initialization on case creation.  Assembles the five leaf steps:
-  resolve duration, create event, advance EM state, attach embargo to
-  case, and seed owner as SIGNATORY.
+- ``InitializeDefaultEmbargoNode`` — composed subtree for initial embargo
+  set-up on case creation.  A case with P/X/A set gets no embargo and stays
+  EM.NONE (EP-04-008); any other case runs the leaf steps: resolve
+  duration, create event, select a longer creation-time proposal as the
+  pending revision (EP-04-003), then advance EM state to ACTIVE with the
+  embargo attached, the owner seeded as SIGNATORY and that revision
+  registered, in one commit (EP-04-002, EP-04-012).
 
-Consumed by ``receive_report_case_tree.py``.
+Consumed by ``case_proposal_received_tree.py``.
 
 Per specs/case-management.yaml CM-02, OX-03-001, CM-14-003.
+Per specs/embargo-policy.yaml EP-04-005 through EP-04-008 (ADR-0096).
 Per specs/behavior-tree-node-design.yaml BTND-07-003.
 """
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.embargo import (
-    AdvanceEMStateToActiveNode,
-    AttachEmbargoToCaseNode,
     CreateEmbargoEventNode,
+    InitializeCreationEmbargoNode,
+)
+from vultron.core.behaviors.case.nodes.embargo_resolution import (
+    CaseEmbargoAlreadyInitializedNode,
+    CaseNotEmbargoEligibleNode,
     ResolveEmbargoDurationNode,
-    SeedOwnerAsSignatoryNode,
+)
+from vultron.core.behaviors.case.nodes.embargo_revision import (
+    ResolveCreationTimeRevisionNode,
 )
 
 
-class InitializeDefaultEmbargoNode(py_trees.composites.Sequence):
-    """Composed subtree for default embargo initialization on case creation."""
+class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
+    """Composed subtree for initial embargo set-up on case creation.
 
-    def __init__(self, name: str | None = None) -> None:
+    The first arm succeeds, doing nothing, when the case's EM state has left
+    ``EM.NONE``: initialization ran when the case was created, and a
+    redelivered proposal that reuses the case (CP-05-006) must not run it
+    again in any later state, ``EXITED`` included (EP-04-012).  The EM state,
+    not the active-embargo reference, is the evidence — termination clears the
+    reference but never returns the state to ``NONE``.  A case still at
+    ``NONE`` was never initialized, so the arm falls through.  The second
+    arm succeeds, creating nothing, when the case is not embargo eligible
+    (EP-04-008).  Otherwise the creation arm runs, and its failure is the
+    subtree's failure — neither guard arm masks it.
+
+    Args:
+        actor_config: Source of the protocol default embargo duration
+            (EP-04-005).  ``None`` uses the ``ActorConfig`` defaults.
+        report_id: URI of the report the case is created from.  When the
+            sender's terms lost, its author proposed the revision (#4152);
+            either way it is recorded on a contested creation's relay
+            obligation so the relay can resolve the reporter (EP-04-011).
+            A contest with none fails before the initialization commit.
+        name: Optional node name.
+    """
+
+    def __init__(
+        self,
+        actor_config: ActorConfig | None = None,
+        report_id: str | None = None,
+        name: str | None = None,
+    ) -> None:
         super().__init__(
             name=name or self.__class__.__name__,
             memory=False,
             children=[
-                ResolveEmbargoDurationNode(),
-                CreateEmbargoEventNode(),
-                AdvanceEMStateToActiveNode(),
-                AttachEmbargoToCaseNode(),
-                SeedOwnerAsSignatoryNode(),
+                CaseEmbargoAlreadyInitializedNode(),
+                CaseNotEmbargoEligibleNode(),
+                py_trees.composites.Sequence(
+                    name="CreateInitialEmbargo",
+                    memory=False,
+                    children=[
+                        ResolveEmbargoDurationNode(actor_config=actor_config),
+                        CreateEmbargoEventNode(),
+                        # EP-04-003: when both parties proposed, the longer
+                        # candidate is selected here, before anything is
+                        # written, to become a pending revision.
+                        ResolveCreationTimeRevisionNode(),
+                        # EP-04-002, EP-04-012: activation, consent, the
+                        # owner's SIGNATORY seed (CM-14-003) and the revision
+                        # (ACTIVE → REVISE) are one commit, so EM.PROPOSED is
+                        # never persisted and no failure leaves the case
+                        # active but unfinished (#4142).
+                        InitializeCreationEmbargoNode(report_id=report_id),
+                    ],
+                ),
             ],
         )

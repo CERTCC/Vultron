@@ -40,6 +40,7 @@ dependencies = [
     "mkdocs-material-extensions>=1.3.1",
     "mkdocs-material>=9.7.7",
     "mkdocs-print-site-plugin>=2.8",
+    "mkdocs-redirects>=1.2.3",
     "mkdocs>=1.6.1",
     "mkdocstrings-python>=2.0.5",
     "mkdocstrings>=1.0.6",
@@ -73,14 +74,19 @@ spec-dump="vultron.metadata.specs.render:main_llm_json"
 spec-dump-llm-json="vultron.metadata.specs.render:main_llm_json"
 spec-lint="vultron.metadata.specs.lint:main"
 spec-coverage="vultron.metadata.specs.coverage:main"
+spec-retire="vultron.metadata.specs.retire:main"
 spec-backstop="vultron.metadata.specs.backstop:main"
 adr-index="vultron.metadata.adr.index_gen:main"
+adr-lifecycle-check="vultron.metadata.adr.lifecycle:main"
 docs-frontmatter="vultron.metadata.docs.page_frontmatter:main"
+docs-level-order="vultron.metadata.docs.level_order:main"
 demo-scenarios="vultron.metadata.demo_scenarios.sync:main"
 docs-site="vultron.metadata.docs.site_sync:main"
 bundle-fit="vultron.metadata.planning.bundle_fit:main"
 wire-context="vultron.metadata.wire_context.sync:main"
 docs-withheld="vultron.metadata.docs.withheld:main"
+docs-links="vultron.metadata.docs.links:main"
+docs-legacy-urls="vultron.metadata.docs.legacy_urls:main"
 pr-size="vultron.metadata.planning.size_bands:main"
 glossary-index="vultron.metadata.docs.glossary_index:main"
 learnings-index="vultron.metadata.history.incoming:main"
@@ -101,8 +107,11 @@ exclude = ["test*"]  # exclude packages matching these glob patterns (empty by d
 #namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
 
 [tool.setuptools_scm]
-# Only consider tags that capture a version string like 1.2.3 or v1.2.3
-tag_regex = "^(?:v)?(?P<version>\\d+\\.\\d+\\.\\d+(?:[.-]rc\\d+)?)$"
+# Only consider three-component release tags like 2026.9.0 or v2026.9.0
+# (ADR-0006). No alpha/beta/rc suffix is recognized: pre-release labels are
+# rejected by policy, and a two-component tag yields fallback_version.
+# test/metadata/docs/test_tag_regex.py holds this pattern to the policy.
+tag_regex = "^(?:v)?(?P<version>\\d+\\.\\d+\\.\\d+)$"
 version_file = "vultron/_version.py"
 # Fallback when no valid version tag is reachable (e.g. nearest tag is a
 # non-semver snapshot or branch tag).  Prevents vcs_versioning AssertionError
@@ -115,9 +124,146 @@ git_describe_command = "git describe --dirty --tags --long --match v[0-9]*"
 
 #[tools.setuptools.dynamic]
 
-[tool.black]
-line-length = 79
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313' ]
+[tool.ruff]
+# Scope is declared here, never in a command line (IMPLTS-07-021): every caller
+# runs a bare `ruff check` / `ruff format`. Lint covers the whole tracked Python
+# surface; gitignored paths are skipped by ruff's `respect-gitignore` default.
+# See ADR-0094 and notes/lint-tooling.md.
+line-length = 79                 # the retired [tool.black] value
+target-version = "py312"         # IMPLTS-01-001
+# Pre-commit passes staged filenames; without this ruff would lint a file named
+# on the command line even when the config excludes it, and the hook and the CI
+# job would disagree about scope.
+force-exclude = true
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "C90",  # mccabe complexity (IMPLTS-07-008)
+    "I",    # import sorting (CS-02-001)
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules, including RUF100 (IMPLTS-07-020)
+    "PL",   # pylint
+    "TRY",  # tryceratops
+    "DTZ",  # flake8-datetimez (CS-13-001)
+    "BLE",  # flake8-blind-except (CS-23-001)
+    "S",    # flake8-bandit
+    "TC",   # flake8-type-checking
+    "RET",  # flake8-return
+    "G",    # flake8-logging-format
+    "PYI",  # flake8-pyi
+]
+# Every entry states what the rule reports and why it is not enforced
+# (IMPLTS-07-019). Tighten by deleting one line — see notes/lint-tooling.md.
+ignore = [
+    # runtime-cast-value: would quote the type argument of every cast(). Churn.
+    "TC006",
+    # raise-vanilla-args: would require one exception class per message string.
+    "TRY003",
+    # magic-value-comparison: overwhelmingly test literals, where a named
+    # constant reduces clarity.
+    "PLR2004",
+    # too-many-public-methods / -return-statements / -branches / -arguments /
+    # -locals / -statements / -boolean-expressions / -positional-arguments.
+    # C901 at max-complexity = 10 is the one complexity gate (IMPLTS-07-008); a
+    # second, differently-calibrated gate would compete with it.
+    "PLR0904",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0914",
+    "PLR0915",
+    "PLR0916",
+    "PLR0917",
+    # typing-only-{first,third}-party / standard-library import: would force
+    # `if TYPE_CHECKING:` blocks across the tree for no stated requirement.
+    "TC001",
+    "TC002",
+    "TC003",
+    # unnecessary-assign: assign-then-return is the more readable form at the
+    # sites where it appears.
+    "RET504",
+    # ambiguous-unicode-character in strings, docstrings and comments: fires on
+    # prose (dashes, arrows), not code.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # try-consider-else, suppressible-exception, multiple-with-statements:
+    # style preferences; nested `with` is frequently the clearer form.
+    "TRY300",
+    "SIM105",
+    "SIM117",
+    # non-pep695-type-alias / -generic-function: PEP 695 syntax modernization
+    # with no requirement behind it.
+    "UP040",
+    "UP047",
+    # snake-case-type-alias: snake_case type aliases are house style.
+    "PYI042",
+    # unsorted-dunder-all: package `__all__` lists are grouped by submodule
+    # under section comments; sorting them alphabetically scatters the groups
+    # and strands the comments.
+    "RUF022",
+    # mutable-class-default: false positives on the two dominant shapes. A
+    # py_trees node's INPUT_PORTS/OUTPUT_PORTS must stay unannotated-ClassVar
+    # (py_trees' PortsMixin declares them as instance attributes, so a ClassVar
+    # override is a mypy error), and ruff cannot see a pydantic model through
+    # an indirect base (as_Object), where ClassVar would delete a field. Our
+    # own class-level tables carry ClassVar explicitly.
+    "RUF012",
+    # line-too-long, whitespace-before-punctuation: owned by the formatter.
+    # Carried over from the retired .flake8 extend-ignore.
+    "E501",
+    "E203",
+    # assert: `assert` is pytest's assertion idiom in test/, and in vultron/ it
+    # narrows types and states invariants; the -O stripping hazard it guards
+    # against does not apply to how this project is run.
+    "S101",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10              # IMPLTS-07-008
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency injection is declared as a `Depends()` default; B008 stays
+# selected for every other call in an argument default.
+extend-immutable-calls = ["fastapi.Depends"]
+
+[tool.ruff.lint.isort]
+# Keep `from m import (A as B, c)` one statement. Splitting it strands a
+# statement-level `# noqa: F401` on one half, and F401 then deletes the
+# re-exports in the other.
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]         # re-exports, carried from the retired .flake8
+# Permanent, justified exemptions — not a baseline store (notes/lint-tooling.md).
+# suspicious-non-cryptographic-random-usage: the bt/ simulator and the demo
+# fuzzers draw random outcomes by design, and tests draw random fixtures; none
+# of it is a secret. Elsewhere each `random` call carries its own noqa.
+"vultron/bt/**" = ["S311"]
+"vultron/demo/fuzzer/**" = ["S311"]
+# subprocess-without-shell / start-process-with-partial-path: dev tooling
+# shells out to git, gh and uv with argv lists (never shell=True), resolved on
+# the developer's PATH on purpose.
+"vultron/metadata/**" = ["S603", "S607"]
+"scripts/**" = ["S603", "S607"]
+".agents/**" = ["S603", "S607"]
+# import-outside-top-level: a test-local import scopes a dependency to the one
+# test that needs it, an isolation idiom rather than a cycle break (CS-05-006).
+"test/**" = ["S311", "S603", "S607", "PLC0415"]
+# import-outside-top-level: mkdocs execs this script outside the package, so
+# its vultron import has to wait for the sys.path entry its module body adds.
+"docs/_scripts/render_trigger_api.py" = ["PLC0415"]
+
+[tool.ruff.format]
+# ruff formats Python fenced inside Markdown; black never did. Excluding it
+# keeps append-only plan/history/ (HM-01-005, bug #2952), docs/ (DF-09-001)
+# and the skill trees untouched.
+exclude = ["**/*.md"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -130,7 +276,12 @@ pythonpath = ["."]
 #   uv run pytest test/demo/              # demo/integration tests only
 #
 # See AGENTS.md "Testing" section for full guidance.
-addopts = "-ra -q -m 'not integration'"
+#
+# `--dist loadgroup` spreads tests across `-n` workers like `load`, except that
+# every test sharing an `xdist_group` mark runs on one worker, in order.  Order-
+# dependent modules (`test/test_process_global_isolation.py`) need that; without
+# `-n` the option is inert.
+addopts = "-ra -q -m 'not integration' --dist loadgroup"
 # Unit-tier per-test timeout.  Raised 5 -> 30 in #2270.
 #
 # `timeout_method = "thread"` cannot cancel one test — it kills the whole pytest
@@ -187,16 +338,10 @@ members = [
     "help",
 ]
 
-[tool.isort]
-profile = "black"
-
 [dependency-groups]
 dev = [
-    "black>=26.5.1",
-    "flake8>=7.3.0",
+    "codespell>=2.4.3",
     "graphifyy>=0.9.43",
-    "isort>=7.0.0",
-    "linkchecker>=10.6.0",
     "mypy>=2.3.0",
     "pandas-stubs>=3.0.5.260730",
     "pre-commit>=4.6.2",
@@ -204,6 +349,33 @@ dev = [
     "pytest>=9.1.1",
     "pytest-timeout>=0.5",
     "pytest-xdist>=3.8.0",
+    "ruff>=0.16.9",
     "types-networkx>=3.6.1.20260728",
     "types-pyyaml>=6.0.12.20260724",
 ]
+
+[tool.codespell]
+# SG-37 mechanical floor (ADR-0092, DF-09-001). `builtin` REPLACES the default
+# dictionaries: only en-GB spellings are checked, so `ignore-words-list` entries
+# for `cna`/`ot` are defensive against a later widening of `builtin`.
+# `write-changes` is deliberately NOT set here — it lives in the pre-commit hook
+# args, so a manual `codespell docs/` is read-only and the hook's `files:` filter
+# keeps codespell from rewriting this very config (see notes/documentation-strategy.md
+# § "codespell is the mechanical floor for spelling").
+builtin = "en-GB_to_en-US"
+ignore-words-list = "cna,ot,dialogues"
+# Tokens that must stay as written, because codespell has no notion of a code
+# fence, an inline code span, a citation, or an include/link target:
+#   py_trees.behaviour.Behaviour   third-party API name, in fences and inline code
+#   Analysing an Email Corpus      cited paper title
+#   6.2.5 Report Acknowledgement   ISO/IEC 29147:2018 clause title (cited)
+#   National Cyber Security Centre proper noun (UK NCSC)
+#   ../../Acknowledgements.md      include-markdown target (repo-root file)
+#   `CANCELLED`                    embargo register status value (ADR-0122), inline code
+ignore-regex = "py_trees\\.behaviour\\.Behaviour|Analysing an Email Corpus|6\\.2\\.5 Report Acknowledgement|National Cyber Security Centre|Acknowledgements\\.md|`CANCELLED`"
+# Paths as codespell sees them — no `./` prefix. Each directory pattern ends in
+# `*` because codespell matches skip globs with fnmatch against the full path,
+# and it sees two shapes: `docs/adr` while walking `codespell docs/`, and
+# `docs/adr/0092-x.md` when the pre-commit hook passes staged filenames. A bare
+# `docs/adr` matches only the first, and the hook then rewrites ADR prose.
+skip = "docs/adr*,docs/reference/code*,docs/reference/case_states*,docs/reference/codebase*,docs/reference/draft-vultron-replication-spec.md,pyproject.toml"

@@ -19,9 +19,9 @@ Covers BTND-03-011 (NoDataAvailable on missing required port) and happy-path
 execution via BTTestScenario for sync Type-B nodes.
 
 Also covers the ``log_entry`` / ``replay_entry`` ledger-handoff type contract
-(#2907): both keys carry a ``VultronCaseLedgerEntry`` and every declaration
+(#2907): both keys carry a ``CaseLedgerEntry`` and every declaration
 says so, so a wrong-typed value is rejected at the port instead of reaching the
-``cast(VultronCaseLedgerEntry, ...)`` in each node's ``update()``.
+``cast(CaseLedgerEntry, ...)`` in each node's ``update()``.
 """
 
 from typing import Any
@@ -31,6 +31,12 @@ import pytest
 from py_trees.ports import NoDataAvailable
 
 import vultron.core.behaviors.sync.nodes as sync_nodes_pkg
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.core.behaviors.port_contract import (
+    PortDecl,
+    decl_id,
+    discover_port_declarations,
+)
 from vultron.core.behaviors.sync.nodes.chain import (
     PersistLogEntryNode,
     UpdateReplicationStateNode,
@@ -38,7 +44,7 @@ from vultron.core.behaviors.sync.nodes.chain import (
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
     CollectNonClosedLogEntryRecipientsNode,
-    _SendLogEntryToEachNode,
+    SendLogEntryToEachNode,
 )
 from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
     IsOfferOwnershipTransferEventNode,
@@ -50,13 +56,7 @@ from vultron.core.behaviors.sync.nodes.receive import (
     CheckHashMatchesNode,
     LogDeliveryConfirmationNode,
 )
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from test.core.behaviors.bt_harness import BTTestScenario
-from test.core.behaviors.port_contract import (
-    PortDecl,
-    decl_id,
-    discover_port_declarations,
-)
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
 ACTOR_ID = "https://example.org/actors/vendor"
 LEDGER_CASE_ID = "https://example.org/cases/case-ledger"
@@ -85,7 +85,6 @@ LEDGER_NODE_KWARGS: dict[str, dict[str, Any]] = {
     "PersistLogEntryNode": {"name": "PersistLogEntry"},
     "SendLogEntryToEachNode": {},
     "SendMissingEntriesNode": {},
-    "_SendLogEntryToEachNode": {},
 }
 
 #: Extra blackboard context a node needs before its ``initialise()`` reaches
@@ -255,25 +254,25 @@ class TestIsOfferOwnershipTransferEventNodePorts:
 
 
 # ---------------------------------------------------------------------------
-# fanout.py — _SendLogEntryToEachNode
+# fanout.py — SendLogEntryToEachNode
 # ---------------------------------------------------------------------------
 
 
 class TestSendLogEntryToEachNodePorts:
     def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = _SendLogEntryToEachNode(name="SendLogEntryToEach")
+        node = SendLogEntryToEachNode(name="SendLogEntryToEach")
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("datalayer")
 
     def test_missing_log_entry_raises_no_data_available(self) -> None:
-        node = _SendLogEntryToEachNode(name="SendLogEntryToEach")
+        node = SendLogEntryToEachNode(name="SendLogEntryToEach")
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("log_entry")
 
     def test_missing_fanout_recipients_raises_no_data_available(self) -> None:
-        node = _SendLogEntryToEachNode(name="SendLogEntryToEach")
+        node = SendLogEntryToEachNode(name="SendLogEntryToEach")
         node.setup_ports()
         with pytest.raises(NoDataAvailable):
             node.get_input("fanout_recipients")
@@ -345,7 +344,7 @@ class TestFanoutCollectorsRequireCase:
         case_id = "https://example.org/cases/absent-case"
         # log_entry is a required port, so provide one — the failure must come
         # from the unresolved case, not from a missing hand-off value.
-        entry = VultronCaseLedgerEntry(
+        entry = CaseLedgerEntry(
             case_id=case_id,
             log_object_id="https://example.org/activities/act-001",
             event_type="close_case",
@@ -371,8 +370,8 @@ class TestFanoutCollectorsRequireCase:
 # ---------------------------------------------------------------------------
 
 
-def _make_ledger_entry() -> VultronCaseLedgerEntry:
-    return VultronCaseLedgerEntry(
+def _make_ledger_entry() -> CaseLedgerEntry:
+    return CaseLedgerEntry(
         case_id=LEDGER_CASE_ID,
         log_object_id="https://example.org/activities/act-001",
         event_type="close_case",
@@ -383,12 +382,12 @@ class TestLedgerPortRosterDiscovery:
     @pytest.mark.parametrize("port", sorted(LEDGER_PORTS))
     def test_port_has_a_reader_and_a_writer(self, port: str) -> None:
         """Guard against a refactor that silently empties the parametrize."""
-        assert any(
-            p == port for _, p in LEDGER_READERS
-        ), f"no {port} readers discovered"
-        assert any(
-            p == port for _, p in LEDGER_WRITERS
-        ), f"no {port} writers discovered"
+        assert any(p == port for _, p in LEDGER_READERS), (
+            f"no {port} readers discovered"
+        )
+        assert any(p == port for _, p in LEDGER_WRITERS), (
+            f"no {port} writers discovered"
+        )
 
     def test_constructor_table_matches_the_discovered_roster(self) -> None:
         """The table and the roster stay in step in both directions.
@@ -409,35 +408,31 @@ class TestLedgerPortRosterDiscovery:
 
 @pytest.mark.spec("BTND-03-009")
 class TestLedgerPortDeclarations:
-    """Every tracked declaration names the ledger-entry class.
+    """Every tracked ledger port declares ``CaseLedgerEntry`` as its type.
 
-    ``VultronCaseLedgerEntry`` is an alias of ``CaseLedgerEntry`` (the same
-    class object), so these assertions check that the declaration is the ledger
-    entry type at all — they do not distinguish the two names, and would pass
-    equally for ``data_type=CaseLedgerEntry``. What the tightening excludes is a
-    value that is not a ``CaseLedgerEntry``.
+    A port typed this way refuses any value that is not a ``CaseLedgerEntry``.
     """
 
     @pytest.mark.parametrize("decl", LEDGER_READERS, ids=decl_id)
     def test_reader_declares_ledger_entry(self, decl: PortDecl) -> None:
         node_cls, port_name = decl
         port = node_cls.input_ports()[port_name]  # type: ignore[attr-defined]
-        assert port.data_type is VultronCaseLedgerEntry
+        assert port.data_type is CaseLedgerEntry
         assert port.required is True
 
     @pytest.mark.parametrize("decl", LEDGER_WRITERS, ids=decl_id)
     def test_writer_declares_ledger_entry(self, decl: PortDecl) -> None:
         node_cls, port_name = decl
         port = node_cls.output_ports()[port_name]  # type: ignore[attr-defined]
-        assert port.data_type is VultronCaseLedgerEntry
+        assert port.data_type is CaseLedgerEntry
         assert port.required is True
 
 
 @pytest.mark.spec("BTND-03-011")
 class TestLedgerPortInputEnforcement:
     # py_trees' blackboard storage is a process-global singleton; the repo-wide
-    # autouse `clear_py_trees_blackboard` in test/core/behaviors/conftest.py
-    # clears it around every test in this tree (TB-06-005).
+    # autouse `clear_py_trees_blackboard` in test/conftest.py
+    # clears it around every test (TB-06-005).
 
     @pytest.mark.parametrize("decl", LEDGER_READERS, ids=decl_id)
     def test_wrong_type_raises_type_error(self, decl: PortDecl) -> None:
@@ -508,6 +503,6 @@ class TestLedgerPortTickLevelEnforcement:
             result, reason="not of type", allow_internal=True
         )
         errors = result.errors or []
-        assert any(
-            "not of type" in err for err in errors
-        ), f"expected a port type-mismatch error, got {errors}"
+        assert any("not of type" in err for err in errors), (
+            f"expected a port type-mismatch error, got {errors}"
+        )

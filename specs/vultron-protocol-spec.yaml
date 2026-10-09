@@ -5,7 +5,6 @@ description: >-
   tracking, Report Management (RM), Embargo Management (EM), CVD Case State (CS) messaging,
   model interactions, and implementation guidance. This is the normative source for protocol
   behavior requirements that implementations must satisfy.
-version: 1.0.0
 scope:
 - prototype
 - production
@@ -45,6 +44,7 @@ groups:
   - id: VP-01-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Correct operation of the protocol MUST NOT depend on perfect information across all
       Participants
@@ -97,6 +97,7 @@ groups:
   - id: VP-02-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Participants MUST NOT close cases or reports from the Valid state
   - id: VP-02-005
     priority: SHOULD
@@ -452,9 +453,13 @@ groups:
     kind: protocol
     statement: A CVD case SHALL NOT have more than one active embargo at a time
     verification: >-
-      Inspection of `vultron/core/states/em.py` confirms the EM state machine
-      has at most one active-embargo state at any time, enforcing the
-      single-active-embargo invariant.
+      The embargo register refuses any step, and any constructed case, that
+      would leave more than one entry `ACTIVE` (ADR-0122 invariant 1,
+      `register_invariant_violations` in
+      `vultron/core/states/embargo_register.py`);
+      `test/core/models/test_embargo_register.py` asserts both refusals.
+    adr:
+    - ADR-0122
     stories:
     - story_2022_014
   - id: VP-04-003
@@ -665,6 +670,7 @@ groups:
   - id: VP-06-001
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       CVD Participants MUST NOT propose or accept a new embargo negotiation when information
       about the vulnerability is already known to the public ($q^{cs} \in \cdots P \cdots$),
@@ -1434,7 +1440,7 @@ groups:
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
-      Participants SHOULD NOT close reports ($q^{rm} \in \{I,D,A\} \xrightarrow{c} C$) while
+      Participants SHOULD NOT close reports ($q^{rm} \in \{R,I,D,A\} \xrightarrow{c} C$) while
       an embargo is active ($q^{em} \in \{A, R\}$)
   - id: VP-13-006
     priority: SHOULD
@@ -1719,6 +1725,7 @@ groups:
   - id: VP-16-001
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Vulnerability details MUST NOT appear in embargo representation data (e.g., embargo
       scheduling or notification messages)
@@ -1748,7 +1755,7 @@ groups:
   specs:
   - id: VP-17-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: All direct mutations to the canonical case state MUST route through the CASE_MANAGER; no participant or use-case
       handler MAY write to canonical case state directly.
     rationale: >-
@@ -1764,11 +1771,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-02-001
-    lint_suppress:
-    - missing_story_reference
   - id: VP-17-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Participant-local case replicas MUST NOT be updated by direct mutation from inbound protocol messages; replicas
       MUST be updated exclusively via ledger replay from `Announce(CaseLedgerEntry)` fan-out.
     rationale: >-
@@ -1809,6 +1815,7 @@ groups:
   - id: VP-18-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       A participant MUST NOT deliver messages directly to another participant's inbox.
     rationale: >-

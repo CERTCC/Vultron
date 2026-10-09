@@ -1,10 +1,14 @@
 ---
 status: accepted
 date: 2026-08-13
+created: 2026-08-13
+updated: 2026-08-13
+revision: 1
 deciders: Allen Householder
 consulted: Claude Code (planning agent for CONCERN-2260)
 informed: Vultron contributors
-partially_superseded_by: docs/adr/0082-wire-core-boundary-pairing-registry.md
+partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
+stakeholder_type: [project-contributor]
 ---
 
 # Render Core Objects to Wire JSON Through a Driven Port; Remove `alias_generator` From All Core-Branch Types
@@ -34,7 +38,7 @@ The reason the alias generator is load-bearing rather than merely wrong is that
 core code needs camelCase JSON for one specific purpose: building
 `CaseLedgerEntry.payloadSnapshot` values. The case ledger's purpose is to wrap
 "things that were received or sent to/from the case manager in the course of
-managing the case", and those are by definition wire-shaped. CLP-07-001 requires
+managing the case", and those are by definition wire-shaped. CLP-07-011 requires
 the snapshot to be the verbatim AS2 activity or a deterministic canonical
 normalization of it, and CLP-01-003/CLP-01-004 make the ledger the replication
 substrate that receivers project into their own replica. A payload snapshot must
@@ -81,7 +85,7 @@ a wire representation".
 
 - ARCH-12-003 (core MUST NOT carry `alias_generator=to_camel`) and SDO-03-003
   (no flat-field shims) are both MUST-level and both currently violated.
-- CLP-07-001 requires payload snapshots to be valid, receiver-reconstitutable
+- CLP-07-011 requires payload snapshots to be valid, receiver-reconstitutable
   wire JSON; ADR-0017's two-branch hierarchy already assigns wire shape to the
   `as_*` branch, which has correct `from_core()` projections.
 - ARCH-01-001 forbids `core/` importing `wire/`; ARCH-01-004 says such
@@ -228,7 +232,7 @@ routes into `_wire_object_from_row` → `_project_wire_row_to_core`
 - A round-trip test asserts that for each core type with a wire counterpart,
   `WireRenderPort.render(core_obj)` equals
   `as_X.from_core(core_obj).model_dump(by_alias=True, exclude_none=True)`, and
-  that the result revalidates through `as_X.model_validate` (CLP-07-001
+  that the result revalidates through `as_X.model_validate` (CLP-07-011
   reconstitutability).
 - A test asserts `ParticipantStatus.model_validate({"rm_state": "RECEIVED"})`
   raises `VultronValidationError` rather than silently yielding `RM.START`.
@@ -274,15 +278,16 @@ routes into `_wire_object_from_row` → `_project_wire_row_to_core`
 ## More Information
 
 - Source concern: #2260. Closes the long-standing violation tracked in #1991.
-- **Mechanism revised by [ADR-0082](0082-wire-core-boundary-pairing-registry.md).**
-  The decision — render core objects to wire JSON through a driven port — stands,
-  and so does the removal of `alias_generator` from the core branch. What changes
-  is step 2 above: the AS2 adapter stops resolving a wire class by name collision
-  and calling that class's `from_core()`, and instead delegates to an
-  adapter-side translator module driven by a declarative core↔wire pairing
-  registry, so that wire classes carry no projection logic at all. Read step 2,
-  and ARCH-20-002's `from_core()` mandate, as revised by that registry once
-  ADR-0082's task set lands.
+- **Mechanism revised by [ADR-0082](archived/0082-wire-core-boundary-pairing-registry.md),
+  itself superseded by [ADR-0099](0099-one-object-model-as2-is-a-serialization.md).**
+  The decision — render core objects to wire JSON through a driven port — stands.
+  ADR-0082 planned to replace step 2 above (resolving a wire class by name
+  collision and calling its `from_core()`) with an adapter-side translator driven
+  by a declarative core↔wire pairing registry; ADR-0099 retired that plan before
+  it landed, because with one object model there is no counterpart to resolve.
+  As built, the port is the core object's own `by_alias` dump (ARCH-20-002), and
+  the `alias_generator` removal this ADR ordered is reversed by ADR-0099 detail 2,
+  which puts the AS2 spelling back on `CoreObject` as the field alias.
 - Related: #2232 (wire-shaped rows on the DataLayer read path, fixed by
   ADR-0062), #2268 (the thirteen remaining wire-shadowing types on the write
   path, not in scope here).

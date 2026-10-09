@@ -128,8 +128,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`configuration.yaml`** - Unified YAML + Pydantic configuration management:
   `AppConfig` structure, `get_config()` / `reload_config()` API, env var
   naming conventions, `SeedConfig` alignment, `ActorConfig` abstraction with
-  `default_case_roles`, testing patterns (note: CFG-06-003 requires direct
-  `_config_cache = None` in test teardown — NOT `reload_config()`)
+  `default_case_roles`, testing patterns (note: CFG-06-003 requires
+  `clear_config_cache()` in test teardown — NOT `reload_config()`)
   (CFG-01 through CFG-07)
 - **`event-driven-control-flow.yaml`** - Event-driven processing model: primary
   event and cascade definitions, cascade chain, external decision nodes,
@@ -232,7 +232,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   pre-bootstrap queue / replay rules, and trusted CaseActor persistence
   (CBT-01 through CBT-05)
 - **`participant-role-management.yaml`** - Role read/mutation API on
-  `VultronParticipant` and `CaseParticipant`: `add_role()`, `remove_role()`,
+  `CaseParticipant`: `add_role()`, `remove_role()`,
   `has_role()`, `roles` property, core-layer no-direct-mutation rule, wire-layer
   interface parity, and test requirements
   (PRM-01 through PRM-05)
@@ -367,12 +367,14 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   via `uv run append-history --from-file`, the `--from-file` CLI flag
   behaviour, and skill documentation update requirements (BW-01 through BW-06)
 - **`parallel-development.yaml`** - Multi-agent coordination via GitHub Issues:
-  issue hierarchy (Epic/Task/Subtask), label taxonomy (`group:`, `size:`,
-  `stale-claim`, `needs-rebase`, `specs-notes`), task claiming protocol (branch
-  as distributed lock), size labeling (AC count + diff-based update), auto-merge
-  rules, pre-PR code review with `[BLOCKING]`/`[ADVISORY]` tags, stale-claim
-  sweeper, merge conflict recovery, and GitHub Issue-based task coordination
-  (PAD-01 through PAD-14). See also `notes/parallel-development.md`.
+  issue hierarchy (Epic/Task/Subtask), label taxonomy (`size:`,
+  `stale-claim`, `needs-rebase`, `specs-notes`, `needs-info`,
+  `ready-for-human`), task claiming protocol (GitHub branch as distributed
+  lock), size labeling (AC count + diff-based update), auto-merge rules,
+  pre-PR code review with `[BLOCKING]`/`[ADVISORY]` tags, stale-claim sweeper,
+  merge conflict recovery, and the two paths through Project #24 (`Schedule`
+  on Epics; mirrored `Status` and PR `Ship stage`). See also
+  `notes/parallel-development.md`.
   Distinct from `agentic-readiness.yaml` (AR), which covers making the
   Vultron protocol code integrable with external agentic tools.
 - **`project-documentation.yaml`** - Documentation file structure and purpose;
@@ -433,7 +435,7 @@ Each requirement has a unique ID: `PREFIX-NN-NNN`
 - **NN**: Category number within specification
 - **NNN**: Requirement number within category
 
-Example: `HP-04-002` = Handler Protocol, category 4 (Payload Access), requirement 2
+Example: `HP-04-001` = Handler Protocol, category 4 (Payload Access), requirement 1
 
 **Note**: The `HP-` prefix is reserved for `handler-protocol.yaml`. The
 `http-protocol.yaml` file uses the `HTTP-` prefix to avoid ambiguity. The

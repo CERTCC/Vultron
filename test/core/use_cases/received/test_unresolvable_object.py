@@ -15,9 +15,15 @@
 
 from typing import cast
 
+import pytest
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.unknown import UnresolvableObjectReceivedEvent
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.unknown import UnresolvableObjectUseCase
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept
@@ -50,7 +56,18 @@ class TestUnresolvableObjectUseCase:
         )
         event = _make_unresolvable_event()
 
-        UnresolvableObjectUseCase(dl, event).execute()
+        result = UnresolvableObjectUseCase(dl, event).execute()
+
+        # HP-01-003: the activity could not be processed; the dead-letter
+        # record is bookkeeping, not an application of the activity (#2255).
+        assert result.disposition == HandlerDisposition.REFUSED
+        # Intake archives the activity that could not be processed
+        # (CLP-10-017).
+        assert isinstance(
+            dl.read(ReceivedActivityRecord.build_id(event.activity_id)),
+            ReceivedActivityRecord,
+        )
+        assert result.reason is not None and "dead-lettered" in result.reason
 
         # by_type("DeadLetterRecord") returns only records of that type;
         # a non-empty result confirms the record was stored correctly.
@@ -113,6 +130,28 @@ class TestUnresolvableObjectUseCase:
         record_data = next(iter(stored.values()))
         assert record_data.get("activity_summary") is not None
 
+    @pytest.mark.spec("ARCH-20-001")
+    def test_activity_summary_is_stored_in_the_persistence_shape(self):
+        """The summary is a local record, so it is not rendered as AS2.
+
+        Core must not render the core-branch activity itself (ARCH-20-001), and a
+        stored record keeps Python field names with no ``@context`` (ADR-0099
+        detail 1), so the summary is the activity's plain dump.
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        event = _make_unresolvable_event()
+
+        UnresolvableObjectUseCase(dl, event).execute()
+
+        record_data = next(iter(dl.by_type("DeadLetterRecord").values()))
+        summary = record_data["activity_summary"]
+        assert summary["object_"] == event.object_id
+        assert "object" not in summary
+        assert "@context" not in summary
+
     def test_execute_is_idempotent(self):
         """Calling execute() twice stores two records (no deduplication at this layer)."""
         dl = SqliteDataLayer(
@@ -144,4 +183,6 @@ class TestUnresolvableObjectUseCase:
 
         assert any(
             UNRESOLVABLE_URI in record.message for record in caplog.records
-        ), f"Expected warning about {UNRESOLVABLE_URI!r} in {[r.message for r in caplog.records]}"
+        ), (
+            f"Expected warning about {UNRESOLVABLE_URI!r} in {[r.message for r in caplog.records]}"
+        )

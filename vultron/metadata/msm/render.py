@@ -75,7 +75,7 @@ _PAGE_TITLES: dict[str, str] = {
     "em": "Embargo Management (EM) Messages",
     "cs": "Case State (CS) Messages",
     "general": "General (GI) Messages",
-    "faults_and_acknowledgements": "Fault and Acknowledgement Mechanisms",
+    "faults_and_acknowledgements": "Fault and Acknowledgment Mechanisms",
     "case_management": "Case Management Wire Activities",
     "case_proposal": "Case Proposal Wire Activities",
     "ledger_replication": "Ledger Replication Wire Activities",
@@ -119,6 +119,11 @@ def _format_pattern(pattern: ActivityPattern) -> str:
     if pattern.context_ is not None:
         if isinstance(pattern.context_, ActivityPattern):
             qualifiers.append(f"context={_format_pattern(pattern.context_)}")
+        elif isinstance(pattern.context_, tuple):
+            # A tuple admits any of several subjects (VAM-05-001); render the
+            # alternatives, not the enum reprs.
+            alternatives = "|".join(_type_name(t) for t in pattern.context_)
+            qualifiers.append(f"context={alternatives}")
         else:
             qualifiers.append(f"context={_type_name(pattern.context_)}")
 
@@ -163,10 +168,7 @@ def _shorthand_cell(row: RowSpec) -> str:
 
 def _render_table_row(row: RowSpec) -> str:
     entry: SemanticEntry | None = _ENTRY_MAP.get(row.semantics)
-    if entry is None:
-        wire = "—"
-    else:
-        wire = _wire_form(entry)
+    wire = "—" if entry is None else _wire_form(entry)
 
     shorthand = _shorthand_cell(row)
     semantics_cell = f"`{row.semantics.name}`"

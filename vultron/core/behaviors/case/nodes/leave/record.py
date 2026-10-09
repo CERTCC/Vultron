@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Ledger recording of the CASE_MANAGER's own ``RM.CLOSED`` transition.
+"""Ledger recording of the CASE_MANAGER's own RM closure transitions.
 
 Separate module from :mod:`.advance` because applying a state change to the
 local store and recording it as a canonical ``CaseLedgerEntry`` are different
@@ -24,43 +24,44 @@ Per CM-23-002 step 2, CM-23-005, ADR-0051.
 """
 
 import logging
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 from py_trees.common import Status
-from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.ledger_snapshots import (
     build_add_participant_status_snapshot,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.states.rm import RM
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.states.rm import RM, rm_closure_path
 from vultron.enums.roles import CVDRole
-
-if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
 
 class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
-    """Record the Case Actor's own ``RM.CLOSED`` transition in the ledger.
+    """Record the Case Actor's own RM closure transitions in the ledger.
 
-    :class:`AdvanceCaseActorToRMClosedNode` writes the transition to the Case
+    :class:`AdvanceCaseActorToRMClosedNode` writes the transitions to the Case
     Actor's *own* store and nothing more.  CM-23-005 requires every CASE_MANAGER
     RM transition to be recorded as a ``CaseLedgerEntry``, and this node is that
-    record: it commits an ``add_participant_status_to_participant`` entry for
-    the freshly written status and fans it out, so every replica observes the
-    terminal state instead of inferring it.
+    record: it commits one ``add_participant_status_to_participant`` entry for
+    each status the closure wrote and fans it out, so every replica observes the
+    terminal state instead of inferring it.  A closure from *Valid* writes two
+    statuses, ``V → D → C`` (RMB-14-005), so it records two entries, in order.
 
     Why the replicas cannot infer it. ``close_case`` names the *departing* actor
     in ``payloadSnapshot.actor``, and the Case Actor never sends itself a
-    ``Leave``, so :class:`~vultron.core.behaviors.sync.nodes.close_case_effect
+    ``Leave``, so :class:`~vultron.core.behaviors.case.nodes.close_case_effect
     .ApplyCloseCaseFromLedgerNode` never fires for it.  ``case_fully_closed``
     is attributed to the *owner* who left, not to the Case Actor, and has no
     effect node at all.  Without this entry the CASE_MANAGER is therefore
@@ -96,24 +97,6 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._case_actor_id = case_actor_id
         self._case_id = case_id
-        self.wire_render_port: "WireRenderPort | None" = None
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "wire_render_port": PortInformation(data_type=object, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"wire_render_port": "/wire_render_port"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.wire_render_port = None
-        try:
-            self.wire_render_port = self.get_input("wire_render_port")
-        except (NoDataAvailable, NotImplementedError):
-            pass
 
     def _best_effort(self, reason: str) -> Status:
         """Log *reason* as a WARNING and return SUCCESS.
@@ -150,24 +133,49 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
         """
         self.feedback_message = f"{self.name}: {reason}"
         logger.warning("%s", self.feedback_message)
-        self.logger.warning(self.feedback_message)
+        self.logger.warning("%s", self.feedback_message)
         return Status.SUCCESS
 
-    def _latest_rm_closed_status(
+    def _closure_statuses(
         self, participant: CaseParticipant
-    ) -> ParticipantStatus | None:
-        """Return the participant's most recent ``RM.CLOSED`` status, if any.
+    ) -> list[ParticipantStatus]:
+        """Return the statuses of the participant's latest RM closure, in order.
 
-        Walks in reverse so the entry committed is the one
-        :class:`AdvanceCaseActorToRMClosedNode` just appended, not an earlier
-        one, on the (currently unreachable) path where more than one exists.
+        The closure ends at the most recent ``RM.CLOSED`` status, walking in
+        reverse so it is the one :class:`AdvanceCaseActorToRMClosedNode` just
+        appended.  Its earlier rungs are the longest run of statuses that,
+        read from the state before them, match
+        :func:`~vultron.core.states.rm.rm_closure_path` — so a ``V → D → C``
+        closure returns the DEFERRED and the CLOSED status, and a one-step
+        closure returns the CLOSED status alone.  The first status is the
+        bootstrap write, never a closure rung, so it is never matched as one.
+        Returns an empty list when the participant has no ``RM.CLOSED``
+        status.
         """
-        for status in reversed(participant.participant_statuses):
-            if not isinstance(status, ParticipantStatus):
-                continue
-            if participant_status_rm_state(status) == RM.CLOSED:
-                return status
-        return None
+        statuses = [
+            status
+            for status in participant.participant_statuses
+            if isinstance(status, ParticipantStatus)
+        ]
+        rms = [participant_status_rm_state(status) for status in statuses]
+        closed_at = next(
+            (i for i in reversed(range(len(rms))) if rms[i] == RM.CLOSED),
+            None,
+        )
+        if closed_at is None:
+            return []
+        # Longest path first: a closure from Valid leaves ``V, D, C``, whose
+        # tail ``D, C`` also reads as a one-step closure from Deferred.  A
+        # DEFERRED rung recorded earlier is skipped by the commit's idempotency.
+        # A window starts at index 1 or later: the status at index 0 is the
+        # bootstrap write (owner.py may seed RECEIVED), and reading it as the
+        # R rung of an S → R → C closure would ledger it after the fact.
+        longest = max(len(rm_closure_path(source)) for source in RM)
+        for first in range(max(closed_at - longest + 1, 1), closed_at + 1):
+            source = rms[first - 1]
+            if tuple(rms[first : closed_at + 1]) == rm_closure_path(source):
+                return statuses[first : closed_at + 1]
+        return [statuses[closed_at]]
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -180,6 +188,13 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
             # the whole point of the entry — so skip the entry rather than
             # commit an empty payload. Loudly: ISSUE-2505 was masked for months
             # by a silently absent wire_render_port on the genesis commit path.
+            #
+            # Deliberately *not* _require_wire_render_port(): elsewhere a
+            # missing port is a wiring fault that raises, but this entry sits
+            # inside CM-23-002's closure Sequence, and _best_effort() explains
+            # why losing the entry is the lesser loss.  In a composed tree the
+            # Leave's own guarded commit has already required the port, so
+            # this branch is reached only when this node alone is blind to it.
             return self._best_effort(
                 "no WireRenderPort — cannot render the CASE_MANAGER's"
                 " RM.CLOSED ParticipantStatus snapshot, so it is not recorded"
@@ -232,8 +247,8 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        status = self._latest_rm_closed_status(participant)
-        if status is None:
+        closure = self._closure_statuses(participant)
+        if not closure:
             # AdvanceCaseActorToRMClosedNode runs immediately before this node
             # and fails if it cannot write, so reaching here means the write
             # landed somewhere this store cannot see. Nothing to record.
@@ -245,10 +260,45 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
+        for status in closure:
+            reason = self._commit_status(status, participant)
+            if reason is not None:
+                return self._best_effort(reason)
+
+        self.logger.info(
+            "%s: recorded case actor '%s' RM closure (%s) as canonical ledger"
+            " entries for case '%s' (CM-23-005, ADR-0051)",
+            self.name,
+            self._case_actor_id,
+            " -> ".join(
+                participant_status_rm_state(status).name for status in closure
+            ),
+            self._case_id,
+        )
+        return Status.SUCCESS
+
+    def _commit_status(
+        self, status: ParticipantStatus, participant: CaseParticipant
+    ) -> str | None:
+        """Commit one closure status as a canonical ledger entry.
+
+        Idempotent: ``CreateLogEntryNode`` skips an entry that already exists
+        for the same object, so a rung an earlier run recorded is not recorded
+        twice.
+
+        Returns:
+            ``None`` once the entry is committed; otherwise the reason it was
+            not, for :meth:`_best_effort`.
+        """
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        assert self.wire_render_port is not None
+
+        rm_name = participant_status_rm_state(status).name
         status_id = getattr(status, "id_", None)
         if not status_id:
-            return self._best_effort(
-                "RM.CLOSED ParticipantStatus for case actor"
+            return (
+                f"RM.{rm_name} ParticipantStatus for case actor"
                 f" '{self._case_actor_id}' has no id_"
             )
 
@@ -258,11 +308,6 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
             self.actor_id,
             self._case_id,
             self.wire_render_port,
-        )
-
-        from vultron.core.behaviors.bridge import BTBridge  # noqa: PLC0415
-        from vultron.core.behaviors.sync.commit_tree import (  # noqa: PLC0415
-            create_commit_log_entry_tree,
         )
 
         result = BTBridge(
@@ -279,17 +324,9 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
         if result.status != Status.SUCCESS:
             # The reachable one: CheckLedgerFreshnessNode opens the commit tree
             # and fails on a gapped local prefix by design (SYNC-10-001/002).
-            return self._best_effort(
-                "could not commit the CASE_MANAGER's RM.CLOSED entry for case"
-                f" '{self._case_id}' (best-effort):"
+            return (
+                f"could not commit the CASE_MANAGER's RM.{rm_name} entry for"
+                f" case '{self._case_id}' (best-effort):"
                 f" {result.feedback_message}"
             )
-
-        self.logger.info(
-            "%s: recorded case actor '%s' RM.CLOSED as a canonical ledger"
-            " entry for case '%s' (CM-23-005, ADR-0051)",
-            self.name,
-            self._case_actor_id,
-            self._case_id,
-        )
-        return Status.SUCCESS
+        return None

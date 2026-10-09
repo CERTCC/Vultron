@@ -20,46 +20,26 @@ from typing import Any, Literal
 from pydantic import (
     AliasChoices,
     Field,
-    computed_field,
     field_serializer,
     field_validator,
     model_validator,
 )
 
-from pydantic.alias_generators import to_camel
-
+from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import (
+    DDimension,
+    RmDimension,
+    VfDimension,
+)
+from vultron.core.models.wire_keys import input_keys
 from vultron.core.states.cs import CS_d, CS_vf
-from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.core.states.rm import RM, is_rm_write_permitted
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronProtocolViolationError,
     VultronValidationError,
 )
-from vultron.core.models.base import CoreObject, NonEmptyString
-from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.dimensions import (
-    DDimension,
-    PecDimension,
-    RmDimension,
-    VfDimension,
-)
-from vultron.core.models.wire_keys import input_keys
-
-
-def coerce_em_consent_state(value: object) -> PEC | None:
-    if value is None:
-        return None
-    if isinstance(value, PEC):
-        return value
-    if isinstance(value, str):
-        # ADR-0091 renamed NO_EMBARGO → UNBOUND; migrate stored legacy values.
-        if value == "NO_EMBARGO":
-            return PEC.UNBOUND
-        return PEC(value)
-    raise TypeError(
-        f"Unsupported em_consent_state type: {type(value).__name__}"
-    )
 
 
 def coerce_cvd_roles(value: object) -> list[CVDRole]:
@@ -100,9 +80,10 @@ class ParticipantStatus(CoreObject):
     ``case_status`` embeds the participant's perspective on the case-level
     state (em and pxa) via a nested :class:`CaseStatus` object.
 
-    ``rm``, ``vf``, ``d``, and ``consent`` are dimension objects that own the
-    RM, VF, D, and PEC state machines respectively (ADR-0036, ADR-0075,
-    SDO-03-002).  ``vf`` is non-None for VENDOR participants; ``d`` is
+    ``rm``, ``vf``, and ``d`` are dimension objects that own the RM, VF, and D
+    state machines respectively (ADR-0036, ADR-0075, SDO-03-002).  The status
+    carries no embargo consent: consent is per (participant, embargo) and lives
+    on the ``CaseParticipant`` (ADR-0122, CM-18-001).  ``vf`` is non-None for VENDOR participants; ``d`` is
     non-None for DEPLOYER participants; a participant with both roles carries
     both.
     """
@@ -133,20 +114,6 @@ class ParticipantStatus(CoreObject):
         serialization_alias="dState",
     )
     case_engagement: bool = True
-    consent: PecDimension | None = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "emConsentState", "em_consent_state", "consent"
-        ),
-        serialization_alias="emConsentState",
-    )
-
-    @computed_field  # type: ignore[misc]
-    @property
-    def embargo_adherence(self) -> bool:
-        """True iff consent.state == SIGNATORY; False otherwise (CM-18-008, ADR-0056)."""
-        return self.consent is not None and self.consent.is_signatory()
-
     cvd_role: list[CVDRole] = Field(default_factory=lambda: [CVDRole.OBSERVER])
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None
@@ -166,8 +133,8 @@ class ParticipantStatus(CoreObject):
         exclude=True,
         description=(
             "Suppress the construction-time RM adjacency check. Set only by the"
-            " sanctioned closure call sites (same semantics as"
-            " CreateParticipantStatusNode.force_rm_state). Not serialised."
+            " bootstrap writes of a participant's first status (same semantics"
+            " as CreateParticipantStatusNode.force_rm_state). Not serialised."
         ),
     )
 
@@ -179,41 +146,11 @@ class ParticipantStatus(CoreObject):
     # above accept all three spellings, and ``_ScalarDimension``'s
     # ``_accept_bare_state`` accepts the bare state value the flat form carries.
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_retired_vfd_keys(cls, data: Any) -> Any:
-        """Refuse the retired ``vfd_state``/``vfdState`` key (SDO-03-005).
-
-        ADR-0075 split the combined VFD dimension into ``vf`` (vendor fix) and
-        ``d`` (deployer deployment).  ``vfd_state`` names neither, so it matches no
-        field and no alias — Pydantic's ``extra="ignore"`` default would discard it
-        and leave both dimensions at their initial states.  That is silent protocol
-        state loss, so it is refused instead.
-
-        Relocated here from ``as_ParticipantStatus`` when that class was collapsed
-        into this one (ADR-0099 detail 3, AC-4).  It is the one piece of the wire
-        class's behaviour with no core equivalent: the camelCase guards it sat
-        beside are obsolete now that core derives AS2 spellings, but a *retired*
-        name is not a spelling of anything, so this guard is still load-bearing.
-
-        Raises ``VultronProtocolViolationError``, which subclasses ``ValueError``
-        so Pydantic reports it as a validation failure rather than letting it
-        escape ``model_validate()``.
-        """
-        # The camelCase form is derived, not written out: ADR-0099 detail 2 keeps
-        # AS2 spellings out of core logic, and an architecture test enforces it
-        # (test_core_no_as2_spellings).  Deriving also guarantees the guard matches
-        # whatever the project's own generator would have produced.
-        retired = "vfd_state"
-        if isinstance(data, dict) and (
-            retired in data or to_camel(retired) in data
-        ):
-            raise VultronProtocolViolationError(
-                f"{retired}/{to_camel(retired)} is retired (ADR-0075). Use"
-                " vf_state for vendor participants and d_state for deployer"
-                " participants instead."
-            )
-        return data
+    # Nor is there a retired-key reject-guard for ``vfd_state``/``vfdState``
+    # (ADR-0075).  ``extra="forbid"`` refuses it on in-process and stored data
+    # (SDO-03-005), and on inbound data the parse edge refuses it by name from
+    # the wire-side list ``vultron.wire.as2.unknown_keys.RETIRED_NAMES``
+    # (MV-11-002, MV-11-004).
 
     @model_validator(mode="before")
     @classmethod
@@ -264,20 +201,18 @@ class ParticipantStatus(CoreObject):
         a no-op when that field is ``None`` (most construction sites do not have
         the previous state in scope).  Same-state re-assertions are allowed
         (idempotent), consistent with how ``_rm_violations`` treats them.  Pass
-        ``force_rm_state=True`` to bypass — only the three sanctioned closure
-        call sites should ever do this.
+        ``force_rm_state=True`` to bypass — only the enumerated bootstrap writes
+        should ever do this; closure never does (RMB-14-005).
         """
         prev = self.previous_rm_state
         if prev is not None and not self.force_rm_state:
             requested = self.rm.state
-            if requested != prev and not is_valid_rm_transition(
-                prev, requested
-            ):
+            if not is_rm_write_permitted(prev, requested):
                 raise VultronProtocolViolationError(
                     f"Invalid RM transition at construction:"
                     f" {prev!r} → {requested!r} (not adjacent)."
                     " Pass force_rm_state=True to override"
-                    " (only sanctioned closure sites)."
+                    " (only enumerated bootstrap writes)."
                 )
         return self
 
@@ -388,10 +323,10 @@ def participant_status_rm_state(status: object) -> RM:
         raise VultronValidationError(
             f"ParticipantStatus {getattr(status, 'id_', status)!r} has no 'rm'"
             f" dimension (got a {type(status).__name__}). Core"
-            " ParticipantStatus uses a nested 'rm: RmDimension'; the wire"
-            " shape uses a flat 'rm_state'. Convert at the wire→core boundary"
-            " (as_ParticipantStatus.to_core()) instead of reading the wire"
-            " shape here. See issue #2232."
+            " ParticipantStatus carries a nested 'rm: RmDimension', and a"
+            " flat 'rm_state' key is refused at parse (ARCH-12-003), so a"
+            " value with no 'rm' was never a validated status. See issue"
+            " #2232."
         )
     state = getattr(rm, "state", None)
     if not isinstance(state, RM):

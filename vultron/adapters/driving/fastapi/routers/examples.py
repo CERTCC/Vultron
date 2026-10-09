@@ -23,6 +23,7 @@ from fastapi import APIRouter
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.examples import vocab_examples
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
@@ -30,6 +31,12 @@ from vultron.wire.as2.vocab.objects.case_status import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.embargo_policy import as_EmbargoPolicy
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 from vultron.wire.as2.vocab.objects.vultron_actor import (
     as_VultronApplication,
     as_VultronGroup,
@@ -37,13 +44,6 @@ from vultron.wire.as2.vocab.objects.vultron_actor import (
     as_VultronPerson,
     as_VultronService,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
-from vultron.wire.as2.vocab.examples import vocab_examples
 
 _ACTORS_BASE = "https://example.org/actors"
 _PREFERRED_DURATION = timedelta(days=90)
@@ -79,7 +79,8 @@ def get_example_actor() -> AS2JSONResponse:
         vocab_examples.vendor,
         vocab_examples.coordinator,
     ]
-    func = random.choice(options)
+    # Picks a sample document to display; nothing depends on it being secret.
+    func = random.choice(options)  # noqa: S311
 
     return AS2JSONResponse(func())
 

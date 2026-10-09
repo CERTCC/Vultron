@@ -24,14 +24,18 @@ framework imports allowed here.
 import logging
 from collections.abc import Callable
 
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.ports.case_persistence import (
-    CasePersistence,
-    CaseOutboxPersistence,
-)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.core.use_cases._helpers import _find_case_actor_id
-from vultron.errors import VultronNotFoundError
+from vultron.core.services.embargo_ordering import (
+    earliest_expiring_embargo_id,
+)
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -56,24 +60,35 @@ def resolve_case(case_id: str, dl: CasePersistence) -> VulnerabilityCase:
     return case_raw
 
 
-def find_embargo_proposal_id(case: VulnerabilityCase) -> str | None:
-    """Return the first pending embargo proposal ID from core state.
+def find_embargo_proposal_id(
+    case: VulnerabilityCase, dl: CasePersistence
+) -> str | None:
+    """Return the earliest-expiring open embargo proposal ID from core state.
 
     Looks up ``case.pending_embargo_proposal_index`` (embargo_id → proposal_id)
-    and returns the first proposal ID found.  Returns None if no pending
-    proposal is recorded.  ADR-0035: no DL wire re-read.
+    and selects the entry whose ``EmbargoEvent.end_time`` is earliest
+    (EP-08-001, EP-08-002, ADR-0100) — never the first recorded, because a
+    counter-proposal is recorded *after* the terms it supersedes.  Returns
+    None when no pending proposal is recorded.  ADR-0035: no DL wire re-read;
+    the embargo records read here are core objects.
+
+    Raises:
+        VultronNotFoundError: If an indexed embargo does not resolve in *dl*.
+        VultronValidationError: If one resolves to something that cannot be
+            ordered (EP-08-002 fails closed rather than picking arbitrarily).
     """
-    index = case.pending_embargo_proposal_index
-    for proposal_id in index.values():
-        if proposal_id:
-            return proposal_id
-    return None
+    index = {
+        embargo_id: proposal_id
+        for embargo_id, proposal_id in case.pending_embargo_proposal_index.items()
+        if proposal_id and case.proposal_is_undecided(embargo_id)
+    }
+    if not index:
+        return None
+    return index[earliest_expiring_embargo_id(dl, index)]
 
 
 def _coerce_embargo_event(raw_embargo: object, embargo_id: str) -> object:
     """Normalize a persisted embargo record; raise domain errors on failure."""
-    from vultron.errors import VultronNotFoundError, VultronValidationError
-
     if getattr(raw_embargo, "type_", "") == "EmbargoEvent":
         return raw_embargo
     if raw_embargo is None:
@@ -83,29 +98,19 @@ def _coerce_embargo_event(raw_embargo: object, embargo_id: str) -> object:
     )
 
 
-def _is_case_owner(case: object | None, actor_id: str) -> bool:
-    """Return True when ``actor_id`` matches the case owner."""
-    from vultron.core.models._helpers import _as_id
-
-    if case is None:
-        return False
-    owner_id = _as_id(getattr(case, "attributed_to", None))
-    return owner_id is not None and owner_id == actor_id
-
-
 def _resolve_embargo_proposal(
     case: VulnerabilityCase,
     proposal_id: str | None,
+    dl: CasePersistence,
 ) -> str:
     """Return the proposal ID for a pending embargo on *case*.
 
     When *proposal_id* is provided it is used directly (after verifying it
     appears in ``case.pending_embargo_proposal_index``).  When absent, the
-    first entry in the index is used.  Raises ``VultronNotFoundError`` when
-    no pending proposal can be located.  ADR-0035: no DL wire re-read.
+    earliest-expiring open proposal is used (EP-08-002).  Raises
+    ``VultronNotFoundError`` when no pending proposal can be located.
+    ADR-0035: no DL wire re-read.
     """
-    from vultron.errors import VultronNotFoundError
-
     index = case.pending_embargo_proposal_index
 
     if proposal_id:
@@ -113,7 +118,7 @@ def _resolve_embargo_proposal(
             raise VultronNotFoundError("EmbargoProposal", proposal_id)
         return proposal_id
 
-    resolved = find_embargo_proposal_id(case)
+    resolved = find_embargo_proposal_id(case, dl)
     if resolved is None:
         raise VultronNotFoundError(
             "EmbargoProposal",
@@ -131,8 +136,6 @@ def _resolve_embargo_id_from_proposal_id(
     The index maps embargo_id → proposal_id; this function inverts the lookup.
     Raises ``VultronValidationError`` when the proposal_id is not found.
     """
-    from vultron.errors import VultronValidationError
-
     for embargo_id, pid in case.pending_embargo_proposal_index.items():
         if pid == proposal_id:
             return embargo_id
@@ -151,36 +154,10 @@ def send_case_actor_activity(
     activity_builder: Callable[[str], list[str]],
 ) -> None:
     """Send an activity to the case manager via the sender-side BT."""
-    from py_trees.common import Status
-
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.sender.send_tree import sender_side_bt
-
     bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
     tree = sender_side_bt(case_id=case_id, activity_builder=activity_builder)
     result = bridge.execute_with_setup(tree, actor_id=actor_id)
     if result.status != Status.SUCCESS:
-        from vultron.errors import VultronValidationError
-
         raise VultronValidationError(
             f"{failure_label} failed: {BTBridge.get_failure_reason(tree)}"
         )
-
-
-def _prepare_delegated_context(
-    dl: CasePersistence,
-    case_id: str,
-    requesting_actor_id: str,
-) -> tuple[str, str | None]:
-    """Return (actor_id, attributed_to) for a CaseActor-delegated trigger.
-
-    Implements the delegated-message contract (CM-24-001 through CM-24-003):
-    when a CaseActor is present, the activity MUST be sent under the
-    CaseActor's identity (actor_id) with the requesting actor recorded in
-    attributed_to.  When no CaseActor exists the requesting actor sends
-    directly and attributed_to is None.
-    """
-    case_actor_id = _find_case_actor_id(dl, case_id)
-    actor_id = case_actor_id if case_actor_id else requesting_actor_id
-    attributed_to = requesting_actor_id if case_actor_id else None
-    return actor_id, attributed_to

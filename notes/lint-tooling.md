@@ -6,26 +6,23 @@ description: >
   linter and formatter, family-level `select` with a short annotated `ignore`,
   and `RUF100` as the mechanism that keeps baselined findings from becoming
   permanent. Records what belongs in an `ignore` entry, how to tighten the
-  ruleset, and which pitfalls the flake8-era setup left behind.
+  ruleset, which pitfalls the flake8-era setup left behind, and how the commit
+  loop changed when ruff replaced it.
 related_specs:
   - specs/tech-stack.yaml
   - specs/code-style.yaml
+  - specs/structured-logging.yaml
+  - specs/behavior-tree-node-design.yaml
+  - specs/meta-specifications.yaml
 related_notes:
   - notes/devcontainer-tooling.md
   - notes/ci-workflow-authoring.md
+  - notes/structured-logging.md
 ---
 
 # Lint Tooling Policy — Ruff Configuration, Exclusions, and Baselining
 
-> **Status: decided, not yet built.** ADR-0094 is accepted, but the configuration
-> this note describes lands with **#3352**. Until it does, `ruff` is not installed,
-> there is no `[tool.ruff]` table in `pyproject.toml`, and flake8, black and isort
-> are still the live gate. Read what follows as the policy that governs the ruff
-> config once it exists — not as a description of the current tree.
-> [notes/devcontainer-tooling.md](devcontainer-tooling.md) remains authoritative
-> for today's commit loop.
-
-Ruff is to be the sole Python linter and formatter (IMPLTS-07-017). `mypy` and
+Ruff is the sole Python linter and formatter (IMPLTS-07-017). `mypy` and
 `pyright` remain separate type-checking jobs. Black, flake8 and isort are retired
 by ADR-0094 and MUST NOT be reintroduced alongside ruff — leaving a superseded
 linter in place as a fallback recreates the duplicate-gate problem that decision
@@ -38,14 +35,18 @@ here (MS-16-001) — read them from the ADR, where they carry a measurement date
 
 ## Invoke with no path arguments
 
-Every caller that acts as a **gate** — a CI job, a pre-commit hook, an agent
-skill, or a documented developer command — MUST run exactly these, with **no
-paths**:
+Every caller that acts as a **gate** — a CI job, an agent skill, or a
+documented developer command — MUST run exactly these, with **no paths**:
 
 ```bash
 uv run ruff check          # or --fix
 uv run ruff format         # or --check
 ```
+
+The pre-commit hook is the one caller that passes paths, and it does not choose
+them: pre-commit appends the staged filenames, and `force-exclude = true` (below)
+makes ruff apply the config's exclusions to them, so the hook's scope is still
+the config's. Its `entry` names no path of its own.
 
 Scope lives in the config, never in the invocation (**IMPLTS-07-021**). This is
 not a style preference — a scope expressed as arguments is duplicated at every
@@ -61,10 +62,11 @@ names a package is narrowing the gate by accident.
 When you change scope, verify with:
 
 ```bash
-uv run ruff check --show-files | wc -l
+uv run ruff check --show-files > /tmp/ruff-files-after.txt
 ```
 
-**Not** `--show-settings`. See the two silent failures below for why.
+and diff that list against the one from before the change. **Not**
+`--show-settings`. See the two silent failures below for why.
 
 ## Two scoping mechanisms that fail silently
 
@@ -94,6 +96,15 @@ explicitly on the command line even when the config excludes it. Pre-commit
 passes staged filenames, so without this flag the hook and the CI job disagree
 about scope — the exact drift this whole section exists to prevent.
 
+`force-exclude` applies the config's `exclude` patterns only, **not**
+`.gitignore`. Discovery (`respect-gitignore`, the default) skips gitignored
+paths, but a file named on the command line is linted even when it is ignored.
+So a file force-added under a gitignored directory (`git add -f devlogs/x.py`)
+is linted by the hook and skipped by the CI job. No tracked Python file is
+gitignored today — `git ls-files -ci --exclude-standard` lists any that are —
+and the fix, if one appears, is to move it or name its path in `exclude`, not
+to turn `respect-gitignore` off.
+
 ## The shape of the configuration
 
 Everything belongs in `[tool.ruff]` in `pyproject.toml`. Four settings carry
@@ -106,6 +117,15 @@ breaks a requirement:
 | `target-version` | IMPLTS-01-001, the Python floor |
 | `[tool.ruff.lint.mccabe] max-complexity` | IMPLTS-07-008, the complexity gate, formerly in `.flake8` |
 | `per-file-ignores` for `__init__.py` | the `.flake8` re-export exemption |
+
+`per-file-ignores` also holds a few **permanent** exemptions, each justified in
+the comment beside it: `S311` (non-cryptographic `random`) for the `vultron/bt/`
+simulator, the demo fuzzers and `test/`, which draw random outcomes by design;
+and `S603`/`S607` (subprocess with an argv list, resolved on `PATH`) for the dev
+tooling in `vultron/metadata/`, `scripts/`, `.agents/` and `test/`. These are
+standing reasons of the kind an `ignore` entry needs, narrowed to the directories
+where they hold. They are not a baseline store — see below for why a file-scoped
+list cannot be one.
 
 `C901` is the project's **only** complexity gate. The `PLR09xx` counters
 (arguments, returns, branches, statements) are excluded on purpose: a second,
@@ -152,25 +172,83 @@ An acceptable reason is one of:
 project-wide. That is what baselining is for, below. Excluding a rule hides
 future violations too; baselining does not.
 
-### Two exclusions worth knowing about
+### Exclusions worth knowing about
 
-**`PLC0415` (`import-outside-top-level`) is excluded, and that exclusion is
-provisional.** Function-local imports are this codebase's cycle-break idiom, at
-a scale that makes CS-05-002's "last resort" framing describe an aspiration
-rather than the design. Whether the spec is stale or the codebase has drifted is
-an open question tracked as **#3350** — a premise question, not a lint question.
-Do not enable the rule to force the issue; the resolution has to decide the
-target state first.
+**`PLC0415` (`import-outside-top-level`) was excluded in the configuration that
+issue #3352 landed, and #3949 deleted that entry and placed the markers; #3950
+drained them, so `vultron/` carries none.** Its ADR-0094 row was provisional and
+pointed at #3350, which asked whether CS-05-002's "last resort" described the
+design or an aspiration. The planning measurement answered it: hoisting every
+function-local import in `vultron/` to module level and importing every module
+showed that the overwhelming majority hoist cleanly — habit, not cycle breaks —
+and only a handful of files actually break a cycle. (Counts and the measurement
+date belong in the implementation issues, not here — MS-16-001.) Most of the
+tree-wide total sits in `test/`, where a test-local import is an isolation idiom
+CS-05-002 was never about.
 
-**`G004` (`logging-f-string`) is excluded, and that exclusion is provisional
-too.** F-strings in log calls defeat lazy formatting, so this is a rule the
-project agrees with. It is excluded because the rewrite has no agreed target: the
-choice between lazy `%`-args and structured `extra=` fields belongs to the
-structured-logging requirements (`specs/structured-logging.yaml`), which have not
-settled it. Tracked as **#3378**, and that citation is what the entry rests on —
-by the four reasons above, "we agree with the rule but the fix is a design
-question" is only acceptable as a provisional exclusion with an issue attached.
-Delete the entry when #3378 resolves.
+So the rule is **enabled**, and the resolution has three parts (CS-05-002,
+CS-05-005, CS-05-006):
+
+- `per-file-ignores` carries `"test/**" = ["PLC0415"]`. Test-local imports stay.
+- Every habit site in `vultron/` is hoisted.
+- Every genuine cycle break in `vultron/` was baselined with a `# noqa: PLC0415`
+  marker citing the issue that removes it structurally (the baseline form
+  below), and #3950 removed every one by reorganization. A new deferred import
+  in `vultron/` fails the gate; a new cycle is a new reorganization, not a
+  marker.
+
+A hoist that closes a cycle fails only when the cycle is entered at one
+particular module, so neither pytest's collection order nor one process's import
+order proves it safe. `test/architecture/test_every_module_imports_fresh.py`
+(integration tier) imports every `vultron/` module as the first member of its
+import cycle to load, so a hoist that closes a cycle fails there, whichever
+module a deployment happens to import first. It is also how to check whether a
+marker is still needed: hoist the import and run that test.
+
+The cycles the measurement found, and how #3950 broke each. Every one but the
+first closed through an eager package `__init__` re-export, never module to
+module, so each fix removes the one package-level edge pointing back:
+
+| Cycle | How it was broken |
+|---|---|
+| persistence ports | `CaseOutboxPersistence` importers name `core/ports/case_outbox.py` directly; `case_persistence.py` lost its PEP 562 `__getattr__` |
+| publication trees ↔ call-out bundles | the publication-intent contract moved to `report/publication_intent.py` (`publish_artifact_tree.py` was never in the cycle) |
+| hypercube ↔ its pattern modules | `valid_states()` and `CS_EVENT_LETTERS` moved from the hypercube to `case_states/validations.py`, which imports neither the hypercube nor the patterns |
+| BT node → use-case helper (BTND-04-003) | the replica-seeding helpers moved to `core/services/case_replica_seeding.py` (BT-22-005) |
+| embargo tree and nodes ↔ status/sync node packages | `EmitCaseStatusUpdateNode` moved to the shared `behaviors/case_status_snapshot.py` (BTND-04-001); `sync/__init__` stopped re-exporting the announce tree; the `close_case` effect moved from `sync/nodes` to `case/nodes`, and the embargo relay replay effects (#3915) live in `embargo/nodes/relay_effect.py` for the same reason, with `sync/nodes` naming their event type through `MessageSemantics` rather than importing it from `embargo/nodes` |
+| `sync` package ↔ `case/nodes` | `sync/__init__` stopped re-exporting the reject and commit trees: `reject_tree` imports `case.nodes`, whose `actor` node commits through `sync.commit_tree`. This cycle carried no marker; the code review on #4114 found it |
+| inbox pipeline ↔ use cases | the dead-letter tree left the inbox package for its own area, `behaviors/dead_letter/` (IO-02-003) |
+
+Each was a CS-05-003 finding: a shared symbol that belongs in a neutral module
+or on the side of the cycle that owns it. That is the pattern for a new one: find
+the package `__init__` that makes the edge, then move the symbol, not the
+import. A PEP 562 module `__getattr__` that calls `importlib` is the same
+deferral in a form `PLC0415` cannot see; #4106 removed the last of those, from
+`case/nodes`, and none should come back.
+
+**`G004` (`logging-f-string`) was the other provisional exclusion in the
+configuration that #3352 landed with, and that entry too was deleted, not
+kept — #3991 removed it.** Its ADR-0094 row cited #3378, which asked whether the
+rewrite target was lazy `%`-args or structured `extra=` fields. The answer is these
+were never alternatives: the template-plus-args shape decides how the *message*
+gets its values (SL-01-005), while `extra=`-style record fields are the
+correlation mechanism (SL-02-003, built by #3992) and are set by a boundary
+filter rather than per call. So the rule is **enabled**: #3991 rewrites every
+f-string log call to a literal template with positional args and places no
+marker. Ruff's `G004` fix is available only under `--preview --unsafe-fixes` and
+declines a placeholder that carries a conversion or format spec (`{x!r}`,
+`{x:>5}`), so the bulk is autofixed one category at a time per ADR-0094 and the
+residue is hand work; either way the rewrite is bounded, and "too many to fix
+now" is not a reason to exclude (above). The reasoning is in
+[notes/structured-logging.md](structured-logging.md) § "Log-Call Shape: Template
+Plus Lazy Arguments (SL-01-005)".
+
+With #3991 landed, the `G004` entry is gone, the whole `G` family runs with no
+`ignore` entry and no `# noqa: G00x` marker, and a new f-string log call fails
+the gate. With the `PLC0415` entry gone too (#3949), **no entry in `ignore`
+cites a tracking issue**: every remaining exclusion rests on one of the first
+three standing reasons above. A new provisional exclusion needs a new issue, and
+this section should name it.
 
 ## Baselining: `RUF100` is the ratchet
 
@@ -229,30 +307,45 @@ eradication carried by epic #3329, so they add a gate, not a backlog.
 Never tighten by enabling a family. Families are the coarse dial for what is
 already clean; individual rules are the dial for taking on new debt.
 
-## Consequences for the commit loop (once #3352 lands)
+## Consequences for the commit loop
 
-Ruff will make the whole-tree lint and format gate roughly a second, which changes
-three habits the flake8 era requires:
+Ruff makes the whole-tree lint and format gate roughly a second, which changed
+the habits the flake8 era required:
 
-- The pre-commit ruff hook is to be invoked **directly**, not through
+- The pre-commit ruff hook is invoked **directly**, not through
   `.agents/skills/shared/run-if-changed.sh`. Fingerprint memoization (#3153)
   exists to avoid repeating expensive whole-tree work; at this speed the cache
   lookup costs a meaningful fraction of the work it is avoiding, so the wrapper
   stops paying for itself. `run-if-changed.sh` stays in place for `mypy` and
   `pyright`, which remain the genuinely slow checks.
 - The ten-minute `git commit` timeout that
-  [notes/devcontainer-tooling.md](devcontainer-tooling.md) prescribes exists
-  because the flake8 hook lints all of `vultron/` and `test/` regardless of what is
-  staged. Retiring that hook removes the cause, so #3352 (AC-11) updates that note
-  to say what remains instead of leaving a dead workaround prescribed. Until then
-  the timeout is still needed.
+  [notes/devcontainer-tooling.md](devcontainer-tooling.md) used to prescribe
+  existed because the flake8 hook linted all of `vultron/` and `test/` regardless
+  of what was staged. The ruff hook lints only the staged files, so that cause is
+  gone; that note records what remains.
 - `ruff check` is cheap enough to run repeatedly while editing, rather than once
   before committing.
-- **Do not run a whole-tree `ruff check --fix`** to clean up as you go: it will
-  autofix files your change has nothing to do with, and a mechanical rewrite
-  riding along in an unrelated diff is the drift that bit #3244. This is the one
-  place the no-paths rule above does not settle the question, because it governs
-  *gates* — the CI job, the hook, the skills — and `--fix` is not a gate. For an
-  interactive cleanup, name the files you touched (`ruff check --fix <paths>`) and
-  understand that you are deliberately narrowing scope for that one run. Never
-  encode a path into anything a gate invokes.
+- **Read `ruff check` before you `--fix`.** CI and the hook hold the tree at zero
+  findings, so a bare `ruff check --fix` normally rewrites only the files your
+  change touched — which is why `run-linters` and `format-code` run it bare. When
+  `ruff check` reports a finding in a file you did **not** touch (a ruff upgrade,
+  a newly selected rule, a branch behind `main`), do not `--fix` the whole tree:
+  a mechanical rewrite riding along in an unrelated diff is the drift that bit
+  #3244. Name the files you touched (`ruff check --fix <paths>`) for that one run,
+  and take the rest to its own PR. This is the one place the no-paths rule above
+  does not settle the question, because it governs *gates* — the CI job, the
+  hook, the skills' checks — and `--fix` is not a gate. Never encode a path into
+  anything a gate invokes.
+
+## Breaking an Import Cycle Is Housekeeping, Not an ADR
+
+A refactor whose only purpose is to break an import cycle (hoisting a shared
+type or constant into a leaf module, moving a function to the layer that already
+owns its dependencies) does not need an ADR. It changes no behaviour, no public
+contract and no layer rule, so there is no rejected alternative to record
+(MS-11-002, MS-11-005). Do it in the PR that hit the cycle and say so in the body.
+Draft an ADR only if breaking the cycle *requires* changing a layer boundary or
+a port, and then the ADR is about that change, not the cycle (#4114 confirmed
+this reading).
+
+Source: ISSUE-4195

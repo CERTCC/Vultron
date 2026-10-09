@@ -54,6 +54,7 @@ ADR: ADR-0080.
 
 import ast
 from pathlib import Path
+
 from test.architecture import _corpus
 
 _VULTRON_ROOT = _corpus.REPO_ROOT / "vultron"

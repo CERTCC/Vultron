@@ -33,7 +33,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_Reject,
 )
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.examples._base import (
     _CASE_ACTOR,
     _COORDINATOR,
@@ -49,6 +48,7 @@ from vultron.wire.as2.vocab.examples.actor import (
     reject_actor_recommendation,
     reject_case_participant_offer,
 )
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 
 class TestRecommendActor(unittest.TestCase):

@@ -22,6 +22,7 @@ from pydantic import Field
 from vultron.wire.as2.enums import as_ObjectType as O_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
+from vultron.wire.as2.vocab.base.utils import print_object_examples
 
 
 class as_Document(as_Object):
@@ -187,8 +188,6 @@ as_PlaceRef: TypeAlias = ActivityStreamRef[as_Place]
 
 
 def main():
-    from vultron.wire.as2.vocab.base.utils import print_object_examples
-
     print_object_examples()
 
 

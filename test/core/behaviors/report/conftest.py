@@ -10,16 +10,17 @@ raw Document instead of a deserialized domain object.
 
 import pytest
 
-# noqa: F401 — imported for vocabulary registration side-effect
-from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    as_VulnerabilityCase,
-)
+from test.support.participant_status import advance_participant_rm
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
-from test.support.participant_status import advance_participant_rm
+
+# imported for vocabulary registration side-effect
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
+    as_VulnerabilityCase,
+)
 
 
 @pytest.fixture

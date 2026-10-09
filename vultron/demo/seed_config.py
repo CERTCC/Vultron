@@ -38,7 +38,7 @@ Environment variables
 """
 
 import os
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import yaml
 from pydantic import BaseModel, Field
@@ -183,8 +183,6 @@ class SeedConfig(BaseSettings):
             actor_id: Optional full URI for the local actor.  When ``None``
                 the server derives one from ``VULTRON_SERVER__BASE_URL``.
         """
-        from typing import cast
-
         name = actor_name or os.environ.get(
             "VULTRON_ACTOR_NAME", "Vultron Actor"
         )

@@ -17,14 +17,16 @@ from vultron.core.behaviors.sync.nodes import (
     IsInviteAcceptEventNode,
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
+    IsRemoveNoteEventNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT,
     _ADD_NOTE_TO_CASE_EVENT,
     _ADD_PARTICIPANT_STATUS_EVENT,
     _REMOVE_EMBARGO_EVENT,
+    _REMOVE_NOTE_FROM_CASE_EVENT,
 )
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
 
 @pytest.mark.parametrize(
@@ -33,6 +35,7 @@ from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
         (IsRemoveEmbargoEventNode, _REMOVE_EMBARGO_EVENT),
         (IsParticipantStatusEventNode, _ADD_PARTICIPANT_STATUS_EVENT),
         (IsAddNoteEventNode, _ADD_NOTE_TO_CASE_EVENT),
+        (IsRemoveNoteEventNode, _REMOVE_NOTE_FROM_CASE_EVENT),
         (IsInviteAcceptEventNode, _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT),
     ],
 )
@@ -119,7 +122,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         e0 = _make_entry(0)
         datalayer.save(e0)
         # Skip index 1; jump to index 2
-        e2 = VultronCaseLedgerEntry(
+        e2 = CaseLedgerEntry(
             case_id=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",
@@ -143,7 +146,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         """SYNC-10-004: hash mismatch at any link is stale."""
         e0 = _make_entry(0)
         datalayer.save(e0)
-        bad_e1 = VultronCaseLedgerEntry(
+        bad_e1 = CaseLedgerEntry(
             case_id=CASE_ID,
             log_index=1,
             log_object_id="https://example.org/activities/log-1",
@@ -170,7 +173,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         # Create a gap
         e0 = _make_entry(0)
         datalayer.save(e0)
-        e2 = VultronCaseLedgerEntry(
+        e2 = CaseLedgerEntry(
             case_id=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",

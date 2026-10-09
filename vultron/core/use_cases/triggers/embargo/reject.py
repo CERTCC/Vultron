@@ -13,20 +13,33 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Embargo rejection trigger use case."""
+"""Embargo rejection trigger use case.
+
+A participant's rejection is ``Reject(Invite(EmbargoEvent))``, its own
+consent.  The case owner's rejection is its decision for the case,
+``Reject(EmbargoEvent, target=Case)``, which rejects the proposal and writes
+no consent (ADR-0122).
+"""
 
 import json
 import logging
-from typing import cast
+from typing import ClassVar, cast
 
 import py_trees.behaviour
 
+from vultron.core.behaviors.embargo.nodes import (
+    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
+)
 from vultron.core.behaviors.embargo.trigger_tree import (
+    reject_embargo_proposal_trigger_bt,
     reject_embargo_trigger_bt,
 )
+from vultron.core.behaviors.sender_entitlement import (
+    is_case_owner as _is_case_owner,
+)
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
-    _is_case_owner,
     _resolve_embargo_id_from_proposal_id,
     _resolve_embargo_proposal,
     resolve_actor,
@@ -40,6 +53,10 @@ logger = logging.getLogger(__name__)
 
 
 class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
+    _assertion_event_type: ClassVar[str] = (
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
+    )
+
     def _prepare(self) -> None:
         request = cast(RejectEmbargoTriggerRequest, self._request)
         dl = self._dl
@@ -48,36 +65,55 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, dl)
         self._proposal_id = _resolve_embargo_proposal(
-            self._case, request.proposal_id
+            self._case, request.proposal_id, dl
         )
         self._embargo_id = _resolve_embargo_id_from_proposal_id(
             self._case, self._proposal_id
         )
+        self._is_owner = _is_case_owner(self._case, self._actor_id)
+
+    def _asserted_event_type(self) -> str:
+        if self._is_owner:
+            return EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE
+        return self._assertion_event_type
+
+    def _assertion_subject(self) -> str:
+        return self._proposal_id
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
-        def _build_activities(case_manager_id: str) -> list[str]:
-            reject_id, reject_dict = self._factory.reject_embargo(
-                proposal_id=self._proposal_id,
-                case_id=self._case.id_,
-                actor=self._actor_id,
-                to=[case_manager_id],
-            )
-            self._captured["activity"] = json.loads(reject_dict)
-            return [reject_id]
+        def _build_activity(to: list[str] | None) -> tuple[str, str]:
+            if self._is_owner:
+                reject_id, reject_blob = self._factory.reject_embargo_proposal(
+                    embargo_id=self._embargo_id,
+                    case_id=self._case.id_,
+                    actor=self._actor_id,
+                    to=to,
+                )
+            else:
+                reject_id, reject_blob = self._factory.reject_embargo(
+                    proposal_id=self._proposal_id,
+                    case_id=self._case.id_,
+                    actor=self._actor_id,
+                    to=to,
+                )
+            self._captured["activity"] = json.loads(reject_blob)
+            return reject_id, reject_blob
 
-        return reject_embargo_trigger_bt(
+        build_tree = (
+            reject_embargo_proposal_trigger_bt
+            if self._is_owner
+            else reject_embargo_trigger_bt
+        )
+        return build_tree(
             case_id=self._case.id_,
             embargo_id=self._embargo_id,
             result_out=self._result_out,
-            activity_builder=_build_activities,
+            activity_builder=_build_activity,
         )
 
     def _log_lifecycle_result(self) -> None:
         lr = self._lifecycle_result
-        if (
-            _is_case_owner(self._case, self._actor_id)
-            and lr.em_after != lr.em_before
-        ):
+        if self._is_owner and lr.em_after != lr.em_before:
             logger.info(
                 "Actor '%s' rejected embargo proposal '%s' on case '%s'"
                 " (EM %s → %s)",

@@ -43,14 +43,16 @@ inboxes.
 """
 
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
 from vultron.core.states.em import is_em_embargo_active
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.demo.helpers.embargo import make_embargo_event
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.workflow import setup_two_participant_case
+from vultron.demo.helpers.workflow import (
+    owner_activates_embargo,
+    owner_rejects_embargo_proposal,
+    setup_two_participant_case,
+)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -62,13 +64,12 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     setup_demo_logging,
 )
 from vultron.wire.as2.factories import (
-    activate_embargo_activity,
     announce_embargo_activity,
-    em_accept_embargo_activity,
     em_propose_embargo_activity,
-    em_reject_embargo_activity,
     remove_embargo_from_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
 
@@ -85,12 +86,12 @@ def demo_activate_then_terminate(
     Steps:
     1. Setup: initialize case with two participants (vendor + coordinator)
     2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
-    3. Vendor accepts embargo (EmAcceptEmbargoActivity → coordinator inbox)
-    4. Vendor activates embargo on case (ActivateEmbargoActivity → vendor inbox)
-    5. Vendor announces embargo to participants
-    6. Verify case has active embargo
-    7. Vendor terminates (removes) the embargo (RemoveEmbargoFromCaseActivity)
-    8. Verify case has no active embargo
+    3. Vendor, the case owner and CASE_MANAGER, activates the embargo:
+       Accept(EmbargoEvent, target=Case) → vendor inbox (ADR-0122)
+    4. Vendor announces embargo to participants
+    5. Verify case has active embargo
+    6. Vendor terminates (removes) the embargo (RemoveEmbargoFromCaseActivity)
+    7. Verify case has no active embargo
 
     This follows the activate → terminate branch in
     docs/howto/activitypub/activities/manage_embargo.md.
@@ -119,32 +120,15 @@ def demo_activate_then_terminate(
             summary=f"Proposing a 90-day embargo for {case.name}.",
             to=[vendor.id_],
         )
-        logger.info(f"Sending embargo proposal: {logfmt(proposal)}")
+        logger.info("Sending embargo proposal: %s", logfmt(proposal))
         post_to_inbox_and_wait(client, vendor.id_, proposal)
 
-    with demo_step("Step 3: Vendor accepts embargo proposal"):
-        accept = em_accept_embargo_activity(
-            proposal,
-            actor=vendor.id_,
-            context=case.id_,
-            to=[coordinator.id_],
-            summary=f"Accepting embargo proposal for {case.name}.",
-        )
-        logger.info(f"Sending embargo acceptance: {logfmt(accept)}")
-        post_to_inbox_and_wait(client, coordinator.id_, accept)
+    with demo_step("Step 3: Vendor, as case owner, activates the embargo"):
+        # The owner's decision for the case goes to the CASE_MANAGER — here
+        # the vendor itself (ADR-0122).
+        owner_activates_embargo(client, vendor, vendor.id_, case, embargo)
 
-    with demo_step("Step 4: Vendor activates embargo on case"):
-        activate = activate_embargo_activity(
-            embargo,
-            actor=vendor.id_,
-            target=case.id_,
-            in_reply_to=proposal.id_,
-            to=f"{case.id_}/participants",
-        )
-        logger.info(f"Activating embargo: {logfmt(activate)}")
-        post_to_inbox_and_wait(client, vendor.id_, activate)
-
-    with demo_step("Step 5: Vendor announces embargo to participants"):
+    with demo_step("Step 4: Vendor announces embargo to participants"):
         announce = announce_embargo_activity(
             embargo,
             actor=vendor.id_,
@@ -152,10 +136,10 @@ def demo_activate_then_terminate(
             to=f"{case.id_}/participants",
             summary=f"Embargo for {case.name} is now active.",
         )
-        logger.info(f"Announcing embargo: {logfmt(announce)}")
+        logger.info("Announcing embargo: %s", logfmt(announce))
         post_to_inbox_and_wait(client, vendor.id_, announce)
 
-    with demo_step("Step 6: Verify case has active embargo"):
+    with demo_step("Step 5: Verify case has active embargo"):
         with demo_check("Case has active_embargo set"):
             mid_case = log_case_state(
                 client, case.id_, "after embargo activation"
@@ -170,7 +154,7 @@ def demo_activate_then_terminate(
                     f"but active_embargo is None."
                 )
 
-    with demo_step("Step 7: Vendor terminates (removes) the active embargo"):
+    with demo_step("Step 6: Vendor terminates (removes) the active embargo"):
         remove = remove_embargo_from_case_activity(
             embargo,
             actor=vendor.id_,
@@ -178,11 +162,11 @@ def demo_activate_then_terminate(
             to=f"{case.id_}/participants",
             summary=f"Terminating embargo for {case.name}.",
         )
-        logger.info(f"Removing embargo from case: {logfmt(remove)}")
+        logger.info("Removing embargo from case: %s", logfmt(remove))
         post_to_inbox_and_wait(client, vendor.id_, remove)
 
     with demo_step(
-        "Step 8: Verify case has no active embargo after termination"
+        "Step 7: Verify case has no active embargo after termination"
     ):
         with demo_check("Case active_embargo is None after termination"):
             final_case = log_case_state(
@@ -217,12 +201,13 @@ def demo_reject_then_repropose(
     Steps:
     1. Setup: initialize case with two participants (vendor + coordinator)
     2. Coordinator proposes first embargo (45-day)
-    3. Vendor rejects the proposal
+    3. Vendor, the case owner, rejects the proposal:
+       Reject(EmbargoEvent, target=Case) → vendor inbox (ADR-0122)
     4. Verify case has no active embargo after rejection
     5. Coordinator proposes a revised embargo (90-day)
-    6. Vendor accepts the revised proposal
-    7. Vendor activates the revised embargo
-    8. Verify case has active embargo
+    6. Vendor, the case owner, activates the revised proposal:
+       Accept(EmbargoEvent, target=Case) → vendor inbox
+    7. Verify case has active embargo
 
     This follows the reject → re-propose → accept branch in
     docs/howto/activitypub/activities/manage_embargo.md.
@@ -233,7 +218,7 @@ def demo_reject_then_repropose(
 
     case = setup_two_participant_case(client, finder, vendor, coordinator)
 
-    proposal_v1 = None
+    embargo_v1 = proposal_v1 = None
     with demo_step("Step 2: Coordinator proposes first embargo (45-day)"):
         embargo_v1 = make_embargo_event(case, days=45, seq=1)
         create_embargo_v1 = as_Create(
@@ -251,22 +236,13 @@ def demo_reject_then_repropose(
             summary=f"Proposing a 45-day embargo for {case.name}.",
             to=[vendor.id_],
         )
-        logger.info(f"Sending first embargo proposal: {logfmt(proposal_v1)}")
+        logger.info("Sending first embargo proposal: %s", logfmt(proposal_v1))
         post_to_inbox_and_wait(client, vendor.id_, proposal_v1)
 
-    with demo_step("Step 3: Vendor rejects first embargo proposal"):
-        reject = em_reject_embargo_activity(
-            proposal_v1,
-            actor=vendor.id_,
-            context=case.id_,
-            to=[coordinator.id_],
-            summary=(
-                f"Rejecting 45-day embargo for {case.name}; "
-                f"need more time."
-            ),
+    with demo_step("Step 3: Vendor, as case owner, rejects the proposal"):
+        owner_rejects_embargo_proposal(
+            client, vendor, vendor.id_, case, embargo_v1
         )
-        logger.info(f"Sending embargo rejection: {logfmt(reject)}")
-        post_to_inbox_and_wait(client, coordinator.id_, reject)
 
     with demo_step(
         "Step 4: Verify case has no active embargo after rejection"
@@ -304,32 +280,15 @@ def demo_reject_then_repropose(
             summary=f"Re-proposing a 90-day embargo for {case.name}.",
             to=[vendor.id_],
         )
-        logger.info(f"Sending revised embargo proposal: {logfmt(proposal_v2)}")
+        logger.info(
+            "Sending revised embargo proposal: %s", logfmt(proposal_v2)
+        )
         post_to_inbox_and_wait(client, vendor.id_, proposal_v2)
 
-    with demo_step("Step 6: Vendor accepts revised embargo proposal"):
-        accept_v2 = em_accept_embargo_activity(
-            proposal_v2,
-            actor=vendor.id_,
-            context=case.id_,
-            to=[coordinator.id_],
-            summary=f"Accepting revised 90-day embargo for {case.name}.",
-        )
-        logger.info(f"Sending embargo acceptance: {logfmt(accept_v2)}")
-        post_to_inbox_and_wait(client, coordinator.id_, accept_v2)
+    with demo_step("Step 6: Vendor, as case owner, activates the revision"):
+        owner_activates_embargo(client, vendor, vendor.id_, case, embargo_v2)
 
-    with demo_step("Step 7: Vendor activates revised embargo"):
-        activate_v2 = activate_embargo_activity(
-            embargo_v2,
-            actor=vendor.id_,
-            target=case.id_,
-            in_reply_to=proposal_v2.id_,
-            to=f"{case.id_}/participants",
-        )
-        logger.info(f"Activating revised embargo: {logfmt(activate_v2)}")
-        post_to_inbox_and_wait(client, vendor.id_, activate_v2)
-
-    with demo_step("Step 8: Verify case has active revised embargo"):
+    with demo_step("Step 7: Verify case has active revised embargo"):
         with demo_check("Case has active_embargo set after re-proposal"):
             final_case = log_case_state(
                 client, case.id_, "after revised embargo activation"
@@ -350,7 +309,7 @@ def demo_reject_then_repropose(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     (
         "Demo: Manage Embargo — Activate/Terminate Path",
         demo_activate_then_terminate,
@@ -364,7 +323,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the manage_embargo demo script."""
     run_exchange_demos(

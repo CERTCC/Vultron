@@ -31,7 +31,7 @@ Per specs/participant-case-replica.yaml PCR-08-001, PCR-08-002.
 """
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 import py_trees
 

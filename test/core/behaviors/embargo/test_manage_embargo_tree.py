@@ -133,7 +133,9 @@ def test_stochastic_child_is_correct_fuzzer_node(index, cls):
     assert isinstance(unwrap_call_out(tree.children[index]), cls)
 
 
-@pytest.mark.parametrize("field,index", list(zip(_FACTORY_FIELDS, range(10))))
+@pytest.mark.parametrize(
+    "field,index", list(zip(_FACTORY_FIELDS, range(10), strict=False))
+)
 def test_each_factory_is_wired(field, index):
     """Each factory field in a bundle is individually wired into the corresponding child."""
     label = f"Custom_{index}"
@@ -157,7 +159,10 @@ def test_each_factory_is_wired(field, index):
 def test_all_factories_replaceable():
     """All factory fields can be replaced simultaneously via a bundle."""
     bundle = EmbargoCallOutBundle(
-        **{field: _marker_factory(f"M{i}") for i, field in enumerate(_FACTORY_FIELDS)}  # type: ignore[arg-type]
+        **{
+            field: _marker_factory(f"M{i}")
+            for i, field in enumerate(_FACTORY_FIELDS)
+        }  # type: ignore[arg-type]
     )
     tree = create_manage_embargo_tree(case_id=CASE_ID, call_out=bundle)
     tree_str = py_trees.display.ascii_tree(tree)

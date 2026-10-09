@@ -24,6 +24,8 @@ Sub-modules
   state-invariant predicates (AC-1, AC-3 of ISSUE-3058).
 - :mod:`~vultron.core.predicates.embargo` — embargo-eligibility predicates
   (AC-2 of ISSUE-3058).
+- :mod:`~vultron.core.predicates.addressing` — actor-id equality and
+  recipient membership, tolerant of a trailing slash (HP-09-001, #2667).
 
 Import constraints
 ------------------

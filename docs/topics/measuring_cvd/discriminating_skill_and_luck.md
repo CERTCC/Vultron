@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+description: >
+  The skill coefficient, which normalizes an observed frequency against the baseline.
 ---
 
 # Discriminating Skill and Luck in Observations

@@ -1,12 +1,16 @@
 ---
 status: accepted
 date: 2026-07-29
+created: 2026-07-29
+updated: 2026-07-29
+revision: 1
 deciders:
   - vultron maintainers
 consulted:
   - project stakeholders
 informed:
   - contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Adopt py_trees Typed Ports for BT Node Blackboard Contracts

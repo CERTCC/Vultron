@@ -17,16 +17,14 @@
 
 # pyright: reportGeneralTypeIssues=false
 
-# pyright: reportGeneralTypeIssues=false
-
 from typing import Any, Literal
 
 from pydantic import Field
 
-from vultron.core.models.base import NonEmptyString, VultronObject
+from vultron.core.models.base import CoreObject, NonEmptyString
 
 
-class VultronActivity(VultronObject):
+class VultronActivity(CoreObject):
     """Domain representation of an AS2 activity for DataLayer storage.
 
     ``VultronActivity`` is the domain model for an inbound or outbound AS2
@@ -46,7 +44,7 @@ class VultronActivity(VultronObject):
     ``record_to_object`` and deserialized as the appropriate AS2 activity
     subclass.  ``object_`` uses alias ``"object"`` to match the AS2 wire
     field name; callers may pass either ``object_=`` or ``object=`` thanks
-    to ``populate_by_name=True`` on ``VultronBase``.
+    to ``populate_by_name=True`` on ``CoreRecord``.
     """
 
     type_: NonEmptyString = Field(  # pyright: ignore[reportGeneralTypeIssues]
@@ -60,12 +58,27 @@ class VultronActivity(VultronObject):
     )
     target: Any | None = None
     origin: NonEmptyString | None = None
-    to: list[str] | None = None
-    cc: list[str] | None = None
+    # AS2 Activity fields no Vultron activity uses yet.  They stay declared
+    # (ADR-0099 detail 8): ``CoreObject`` forbids extras, and a stored wire
+    # activity dumps them, even when null.
+    instrument: Any | None = None
+    result: Any | None = None
+    # A Reporter's proposed embargo terms on Offer(VulnerabilityReport)
+    # (EP-04-004); the wire dump carries it as ``proposedEmbargo``.
+    proposed_embargo: Any | None = None
+    # ``Question`` fields (AS2 §4.1); the CBT-03-004 bootstrap-replay Question
+    # is delivered through this model.
+    any_of: Any | None = None
+    one_of: Any | None = None
+    closed: Any | None = None
+    # Addressing carries actor references; a blank one names nobody
+    # (CS-08-001).
+    to: list[NonEmptyString] | None = None
+    cc: list[NonEmptyString] | None = None
     # CM-16-003: the wire dump this model is validated from is camelCase, so
     # the alias is required — without it the field silently validates to None
     # and the suggested roles vanish from the delivered activity.
-    suggested_roles: list[str] | None = Field(
+    suggested_roles: list[NonEmptyString] | None = Field(
         default=None,
         validation_alias="suggestedRoles",
         serialization_alias="suggestedRoles",
@@ -73,7 +86,7 @@ class VultronActivity(VultronObject):
     # Single-word, so the camelCase wire name is identical and no alias is
     # needed; stated explicitly because the neighbouring field shows what the
     # omission costs when the names do differ.
-    roles: list[str] | None = None
+    roles: list[NonEmptyString] | None = None
 
 
 class VultronOffer(VultronActivity):
@@ -108,7 +121,7 @@ class VultronAccept(VultronActivity):
         validation_alias="type",
         serialization_alias="type",
     )
-    result: str | None = Field(
+    result: NonEmptyString | None = Field(
         default=None,
         description=(
             "URI of the VulnerabilityCase this Accept produced or refers to "
@@ -136,14 +149,14 @@ class VultronCreateCaseActivity(VultronActivity):
         validation_alias="type",
         serialization_alias="type",
     )
-    context: str | None = Field(
+    context: NonEmptyString | None = Field(
         default=None,
         description=(
             "URI of the VulnerabilityCase this activity is scoped to "
             "(CP-05-003, ADR-0045). MUST be the case URI, not the Accept URI."
         ),
     )
-    in_reply_to: str | None = Field(
+    in_reply_to: NonEmptyString | None = Field(
         default=None,
         validation_alias="inReplyTo",
         serialization_alias="inReplyTo",

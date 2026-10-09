@@ -5,6 +5,8 @@ related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
   - specs/ci-security.yaml
+  - specs/case-ledger-processing.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-authoring.md
@@ -96,6 +98,7 @@ These cover any failure that happens *inside* `scenario_harness()`.
    | no ledger files **and** no `dump-manifest.json`, no `demo_name` | `skip` — unscoped load with no data |
    | no ledger files **but** a manifest exists | **`fail`** — real invariant failure |
    | manifest present but unparseable | **`fail`** |
+   | an entry (after the `caseId` filter) has no `logIndex`, or a negative one | **`fail`**, naming every such entry across all actors (ISSUE-2764) |
    | ledger files present | load and check normally |
 
    The failure message reproduces the manifest's own account — case ID, captured
@@ -107,6 +110,10 @@ These cover any failure that happens *inside* `scenario_harness()`.
    dump are recorded in the manifest's `reason` field and swallowed; the harness
    re-raises the original exception with the accumulated `demo_check` failures
    attached as exception notes (DEMOCI-10-004).
+
+   There is no `-1` sentinel for an unknown position: `log_index()` raises
+   rather than let an unplaced entry sort first and satisfy ordering checks
+   such as `check_causal_edges`.
 
 4. **The harness exits non-zero on an all-skip session.**
    When `devlogs/` is absent or empty, `load_devlogs()` calls `pytest.skip()` at
@@ -157,6 +164,91 @@ reporting a protocol result.
   `RmClosedTermination`, `ParticipantStatusSchemaCompleteness`,
   `CsStateTransitionsObserved` (ISSUE-2411 Gap 1, split per ISSUE-3385)
 - `test/demo/test_ledger_dump.py::TestWritePrerunSentinel` (AC4 for #2281)
+
+---
+
+## Narrative Causal Edges — Schema and Update-Together Rule (DEMOMA-22)
+
+Each scenario narrative under `docs/topics/scenarios/` carries a `causal_edges:`
+list in its YAML front matter (DEMOMA-22-004). Every entry declares one protocol
+causal relationship that must be observable in the case ledger. This section is
+the contributor-facing description of that list; it moved here from the
+narratives index in #3622, because the index is a reader-facing routing page and
+the schema, the invariant, and the update-together rule are working record.
+
+```yaml
+causal_edges:
+  - antecedent: <event_type>     # string — eventType in the case ledger
+    consequent: <event_type>     # string — eventType in the case ledger
+    consequent_actor: <name>     # actorName of the recorded actor (dump manifest)
+    note: <text>                 # optional human-readable explanation
+    observable: true             # optional; false marks unobservable edges
+```
+
+- `antecedent` — the `eventType` string of the causally-earlier ledger entry.
+- `consequent` — the `eventType` string of the causally-later ledger entry.
+- `consequent_actor` — the `actor` recorded on the consequent's ledger entry, i.e.
+  the literal emitter (DEMOMA-22-004). For an activity the Case Actor emits on a
+  participant's behalf that is `case-actor`, and the participant who asked for it
+  is recoverable from the entry's `attributedTo` (CM-24-001/002, PCR-08-007); every
+  `invite_actor_to_case` edge is therefore labelled `case-actor`, while an
+  invitation response carries the invitee. The tag vocabulary is the `actorName`
+  in the scenario's `dump-manifest.json`, which is also the replica directory
+  name; it is not always the role name a narrative uses (in the handoff and
+  extension scenarios C1 is `vendor`, C2 is `coordinator`, and the Vendor is
+  `vendor2`). Invariant 16 checks the tag against the ledger: an entry's
+  `payloadSnapshot.actor`, stripped of its id prefix, matches a `routeKey` in the
+  manifest (`actors` or `unreplicatedActors`), whose `actorName` must equal the
+  tag. The consequent candidates are only the entries that resolve to the tag, so
+  a tag that matches none, or a recorded actor the manifest does not list, fails
+  the edge. A scenario with no manifest fails every tagged edge. The structural
+  rule in `test/ci/invariants/test_narrative_edges.py` (a response is never
+  attributed to the inviter) still runs in the unit suite.
+- `note` — optional prose explanation of the causal relationship.
+- `observable` — defaults to `true`. Set to `false` for edges whose antecedent
+  or consequent is not directly captured as a case-ledger entry (for example,
+  the reporter submitting a report to the receiver's API is not itself a ledger
+  event). Unobservable edges are documented for completeness but are excluded
+  from the automated ordering check.
+
+**Invariant check (DEMOMA-22-005).** Invariant 16 reads each narrative's
+`causal_edges:` list and asserts that for every observable edge `(A, B)` there
+exist ledger entries `a` with `eventType == A` and `b` with `eventType == B`
+such that `a.log_index < b.log_index`. The check uses the case-actor's
+authoritative replica, which is the canonical causal order (ADR-0079).
+Diagnostic output on failure names the unsatisfied edge and the log indices
+that were observed. Unobservable edges are skipped and never cause a failure.
+
+**Pre-devlogs structural checks.** `test/ci/invariants/test_narrative_edges.py`
+runs in the unit suite against the committed `causal_edges:` lists with synthetic
+ledgers, so an authoring slip fails on the PR instead of waiting for a demo run.
+Every `*-handoff` narrative must declare an edge that orders
+`accept_case_ownership_transfer` before the new owner's `invite_actor_to_case`
+(#2754), and the invite/response edges must alternate: each
+`invite_actor_to_case` edge is followed by exactly one accept or reject edge, whose
+actor differs from the inviter's (#2753). The alternation is enforced, not
+assumed, so a response edge moved away from its invite fails as misplaced rather
+than being compared against the wrong inviter.
+
+**Update-together rule (DEMOMA-22-006).** The causal edges declared in a
+narrative page and the scenario's invariant test file
+(`test/ci/invariants/test_<name>_invariants.py`) are a matched pair. A change to
+a scenario's causal flow — adding a protocol step, reordering steps, or removing
+a participant — requires updating both the narrative's `causal_edges:` list and,
+where the change adds a new `eventType` that should always be present, the
+scenario's `_XXX_EXPECTED_EVENT_TYPES` list in its invariant file. Changing one
+without the other leaves the conformance oracle out of date. Invariant 16 will
+catch a stale edge list once devlogs exist; the `_XXX_EXPECTED_EVENT_TYPES` list
+will catch a missing event type immediately. Neither check substitutes for the
+other.
+
+An edge may name an event type the expected-types list does not require. The
+handoff narratives declare `offer_case_ownership_transfer →
+accept_case_ownership_transfer` because the Case Actor commits the offer before
+forwarding it (ADR-0053, verified against a run in #3622), while DEMOMA-16-005
+and DEMOMA-16-006 require only the acceptance. Adding the offer to those lists
+would need the spec amendment and the harness edit to land together (see
+"Keeping Spec and Code in Sync" below).
 
 ---
 
@@ -286,14 +378,30 @@ restating the block.
 | FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
 | FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
 | FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| RCV embargo | DEMOMA-16-016 | same | invite_actor_to_case, accept_invite_actor_to_case, invite_to_embargo_on_case, accept_invite_to_embargo_on_case, activate_embargo_on_case, remove_embargo_event_from_case |
+| RCVV embargo | DEMOMA-16-017 | same | invite_actor_to_case, accept_invite_actor_to_case, invite_to_embargo_on_case, accept_invite_to_embargo_on_case, activate_embargo_on_case, remove_embargo_event_from_case |
 
 ### Relationship to scenario-specific test functions
 
 The expected-event-types list (Invariant 5) checks **presence** of an event
 at least once. Scenarios that require an event to appear **N or more times**
-(e.g. `invite_actor_to_case` at least twice in FCV, FVCV-*, FCCV-*) use
+(e.g. `invite_actor_to_case` at least twice in FVCV-*, FCCV-*) use
 separate `test_XXX_<event>_at_least_N` functions built on
 `check_event_type_count`. These two mechanisms complement each other.
+
+`check_event_type_count` also takes a keyword-only `max_count`. FCV pins
+`invite_actor_to_case` to exactly one (`min_count=1, max_count=1`): the
+Coordinator invites only the Vendor, because the Finder is the reporter and
+the CASE_MANAGER seats it at case creation (CM-22-002, CM-14-005;
+DEMOMA-12-003). A floor alone cannot tell a scenario's own sends from a
+duplicate. Until #4096, every scenario committed the owner's Invite twice
+under one activity id, and that duplicate met FCV's old "at least twice"
+floor, which assumed a Finder invite the scenario never sends (#4120). The
+universal `test_invariant_clp07_unique_payload_snapshot_ids` (CLP-07-002) now
+catches a duplicate commit in every scenario, so the other scenarios keep
+floors; add a `max_count` where a count above the scenario's own sends would
+itself be a defect that CLP-07-002 cannot see, such as a second Invite with
+its own activity id.
 
 ---
 
@@ -492,24 +600,39 @@ expand it to a map that explicitly includes `issues: write`.
 
 A push-to-`main` run cancelled by the concurrency group (superseded by a newer
 merge) is **not** a CI failure — a newer run is authoritative — so the `notify`
-step MUST NOT file a `ci:main-failure` issue on cancellation.
+step MUST NOT file a `ci:main-failure` issue on cancellation *alone*. A genuine
+failure observed in the same run before the cancellation arrived is still filed
+(#3293, #3294).
 
 - A step keyed on the GitHub Actions **`failure()` status function** is already
   safe: `failure()` is false on cancellation. The idealized two-step interface
   above uses this and needs no extra guard.
-- A step keyed on the **`needs.*.result` aggregate** is not safe on its own. It
-  MUST pair the failure check with an explicit cancellation exclusion:
-  `contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')`.
-  Never file on cancellation directly (`|| contains(needs.*.result, 'cancelled')`).
+- A step keyed on the **`needs.*.result` aggregate** keys on
+  `contains(needs.*.result, 'failure')` alone. Never file on cancellation
+  directly (`|| contains(needs.*.result, 'cancelled')`), and never require the
+  absence of `cancelled` (`&& !contains(needs.*.result, 'cancelled')`).
 
-The aggregate needs the guard because a *cancelled upstream job* can launder a
-cancellation into a `failure` result downstream: when the `demo` job is cancelled
-mid-run it uploads no case-log artifact, so the `invariant-harness` job (which
-runs under `if: always()`) hard-fails at `download-artifact`, and that `failure`
-lands in `needs.*.result`. The fix is two layers: skip the harness on a cancelled
-demo job (`needs.demo.result != 'cancelled'`, DEMOCI-04-007) to remove the
-laundered failure at its source, plus the `!contains(..., 'cancelled')` guard on
-`notify` as defense-in-depth. See #3249 and CISEC-05-006.
+The aggregate is exposed to a *cancelled upstream job* laundering a cancellation
+into a `failure` result downstream: when the `demo` job is cancelled mid-run it
+uploads no case-log artifact, so an `invariant-harness` job running under a bare
+`if: always()` hard-fails at `download-artifact`, and that `failure` lands in
+`needs.*.result`. The fix is to close that path at its source: skip the harness
+on a cancelled demo job (`needs.demo.result != 'cancelled'`, DEMOCI-04-007), and
+apply the same skip to any future job that consumes another job's artifact.
+See #3249 and CISEC-05-006.
+
+The `!contains(needs.*.result, 'cancelled')` exclusion that #3249 added to the
+`notify` step as defense-in-depth was removed in #3880 (issues #3293 and #3294).
+It cannot tell a laundered failure from a genuine one, so it suppressed the
+notification whenever a newer push cancelled a sibling job *after* a real failure
+had already been observed: lint jobs cancelled alongside failing tests
+(`python-app.yml`), or the harness cancelled after a demo leg failed
+(`demo-integration.yml`). A genuine failure in a superseded run is still a
+genuine failure; the superseding run's
+close step retires the issue if the newer commit is green. Only the *close* step
+keeps its cancellation exclusion, because a superseded run must not declare
+recovery either (CISEC-05-002, ratcheted by
+`test_close_step_does_not_close_on_cancellation`).
 
 ### Qualifying Workflows and Their Labels
 
@@ -522,6 +645,7 @@ laundered failure at its source, plus the `!contains(..., 'cancelled')` guard on
 | `actions-lint.yml`            | push to main       | `ci:workflow-actions-lint`              |
 | `quarterly_tag.yml`           | schedule           | `ci:workflow-quarterly-tag`             |
 | `stale_claim_sweeper.yml`     | schedule           | `ci:workflow-stale-claim-sweeper`       |
+| `verification-debt-owners.yml` | schedule, push to main | `ci:workflow-verification-debt-owners` |
 
 ### Deduplication Model
 

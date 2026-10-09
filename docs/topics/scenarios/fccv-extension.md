@@ -1,10 +1,11 @@
 ---
 title: "FCCV-extension Scenario: Finder + C1 + C2 + Vendor"
-status: stable
+# consequent_actor names the dump actor recorded on the consequent entry:
+# C1 is 'vendor', C2 is 'coordinator', the Vendor is 'vendor2'.
 causal_edges:
   - antecedent: validate_report
     consequent: engage_case
-    consequent_actor: c1
+    consequent_actor: vendor
     note: >
       C1 validates the report before engaging the case.
   - antecedent: engage_case
@@ -14,23 +15,23 @@ causal_edges:
       Case engagement triggers participant status entries.
   - antecedent: engage_case
     consequent: invite_actor_to_case
-    consequent_actor: c1
+    consequent_actor: case-actor
     note: >
       C1 invites C2 after the case is active.
   - antecedent: invite_actor_to_case
     consequent: accept_invite_actor_to_case
-    consequent_actor: c2
+    consequent_actor: coordinator
     note: >
       C2 accepts C1's invitation; acceptance follows the invite.
   - antecedent: accept_invite_actor_to_case
     consequent: offer_case_participant
-    consequent_actor: c2
+    consequent_actor: case-actor
     note: >
       C2, having joined, suggests the Vendor via the actor-suggestion flow
       (ADR-0026).  The offer requires C2 to already be a participant.
   - antecedent: offer_case_participant
     consequent: accept_actor_recommendation
-    consequent_actor: c1
+    consequent_actor: case-actor
     note: >
       C1, as case owner, approves C2's suggestion.
   - antecedent: accept_actor_recommendation
@@ -41,7 +42,7 @@ causal_edges:
       (ADR-0026 path).
   - antecedent: invite_actor_to_case
     consequent: accept_invite_actor_to_case
-    consequent_actor: vendor
+    consequent_actor: vendor2
     note: >
       The Vendor accepts the CaseActor's invitation.  Because both this
       accept and C2's earlier accept share the same event type, the ordering
@@ -49,7 +50,7 @@ causal_edges:
       invite; the valid pair is C2's accept → CaseActor's invite to Vendor.
   - antecedent: validate_report
     consequent: close_case
-    consequent_actor: c1
+    consequent_actor: vendor
     note: >
       Closure requires a validated, engaged case.
   - antecedent: engage_case
@@ -59,7 +60,7 @@ causal_edges:
       Notes require an active case.
   - antecedent: report_submitted
     consequent: validate_report
-    consequent_actor: c1
+    consequent_actor: vendor
     observable: false
     note: >
       Report submission by the Finder is an out-of-band API call that
@@ -76,15 +77,15 @@ The FCCV-extension scenario exercises a **two-coordinator case** where the
 second coordinator (C2) acts as a broker for the Vendor via the actor-suggestion
 flow.  The Finder reports to C1 (the initial coordinator and case owner).  C1
 invites C2; C2 then suggests the Vendor to the case.  C1 approves the suggestion
-and the CaseActor formally invites the Vendor.
+and the Case Actor formally invites the Vendor.
 
 **Participants:**
 
-- **Finder** — discovers the vulnerability; submits the initial report.
+- **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **C1 (Coordinator 1)** — receives the report; validates, engages, and owns the case; invites C2.
 - **C2 (Coordinator 2)** — joins via C1's invitation; suggests the Vendor.
 - **Vendor** — joins via the actor-suggestion path; develops and ships a fix.
-- **CaseActor** — C1's internal case-management sub-actor.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. C1's platform hosts it, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -103,7 +104,7 @@ entries appear in the ledger.
 
 ### 3. Participant status records are created
 
-The CaseActor records initial `add_participant_status_to_participant` entries.
+The Case Actor records initial `add_participant_status_to_participant` entries.
 
 *Antecedent:* `engage_case` is in the ledger.
 
@@ -133,9 +134,9 @@ C1, as case owner, reviews and approves the suggestion.  An
 
 *Antecedent:* `offer_case_participant` is in the ledger.
 
-### 8. CaseActor invites the Vendor
+### 8. Case Actor invites the Vendor
 
-The CaseActor sends the Vendor an `invite_actor_to_case` entry.
+The Case Actor sends the Vendor an `invite_actor_to_case` entry.
 
 *Antecedent:* `accept_actor_recommendation` is in the ledger.
 
@@ -143,7 +144,7 @@ The CaseActor sends the Vendor an `invite_actor_to_case` entry.
 
 The Vendor joins the case.  An `accept_invite_actor_to_case` entry is recorded.
 
-*Antecedent:* The CaseActor's `invite_actor_to_case` entry is in the ledger.
+*Antecedent:* The Case Actor's `invite_actor_to_case` entry is in the ledger.
 
 ### 10. Participants exchange notes
 

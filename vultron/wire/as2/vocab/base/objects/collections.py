@@ -14,23 +14,36 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import List, Set, TypeAlias
+from typing import Literal, TypeAlias
 
 from pydantic import Field, PrivateAttr, model_validator
 
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
+from vultron.wire.as2.vocab.base.utils import print_object_examples
 
 
 class as_Collection(as_Object):
     """A collection is a list of objects. The items in the list MAY be ordered.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-collection>
+
+    Vultron uses collections only as an actor's ``inbox``/``outbox`` endpoint
+    (ActivityPub publishes them as addresses), so the AS2 paging properties
+    (``current``, ``first``, ``last``, ``CollectionPage``) are not modelled.
     """
 
-    items: List[as_ObjectRef | None] = Field(default_factory=list)
-    current: int | None = 0
+    #: Narrowed so the class registers under the ``type`` it presents
+    #: (VM-03-002); without it ``set_type_from_class_name`` still emits
+    #: ``"Collection"`` but nothing registers, and a wire lookup falls through
+    #: to the core map (ISSUE-3242).
+    type_: Literal["Collection"] = Field(
+        default="Collection",
+        validation_alias="type",
+        serialization_alias="type",
+    )
+    items: list[as_ObjectRef | None] = Field(default_factory=list)
 
-    _ids: Set[str] = PrivateAttr(
+    _ids: set[str] = PrivateAttr(
         default_factory=set
     )  # tracks id_ URIs for duplicate detection
 
@@ -43,14 +56,6 @@ class as_Collection(as_Object):
             if item_id:
                 self._ids.add(str(item_id))
         return self
-
-    @property
-    def first(self):
-        return self.items[0]
-
-    @property
-    def last(self):
-        return self.items[-1]
 
     @property
     def totalItems(self):
@@ -77,39 +82,19 @@ class as_OrderedCollection(as_Collection):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-orderedcollection>
     """
 
+    # Narrowing a parent's Literal to a disjoint one is how a subclass presents
+    # its own `type` (VM-03-002); mypy reads it as an incompatible override.
+    type_: Literal["OrderedCollection"] = Field(  # type: ignore[assignment]
+        default="OrderedCollection",
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
 
 as_OrderedCollectionRef: TypeAlias = ActivityStreamRef[as_OrderedCollection]
 
 
-class as_CollectionPage(as_Collection):
-    """A subset of items from a Collection.
-    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-collectionpage>
-    """
-
-    prev: as_Collection | None = None
-    next: as_Collection | None = None
-    part_of: as_Collection | None = None
-
-
-as_CollectionPageRef: TypeAlias = ActivityStreamRef[as_CollectionPage]
-
-
-class as_OrderedCollectionPage(as_OrderedCollection, as_CollectionPage):
-    """A subset of items from an OrderedCollection.
-    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-orderedcollectionpage>
-    """
-
-    start_index: as_CollectionPage | None = None
-
-
-asOrderedCollectionPageRef: TypeAlias = ActivityStreamRef[
-    as_OrderedCollectionPage
-]
-
-
 def main():
-    from vultron.wire.as2.vocab.base.utils import print_object_examples
-
     print_object_examples()
 
 

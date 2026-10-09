@@ -13,101 +13,109 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """
-Object validation and preparation helpers for outbox delivery.
+Sealed-body loading and last-resort guards for outbox delivery.
 
-Provides helpers that load, validate, and normalise outbound AS2 activities
-before per-recipient delivery:
+The outbox handler is a dumb relay (VM-08-003, ADR-0074): it delivers the
+body the emitting adapter sealed, and it never expands, hydrates, or re-types
+what it delivers.  These helpers load that body and apply the guards that
+refuse a body rather than repair it:
 
-- Activity loading from the DataLayer with dehydration fallback
+- Sealed-body loading (:func:`_load_sealed_body`)
 - ``to:`` field enforcement (OX-08-001, OX-08-002)
 - ``cc``/``bto``/``bcc`` secondary-addressing warnings (OX-08-004)
-- Bare-string ``object_`` expansion for initiating activity types (AKM-03-001)
-- Inline ``object_`` integrity validation
-- Dict-based object recovery and DataLayer hydration
+- Inline ``object`` integrity as a last-resort guard (AKM-03-002, MV-09-002)
+
+Every helper reads the parsed body ``dict``.  There is no activity object on
+this path any more: the record the DataLayer holds is a dehydrated,
+rehydrated-on-read reconstruction, and delivering it is what made the ledger's
+``payloadSnapshot`` and the wire disagree (#2655).
 """
 
 import logging
-
-from pydantic import BaseModel
+from typing import Any
 
 from vultron.adapters.driving.fastapi.outbox_addressing import (
-    _STUB_KEYS,
-    _dehydrate_references,
+    _item_actor_id,
 )
-from vultron.core.models.activity import VultronActivity
-from vultron.core.models.protocols import PersistableModel
+from vultron.adapters.outbox_sealed_body import (
+    SealedOutboundBody,
+    read_sealed_body,
+)
 from vultron.core.ports.datalayer import DataLayer
 from vultron.errors import (
     VultronOutboxObjectIntegrityError,
     VultronOutboxToFieldMissingError,
 )
-from vultron.wire.as2.vocab.base.links import as_Link
-from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
-from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 logger = logging.getLogger(__name__)
 
-# Maps AS2 type strings to their wire-layer model classes for dict recovery.
-# Used in _recover_typed_inline_object_from_dict to reconstruct typed models
-# from plain dicts that result from the model_dump() → VultronActivity
-# .model_validate() round-trip.  CaseLedgerEntry is included so an outbound
-# Announce(CaseLedgerEntry) re-types its inline entry (whose fields survive
-# because VultronActivity.object_ is ``Any``) before wire serialization,
-# keeping the full inline entry on the wire (SYNC-02-004, SYNC-13-004).
-_STUB_OBJECT_MODEL_MAP: dict[str, type[BaseModel]] = {
-    "CaseProposal": as_CaseProposal,
-    "VulnerabilityCase": as_VulnerabilityCase,
-    "CaseLedgerEntry": as_CaseLedgerEntry,
-}
-
+#: Activity types whose ``object`` MUST be a fully inline typed object
+#: (AKM-03-001).  ``Accept`` is held to the same standard because every
+#: Vultron ``Accept`` embeds the activity it answers (#2194).
 _INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(
-    {"Create", "Announce", "Add", "Invite", "Accept", "Offer", "Join"}
+    {
+        "Create",
+        "Offer",
+        "Invite",
+        "Announce",
+        "Add",
+        "Remove",
+        "Update",
+        "Join",
+        "Ignore",
+        "Leave",
+        "Accept",
+    }
 )
 
 
-def _load_outbound_activity(
+def _load_sealed_body(
     actor_id: str,
     activity_id: str,
     dl: DataLayer,
-) -> VultronActivity | None:
-    activity = dl.read(activity_id)
-    if activity is None:
-        logger.warning(
-            "Activity %s not found in DataLayer for actor %s; skipping"
-            " delivery.",
+) -> SealedOutboundBody | None:
+    """Return the sealed body of *activity_id* from *dl*, or ``None``.
+
+    A queued id with no sealed body has nothing to deliver.  That is a defect
+    in whoever queued it — every adapter that persists an outbound activity
+    seals it — so it is reported at ERROR and the row is dropped, the way a
+    missing activity record always was.
+    """
+    sealed = read_sealed_body(dl, activity_id)
+    if sealed is None:
+        logger.error(
+            "No sealed body for outbox row '%s' of actor '%s'; nothing to"
+            " deliver, dropping the row (VM-08-003).",
             activity_id,
             actor_id,
         )
         return None
+    return sealed
 
-    if isinstance(activity, VultronActivity):
-        return activity
-    if hasattr(activity, "model_dump"):
-        raw = _dehydrate_references(
-            activity.model_dump(by_alias=True, serialize_as_any=True)
-        )
-        return VultronActivity.model_validate(raw)
 
-    logger.warning(
-        "Activity %s could not be converted for delivery; skipping.",
-        activity_id,
-    )
-    return None
+def _activity_type(body: dict[str, Any]) -> str:
+    """Return the body's ``type``, or ``"Activity"`` when it names none."""
+    raw = body.get("type")
+    return raw if isinstance(raw, str) and raw else "Activity"
 
 
 def _validate_to_field(
-    outbound_activity: VultronActivity,
+    body: dict[str, Any],
     activity_id: str,
     activity_type: str,
 ) -> None:
-    to_field = getattr(outbound_activity, "to", None)
-    if to_field is None or (isinstance(to_field, list) and len(to_field) == 0):
+    """Refuse a body whose ``to:`` names no recipient (OX-08-001/002/003).
+
+    Absent, empty, and present-but-unusable (``[""]``, an object without an
+    ``id``) are the same defect: nothing would be delivered.  Refusing all
+    three here keeps the row from being silently consumed later.
+    """
+    to_field = body.get("to")
+    items = to_field if isinstance(to_field, list) else [to_field]
+    if not any(_item_actor_id(item) for item in items):
         raise VultronOutboxToFieldMissingError(
             f"Outbound {activity_type} activity '{activity_id}' has no"
-            " `to:` field or has an empty `to:` list. All outbound"
+            " `to:` field, or its `to:` names no recipient. All outbound"
             " Vultron activities MUST address at least one recipient via"
             " `to:` (OX-08-001).",
             activity_id=activity_id,
@@ -116,19 +124,16 @@ def _validate_to_field(
 
 
 def _warn_secondary_addressing(
-    outbound_activity: VultronActivity,
+    body: dict[str, Any],
     activity_id: str,
     activity_type: str,
 ) -> None:
-    actor_id = getattr(outbound_activity, "actor", None)
+    # No exemption, not even for the sender's own id in ``cc:`` (OX-08-004):
+    # the CLP-10-001 self-copy was retired by ADR-0109, so a sender copying
+    # itself is exactly what the warning exists to surface.
     for addr_field in ("cc", "bto", "bcc"):
-        value = getattr(outbound_activity, addr_field, None)
+        value = body.get(addr_field)
         if value is None or value == []:
-            continue
-        # CLP-10-001: purposeful self-copy — CaseActor adds its own URI to
-        # cc: so ASGI self-delivery routes a copy to its own inbox for ledger
-        # archival.  This is intentional; suppress the OX-08-004 warning.
-        if addr_field == "cc" and actor_id and value == [actor_id]:
             continue
         logger.warning(
             "Outbound %s activity '%s' has `%s:` set."
@@ -140,119 +145,34 @@ def _warn_secondary_addressing(
         )
 
 
-def _expand_inline_object(
-    outbound_activity: VultronActivity,
-    activity_id: str,
-    activity_type: str,
-    activity_object: object,
-    dl: DataLayer,
-) -> object:
-    if activity_type not in _INLINE_OBJECT_ACTIVITY_TYPES:
-        return activity_object
-    if not isinstance(activity_object, str):
-        return activity_object
-
-    logger.warning(
-        "Outbound %s activity '%s' has a bare string object_ '%s'."
-        " Attempting DataLayer expansion (AKM-03-001 violation).",
-        activity_type,
-        activity_id,
-        activity_object,
+def _is_link(value: object) -> bool:
+    """True for an AS2 ``Link`` object: ``{"type": "Link", ...}`` or ``href``."""
+    return isinstance(value, dict) and (
+        value.get("type") == "Link" or "href" in value
     )
-    full_obj = dl.read(activity_object)
-    if full_obj is None:
-        return activity_object
-
-    outbound_activity.object_ = full_obj
-    logger.debug(
-        "Expanded object_ from '%s' to full %s for %s activity '%s' delivery.",
-        getattr(full_obj, "id_", activity_object),
-        type(full_obj).__name__,
-        activity_type,
-        activity_id,
-    )
-    return full_obj
 
 
 def _validate_inline_object(
+    body: dict[str, Any],
     activity_id: str,
     activity_type: str,
-    activity_object: object,
 ) -> None:
-    if isinstance(activity_object, (str, as_Link)):
+    """Refuse a body whose ``object`` is a reference (AKM-03-002, MV-09-002).
+
+    This is the last-resort guard.  Nothing is expanded here: an ``object``
+    the factory left as a bare URI or a ``Link`` is a factory defect, and the
+    recipient — which has no access to this actor's store — could not resolve
+    it either.
+    """
+    if activity_type not in _INLINE_OBJECT_ACTIVITY_TYPES:
+        return
+    activity_object = body.get("object")
+    if isinstance(activity_object, str) or _is_link(activity_object):
         raise VultronOutboxObjectIntegrityError(
             f"Outbound {activity_type} activity '{activity_id}' has an"
-            f" inline object_ that is a bare string or Link"
+            f" inline object that is a bare string or Link"
             f" ({activity_object!r}). Outbound initiating activities must"
             " carry fully inline typed objects (AKM-03-001).",
             activity_id=activity_id,
             activity_type=activity_type,
         )
-
-
-def _recover_typed_inline_object_from_dict(
-    activity_object: object,
-    activity_type: str,
-    activity_id: str,
-    outbound_activity: VultronActivity,
-) -> object:
-    """Reconstruct a typed object from ``dict`` payloads when possible.
-
-    This preserves the queued outbound object payload while enabling the
-    downstream ``dl.hydrate()`` path for persistable domain models.
-    """
-    if not isinstance(activity_object, dict) or isinstance(
-        activity_object, BaseModel
-    ):
-        return activity_object
-
-    obj_type = activity_object.get("type", "")
-    if activity_object.keys() <= _STUB_KEYS:
-        return activity_object
-
-    model_class = _STUB_OBJECT_MODEL_MAP.get(obj_type)
-    if model_class is None:
-        return activity_object
-
-    try:
-        full_obj = model_class.model_validate(activity_object)
-    except (TypeError, ValueError) as exc:
-        # Report *why*, and what was offered.  Without them this warning says only
-        # that hydration was skipped, which is the symptom; the recipient then
-        # cannot extract the activity's semantics and the protocol step silently
-        # does not happen, far from here.
-        logger.warning(
-            "Failed to reconstruct %s model for %s activity '%s' from keys %s:"
-            " %s. Hydration will be skipped, so the recipient will see a"
-            " dehydrated object and may not match this activity's semantics.",
-            obj_type,
-            activity_type,
-            activity_id,
-            sorted(activity_object.keys()),
-            exc,
-        )
-        return activity_object
-
-    outbound_activity.object_ = full_obj
-    logger.debug(
-        "Recovered typed %s from dict for %s activity '%s'.",
-        model_class.__name__,
-        activity_type,
-        activity_id,
-    )
-    return full_obj
-
-
-def _hydrate_inline_object_if_persistable(
-    activity_object: object,
-    outbound_activity: VultronActivity,
-    dl: DataLayer,
-) -> object:
-    """Hydrate persistable inline objects through the configured ``DataLayer``."""
-    from typing import cast
-
-    if not isinstance(activity_object, BaseModel):
-        return activity_object
-    hydrated_object = dl.hydrate(cast(PersistableModel, activity_object))
-    outbound_activity.object_ = hydrated_object
-    return hydrated_object

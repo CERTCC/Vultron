@@ -14,14 +14,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import re
 
-from vultron.core.scoring.embargo import EmbargoViability
-from vultron.core.scoring.utils import unique_enum_list
 from vultron.core.case_states.patterns.base import compile_patterns
 from vultron.core.case_states.type_hints import EnumTuple
 from vultron.core.case_states.validations import ensure_valid_state
+from vultron.core.scoring.embargo import EmbargoViability
+from vultron.core.scoring.utils import unique_enum_list
 
 _EMBARGO_VIABILITY = {
     "..dpxa": (

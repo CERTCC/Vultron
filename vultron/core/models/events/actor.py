@@ -6,14 +6,16 @@ Covers suggest-actor, ownership-transfer, and invite-actor-to-case semantics.
 from typing import TYPE_CHECKING, Literal, cast
 
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case_stub import stub_case_id
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.ledger_position import LedgerPosition
 
 if TYPE_CHECKING:
-    from vultron.core.models.base import VultronObject
-    from vultron.core.models.case import VulnerabilityCase as VultronCase
+    from vultron.core.models.base import CoreObject
+    from vultron.core.models.case import VulnerabilityCase
 else:
-    VultronObject = object
-    VultronCase = object
+    CoreObject = object
+    VulnerabilityCase = object
 
 
 class OfferActorToCaseReceivedEvent(VultronEvent):
@@ -106,8 +108,8 @@ class AcceptCaseOwnershipTransferReceivedEvent(VultronEvent):
         return self.inner_object_id
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.inner_object)
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.inner_object)
 
 
 class RejectCaseOwnershipTransferReceivedEvent(VultronEvent):
@@ -134,6 +136,11 @@ class InviteActorToCaseReceivedEvent(VultronEvent):
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
+    @property
+    def case_id(self) -> str | None:
+        """The case the Invite's stub names (CM-11-003), not the stub's ID."""
+        return stub_case_id(self.target)
+
 
 class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
     """Actor accepted an invitation to join a VulnerabilityCase."""
@@ -144,19 +151,22 @@ class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
 
     @property
     def case_id(self) -> str | None:
-        return self.inner_target_id
+        """The case the nested Invite's stub names (CM-11-003)."""
+        return stub_case_id(self.inner_target)
 
     @property
-    def case(self) -> "VultronCase | None":
-        return cast("VultronCase | None", self.inner_target)
+    def invite_id(self) -> str | None:
+        """The Invite the reply answers; the CASE_MANAGER's record of it, not
+        the copy embedded here, governs the reply (CM-11-017)."""
+        return self.object_id
 
     @property
     def invitee_id(self) -> str | None:
         return self.inner_object_id
 
     @property
-    def invitee(self) -> "VultronObject | None":
-        return cast("VultronObject | None", self.inner_object)
+    def invitee(self) -> "CoreObject | None":
+        return cast("CoreObject | None", self.inner_object)
 
 
 class RejectInviteActorToCaseReceivedEvent(VultronEvent):
@@ -177,7 +187,85 @@ class RejectInviteActorToCaseReceivedEvent(VultronEvent):
 
     @property
     def case_id(self) -> str | None:
+        """The case the nested Invite's stub names (CM-11-003)."""
+        return stub_case_id(self.inner_target)
+
+
+class InviteActorToFullCaseReceivedEvent(VultronEvent):
+    """The CASE_MANAGER invited a joined participant to judge the case.
+
+    ``Invite(Actor)[target=VulnerabilityCase]`` — the full-case Invite
+    (CM-11-010, VAM-04-011).  The invitee already holds the case from the
+    Announce, so the Invite names it by ID; ``ledger_tail`` is the
+    CASE_MANAGER's ledger tail when it issued the Invite, the floor the
+    invitee's reply must reach.  The extractor parsed it from the Invite's
+    ``content`` at the edge (ADR-0032).
+    """
+
+    semantic_type: Literal[MessageSemantics.INVITE_ACTOR_TO_FULL_CASE] = (
+        MessageSemantics.INVITE_ACTOR_TO_FULL_CASE
+    )
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    ledger_tail: LedgerPosition
+
+    @property
+    def case_id(self) -> str | None:
+        return self.target_id
+
+    @property
+    def invitee_id(self) -> str | None:
+        return self.object_id
+
+
+class _FullCaseInviteReplyEvent(VultronEvent):
+    """Shared shape of the three replies to the full-case Invite (CM-11-011).
+
+    The reply's ``object`` is the Invite, so the case and the invited actor
+    are the Invite's ``target`` and ``object``.  ``ledger_tail`` is the
+    replier's own ledger position when it decided, parsed from the reply's
+    ``content`` at the edge (ADR-0032).
+    """
+
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    ledger_tail: LedgerPosition
+
+    @property
+    def invite_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def case_id(self) -> str | None:
         return self.inner_target_id
+
+    @property
+    def invitee_id(self) -> str | None:
+        return self.inner_object_id
+
+
+class AcceptInviteActorToFullCaseReceivedEvent(_FullCaseInviteReplyEvent):
+    """The invitee judged the case valid: ``Accept(full-case Invite)`` (RV)."""
+
+    semantic_type: Literal[
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_FULL_CASE
+    ] = MessageSemantics.ACCEPT_INVITE_ACTOR_TO_FULL_CASE
+
+
+class TentativeRejectInviteActorToFullCaseReceivedEvent(
+    _FullCaseInviteReplyEvent
+):
+    """The invitee judged the case invalid: ``TentativeReject(Invite)`` (RI)."""
+
+    semantic_type: Literal[
+        MessageSemantics.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE
+    ] = MessageSemantics.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE
+
+
+class RejectInviteActorToFullCaseReceivedEvent(_FullCaseInviteReplyEvent):
+    """The invitee closed the case: ``Reject(full-case Invite)`` (RC)."""
+
+    semantic_type: Literal[
+        MessageSemantics.REJECT_INVITE_ACTOR_TO_FULL_CASE
+    ] = MessageSemantics.REJECT_INVITE_ACTOR_TO_FULL_CASE
 
 
 class AnnounceVulnerabilityCaseReceivedEvent(VultronEvent):

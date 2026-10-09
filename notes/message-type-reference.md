@@ -12,8 +12,10 @@ related_specs:
   - specs/semantic-extraction.yaml
   - specs/diataxis-requirements.yaml
   - specs/project-documentation.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/activitystreams-semantics.md
+  - notes/received-status-authorization.md
   - notes/case-state-model.md
   - notes/diataxis-framework.md
   - notes/documentation-strategy.md
@@ -56,14 +58,25 @@ before writing anything that claims a shorthand maps to a wire form.
 | `EV` `EJ` `EC` | folded into `EP` / `ER` / `EA` respectively | context, not structure |
 | `RI` `RV` `RD` `RA` `RC` | *also* `Add(ParticipantStatus)`, via `rm_state` | payload, parallel to the dedicated report activities |
 
-The last row is the one that surprises people. RM state changes have **two**
-wire expressions: the dedicated report-scoped activity
+The last row is the one that surprises people, and it is **not an anomaly**
+(ADR-0108). RM state changes have **two** wire expressions because a move has
+two layers: the **act** — the dedicated report-scoped activity
 (`Accept(Offer(Report))` = `RV`, `TentativeReject(...)` = `RI`,
-`Reject(...)` = `RC`) *and* the `rm_state` field of a participant-status
-broadcast. `RA` and `RD` additionally appear as case-shaped activities
-(`Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`), because engaging or
-deferring is a case-participation decision rather than a report-validity
-judgment (MSM-01-005 for `RA`, MSM-01-004 for `RD`).
+`Reject(...)` = `RC`), which answers the finder's offer and carries what it
+answers — and the **declaration of resulting state**, the `rm_state` field of a
+participant-status broadcast, which is the participant's own statement about
+itself. One move producing both messages is expected; the declaration is
+supposed to agree with what the act implied, and when it does not the receiver
+flags the gap (RSH-06) rather than preferring one message over the other
+(RSH-08-002). Neither form is "the" authoritative encoding: authority is a
+property of the pipeline (mover announces → CASE_MANAGER adjudicates and commits
+→ replicas apply the ledger), and the CASE_MANAGER applies the same RM
+acceptance rule whichever message carried the declaration (RSH-06-006). Do not
+propose retiring either form to "resolve" the row. `RA` and `RD` additionally
+appear as case-shaped activities (`Join(VulnerabilityCase)` and
+`Ignore(VulnerabilityCase)`), because engaging or deferring is a
+case-participation decision rather than a report-validity judgment (MSM-01-005
+for `RA`, MSM-01-004 for `RD`).
 
 ### Expansions: one shorthand, many wire activities
 
@@ -354,8 +367,12 @@ multi-candidate embargo poll (#3469), so its entry goes away with the example
 itself rather than being fixed into a passing case. That leaves
 `_KNOWN_UNDISPATCHABLE` **empty** once #3469 lands — the first time this gate has
 had no exemptions. An empty exemption map is the goal state, not a signal the map
-is unused: keep it and its two guard tests, because the next undispatchable
-example is what they exist to catch.
+is unused: keep it and its collected-names guard, because the next undispatchable
+example is what they exist to catch. The per-entry `xfail(strict=True)` test that
+forced an exemption out once its example became dispatchable went with the last
+entry, because a `parametrize` over an empty table collects as a permanent SKIP —
+a green line that means nothing. The first new entry MUST bring that strict xfail
+back with it; the table's own comment says so.
 
 The generator's output path is now resolved from the file's own location
 (`Path(__file__).parents[5]`), so it works regardless of the caller's working

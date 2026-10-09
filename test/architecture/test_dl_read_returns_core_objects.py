@@ -48,15 +48,15 @@ Related: issue #1503 (read-path implementation), issue #1506 (activity
 read-back migration)
 """
 
-from datetime import timedelta
 from typing import cast
 
+from pydantic.alias_generators import to_camel
+
+from test.support.core_vocab import minimal_kwargs
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from pydantic.alias_generators import to_camel
-
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.registry import CORE_VOCABULARY
@@ -113,33 +113,15 @@ ACTIVITY_TYPE_EXEMPTIONS: frozenset[str] = frozenset(
 # ---------------------------------------------------------------------------
 # Known pre-existing wire escapes for CORE_VOCABULARY types.
 #
-# Each entry is a ``CORE_VOCABULARY`` key (i.e., the ``type_`` string used
-# when the object was persisted) that currently round-trips back as a wire
-# object rather than a core object.  These are actor types whose ``type_``
-# value ("Person", "Service", etc.) is intercepted by the wire VOCABULARY
-# before the core-vocabulary path can resolve them.
-#
-# Fix: ensure ``_from_row`` resolves these via ``CORE_VOCABULARY`` before
-# falling back to the wire path.  No migration issue filed yet; file one
-# when this ratchet is ready to be tightened.
-#
+# Each entry is a ``CORE_VOCABULARY`` key (a class name) whose saved instance
+# currently round-trips back as a wire object rather than a core object.
 # Remove an entry from this set when the round-trip regression is fixed.
+#
+# Empty since #3647: ``VultronNote`` stores as ``"Note"``, which never matched
+# its class-name key, until ``from_row`` gained a type-value fallback
+# (``hydration.core_class_for_row_type``).
 # ---------------------------------------------------------------------------
 KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset()
-
-
-def _minimal_kwargs(cls: type[CoreObject]) -> dict:
-    """Return the minimum kwargs to construct *cls* without validation errors."""
-    kwargs: dict = {}
-    for field_name, field_info in cls.model_fields.items():
-        if not field_info.is_required():
-            continue
-        ann = str(field_info.annotation)
-        if "timedelta" in ann:
-            kwargs[field_name] = timedelta(days=90)
-        else:
-            kwargs[field_name] = f"urn:test:{field_name}:1"
-    return kwargs
 
 
 def _collect_wire_escapes() -> frozenset[str]:
@@ -154,11 +136,11 @@ def _collect_wire_escapes() -> frozenset[str]:
         if not issubclass(base_cls, CoreObject):
             continue
         cls: type[CoreObject] = base_cls  # type: ignore[assignment]
-        kwargs = _minimal_kwargs(cls)
+        kwargs = minimal_kwargs(cls)
         kwargs["id_"] = f"urn:test:{vocab_key.lower()}:ratchet"
         try:
             obj: CoreObject = cls(**kwargs)
-        except Exception:
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989
             # If we cannot construct a minimal instance we skip — the type
             # is not a concern for this ratchet (no core code saves it without
             # required fields either).
@@ -214,11 +196,11 @@ def _collect_wire_shaped_row_escapes() -> tuple[frozenset[str], int]:
             continue
         cls: type[CoreObject] = base_cls  # type: ignore[assignment]
         row_id = f"urn:test:{vocab_key.lower()}:wire-row-ratchet"
-        kwargs = _minimal_kwargs(cls)
+        kwargs = minimal_kwargs(cls)
         kwargs["id_"] = row_id
         try:
             core_obj: CoreObject = cls(**kwargs)
-        except Exception:
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989
             continue
         # Build a *wire-shaped* copy of valid core data: camelCase spellings plus
         # the wire-facing identity keys.  Deriving it from a constructed core
@@ -235,7 +217,7 @@ def _collect_wire_shaped_row_escapes() -> tuple[frozenset[str], int]:
         storable = StorableRecord(id_=row_id, type_=vocab_key, data_=wire_data)
         try:
             dl.create(storable)
-        except Exception:
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989
             continue
         result = dl.read(row_id)
         if result is None:

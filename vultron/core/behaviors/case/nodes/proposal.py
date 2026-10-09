@@ -14,14 +14,14 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-CaseProposal action nodes for the slimmed vendor receive-report tree.
+CaseProposal action nodes for the slimmed receive-report tree.
 
 Provides :class:`ProposeReportCaseToActorNode`, the ADR-0041 variant of the
 proposal send that operates directly from a ``report_id`` without requiring a
 ``VulnerabilityCase`` to already exist in the DataLayer.
 
-The pre-ADR-0041 node (:class:`~vultron.core.behaviors.case.nodes.actor.ProposeCaseToActorNode`)
-reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
+The pre-ADR-0041 node (``ProposeCaseToActorNode``, now deleted — issue #4353)
+read ``case_id`` and ``case_actor_id`` from the blackboard (written by
 ``CreateCaseActorNode``).  This module's node reads the CaseActor's identity from
 :func:`~vultron.core.behaviors.case.case_actor_identity.case_actor_identity`
 instead — the container's identity, not a per-case one derived from the report
@@ -36,21 +36,22 @@ from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
-    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
 )
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 
-class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
+class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
     """Send ``Create(as_CaseProposal)`` from ``report_id`` without a prior case.
 
-    Used by the slimmed vendor ``receive_report_case_tree`` (ADR-0041).  Unlike
-    :class:`~vultron.core.behaviors.case.nodes.actor.ProposeCaseToActorNode`,
+    Used by the slimmed ``receive_report_case_tree`` (ADR-0041).  Unlike
+    the deleted ``ProposeCaseToActorNode`` (issue #4353),
     this node does not require a ``VulnerabilityCase`` to exist — it uses
     ``report_id`` directly and derives ``case_actor_id`` from
     ``ActorConfig.case_actor_service_url`` + a deterministic slug from
@@ -85,7 +86,7 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
                 f"{self.name}: case_actor_service_url is not configured"
                 " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
         return identity
 
     def update(self) -> Status:
@@ -118,10 +119,9 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
                     offer_actor_id=offer_actor_id,
                 )
             )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
-        except Exception as exc:
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, "")
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"create_case_proposal failed: {exc}"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -137,7 +137,7 @@ class ProposeReportCaseToActorNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class RequeuePendingCreateCaseActivityNode(DataLayerAction):
+class RequeuePendingCreateCaseActivityNode(DataLayerAction, EmitCapable):
     """Re-queue a persisted ``Create(VulnerabilityCase)`` obligation.
 
     Crash recovery: when the process died between persisting a
@@ -201,7 +201,7 @@ class RequeuePendingCreateCaseActivityNode(DataLayerAction):
             already_queued = self.activity_id in outbox.outbox_list()
         except Exception as exc:  # noqa: BLE001 - recovery must not crash boot
             self.feedback_message = f"could not read outbox: {exc}"
-            self.logger.error(
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: could not read outbox for actor '%s': %s",
                 self.name,
                 self.marker.case_actor_id,
@@ -221,9 +221,9 @@ class RequeuePendingCreateCaseActivityNode(DataLayerAction):
 
         try:
             outbox.outbox_append(self.activity_id)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = f"could not enqueue: {exc}"
-            self.logger.error(
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: could not enqueue Create(VulnerabilityCase) '%s'"
                 " for actor '%s': %s",
                 self.name,

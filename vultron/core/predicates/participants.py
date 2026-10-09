@@ -21,14 +21,10 @@ convergence state over a live container should fetch participants first, then
 delegate to these predicates.
 """
 
-from typing import TYPE_CHECKING
-
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-
-if TYPE_CHECKING:
-    from vultron.core.states.cs import CS_vf
 
 
 def vendor_vf_invariant_ok(
@@ -42,13 +38,12 @@ def vendor_vf_invariant_ok(
     no VF assertion is being made and is always valid.  Non-vendor roles are
     unconstrained by this rule.
 
-    Per ADR-0084, PRM-06-002.
+    Per ADR-0121, PRM-06-002.
     """
     if vf_state is None:
         return True
     if CVDRole.VENDOR not in roles:
         return True
-    from vultron.core.states.cs import CS_vf  # avoid circular at module level
 
     return vf_state != CS_vf.vf
 
@@ -63,8 +58,6 @@ def some_vendor_at_vf(participants: list[CaseParticipant]) -> bool:
     A participant with no status record, or whose ``vf`` dimension is ``None``,
     does not satisfy the gate.
     """
-    from vultron.core.states.cs import CS_vf  # avoid circular at module level
-
     for participant in participants:
         if CVDRole.VENDOR not in (participant.case_roles or []):
             continue
@@ -84,6 +77,10 @@ def all_participants_rm_closed(
     Participants with no status records cause the function to return ``False``
     immediately — their convergence state is unknown and must be treated as
     incomplete.
+
+    Only participants that have joined are counted (CM-11-014): those seated
+    by the case initialization sequence and those that accepted their stub
+    Invite.  An inert invitee (``joined=False``) is skipped, whatever its RM.
 
     The CASE_MANAGER is included, not exempt.  It has a full RM lifecycle
     (ADR-0051, CM-23-005) and CM-23-010 makes ``RM.CLOSED`` mean "the Case Owner
@@ -105,6 +102,11 @@ def all_participants_rm_closed(
         otherwise.
     """
     for participant in participants:
+        if not participant.joined:
+            # An invitee that has not accepted its stub Invite is not part of
+            # the case yet; its silence must not keep the case open
+            # (CM-11-014, ADR-0114).
+            continue
         latest = participant.participant_status
         if latest is None:
             return False

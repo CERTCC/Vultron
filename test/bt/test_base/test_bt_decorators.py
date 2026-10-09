@@ -147,10 +147,11 @@ class MyTestCase(unittest.TestCase):
             class WinBeforeLose(BtNode):
                 # dummy class that succeeds n times before failure
                 i = 0
+                limit = n
 
                 def _tick(self, depth=0):
                     self.i += 1
-                    if self.i < n:
+                    if self.i < self.limit:
                         return NodeStatus.SUCCESS
                     return NodeStatus.FAILURE
 

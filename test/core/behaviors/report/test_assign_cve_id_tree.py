@@ -362,6 +362,6 @@ def test_each_factory_is_injectable(field_name, expected_label):
     bundle = AssignCveIdCallOutBundle(**{field_name: custom_factory})  # type: ignore[arg-type]
     tree = create_assign_cve_id_tree(case_id=CASE_ID, call_out=bundle)
     assert sentinel["called"], f"factory {field_name!r} was not called"
-    assert expected_label in _collect_all_names(
-        tree
-    ), f"Expected node '{expected_label}' not in tree for field {field_name!r}"
+    assert expected_label in _collect_all_names(tree), (
+        f"Expected node '{expected_label}' not in tree for field {field_name!r}"
+    )

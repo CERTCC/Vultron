@@ -33,7 +33,7 @@ spelling (ADR-0099 detail 2) and there is no hand-written table to drift from
 the models.
 
 Spec: ``specs/received-status-handling.yaml`` RSH-05-004, RSH-05-009,
-RSH-05-013; ``specs/case-ledger-processing.yaml`` CLP-07-001.
+RSH-05-013; ``specs/case-ledger-processing.yaml`` CLP-07-011.
 """
 
 from typing import Any
@@ -94,12 +94,12 @@ def _other_spellings(
 #: RSH-05-013 validates an override's ``fields`` against — a producer naming
 #: anything else is a bug, and the commit node hard-fails.  The **values** are
 #: the twins :func:`drop_stale_twins` removes: the ``object`` being patched is a
-#: *wire object* — CLP-07-001 makes the payload snapshot AS2-shaped, so it is
+#: *wire object* — CLP-07-011 makes the payload snapshot AS2-shaped, so it is
 #: normally serialized ``by_alias`` and carries only the camelCase key — but a
 #: snapshot that reached this actor by some other route may carry a second
 #: spelling of the same field, and leaving that twin beside a patched alias would
 #: let a consumer read the value the receiver just refused (RSH-05-009,
-#: CLP-07-001, CM-18-006).
+#: CLP-07-011, CM-18-006).
 #:
 #: This replaces the hand-written ``_SNAKE_TWINS`` table, which listed the seven
 #: camelCase keys and their snake_case partners literally and included

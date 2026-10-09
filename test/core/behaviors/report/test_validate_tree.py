@@ -22,21 +22,20 @@ the validation workflow using the nodes from nodes.py.
 Per specs/behavior-tree-integration.yaml BT-06 and testability.yaml requirements.
 """
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.vultron_types import (
-    VultronCaseActor,
-    VultronOffer,
-    VultronReport,
-)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
+from vultron.core.models.activity import VultronOffer
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.demo.fuzzer.bundles.validation import ValidationCallOutBundle
 
@@ -81,7 +80,7 @@ def reporter_actor_id():
 @pytest.fixture
 def report(datalayer, actor_id):
     """Create test VulnerabilityReport."""
-    report_obj = VultronReport(
+    report_obj = VulnerabilityReport(
         id_="https://example.org/reports/CVE-2024-001",
         name="Test Vulnerability Report",
         content="Test vulnerability description",
@@ -108,7 +107,7 @@ def offer(datalayer, report, actor_id, reporter_actor_id):
 @pytest.fixture
 def actor(datalayer, actor_id):
     """Create test vendor actor in the DataLayer."""
-    actor_obj = VultronCaseActor(
+    actor_obj = CaseActor(
         id_=actor_id,
         name="Vendor Co",
     )
@@ -119,7 +118,7 @@ def actor(datalayer, actor_id):
 @pytest.fixture
 def reporter_actor(datalayer, reporter_actor_id):
     """Create test reporter actor in the DataLayer."""
-    actor_obj = VultronCaseActor(
+    actor_obj = CaseActor(
         id_=reporter_actor_id,
         name="Reporter Co",
     )
@@ -135,7 +134,7 @@ def trigger_activity(datalayer):
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     return TriggerActivityAdapter(cast(CaseOutboxPersistence, datalayer))
 
@@ -169,9 +168,9 @@ def _seed_case_participant(datalayer, case_obj, participant_actor_id, slug):
     ``Create(VulnerabilityCase)`` delivers (CBT-01-002).  Without it
     ``TransitionRMtoValid`` correctly returns FAILURE (ISSUE-2548).
     """
+    from test.support.participant_status import advance_participant_rm
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.enums.roles import CVDRole
-    from test.support.participant_status import advance_participant_rm
 
     participant = CaseParticipant(
         id_=f"{case_obj.id_}/participants/{slug}",
@@ -207,7 +206,7 @@ def case(datalayer, actor_id, report):
         name="Validate-tree test case",
         attributed_to=actor_id,
         vulnerability_reports=[report.id_],
-        active_embargo=f"{actor_id}/embargoes/test-embargo",
+        embargo_register=register(active=f"{actor_id}/embargoes/test-embargo"),
     )
     datalayer.create(case_obj)
     _seed_case_participant(datalayer, case_obj, actor_id, "vendor")
@@ -705,7 +704,7 @@ def test_tree_execution_actor_isolation():
         TriggerActivityAdapter,
     )
     from vultron.core.models.case import VulnerabilityCase
-    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
     report_id = "https://example.org/reports/CVE-2024-001"
     offer_id = "https://example.org/activities/offer-123"
@@ -716,7 +715,7 @@ def test_tree_execution_actor_isolation():
     ) -> tuple[SqliteDataLayer, BTBridge]:
         """A fully seeded, actor-scoped store — the ADR-0073 unit of isolation."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        dl.create(VultronReport(id_=report_id, name="R", content="c"))
+        dl.create(VulnerabilityReport(id_=report_id, name="R", content="c"))
         dl.create(
             VultronOffer(
                 id_=offer_id,
@@ -725,13 +724,15 @@ def test_tree_execution_actor_isolation():
                 target=actor_id,
             )
         )
-        dl.create(VultronCaseActor(id_=actor_id, name=f"Actor {slug}"))
+        dl.create(CaseActor(id_=actor_id, name=f"Actor {slug}"))
         case_obj = VulnerabilityCase(
             id_=f"{actor_id}/cases/test-case-validate",
             name="Validate-tree isolation case",
             attributed_to=actor_id,
             vulnerability_reports=[report_id],
-            active_embargo=f"{actor_id}/embargoes/test-embargo",
+            embargo_register=register(
+                active=f"{actor_id}/embargoes/test-embargo"
+            ),
         )
         dl.create(case_obj)
         _seed_case_participant(dl, case_obj, actor_id, slug)
@@ -922,9 +923,9 @@ def test_validate_report_tree_case_has_active_embargo(
 
     case_ids = list(cases.keys())
     case_obj = datalayer.read(case_ids[0])
-    assert isinstance(
-        case_obj, VulnerabilityCase
-    ), "Expected a VulnerabilityCase"
+    assert isinstance(case_obj, VulnerabilityCase), (
+        "Expected a VulnerabilityCase"
+    )
     assert case_obj.active_embargo is not None, (
         "VulnerabilityCase must have active_embargo set so participants "
         "can learn about the embargo from the Create(Case) activity"

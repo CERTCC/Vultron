@@ -16,7 +16,6 @@ Provides report prioritization behaviors.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import random
 
 from vultron.bt.base.bt_node import BtNode

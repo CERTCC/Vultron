@@ -19,17 +19,21 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
 from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -144,21 +148,19 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         ), "Expected a WARNING log citing PCR-03-004 or PCR-07-010"
 
     def test_updates_report_case_link_when_case_contains_report(
-        self, dl, event, case, case_actor
+        self, dl, event, case, case_actor, make_payload
     ):
         """A valid Announce links known reports to the seeded case replica."""
         _anchor_expected_authority(dl)
         case.vulnerability_reports.append(_REPORT_ID)
         dl.save(VultronReportCaseLink(report_id=_REPORT_ID))
 
-        linked_event = event.model_copy(
-            update={
-                "activity": announce_vulnerability_case_activity(
-                    case,
-                    actor=case_actor.id_,
-                    context=case.id_,
-                )
-            }
+        linked_event = make_payload(
+            announce_vulnerability_case_activity(
+                case,
+                actor=case_actor.id_,
+                context=case.id_,
+            )
         )
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, linked_event).execute()
@@ -225,14 +227,19 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         )
         event = make_payload(announce)
 
-        # Replace the object_ on the raw activity with a non-case
+        # Replace the object_ on the event's activity with a non-case
         report = as_VulnerabilityReport(name="Not a case")
-        patched_activity = announce.model_copy(update={"object_": report})
+        patched_activity = event.activity.model_copy(
+            update={"object_": report}
+        )
         event = event.model_copy(update={"activity": patched_activity})
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
+        assert result.disposition == HandlerDisposition.REFUSED
         assert dl.read(_CASE_ID2) is None
+        # CLP-10-018: the refused Announce is still archived.
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     def test_rejects_announce_from_non_case_actor(
         self, dl, case, make_payload
@@ -270,14 +277,46 @@ class TestAnnounceFirstContactTrustGap:
         with caplog.at_level(logging.WARNING):
             AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
-        assert (
-            dl.read(_CASE_ID) is None
-        ), "Case MUST NOT be seeded when no trust anchor exists (PCR-03-004)"
+        assert dl.read(_CASE_ID) is None, (
+            "Case MUST NOT be seeded when no trust anchor exists (PCR-03-004)"
+        )
         assert any(
             "PCR-03-004" in r.getMessage() or "PCR-07-010" in r.getMessage()
             for r in caplog.records
             if r.levelno == logging.WARNING
         ), "Expected WARNING log citing the PCR spec reference"
+
+    @pytest.mark.spec("HP-01-003")
+    def test_announce_from_untrusted_sender_is_refused(self, dl, event):
+        """#2255: a rejected Announce is REFUSED, not reported as applied.
+
+        APPLIED reads as "processed" in the InboxOutcome and gates the
+        post-bootstrap replay, so a refused seed must not look applied.
+        """
+        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "untrusted" in result.reason
+        # CLP-10-018: the refused Announce is still archived, and no case row
+        # was seeded from it.
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
+        assert dl.read(_CASE_ID) is None
+
+    @pytest.mark.spec("HP-01-003")
+    def test_admitted_announce_is_applied(self, dl, event):
+        _anchor_expected_authority(dl)
+
+        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_announce_without_activity_is_refused(self, dl, event):
+        event = event.model_copy(update={"activity": None})
+
+        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
 
     def test_admits_announce_after_invite_trust_anchor(self, dl, event, case):
         """AC-5b / PCR-03-004: Announce from the invite sender is admitted once
@@ -292,9 +331,9 @@ class TestAnnounceFirstContactTrustGap:
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         result = dl.read(_CASE_ID)
-        assert (
-            result is not None
-        ), "Case MUST be seeded when an invite trust anchor for the sender exists"
+        assert result is not None, (
+            "Case MUST be seeded when an invite trust anchor for the sender exists"
+        )
 
     def test_rejects_announce_when_pending_record_has_no_case_actor_id(
         self, dl, event
@@ -314,9 +353,9 @@ class TestAnnounceFirstContactTrustGap:
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
-        assert (
-            dl.read(_CASE_ID) is None
-        ), "A pending record with case_actor_id=None must NOT admit any Announce"
+        assert dl.read(_CASE_ID) is None, (
+            "A pending record with case_actor_id=None must NOT admit any Announce"
+        )
 
     def test_rejects_announce_from_wrong_actor_with_trust_anchor(
         self, dl, make_payload, case
@@ -336,9 +375,9 @@ class TestAnnounceFirstContactTrustGap:
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
-        assert (
-            dl.read(_CASE_ID) is None
-        ), "Case MUST NOT be seeded when the sender does not match the trust anchor"
+        assert dl.read(_CASE_ID) is None, (
+            "Case MUST NOT be seeded when the sender does not match the trust anchor"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -346,9 +385,7 @@ class TestAnnounceFirstContactTrustGap:
 # ---------------------------------------------------------------------------
 
 
-def _genesis_entry_for(
-    case_id: str, genesis_hash: str
-) -> VultronCaseLedgerEntry:
+def _genesis_entry_for(case_id: str, genesis_hash: str) -> CaseLedgerEntry:
     """Build a genesis (log_index 0) entry anchored to *genesis_hash*."""
     chain = HashChainLedgerRecord(
         case_id=case_id,
@@ -358,7 +395,7 @@ def _genesis_entry_for(
         payload_snapshot={"key": "value"},
         prev_log_hash=genesis_hash,
     )
-    return VultronCaseLedgerEntry(
+    return CaseLedgerEntry(
         case_id=chain.case_id,
         log_index=chain.log_index,
         term=chain.term,
@@ -437,9 +474,9 @@ class TestAnnounceStoresEmbeddedParticipants:
     """Announce(as_VulnerabilityCase) seeding must store embedded participants.
 
     Regression tests for #566: ``AnnounceVulnerabilityCaseReceivedUseCase``
-    was not calling ``_store_embedded_participants`` after saving the case,
+    was not calling ``store_embedded_participants`` after saving the case,
     so late-joiner replicas never had independent ``as_CaseParticipant`` records.
-    BT nodes (``CheckParticipantExists``, ``AppendParticipantStatusNode``)
+    BT nodes (``SenderIsActiveParticipantNode``, ``AppendParticipantStatusNode``)
     would then fail with participant-not-found on the Announce path.
     """
 
@@ -552,9 +589,9 @@ class TestAnnounceStoresEmbeddedParticipants:
 
         # The bare string ref must NOT cause a spurious record to appear
         stored = dl.read(_VENDOR_PARTICIPANT_ID)
-        assert (
-            stored is None
-        ), "String participant refs must not create spurious DataLayer records"
+        assert stored is None, (
+            "String participant refs must not create spurious DataLayer records"
+        )
 
     def test_embedded_participants_stored_when_case_already_exists(
         self,
@@ -564,7 +601,7 @@ class TestAnnounceStoresEmbeddedParticipants:
     ):
         """Participants are stored even when the case already exists locally.
 
-        Regression: the inbox router's ``_store_nested_inbox_object`` can seed
+        Regression: the inbox ingress helper ``_store_nested_inbox_object`` can seed
         the case before dispatch, so the Announce use-case may enter the
         idempotent early-return path.  Embedded participants must still be
         persisted on that path (#566).

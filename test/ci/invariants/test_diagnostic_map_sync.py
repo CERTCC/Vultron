@@ -53,9 +53,9 @@ import ast
 import functools
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Mapping
 
 import pytest
 import yaml
@@ -206,7 +206,7 @@ def _map_rows() -> Mapping[str, str]:
 
     rows: dict[str, str] = {}
     for name, status in zip(
-        table.column("Test function"), table.column("Status")
+        table.column("Test function"), table.column("Status"), strict=False
     ):
         # The function-name pattern is deliberately wider than
         # ``test_invariant_*``: three rows are named for a spec clause or a
@@ -218,9 +218,9 @@ def _map_rows() -> Mapping[str, str]:
             "`test_`-prefixed function name"
         )
         function = match.group("fn")
-        assert (
-            function not in rows
-        ), f"{function} appears in the map table twice"
+        assert function not in rows, (
+            f"{function} appears in the map table twice"
+        )
         rows[function] = status.strip()
     assert rows, (
         f"the table under {heading!r} in {_DIAGNOSTIC_MAP.name} has a header "
@@ -332,9 +332,9 @@ def _harness_tree(demo: str | None, test_file: str | None) -> ast.Module:
     """Parse a registered harness file, asserting the registry points at it."""
     assert test_file, f"scenario {demo!r} has no 'test_file' in the registry"
     path = _REPO_ROOT / test_file
-    assert (
-        path.is_file()
-    ), f"scenario {demo!r} names a harness that does not exist: {test_file}"
+    assert path.is_file(), (
+        f"scenario {demo!r} names a harness that does not exist: {test_file}"
+    )
     return ast.parse(path.read_text(encoding="utf-8"), filename=test_file)
 
 
@@ -364,14 +364,14 @@ def test_scenario_registry_is_well_formed() -> None:
     assert all(demos), f"registry entries missing a 'demo' key: {demos}"
     assert all(files), f"registry entries missing a 'test_file' key: {files}"
     assert len(set(demos)) == len(demos), f"duplicate 'demo' names: {demos}"
-    assert len(set(files)) == len(
-        files
-    ), f"duplicate 'test_file' paths: {files}"
+    assert len(set(files)) == len(files), (
+        f"duplicate 'test_file' paths: {files}"
+    )
 
     missing = [f for f in files if not (_REPO_ROOT / str(f)).is_file()]
-    assert (
-        not missing
-    ), f"{_CI_SCENARIOS_JSON.name} names missing harness files: {missing}"
+    assert not missing, (
+        f"{_CI_SCENARIOS_JSON.name} names missing harness files: {missing}"
+    )
 
 
 @pytest.mark.parametrize(("demo", "test_file"), _harness_files())

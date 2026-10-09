@@ -5,7 +5,6 @@ description: >
   adopts an inbound participant's reported CaseStatus as canonical (StatusAdoptionGate)
   and whether to execute embargo teardown side-effects (EmbargoTeardownAuthorizationGate).
   Derived from ADR-0046 and IDEA-1836 planning session.
-version: 0.1.0
 scope:
 - prototype
 - production
@@ -54,36 +53,45 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      When StatusAdoptionGate passes, `add_participant_status_tree` MUST emit
-      a self-addressed `Add(CaseStatus, VulnerabilityCase)` activity to the
-      CASE_MANAGER.
+      When StatusAdoptionGate passes, `add_participant_status_tree` MUST write
+      the post-adoption `CaseStatus` directly to the canonical case ledger via
+      `EmitCaseStatusUpdateNode` (RSH-04-004). It MUST NOT emit a
+      self-addressed `Add(CaseStatus, VulnerabilityCase)` to the CASE_MANAGER
+      to reach the canonical write indirectly.
     rationale: >
-      The self-addressed Add(CaseStatus) threads the two gates together without
-      coupling the trees directly. See ADR-0046 §"Self-addressed pattern".
-    verification: Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py` confirm a self-addressed
-      `Add(CaseStatus, VulnerabilityCase)` is emitted when `StatusAdoptionGate` passes.
-    note: >
-      Implementation pattern for obtaining the `CaseStatus` ID: read the
-      `ParticipantStatus` record by `participant_status_id`, extract the
-      embedded `.case_status` field (a `CaseStatus` object), persist it
-      idempotently via `datalayer.create()` (catching `ValueError` on
-      duplicate), then pass the resulting `case_status.id_` to the factory.
-      If `.case_status` is absent on the `ParticipantStatus`, the node MUST
-      return FAILURE (ISSUE-1841).
+      The CASE_MANAGER is the authority for its own canonical state changes, so
+      routing its adoption decision back through its own inbox adds a hop and a
+      second adjudication pass to a write it has already authorized. The direct
+      ledger write is the shape RSH-04-004 specifies for every CASE_MANAGER-side
+      `CaseStatus` mutation; the adoption path is one such mutation.
+    verification: Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py` confirm that when
+      `StatusAdoptionGate` passes `EmitCaseStatusUpdateNode` appends the post-adoption `CaseStatus` to the case,
+      and that no `EmitAddCaseStatusToSelf` node is present in the tree.
+    adr:
+    - ADR-0046
+    - ADR-0108
     stories:
     - story_2022_045
     - story_2022_088
   - id: RSH-01-004
-    priority: MUST_NOT
-    kind: protocol
+    priority: MUST
+    kind: project
     statement: >
-      `add_participant_status_tree` MUST NOT directly execute embargo teardown
-      or other canonical-state side-effects; these MUST occur only via the
-      `add_case_status_tree` pipeline triggered by the self-addressed message.
+      Embargo teardown and other canonical-state side-effects in
+      `add_participant_status_tree` MUST run only after the canonical
+      `CaseStatus` ledger write of RSH-01-003, and MUST pass through
+      `EmbargoTeardownAuthorizationGate` before executing.
     rationale: >
-      Side-effects must run after the canonical write, which lives in
-      `add_case_status_tree`. Running teardown in `add_participant_status_tree`
-      would violate write-before-side-effect ordering.
+      Side-effects must run after the canonical write and under the same
+      authorization posture as the `add_case_status_tree` path (RSH-02-001,
+      RSH-07-002), so that adopting a participant's assertion and acting on it
+      remain two separately authorized steps whichever tree performs them.
+    verification: Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py` confirm the
+      `TeardownEffects` sequence is ordered after `EmitCaseStatusUpdateNode` and begins with
+      `EmbargoTeardownAuthorizationGate`.
+    adr:
+    - ADR-0046
+    - ADR-0108
 
 - id: RSH-02
   title: EmbargoTeardownAuthorizationGate
@@ -108,7 +116,7 @@ groups:
     - story_2022_026
   - id: RSH-02-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       The default backend for `EmbargoTeardownAuthorizationGate` MUST be
       `RequireCaseOwnerApproval` — an Evaluator that performs an
@@ -121,16 +129,12 @@ groups:
       (security-significant gate exception) and ADR-0076. The prior default
       of `AlwaysSucceed` was a prototype-stage convenience; production-ready
       posture requires explicit operator opt-in for permissive behavior.
-      Belt-and-suspenders: even though `StatusAdoptionGate` (RSH-07-001) has
-      already obtained Case Owner approval before the self-addressed
-      `Add(CaseStatus)` arrives here, an operator constructing
-      `add_case_status_tree` outside the self-addressed pattern would otherwise
-      inherit a permissive teardown gate with no explicit opt-in.
+      Belt-and-suspenders: `add_case_status_tree` runs this gate with no
+      adoption gate ahead of it (RSH-04-001), so it would otherwise inherit a
+      permissive teardown gate with no explicit opt-in.
     verification: Inspection of `vultron/core/behaviors/status/` confirms the default backend for
       `EmbargoTeardownAuthorizationGate` is `RequireCaseOwnerApproval`, not `AlwaysSucceed`.
 
-    lint_suppress:
-    - missing_story_reference
 - id: RSH-03
   title: ThreatTerminationBranchNode
   description: >
@@ -157,14 +161,23 @@ groups:
   - id: RSH-03-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >
       `ThreatTerminationBranchNode` MUST NOT gate teardown on sender role
       (e.g., CASE_OWNER). Authorization is the responsibility of StatusAdoptionGate;
       by the time this node runs, the canonical write is already authorized.
     rationale: >
-      Duplicating a CASE_OWNER gate here would prevent teardown when the
-      self-addressed `Add(CaseStatus)` arrives from the CASE_MANAGER itself
-      (sender = CASE_MANAGER, not CASE_OWNER).
+      By the time this node runs the canonical write is already authorized:
+      by `StatusAdoptionGate` in `add_participant_status_tree` (where the
+      sender is the asserting participant), or by CASE_MANAGER emission
+      authority in `add_case_status_tree` (RSH-04-001, where the sender is the
+      CASE_MANAGER). Neither sender is necessarily CASE_OWNER, so a duplicate
+      CASE_OWNER gate here would block legitimate teardown on both paths.
+    note: >
+      RSH-03-004's skip for a status the CASE_MANAGER declared is not an
+      authorization gate: it does not decide whether a teardown is allowed,
+      only that a replica leaves the CASE_MANAGER's own teardown to its
+      committed entry.
   - id: RSH-03-003
     priority: MUST
     kind: protocol
@@ -176,9 +189,53 @@ groups:
       The node belongs in the tree that writes canonical state. Its presence
       in `add_participant_status_tree` predates the two-seam design and must
       be migrated as part of implementing RSH-01 and RSH-02.
-    verification: Inspection of `vultron/core/behaviors/status/` confirms `PublicDisclosureBranchNode` is absent from
-      `add_participant_status_tree` and `ThreatTerminationBranchNode` is present in `add_case_status_tree`.
+    verification: >
+      `PublicDisclosureBranchNode` is deleted (#4154);
+      `test/core/behaviors/status/test_add_participant_status_bt.py` asserts no
+      node of that name is in `add_participant_status_tree`, and
+      `test/core/behaviors/status/test_add_case_status_bt.py` asserts
+      `ThreatTerminationBranchNode` is present in `add_case_status_tree`.
 
+    stories:
+    - story_2022_081
+  - id: RSH-03-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      An actor that does not hold `CVDRole.CASE_MANAGER` MUST NOT ask the
+      CASE_MANAGER for an embargo teardown when the P/X/A status that
+      triggered `ThreatTerminationBranchNode` was declared by the
+      CASE_MANAGER; it waits for the CASE_MANAGER's committed teardown entry
+      (EP-09-007).
+    rationale: >
+      The CASE_MANAGER tears down on its own P/X/A detection, commits the
+      teardown and declares the new status. The declaration can reach a
+      replica before the teardown entries do, and the replica would then ask
+      the CASE_MANAGER to terminate the embargo it has already terminated,
+      an ask answered with a refusal (#4149). An open proposal raises no ask
+      either way (EMB-16-002). The same replica would also post the
+      CASE_MANAGER a CSB-18 diagnostic Note for the P/X/A–EM gap the
+      teardown entry is about to close, so `PxaEmInvariantDiagnosticNode`
+      skips on the same condition.
+    note: >
+      The skip decides who carries out the teardown, not whether it is
+      allowed (RSH-03-002).
+    verification: >
+      `test/core/behaviors/status/test_add_case_status_bt.py` runs
+      `ThreatTerminationBranchNode` on a replica that still holds the active
+      embargo, with the CASE_MANAGER as sender, and asserts nothing is
+      queued; with another sender the terminate ask is still queued. The
+      same file runs the whole `add_case_status_tree` at a replica and
+      asserts the outbox stays empty (no ask, no diagnostic Note) for the
+      CASE_MANAGER's declaration, and
+      `test/core/behaviors/status/test_add_participant_status_bt.py` pins
+      that `add_participant_status_tree` gives the branch the status's
+      sender.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-03-001
+    - rel_type: depends_on
+      spec_id: EP-09-008
     stories:
     - story_2022_081
 - id: RSH-04
@@ -215,7 +272,12 @@ groups:
       Every BT node or tree that mutates EM state (Propose, Accept, Reject,
       Terminate, and all cascade variants) MUST immediately follow the
       state-mutation step with a write of the updated `CaseStatus` to the
-      canonical case ledger.
+      canonical case ledger. A received tree whose guarded commit records the
+      very activity that caused the transition, and whose entry type has a
+      replica apply node that replays the same transition (RSH-08-004,
+      ADR-0113), has made that write: the committed entry carries the change
+      to every replica, and a second `CaseStatus` entry for it would be a
+      duplicate.
     rationale: >
       EM state changes are only observable to remote actors via `CaseStatus`
       entries in `Announce(CaseLedgerEntry)` messages. A mutation without a
@@ -264,13 +326,13 @@ groups:
     verification: Inspection of `vultron/core/behaviors/` confirms `EmitCaseStatusUpdateNode` writes directly to
       `case.case_statuses` and emits `Announce(CaseLedgerEntry)` without routing through `add_case_status_tree`.
     note: >
-      Implementation tracked in ISSUE-2175 (implement EmitCaseStatusUpdateNode,
-      size:M). A follow-on refactor of `EmitAddCaseStatusToSelfNode` is tracked
-      in ISSUE-2176 (size:S, blocked-by ISSUE-2175).
-      The `EmitAddCaseStatusToSelfNode` kludge (inbound path) is acknowledged
-      as a parallel refactor target: once `EmitCaseStatusUpdateNode` is in
-      place, `EmitAddCaseStatusToSelfNode` should be refactored to use direct
-      ledger writes as well. That refactor is blocked-by the impl issue.
+      Implemented in ISSUE-2175 (`EmitCaseStatusUpdateNode`). The inbound
+      adoption path was refactored onto the same node in ISSUE-2176 (RSH-01-003),
+      and the former `EmitAddCaseStatusToSelfNode` inbox-loopback kludge has
+      since been removed (ADR-0108). The received embargo-relay trees
+      (proposal, Invite, Accept, Reject) need no `EmitCaseStatusUpdateNode`:
+      their committed entries are replayed by the relay apply nodes
+      (RSH-04-002, EP-09-007, ADR-0113).
 
     stories:
     - story_2022_045
@@ -331,15 +393,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A refused dimension MUST NOT prevent the StatusAdoptionGate emit (RSH-01-003) from
-      running. The self-addressed `Add(CaseStatus)` MUST still be emitted
-      whenever any dimension of the update was accepted.
+      A refused dimension MUST NOT prevent the StatusAdoptionGate and the
+      canonical `CaseStatus` ledger write (RSH-01-003) from running. The
+      canonical write MUST still occur whenever any dimension of the update was
+      accepted.
     rationale: >
       EmbargoTeardownAuthorizationGate owns embargo teardown (RSH-01-004). Aborting the StatusAdoptionGate sequence
       on a refused dimension silently skipped teardown — the concrete failure
       reported in ISSUE-2235.
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py`
-      confirm a refused dimension does not suppress the self-addressed `Add(CaseStatus)` StatusAdoptionGate emit.
+      confirm a refused dimension does not suppress the StatusAdoptionGate or the canonical `CaseStatus` write.
     stories:
     - story_2022_023
     - story_2022_088
@@ -417,6 +480,13 @@ groups:
       has already observed. Lateral moves at the same rank
       (`VALID` <-> `INVALID`) are re-adjudication, not regression, and are
       applied unchanged.
+    note: >
+      The predicate is `is_rm_replay_acceptable(local_rm, recorded_rm)` in
+      `vultron/core/states/rm.py`. Two replay nodes apply it, so they cannot
+      ratchet differently: `ApplyParticipantStatusFromLedgerNode` on this
+      event type, and `ApplyRmVerdictFromLedgerNode` on the activity-typed RM
+      moves (report verdicts, engage/defer, full-case Invite replies;
+      RSH-08-004).
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm applying an
       `Announce(CaseLedgerEntry)` never moves a replica's RM state backward on the RM progress scale.
     stories:
@@ -445,7 +515,7 @@ groups:
     rationale: >
       Every replica and the case-ledger invariant harness read the snapshot's
       flat wire aliases (`rmState`, `vfdState`, `emConsentState`, `cvdRole`) and
-      its nested `caseStatus` (CLP-07-001, CM-18-006). A whole-object
+      its nested `caseStatus` (CLP-07-011, CM-18-006). A whole-object
       replacement built in `vultron.core` would emit core dimension objects
       (`rm: {state}`) and silently drop every field the guard never adjudicated,
       because core MUST NOT import `vultron.wire` to convert (ADR-0009,
@@ -463,7 +533,7 @@ groups:
     - story_2022_106
   - id: RSH-05-010
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       A producer of `ledger_payload_object_override` MUST write `None` to the
       key unconditionally at the start of every tick — before any early return
@@ -483,8 +553,6 @@ groups:
       the producer node is migrated to the typed-Ports base class (ISSUE-1808),
       the base class SHOULD auto-clear declared output ports in `initialise()`,
       making this obligation structural.
-    lint_suppress:
-    - missing_story_reference
   - id: RSH-05-011
     priority: MUST
     kind: protocol
@@ -622,39 +690,42 @@ groups:
       current.pxa.state)`.
     lint_suppress:
     - missing_story_reference
-  - id: RSH-05-018
+  - id: RSH-05-023
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       When adjudicating the EM dimension of a received `Add(CaseStatus)`, the
-      receiver MUST accept the asserted EM state if and only if it is identical
-      to the current EM state or it is a valid EM state-machine transition from
-      the current EM state, as determined by `is_valid_em_transition()`. Any
-      other asserted EM value MUST be refused and the current EM value carried
-      forward (RSH-05-016).
+      receiver MUST accept the asserted EM state only when it is identical to
+      the case's EM state derived from its embargo register, and MUST refuse
+      any other asserted EM value, carrying the case's value forward
+      (RSH-05-016).
     rationale: >
-      EM follows a directed state machine
-      (NONE → PROPOSED ↔ ACTIVE ↔ REVISE → EXITED). Out-of-order or
-      backward EM assertions do not correspond to legal protocol events; applying
-      them would corrupt the canonical EM state shared by all participants.
-      Using `is_valid_em_transition()` as the acceptance predicate ensures only
-      structurally valid EM transitions are applied.
+      EM is derived from the case's embargo register, which changes only
+      through the embargo messages that cause each register step (ADR-0122).
+      A status can report EM but never move it: adopting an asserted EM would
+      make the status copy disagree with the register it is derived from.
     verification: >
       Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py`
-      confirm that `FilterCsEmDimensionNode` accepts EM states that satisfy
-      `is_valid_em_transition()` or are identical to the current EM state, and
-      refuses all other asserted EM values by carrying the current value forward.
+      confirm that `FilterCsEmDimensionNode` passes an EM identical to the
+      case's and refuses every other asserted EM value by carrying the
+      case's value forward;
+      `test/core/behaviors/sync/nodes/test_case_status_effect.py` confirms
+      the same of `ApplyCaseStatusFromLedgerNode`.
     note: >
-      Implemented by `FilterCsEmDimensionNode.update()` in
-      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`. The predicate
-      is applied as `asserted_em != current_em and not is_valid_em_transition(current_em, asserted_em)`;
-      an identity assertion (`asserted == current`) is always accepted without
-      invoking `is_valid_em_transition()`.
-    lint_suppress:
-    - missing_story_reference
+      The predicate is `is_em_assertion_acceptable(current_em, asserted_em)` in
+      `vultron/core/states/em.py`, which accepts only `asserted == current`.
+      Two nodes apply it, so the CASE_MANAGER and its replicas adjudicate EM
+      alike: `FilterCsEmDimensionNode` in
+      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py` on a
+      received `Add(CaseStatus)`, comparing with `VulnerabilityCase.em_state`,
+      and `ApplyCaseStatusFromLedgerNode` in
+      `vultron/core/behaviors/sync/nodes/case_status_effect.py` on the
+      `add_case_status_to_case` ledger entry (RSH-08-004).
+    adr:
+    - ADR-0122
   - id: RSH-05-019
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       When adjudicating the PXA dimension of a received `Add(CaseStatus)`, the
       receiver MUST accept the asserted PXA state if and only if it is identical
@@ -679,16 +750,14 @@ groups:
       and refuses non-monotone-forward assertions by carrying the current value
       forward.
     note: >
-      Implemented by `FilterCsPxaDimensionNode.update()` in
-      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`. The predicate
-      is `asserted_pxa != current_pxa and not is_monotonic_pxa_forward(current_pxa, asserted_pxa)`;
-      CSB-16-002 strict single-step adjacency applies only to local write nodes,
-      not to the received-side filter.
-    lint_suppress:
-    - missing_story_reference
+      The predicate is `is_pxa_assertion_acceptable(current_pxa, asserted_pxa)`
+      in `vultron/core/states/cs.py`, applied by `FilterCsPxaDimensionNode` on a
+      received `Add(CaseStatus)` and by `ApplyCaseStatusFromLedgerNode` on the
+      `add_case_status_to_case` ledger entry (RSH-08-004). CSB-16-002 strict
+      single-step adjacency applies only to local write nodes, not to either.
   - id: RSH-05-020
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       After adjudicating each dimension of a received
       `Add(ParticipantStatus, CaseParticipant)` independently, the receiver MUST
@@ -782,11 +851,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: RSH-05-001
-    lint_suppress:
-    - missing_story_reference
   - id: RSH-05-021
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     statement: >
       When applying an `Announce(CaseLedgerEntry)` for an
       `add_participant_status_to_participant` event, the behavior tree MUST
@@ -860,17 +928,18 @@ groups:
       This is the sender-feedback diagnostic gap identified in ISSUE-2255.
     verification: >
       Unit tests confirm that `AddParticipantStatusToParticipantReceivedUseCase.execute()`
-      raises `VultronStatusAssertionRefusedError` when `FilterParticipantStatusDimensionsNode`
-      returns FAILURE, and that this exception is caught by `DispatchNode` to
-      produce a `rejected` `InboxOutcome`.
+      returns `HandlerResult.refused` when `FilterParticipantStatusDimensionsNode`
+      returns FAILURE, which `DispatchNode` maps to a `rejected` `InboxOutcome`
+      (HP-01-003, ADR-0095).
     note: >
-      Only `FilterParticipantStatusDimensionsNode`'s total-refusal FAILURE path
-      triggers this diagnostic; other BT failure modes (sender not a participant,
-      authorization failures at `StatusAdoptionGate`) do NOT produce `rejected`
-      because they are not strictly "refusals of the assertion content." This
-      distinction is enforced by `_filter_node_wholly_refused()` in
-      `vultron/core/use_cases/received/status.py`, which walks the tree to check
-      the filter node's status after execution.
+      A withheld adoption at `StatusAdoptionGate` does NOT produce `rejected`:
+      the claim is recorded on the participant and only its adoption as
+      canonical is withheld, which is not a refusal of the assertion content,
+      so the handler returns `SKIPPED` and emits no fault. A sender that is not
+      a case participant is refused like any other untrusted sender
+      (HP-01-003). `_filter_node_wholly_refused()` and `_adoption_gate_blocked()`
+      in `vultron/core/use_cases/received/status.py` tell these cases apart by
+      walking the tree after execution.
     relationships:
     - rel_type: extends
       spec_id: RSH-05-005
@@ -955,16 +1024,32 @@ groups:
       On the production `add_participant_status_tree` path (where a case context
       is available), the receiver SHOULD emit `Add(Note, VulnerabilityCase)`
       when an RM anomaly is detected, requesting the sender to clarify the
-      path it took between the two observed states.
+      path it took between the two observed states. This holds for a backward
+      regression that leaves nothing else of the declaration acceptable, so
+      the whole declaration is refused, as well as for an anomaly inside a
+      declaration that is accepted in whole or in part.
     rationale: >
       The original BT protocol design included an `RE` (Report Management Error)
       message type for exactly this scenario. Until `RE` is formalised in
       `MessageSemantics` (ADR-0049), `Add(Note, VulnerabilityCase)` is the
       pragmatic substitute. The note makes the anomaly visible at the protocol
       level, not just in local logs.
+    verification: >
+      When an RM anomaly (forward gap or backward regression) is detected on the
+      production `add_participant_status_tree` path (case context available), an
+      `Add(Note, VulnerabilityCase)` addressed to the sender is queued: once per
+      received activity for an accepted-with-anomaly declaration (replica-effects
+      stage) and once for a wholly-refused backward regression (refusal-effects
+      stage, CLP-10-022). Both paths are asserted — the accepted path via the
+      parametrised shared-RM-table tests (covering every declared RM state) and the
+      refusal path via dedicated wholly-refused backward regression tests that confirm
+      the note is queued even though nothing is committed to the ledger.
     note: >
-      Implemented by `EmitRMGapNoteNode` in `effect_nodes` of
-      `add_participant_status_tree`. The standalone `append_participant_status_tree`
+      Implemented by `EmitRMGapNoteNode`: in the `replica_effects` of
+      `add_participant_status_tree` for an accepted declaration, and in its
+      `refusal_effects` for a wholly refused one, which the shared factory runs
+      only on that refusal, at the CASE_MANAGER, once per received activity
+      (CLP-10-022). The standalone `append_participant_status_tree`
       path (test-only, no production callers) has no case context; it MUST log
       (RSH-06-003) but MUST NOT attempt to emit a note.
   - id: RSH-06-005
@@ -988,6 +1073,37 @@ groups:
     - story_2022_074
     - story_2022_077
 
+  - id: RSH-06-006
+    priority: MUST
+    kind: project
+    statement: >
+      The RM acceptance rule of RSH-06-001 through RSH-06-005 (accept a forward move
+      including a non-adjacent one, refuse a backward move and carry the current value
+      forward, log the anomaly, and post the clarification note where a case context
+      exists) MUST be applied by the CASE_MANAGER to every received-side write of a
+      participant's RM state, whichever wire activity carried the declaration. This
+      includes the report activities `Accept(Offer(VulnerabilityReport))`,
+      `TentativeReject(Offer(VulnerabilityReport))` and
+      `Reject(Offer(VulnerabilityReport))`, the full-case Invite replies `Accept`,
+      `TentativeReject` and `Reject(Invite(Actor, VulnerabilityCase))` (CM-11-011), and
+      the case activities `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`, not
+      only `Add(ParticipantStatus, CaseParticipant)`. Adjacency-only validation
+      (`is_valid_rm_transition`) MUST NOT be the receive-side acceptance rule for any of
+      these.
+    rationale: >
+      The acceptance rule belongs to the state machine, not to the message. A
+      transition accepted as a status snapshot but refused as the activity that
+      caused it lets the sender pick its adjudication by picking its message
+      shape, and lets the receiver second-guess a legal self-declaration because
+      it never saw the intermediate step (ADR-0108 § 3). Adjacency remains the
+      emit-side rule (ADR-0086): conservative in what you send, liberal in what
+      you accept.
+    verification: Tests under `test/core/behaviors/report/` and `test/core/behaviors/status/` assert, with shared
+      fixtures, that each listed activity accepts a non-adjacent forward RM move, refuses a backward one, and
+      emits the RSH-06-004 note, matching the `Add(ParticipantStatus)` behaviour.
+    adr:
+    - ADR-0108
+    - ADR-0121
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
@@ -1085,7 +1201,7 @@ groups:
     - missing_story_reference
   - id: RSH-07-003
     priority: MAY
-    kind: protocol
+    kind: project
     statement: >
       An implementation MAY configure a permissive backend (e.g.,
       `AlwaysSucceed`) for `CaseOwnerApprovesStatusUpdate` or
@@ -1100,5 +1216,130 @@ groups:
       consequences. Other valid alternative backends include role-differentiated
       policy, probabilistic approval, and any `CallOutBackendFactory`-conformant
       implementation. See ADR-0076.
+- id: RSH-08
+  title: One Move, One Mover — Received-Side Write Subject and Pipeline
+  description: >
+    A protocol state transition may reach a receiver in more than one wire
+    shape: the activity that performed the move (`TentativeReject(Offer(Report))`)
+    and a declaration of the resulting state (`Add(ParticipantStatus)` carrying
+    `rmState`). These are two layers of one move, not competing encodings.
+    Authority is a property of the pipeline, not of the message: the mover
+    announces, the CASE_MANAGER adjudicates and commits, replicas apply the
+    ledger. Derived from CONCERN-3473 and ADR-0108.
+  specs:
+  - id: RSH-08-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      The subject of every received-side RM write MUST be the sending actor
+      (`request.actor_id`), never the receiving actor whose store the tree
+      executes in. The receiving actor's own RM state MUST move on receipt only
+      when it is itself the mover: when sender and receiver are the same actor,
+      or when CM-23-002 directs the CASE_MANAGER to advance its own participant
+      on Case Owner departure. The one write whose subject is neither is the
+      CASE_MANAGER's creation of an invitee's participant record when, in a
+      received-side tree, it emits the stub Invite (CM-11-006, CM-17-007,
+      CM-16-006): its subject is the invitee.
+    rationale: >
+      A received activity is an assertion about the sender's state (HP-00-001)
+      and participant status is self-declaratory (ADR-0121). BT-17-006 chooses
+      the store a received-side tree runs in; it says nothing about whose state
+      the tree writes, and its own sender-ID clause presumes the two differ.
+      Conflating them is the store-versus-subject error ADR-0089 named as bug
+      #2300, and it produced two RM handlers that advance the wrong participant
+      (CONCERN-3473).
+    verification: Regression tests for the report-invalid and report-closed received-side use cases assert the
+      sender's participant reaches the target RM state and the receiving actor's participant is unchanged.
+    adr:
+    - ADR-0108
+    - ADR-0114
     lint_suppress:
     - missing_story_reference
+  - id: RSH-08-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      When an act and a status declaration for the same move both arrive
+      (for example `TentativeReject(Offer(VulnerabilityReport))` followed by
+      `Add(ParticipantStatus)` with `rmState: INVALID`), the receiver MUST
+      treat the second as a same-state confirmation and MUST NOT refuse it,
+      fault it, or record it as an anomaly. A declaration whose RM value
+      disagrees with the act the receiver saw MUST be adjudicated under the RM
+      acceptance rule (RSH-06) like any other declaration; the disagreement is
+      not itself grounds for refusal.
+    rationale: >
+      One move producing both messages is expected (ADR-0108 § 1). The
+      declaration is the participant's own statement about itself and the
+      participant is the authority on that; a mismatch with the act is a gap to
+      flag under RSH-06-003, not a reason to prefer one message over the other.
+    verification: A test delivers the act then the matching declaration and asserts a single RM transition is
+      recorded with no warning, no note, and no refusal; a second test delivers a disagreeing declaration and
+      asserts RSH-06 handling.
+    adr:
+    - ADR-0108
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-08-003
+    priority: MUST
+    kind: project
+    statement: >
+      Every received-side tree that writes participant or case state as an
+      effect of an inbound activity MUST perform that write only when the
+      executing actor holds `CVDRole.CASE_MANAGER` for the case (BT-17-001).
+      A non-CASE_MANAGER replica that receives such an activity directly MUST
+      store the activity and write no participant or case state; it obtains
+      the resulting state from the `Announce(CaseLedgerEntry)` broadcast
+      (PCR-03-001). The one exception is a participant whose ledger stream is
+      paused, which applies an embargo-ending notice sent to it by the
+      CASE_MANAGER (CM-31-010).
+    rationale: >
+      Received-side trees gate their ledger commit on the CASE_MANAGER role but
+      run their state-writing effects at every inbox, so `Add(EmbargoEvent)`,
+      `Remove(EmbargoEvent)` and `Add(CaseStatus)` move a replica's state from
+      any sender, and an activity that reaches a replica by `cc` or misrouting
+      is applied without the CASE_MANAGER's adjudication or sender check.
+      PCR-03-001 already forbids this; the effects existed because the ledger
+      did not yet carry every transition (RSH-08-004).
+    verification: >
+      `test/architecture/test_received_tree_state_writes_are_gated.py` builds
+      every received-side tree factory and walks it with the factory's own
+      `ungated_nodes`: every node carrying the `StateWriteCapable` marker
+      (`vultron/core/behaviors/state_write_capable.py`) must sit inside a
+      `CaseManagerGate`. The trees still writing ungated are an exact ratchet
+      with an owner per entry and a strict-`xfail` goal test; the replay and
+      bootstrap writes are a pinned exemption set with a reason per entry
+      (TB-10-002, ARCH-18-005). The same module checks that every behaviors
+      class reaching a state-write seam carries the marker or is pinned as
+      writing no case state.
+    adr:
+    - ADR-0108
+  - id: RSH-08-004
+    priority: MUST
+    kind: project
+    statement: >
+      Every ledger `event_type` the CASE_MANAGER commits MUST have a replica
+      apply node reachable from `create_announce_log_entry_tree`, or a recorded
+      declaration that the event has no replica-side effect. Gating a
+      received-side effect under RSH-08-003 MUST NOT land before the replay
+      node for the transition it wrote exists.
+    rationale: >
+      Replicas replayed only a fixed subset of event types; the case-status entry
+      committed on every embargo or public-state change, the embargo activation,
+      and the report valid/invalid/closed and engage/defer entries had none
+      until #3814. Removing the direct-receipt effects before the ledger carries
+      those transitions would leave replicas blind (ADR-0108 § 4).
+    verification: >
+      `test/architecture/test_ledger_event_types_are_replayed.py` derives the
+      committed `event_type` set from code (`_ledger_commit_inventory.py`: the
+      receive-side commit path, plus every explicit `event_type=` commit under
+      `vultron/core`) and asserts each member is matched by exactly one
+      effect-slot condition of `create_announce_log_entry_tree`, found by tree
+      position rather than by class or module, or is listed in the
+      declared-no-effect set; the classification equals the committed set
+      (TB-10-002). The types still violating this requirement are an exact
+      known-violation set, each naming the open issue that owns it, which only
+      shrinks (ARCH-18-001); every declared row carries a one-line reason, and
+      a strict-`xfail` goal test fails the build once the known-violation set
+      empties without being deleted.
+    adr:
+    - ADR-0108

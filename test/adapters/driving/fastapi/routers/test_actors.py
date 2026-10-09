@@ -18,21 +18,8 @@ import pytest
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.utils import strip_id_prefix
-from vultron.core.states.cs import CS_pxa, CS_vf
-from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import (  # noqa: F401
-    as_CaseStatus,
-    as_ParticipantStatus,
-)
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    as_VulnerabilityCase,
-)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -42,7 +29,20 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
-from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.core.states.cs import CS_pxa, CS_vf
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import (  # noqa: F401
+    as_CaseStatus,
+    as_ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
+    as_VulnerabilityCase,
+)
 
 _ACTOR_ID = "https://example.org/actors/alice"
 
@@ -93,16 +93,29 @@ def test_get_actor_not_found_returns_404(client_actors):
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_get_actor_inbox_returns_mailbox_structure(
-    client_actors, created_actors
+@pytest.mark.spec("IE-02-003")
+@pytest.mark.spec("IE-02-004")
+@pytest.mark.parametrize(
+    "method", ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "DELETE"]
+)
+@pytest.mark.parametrize("path_suffix", ["/inbox", "/inbox/"])
+def test_non_post_on_inbox_path_returns_405(
+    client_actors, created_actors, method, path_suffix
 ):
+    """The inbox has no read surface; every non-POST method is refused.
+
+    Both trailing-slash forms are pinned because ``actors_get`` is a path
+    catch-all: without an explicit refusal an unrouted GET on either form falls
+    into the profile route and answers 404, not 405 (#3844). The ``Allow``
+    header is pinned too: a method left off the refusal route would still 405
+    through Starlette's partial match, but advertising the refused methods.
+    """
     for actor in created_actors:
-        resp = client_actors.get(f"/actors/{_route_key(actor.id_)}/inbox")
-        assert resp.status_code == status.HTTP_200_OK
-        data = resp.json()
-        assert isinstance(data, dict)
-        assert "items" in data
-        assert isinstance(data["items"], list)
+        resp = client_actors.request(
+            method, f"/actors/{_route_key(actor.id_)}{path_suffix}"
+        )
+        assert resp.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+        assert resp.headers["allow"] == "POST"
 
 
 def test_post_activity_to_actor_inbox_accepted(client_actors, created_actors):
@@ -226,9 +239,9 @@ def test_get_actors_does_not_log_raw_records_at_info_level(
     raw_dumps = [
         m for m in info_messages if m.startswith(("results:", "rec:"))
     ]
-    assert (
-        not raw_dumps
-    ), f"Raw DB record dumps should not be logged at INFO level; found: {raw_dumps}"
+    assert not raw_dumps, (
+        f"Raw DB record dumps should not be logged at INFO level; found: {raw_dumps}"
+    )
 
 
 def _seed_action_rules_data(dl):
@@ -606,3 +619,44 @@ def test_specific_actor_routes_not_shadowed_by_catch_all(
     for actor in created_actors:
         resp = client_actors.get(f"/actors/{_route_key(actor.id_)}/profile")
         assert resp.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.spec("VM-06-008")
+def test_post_inbox_does_not_persist_core_class_for_core_only_type(
+    client_actors, created_actors, monkeypatch
+):
+    """An inline object named by a core-only ``type`` is not persisted as core.
+
+    ISSUE-3565 regression, driven through the inbox route: ``CoreActor`` is
+    registered only in ``CORE_TYPE_MAP``, and the inbox re-parse used to
+    reconstruct it as that core class before persisting it.
+    """
+    from vultron.adapters.driving.fastapi import inbox_storage
+    from vultron.core.models.base import CoreObject
+
+    persisted: list[object] = []
+    real_object_to_record = inbox_storage.object_to_record
+
+    def _spy(obj):
+        persisted.append(obj)
+        return real_object_to_record(obj)
+
+    monkeypatch.setattr(inbox_storage, "object_to_record", _spy)
+
+    actor = created_actors[0]
+    payload = {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "id": "urn:uuid:add-core-only-type",
+        "type": "Add",
+        "actor": actor.id_,
+        "published": "2026-09-25T00:00:00Z",
+        "object": {"id": "urn:uuid:core-only-inline", "type": "CoreActor"},
+    }
+    resp = client_actors.post(
+        f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
+    )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    stored = [o for o in persisted if getattr(o, "type_", None) == "CoreActor"]
+    assert len(stored) == 1, "the inline object was never pre-stored"
+    assert not isinstance(stored[0], CoreObject)

@@ -33,6 +33,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     AlwaysSucceed,
@@ -87,7 +89,9 @@ class EnoughPrioritizationInfo(EvaluatorCallOutPoint, UsuallySucceed):
     involves human analyst review.
     """
 
-    output_keys = {"enough_prioritization_info_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "enough_prioritization_info_verdict": str
+    }
 
 
 class GatherPrioritizationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
@@ -113,7 +117,9 @@ class GatherPrioritizationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
     involvement.
     """
 
-    output_keys = {"prioritization_info_gathered": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "prioritization_info_gathered": str
+    }
 
 
 class OnAccept(ActuatorCallOutPoint, AlwaysSucceed):
@@ -160,7 +166,9 @@ class EvaluateCasePriority(EvaluatorCallOutPoint, AlwaysSucceed):
     and policy-based engage/defer decisions are fully automatable.
     """
 
-    output_keys = {"evaluate_case_priority_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "evaluate_case_priority_verdict": str
+    }
 
 
 class OnDefer(ActuatorCallOutPoint, AlwaysSucceed):

@@ -34,25 +34,31 @@ import inspect
 
 import pytest
 
-from vultron.adapters.driving.fastapi.trigger_models import (
+from vultron.core.use_cases.triggers.request_bodies import (
     AcceptActorRecommendationRequest,
     AcceptCaseInviteRequest,
     AcceptCaseOwnershipTransferRequest,
+    AcceptEmbargoRequest,
     AddNoteToCaseRequest,
     CaseTriggerRequest,
     CloseCaseRequest,
     CloseReportRequest,
     CreateCaseRequest,
+    FullCaseInviteReplyRequest,
     InvalidateReportRequest,
     InviteActorToCaseRequest,
     NotifyFixDeployedRequest,
     NotifyFixReadyRequest,
     NotifyPublishedRequest,
     OfferCaseOwnershipTransferRequest,
+    ProposeEmbargoRequest,
+    ProposeEmbargoRevisionRequest,
     RejectCaseInviteRequest,
+    SetStubSummaryRequest,
     SubmitReportRequest,
     SuggestActorToCaseRequest,
     SyncLogEntryRequest,
+    TerminateEmbargoRequest,
     ValidateReportRequest,
 )
 from vultron.demo.actor_session import ActorSession
@@ -71,6 +77,7 @@ METHOD_TO_MODEL = {
     "invite_actor_to_case": InviteActorToCaseRequest,
     "suggest_actor_to_case": SuggestActorToCaseRequest,
     "accept_case_invite": AcceptCaseInviteRequest,
+    "accept_full_case_invite": FullCaseInviteReplyRequest,
     "reject_case_invite": RejectCaseInviteRequest,
     "accept_actor_recommendation": AcceptActorRecommendationRequest,
     "offer_case_ownership_transfer": OfferCaseOwnershipTransferRequest,
@@ -80,7 +87,12 @@ METHOD_TO_MODEL = {
     "notify_fix_deployed": NotifyFixDeployedRequest,
     "notify_published": NotifyPublishedRequest,
     "close_case": CloseCaseRequest,
+    "set_stub_summary": SetStubSummaryRequest,
     "sync_log_entry": SyncLogEntryRequest,
+    "propose_embargo": ProposeEmbargoRequest,
+    "propose_embargo_revision": ProposeEmbargoRevisionRequest,
+    "accept_embargo": AcceptEmbargoRequest,
+    "terminate_embargo": TerminateEmbargoRequest,
 }
 
 #: Session-management helpers that are not trigger verbs and carry no request

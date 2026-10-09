@@ -14,8 +14,8 @@ Per ActivityStreams spec, collection items can be:
 The demo code needs to handle all these cases.
 """
 
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 
 def test_inbox_items_can_be_strings():
@@ -36,10 +36,8 @@ def test_inbox_items_can_be_strings():
     # Accessing id_ on a string should fail (this is the bug)
     # We need to handle this gracefully
     item = actor.inbox.items[0]
-    if isinstance(item, str):
-        item_id = item  # String IS the ID
-    else:
-        item_id = item.id_  # Object has id_ attribute
+    # A string IS the ID; an object carries it as id_.
+    item_id = item if isinstance(item, str) else item.id_
 
     assert item_id == activity_uri
 

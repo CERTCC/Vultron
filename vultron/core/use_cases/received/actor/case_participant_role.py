@@ -6,25 +6,34 @@ introduced by ADR-0039 as the replacement for the deprecated
 """
 
 import logging
-from typing import TYPE_CHECKING
-
-from py_trees.common import Status
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.offer_case_participant_role_received_tree import (
     create_offer_case_participant_role_received_tree,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
     OfferCaseParticipantRoleReceivedEvent,
 )
-from vultron.core.models._helpers import _as_id
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
+
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    exempt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,19 +49,25 @@ class OfferCaseParticipantRoleReceivedUseCase:
     See SE-08-003, ADR-0039.
     """
 
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for role offer"
+    )
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
         request: OfferCaseParticipantRoleReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: SyncActivityPort | None = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: OfferCaseParticipantRoleReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -73,7 +88,6 @@ class OfferCaseParticipantRoleReceivedUseCase:
 
         tree = create_offer_case_participant_role_received_tree(
             offer_id=offer_id,
-            offer_obj=request.activity,
             case_id=case_id or "",
             role=role,
             target_actor_id=target_actor_id or "",
@@ -82,16 +96,21 @@ class OfferCaseParticipantRoleReceivedUseCase:
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "OfferCaseParticipantRoleReceivedUseCase: BT did not fully"
-                " succeed for offer '%s': %s",
+        verdict = verdict_from_bt(
+            tree, result, label="OfferCaseParticipantRoleReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "OfferCaseParticipantRoleReceivedUseCase: refused offer"
+                " '%s': %s",
                 offer_id,
-                BTBridge.get_failure_reason(tree) or result.feedback_message,
+                verdict.reason,
             )
+        return verdict

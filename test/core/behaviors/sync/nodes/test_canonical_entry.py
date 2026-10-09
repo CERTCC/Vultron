@@ -22,18 +22,19 @@ the validator directly.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
 from test.core.behaviors.sync.nodes.conftest import (
-    OWNER_ACTOR_ID,
     CASE_ID,
+    OWNER_ACTOR_ID,
 )
-from vultron.core.models._helpers import now_utc
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
+    _snapshot_object_type,
     _validate_canonical_entry,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.errors import VultronCanonicalEntryError
 
 
@@ -67,8 +68,8 @@ def test_validate_canonical_entry_rejects_empty_snapshot():
 # CLP-14 timestamp invariant tests
 # ---------------------------------------------------------------------------
 
-_CASE_PUBLISHED = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-_ENTRY_PUBLISHED = datetime(2026, 1, 1, 12, 1, 0, tzinfo=timezone.utc)
+_CASE_PUBLISHED = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+_ENTRY_PUBLISHED = datetime(2026, 1, 1, 12, 1, 0, tzinfo=UTC)
 
 
 def _ts_snapshot(published: str | datetime | None = _ENTRY_PUBLISHED) -> dict:
@@ -184,7 +185,7 @@ def test_clp14_006_message_renders_case_published_in_utc():
     """
     tz_530 = timezone(timedelta(hours=5, minutes=30))
     case_published = datetime(2026, 1, 1, 12, 0, 0, tzinfo=tz_530)  # 06:30 UTC
-    entry_before = datetime(2026, 1, 1, 6, 0, 0, tzinfo=timezone.utc)
+    entry_before = datetime(2026, 1, 1, 6, 0, 0, tzinfo=UTC)
     with pytest.raises(
         VultronCanonicalEntryError, match="CLP-14-006"
     ) as excinfo:
@@ -229,7 +230,7 @@ def test_clp15_003_accepts_equal_timestamps():
 
 @pytest.mark.spec("CLP-14-007")
 def test_clp14_007_rejects_future_timestamp():
-    far_future = datetime.now(tz=timezone.utc) + timedelta(hours=1)
+    far_future = datetime.now(tz=UTC) + timedelta(hours=1)
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-007"):
         _call_with_ts(
             _ts_snapshot(published=far_future),
@@ -240,7 +241,7 @@ def test_clp14_007_rejects_future_timestamp():
 
 @pytest.mark.spec("CLP-14-007")
 def test_clp14_007_skipped_when_tolerance_is_none():
-    far_future = datetime.now(tz=timezone.utc) + timedelta(hours=1)
+    far_future = datetime.now(tz=UTC) + timedelta(hours=1)
     _call_with_ts(
         _ts_snapshot(published=far_future),
         case_published=_CASE_PUBLISHED,
@@ -251,7 +252,7 @@ def test_clp14_007_skipped_when_tolerance_is_none():
 
 @pytest.mark.spec("CLP-14-008")
 def test_clp14_008_rejects_stale_timestamp():
-    stale = datetime.now(tz=timezone.utc) - timedelta(days=30)
+    stale = datetime.now(tz=UTC) - timedelta(days=30)
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-008"):
         _call_with_ts(
             _ts_snapshot(published=stale),
@@ -262,7 +263,7 @@ def test_clp14_008_rejects_stale_timestamp():
 
 @pytest.mark.spec("CLP-14-008")
 def test_clp14_008_skipped_when_window_is_none():
-    stale = datetime.now(tz=timezone.utc) - timedelta(days=30)
+    stale = datetime.now(tz=UTC) - timedelta(days=30)
     _call_with_ts(
         _ts_snapshot(published=stale),
         case_published=stale - timedelta(days=1),
@@ -286,3 +287,156 @@ def test_timestamp_checks_are_not_gated_on_case_published():
             payload_snapshot=_ts_snapshot(published=None),
             event_type="note_added",
         )
+
+
+# ---------------------------------------------------------------------------
+# Bare ``target`` naming the entry's own case (CLP-07-006, VM-08-003, #2654)
+# ---------------------------------------------------------------------------
+
+
+def _offer_participant_snapshot(target: object) -> dict[str, object]:
+    """``Offer(CaseParticipant, target=<case>)`` as the factory emits it."""
+    return {
+        "type": "Offer",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "CaseParticipant",
+            "id": "https://example.org/actors/vendor#participant",
+        },
+        "target": target,
+        "context": CASE_ID,
+    }
+
+
+@pytest.mark.spec("CLP-07-006")
+@pytest.mark.spec("VM-08-003")
+def test_bare_target_equal_to_the_case_uri_is_accepted():
+    """A ``target`` that is the case URI names what every replica holds.
+
+    The factories address a case by its URI (AKM-02-003) and the snapshot is
+    the factory's exact blob (VM-08-003), so the commit boundary accepts it
+    rather than forcing core to strip it (#2654).
+    """
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=_offer_participant_snapshot(CASE_ID),
+        event_type="offer_case_participant",
+    )
+
+
+@pytest.mark.spec("CLP-07-006")
+def test_bare_target_naming_another_case_is_refused():
+    with pytest.raises(VultronCanonicalEntryError, match="target"):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            payload_snapshot=_offer_participant_snapshot(
+                "https://example.org/cases/some-other-case"
+            ),
+            event_type="offer_case_participant",
+        )
+
+
+@pytest.mark.spec("CLP-07-006")
+def test_bare_target_naming_the_case_is_accepted_when_nested():
+    """``Accept(Offer(..., target=<case>))`` carries the same bare target inside."""
+    inner = _offer_participant_snapshot(CASE_ID)
+    inner["id"] = "https://example.org/activities/offer-1"
+    snapshot = {
+        "type": "Accept",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": inner,
+        "target": CASE_ID,
+        "context": CASE_ID,
+    }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=snapshot,
+        event_type="accept_actor_recommendation",
+    )
+
+
+@pytest.mark.spec("CLP-07-006")
+def test_bare_object_is_still_refused():
+    """Only ``target`` gets the case-URI allowance; ``object`` never does."""
+    snapshot = _offer_participant_snapshot(CASE_ID)
+    snapshot["object"] = "https://example.org/actors/vendor#participant"
+    with pytest.raises(VultronCanonicalEntryError, match="object"):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            payload_snapshot=snapshot,
+            event_type="offer_case_participant",
+        )
+
+
+def test_invite_with_a_bare_case_target_resolves_to_the_case_signature():
+    """``Invite(Actor, target=<case uri>)`` is ``("Invite", "VulnerabilityCase")``."""
+    snapshot = {
+        "type": "Invite",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "Organization",
+            "id": "https://example.org/actors/vendor",
+        },
+        "target": CASE_ID,
+        "context": CASE_ID,
+    }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=snapshot,
+        event_type="invite_actor_to_case",
+    )
+
+
+@pytest.mark.spec("CM-11-013")
+def test_invite_with_a_case_stub_target_resolves_to_the_stub_signature():
+    """``Invite(Actor, target=VulnerabilityCaseStub)`` is its own signature.
+
+    The stub Invite is told apart from the full-case Invite by its target's
+    ``type`` (CM-11-013), and the ledger records it under that type.
+    """
+    snapshot = {
+        "type": "Invite",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "Organization",
+            "id": "https://example.org/actors/vendor",
+        },
+        "target": {
+            "type": "VulnerabilityCaseStub",
+            "id": f"{CASE_ID}/stub",
+            "caseId": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+    assert _snapshot_object_type(snapshot, CASE_ID) == "VulnerabilityCaseStub"
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=snapshot,
+        event_type="invite_actor_to_case",
+    )
+
+
+@pytest.mark.spec("CLP-07-011")
+@pytest.mark.spec("VAM-07-003")
+def test_remove_note_snapshot_is_a_canonical_signature():
+    """``Remove(Note)[target=case]`` is accepted as a canonical payload."""
+    snapshot = {
+        "type": "Remove",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "Note",
+            "id": "https://example.org/notes/note-prov",
+        },
+        "target": CASE_ID,
+        "context": CASE_ID,
+    }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=snapshot,
+        event_type="remove_note_from_case",
+    )

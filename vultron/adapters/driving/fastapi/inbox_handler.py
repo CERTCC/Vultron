@@ -30,10 +30,37 @@ are provided by the focused submodules:
 import logging
 from typing import Any, cast
 
-from vultron.wire.as2.rehydration import rehydrate
+# Re-export port factories and semantics sets so existing callers that
+# import them from this module continue to work (backward compat).
+from vultron.adapters.driving.fastapi import inbox_port_factories
+
+# Re-export pending-queue helpers so existing callers and tests that
+# reference them via this module continue to work (backward compat).
+from vultron.adapters.driving.fastapi.inbox_pending_queue import (
+    _activity_context_id,
+    _expire_pending_case_activities,
+    _queue_pending_case_activity,
+    _replay_pending_case_activities,
+)
+from vultron.adapters.driving.fastapi.inbox_port_factories import (
+    _CASE_PROPOSAL_SEMANTICS,
+    _EMBARGO_INVITE_SEMANTICS,
+    _STATUS_AUTH_TRIGGER_SEMANTICS,
+    _SUBMIT_REPORT_SEMANTICS,
+    _TRIGGER_ACTIVITY_PORT_SEMANTICS,
+    _case_proposal_port_factory,
+    _status_auth_trigger_port_factory,
+    _trigger_activity_port_factory,
+    _trigger_activity_with_actor_config_port_factory,
+)
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
+from vultron.adapters.outbox_dead_letter import RetryStore
+from vultron.config import get_config
 from vultron.core.dispatcher import get_dispatcher
-from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.events import VultronEvent, is_case_bootstrap
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
@@ -42,50 +69,34 @@ from vultron.semantic_registry import (
     extract_event,
     use_case_map as _use_case_map,
 )
+from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-
-# Re-export port factories and semantics sets so existing callers that
-# import them from this module continue to work (backward compat).
-from vultron.adapters.driving.fastapi.inbox_port_factories import (  # noqa: F401
-    _sync_port_factory,
-    _trigger_activity_port_factory,
-    _sync_and_trigger_port_factory,
-    _submit_report_port_factory,
-    _case_proposal_port_factory,
-    _close_case_port_factory,
-    _status_auth_trigger_port_factory,
-    _status_auth_sync_trigger_port_factory,
-    _SYNC_PORT_SEMANTICS,
-    _TRIGGER_ACTIVITY_PORT_SEMANTICS,
-    _SYNC_AND_TRIGGER_PORT_SEMANTICS,
-    _SUBMIT_REPORT_SEMANTICS,
-    _CASE_PROPOSAL_SEMANTICS,
-    _CLOSE_CASE_SEMANTICS,
-    _STATUS_AUTH_TRIGGER_SEMANTICS,
-    _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
-)
-
-# Re-export pending-queue helpers so existing callers and tests that
-# reference them via this module continue to work (backward compat).
-from vultron.adapters.driving.fastapi.inbox_pending_queue import (  # noqa: F401
-    _activity_context_id,
-    _queue_pending_case_activity,
-    _expire_pending_case_activities,
-    _replay_pending_case_activities,
-)
 
 logger = logging.getLogger(__name__)
 
 
 def prepare_for_dispatch(activity: as_Activity) -> VultronEvent:
-    """Extract domain event from an AS2 activity, ready for dispatch."""
+    """Extract domain event from an AS2 activity, ready for dispatch.
+
+    The local actor's configured RSVP windows govern an inbound embargo
+    invite (EP-07-001, EP-07-002); when no ``ActorConfig`` loads, the
+    protocol defaults apply.
+    """
     logger.debug(
         "Preparing activity '%s' of type '%s' for dispatch.",
         activity.id_,
         activity.type_,
     )
-    event = extract_event(activity)
+    actor_config = inbox_port_factories._resolve_actor_config()
+    event = extract_event(
+        activity,
+        min_rsvp_window=(
+            actor_config.min_rsvp_window if actor_config else None
+        ),
+        default_rsvp_window=(
+            actor_config.default_rsvp_window if actor_config else None
+        ),
+    )
     logger.debug(
         "Prepared event with semantics '%s' for activity '%s'",
         event.semantic_type,
@@ -94,7 +105,8 @@ def prepare_for_dispatch(activity: as_Activity) -> VultronEvent:
     return event
 
 
-_DISPATCHER: ActivityDispatcher | None = None
+#: The module-level dispatcher, installed by :func:`init_dispatcher`.
+_DISPATCHER_SLOT: StartupSlot[ActivityDispatcher] = StartupSlot()
 
 
 def make_dispatcher() -> ActivityDispatcher:
@@ -102,7 +114,7 @@ def make_dispatcher() -> ActivityDispatcher:
 
     Use this in :func:`create_app` lifespans to build a per-app dispatcher
     that is stored on ``app.state.dispatcher`` instead of the module-level
-    ``_DISPATCHER``.  Production code (``app_v2``) continues to call
+    ``_DISPATCHER_SLOT``.  Production code (``app_v2``) continues to call
     :func:`init_dispatcher` so the global is set for backward-compatible
     callers such as the CLI.
     """
@@ -110,14 +122,11 @@ def make_dispatcher() -> ActivityDispatcher:
     # would cause a silent dict.update() overwrite — exactly the class of bug
     # that #628 introduced — so fail fast with an actionable message.
     _all_sets = (
-        _SYNC_PORT_SEMANTICS,
         _TRIGGER_ACTIVITY_PORT_SEMANTICS,
-        _SYNC_AND_TRIGGER_PORT_SEMANTICS,
         _SUBMIT_REPORT_SEMANTICS,
         _CASE_PROPOSAL_SEMANTICS,
-        _CLOSE_CASE_SEMANTICS,
+        _EMBARGO_INVITE_SEMANTICS,
         _STATUS_AUTH_TRIGGER_SEMANTICS,
-        _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
     )
     for i, left in enumerate(_all_sets):
         for right in _all_sets[i + 1 :]:
@@ -126,34 +135,22 @@ def make_dispatcher() -> ActivityDispatcher:
                 raise AssertionError(
                     f"Port-semantics sets overlap: {overlap!r}. "
                     "Each semantic must appear in exactly one set. "
-                    "For sync+trigger semantics use _SYNC_AND_TRIGGER_PORT_SEMANTICS; "
-                    "for semantics that also need extra ports (e.g. actor_config) "
+                    "For semantics that need extra ports (e.g. actor_config) "
                     "create a dedicated set+factory pair like _SUBMIT_REPORT_SEMANTICS."
                 )
 
     port_factories: dict = {
-        sem: _sync_port_factory for sem in _SYNC_PORT_SEMANTICS
+        sem: _trigger_activity_port_factory
+        for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
     }
     port_factories.update(
         {
-            sem: _trigger_activity_port_factory
-            for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
+            sem: _trigger_activity_with_actor_config_port_factory
+            for sem in _SUBMIT_REPORT_SEMANTICS | _EMBARGO_INVITE_SEMANTICS
         }
-    )
-    port_factories.update(
-        {
-            sem: _sync_and_trigger_port_factory
-            for sem in _SYNC_AND_TRIGGER_PORT_SEMANTICS
-        }
-    )
-    port_factories.update(
-        {sem: _submit_report_port_factory for sem in _SUBMIT_REPORT_SEMANTICS}
     )
     port_factories.update(
         {sem: _case_proposal_port_factory for sem in _CASE_PROPOSAL_SEMANTICS}
-    )
-    port_factories.update(
-        {sem: _close_case_port_factory for sem in _CLOSE_CASE_SEMANTICS}
     )
     port_factories.update(
         {
@@ -161,14 +158,23 @@ def make_dispatcher() -> ActivityDispatcher:
             for sem in _STATUS_AUTH_TRIGGER_SEMANTICS
         }
     )
-    port_factories.update(
-        {
-            sem: _status_auth_sync_trigger_port_factory
-            for sem in _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS
-        }
-    )
+    # Every received use case gets a WireRenderPort and a SyncActivityPort, on
+    # top of whatever else its semantics needs: a received tree's guarded
+    # ledger commit snapshots the activity as an AS2 rendering core cannot
+    # produce itself (ARCH-20-001, CLP-07-009), and the CASE_MANAGER fans the
+    # entry out to the participants (SYNC-02-003).  See
+    # with_received_baseline_ports for why this is not a hand-kept list
+    # (#3930, #4113); a use case that runs no tree accepts both ports and has
+    # nothing to pass them to.
+    use_cases = _use_case_map()
+    port_factories = {
+        sem: inbox_port_factories.with_received_baseline_ports(
+            port_factories.get(sem, lambda dl: {})
+        )
+        for sem in use_cases
+    }
     d = get_dispatcher(
-        use_case_map=_use_case_map(),
+        use_case_map=use_cases,
         port_factories=port_factories,
     )
     logger.debug("Created inbox dispatcher: %s", type(d).__name__)
@@ -187,20 +193,20 @@ def init_dispatcher() -> None:
     and its one remaining caller reached for the unscoped ``get_datalayer()``
     to satisfy it — which ADR-0073 removes.
     """
-    global _DISPATCHER
-    _DISPATCHER = make_dispatcher()
-    logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
+    dispatcher = make_dispatcher()
+    _DISPATCHER_SLOT.install(dispatcher)
+    logger.info("Initialised inbox dispatcher: %s", type(dispatcher).__name__)
 
 
 def dispatch(
     event: VultronEvent,
     dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
-) -> None:
-    """Dispatch the given domain event.
+) -> HandlerResult:
+    """Dispatch the given domain event and return the handler's verdict.
 
     Uses *dispatcher* when provided; otherwise falls back to the module-level
-    ``_DISPATCHER`` (set by :func:`init_dispatcher`).  Passing an explicit
+    ``_DISPATCHER_SLOT`` (set by :func:`init_dispatcher`).  Passing an explicit
     dispatcher enables per-app isolation when multiple :func:`create_app`
     instances coexist in the same process (issue #534).
 
@@ -208,12 +214,16 @@ def dispatch(
         event: The domain event to dispatch.
         dl: The DataLayer instance scoped to the current actor.
         dispatcher: Optional per-app dispatcher.  When ``None`` the
-            module-level ``_DISPATCHER`` is used (backward-compatible).
+            module-level ``_DISPATCHER_SLOT`` is used (backward-compatible).
+
+    Returns:
+        The ``HandlerResult`` of the routed use case (UCORG-05-010).
+
     Raises:
         RuntimeError: If no dispatcher is available (neither *dispatcher*
-            nor the module-level ``_DISPATCHER`` has been initialised).
+            nor the module-level ``_DISPATCHER_SLOT`` has been initialised).
     """
-    _d = dispatcher or _DISPATCHER
+    _d = dispatcher or _DISPATCHER_SLOT.value
     if _d is None:
         raise RuntimeError(
             "Inbox dispatcher not initialised. "
@@ -224,7 +234,7 @@ def dispatch(
         event.activity_id,
         event.semantic_type,
     )
-    _d.dispatch(event, dl)
+    return _d.dispatch(event, dl)
 
 
 def handle_inbox_item(
@@ -240,7 +250,7 @@ def handle_inbox_item(
         obj: The Activity item to process.
         dl: The DataLayer instance used for reads and dispatch.
         dispatcher: Optional per-app dispatcher.  When ``None`` the
-            module-level ``_DISPATCHER`` is used (backward-compatible).
+            module-level ``_DISPATCHER_SLOT`` is used (backward-compatible).
     """
     logger.info("Processing item '%s' for actor '%s'", obj.name, actor_id)
     logger.debug(
@@ -260,6 +270,12 @@ def _dispatch_or_defer_inbox_item(
     dispatcher: ActivityDispatcher | None = None,
 ) -> VultronEvent | None:
     """Dispatch an inbox item or defer it until its case replica exists.
+
+    Returns the dispatched event only when the handler's verdict took effect
+    (``HandlerResult.took_effect``). An item queued or dropped before
+    dispatch, or one the handler refused or deferred, returns ``None``, so
+    the caller does not replay pending activities after a bootstrap that did
+    not make the case available.
 
     When deferring, first checks whether the existing pending queue for
     this case has expired.  If the queue has expired, the existing items
@@ -304,8 +320,8 @@ def _dispatch_or_defer_inbox_item(
         )
         return None
 
-    dispatch(event=event, dl=dl, dispatcher=dispatcher)
-    return event
+    result = dispatch(event=event, dl=dl, dispatcher=dispatcher)
+    return event if result.took_effect else None
 
 
 def _log_rehydrated_item(item: as_Activity) -> None:
@@ -324,35 +340,104 @@ def _log_rehydrated_item(item: as_Activity) -> None:
     logger.debug("Item has transitive object of type: %s", obj_type_label)
 
 
+def _inbox_retry_or_dead_letter(
+    item_id: str,
+    actor_id: str,
+    reason: str,
+    last_error: str,
+    queue_dl: DataLayer,
+    retry: RetryStore,
+    max_attempts: int,
+) -> None:
+    """Increment the attempt counter; dead-letter on exhaustion, requeue otherwise.
+
+    Called from ``_rehydrate_inbox_item`` and ``_process_inbox_item`` for any
+    transient failure (non-``VultronProtocolViolationError``).  Protocol
+    violations are dropped before reaching this helper.
+
+    Args:
+        item_id: Activity ID of the failing inbox item.
+        actor_id: Canonical URI of the receiving actor (for log context).
+        reason: Short machine-readable failure reason code.
+        last_error: String representation of the last exception.
+        queue_dl: Actor-scoped DataLayer for queue management.
+        retry: ``RetryStore`` port used to persist attempt counts and dead letters.
+        max_attempts: Maximum cumulative attempts before dead-lettering
+            (``AppConfig.max_inbox_retry_attempts``).
+    """
+    total = retry.get_inbox_attempt_count(item_id) + 1
+    if total >= max_attempts:
+        retry.inbox_dead_letter_append(
+            item_id,
+            reason=reason,
+            total_attempts=total,
+            last_error=last_error,
+        )
+        retry.clear_inbox_attempt_count(item_id)
+        logger.error(
+            "Inbox item '%s' exhausted %d processing attempts for actor '%s';"
+            " moved to dead letter (IE-06-004).",
+            item_id,
+            total,
+            actor_id,
+        )
+    else:
+        retry.set_inbox_attempt_count(item_id, total)
+        queue_dl.inbox_append(item_id)
+        logger.error(
+            "Error processing inbox item '%s' for actor '%s' (attempt %d/%d);"
+            " re-queuing for retry.",
+            item_id,
+            actor_id,
+            total,
+            max_attempts,
+        )
+
+
 def _rehydrate_inbox_item(
     item_id: str,
     dl: DataLayer,
     queue_dl: DataLayer,
+    retry: RetryStore | None = None,
+    max_attempts: int = 12,
+    actor_id: str = "",
 ) -> as_Activity | None:
     """Rehydrate one inbox item, routing errors through the permanent/transient
-    classification instead of letting them escape (AC-1 of #3044).
+    classification instead of letting them escape (AC-1 of #3044, IE-06-004).
 
     Returns the rehydrated ``as_Activity`` or ``None`` on any error.
-    On a permanent failure (``VultronProtocolViolationError``) the item is not
-    re-queued; on any other exception it is re-queued for retry.
+    On a permanent failure (``VultronProtocolViolationError``) the item is
+    dropped (not re-queued).  On any other exception:
+    - When *retry* is provided, increments the persistent attempt count and
+      either re-queues or dead-letters the item (IE-06-004).
+    - When *retry* is ``None`` (legacy callers), re-queues unconditionally.
     """
     try:
         obj = rehydrate(item_id, dl=dl)
     except VultronProtocolViolationError:
-        logger.error(
+        logger.exception(
             "Protocol violation rehydrating inbox item %s"
             " — skipping (permanent failure)",
             item_id,
-            exc_info=True,
         )
         return None
-    except Exception:
-        logger.error(
+    except Exception as exc:
+        logger.exception(
             "Error rehydrating inbox item %s — re-queuing for retry",
             item_id,
-            exc_info=True,
         )
-        queue_dl.inbox_append(item_id)
+        if retry is not None:
+            _inbox_retry_or_dead_letter(
+                item_id,
+                actor_id,
+                "rehydration_error",
+                str(exc),
+                queue_dl,
+                retry,
+                max_attempts,
+            )
+        else:
+            queue_dl.inbox_append(item_id)
         return None
     if not isinstance(obj, as_Activity):
         logger.error(
@@ -372,8 +457,17 @@ def _process_inbox_item(
     dl: DataLayer,
     queue_dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
+    retry: RetryStore | None = None,
+    max_attempts: int = 12,
 ) -> bool:
-    """Dispatch one inbox activity and return ``True`` on success."""
+    """Dispatch one inbox activity and return ``True`` on success.
+
+    On a permanent failure (``VultronProtocolViolationError``) the item is not
+    re-queued.  On any other exception, when *retry* is provided the item is
+    tracked via the persisted retry store and dead-lettered on exhaustion
+    (IE-06-004); when *retry* is ``None`` (legacy callers) it is re-queued
+    unconditionally (#2865).
+    """
     _log_rehydrated_item(item)
 
     try:
@@ -391,15 +485,38 @@ def _process_inbox_item(
                     case_id, dl, queue_dl, actor_id=canonical_actor_id
                 )
         return True
-    except Exception as e:
-        logger.error(
-            "Error processing inbox item for actor %s: %s", actor_id, e
+    except VultronProtocolViolationError:
+        logger.exception(
+            "Protocol violation processing inbox item %s for actor %s"
+            " — skipping (permanent failure)",
+            item_id,
+            actor_id,
+        )
+        return False
+    except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        logger.error(  # noqa: TRY400  # ruff-baseline #3353
+            "Error processing inbox item %s for actor %s: %s"
+            " — re-queuing for retry",
+            item_id,
+            actor_id,
+            e,
         )
         logger.debug(
             "Item causing error: %s",
             item.model_dump_json(indent=2, exclude_none=True),
         )
-        queue_dl.inbox_append(item_id)
+        if retry is not None:
+            _inbox_retry_or_dead_letter(
+                item_id,
+                actor_id,
+                "processing_error",
+                str(e),
+                queue_dl,
+                retry,
+                max_attempts,
+            )
+        else:
+            queue_dl.inbox_append(item_id)
         return False
 
 
@@ -437,7 +554,7 @@ async def inbox_handler(
         dispatcher: Optional per-app dispatcher (from
             ``request.app.state.dispatcher``).  When provided, inbox items
             are routed through this dispatcher instead of the module-level
-            ``_DISPATCHER``, giving each :func:`create_app` instance its
+            ``_DISPATCHER_SLOT``, giving each :func:`create_app` instance its
             own fully isolated routing table (issue #534).
     """
     queue_dl: DataLayer = cast(
@@ -455,25 +572,30 @@ async def inbox_handler(
 
     logger.info("Processing inbox for actor %s", actor_id)
 
-    err_count = 0
+    # Cast to RetryStore for bounded retry tracking (IE-06-004).  SqliteDataLayer
+    # satisfies RetryStore structurally; when a test double or non-SQLite DL is
+    # passed, the cast is still valid because RetryStore is checked structurally
+    # at type-check time only — the runtime call succeeds if the method exists.
+    retry: RetryStore = cast(RetryStore, queue_dl)
+    max_attempts = get_config().max_inbox_retry_attempts
 
     while queue_dl.inbox_list():
         item_id = queue_dl.inbox_pop()
         if item_id is None:
             break
 
-        item = _rehydrate_inbox_item(item_id, dl=dl, queue_dl=queue_dl)
+        item = _rehydrate_inbox_item(
+            item_id,
+            dl=dl,
+            queue_dl=queue_dl,
+            retry=retry,
+            max_attempts=max_attempts,
+            actor_id=canonical_actor_id,
+        )
         if item is None:
-            err_count += 1
-            if err_count > 3:
-                logger.error(
-                    "Too many errors processing inbox for actor %s, aborting.",
-                    actor_id,
-                )
-                break
             continue
 
-        if not _process_inbox_item(
+        _process_inbox_item(
             actor_id=actor_id,
             canonical_actor_id=canonical_actor_id,
             item_id=item_id,
@@ -481,14 +603,9 @@ async def inbox_handler(
             dl=dl,
             queue_dl=queue_dl,
             dispatcher=dispatcher,
-        ):
-            err_count += 1
-            if err_count > 3:
-                logger.error(
-                    "Too many errors processing inbox for actor %s, aborting.",
-                    actor_id,
-                )
-                break
+            retry=retry,
+            max_attempts=max_attempts,
+        )
 
     # OX-1.2 / OX-03-002: trigger outbox delivery after inbox processing completes
     await outbox_handler(actor_id, queue_dl, emitter=emitter)

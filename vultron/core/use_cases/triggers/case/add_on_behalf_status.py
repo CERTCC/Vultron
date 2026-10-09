@@ -21,6 +21,7 @@ import py_trees.behaviour
 from vultron.core.behaviors.case.add_on_behalf_status_trigger_tree import (
     add_on_behalf_status_trigger_bt,
 )
+from vultron.core.models.use_case_result import StatusResult
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -30,20 +31,24 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     AddOnBehalfStatusTriggerRequest,
 )
-from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
 
-class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase):
-    """Assert v→V or d→D on behalf of a notified-but-not-joined vendor/deployer.
+class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase[StatusResult]):
+    """Assert v→V or d→D on behalf of an existing vendor/deployer participant.
 
     The ``actor_id`` in the request is the *asserting* actor (Case Manager or
     Case Owner); ``target_actor_id`` identifies the vendor or deployer whose
     awareness or deployment state is being recorded.
 
     Only ``CS_vf.Vf`` (v→V) and ``CS_d.D`` (d→D) may be asserted on behalf;
-    ``CS_vf.VF`` (f→F) is rejected at the request layer (ADR-0084, PRM-06-005).
+    ``CS_vf.VF`` (f→F) is rejected at the request layer (ADR-0121, PRM-06-005).
+
+    The target MUST already be a participant holding the asserted dimension's
+    role; otherwise the trigger is refused before any write and no participant
+    is created (PRM-06-006, ADR-0114) — the refusal surfaces as a
+    :exc:`~vultron.errors.VultronValidationError` naming the target.
 
     BT-15-001: the ``ParticipantStatus`` write happens inside the BT via
     ``CreateParticipantStatusNode``, not directly in ``execute()``.
@@ -58,12 +63,6 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase):
         self._case_id = resolve_case(request.case_id, self._dl).id_
         self._vf_state: CS_vf | None = request.vf_state
         self._d_state: CS_d | None = request.d_state
-        roles: list[CVDRole] = []
-        if request.vf_state is not None:
-            roles.append(CVDRole.VENDOR)
-        if request.d_state is not None:
-            roles.append(CVDRole.DEPLOYER)
-        self._required_roles = roles
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
@@ -72,7 +71,7 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase):
             if not isinstance(status_id, str) or not isinstance(
                 participant_id, str
             ):
-                raise RuntimeError(
+                raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353
                     "CreateParticipantStatusNode did not populate result_out"
                     " before activity_builder was called"
                 )
@@ -89,7 +88,6 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase):
             case_id=self._case_id,
             asserting_actor_id=self._asserting_actor_id,
             target_actor_id=self._target_actor_id,
-            required_roles=self._required_roles,
             vf_state=self._vf_state,
             d_state=self._d_state,
             result_out=self._result_out,
@@ -107,9 +105,9 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase):
             self._case_id,
         )
 
-    def execute(self) -> dict[str, Any]:
-        super().execute()
-        return {
-            "activity_id": self._result_out.get("activity_id"),
-            "status_id": self._result_out.get("status_id"),
-        }
+    def _build_result(self) -> StatusResult:
+        """The ids of the ``Add(ParticipantStatus)`` activity and the record."""
+        return StatusResult(
+            activity_id=self._output_id("activity_id"),
+            status_id=self._output_id("status_id"),
+        )

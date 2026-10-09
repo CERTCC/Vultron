@@ -40,8 +40,12 @@ the handler's side effect (note appended to ``replica.notes``).
 import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
-from vultron.core.models.report_case_link import VultronReportCaseLink
+from test.support.embargo_register import activate
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
@@ -59,9 +63,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -216,9 +217,9 @@ def _post_to_inbox(client, actor_slug: str, activity) -> None:
         content=activity.model_dump_json(by_alias=True, exclude_none=True),
         headers={"Content-Type": "application/json"},
     )
-    assert (
-        resp.status_code == 202
-    ), f"Inbox POST returned {resp.status_code}: {resp.text}"
+    assert resp.status_code == 202, (
+        f"Inbox POST returned {resp.status_code}: {resp.text}"
+    )
 
 
 def _actor_slug(actor_id: str) -> str:
@@ -309,9 +310,9 @@ def _bootstrap_case_for_participant(
             "to": [participant_actor_id],
         },
     )
-    assert (
-        resp.status_code == 202
-    ), f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+    )
 
     # Find the case that the CaseActor created for this report.
     # Under ADR-0041, case_proposal_received_tree creates the canonical case
@@ -341,19 +342,17 @@ def _bootstrap_case_for_participant(
     # on the validate path (ISSUE-2548), where the checks moved upstream of every
     # write instead of running after the RM.VALID latch had already been written:
     #
-    #   - active_embargo, without which RM.VALID is refused (DUR-07-004);
+    #   - an active embargo, without which RM.VALID is refused (DUR-07-004);
     #   - a CaseParticipant for the owner, reachable through
     #     actor_participant_index (CM-19-003), without which the case-scoped half
     #     of the RM.VALID transition has nothing to advance.
     #
     # Seed both here, alongside the trust anchor below.
     case_obj = owner_dl.read(case_id)
-    assert (
-        case_obj is not None
-    ), f"case {case_id!r} not readable from the owner's own store"
-    object.__setattr__(
-        case_obj, "active_embargo", f"{case_id}/embargoes/bootstrap-embargo"
+    assert case_obj is not None, (
+        f"case {case_id!r} not readable from the owner's own store"
     )
+    activate(case_obj, f"{case_id}/embargoes/bootstrap-embargo")
 
     # The owner submitted the CaseProposal, so it holds CASE_OWNER — a role never
     # delegated to the CaseActor.  RM.RECEIVED is the state it holds after taking
@@ -385,7 +384,7 @@ def _bootstrap_case_for_participant(
     for link in owner_dl.list_objects("ReportCaseLink"):
         if isinstance(link, VultronReportCaseLink):
             link.case_id = case_id
-            link.trusted_case_actor_id = owner_actor_id
+            link.case_manager_id = owner_actor_id
             owner_dl.save(link)
             break
 
@@ -397,9 +396,9 @@ def _bootstrap_case_for_participant(
         "/trigger/validate-report",
         json={"offer_id": offer.id_},
     )
-    assert (
-        resp.status_code == 202
-    ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"validate-report trigger failed ({resp.status_code}): {resp.text}"
+    )
 
     return case_id, owner_actor_id, participant_actor_id
 
@@ -440,7 +439,7 @@ class TestBootstrapSequence:
             "the bootstrap sequence begins."
         )
 
-        case_id, owner_actor_id, participant_actor_id = (
+        case_id, _owner_actor_id, participant_actor_id = (
             _bootstrap_case_for_participant(
                 owner_iso,
                 participant_iso,
@@ -556,9 +555,9 @@ class TestBootstrapSequence:
         # the Announce was delivered to `actor_id`, so that is the replica it
         # seeded (ADR-0073).
         actor_dl = participant_iso.store_for(actor_id)
-        assert (
-            actor_dl.read(_DIRECT_CASE_ID) is not None
-        ), "Prerequisite: case replica must exist before routing test."
+        assert actor_dl.read(_DIRECT_CASE_ID) is not None, (
+            "Prerequisite: case replica must exist before routing test."
+        )
 
         # Post a case-scoped Add(Note) with context = case_id.
         note = as_Note(name="Routing check note for PCR-07-006")

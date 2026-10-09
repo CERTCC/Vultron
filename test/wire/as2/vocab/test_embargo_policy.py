@@ -25,8 +25,8 @@ import pytest
 from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.objects.embargo_policy as ep_module
-from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.models.enums import VultronObjectType as VO_type
 
 ACTOR_ID = "https://example.org/actors/vendor"

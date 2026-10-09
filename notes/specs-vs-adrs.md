@@ -6,6 +6,7 @@ related_specs:
 related_notes:
   - notes/bt-pitfalls.md
   - notes/spec-authoring-rules.md
+  - notes/agentic-workflow.md
 ---
 
 # Specs vs. ADRs — Delineation Guidelines
@@ -188,6 +189,61 @@ MS-14). The `decision-audit` skill hunts for exactly this contradiction.
 > a status field that agents read; a parallel confidence field would be one
 > more thing to keep in sync and one more source of drift. Expanding the status
 > vocabulary keeps a single source of truth. See ADR-0043.
+
+### ADR Lifecycle: Epochs and Edit Tiers
+
+ADR-0120 ties `status` to age. Frontmatter carries `created` (immutable),
+`updated` (material edits only) and `revision` (integer, bumped per material
+edit). Epochs are measured from `updated`:
+
+| Epoch | Age | `status` | Editing |
+|---|---|---|---|
+| 1 | under 72 hours | `proposed` | edit in place freely |
+| 2 | 72 hours to day 10 | `accepted-provisional` | ask the human: edit in place or supersede |
+| 3 | day 10 onward | `accepted` | supersede (below) |
+
+A merged dependent implementation may harden an ADR to epoch 3 early, and a
+human may override the computed status. Agents implement against `proposed`
+ADRs; the mandatory human touch is the epoch-2 ask.
+
+**The clock never fails a merge-blocking check.** An ADR crossing a boundary
+changes no commit, so a check reading today's date turns `main` red with no one to
+blame (ADR-0110, 2026-10-08). A PR that materially edits an ADR (or adds one) owns
+its status on that date, enforced against the merge base. Every other drifted
+status is reported by the hourly `adr-status-drift` workflow through one
+self-closing issue, and a human flips it (MS-14-007).
+
+**Edit tiers.** Editorial fixes and append-only annotations are allowed in any
+epoch and change neither `updated` nor `revision`. A clarification after epoch 1
+is appended as a dated note. A material change (*would something built on the old
+text now be wrong?*) bumps `updated` and `revision`. In epoch 3, a material
+change to one detail with the chosen option intact is a dated Amendment quoting
+the replaced text; a change of chosen option is a new ADR that supersedes the
+old one, whose original text is restored. Never rewrite an accepted ADR under its
+own number.
+
+**What is checked (MS-14-007, MS-14-009, MS-14-010).** Three fields are required on
+every ADR (MS-14-008); `date` is the older spelling of `created` and may stay.
+Epochs are counted in whole days (3 and 10) because `updated` is a date.
+
+- `spec-lint` fails an ADR whose `status` differs from its epoch, unless the ADR
+  carries `status_override:` with the human's reason. Retired and rejected ADRs
+  have no epoch. Because the epoch moves with the calendar, an ADR that nobody
+  touches fails on the day it crosses a boundary; promoting it, or recording an
+  override, is the human touch.
+- The `adr-lifecycle-check` pre-commit hook compares an edited ADR with `HEAD`.
+  It fails a changed Decision Outcome or Considered Options section on an
+  epoch-3 ADR unless the edit adds a heading naming "Amendment" and a
+  `YYYY-MM-DD` date. It also fails a bump of `updated` on an ADR that was past
+  epoch 1, unless `status_override:` is present.
+- `spec-lint` prints an `[INFO]` line for an ADR in epoch 1 or 2 that a spec
+  requirement cites in `adr:` and verifies with an existing `test/` file: the
+  hardened signal that a human may promote it early. It checks that the file
+  exists, not that it passes.
+- `uv run adr-index --epochs` prints each live ADR's epoch, status and revision.
+  The generated `index.md` shows only the revision (`*(revision N)*`, when above
+  1), because the epoch depends on today's date and the index is compared byte
+  for byte.
 
 ### A Provisional ADR Must Phrase an Unbuilt Contract in the Future Tense
 

@@ -1,6 +1,9 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+introduces: [Embargo Consent, Pocket Veto]
+description: >
+  Triggers `propose_embargo`, `accept_embargo`, `reject_embargo`, and `terminate_embargo`: negotiating, joining, revising, and ending an embargo.
 ---
 
 # Embargo Lifecycle
@@ -19,15 +22,17 @@ The case carries **one** embargo, and each Participant carries its **own stance*
 | Scope | What it tracks | States |
 |---|---|---|
 | Embargo Management (EM) | The case's embargo — one per case | `NONE`, `PROPOSED`, `ACTIVE`, `REVISE`, `EXITED` |
-| Participant Embargo Consent (PEC) | One Participant's commitment to it | `UNBOUND`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED` |
+| Participant Embargo Consent (PEC) | One Participant's answer to each embargo it was asked about | one row per embargo: `INVITED`, `ACCEPTED`, `DECLINED`, `EXPIRED` |
 
 The distinction is not bookkeeping.
 "The case is under embargo" and "this Participant is bound by it" are different facts, and a case routinely holds both at once: an active embargo with one Participant who declined it.
-A Participant's `embargo_adherence` is derived from its consent state and is true only at `SIGNATORY`, so the two can never drift apart ([ADR-0056](../../../adr/0056-embargo-adherence-computed-field.md)).
+A Participant is a signatory when its consent row for the case's active embargo is `ACCEPTED`.
+That is a lookup, not a second record, so the embargo and the Participant's position can never drift apart ([ADR-0122](../../../adr/0122-per-embargo-participant-consent.md)).
+A Participant that accepted an earlier embargo but has no accepting row for the one now in force has lapsed, which is read the same way.
 
-`UNBOUND` is the state most often misread.
+A missing row is the thing most often misread.
 It means *not bound by any embargo terms* — not "has not answered yet."
-An actor may accept or decline directly from it, with no intervening invitation ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md), [ADR-0091](../../../adr/0091-rename-pec-no-embargo-to-unbound.md), CM-18-003).
+An actor may accept or decline directly from no row, with no intervening invitation ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md), CM-18-003).
 
 ---
 
@@ -55,20 +60,58 @@ Every EM transition runs through one service.
 A behavior tree node never assigns `case.current_status.em` and saves the case as a shortcut (EMB-18-001).
 The reason is that a transition is not a field write.
 It has to be validated against the state machine, and a failed validation must stop the node rather than log a warning and write anyway (EMB-18-002).
+A case also never names an embargo whose record its store does not hold (EMB-18-003).
+Activating an embargo reads both the record being activated and the one it replaces, and refuses before any write if either cannot be read.
+A sender carries the embargo record inline with the case, and a receiver stores that record before the case that names it, so a case naming an embargo the receiver lacks is refused rather than stored.
+A receiver refuses an inline embargo record whose context is a different case, so a sender cannot plant one case's embargo under another's id.
+
+A receiver also checks who sent each embargo message before it changes anything (ADR-0115).
+The case manager takes a proposal only from an active participant, and takes an acceptance or rejection only from the actor the recorded invitation was addressed to.
+It takes an embargo record being created, added or removed only from the case owner or from itself.
+Every other participant takes an embargo message only from the case manager.
+A message from any other sender is refused and changes no state.
 
 The transitions themselves are small and fixed:
 
 | Message received | Precondition | Result |
 |---|---|---|
-| Embargo Proposal (EP) | `EM.NONE` | `EM.PROPOSED`, acknowledge (EMB-01-001) |
-| Embargo Acceptance (EA) | `EM.PROPOSED` | `EM.ACTIVE`, acknowledge (EMB-02-001) |
-| Embargo Rejection (ER) | `EM.PROPOSED` | back to `EM.NONE`, acknowledge (EMB-06-001) |
+| Embargo Proposal (EP) | `EM.NONE` | `EM.PROPOSED` (EMB-01-001) |
+| Embargo Acceptance (EA) | `EM.PROPOSED` | `EM.ACTIVE` (EMB-02-001) |
+| Embargo Rejection (ER) | `EM.PROPOSED` | back to `EM.NONE` (EMB-06-001) |
 | Embargo Revision (EV) | `EM.ACTIVE` | `EM.REVISE`; the active embargo stays in force (EMB-03-001) |
-| Embargo Termination (ET) | any | `EM.EXITED`, immediately |
+| Embargo Termination (ET) | `EM.ACTIVE` or `EM.REVISE` | `EM.EXITED`, immediately |
+
+The formal protocol has each receiver acknowledge these with EK; in this implementation the case manager's commit and announcement of the received activity is that acknowledgment, and no EK message exists (EP-09-009, MSM-02-009).
 
 `EM.REVISE` is worth a second look.
-A revision under negotiation does not suspend the embargo — the existing terms remain binding until the revision is accepted.
+A revision under negotiation does not suspend the embargo — the existing terms remain binding until the revision is accepted, and every signatory to them remains a signatory.
 That is what makes renegotiation safe, and it is why the recommended practice is to accept and then revise rather than to counter-propose.
+
+---
+
+## Which messages move consent
+
+Consent has no messages of its own (MSM-07-001).
+Every Participant Embargo Consent change is a side effect of an EM activity or a deadline, and the case manager records it; a Participant never declares its own consent state.
+
+| Activity | Effect on the case's EM state | Effect on consent |
+|---|---|---|
+| Embargo Proposal (EP), `Invite(Event)` on the case | `NONE` to `PROPOSED`; a further proposal leaves it `PROPOSED` | the invited Participant's row for that embargo moves from none, `DECLINED` or `EXPIRED` to `INVITED`; a signatory asked about a revision gains a row for the revision and keeps its row for the embargo in force (MSM-07-002, EP-09-004) |
+| Embargo Acceptance (EA), `Accept(Invite(Event))` | from the case owner: `PROPOSED` to `ACTIVE` | the accepting Participant's row for those terms becomes `ACCEPTED`, which makes it a signatory once they are the embargo in force (MSM-07-003) |
+| Embargo Revision Acceptance (EC), `Accept(Invite(Event))` | from the case owner: `REVISE` to `ACTIVE` with the revised terms | a non-owner accepting a proposed revision marks the revision's row `ACCEPTED` and stays a signatory to the terms in force; when the owner activates a revision that ends later than the old terms, every signatory that has not accepted it has lapsed, and a revision that ends no later carries every signatory over by marking its row `ACCEPTED` (MSM-07-003, MSM-07-005) |
+| Embargo Rejection (ER), `Reject(Invite(Event))` | from the case owner: `PROPOSED` to `NONE` once no other proposal is open; while another is, the case stays `PROPOSED` (EP-08-001, EP-08-003) | the rejecting Participant's row for the rejected terms becomes `DECLINED` (MSM-07-004) |
+| Embargo Revision Rejection (EJ), `Reject(Invite(Event))` | from the case owner: `REVISE` back to `ACTIVE` once no other revision is open, and the prior terms stand; once public disclosure, a public exploit or an attack is known, the owner's rejection of the last open revision ends the embargo instead (ET, EMB-04-002) | none for the owner; a signatory that refuses proposed terms declines only the revision's row and remains a signatory to the terms in force (MSM-07-004) |
+| Embargo Revision (EV) | `ACTIVE` to `REVISE` | none to the terms in force; the proposer's row for the revision becomes `ACCEPTED`, because proposing terms is consenting to them (MSM-07-005, EP-05-002) |
+| Embargo Termination (ET) | `ACTIVE` or `REVISE` to `EXITED` | none is written: with the active embargo cleared nobody is a signatory, and no further message is sent (MSM-07-006) |
+| Invitation deadline passes | none | each `INVITED` row moves to `EXPIRED`, recorded in the case ledger (MSM-07-007) |
+
+One activity can therefore move both scopes at once: an Accept from the case owner activates the embargo *and* makes the owner a signatory.
+
+Only the case manager records an answer; a Participant handed an Accept or Reject meant for the case manager refuses it, and a Reject of terms that are neither in force nor still proposed is refused rather than recorded.
+A signatory that rejects the *active* embargo is withdrawing its own consent: its row for that embargo becomes `DECLINED`, as do its accepted rows for any open revision.
+A signatory that rejects a *proposed* revision is refusing those terms only: it stays a signatory to the embargo in force.
+In neither case does the case's embargo change, because only the case owner's reject moves EM (MSM-07-004).
+The protocol-level view of consent is in [§9.2 Transitions and Guards in the specification](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards).
 
 ---
 
@@ -81,8 +124,13 @@ It is mandatory, and it applies at every point in the lifecycle:
 
 - A proposal MUST be refused with ER, regardless of any other assessment (EMB-01-002).
 - An EA MUST NOT move the case to `ACTIVE`; the actor emits ER instead (EMB-02-002).
-- An EV arriving while the case is public MUST produce ET — terminate now, do not negotiate (EMB-03-003).
+- An EV arriving while the case is public MUST be refused, not adopted, and the embargo ends because the case is public, not because the proposal arrived: the proposal is at most how the actor notices (EMB-03-003).
 - An actor sitting at `EM.PROPOSED` that *observes* the case go public MUST abandon the proposal, return to `EM.NONE`, and emit ER (EMB-16-001).
+  The case manager makes that abandonment for the case, and its committed ER is what notifies everyone else.
+  Only the case owner, or the case manager it delegates to, decides that abandonment.
+  Any other participant's status report already tells the case manager the case went public, so it sends no ER as the abandonment, which the case manager would read as that participant declining the proposal (EMB-16-002).
+  That rule covers only proposals already open on the case.
+  A proposal, Invite or revision a participant *receives* while it believes the case is public is still answered with ER by that participant, as the first item above requires (EMB-01-002).
 - An actor at `EM.EXITED` MUST NOT seek or accept a new embargo for a public case (EMB-13-002).
 
 EMB-16-001 is the one implementations forget, because it is not triggered by a message.
@@ -95,7 +143,7 @@ The actor's own state changed, and the obligation follows from that.
 
 This is the richest call-out surface in the protocol, because almost every embargo question is a policy question.
 Each point below names its capability shape from the [ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md) taxonomy, and each is answered by an injected backend rather than by logic inside the tree ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
-Their service contracts are catalogued in the [Capability Model](../../capability_model/index.md#embargo-management).
+Their service contracts are cataloged in the [Capability Model](../../capability_model/index.md#embargo-management).
 
 **Deciding to negotiate.** `WantToProposeEmbargo` (Evaluator) asks whether to propose at all; `SelectEmbargoOfferTerms` (Composer) asks what terms; `StopProposingEmbargo` (Evaluator) asks whether to give up after a refusal.
 Their deterministic defaults differ, and the differences encode a recommended posture: propose by default, and do not give up by default.
@@ -131,23 +179,29 @@ They are notification and integration hooks that fire after the transition and c
 
 ## Inaction is an answer
 
-An `Invite(EmbargoEvent)` carries a respond-by instant, and silence past it is treated as a refusal — the **pocket veto**.
-A Participant at `INVITED` or `LAPSED` that does not answer within the window moves to `DECLINED`.
+An `Invite(EmbargoEvent)` carries a respond-by instant, and silence past it ends the invitation — the **pocket veto**.
+A Participant at `INVITED` that does not answer within the window moves to `EXPIRED`, not `DECLINED`: silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-004, [ADR-0118](../../../adr/0118-pec-expired-and-unbound-exited-states.md)).
 
 The window has two forms and they are one mechanism, not two ([ADR-0065](../../../adr/0065-embargo-invite-rsvp-deadline.md)).
 When the invitation carries an explicit `Invite.end_time`, that value governs (CM-28-002).
 When it does not, the policy default applies — seven days, measured from the invitation's `published` timestamp (EP-07-001).
+The case manager stamps `Invite.end_time` on every invitation it relays, so every replica reads the same deadline off the same object, and a Participant that receives an invitation derives no deadline of its own (CM-28-012, CM-28-013).
 
 There is a floor. An inviting actor must not send a window shorter than the configured minimum, defaulting to 72 hours (EP-07-002).
-A receiving actor that gets one anyway clamps the deadline up to the minimum and logs the clamp; it does **not** reject the invitation as malformed (EP-07-003, EP-07-004, EP-07-005).
+The case manager, as the actor that stamps the relayed invitation, clamps a too-short window up to the minimum and logs the clamp; it does **not** reject the proposal as malformed (EP-07-003, EP-07-004, EP-07-005).
 Refusing a too-short invitation would punish the invitee for the inviter's error.
+
+There is also a ceiling: the deadline never falls after the invited embargo ends (EP-07-006, CM-28-011).
+A deadline past that end, whether sent explicitly or computed from the policy window, is lowered to the end and the clamp is logged.
+The floor gives way to the ceiling: the minimum is 72 hours or the time left in the embargo, whichever is shorter (EP-07-002).
+On day 28 of a 30-day embargo, the invitee has until day 30 to answer, not seven days.
 
 A late `Accept` is never refused merely for being late (EMB-17-001).
 The case manager instead asks whether the accepted embargo is still the case's current one, and the three answers are all different:
 
 | What the late Accept refers to | What the case manager does |
 |---|---|
-| The case's current embargo | Honor it; record the Participant as SIGNATORY, exactly as for an on-time Accept (EMB-17-002) |
+| The case's current embargo | Honor it; record the Participant's consent row as `ACCEPTED`, exactly as for an on-time Accept — directly from `EXPIRED`, after a fresh invitation from `DECLINED` (EMB-17-002) |
 | A superseded embargo | Send a fresh invitation carrying the current terms. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005) |
 | An embargo the case no longer has | Acknowledge as a no-op. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008) |
 
@@ -165,7 +219,8 @@ Teardown is the exception worth naming, because its addressing is prescribed.
 The `Announce(EmbargoEvent)` that follows a teardown must be authored by the actor holding `CVDRole.CASE_MANAGER` and addressed to every Participant *except* the announcing actor — never to the case manager itself (EMB-19-001).
 When the case manager is the only Participant, the announcement is skipped rather than sent with an empty recipient list (EMB-19-002).
 
-On entering `EM.EXITED`, Participant consent states are reset to reflect that the embargo has ended (EMB-13-001).
+On entering `EM.EXITED`, no Participant is bound by an embargo any more, and no later invitation can bind one (EMB-13-001, MSM-07-006).
+No consent row is written for this: the active embargo is cleared, and the case is the fact.
 The embargo is over for everyone at once, which is the one thing about the EM scope that is genuinely global.
 
 ---
@@ -174,18 +229,20 @@ The embargo is over for everyone at once, which is the one thing about the EM sc
 
 | Requirement | Obligation |
 |---|---|
-| [EMB-01-002](../../../reference/specs/protocol.md#emb-01) | A proposal MUST be refused with ER when the case is public, exploited, or attacked |
-| [EMB-02-002](../../../reference/specs/protocol.md#emb-02) | An EA MUST NOT activate an embargo on a public case; emit ER |
-| [EMB-03-001](../../../reference/specs/protocol.md#emb-03) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
-| [EMB-06-001](../../../reference/specs/protocol.md#emb-06) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` |
-| [EMB-13-002](../../../reference/specs/protocol.md#emb-13) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |
-| [EMB-15-002](../../../reference/specs/protocol.md#emb-15) | The response seam MUST bypass approval when the deciding actor is the case owner |
-| [EMB-16-001](../../../reference/specs/protocol.md#emb-16) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
-| [EMB-17-001](../../../reference/specs/protocol.md#emb-17) | A late `Accept` MUST NOT be refused solely because the deadline passed |
-| [EMB-18-001](../../../reference/specs/architecture.md#emb-18) | Every EM transition MUST route through the embargo lifecycle service |
-| [EMB-19-001](../../../reference/specs/protocol.md#emb-19) | A teardown announcement MUST be authored by the case manager and exclude it from the recipients |
-| [EP-04-001](../../../reference/specs/protocol.md#ep-04) | A default embargo applied at case creation MUST produce `EM.ACTIVE`, not `EM.PROPOSED` |
-| [EP-07-003](../../../reference/specs/protocol.md#ep-07) | A sub-minimum RSVP deadline MUST be clamped up, not rejected |
+| [EMB-01-002](../../../reference/specs/protocol.md#emb-01-002) | A proposal MUST be refused with ER when the case is public, exploited, or attacked |
+| [EMB-02-002](../../../reference/specs/protocol.md#emb-02-002) | An EA MUST NOT activate an embargo on a public case; emit ER |
+| [EMB-03-001](../../../reference/specs/protocol.md#emb-03-001) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
+| [EMB-06-001](../../../reference/specs/protocol.md#emb-06-001) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` |
+| [EMB-13-002](../../../reference/specs/protocol.md#emb-13-002) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |
+| [EMB-15-002](../../../reference/specs/protocol.md#emb-15-002) | The response seam MUST bypass approval when the deciding actor is the case owner |
+| [EMB-16-001](../../../reference/specs/protocol.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
+| [EMB-16-002](../../../reference/specs/protocol.md#emb-16-002) | A participant that is not the case manager MUST NOT emit ER as that abandonment or write it itself; it still answers what it receives under EMB-01-002 |
+| [EMB-17-001](../../../reference/specs/protocol.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |
+| [EMB-18-001](../../../reference/specs/architecture.md#emb-18-001) | Every EM transition MUST route through the embargo lifecycle service |
+| [EMB-18-003](../../../reference/specs/architecture.md#emb-18-003) | A case MUST NOT name an embargo whose record its store does not hold |
+| [EMB-19-001](../../../reference/specs/protocol.md#emb-19-001) | A teardown announcement MUST be authored by the case manager and exclude it from the recipients |
+| [EP-04-001](../../../reference/specs/protocol.md#ep-04-001) | A default embargo applied at case creation MUST produce `EM.ACTIVE`, not `EM.PROPOSED` |
+| [EP-07-003](../../../reference/specs/protocol.md#ep-07-003) | A sub-minimum RSVP deadline MUST be clamped up, not rejected |
 
 ---
 
@@ -194,5 +251,5 @@ The embargo is over for everyone at once, which is the one thing about the EM sc
 - [Embargo Management Behaviors](../em_bt.md) — the original design trees for proposal, evaluation, and termination
 - [Propose case](propose-case.md) — where the default embargo comes from
 - [Embargo Management Handlers](../../../reference/behaviors/em_handlers.md) — the trees the reference implementation builds today
-- [EM Process Model](../../process_models/em/index.md) — the state machine in full
+- [EM Process Model](../../process_models/em/index.md) — the case-level embargo model, with its [formal definition](../../process_models/em/formal_model.md)
 - [Glossary](../../../reference/glossary.md) — Participant, call-out point, capability shape, embargo consent

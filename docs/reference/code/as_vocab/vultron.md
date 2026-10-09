@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Vultron Activity Streams Vocabulary Package
 
 ## Objects

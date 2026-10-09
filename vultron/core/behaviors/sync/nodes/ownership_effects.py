@@ -28,13 +28,19 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
+from vultron.core.behaviors.sync.nodes.conditions import (
+    _require_log_entry,
+)
 from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 
 
-class ApplyOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
+class ApplyOwnershipTransferFromLedgerNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply an ``accept_case_ownership_transfer`` ledger entry to the local case replica.
 
     When a non-CaseActor participant receives ``Announce(CaseLedgerEntry)``
@@ -75,10 +81,6 @@ class ApplyOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-
-        from vultron.core.behaviors.sync.nodes.conditions import (
-            _require_log_entry,
-        )
 
         entry = _require_log_entry(self.activity, self.name)
         snapshot = entry.payload_snapshot

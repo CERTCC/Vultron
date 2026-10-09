@@ -33,6 +33,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -92,7 +94,9 @@ class PrioritizeDeployment(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     final approval for high-impact changes typically requires human sign-off.
     """
 
-    output_keys = {"deployment_priority_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "deployment_priority_verdict": str
+    }
 
 
 class MitigationDeployed(RetrieverCallOutPoint, UsuallyFail):
@@ -168,7 +172,7 @@ class DeployMitigation(EvaluatorCallOutPoint, UsuallySucceed):
         mitigations typically require human coordination.
     """
 
-    output_keys = {"deploy_mitigation_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {"deploy_mitigation_verdict": str}
 
 
 class MonitoringRequirement(EvaluatorCallOutPoint, OftenSucceed):
@@ -194,7 +198,9 @@ class MonitoringRequirement(EvaluatorCallOutPoint, OftenSucceed):
     policy engines can evaluate this condition without human input.
     """
 
-    output_keys = {"monitoring_requirement_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "monitoring_requirement_verdict": str
+    }
 
 
 class MonitorDeployment(ActuatorCallOutPoint, AlwaysSucceed):
@@ -247,4 +253,4 @@ class DeployFix(EvaluatorCallOutPoint, AlmostAlwaysFail):
     require human approval and change-management controls.
     """
 
-    output_keys = {"deploy_fix_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {"deploy_fix_verdict": str}

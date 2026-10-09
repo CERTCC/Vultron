@@ -18,24 +18,23 @@ callers continue to work without change (CS-18-003, AC-4).
 """
 
 # Pattern class
-from vultron.wire.as2.extractor._pattern import ActivityPattern  # noqa: F401
-
 # Domain-event extractor
-from vultron.wire.as2.extractor._extract import extract_intent  # noqa: F401
+from vultron.wire.as2.extractor._extract import extract_intent
 
 # Pattern instances — all exported so semantic_registry sub-modules and tests
 # can continue to import directly from vultron.wire.as2.extractor.
-from vultron.wire.as2.extractor._instances import (  # noqa: F401
+from vultron.wire.as2.extractor._instances import (
+    AcceptActorRecommendationPattern,
     AcceptCaseOwnershipTransferActivityPattern,
     AcceptCaseParticipantRolePattern,
     AcceptCaseProposalPattern,
     AcceptInviteActorToCasePattern,
+    AcceptInviteActorToFullCasePattern,
     AcceptInviteToEmbargoOnCasePattern,
-    AcceptActorRecommendationPattern,
     AckReportPattern,
+    ActivateEmbargoOnCasePattern,
     AddCaseParticipantToCasePattern,
     AddCaseStatusToCasePattern,
-    AddEmbargoEventToCasePattern,
     AddNoteToCaseActivityPattern,
     AddParticipantStatusToParticipantPattern,
     AddReportToCaseActivityPattern,
@@ -48,33 +47,38 @@ from vultron.wire.as2.extractor._instances import (  # noqa: F401
     CreateCaseParticipantPattern,
     CreateCaseProposalPattern,
     CreateCaseStatusActivityPattern,
-    CreateProcessingFaultPattern,
     CreateEmbargoEventPattern,
     CreateNotePattern,
     CreateParticipantStatusPattern,
+    CreateProcessingFaultPattern,
     CreateReportPattern,
     DeferCasePattern,
     EngageCasePattern,
-    InviteActorToCasePattern,
-    InviteToEmbargoOnCasePattern,
     InvalidateReportPattern,
+    InviteActorToCasePattern,
+    InviteActorToFullCasePattern,
+    InviteToEmbargoOnCasePattern,
     OfferActorToCasePattern,
     OfferCaseOwnershipTransferActivityPattern,
     OfferCaseParticipantRolePattern,
+    RejectActorRecommendationPattern,
     RejectCaseOwnershipTransferActivityPattern,
     RejectCaseParticipantRolePattern,
     RejectCaseProposalPattern,
+    RejectEmbargoProposalOnCasePattern,
     RejectInviteActorToCasePattern,
+    RejectInviteActorToFullCasePattern,
     RejectInviteToEmbargoOnCasePattern,
     RejectLogEntryPattern,
-    RejectActorRecommendationPattern,
     RemoveCaseParticipantFromCasePattern,
     RemoveEmbargoEventFromCasePattern,
     RemoveNoteFromCasePattern,
     ReportSubmissionPattern,
+    TentativeRejectInviteActorToFullCasePattern,
     UpdateCaseActivityPattern,
     ValidateReportPattern,
 )
+from vultron.wire.as2.extractor._pattern import ActivityPattern
 
 __all__ = [
     # Pattern class
@@ -86,12 +90,13 @@ __all__ = [
     "AcceptCaseParticipantRolePattern",
     "AcceptCaseProposalPattern",
     "AcceptInviteActorToCasePattern",
+    "AcceptInviteActorToFullCasePattern",
     "AcceptInviteToEmbargoOnCasePattern",
     "AcceptActorRecommendationPattern",
     "AckReportPattern",
     "AddCaseParticipantToCasePattern",
     "AddCaseStatusToCasePattern",
-    "AddEmbargoEventToCasePattern",
+    "ActivateEmbargoOnCasePattern",
     "AddNoteToCaseActivityPattern",
     "AddParticipantStatusToParticipantPattern",
     "AddReportToCaseActivityPattern",
@@ -112,6 +117,7 @@ __all__ = [
     "DeferCasePattern",
     "EngageCasePattern",
     "InviteActorToCasePattern",
+    "InviteActorToFullCasePattern",
     "InviteToEmbargoOnCasePattern",
     "InvalidateReportPattern",
     "OfferActorToCasePattern",
@@ -121,6 +127,9 @@ __all__ = [
     "RejectCaseParticipantRolePattern",
     "RejectCaseProposalPattern",
     "RejectInviteActorToCasePattern",
+    "RejectInviteActorToFullCasePattern",
+    "TentativeRejectInviteActorToFullCasePattern",
+    "RejectEmbargoProposalOnCasePattern",
     "RejectInviteToEmbargoOnCasePattern",
     "RejectLogEntryPattern",
     "RejectActorRecommendationPattern",

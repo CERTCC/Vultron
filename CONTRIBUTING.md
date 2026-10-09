@@ -37,5 +37,20 @@ There are a number of ways you can contribute to the development of Vultron.
 before submitting a PR.
 - Before making any significant changes that you expect to result in a pull request, we encourage you to discuss your plans with
   the maintainers first, whether that be in the form of an [Issue](https://github.com/CERTCC/Vultron/issues) or a [Discussion](https://github.com/CERTCC/Vultron/discussions).
-- Python code should be formatted with [Black](https://black.readthedocs.io/en/stable/) and linted with `flake8`.
-  Run `uv run flake8 vultron/ test/` to check for lint issues before committing.
+- Python code is formatted and linted with [ruff](https://docs.astral.sh/ruff/).
+  Run `uv run ruff check` and `uv run ruff format --check` before committing; both read their scope from `pyproject.toml`, so they take no path arguments.
+
+## Cutting a Release (Maintainers)
+
+To cut a Vultron release:
+
+1. Create a three-component CalVer tag: `git tag vYYYY.M.P` (for example, `v2026.10.0`).
+   The patch component is always present — do not omit it.
+   `snapshot-YYYYQn` tags are checkpoints; they do not get a GitHub Release.
+2. Push the tag: `git push origin vYYYY.M.P`.
+3. Create a GitHub Release for that tag.
+   - Title: the version tag (e.g., `v2026.10.0`).
+   - **Uncheck the Pre-release box** so the repository has a Latest release.
+   - Release notes MUST include the statement that all interfaces are experimental.
+   - Once #3658 ships, release notes MUST also include the list of requirement IDs
+     added and removed since the previous release.

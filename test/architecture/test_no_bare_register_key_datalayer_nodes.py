@@ -48,10 +48,35 @@ AUDITED_SITES: list[tuple[str, str]] = sorted([])
 _BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 
 
-def _collect_sites() -> list[tuple[str, str]]:  # noqa: C901
+_NON_PORTS_BASES = {"DataLayerAction", "DataLayerCondition"}
+
+
+def _base_names(cls_node: ast.ClassDef) -> set[str]:
+    """Return the simple names of *cls_node*'s bases (``a.B`` -> ``B``)."""
+    names: set[str] = set()
+    for base in cls_node.bases:
+        if isinstance(base, ast.Name):
+            names.add(base.id)
+        elif isinstance(base, ast.Attribute):
+            names.add(base.attr)
+    return names
+
+
+def _setup_calls_register_key(cls_node: ast.ClassDef) -> bool:
+    """Whether *cls_node*'s ``setup()`` method calls ``register_key()``."""
+    return any(
+        isinstance(stmt, ast.Call)
+        and isinstance(stmt.func, ast.Attribute)
+        and stmt.func.attr == "register_key"
+        for item in cls_node.body
+        if isinstance(item, ast.FunctionDef) and item.name == "setup"
+        for stmt in ast.walk(item)
+    )
+
+
+def _collect_sites() -> list[tuple[str, str]]:
     """Return sorted (rel_path, class_name) for non-WithPorts DataLayer*
     subclasses whose setup() method calls register_key()."""
-    non_ports_bases = {"DataLayerAction", "DataLayerCondition"}
     found: list[tuple[str, str]] = []
     for path, tree in _corpus.files_mentioning(
         "register_key",
@@ -60,36 +85,11 @@ def _collect_sites() -> list[tuple[str, str]]:  # noqa: C901
         under=_BEHAVIORS_ROOT,
     ):
         for cls_node in ast.walk(tree):
-            if not isinstance(cls_node, ast.ClassDef):
-                continue
-            base_names: set[str] = set()
-            for base in cls_node.bases:
-                if isinstance(base, ast.Name):
-                    base_names.add(base.id)
-                elif isinstance(base, ast.Attribute):
-                    base_names.add(base.attr)
-            if not (base_names & non_ports_bases):
-                continue
-            # Scan the setup() method for register_key calls.
-            has_register_key = False
-            for item in cls_node.body:
-                if not (
-                    isinstance(item, ast.FunctionDef) and item.name == "setup"
-                ):
-                    continue
-                for stmt in ast.walk(item):
-                    if not isinstance(stmt, ast.Call):
-                        continue
-                    func = stmt.func
-                    if (
-                        isinstance(func, ast.Attribute)
-                        and func.attr == "register_key"
-                    ):
-                        has_register_key = True
-                        break
-                if has_register_key:
-                    break
-            if has_register_key:
+            if (
+                isinstance(cls_node, ast.ClassDef)
+                and _base_names(cls_node) & _NON_PORTS_BASES
+                and _setup_calls_register_key(cls_node)
+            ):
                 rel = str(path.relative_to(_BEHAVIORS_ROOT)).replace("\\", "/")
                 found.append((rel, cls_node.name))
     return sorted(found)

@@ -10,32 +10,21 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-import importlib
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 
-from test.demo._helpers import make_testclient_call
-from vultron.demo.exchange import manage_participants_demo as demo
-from vultron.demo.exchange import initialize_case_demo as init_demo
+from test.demo._helpers import route_exchange_demo_at_testclient
+from vultron.demo.exchange import (
+    initialize_case_demo as init_demo,
+    manage_participants_demo as demo,
+)
 
 
 @pytest.fixture(scope="module")
 def demo_env(client):
-    """Sets up the demo environment, patching BASE_URL and DataLayerClient.call."""
-    mp = MonkeyPatch()
-    base = str(client.base_url).rstrip("/") + "/api/v2"
-    try:
-        mp.setattr(demo, "BASE_URL", base)
-        mp.setattr(init_demo, "BASE_URL", base)
-        mp.setattr(
-            demo.DataLayerClient, "call", make_testclient_call(client, base)
-        )
+    """Routes the demo's clients at the in-process TestClient."""
+    with route_exchange_demo_at_testclient(client, demo, init_demo):
         yield
-    finally:
-        mp.undo()
-        importlib.reload(demo)
-        importlib.reload(init_demo)
 
 
 @pytest.mark.parametrize(
@@ -53,10 +42,10 @@ def test_demo(demo_env, demo_fn, caplog):
     For the accept path, verifies:
     - Case initialized with vendor as sole participant
     - Invite sent to coordinator inbox
-    - Coordinator acceptance sent to vendor inbox
-    - Coordinator participant created and added to case
+    - Coordinator acceptance seats it through the stub Invite (no Add)
     - Coordinator participant status created and added
-    - Coordinator participant removed from case
+    - Coordinator participant removed from active participation, record kept
+    - Coordinator reinstated by the Case Owner's Add(CaseParticipant)
     - No errors logged
 
     For the reject path, verifies:

@@ -1,10 +1,12 @@
 """Tests for vultron.wire.as2.parser."""
 
+from datetime import UTC
+
 import pytest
 
+from test.support.blank_strings import BLANKS
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import extract_event
-
 from vultron.wire.as2.errors import (
     VultronParseMissingPublishedError,
     VultronParseMissingTypeError,
@@ -12,17 +14,15 @@ from vultron.wire.as2.errors import (
     VultronParseValidationError,
 )
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.collections import (
+    as_OrderedCollection,
+)
+from vultron.wire.as2.vocab.objects.vultron_actor import as_VultronOrganization
 
 #: Every inbound activity must carry a sender-supplied ``published``, so each
 #: body below sets one.  Absence is a validity failure, not a field the parser
 #: fills in — see ``test_parse_activity_raises_missing_published_when_absent``.
 PUBLISHED = "2026-03-04T05:06:07+00:00"
-
-#: Every spelling of "the sender supplied no value".  Whitespace-only counts as
-#: blank by the project's canonical predicate (``not v.strip()``, see
-#: ``vultron.core.models.base._non_empty``): a guard that catches ``""`` but not
-#: ``"   "`` has the same blind spot one character over.
-BLANK = ("", " ", "   ", "\t", "\n", " \t\n ")
 
 
 @pytest.mark.spec("MV-01-001")
@@ -40,7 +40,7 @@ def test_parse_activity_raises_unknown_type_for_unrecognized_type():
 @pytest.mark.spec("MV-01-001")
 @pytest.mark.spec("MV-03-002")
 @pytest.mark.spec("CS-08-001")
-@pytest.mark.parametrize("blank", BLANK)
+@pytest.mark.parametrize("blank", BLANKS)
 def test_parse_activity_reads_blank_type_as_missing_not_unknown(blank: str):
     """A blank ``type`` names no type, so it is absence, not an unknown type.
 
@@ -100,7 +100,7 @@ def test_parse_activity_rejects_explicit_null_published():
 @pytest.mark.spec("CLP-15-006")
 @pytest.mark.spec("MV-03-002")
 @pytest.mark.spec("CS-08-001")
-@pytest.mark.parametrize("blank", BLANK)
+@pytest.mark.parametrize("blank", BLANKS)
 def test_parse_activity_rejects_blank_published(blank: str):
     """A blank ``published`` carries no claimed time, so it is absence.
 
@@ -169,7 +169,7 @@ def test_parse_activity_preserves_the_senders_published_verbatim():
     Pins the value against the receiver's clock: a regression that reinstated
     the default would produce ``now``, not the 2026 timestamp asserted here.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     result = parse_activity(
         {
@@ -180,10 +180,8 @@ def test_parse_activity_preserves_the_senders_published_verbatim():
         }
     )
 
-    assert result.published == datetime(
-        2026, 3, 4, 5, 6, 7, tzinfo=timezone.utc
-    )
-    assert result.published != datetime.now(tz=timezone.utc)
+    assert result.published == datetime(2026, 3, 4, 5, 6, 7, tzinfo=UTC)
+    assert result.published != datetime.now(tz=UTC)
 
 
 @pytest.mark.spec("MV-01-001")
@@ -235,8 +233,10 @@ def _invite_response_body(activity_type: str) -> dict[str, object]:
                 "name": "Coordinator",
             },
             "target": {
-                "type": "VulnerabilityCase",
-                "id": "https://example.org/cases/case-1",
+                "type": "VulnerabilityCaseStub",
+                "id": "https://example.org/cases/case-1/stub",
+                "caseId": "https://example.org/cases/case-1",
+                "summary": "Security issue — details shared after acceptance",
             },
             "to": ["https://example.org/actors/coordinator"],
         },
@@ -262,11 +262,10 @@ def test_parse_activity_extracts_invite_response_semantics_from_nested_stub_case
     assert event.object_ is not None
     assert event.object_.id_ == "urn:uuid:invite-1"
 
+    assert (
+        getattr(event, "case_id", None) == "https://example.org/cases/case-1"
+    )
     if activity_type == "Accept":
-        assert (
-            getattr(event, "case_id", None)
-            == "https://example.org/cases/case-1"
-        )
         assert (
             getattr(event, "invitee_id", None)
             == "https://example.org/actors/coordinator"
@@ -313,17 +312,18 @@ def test_parse_activity_refuses_malformed_nested_object_of_known_type():
 
 @pytest.mark.spec("ARCH-22-001")
 @pytest.mark.spec("MV-04-003")
-def test_parse_activity_keeps_inline_actor_subtype_with_core_only_collections():
+def test_parse_activity_keeps_inline_actor_subtype_with_inline_collections():
     """An inline actor's subtype must survive its ``inbox``/``outbox``.
 
-    ``OrderedCollection`` is registered only in ``CORE_TYPE_MAP``, so
-    ``find_in_vocabulary`` used to hand the nested expansion a *core*
-    ``CoreActorCollection``; ``as_VultronOrganization.inbox`` rejects a core
-    instance, and the swallowed failure degraded the whole actor to an
-    ``as_Link``.  Nested expansion inside a wire tree resolves wire classes
-    only (MV-04-003), so the mismatch cannot arise.  The rule is MV-04-003, not
-    ARCH-22-001 as this previously cited: it is about which registry an inline
-    type string resolves against, not about which modules may import which.
+    ``OrderedCollection`` was once registered only in ``CORE_TYPE_MAP``, so
+    ``find_in_vocabulary`` handed the nested expansion a *core* class the
+    actor's ``inbox`` rejected, and the swallowed failure degraded the whole
+    actor to an ``as_Link`` (ISSUE-3217).  The wire class now owns the name
+    (VM-03-002), and the Vultron actor reduces each expanded collection to its
+    address — an assertion about what the endpoints *are*, not about which
+    class they are not, which would pass vacuously once the offending class was
+    gone (ISSUE-3563).  The rule is MV-04-003: which registry an inline type
+    string resolves against.
     """
     actor = {
         "type": "Organization",
@@ -351,8 +351,13 @@ def test_parse_activity_keeps_inline_actor_subtype_with_core_only_collections():
         }
     )
 
-    assert type(result.actor).__name__ == "VultronOrganization"
+    assert type(result.actor) is as_VultronOrganization
     assert getattr(result.actor, "id_", None) == "https://example.org/alice"
+    for field_name in ("inbox", "outbox"):
+        assert (
+            getattr(result.actor, field_name)
+            == f"https://example.org/alice/{field_name}"
+        )
 
 
 def test_parsing_activity_line_is_debug_not_info(caplog):
@@ -445,14 +450,15 @@ def test_refusal_of_malformed_inline_object_names_the_field_path():
 
 @pytest.mark.spec("MV-04-003")
 @pytest.mark.spec("ARCH-22-001")
-def test_core_only_inline_type_is_left_for_the_parent_field():
-    """A ``CORE_TYPE_MAP``-only ``type`` must not resolve to a core class here.
+def test_inline_ordered_collection_resolves_to_the_wire_class():
+    """An inline ``OrderedCollection`` must resolve to the wire class.
 
     ``find_in_vocabulary`` falls back to the core map (ARCH-12-003), where
-    ``OrderedCollection`` alone is registered.  Resolving it would place a core
-    instance in a wire tree; the wire parent then rejected it and the whole
-    object degraded to a bare ``as_Link``.  Leaving the dict unexpanded hands
-    the decision to the parent field, which is its declared authority.
+    ``OrderedCollection`` was once registered alone, so resolving it placed a
+    core instance in a wire tree and the whole object degraded (ISSUE-3217).
+    The wire class now declares the ``type`` it presents (VM-03-002), so the
+    wire registry answers first.  Asserting the positive identity keeps the
+    test meaningful now that the core class is gone (ISSUE-3563).
     """
     result = parse_activity(
         {
@@ -468,5 +474,45 @@ def test_core_only_inline_type_is_left_for_the_parent_field():
     )
 
     inline = getattr(result, "object_", None)
-    assert type(inline).__name__ == "as_Object"
-    assert type(inline).__name__ != "CoreActorCollection"
+    assert type(inline) is as_OrderedCollection
+    assert inline.id_ == "https://example.org/collections/1"
+
+
+@pytest.mark.spec("CS-08-001")
+@pytest.mark.parametrize("field", ["target", "origin", "object", "actor"])
+@pytest.mark.parametrize("blank", BLANKS)
+def test_parse_activity_rejects_blank_reference(field: str, blank: str):
+    """A blank reference names no resource, so the activity is refused.
+
+    Before #3876 the wire reference aliases carried bare ``str``, so an inbound
+    ``"target": ""`` validated and reached the core, and VM-07-001 then dropped
+    it silently on the way out.  CS-08-001's "if present, then non-empty" is
+    now enforced by the aliases themselves, so the refusal surfaces here as a
+    schema fault on the offending field.
+    """
+    body = {
+        "type": "Create",
+        "actor": "https://example.org/alice",
+        "published": PUBLISHED,
+        "object": "https://example.org/notes/1",
+        "target": "https://example.org/cases/1",
+    }
+    body[field] = blank
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    assert field in str(exc_info.value)
+
+
+@pytest.mark.spec("CS-08-001")
+def test_parse_activity_keeps_a_non_blank_target():
+    """The control for the blank-reference refusal: a real IRI still parses."""
+    activity = parse_activity(
+        {
+            "type": "Create",
+            "actor": "https://example.org/alice",
+            "published": PUBLISHED,
+            "object": "https://example.org/notes/1",
+            "target": "https://example.org/cases/1",
+        }
+    )
+    assert activity.target == "https://example.org/cases/1"

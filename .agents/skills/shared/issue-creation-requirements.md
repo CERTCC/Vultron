@@ -1,7 +1,7 @@
 # Issue Creation Requirements
 
-Every new issue created via `manage_github_issue.sh` **must** supply three fields.
-Missing any one causes the script to exit non-zero. Task and Bug bodies also
+Every new issue created via `manage_github_issue.sh` **must** supply three fields
+plus a reason it exists (below). Missing any one causes the script to exit non-zero. Task and Bug bodies also
 need a `Governing specs:` line (see below).
 
 ## Required fields
@@ -11,6 +11,20 @@ need a `Governing specs:` line (see below).
 | **Issue type** | `--issue-type-id ID` | Determines the issue's workflow lane (Task, Bug, Idea, Concern). Without it the issue has no type and is invisible to type-filtered views. |
 | **Parent epic** | `--parent N` | Routes the issue into the epic forest so it appears in sprint planning and prioritisation. An orphaned issue is invisible to capacity planning. |
 | **Milestone** | `--milestone N` | Anchors the issue to a delivery target. Without it the issue floats outside every milestone filter. |
+
+## Why the issue exists (`--opened-as` or `--planned`)
+
+Exactly one of these is required on create. It lets a run's net issue count be
+read from labels (see `completeness-doctrine.md` § "Net Issues: Close More Than
+You Open").
+
+| Flag | Use when | Label |
+|---|---|---|
+| `--planned` | The issue comes from planning or a user request (`plan-issue`, `update-plan`, `new-item`, a user-reported bug) | none |
+| `--opened-as excursion` | Filed so the current PR can close it (an "also" excursion) | `opened:excursion` |
+| `--opened-as separate-defect` | A real defect in code the PR does not touch, or a prerequisite found mid-task | `opened:separate-defect` |
+| `--opened-as debt --where X` | A known weakness seen but not fixed now. `--where` names the file, directory, or spec so the nearby-debt rule can find it. Use issue type `Concern` | `opened:debt` |
+| `--opened-as deferred` | The current PR's own work, left undone. Unsupervised runs must not do this; it is flagged in every report | `opened:deferred` |
 
 ## Governing specs (Task and Bug bodies)
 

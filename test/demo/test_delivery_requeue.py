@@ -110,9 +110,9 @@ def test_delivery_failure_triggers_requeue():
                     "recipient_id": finder_actor_id,
                 },
             )
-            assert (
-                resp.status_code == 202
-            ), f"submit-report failed: {resp.text}"
+            assert resp.status_code == 202, (
+                f"submit-report failed: {resp.text}"
+            )
 
             # The drain aborted after repeated DeliveryErrors; the activity
             # must still be in the outbox (OX-05-002: requeued for retry).

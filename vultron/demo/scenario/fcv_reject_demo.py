@@ -32,18 +32,49 @@ Spec: GitHub issue #2047 (fcv-reject demo scenario).
 import logging
 import sys
 
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-
+from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
-from vultron.enums.roles import CVDRole
+from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.invite_chain import (
+    CaseInviter,
+    run_case_invite_chain,
+)
+from vultron.demo.helpers.ledger_dump import (
+    LedgerDumpTarget,
+    dump_case_ledgers,
+    replica_route_key,
+    resolve_case_actor_route_key,
+)
+from vultron.demo.helpers.milestones import (
+    verify_case_active,
+    verify_case_closed,
+    verify_publicly_disclosed,
+)
+from vultron.demo.helpers.notes import participant_adds_note_to_case
+from vultron.demo.helpers.polling import (
+    resolve_case_actor_store_id,
+    wait_for_all_participants_rm_closed,
+    wait_for_case_em_terminated,
+    wait_for_case_participants,
+    wait_for_event_type_in_ledger,
+    wait_for_participant_rm_state,
+)
+from vultron.demo.helpers.seeding import (
+    get_actor_by_id,
+    reset_containers as _reset_containers,
+    seed_containers_fcv,
+)
+from vultron.demo.helpers.sync import (
+    run_sync_verification_phase,
+    wait_for_replica_ledger_coverage,
+)
+from vultron.demo.helpers.verification import _check_participant_rm_state_in
+from vultron.demo.helpers.workflow import (
+    reporter_submits_report,
+    run_direct_path_rm_triage,
+)
+from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
@@ -58,42 +89,15 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     setup_demo_logging,
     verify_object_stored,
 )
-from vultron.demo.helpers.harness import scenario_harness
-from vultron.demo.helpers.ledger_dump import (
-    LedgerDumpTarget,
-    dump_case_ledgers,
-    replica_route_key,
-    resolve_case_actor_route_key,
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
 )
-from vultron.demo.helpers.milestones import (
-    verify_case_active,
-    verify_case_closed,
-    verify_publicly_disclosed,
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
 )
-from vultron.demo.helpers.notes import participant_adds_note_to_case
-from vultron.demo.helpers.polling import (
-    find_case_invite_for_actor,
-    resolve_case_actor_store_id,
-    wait_for_all_participants_rm_closed,
-    wait_for_case_em_terminated,
-    wait_for_case_on_container,
-    wait_for_case_participants,
-    wait_for_contiguous_ledger_coverage,
-    wait_for_event_type_in_ledger,
-)
-from vultron.demo.helpers.seeding import (
-    get_actor_by_id,
-    reset_containers as _reset_containers,
-    seed_containers_fcv,
-)
-from vultron.demo.helpers.sync import (
-    _get_log_entries_for_case,
-)
-from vultron.demo.helpers.workflow import (
-    reporter_submits_report,
-    run_direct_path_rm_triage,
-)
-from vultron.demo.scenario.registry import scenario
 
 logger = logging.getLogger(__name__)
 
@@ -299,56 +303,48 @@ def _phase_invite_vendor_reject(
 
     Vendor sends Reject(Invite(actor, case)) back to the CaseActor via the
     ``reject-case-invite`` trigger.  The CaseActor records a
-    ``reject_invite_actor_to_case`` ledger entry and does NOT add Vendor as a
-    participant.  Vendor's participant count stays at 3 (Finder + Coordinator +
-    CaseActor).
+    ``reject_invite_actor_to_case`` ledger entry.
+
+    ADR-0114 / CM-11-006: at invite-send time
+    ``CreateInertInviteeParticipantNode`` adds Vendor to
+    ``actor_participant_index`` as an *inert* participant (``joined=False``,
+    RM ``RECEIVED``).  After the Reject, CM-11-007 moves that record to
+    RM ``CLOSED`` — Vendor is present in the index but never active, and no
+    case content is delivered to it (DEMOMA-27-002).
     """
     logger.info("─" * 80)
     logger.info("Phase 2: Coordinator invites Vendor; Vendor rejects")
     logger.info("─" * 80)
 
-    invite_result = None
-    with demo_step("Coordinator invites Vendor with CVDRole.VENDOR"):
-        invite_result = (
-            ActorSession(
-                client=coordinator_client, actor=coordinator_in_coordinator
-            )
-            .with_case(case)
-            .quiet()
-            .invite_actor_to_case(
-                invitee_id=vendor.id_, roles=[CVDRole.VENDOR]
-            )
-        )
-    invite = invite_result.activity
-    logger.info("Vendor invite created: %s", invite.id_)
-
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
 
-    with demo_check("Vendor invite delivered to Vendor's DataLayer"):
-        find_case_invite_for_actor(
-            client=vendor_client,
-            case_id=case.id_,
-            invitee_id=vendor.id_,
-            timeout_seconds=20.0,
-        )
+    # The chain's gate and Vendor's reject are nested inside the invite step
+    # (ADR-0058 nested-block model, EDF-06-005, #3038).
+    run_case_invite_chain(
+        case=case,
+        case_manager_client=coordinator_client,
+        invitee_name="Vendor",
+        invitee_client=vendor_client,
+        invitee=vendor,
+        invitee_in_own_container=vendor_in_vendor,
+        inviter=CaseInviter(
+            name="Coordinator",
+            client=coordinator_client,
+            actor=coordinator_in_coordinator,
+            role=CVDRole.VENDOR,
+        ),
+        respond="reject",
+        invite_timeout=20.0,
+    )
 
-    with demo_step("Vendor rejects the case invitation"):
-        ActorSession(
-            client=vendor_client, actor=vendor_in_vendor
-        ).quiet().reject_case_invite(invite_id=invite.id_)
-    logger.info("Vendor sent Reject(Invite) to CaseActor")
-
-    # Participant count remains 3: Coordinator + Finder + CaseActor.
-    # Vendor must NOT appear as a 4th participant.
-    #
-    # Gate on the rejection being committed before checking participant count.
+    # Gate on the rejection being committed before checking participant state.
     # The rejection is self-contained on the CaseActor (CLP-10-006) — no
     # participant-effect Announce is sent, so the entry is only visible in the
     # CaseActor's own store.  Using demo_gate here ensures that the participant
-    # count check is skipped (rather than run against stale state) if the
+    # state checks are skipped (rather than run against stale state) if the
     # CaseActor has not yet committed the rejection entry.
     with demo_gate(
-        "reject_invite_actor_to_case committed (causal gate before participant count check)"
+        "reject_invite_actor_to_case committed (causal gate before participant state check)"
     ):
         wait_for_event_type_in_ledger(
             client=coordinator_client,
@@ -358,56 +354,93 @@ def _phase_invite_vendor_reject(
                 coordinator_client, str(case.id_)
             ),
         )
+        # DEMOMA-27-002, CM-11-006: Vendor IS in actor_participant_index from the
+        # Invite-send moment (inert record created by CreateInertInviteeParticipantNode).
+        # Finder and Coordinator must also be present.  Read from the CaseActor's
+        # store: the inert record is the CASE_MANAGER's alone, and a replica
+        # learns of a member only from its Accept(Invite) entry (CM-31-012),
+        # which a rejecting invitee never produces.
         with demo_check(
-            "Participant count stays at 3 (Vendor not added after rejection)"
+            "Vendor in actor_participant_index after invite (inert record, CM-11-006)"
         ):
             wait_for_case_participants(
                 vendor_client=coordinator_client,
                 case_id=case.id_,
-                expected_actor_ids={finder.id_, coordinator.id_},
+                expected_actor_ids={finder.id_, coordinator.id_, vendor.id_},
+                dl_actor_id=resolve_case_actor_store_id(
+                    coordinator_client, str(case.id_)
+                ),
             )
-    logger.info("✓ M2: Vendor rejected invite — participant count stable at 3")
+        # DEMOMA-27-002, CM-11-007: Vendor's inert record must be at RM.CLOSED
+        # after the rejection — it was never active (joined=False throughout).
+        # Read from the CaseActor's authoritative store (not coordinator's
+        # replica): the reject tree has no emit node to propagate the
+        # participant state change to replicas (ADR-0073).
+        #
+        # The reject tree commits the ledger entry (the gate above) BEFORE its
+        # ApplyInviteRejectToParticipantNode effect writes RM.CLOSED, so the
+        # committed-entry gate is a proxy that proves the handler started, not
+        # that the RM close landed (EDF-06-002, EDF-06-003).  Wait on the
+        # committed effect itself before the one-shot check.
+        wait_for_participant_rm_state(
+            client=coordinator_client,
+            case_id=str(case.id_),
+            actor_id=str(vendor.id_),
+            expected_states={RM.CLOSED},
+            dl_actor_id=resolve_case_actor_store_id(
+                coordinator_client, str(case.id_)
+            ),
+        )
+        with demo_check(
+            "Vendor participant at RM.CLOSED after rejection (never active, DEMOMA-27-002)"
+        ):
+            _check_participant_rm_state_in(
+                client=coordinator_client,
+                case_id=str(case.id_),
+                actor_id=str(vendor.id_),
+                expected_states={RM.CLOSED},
+                label="Vendor (rejected invitee)",
+                dl_actor_id=resolve_case_actor_store_id(
+                    coordinator_client, str(case.id_)
+                ),
+            )
+    logger.info(
+        "✓ M2: Vendor rejected invite — inert record at RM.CLOSED, never active"
+        " (DEMOMA-27-002)"
+    )
 
 
 def _phase_sync_verification(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    finder: as_Actor,
+    coordinator: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
     """Wait for Finder to replicate all Phase 2 ledger entries before Phase 3.
 
-    Mirrors the sync-verification phase in ``fv_demo.py`` (SYNC-15-001).  The
-    Finder must hold the case and all coordinator-committed ledger entries
+    The Finder must hold the case and all coordinator-committed ledger entries
     before the notes exchange begins; without this gate the
     ``add-note-to-case`` trigger on the Finder container may fail because the
     Finder's DataLayer has not yet received the case replica or the
-    post-rejection ledger tail from the CaseActor fan-out.
+    post-rejection ledger tail from the CaseActor fan-out (SYNC-15-001).
+
+    The rejected Vendor never joins, so this scenario declares no participant
+    expectation and no replica state check.
     """
     logger.info("─" * 80)
     logger.info("Phase 2.5: Finder ledger sync verification")
     logger.info("─" * 80)
 
-    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
-        wait_for_case_on_container(
-            client=finder_client,
-            case_id=case.id_,
-        )
-        coordinator_entries = _get_log_entries_for_case(
-            coordinator_client, case.id_
-        )
-        if coordinator_entries:
-            coord_tail = max(coordinator_entries, key=lambda e: e["log_index"])
-            coord_tail_index: int = coord_tail["log_index"]
-            logger.info(
-                "Waiting for Finder to replicate coordinator entries (0…%d)",
-                coord_tail_index,
-            )
-            with demo_gate("Finder ledger coverage (pre-notes sync)"):
-                wait_for_contiguous_ledger_coverage(
-                    client=finder_client,
-                    case_id=case.id_,
-                    expected_tail_index=coord_tail_index,
-                )
+    run_sync_verification_phase(
+        auth_client=coordinator_client,
+        auth_label="Coordinator",
+        auth_actor_id=coordinator.id_,
+        finder_client=finder_client,
+        finder_actor_id=finder.id_,
+        replicas=[(finder_client, "Finder")],
+        case_id=case.id_,
+    )
 
 
 def _phase_notes_exchange(
@@ -547,25 +580,17 @@ def _phase_case_closure(
             case_id=case.id_,
             event_type="close_case",
         )
-    coordinator_entries = _get_log_entries_for_case(
-        coordinator_client, case.id_
+    # Temporal (EDF-06-006): after close_case the authority's outbox fans out
+    # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
+    # but the ledger dump depends on it. Bounded per replica by
+    # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
+    wait_for_replica_ledger_coverage(
+        auth_client=coordinator_client,
+        replicas=[(finder_client, "Finder")],
+        case_id=case.id_,
+        phase_label="close phase",
+        causal=False,
     )
-    if coordinator_entries:
-        coord_tail = max(coordinator_entries, key=lambda e: e["log_index"])
-        coord_tail_index: int = coord_tail["log_index"]
-        coord_tail_hash: str = coord_tail["entry_hash"]
-        logger.info(
-            "Waiting for Finder replica to receive coordinator tail after closure"
-            " (hash=%s… index=%d)",
-            coord_tail_hash[:16],
-            coord_tail_index,
-        )
-        with demo_check("Finder ledger coverage (close phase)"):
-            wait_for_contiguous_ledger_coverage(
-                client=finder_client,
-                case_id=case.id_,
-                expected_tail_index=coord_tail_index,
-            )
 
 
 def _phase_dump_case_ledgers(
@@ -573,11 +598,15 @@ def _phase_dump_case_ledgers(
     coordinator_client: DataLayerClient,
     case: as_VulnerabilityCase,
     demo_name: str = "fcv-reject",
+    vendor_client: DataLayerClient | None = None,
 ) -> None:
     """Dump case ledger entries from Finder, Coordinator, and CaseActor to JSONL.
 
-    Vendor is intentionally excluded: it rejected the invitation and was never
-    added as a case participant, so it has no case ledger replica.
+    Vendor is intentionally excluded from the dump targets: it rejected the
+    invitation and was never added as a case participant, so it has no case
+    ledger replica.  Its identity is still recorded in the manifest, because
+    the Case Actor's ``reject_invite_actor_to_case`` entry names it as the
+    recorded actor and a narrative tag must resolve to it (#4248).
 
     Thin scenario-specific wrapper over
     :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns the
@@ -605,7 +634,17 @@ def _phase_dump_case_ledgers(
             )
         )
 
-    dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
+    unreplicated = (
+        {"vendor": replica_route_key(vendor_client, "vendor")}
+        if vendor_client is not None
+        else None
+    )
+    dump_case_ledgers(
+        demo_name=demo_name,
+        case=case,
+        targets=targets,
+        unreplicated=unreplicated,
+    )
 
 
 def run_fcv_reject_demo(
@@ -657,6 +696,7 @@ def run_fcv_reject_demo(
                 coordinator_client=coordinator_client,
                 case=case,
                 demo_name=harness.demo_name,
+                vendor_client=vendor_client,
             )
         )
 
@@ -673,6 +713,8 @@ def run_fcv_reject_demo(
         _phase_sync_verification(
             finder_client=finder_client,
             coordinator_client=coordinator_client,
+            finder=_finder,
+            coordinator=_coordinator,
             case=case,
         )
 

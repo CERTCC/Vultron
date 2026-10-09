@@ -29,6 +29,7 @@ actor's own outbox. This is appropriate for exchange demos because:
 | `initialize-participant` | `initialize_participant_demo.py` | Initializing a standalone CaseParticipant       |
 | `invite-actor`           | `invite_actor_demo.py`           | Inviting an actor to participate in a case      |
 | `establish-embargo`      | `establish_embargo_demo.py`      | Establishing a coordinated disclosure embargo   |
+| `report-with-embargo`    | `report_with_embargo_demo.py`    | Reporter proposes embargo terms with the report |
 | `acknowledge`            | `acknowledge_demo.py`            | Acknowledging receipt of a vulnerability report |
 | `status-updates`         | `status_updates_demo.py`         | Posting case status updates and notes           |
 | `suggest-actor`          | `suggest_actor_demo.py`          | Suggesting an actor for a case                  |
@@ -37,6 +38,14 @@ actor's own outbox. This is appropriate for exchange demos because:
 | `manage-embargo`         | `manage_embargo_demo.py`         | Managing embargo lifecycle state transitions    |
 | `manage-participants`    | `manage_participants_demo.py`    | Adding and removing case participants           |
 | `trigger`                | `trigger_demo.py`                | Triggerable behavior endpoint walkthrough       |
+
+## Shared exchange helpers
+
+`embargo_lifecycle.py` is not a demo and has no sub-command.
+It holds the embargo helpers that multi-actor scenarios share:
+`demo_propose_and_activate_embargo`, `demo_propose_embargo_revision` and `demo_terminate_embargo`.
+Unlike the demos above, these puppeteer real actors through their trigger endpoints
+(`ActorSession`) and wait for the relayed `Invite(EmbargoEvent)` to arrive in each actor's own DataLayer.
 
 ## Running exchange demos
 

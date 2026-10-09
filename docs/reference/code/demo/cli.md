@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Demo CLI
 
 The unified Vultron demo CLI provides a single entry point for all demo

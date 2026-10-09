@@ -60,7 +60,6 @@ import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.demo.utils import case_actor_id_for_report
 from vultron.wire.as2.factories import rm_submit_report_activity
@@ -213,9 +212,9 @@ def _post_to_inbox(client, actor_slug: str, activity) -> None:
         content=activity.model_dump_json(by_alias=True, exclude_none=True),
         headers={"Content-Type": "application/json"},
     )
-    assert (
-        resp.status_code == 202
-    ), f"Inbox POST returned {resp.status_code}: {resp.text}"
+    assert resp.status_code == 202, (
+        f"Inbox POST returned {resp.status_code}: {resp.text}"
+    )
 
 
 def _actor_slug(actor_id: str) -> str:
@@ -307,9 +306,9 @@ def _bootstrap_case(
             "to": [reporter_actor_id],
         },
     )
-    assert (
-        resp.status_code == 202
-    ), f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+    )
 
     # Find the canonical case by report_id to avoid picking up the extra
     # VulnerabilityCase created by trigger/create-case above (ADR-0041 flow
@@ -332,24 +331,21 @@ def _bootstrap_case(
         )
         case_id = str(all_cases[0]["id_"])
 
-    # In this test the owner acts as the CaseActor.  Register that identity
-    # in the VultronReportCaseLink so _find_case_actor_id resolves correctly
-    # for invite-actor-to-case and accept-case-invite flows.
-    for link in owner_dl.list_objects("ReportCaseLink"):
-        if isinstance(link, VultronReportCaseLink):
-            link.case_id = case_id
-            link.trusted_case_actor_id = owner_actor_id
-            owner_dl.save(link)
-            break
+    # The case-actor hosted on the owner's node holds CASE_MANAGER for this
+    # case; the owner holds CASE_OWNER only.  The invite/accept flow runs
+    # through that CASE_MANAGER (PCR-08-007/008): the owner must not
+    # impersonate it by rewriting the ReportCaseLink, because a role-gated
+    # tree admits an invitee only when the executing actor, its store and the
+    # role holder are one actor (BT-05-006, ADR-0088, #3752).
 
     resp = owner_tc.post(
         f"/api/v2/actors/{_actor_slug(owner_actor_id)}"
         "/trigger/validate-report",
         json={"offer_id": offer.id_},
     )
-    assert (
-        resp.status_code == 202
-    ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
+    assert resp.status_code == 202, (
+        f"validate-report trigger failed ({resp.status_code}): {resp.text}"
+    )
 
     return case_id, owner_actor_id
 
@@ -403,8 +399,9 @@ def _run_late_joiner_sequence(
          the ``Invite`` to late-joiner's inbox.
       4. Late-joiner retrieves the invite ID from their DataLayer.
       5. Late-joiner triggers ``accept-case-invite``; the outbox drain
-         delivers the ``Accept`` to owner's inbox.  Owner processes it and
-         queues ``Announce(VulnerabilityCase)`` in the CaseActor's outbox.
+         delivers the ``Accept`` to the CaseActor's inbox.  The CaseActor,
+         which holds CASE_MANAGER, admits the invitee and queues
+         ``Announce(VulnerabilityCase)`` in its own outbox.
       6. CaseActor's outbox is drained via ``outbox_handler``; ``Announce`` is
          delivered to late-joiner's inbox via the configured emitter.
 
@@ -442,10 +439,40 @@ def _run_late_joiner_sequence(
     # can resolve the invitee from owner's DataLayer (ADR-0081).
     _register_peer(owner_tc, owner_slug, lj_actor_id, "LateJoiner")
 
-    # Step 3: owner triggers invite-actor-to-case
+    # Resolve the CaseActor before the invite trigger so we can set
+    # stub_summary on the case in the CASE_MANAGER's store.  The BT-created
+    # case has no stub_summary; EmitInviteActorToCaseNode requires it
+    # (CM-17-010, MV-10-001, #4165).
+    case_actor_id = _find_case_actor_id(
+        owner_iso.store_for(owner_actor_id), case_id
+    )
+    assert case_actor_id is not None, (
+        f"Could not find CaseActor for case '{case_id}' in owner's "
+        f"DataLayer.  CreateCaseActorNode may not have run during "
+        f"create_receive_report_case_tree."
+    )
+    ca_dl = owner_iso.store_for(case_actor_id)
+    _case_obj = ca_dl.read(case_id)
+    if _case_obj is not None:
+        ca_dl.save(
+            _case_obj.model_copy(
+                update={
+                    "stub_summary": (
+                        "PCR-07-007 test case"
+                        " — details shared after acceptance."
+                    )
+                }
+            )
+        )
+
+    # Step 3: owner triggers invite-actor-to-case (CM-11-019: roles required)
     resp = owner_tc.post(
         f"/api/v2/actors/{owner_slug}/trigger/invite-actor-to-case",
-        json={"case_id": case_id, "invitee_id": lj_actor_id},
+        json={
+            "case_id": case_id,
+            "invitee_id": lj_actor_id,
+            "roles": ["coordinator"],
+        },
     )
     assert resp.status_code == 202, (
         f"invite-actor-to-case trigger failed ({resp.status_code}): "
@@ -456,14 +483,6 @@ def _run_late_joiner_sequence(
     # CaseActor's outbox (not the owner's), so drain it explicitly here.
     # The background task triggered by the invite endpoint only drains the
     # owner's outbox; the CaseActor's outbox must be processed separately.
-    case_actor_id = _find_case_actor_id(
-        owner_iso.store_for(owner_actor_id), case_id
-    )
-    assert case_actor_id is not None, (
-        f"Could not find CaseActor for case '{case_id}' in owner's "
-        f"DataLayer.  CreateCaseActorNode may not have run during "
-        f"create_receive_report_case_tree."
-    )
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Step 4: retrieve invite_id from late-joiner's DataLayer
@@ -481,8 +500,7 @@ def _run_late_joiner_sequence(
         json={"invite_id": invite_id},
     )
     assert resp.status_code == 202, (
-        f"accept-case-invite trigger failed ({resp.status_code}): "
-        f"{resp.text}"
+        f"accept-case-invite trigger failed ({resp.status_code}): {resp.text}"
     )
 
     # Step 6: drain CaseActor's outbox via real outbox_handler

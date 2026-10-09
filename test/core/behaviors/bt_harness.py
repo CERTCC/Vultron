@@ -34,15 +34,18 @@ Usage
 
 from __future__ import annotations
 
-from typing import Any, Callable, cast
+from collections.abc import Callable
+from typing import Any, cast
 
 import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
@@ -82,13 +85,17 @@ class BTTestScenario:
             datalayer=self.dl,
             is_leader=lambda: is_leader,
             trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+            # Every committed entry is fanned out, so a scenario that reaches
+            # a commit needs the port (SYNC-02-003, #4113).
+            sync_port=SyncActivityAdapter(self.dl),
         )
 
     # ------------------------------------------------------------------
     # Precondition setup
     # ------------------------------------------------------------------
 
-    def seed(self, *objects: Any) -> "BTTestScenario":
+    def seed(self, *objects: Any) -> BTTestScenario:
         """Persist domain objects as preconditions; returns self for chaining.
 
         Args:
@@ -143,9 +150,9 @@ class BTTestScenario:
         Args:
             result: BTExecutionResult to check.
         """
-        assert (
-            result.status == py_trees.common.Status.SUCCESS
-        ), f"Expected SUCCESS but got {result.status}: {result.feedback_message}"
+        assert result.status == py_trees.common.Status.SUCCESS, (
+            f"Expected SUCCESS but got {result.status}: {result.feedback_message}"
+        )
 
     def assert_failure(
         self,
@@ -183,9 +190,9 @@ class BTTestScenario:
                 failure — that is the bug this guard exists to surface.
                 Requires ``reason``.
         """
-        assert (
-            result.status == py_trees.common.Status.FAILURE
-        ), f"Expected FAILURE but got {result.status}: {result.feedback_message}"
+        assert result.status == py_trees.common.Status.FAILURE, (
+            f"Expected FAILURE but got {result.status}: {result.feedback_message}"
+        )
         if allow_internal:
             assert reason is not None, (
                 "allow_internal=True disables the crash guard, so it requires "
@@ -229,9 +236,9 @@ class BTTestScenario:
             expected_substr: Substring expected in the failure reason.
         """
         reason = BTBridge.get_failure_reason(tree)
-        assert (
-            expected_substr in reason
-        ), f"Expected {expected_substr!r} in failure reason, got {reason!r}"
+        assert expected_substr in reason, (
+            f"Expected {expected_substr!r} in failure reason, got {reason!r}"
+        )
 
     # ------------------------------------------------------------------
     # DataLayer assertions
@@ -253,9 +260,9 @@ class BTTestScenario:
         assert obj is not None, f"Expected object {obj_id!r} in DataLayer"
         if type_key is not None:
             records = self.dl.by_type(type_key)
-            assert (
-                obj_id in records
-            ), f"Expected object {obj_id!r} of type {type_key!r} in DataLayer"
+            assert obj_id in records, (
+                f"Expected object {obj_id!r} of type {type_key!r} in DataLayer"
+            )
         return obj
 
     def assert_object_absent(self, obj_id: str) -> None:
@@ -265,9 +272,9 @@ class BTTestScenario:
             obj_id: ID of the object that must be absent.
         """
         obj = self.dl.read(obj_id)
-        assert (
-            obj is None
-        ), f"Expected object {obj_id!r} to be absent from DataLayer"
+        assert obj is None, (
+            f"Expected object {obj_id!r} to be absent from DataLayer"
+        )
 
     def assert_type_count(self, type_key: str, expected: int) -> None:
         """Assert the DataLayer contains exactly ``expected`` objects of type.
@@ -277,9 +284,9 @@ class BTTestScenario:
             expected: Expected number of matching records.
         """
         actual = len(self.dl.by_type(type_key))
-        assert (
-            actual == expected
-        ), f"Expected {expected} object(s) of type {type_key!r}, got {actual}"
+        assert actual == expected, (
+            f"Expected {expected} object(s) of type {type_key!r}, got {actual}"
+        )
 
     # ------------------------------------------------------------------
     # Domain assertions
@@ -327,9 +334,9 @@ class BTTestScenario:
             AssertionError: If there is not exactly one VulnerabilityCase.
         """
         cases = self.dl.by_type("VulnerabilityCase")
-        assert (
-            len(cases) == 1
-        ), f"Expected exactly 1 VulnerabilityCase in DataLayer, found {len(cases)}"
+        assert len(cases) == 1, (
+            f"Expected exactly 1 VulnerabilityCase in DataLayer, found {len(cases)}"
+        )
         case_id = next(iter(cases))
         case = self.dl.read(case_id)
         assert case is not None, (
@@ -348,9 +355,9 @@ class BTTestScenario:
         """
         case = cast(Any, self.dl.read(case_id))
         assert case is not None, f"Case {case_id!r} not found in DataLayer"
-        assert (
-            note_id in case.notes
-        ), f"Note {note_id!r} not attached to case {case_id!r}"
+        assert note_id in case.notes, (
+            f"Note {note_id!r} not attached to case {case_id!r}"
+        )
 
     def assert_participant_in_case(self, actor_id: str, case_id: str) -> None:
         """Assert that ``actor_id`` appears in the case's participant index.
@@ -361,9 +368,9 @@ class BTTestScenario:
         """
         case = cast(Any, self.dl.read(case_id))
         assert case is not None, f"Case {case_id!r} not found in DataLayer"
-        assert (
-            actor_id in case.actor_participant_index
-        ), f"Actor {actor_id!r} is not a participant in case {case_id!r}"
+        assert actor_id in case.actor_participant_index, (
+            f"Actor {actor_id!r} is not a participant in case {case_id!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -418,10 +425,10 @@ def bt_scenario_factory() -> Callable[..., BTTestScenario]:
 def shared_dl_actors() -> tuple[BTTestScenario, BTTestScenario]:
     """Return two BTTestScenario instances (vendor + reporter) sharing one DL.
 
-    Both ``VultronCaseActor`` objects are persisted in the shared DataLayer
+    Both ``CaseActor`` objects are persisted in the shared DataLayer
     so BT nodes that look up actor records can find them.
     """
-    from vultron.core.models.case_actor import VultronCaseActor
+    from vultron.core.models.case_actor import CaseActor
 
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
@@ -430,8 +437,8 @@ def shared_dl_actors() -> tuple[BTTestScenario, BTTestScenario]:
     vendor_id = "https://example.org/actors/vendor"
     reporter_id = "https://example.org/actors/reporter"
 
-    vendor_actor = VultronCaseActor(id_=vendor_id, name="Vendor Co")
-    reporter_actor = VultronCaseActor(id_=reporter_id, name="Reporter Co")
+    vendor_actor = CaseActor(id_=vendor_id, name="Vendor Co")
+    reporter_actor = CaseActor(id_=reporter_id, name="Reporter Co")
     dl.create(vendor_actor)
     dl.create(reporter_actor)
 

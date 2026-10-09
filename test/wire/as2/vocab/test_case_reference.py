@@ -109,7 +109,7 @@ class TestCaseReference(unittest.TestCase):
         with pytest.raises(ValidationError) as exc_info:
             cr.as_CaseReference(url="https://example.org/", tags=["patch", ""])
 
-        assert "All tags must be non-empty strings" in str(exc_info.value)
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_case_reference_invalid_tag_rejected(self):
         """Test that tags not in CASE_REFERENCE_TAG_VOCABULARY are rejected."""

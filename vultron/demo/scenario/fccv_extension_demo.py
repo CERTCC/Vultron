@@ -39,21 +39,53 @@ import sys
 
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Offer,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
-from vultron.enums.roles import CVDRole
+from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.invite_chain import (
+    CaseInviter,
+    run_case_invite_chain,
+)
+from vultron.demo.helpers.ledger_dump import (
+    LedgerDumpTarget,
+    dump_case_ledgers,
+    replica_route_key,
+    resolve_case_actor_route_key,
+)
+from vultron.demo.helpers.milestones import (
+    verify_case_active,
+    verify_case_closed,
+    verify_publicly_disclosed,
+)
+from vultron.demo.helpers.notes import participant_adds_note_to_case
+from vultron.demo.helpers.polling import (
+    PARTICIPANT_JOIN_TIMEOUT,
+    find_case_actor_participant_id,
+    find_cp_offer_for_case,
+    wait_for_all_participants_rm_closed,
+    wait_for_case_em_terminated,
+    wait_for_case_on_container,
+    wait_for_case_participants,
+    wait_for_event_type_in_ledger,
+    wait_for_participant_rm_state,
+    wait_for_participant_vf_state,
+)
+from vultron.demo.helpers.seeding import (
+    get_actor_by_id,
+    reset_containers as _reset_containers,
+    seed_containers_fccv,
+)
+from vultron.demo.helpers.sync import (
+    run_sync_verification_phase,
+    wait_for_replica_ledger_coverage,
+)
+from vultron.demo.helpers.verification import _check_participant_vf_state_in
+from vultron.demo.helpers.workflow import (
+    reporter_submits_report,
+    run_direct_path_rm_triage,
+    run_invite_path_rm_triage,
+)
+from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
@@ -68,51 +100,18 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     setup_demo_logging,
     verify_object_stored,
 )
-from vultron.demo.helpers.harness import scenario_harness
-from vultron.demo.helpers.ledger_dump import (
-    LedgerDumpTarget,
-    dump_case_ledgers,
-    replica_route_key,
-    resolve_case_actor_route_key,
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
 )
-from vultron.demo.helpers.milestones import (
-    verify_case_active,
-    verify_case_closed,
-    verify_publicly_disclosed,
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
 )
-from vultron.demo.helpers.verification import _check_participant_vf_state_in
-from vultron.demo.helpers.notes import participant_adds_note_to_case
-from vultron.demo.helpers.polling import (
-    drain_phase1_ledger,
-    find_case_actor_participant_id,
-    PARTICIPANT_JOIN_TIMEOUT,
-    find_case_invite_for_actor,
-    find_cp_offer_for_case,
-    wait_for_all_participants_rm_closed,
-    wait_for_case_em_terminated,
-    wait_for_case_on_container,
-    wait_for_case_participants,
-    wait_for_contiguous_ledger_coverage,
-    wait_for_participants_on_replicas,
-    wait_for_event_type_in_ledger,
-    wait_for_participant_rm_state,
-    wait_for_participant_vf_state,
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
 )
-from vultron.demo.helpers.seeding import (
-    get_actor_by_id,
-    reset_containers as _reset_containers,
-    seed_containers_fccv,
-)
-from vultron.demo.helpers.sync import (
-    _get_log_entries_for_case,
-    verify_replica_state,
-)
-from vultron.demo.helpers.workflow import (
-    reporter_submits_report,
-    run_direct_path_rm_triage,
-    run_invite_path_rm_triage,
-)
-from vultron.demo.scenario.registry import scenario
 
 logger = logging.getLogger(__name__)
 
@@ -306,51 +305,34 @@ def _phase_report_submission(
             expected_actor_ids={finder.id_, c1.id_},
         )
 
-        # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).
-        invite_result = None
-        with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
-            invite_result = (
-                ActorSession(client=c1_client, actor=c1_in_c1)
-                .with_case(case)
-                .quiet()
-                .invite_actor_to_case(
-                    invitee_id=c2.id_, roles=[CVDRole.COORDINATOR]
+        # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).  The chain
+        # nests the delivery gate, the accept and the replica wait inside the
+        # invite step, so a failed trigger or lookup skips its dependents
+        # (ADR-0058 nested-block model, EDF-06-005, #3038).
+        def _check_c2_joined() -> None:
+            # 4 participants: Finder + C1 + C2 + CaseActor
+            with demo_check("C1 case reflects Finder + C1 + C2 participants"):
+                wait_for_case_participants(
+                    vendor_client=c1_client,
+                    case_id=case.id_,
+                    expected_actor_ids={finder.id_, c1.id_, c2.id_},
                 )
-            )
-        invite = invite_result.activity
-        logger.info("C2 invite created: %s", invite.id_)
 
-        # Wait for the CaseActor-routed Invite to appear in C2's DataLayer.
-        with demo_gate(
-            "CaseActor-routed Invite for C2 stored in C2's DataLayer"
-        ):
-            invite_id = find_case_invite_for_actor(
-                client=c2_client,
-                case_id=case.id_,
-                invitee_id=c2.id_,
-            )
-            logger.info("CaseActor Invite for C2: %s", invite_id)
-
-            # C2 accepts the invite.
-            with demo_step("C2 accepts the case invitation"):
-                ActorSession(
-                    client=c2_client, actor=c2_in_c2
-                ).quiet().accept_case_invite(invite_id=invite_id)
-
-        # Wait for C2's container to replicate the case.
-        with demo_check("C2's DataLayer received case replica"):
-            wait_for_case_on_container(
-                client=c2_client,
-                case_id=case.id_,
-            )
-
-        # 4 participants: Finder + C1 + C2 + CaseActor
-        with demo_check("C1 case reflects Finder + C1 + C2 participants"):
-            wait_for_case_participants(
-                vendor_client=c1_client,
-                case_id=case.id_,
-                expected_actor_ids={finder.id_, c1.id_, c2.id_},
-            )
+        run_case_invite_chain(
+            case=case,
+            case_manager_client=c1_client,
+            invitee_name="C2",
+            invitee_client=c2_client,
+            invitee=c2,
+            invitee_in_own_container=c2_in_c2,
+            inviter=CaseInviter(
+                name="C1",
+                client=c1_client,
+                actor=c1_in_c1,
+                role=CVDRole.COORDINATOR,
+            ),
+            then=_check_c2_joined,
+        )
 
     with demo_check(
         "M1: required participants (≥4), EM.ACTIVE, finder + c2 have replicas"
@@ -363,15 +345,23 @@ def _phase_report_submission(
             reporter_actor_id=finder.id_,
         )
 
-    # Drain the CaseActor's outbox before Phase 2 starts (ADR-0026, ADR-0058,
-    # issue #2819).
-    drain_phase1_ledger(
+    # Wait for the Phase 1 ledger to reach every replica before Phase 2 starts
+    # (ADR-0026, ADR-0058).  Added as a workaround for #2819 when the CaseActor
+    # queued its ledger fan-out ahead of Create(VulnerabilityCase) and every
+    # replica rejected and replayed; that ordering is fixed at the source
+    # (CP-09-009, CM-17-009, #2898), so this is now a plain replication check
+    # that also keeps Phase 2's ledger indices deterministic.  It is the same
+    # read-authority-tail-then-poll-each-replica loop as the sync-verification
+    # and closure phases, so it goes through the one shared helper
+    # (DEMOMA-23-005, #3906); each replica wait is a demo_gate inside it.
+    wait_for_replica_ledger_coverage(
         auth_client=c1_client,
-        case_id=case.id_,
-        replica_pairs=[
+        replicas=[
             (finder_client, "Finder"),
             (c2_client, "C2"),
         ],
+        case_id=case.id_,
+        phase_label="Phase 1 drain before Phase 2",
     )
 
     case = as_VulnerabilityCase.model_validate(
@@ -412,7 +402,10 @@ def _phase_c2_suggests_vendor(
     with demo_step("C2 suggests Vendor to CaseActor"):
         ActorSession(client=c2_client, actor=c2_in_c2).with_case(
             case
-        ).quiet().suggest_actor_to_case(suggested_actor_id=vendor.id_)
+        ).quiet().suggest_actor_to_case(
+            suggested_actor_id=vendor.id_,
+            roles=[CVDRole.VENDOR],
+        )
     logger.info("C2 sent suggest-actor-to-case for Vendor (%s)", vendor.id_)
 
     # CaseActor processes Offer(Actor, Case) and forwards Offer(CaseParticipant)
@@ -449,34 +442,20 @@ def _phase_c2_suggests_vendor(
             )
     logger.info("C1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
-    # CaseActor receives Accept → emits Invite(Actor, Case) to Vendor.  Poll
-    # Vendor's DataLayer for the arriving Invite, then puppeteer Vendor's accept.
-    invite_id = None
-    with demo_check("Vendor received invite from CaseActor (ADR-0026 path)"):
-        invite_id = find_case_invite_for_actor(
-            client=vendor_client,
-            case_id=case.id_,
-            invitee_id=vendor.id_,
-            timeout_seconds=20.0,
-        )
-    logger.info("Vendor received CaseActor invite: %s", invite_id)
-
-    with demo_step("Vendor accepts the CaseActor invitation"):
-        ActorSession(
-            client=vendor_client, actor=vendor_in_vendor
-        ).quiet().accept_case_invite(invite_id=invite_id)
-    logger.info("Vendor sent Accept(Invite) to CaseActor")
-
-    # Vendor's replica is seeded by the CaseActor's Announce(VulnerabilityCase)
-    # sent in response to the Accept above.
-    with demo_check("Vendor's DataLayer received case replica"):
-        wait_for_case_on_container(
-            client=vendor_client,
-            case_id=case.id_,
-            timeout_seconds=20.0,
-        )
-    logger.info(
-        "Vendor received case replica via CaseActor Announce (ADR-0026 path)"
+    # CaseActor receives Accept → emits Invite(Actor, CaseStub) to Vendor; the
+    # chain polls Vendor's DataLayer for it and puppeteers Vendor's accept
+    # (ADR-0026).  Everything after the invite nests inside its gate
+    # (EDF-06-005, #3038).
+    run_case_invite_chain(
+        case=case,
+        invitee_name="Vendor",
+        invitee_client=vendor_client,
+        invitee=vendor,
+        invitee_in_own_container=vendor_in_vendor,
+        invite_timeout=20.0,
+        replica_timeout=20.0,
+        ledger_client=c1_client,
+        reply_timeout=20.0,
     )
 
     # All 5 participants (Finder + C1 + C2 + Vendor + CaseActor) present is the
@@ -538,66 +517,28 @@ def _phase_sync_verification(
     logger.info("Phase 3: Replica synchronization verification")
     logger.info("─" * 80)
 
-    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
-        wait_for_case_on_container(client=finder_client, case_id=case.id_)
-        c1_entries = _get_log_entries_for_case(c1_client, case.id_)
-        if c1_entries:
-            c1_tail = max(c1_entries, key=lambda e: e["log_index"])
-            c1_tail_index: int = c1_tail["log_index"]
-            c1_tail_hash: str = c1_tail["entry_hash"]
-            logger.info(
-                "Waiting for replicas to sync C1 tail (hash=%s… index=%d)",
-                c1_tail_hash[:16],
-                c1_tail_index,
-            )
-            for replica_client, label in [
-                (finder_client, "Finder"),
-                (c2_client, "C2"),
-                (vendor_client, "Vendor"),
-            ]:
-                with demo_gate(
-                    f"{label} ledger coverage (sync-verification phase)"
-                ):
-                    timeout = 45.0 if label == "Vendor" else 15.0
-                    wait_for_contiguous_ledger_coverage(
-                        client=replica_client,
-                        case_id=case.id_,
-                        expected_tail_index=c1_tail_index,
-                        timeout_seconds=timeout,
-                    )
-                logger.info("  %s ledger synchronized", label)
-
-    # Temporal (EDF-06-006): Vendor is a late joiner — allow extra time for
-    # participant-index propagation; causal-gate migration in #2202.
-    wait_for_participants_on_replicas(
-        replica_clients=(finder_client, c2_client, vendor_client),
+    run_sync_verification_phase(
+        auth_client=c1_client,
+        auth_label="C1",
+        auth_actor_id=c1.id_,
+        finder_client=finder_client,
+        finder_actor_id=finder.id_,
+        replicas=[
+            (finder_client, "Finder"),
+            (c2_client, "C2"),
+            (vendor_client, "Vendor"),
+        ],
         case_id=case.id_,
-        expected_actor_ids={
+        expected_participant_ids={
             finder.id_,
             c1.id_,
             c2_in_c2.id_,
             vendor.id_,
         },
+        # Vendor joins by invitation after the early replicas exist (#2202).
         late_joiners=(vendor_client,),
+        state_checks=[(finder_client, "Finder"), (vendor_client, "Vendor")],
     )
-
-    with demo_check("Finder replica matches authoritative C1 state"):
-        verify_replica_state(
-            auth_client=c1_client,
-            replica_client=finder_client,
-            case_id=case.id_,
-            vendor_actor_id=c1.id_,
-            reporter_actor_id=finder.id_,
-        )
-
-    with demo_check("Vendor replica matches authoritative C1 state"):
-        verify_replica_state(
-            auth_client=c1_client,
-            replica_client=vendor_client,
-            case_id=case.id_,
-            vendor_actor_id=c1.id_,
-            reporter_actor_id=finder.id_,
-        )
 
     logger.info("✓ M4: All replicas synchronized (LedgerFanout verified)")
 
@@ -897,32 +838,22 @@ def _phase_case_closure(
             case_id=case.id_,
             event_type="close_case",
         )
-    c1_entries = _get_log_entries_for_case(c1_client, case.id_)
-    if c1_entries:
-        c1_tail = max(c1_entries, key=lambda e: e["log_index"])
-        c1_tail_index: int = c1_tail["log_index"]
-        c1_tail_hash: str = c1_tail["entry_hash"]
-        logger.info(
-            "Waiting for replicas to receive C1 tail after closure"
-            " (hash=%s… index=%d)",
-            c1_tail_hash[:16],
-            c1_tail_index,
-        )
-        for replica_client, label in [
+    # Temporal (EDF-06-006): after close_case the authority's outbox fans out
+    # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
+    # but the ledger dump depends on it. Bounded per replica by
+    # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
+    wait_for_replica_ledger_coverage(
+        auth_client=c1_client,
+        replicas=[
             (finder_client, "Finder"),
             (c2_client, "C2"),
             (vendor_client, "Vendor"),
-        ]:
-            with demo_check(f"{label} ledger coverage (close phase)"):
-                # Temporal (EDF-06-006): Vendor joined Phase 2 so may still
-                # lag on final entries; causal-gate migration in #2202.
-                timeout = 45.0 if label == "Vendor" else 15.0
-                wait_for_contiguous_ledger_coverage(
-                    client=replica_client,
-                    case_id=case.id_,
-                    expected_tail_index=c1_tail_index,
-                    timeout_seconds=timeout,
-                )
+        ],
+        case_id=case.id_,
+        late_joiners=(vendor_client,),
+        phase_label="close phase",
+        causal=False,
+    )
 
 
 def _phase_dump_case_ledgers(

@@ -36,7 +36,7 @@ from vultron.core.models.events import (
     MessageSemantics,
     VultronEvent,
 )
-from vultron.core.models.events.base import VultronObject
+from vultron.core.models.events.base import CoreObject
 
 CASE_ID = "https://example.org/cases/case-defer-test"
 ACTOR_ID = "https://example.org/actors/actor-1"
@@ -65,7 +65,7 @@ class _StubQueuePort:
 
 def _make_event(semantic_type=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY):
     """Return a minimal VultronEvent stub for DeferCheckNode."""
-    obj = VultronObject(id_=ACTIVITY_ID, type_=None)
+    obj = CoreObject(id_=ACTIVITY_ID, type_=None)
     return VultronEvent(
         activity_id=ACTIVITY_ID,
         actor_id=ACTOR_ID,
@@ -76,11 +76,13 @@ def _make_event(semantic_type=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY):
 
 
 @pytest.fixture(autouse=True)
-def _clear_blackboard():
-    """Reset the py_trees blackboard between tests."""
+def _enable_activity_stream():
+    """Re-enable the blackboard activity stream after each test.
+
+    The root ``clear_py_trees_blackboard`` fixture clears the storage.
+    """
     yield
     py_trees.blackboard.Blackboard.enable_activity_stream()
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _run_node(

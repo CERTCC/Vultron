@@ -15,11 +15,12 @@ from pathlib import Path
 import pytest
 import yaml
 
+from vultron.metadata.specs import backstop
 from vultron.metadata.specs.backstop import (
     FileChange,
-    TestFile,
     GroupHit,
     Requirement,
+    TestFile,
     analyze,
     changed_nodes,
     changed_symbols,
@@ -31,7 +32,7 @@ from vultron.metadata.specs.backstop import (
     render_text,
     unresolved_groups,
 )
-from vultron.metadata.specs import backstop
+from vultron.metadata.specs.schema import RFC2119Priority
 
 # ---------------------------------------------------------------------------
 # Diff parsing (SR-12-001)
@@ -379,7 +380,6 @@ SPEC_YAML = {
     "id": "AA",
     "title": "Fixture",
     "description": "Backstop fixture",
-    "version": "1.0",
     "scope": ["prototype"],
     "groups": [
         {
@@ -552,7 +552,9 @@ def test_cli_git_mode_collects_all_change_kinds(git_repo, monkeypatch, capsys):
 
 
 def _pri(rid, priority, statement="names `vultron/a/mod.py`"):
-    return Requirement(rid, rid[:5], rid[:2], statement, priority)
+    return Requirement(
+        rid, rid[:5], rid[:2], statement, RFC2119Priority(priority)
+    )
 
 
 def _indexed(path: str, source: str) -> dict[str, TestFile]:
@@ -563,9 +565,13 @@ def _indexed(path: str, source: str) -> dict[str, TestFile]:
 
 
 @pytest.mark.spec("SR-12-010")
-def test_should_only_group_is_advisory():
-    """A SHOULD cannot block: TRIG-05 forced a load with no obligation."""
-    report = analyze([_change()], {}, [_pri("EE-01-001", "SHOULD")])
+@pytest.mark.parametrize("priority", ["SHOULD", "SHOULD_NOT", "MAY"])
+def test_should_only_group_is_advisory(priority):
+    """A SHOULD cannot block: TRIG-05 forced a load with no obligation.
+
+    Below the MUST tier means SHOULD, SHOULD_NOT and MAY alike (MS-02-003).
+    """
+    report = analyze([_change()], {}, [_pri("EE-01-001", priority)])
     assert "EE-01" not in report.must
     assert "EE-01" in report.info
     assert any("advisory" in e for e in report.info["EE-01"].evidence)

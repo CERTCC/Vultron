@@ -46,6 +46,7 @@ from .cases import _CasesMixin
 from .embargo import _EmbargoMixin
 from .fault import _FaultMixin
 from .notes import _NotesMixin
+from .proposals import _ProposalsMixin
 from .reports import _ReportsMixin
 
 __all__ = ["TriggerActivityAdapter"]
@@ -55,6 +56,7 @@ class TriggerActivityAdapter(
     _NotesMixin,
     _ReportsMixin,
     _CasesMixin,
+    _ProposalsMixin,
     _ActorsMixin,
     _EmbargoMixin,
     _FaultMixin,
@@ -62,9 +64,9 @@ class TriggerActivityAdapter(
 ):
     """Driven adapter for constructing and persisting outbound wire activities.
 
-    Instantiate once per request with the DataLayer for that request; pass to
-    :class:`~vultron.core.use_cases.triggers.service.TriggerService` as
-    ``trigger_activity``.
+    Instantiate once per request with the DataLayer for that request; the
+    :class:`~vultron.core.trigger_dispatcher.RegistryTriggerDispatcher` hands
+    it to every trigger use case as ``trigger_activity``.
 
     Args:
         dl: The DataLayer for reading persisted objects and creating activities.

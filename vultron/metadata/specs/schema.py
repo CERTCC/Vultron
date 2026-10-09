@@ -10,15 +10,24 @@ absent fields.  ``kind`` is required on every individual spec item;
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
-from typing import Annotated, Union
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
 
-from vultron.metadata.base import NonEmptyStr
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.metadata.base import NonEmptyStr
+
+#: A fully-qualified requirement ID as it appears in prose — ``PREFIX-NN-NNN``
+#: (MS-04-001): 2–8 uppercase letters, two-digit group, three-digit index.
+#: ``\b`` on both sides keeps ``ADR-0001``, semantic versions, and a prefix
+#: that merely ends in another topic's letters from matching. Shared by the
+#: spec linter, bundle-fit, and the citation ratchets so the ID grammar is
+#: defined once.
+SPEC_ID_CITATION_RE = re.compile(r"\b[A-Z]{2,8}-\d{2}-\d{3}\b")
 
 SpecIdStr = Annotated[
     str,
@@ -39,15 +48,64 @@ StoryIdStr = Annotated[
     StringConstraints(pattern=r"^story_\d{4}_\d{3}$"),
 ]
 
+#: The issue that owns verifying an unverified MUST-tier requirement
+#: (MS-10-006): one GitHub reference in ``#N`` form. Quote it in YAML —
+#: ``verification_debt: #12`` is a comment and loads as null.
+IssueRefStr = Annotated[
+    str,
+    StringConstraints(pattern=r"^#[1-9]\d*$"),
+]
+
+
+class RFC2119Tier(StrEnum):
+    """The three strengths RFC 2119 defines, each pairing a keyword with its
+    negation (MS-02-003).
+
+    ``MUST NOT`` is as binding as ``MUST`` and ``SHOULD NOT`` as ``SHOULD``, so
+    a gate that selects requirements by strength names a tier, never a keyword.
+    """
+
+    MUST = "MUST"
+    SHOULD = "SHOULD"
+    MAY = "MAY"
+
 
 class RFC2119Priority(StrEnum):
-    """RFC 2119 priority levels for requirements (SR-02-003)."""
+    """RFC 2119 priority levels for requirements (SR-02-003).
+
+    :attr:`tier` is the single shared tiering (MS-02-004). Code that selects
+    requirements by priority asks it — ``spec.priority.is_must_tier``, or
+    ``spec.priority.tier is RFC2119Tier.SHOULD`` — and never compares against
+    individual members; a static check in ``test/metadata/specs/`` fails on
+    the literal comparison.
+    """
 
     MUST = "MUST"
     MUST_NOT = "MUST_NOT"
     SHOULD = "SHOULD"
     SHOULD_NOT = "SHOULD_NOT"
     MAY = "MAY"
+
+    @property
+    def tier(self) -> RFC2119Tier:
+        """The tier this keyword belongs to: a negation shares its positive's."""
+        return _PRIORITY_TIERS[self]
+
+    @property
+    def is_must_tier(self) -> bool:
+        """``MUST`` or ``MUST_NOT`` — the absolute tier."""
+        return self.tier is RFC2119Tier.MUST
+
+
+#: The one place a keyword is assigned its tier (MS-02-004). Every member has
+#: an entry; ``test_schema.py`` asserts the mapping is total.
+_PRIORITY_TIERS: dict[RFC2119Priority, RFC2119Tier] = {
+    RFC2119Priority.MUST: RFC2119Tier.MUST,
+    RFC2119Priority.MUST_NOT: RFC2119Tier.MUST,
+    RFC2119Priority.SHOULD: RFC2119Tier.SHOULD,
+    RFC2119Priority.SHOULD_NOT: RFC2119Tier.SHOULD,
+    RFC2119Priority.MAY: RFC2119Tier.MAY,
+}
 
 
 class AdrStatus(StrEnum):
@@ -200,8 +258,8 @@ class LintWarningCode(StrEnum):
     DANGLING_ADR_REF = "dangling_adr_ref"
     PHANTOM_PATH_REF = "phantom_path_ref"
     PHANTOM_SYMBOL_REF = "phantom_symbol_ref"
-    MUST_WITHOUT_VERIFICATION = "must_without_verification"
     MISSING_STORY_REFERENCE = "missing_story_reference"
+    PROTOCOL_KIND_WITH_CODE_REFERENCE = "protocol_kind_with_code_reference"
 
 
 class Relationship(BaseModel):
@@ -239,6 +297,9 @@ class StatementSpec(BaseModel):
     deprecated: bool = False
     superseded_by: SpecIdStr | None = None
     verification: NonEmptyStr | None = None
+    #: Set only on a MUST-tier item with no ``verification:`` (MS-10-006).
+    #: Distinct from ``tracking_issue``, which tracks planned implementation.
+    verification_debt: IssueRefStr | None = None
     note: NonEmptyStr | None = None
     tracking_issue: str | None = None
     trigger: Trigger | None = None
@@ -328,7 +389,7 @@ class BehavioralSpec(StatementSpec):
         return v
 
 
-Spec = Union[BehavioralSpec, StatementSpec]
+Spec = BehavioralSpec | StatementSpec
 
 
 class SpecGroup(BaseModel):
@@ -374,6 +435,10 @@ class SpecFile(BaseModel):
     ``scope`` is required at the file level and serves as the default for
     groups and specs that do not override it (SR-02-014).  ``kind`` is now
     required on each individual spec item rather than at the file level.
+
+    There is deliberately no ``version`` field (SR-01-003): the release tag
+    pins spec content and requirement IDs are the citation address.
+    ``extra="forbid"`` makes a file that declares one fail to load.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -381,7 +446,6 @@ class SpecFile(BaseModel):
     id: str
     title: NonEmptyStr
     description: NonEmptyStr
-    version: NonEmptyStr
     scope: list[Scope]
     tags: list[SpecTag] | None = None
     relationships: list[Relationship] | None = None

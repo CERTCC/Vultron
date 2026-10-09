@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-09-14
+created: 2026-09-14
+updated: 2026-09-14
+revision: 1
 deciders: Allen D. Householder
 consulted: —
 informed: —
+stakeholder_type: [project-contributor]
 ---
 
 # A Blank Required Field Is Absence, and a Recognised Inline Object That Fails Validation Is Refused

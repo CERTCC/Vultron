@@ -8,27 +8,40 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import activate, terminate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
+from vultron.core.models.rsvp_deadline import (
+    INVITE_EXPIRED_EVENT_TYPE,
+    INVITE_EXPIRED_SNAPSHOT_TYPE,
+)
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -41,13 +54,6 @@ PARTICIPANT_ACTOR_ID = "https://example.org/actors/reporter"
 CASE_ID = "https://example.org/cases/case-sync"
 
 _ZERO_HASH: str = "0" * 64  # arbitrary prev_log_hash for test chains
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture
@@ -68,7 +74,7 @@ def bridge(datalayer):
 
 @pytest.fixture
 def case_actor(datalayer):
-    actor = VultronCaseActor(
+    actor = CaseActor(
         name="Case Actor",
         attributed_to=OWNER_ACTOR_ID,
         context=CASE_ID,
@@ -86,7 +92,7 @@ def case_obj(datalayer):
 
 def _make_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -100,19 +106,53 @@ def _make_entry(
 
 
 def _make_event(
-    entry: VultronCaseLedgerEntry, actor_id: str
+    entry: CaseLedgerEntry, actor_id: str
 ) -> AnnounceLogEntryReceivedEvent:
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
     activity = announce_log_entry_activity(entry=wire_entry, actor=actor_id)
-    return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+    event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+    # The inbox pipeline attaches the core wire activity; intake archives it.
+    event.activity = VultronActivity(
+        id_=event.activity_id,
+        type_="Announce",
+        actor=actor_id,
+        object_=entry,
+    )
+    return event
 
 
-def test_create_announce_log_entry_tree_returns_selector():
+def test_create_announce_log_entry_tree_is_intake_then_role_selector():
     tree = create_announce_log_entry_tree()
     assert tree.name == "AnnounceLogEntryReceivedBT"
+    # Intake first (CLP-10-017), then the CASE_MANAGER / participant arms.
+    assert tree.children[0].name == "IntakeReceivedActivityNode"
     assert len(tree.children) == 2
+    assert len(tree.children[1].children) == 2
+
+
+def _archived(datalayer, event) -> bool:
+    record = datalayer.read(ReceivedActivityRecord.build_id(event.activity_id))
+    return isinstance(record, ReceivedActivityRecord)
+
+
+@pytest.mark.spec("CLP-10-017")
+def test_announce_archives_the_received_activity(
+    bridge, datalayer, case_actor, case_obj
+):
+    entry = _make_entry(0, case_obj.genesis_hash)
+    event = _make_event(entry, actor_id=case_actor.id_)
+
+    result = bridge.execute_with_setup(
+        tree=create_announce_log_entry_tree(),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+        sync_port=MagicMock(spec=SyncActivityPort),
+    )
+
+    assert result.status == Status.SUCCESS
+    assert _archived(datalayer, event)
 
 
 @pytest.fixture
@@ -163,7 +203,7 @@ def test_case_manager_role_takes_authority_arm_without_service_object(
     )
 
     assert result.status == Status.SUCCESS
-    # Verify no VultronCaseActor Service was involved
+    # Verify no CaseActor Service was involved
     services = list(owner_bridge.datalayer.list_objects("Service"))
     assert not any(getattr(s, "context", None) == CASE_ID for s in services)
 
@@ -301,11 +341,14 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
     assert result.status == Status.FAILURE
     assert datalayer.read(bad_entry.id_) is None
     sync_port.send_reject_log_entry.assert_called_once()
+    # The refused chain check leaves the archive of what arrived, and only
+    # that: the inlined entry is not stored (CLP-10-017, CLP-10-018).
+    assert _archived(datalayer, event)
 
 
 def _make_remove_embargo_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -318,13 +361,16 @@ def _make_remove_embargo_entry(
     )
 
 
+ACTIVE_EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
+
+
 def _make_case_with_em_active(
     datalayer: SqliteDataLayer,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
         id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
     )
-    case.append_case_status(em_state=EM.ACTIVE)
+    activate(case, ACTIVE_EMBARGO_ID)
     datalayer.create(case)
     return case
 
@@ -362,7 +408,9 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         case = VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
         )
-        case.append_case_status(em_state=EM.EXITED)  # effect already applied
+        # effect already applied
+        activate(case, ACTIVE_EMBARGO_ID)
+        terminate(case)
         datalayer.create(case)
         entry = _make_remove_embargo_entry(0)
         datalayer.save(
@@ -371,7 +419,7 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         tree = create_announce_log_entry_tree()
-        apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardown")
+        apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardownFromLedger")
         assert apply_node is not None
         call_count = 0
         real_update = apply_node.update
@@ -391,9 +439,9 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         )
 
         assert result.status == Status.SUCCESS
-        assert (
-            call_count == 0
-        ), "ApplyEmbargoTeardown must NOT run on already-stored entry"
+        assert call_count == 0, (
+            "ApplyEmbargoTeardown must NOT run on already-stored entry"
+        )
 
     @pytest.mark.spec("SYNC-12-003")
     def test_em_exited_is_idempotent(self, bridge, datalayer, case_actor):
@@ -401,7 +449,8 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         case = VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
         )
-        case.append_case_status(em_state=EM.EXITED)
+        activate(case, ACTIVE_EMBARGO_ID)
+        terminate(case)
         datalayer.create(case)
         entry = _make_remove_embargo_entry(0, case.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
@@ -422,9 +471,158 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
 NOTE_ID = "https://example.org/notes/test-note-1"
 
 
+def _make_relayed_invite_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> CaseLedgerEntry:
+    """Entry the CASE_MANAGER commits for a relayed ``Invite(EmbargoEvent)``.
+
+    The relayed Invite carries the manager's RSVP deadline as ``endTime``
+    (CM-28-012); the replica apply node records it on the invitee (CM-28-013).
+    """
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/invite-{log_index}",
+            event_type="invite_to_embargo_on_case",
+            payload_snapshot={
+                "type": "Invite",
+                "id": f"https://example.org/activities/invite-{log_index}",
+                "actor": CASE_ACTOR_ACTOR_ID,
+                "attributedTo": OWNER_ACTOR_ID,
+                "to": [PARTICIPANT_ACTOR_ID],
+                "context": CASE_ID,
+                "published": "2026-09-30T12:00:00+00:00",
+                "endTime": "2026-10-07T12:00:00+00:00",
+                "object": {
+                    "type": "EmbargoEvent",
+                    "id": f"{CASE_ID}/embargo_events/e1",
+                    "context": CASE_ID,
+                    "endTime": "2026-11-14T12:00:00+00:00",
+                },
+            },
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+def _make_invite_expired_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> CaseLedgerEntry:
+    """Entry the CASE_MANAGER commits when an invitation expires (CM-28-009)."""
+    invite_id = f"https://example.org/activities/invite-{log_index}"
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=invite_id,
+            event_type=INVITE_EXPIRED_EVENT_TYPE,
+            payload_snapshot={
+                "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
+                "actor": PARTICIPANT_ACTOR_ID,
+                "context": CASE_ID,
+                "published": "2026-10-08T12:00:00+00:00",
+                "object": {
+                    "type": "Invite",
+                    "id": invite_id,
+                    "object": {
+                        "type": "EmbargoEvent",
+                        "id": f"{CASE_ID}/embargo_events/e1",
+                    },
+                },
+            },
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+_ENTRY_EMBARGO_ID = f"{CASE_ID}/embargo_events/e1"
+
+
+def _seed_invited_participant(
+    datalayer, case_obj, consent: EmbargoConsentState | None
+) -> str:
+    """Give the replica a participant record for this store's actor.
+
+    *consent* is the state of its row for the embargo the ledger entries
+    name, or ``None`` for a participant never asked about it.
+    """
+    participant = CaseParticipant(
+        attributed_to=PARTICIPANT_ACTOR_ID,
+        context=CASE_ID,
+        embargo_consents=(
+            []
+            if consent is None
+            else [EmbargoConsent(embargo_id=_ENTRY_EMBARGO_ID, state=consent)]
+        ),
+    )
+    datalayer.create(participant)
+    case_obj.actor_participant_index[PARTICIPANT_ACTOR_ID] = participant.id_
+    datalayer.save(case_obj)
+    return participant.id_
+
+
+class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
+    """Replicas learn the RSVP deadline and an expiry from the ledger, never
+    by computing either themselves (CM-28-013, CM-28-014; ADR-0113)."""
+
+    @pytest.mark.spec("CM-28-013")
+    @pytest.mark.spec("EP-09-007")
+    def test_replica_records_invitee_deadline_from_relayed_invite_entry(
+        self, bridge, datalayer, case_obj
+    ):
+        """The invitee's deadline appears in the replica after replay."""
+        _seed_case_manager(datalayer, case_obj)
+        participant_id = _seed_invited_participant(datalayer, case_obj, None)
+        entry = _make_relayed_invite_entry(0, case_obj.genesis_hash)
+        event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(participant_id)
+        assert isinstance(updated, CaseParticipant)
+        assert updated.invite_rsvp_deadline is not None
+        assert (
+            updated.consent_for(_ENTRY_EMBARGO_ID)
+            is EmbargoConsentState.INVITED
+        )
+
+    @pytest.mark.spec("CM-28-014")
+    def test_replica_reads_expired_from_expiry_entry(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """A replica learns an expiry from the entry and never computes one."""
+        participant_id = _seed_invited_participant(
+            datalayer, case_obj, EmbargoConsentState.INVITED
+        )
+        entry = _make_invite_expired_entry(0, case_obj.genesis_hash)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(participant_id)
+        assert isinstance(updated, CaseParticipant)
+        assert (
+            updated.consent_for(_ENTRY_EMBARGO_ID)
+            is EmbargoConsentState.EXPIRED
+        )
+
+
 def _make_add_note_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     """Create a ledger entry with event_type='add_note_to_case'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -513,13 +711,83 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         assert updated.notes == []
 
 
+class TestAnnounceLogEntryAppliesNoteRemoval:
+    """A replica receiving remove_note_from_case detaches the note (RSH-08-004)."""
+
+    @pytest.mark.spec("SYNC-12-001")
+    @pytest.mark.spec("RSH-08-004")
+    def test_participant_detaches_note_on_remove_note_entry(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        case_obj.notes.append(NOTE_ID)
+        datalayer.save(case_obj)
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id="https://example.org/activities/remove-note-0",
+                event_type="remove_note_from_case",
+                payload_snapshot={"object": NOTE_ID},
+                prev_log_hash=case_obj.genesis_hash,
+            )
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert NOTE_ID not in updated.notes
+
+
+class TestAnnounceLogEntryAppliesReportAddition:
+    """A replica receiving add_report_to_case lists the report (RSH-08-004)."""
+
+    @pytest.mark.spec("SYNC-12-001")
+    @pytest.mark.spec("RSH-08-004")
+    def test_participant_lists_report_on_add_report_entry(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """An entry with no offer still converges the report list."""
+        report_id = "https://example.org/reports/added-later"
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id="https://example.org/activities/add-report-0",
+                event_type="add_report_to_case",
+                payload_snapshot={"object": report_id},
+                prev_log_hash=case_obj.genesis_hash,
+            )
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert list(updated.vulnerability_reports) == [report_id]
+
+
 PARTICIPANT_STATUS_ID = "https://example.org/statuses/status-1"
 PARTICIPANT_ID = "https://example.org/participants/reporter-participant"
 
 
 def _make_participant_status_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     """Create a ledger entry with event_type='add_participant_status_to_participant'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -601,7 +869,7 @@ INVITEE_ACTOR_ID = "https://example.org/actors/vendor2"
 
 def _make_accept_invite_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     """Create a ledger entry with event_type='accept_invite_actor_to_case'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -736,7 +1004,7 @@ class TestEffectsFailureBlocksPersist:
         event = _make_event(entry, actor_id=case_actor.id_)
 
         tree = create_announce_log_entry_tree()
-        apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardown")
+        apply_node = _find_node_by_name(tree, "ApplyEmbargoTeardownFromLedger")
         assert apply_node is not None
         apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
 
@@ -859,7 +1127,7 @@ DEPARTING_PARTICIPANT_ID = "https://example.org/participants/departing"
 
 def _make_close_case_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     """Build a close_case ledger entry with payload_snapshot carrying actor."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -923,10 +1191,14 @@ class TestAnnounceLogEntryAppliesCloseCase:
         )
 
     def test_close_case_not_applied_for_other_event_types(
-        self, bridge, datalayer, case_actor, case_obj
+        self, bridge, datalayer, case_actor
     ):
         """CloseCaseEffects Selector short-circuits for unrelated event_types."""
-        _make_case_with_departing_participant(datalayer)
+        # Use the helper's case, not the ``case_obj`` fixture: the helper saves
+        # a fresh case over the same id, and ``genesis_hash`` is derived from
+        # the second-resolution ``published`` stamp, so the fixture's hash is
+        # stale whenever the two constructions straddle a second boundary.
+        case_obj = _make_case_with_departing_participant(datalayer)
         entry = _make_entry(
             0, case_obj.genesis_hash
         )  # event_type="test_event"
@@ -997,7 +1269,7 @@ NEW_OWNER_ID = "https://example.org/actors/new-owner"
 
 def _make_ownership_transfer_entry(
     log_index: int, new_owner_id: str, prev_hash: str = _ZERO_HASH
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     """Create a ledger entry with event_type='accept_case_ownership_transfer'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -1095,7 +1367,7 @@ def _make_participant_status_entry_with_states(
     participant_id: str,
     rm_state: str,
     vf_state: str,
-) -> VultronCaseLedgerEntry:
+) -> CaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,

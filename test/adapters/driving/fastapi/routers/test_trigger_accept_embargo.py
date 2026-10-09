@@ -20,11 +20,14 @@ Tests for the accept-embargo trigger endpoint
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
-import pytest
-from fastapi import status
 from unittest.mock import AsyncMock, patch
 
+import pytest
+from fastapi import status
+
 from vultron.core.states.em import EM
+
+from .conftest import make_case_manager
 
 # ---------------------------------------------------------------------------
 # Module-level fixture: suppress outbox delivery retries
@@ -35,8 +38,7 @@ from vultron.core.states.em import EM
 def _no_outbox_delivery():
     """Suppress real outbox delivery for every test in this module."""
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
+        "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield
@@ -74,18 +76,24 @@ def test_trigger_accept_embargo_response_contains_activity_key(
     assert data["activity"] is not None
 
 
-def test_trigger_accept_embargo_object_is_proposal(
+def test_trigger_accept_embargo_by_owner_accepts_the_embargo_itself(
     client_triggers, actor, case_with_proposal
 ):
-    """DR-05: Accept activity object_ must be the original proposal, not the embargo event."""
-    case_obj, proposal, _ = case_with_proposal
+    """ADR-0122: the case owner's accept is Accept(EmbargoEvent, target=Case).
+
+    The owner decides for the case, so its activity's object is the proposed
+    embargo itself, not the Invite that proposed it.
+    """
+    case_obj, proposal, embargo = case_with_proposal
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/accept-embargo",
         json={"case_id": case_obj.id_, "proposal_id": proposal.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    data = resp.json()
-    assert data["activity"]["object"]["id"] == proposal.id_
+    activity = resp.json()["activity"]
+    assert activity["type"] == "Accept"
+    assert activity["object"]["id"] == embargo.id_
+    assert activity["target"] == case_obj.id_
 
 
 def test_trigger_accept_embargo_missing_case_id_returns_422(
@@ -183,7 +191,8 @@ def test_trigger_accept_embargo_activates_embargo(
     client_triggers, dl, actor, case_with_proposal
 ):
     """accept-embargo activates the embargo and sets EM state to ACTIVE."""
-    case_obj, proposal, embargo = case_with_proposal
+    case_obj, proposal, _embargo = case_with_proposal
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/accept-embargo",
@@ -201,6 +210,7 @@ def test_trigger_accept_embargo_without_proposal_id_uses_first_proposal(
 ):
     """accept-embargo without proposal_id finds the first pending proposal."""
     case_obj, _, _ = case_with_proposal
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/accept-embargo",
@@ -210,31 +220,3 @@ def test_trigger_accept_embargo_without_proposal_id_uses_first_proposal(
 
     updated_case = dl.read(case_obj.id_)
     assert updated_case.current_status.em.state == EM.ACTIVE
-
-
-def test_accept_embargo_schedules_outbox_handler(
-    client_triggers, dl, actor, case_with_proposal
-):
-    """D5-6-TRIGDELIV: accept-embargo schedules outbox delivery after execution."""
-    case_obj, proposal, _ = case_with_proposal
-    with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
-        new_callable=AsyncMock,
-    ) as mock_outbox:
-        resp = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/accept-embargo",
-            json={
-                "case_id": case_obj.id_,
-                "proposal_id": proposal.id_,
-            },
-        )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
-    mock_outbox.assert_called_once()
-    assert mock_outbox.call_args.args[0] == actor.id_
-    assert mock_outbox.call_args.args[1] is dl
-    # No third positional: that slot is `emitter` now, and a store
-    # passed there silently becomes the emitter (see the ratchet in
-    # test/architecture/test_outbox_handler_emitter_keyword.py).
-    assert len(mock_outbox.call_args.args) == 2
-    assert "emitter" not in mock_outbox.call_args.kwargs

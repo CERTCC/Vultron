@@ -19,8 +19,8 @@ from vultron.bt.messaging.states import (
     CS_MESSAGE_TYPES,
     EM_MESSAGE_TYPES,
     GM_MESSAGE_TYPES,
-    MessageTypes,
     RM_MESSAGE_TYPES,
+    MessageTypes,
 )
 
 

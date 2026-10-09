@@ -4,15 +4,19 @@ from collections.abc import Generator
 
 import pytest
 
+from test.support.embargo_register import activate, propose, terminate
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
@@ -36,8 +40,9 @@ def _build_active_embargo_case(
     case = VulnerabilityCase(
         name="Embargo regression case",
         attributed_to=owner_id,
+        stub_summary="Security issue — details shared after acceptance",
     )
-    embargo = as_EmbargoEvent(context=case.id_)
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=owner_id
     )
@@ -45,14 +50,21 @@ def _build_active_embargo_case(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.SIGNATORY,
-        accepted_embargo_ids=[embargo.id_],
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+            )
+        ],
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     participant = FinderParticipant(
         attributed_to=participant_id,
         context=case.id_,
-        embargo_consent_state=PEC.INVITED,
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.INVITED
+            )
+        ],
     )
 
     case.case_participants = [owner_participant.id_, participant.id_]
@@ -60,10 +72,7 @@ def _build_active_embargo_case(
         owner_id: owner_participant.id_,
         participant_id: participant.id_,
     }
-    case.append_case_status(em_state=EM.ACTIVE)
-    case.proposed_embargoes.append(embargo.id_)
-    case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
-    case.set_embargo(embargo.id_)
+    activate(case, embargo.id_)
 
     dl.create(case)
     dl.create(embargo)
@@ -90,7 +99,7 @@ def _build_proposed_embargo_case_no_owner_attribution(
         case.id_, case.published, case_manager_id
     )
 
-    embargo = as_EmbargoEvent(context=case.id_)
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=case_manager_id
     )
@@ -98,15 +107,22 @@ def _build_proposed_embargo_case_no_owner_attribution(
     case_manager_participant = VendorParticipant(
         attributed_to=case_manager_id,
         context=case.id_,
-        embargo_consent_state=PEC.SIGNATORY,
-        accepted_embargo_ids=[embargo.id_],
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+            )
+        ],
     )
     case_manager_participant.add_role(CVDRole.CASE_MANAGER)
 
     actor_participant = FinderParticipant(
         attributed_to=actor_id,
         context=case.id_,
-        embargo_consent_state=PEC.INVITED,
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.INVITED
+            )
+        ],
     )
 
     case.case_participants = [
@@ -117,8 +133,7 @@ def _build_proposed_embargo_case_no_owner_attribution(
         case_manager_id: case_manager_participant.id_,
         actor_id: actor_participant.id_,
     }
-    case.append_case_status(em_state=EM.PROPOSED)
-    case.proposed_embargoes.append(embargo.id_)
+    propose(case, embargo.id_)
     case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
 
     dl.create(case)
@@ -133,12 +148,23 @@ def _build_proposed_embargo_case_no_owner_attribution(
 def _build_exited_case(
     dl: SqliteDataLayer, owner_id: str
 ) -> VulnerabilityCase:
+    """Case at ``EM.EXITED`` whose owner is its CASE_MANAGER (CM-24-006)."""
     case = VulnerabilityCase(
         name="Exited embargo case",
         attributed_to=owner_id,
     )
-    case.append_case_status(em_state=EM.EXITED)
+    owner_participant = VendorParticipant(
+        attributed_to=owner_id,
+        context=case.id_,
+    )
+    owner_participant.add_role(CVDRole.CASE_MANAGER)
+    case.case_participants = [owner_participant.id_]
+    case.actor_participant_index = {owner_id: owner_participant.id_}
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    activate(case, embargo.id_)
+    terminate(case)
     dl.create(case)
+    dl.create(owner_participant)
     return case
 
 
@@ -152,13 +178,10 @@ def _build_unbound_case_with_case_manager(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.UNBOUND,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     case.case_participants = [owner_participant.id_]
     case.actor_participant_index = {owner_id: owner_participant.id_}
-    case.append_case_status(em_state=EM.NONE)
-    case.active_embargo = None
     dl.create(case)
     dl.create(owner_participant)
     return case
@@ -172,21 +195,22 @@ def _build_active_embargo_case_with_case_manager(
         name="Active embargo revision case",
         attributed_to=actor_id,
     )
-    embargo = as_EmbargoEvent(context=case.id_)
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
 
     owner_participant = VendorParticipant(
         attributed_to=actor_id,
         context=case.id_,
-        embargo_consent_state=PEC.SIGNATORY,
-        accepted_embargo_ids=[embargo.id_],
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+            )
+        ],
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
 
     case.case_participants = [owner_participant.id_]
     case.actor_participant_index = {actor_id: owner_participant.id_}
-    case.append_case_status(em_state=EM.ACTIVE)
-    case.proposed_embargoes.append(embargo.id_)
-    case.set_embargo(embargo.id_)
+    activate(case, embargo.id_)
 
     dl.create(case)
     dl.create(embargo)
@@ -218,17 +242,17 @@ def _actor_and_own_store(
 
 
 @pytest.fixture
-def finder_actor_and_dl() -> (
-    Generator[tuple[as_Service, SqliteDataLayer], None, None]
-):
+def finder_actor_and_dl() -> Generator[
+    tuple[as_Service, SqliteDataLayer], None, None
+]:
     """The finder and its own store — for triggers requested *by the finder*."""
     yield from _actor_and_own_store("Finder Co")
 
 
 @pytest.fixture
-def owner_actor_and_dl() -> (
-    Generator[tuple[as_Service, SqliteDataLayer], None, None]
-):
+def owner_actor_and_dl() -> Generator[
+    tuple[as_Service, SqliteDataLayer], None, None
+]:
     """The case owner and its own store — for triggers requested *by the owner*.
 
     Embargo teardown is one: the authority is the case's CASE_MANAGER, which
@@ -236,3 +260,170 @@ def owner_actor_and_dl() -> (
     requesting actor and the store's owner.
     """
     yield from _actor_and_own_store("Vendor Co")
+
+
+def _assert_asked_case_manager(
+    dl: SqliteDataLayer,
+    *,
+    actor_id: str,
+    case_id: str,
+    manager_id: str,
+    activity_type: str,
+    event_type: str,
+) -> str:
+    """Assert a non-manager trigger only asked the CASE_MANAGER (EP-09-008).
+
+    One activity of *activity_type* is queued, addressed to the manager
+    alone; no ``Add(CaseStatus)`` declaration is queued; and the activity is
+    recorded pending in *actor_id*'s pending-assertion store
+    (SYNC-11-002).  Returns the queued activity's id.
+    """
+    from typing import cast
+
+    from test.support.ledger import committed_event_types
+    from vultron.core.models.activity import VultronActivity
+    from vultron.core.models.pending_assertion import (
+        get_pending_assertion_store,
+    )
+
+    queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
+    asks = [a for a in queued if a.type_ == activity_type]
+    assert len(asks) == 1, [a.type_ for a in queued]
+    assert asks[0].to == [manager_id]
+    # A case-status declaration is a ledger commit, never an outbox item, so
+    # "declares nothing" is checked against the ledger (AC-3).
+    assert "add_case_status_to_case" not in committed_event_types(
+        dl, case_id
+    ), "a non-manager must not declare an EM state it has not been given"
+    store = get_pending_assertion_store(actor_id)
+    assert store.is_suppressed(case_id, event_type, asks[0].id_)
+    return asks[0].id_
+
+
+def _add_participant(
+    dl: SqliteDataLayer,
+    case_id: str,
+    actor_id: str,
+    consent: EmbargoConsentState | None = EmbargoConsentState.ACCEPTED,
+) -> str:
+    """Add a finder participant for *actor_id* to a stored case; return its id.
+
+    Its row for the embargo in force is ``ACCEPTED`` by default, so a case-content send reaches it while the
+    embargo is in force (CM-10-004).
+    """
+    from typing import cast
+
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    rows = (
+        [EmbargoConsent(embargo_id=case.active_embargo_id, state=consent)]
+        if consent is not None and case.active_embargo_id is not None
+        else []
+    )
+    participant = FinderParticipant(
+        attributed_to=actor_id,
+        context=case_id,
+        embargo_consents=rows,
+    )
+    dl.create(participant)
+    case.case_participants = [*case.case_participants, participant.id_]
+    case.actor_participant_index = {
+        **case.actor_participant_index,
+        actor_id: participant.id_,
+    }
+    dl.save(case)
+    return participant.id_
+
+
+def _case_with_open_proposal(
+    dl: SqliteDataLayer, owner_id: str
+) -> tuple[VulnerabilityCase, str]:
+    """A case at EM.PROPOSED whose only open proposal is the owner's."""
+    case = _build_unbound_case_with_case_manager(dl, owner_id)
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    proposal = em_propose_embargo_activity(
+        embargo, context=case.id_, actor=owner_id
+    )
+    dl.create(embargo)
+    dl.create(proposal)
+    propose(case, embargo.id_)
+    case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
+    dl.save(case)
+    return case, proposal.id_
+
+
+def _open_revision(
+    dl: SqliteDataLayer, case_id: str, owner_id: str, participant_id: str
+) -> tuple[as_Invite, str]:
+    """Open a revision of a stored case's active embargo (EM → REVISE).
+
+    The owner proposes it; *participant_id* is ``INVITED`` to it.  Returns the
+    proposal and the revision's embargo id.  An embargo that is already in
+    force has left the open-proposal record (EP-08-003), so a non-manager's
+    answer to a still-pending proposal is answered against a revision.
+    """
+    from typing import cast
+
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    revision = as_EmbargoEvent(context=case_id, end_time=days_from_now_utc(90))
+    proposal = em_propose_embargo_activity(
+        revision, context=case_id, actor=owner_id
+    )
+    propose(case, revision.id_)
+    case.pending_embargo_proposal_index[revision.id_] = proposal.id_
+    participant = cast(FinderParticipant, dl.read(participant_id))
+    participant.embargo_consents = [
+        *participant.embargo_consents,
+        EmbargoConsent(
+            embargo_id=revision.id_, state=EmbargoConsentState.INVITED
+        ),
+    ]
+    dl.create(revision)
+    dl.create(proposal)
+    dl.save(case)
+    dl.save(participant)
+    return proposal, revision.id_
+
+
+def _case_owned_by_non_manager(
+    dl: SqliteDataLayer, owner_id: str, manager_id: str
+) -> tuple[VulnerabilityCase, str, str, str]:
+    """A case at EM.PROPOSED whose owner is *not* its CASE_MANAGER.
+
+    The owner holds an ``INVITED`` row for the open proposal; *manager_id*
+    holds the CASE_MANAGER role.  Returns the case, the proposal's id, the
+    proposed embargo's id and the owner's participant id.
+    """
+    case = VulnerabilityCase(
+        name="Owner is not the manager", attributed_to=owner_id
+    )
+    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
+    proposal = em_propose_embargo_activity(
+        embargo, context=case.id_, actor=manager_id
+    )
+    owner_participant = VendorParticipant(
+        attributed_to=owner_id,
+        context=case.id_,
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.INVITED
+            )
+        ],
+    )
+    owner_participant.add_role(CVDRole.CASE_OWNER)
+    manager_participant = VendorParticipant(
+        attributed_to=manager_id, context=case.id_
+    )
+    manager_participant.add_role(CVDRole.CASE_MANAGER)
+    case.case_participants = [owner_participant.id_, manager_participant.id_]
+    case.actor_participant_index = {
+        owner_id: owner_participant.id_,
+        manager_id: manager_participant.id_,
+    }
+    propose(case, embargo.id_)
+    case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
+    dl.create(case)
+    dl.create(embargo)
+    dl.create(proposal)
+    dl.create(owner_participant)
+    dl.create(manager_participant)
+    return case, proposal.id_, embargo.id_, owner_participant.id_

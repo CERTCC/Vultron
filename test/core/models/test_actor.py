@@ -29,8 +29,8 @@ def test_retired_vultron_actor_mixin_alias_is_gone():
     the hole ``test_no_wire_class_name_is_also_a_core_name`` now closes. Keeping
     the alias would keep that collision alive under a name nothing reads.
     """
-    import vultron.core.models.actor as actor_module
     import vultron.core.models as models_package
+    import vultron.core.models.actor as actor_module
 
     assert not hasattr(actor_module, "VultronActorMixin")
     assert not hasattr(models_package, "VultronActorMixin")
@@ -41,27 +41,24 @@ def test_core_actor_has_embargo_policy_field():
     assert actor.embargo_policy is None
 
 
-def test_person_org_service_application_and_group_register():
-    snapshot = dict(CORE_VOCABULARY)
-    try:
-        assert VultronPerson().type_ == "Person"
-        assert VultronOrganization().type_ == "Organization"
-        assert VultronService().type_ == "Service"
-        assert VultronApplication().type_ == "Application"
-        assert VultronGroup().type_ == "Group"
+def test_person_org_service_application_and_group_register(
+    isolated_core_registries,
+):
+    assert VultronPerson().type_ == "Person"
+    assert VultronOrganization().type_ == "Organization"
+    assert VultronService().type_ == "Service"
+    assert VultronApplication().type_ == "Application"
+    assert VultronGroup().type_ == "Group"
 
-        for cls in (
-            VultronPerson,
-            VultronOrganization,
-            VultronService,
-            VultronApplication,
-            VultronGroup,
-        ):
-            assert cls.__name__ in CORE_VOCABULARY
-            assert CORE_VOCABULARY[cls.__name__] is cls
-    finally:
-        CORE_VOCABULARY.clear()
-        CORE_VOCABULARY.update(snapshot)
+    for cls in (
+        VultronPerson,
+        VultronOrganization,
+        VultronService,
+        VultronApplication,
+        VultronGroup,
+    ):
+        assert cls.__name__ in CORE_VOCABULARY
+        assert CORE_VOCABULARY[cls.__name__] is cls
 
 
 def test_concrete_actor_type_annotations_are_literal():

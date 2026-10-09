@@ -29,32 +29,31 @@ from typing import NamedTuple
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.case_lookup import CaseIdInputPortMixin
 from vultron.core.behaviors.case.nodes.participant.common import (
     ParticipantTransitionContext,
     resolve_transition_context_or_report,
     validate_participant_status_write,
 )
-from vultron.core.behaviors.case.nodes.case_lookup import CaseIdInputPortMixin
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.narrative_log import (
     log_cs_transition,
     log_rm_transition,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.participant_status import (
-    ParticipantStatus,
-    coerce_cvd_roles,
-    coerce_em_consent_state,
-)
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
-    PecDimension,
     PxaDimension,
     RmDimension,
     VfDimension,
+)
+from vultron.core.models.participant_status import (
+    ParticipantStatus,
+    coerce_cvd_roles,
 )
 from vultron.core.states.cs import (
     CS_d,
@@ -62,21 +61,8 @@ from vultron.core.states.cs import (
     CS_vf,
     is_pxa_public_aware,
 )
-from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, RMRule
 from vultron.errors import VultronAlreadyExistsError
-
-
-def _resolve_em_state(case: object) -> EM:
-    """Return the current em_state from a case, or EM.NONE if unavailable."""
-    try:
-        current_status = case.current_status  # type: ignore[attr-defined]
-    except (AttributeError, ValueError):
-        return EM.NONE
-    em_state = (
-        current_status.em.state if hasattr(current_status, "em") else None
-    )
-    return em_state if em_state is not None else EM.NONE
 
 
 class _EffectiveStates(NamedTuple):
@@ -97,7 +83,7 @@ class _EffectiveStates(NamedTuple):
 
 
 class CreateParticipantStatusNode(
-    CaseIdInputPortMixin, DataLayerActionWithPorts
+    CaseIdInputPortMixin, DataLayerActionWithPorts, StateWriteCapable
 ):
     """Create a ParticipantStatus snapshot and append it to the participant."""
 
@@ -111,43 +97,48 @@ class CreateParticipantStatusNode(
         result_out: "dict | None" = None,
         name: str | None = None,
         force_rm_state: bool = False,
+        rm_rule: RMRule = RMRule.TRANSITION,
     ) -> None:
         """Create the node.
 
         Args:
+            actor_id: The subject — the actor whose participant this write
+                records (BTND-10-005).  On the received side it is the sender
+                (``request.actor_id``), never the receiving actor whose store
+                the tree executes in (RSH-08-001).
+            rm_rule: The RM rule the node's own evaluator call applies
+                (BTND-10-003).  ``TRANSITION`` (the default) is the adjacency
+                rule.  ``DECLARATION`` is the received-side acceptance rule
+                for recording what the sender declared about itself: a
+                non-adjacent forward move is recorded and a regression is
+                still refused (RSH-06-001, RSH-06-002, RSH-06-006).  It is
+                not an override — every other rule stays in force, and the
+                RM dimension is still checked — so it is not pinned with
+                ``force_rm_state``.
             force_rm_state: Skip the RM adjacency rule for this write.
 
-                **Do not add new users.** Set only by the three case-closure
-                call sites that advance a *single departing actor* to
-                ``RM.CLOSED`` regardless of the rung its RM machine is on:
-                ``sync/nodes/close_case_effect.py`` (the received close fan-out)
-                and ``case/nodes/leave/advance.py`` (twice).  ``RM.CLOSED`` is reachable
-                by adjacency only from ``ACCEPTED``, ``INVALID`` or ``DEFERRED``,
-                so from any earlier rung this write is non-adjacent — which is
-                why the RM adjacency rule (BTND-10-001) is suppressed here.
+                **Do not add new users.**  Set only by the bootstrap writes
+                that record a participant's *first* status at a rung other
+                than ``RECEIVED``: ``proposal_reporter.py`` and
+                ``participant/participant_add.py``.
+                A first record has no predecessor, so the RM adjacency rule
+                (BTND-10-001) has nothing to check it against; every *other*
+                rule (VF/D/PXA, role gates, entailments) still applies.
 
-                This override is *sanctioned*, not a workaround (CM-23-012,
-                resolving Concern #3106): a ``Leave`` is the departing actor's
-                own authoritative, self-declaratory closure act (ADR-0084), so
-                advancing that actor to ``RM.CLOSED`` regardless of rung is
-                legitimate self-declaration rather than an externally imposed
-                jump.  The emit-side adjacency rule is a report-handling
-                invariant that a case-level ``Leave`` legitimately overrides;
-                every *other* rule (VF/D/PXA, role gates, entailments) still
-                applies.
-
-                Closure NEVER force-advances a non-leaving ("bystander")
-                participant: each site targets one named actor, and bystanders
-                retain their last RM state when the case closes around them
-                (CM-23-012).  Do not read this exemption as "closure may write
-                whatever it likes."
+                Closure never uses this override.  A ``Leave`` and the received
+                close fan-out reach ``RM.CLOSED`` through ordinary transitions
+                (RMB-14-004/005, ADR-0114) via ``RMClosureWriter``, which routes
+                a participant on ``VALID`` through ``DEFERRED`` (VP-02-004).
+                Closure NEVER advances a non-leaving ("bystander") participant
+                (CM-23-012).
 
                 The other two guard-bypassing sites (``develop_fix.py``,
                 ``deploy_fix.py``) pass ``rm_state=None`` and so need no
                 exemption: they assert nothing about RM.
 
                 ``test/architecture/test_participant_status_validation.py``
-                pins the exempt call sites, so the list can only shrink.
+                pins the exempt call sites as an exact pinned exemption set
+                (ARCH-18-005).
         """
         super().__init__(name=name or self.__class__.__name__)
         self._actor_id = actor_id
@@ -161,6 +152,7 @@ class CreateParticipantStatusNode(
         self._pxa_state = pxa_state
         self._result_out = result_out
         self._force_rm_state = force_rm_state
+        self._rm_rule = rm_rule
 
     def initialise(self) -> None:
         super().initialise()
@@ -172,9 +164,8 @@ class CreateParticipantStatusNode(
 
         ``_actor_id`` is latched from the ``actor_id`` port on the first
         ``initialise`` when the constructor left it empty — the pre-built
-        pattern of ``CreateOwnerInitialStatusNode`` and
-        ``AddCaseActorParticipantNode``, which build the node once in
-        ``__init__`` and run it through ``BTBridge.execute_with_setup``
+        pattern of ``AddCaseActorParticipantNode``, which builds the node once in
+        ``__init__`` and runs it through ``BTBridge.execute_with_setup``
         (BTND-10-004, ADR-0089).  Without this reset the first execution's
         actor would persist, so re-using a pre-built node for a second actor
         would silently write to the first (issue #3268).  Restoring the
@@ -200,28 +191,14 @@ class CreateParticipantStatusNode(
             participant_obj.add_participant_status(wire_status)
             dl.save(participant_obj)  # type: ignore[attr-defined]
 
-    def _build_participant_metadata(
-        self, participant_obj: object
-    ) -> "tuple[list, PecDimension | None]":
-        """Return (status_roles, consent_dim) derived from participant object."""
+    def _build_participant_roles(self, participant_obj: object) -> list:
+        """Return the status roles derived from the participant object."""
         participant_roles = (
             participant_obj.roles  # type: ignore[union-attr]
             if isinstance(participant_obj, CaseParticipant)
             else []
         )
-        status_roles = coerce_cvd_roles(participant_roles)
-        raw_consent = (
-            getattr(participant_obj, "embargo_consent_state", None)
-            if isinstance(participant_obj, CaseParticipant)
-            else None
-        )
-        em_consent_state = coerce_em_consent_state(raw_consent)
-        consent_dim = (
-            PecDimension(state=em_consent_state)
-            if em_consent_state is not None
-            else None
-        )
-        return status_roles, consent_dim
+        return coerce_cvd_roles(participant_roles)
 
     def _apply_ac1_promotions(
         self,
@@ -297,13 +274,11 @@ class CreateParticipantStatusNode(
             case_status = CaseStatus(
                 context=case_id,
                 attributed_to=self._actor_id,
-                em=EmDimension(state=_resolve_em_state(case)),
+                em=EmDimension(state=case.em_state),
                 pxa=PxaDimension(state=effective.pxa),
             )
 
-        status_roles, consent_dim = self._build_participant_metadata(
-            context.participant
-        )
+        status_roles = self._build_participant_roles(context.participant)
         return ParticipantStatus(
             context=case_id,
             attributed_to=self._actor_id,
@@ -324,12 +299,17 @@ class CreateParticipantStatusNode(
                 if effective.d is not None
                 else None
             ),
-            consent=consent_dim,
             cvd_role=status_roles,
             case_status=case_status,
+            # The construction-time check is the adjacency rule, so it is
+            # armed only for a TRANSITION write.  A DECLARATION write has had
+            # its RM move adjudicated by this node's own evaluator call above,
+            # which still refuses a regression (RSH-06-002).
             previous_rm_state=(
                 context.current_rm
-                if self._rm_state is not None and not self._force_rm_state
+                if self._rm_state is not None
+                and not self._force_rm_state
+                and self._rm_rule is RMRule.TRANSITION
                 else None
             ),
         )
@@ -367,6 +347,7 @@ class CreateParticipantStatusNode(
             pxa_state=self._pxa_state,
             result_out=self._result_out,
             validate_rm_transition=not self._force_rm_state,
+            rm_rule=self._rm_rule,
         )
         if failure is not None:
             return failure

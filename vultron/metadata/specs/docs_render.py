@@ -21,8 +21,8 @@ from vultron.metadata.specs.registry import (
 )
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
-    RFC2119Priority,
     RelationType,
+    RFC2119Priority,
     Spec,
     SpecFile,
     SpecGroup,
@@ -252,9 +252,7 @@ def _render_file(
     lines.append("")
     lines.append(spec_file.description)
     lines.append("")
-    lines.append(
-        f"*File ID*: `{spec_file.id}` | " f"*Version*: {spec_file.version}"
-    )
+    lines.append(f"*File ID*: `{spec_file.id}`")
     lines.append("")
     for group in spec_file.groups:
         # Collect items whose effective kind matches current_kind.
@@ -302,7 +300,7 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
         target_kind = SpecKind(kind)
     except ValueError:
         valid = [k.value for k in SpecKind]
-        raise ValueError(f"Unknown SpecKind: {kind!r}. Valid values: {valid}")
+        raise ValueError(f"Unknown SpecKind: {kind!r}. Valid values: {valid}")  # noqa: B904  # ruff-baseline #3353
 
     # Route by effective kind: a file contributes to this page when it has at
     # least one item whose effective kind matches target_kind (SR-09-001).

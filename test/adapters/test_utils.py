@@ -56,7 +56,7 @@ def test_base_url_reads_from_vultron_server_base_url_env_var(monkeypatch):
 
     cfg_module.reload_config()
     importlib.reload(utils)
-    assert utils.BASE_URL == custom_url
+    assert custom_url == utils.BASE_URL
 
 
 def test_make_id_produces_uri_form_id():

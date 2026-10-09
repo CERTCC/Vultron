@@ -1,64 +1,40 @@
 ---
 description: >
-  Run the Finder + Vendor (FV) scenario and the other multi-actor scenarios,
-  such as Finder + Coordinator + Vendor (FCV), to see the full Vultron Protocol
-  at work across isolated participant containers.
+  Run any of the multi-actor demo scenarios, from the two-party Finder + Vendor
+  (FV) baseline to the five-party coordination cases, across isolated
+  participant containers with Docker Compose.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
 ---
 
 # Tutorial: Running the Multi-Actor Container Demos
 
-In this tutorial, we will run the multi-actor container demo scenarios
-end-to-end using Docker Compose. By the end of this tutorial, we will have:
+In this tutorial, we will run a multi-actor demo scenario end to end with Docker Compose.
+By the end of this tutorial, we will have:
 
-- started a fleet of isolated Vultron API containers, each representing a
-  distinct CVD participant,
-- watched those actors exchange vulnerability-disclosure messages
-  automatically across container boundaries, and
-- observed how the Vultron Protocol handles two-party, three-party, and
-  multi-vendor coordination workflows.
+- started a fleet of isolated Vultron actor containers, each representing a distinct Coordinated Vulnerability Disclosure (CVD) participant,
+- chosen a scenario and watched its actors exchange messages across container boundaries, and
+- read the structured output that tells us which step ran, which check passed, and which causal gate held.
 
 !!! info "What we will learn"
 
-    These scenarios use **trigger-based puppeteering** — the demo runner
-    calls trigger endpoints on each actor's own container so that the actor's
-    behavior tree and outbox logic are exercised end-to-end. Each actor makes
-    its own decisions; activities flow from sender outbox to receiver inbox
-    over HTTP across the Docker network. No messages are injected manually.
+    These scenarios use **trigger-based puppeteering**.
+    The demo runner calls trigger endpoints on each actor's own container, so each actor's behavior tree and outbox logic run end to end.
+    Each actor makes its own decisions, and activities flow from the sender's outbox to the receiver's inbox over HTTP across the Docker network.
+    No messages are injected by hand.
     This is the full Vultron Protocol in action, not a simulation.
 
 ---
 
 ## Prerequisites
 
-We need the following tools installed before we begin:
+You need the following tools installed before we begin:
 
-- [Docker](https://docs.docker.com/get-docker/){:target="_blank"} (version
-  20.10 or later)
-- [Docker Compose](https://docs.docker.com/compose/install/){:target="_blank"}
-  (version 2.x; included with Docker Desktop)
+- [Docker](https://docs.docker.com/get-docker/){:target="_blank"} (version 20.10 or later)
+- [Docker Compose](https://docs.docker.com/compose/install/){:target="_blank"} (version 2.x; included with Docker Desktop)
 - Git (to clone the repository)
 
-We do **not** need Python installed locally; the containers include everything
-required.
-
----
-
-## Available scenarios
-
-| Scenario         | DEMO value         | Actors                                                     |
-|:-----------------|:-------------------|:-----------------------------------------------------------|
-| FV               | `fv`               | Finder + Vendor + CaseActor                                |
-| FVV              | `fvv`              | Finder + Vendor1 + Vendor2                                 |
-| FCV              | `fcv`              | Finder + Coordinator + Vendor + CaseActor                  |
-| FVCV-Extension   | `fvcv-extension`   | Finder + Vendor1 + Coordinator + Vendor2 + CaseActor       |
-| FVCV-Handoff     | `fvcv-handoff`     | Finder + Vendor1 + Coordinator + Vendor2 + CaseActor       |
-| FCCV-Handoff     | `fccv-handoff`     | Finder + C1 + C2 + Vendor + CaseActor                      |
-
-Each scenario is self-contained: the demo runner resets all container state,
-seeds actor records and peer registrations, runs the workflow, verifies final
-state, and exits.
+You do **not** need Python installed locally; the containers include everything required.
 
 ---
 
@@ -73,112 +49,93 @@ cd Vultron
 
 !!! tip
 
-    If you already have a local clone, `cd` into the repository root and run
-    `git pull` to make sure you are up to date.
+    If you already have a local clone, `cd` into the repository root and run `git pull` to make sure you are up to date.
 
 ---
 
-## Step 2 — Run the FV scenario
+## Step 2 — Create the environment file
 
-The **FV** scenario (D5-2) is the simplest: a Finder discovers a
-vulnerability and submits a report to a Vendor, who validates it, engages the
-case, adds the Finder as a participant, and exchanges notes with them. The
-CaseActor is co-located in the Vendor container.
-
-From the repository root, run:
+Before running any `docker compose` command, create a local `.env` file from the provided example:
 
 ```bash
-docker compose -f docker/docker-compose-multi-actor.yml \
-    up --abort-on-container-exit demo-runner
+cp docker/.env.example docker/.env
 ```
 
-Docker builds the images on the first run (this takes a few minutes) and then:
-
-1. Starts `finder`, `vendor`, `coordinator`, `case-actor`, and `vendor2`
-   containers (all five are defined in the compose file; only `finder` and
-   `vendor` participate in this scenario).
-2. Waits until every container passes its `/health/ready` probe.
-3. Starts `demo-runner`, which resets state, seeds actors, runs the workflow,
-   verifies the result, and exits.
-
-A successful run ends with:
-
-```text
-[multi-actor-integration] SUCCESS: scenario 'fv' passed.
-```
-
-### What the FV demo does
-
-| Step | Actor     | Action                                               |
-|:-----|:----------|:-----------------------------------------------------|
-| 1    | Finder    | Submits a `VulnerabilityReport` to Vendor's inbox    |
-| 2    | Vendor    | Validates the report (trigger: `validate-report`)    |
-| 3    | Vendor    | Case engagement cascades automatically (RM → ACCEPTED)|
-| 4    | Vendor    | Adds Finder as a case participant                    |
-| 5    | Finder    | Posts a question note to the case                    |
-| 6    | Vendor    | Replies; case forwards reply to Finder's inbox       |
-| ✅   | Vendor    | Case DataLayer holds 2 participants and 2 notes      |
-
-```mermaid
-sequenceDiagram
-    participant F as Finder
-    box Vendor Container
-        participant V as Vendor
-        participant CA as CaseActor
-    end
-
-    F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
-    Note over V: "validate-report trigger<br/>RM state = ACCEPTED"
-    V->>CA: CreateCase + AddReport
-    V->>F: RmInviteToCase (Invite)
-    F->>V: RmAcceptInviteToCase
-    V->>CA: AddParticipant (Finder)
-    F->>CA: Add Note (question)
-    V->>CA: Add Note (reply)
-    CA->>F: Forward reply to Finder's inbox
-    Note over CA: 2 participants, 2 notes
-```
+This sets the Docker Compose project name, which the container, network, and volume names are derived from.
 
 ---
 
-## Step 3 — Run other scenarios
+## Step 3 — Choose a scenario
 
-Additional scenarios are available via the `DEMO` environment variable.
-Each follows the same pattern: set `DEMO` to the scenario name and run
-the same compose command.
+Every scenario is selected by the `DEMO` environment variable.
+The table below is rendered from the scenario registry at build time, so the `DEMO` values it lists are exactly the ones the demo runner accepts.
+
+```python exec="true" idprefix=""
+from vultron.metadata.demo_scenarios.render import render_page
+
+print(render_page("container_demos"))
+```
+
+Each scenario is self-contained.
+The demo runner resets every container's state, seeds the actor records and their peer registrations, runs the workflow, verifies the final state, and exits.
+The [Demo Scenario Narratives](../topics/scenarios/index.md) explain what each scenario demonstrates and why its steps happen in the order they do.
+
+---
+
+## Step 4 — Run the scenario
+
+From the repository root, run the compose stack with `DEMO` set to the value you chose:
 
 ```bash
 DEMO=fcv docker compose -f docker/docker-compose-multi-actor.yml \
-    up --abort-on-container-exit demo-runner
+    up --abort-on-container-exit --exit-code-from demo-runner
 ```
 
-Available scenarios and their DEMO values are listed in the
-[Available scenarios](#available-scenarios) table above.
+If you leave `DEMO` unset, the runner executes the `fv` scenario.
+[Run the FV Demo](fv-demo.md) walks through that run milestone by milestone.
+
+Docker builds the images on the first run, which takes a few minutes.
+Subsequent runs reuse the cached images and start immediately.
+Once the images exist, compose:
+
+1. starts the actor containers (`finder`, `vendor`, `coordinator`, `case-actor`, `actor5`, and `actor6`), whether or not the chosen scenario uses them all,
+2. waits until every actor container passes its `/health/ready` probe,
+3. starts `demo-runner`, which resets state, seeds actors, drives the workflow, verifies each milestone, and exits, and
+4. stops the whole stack when `demo-runner` exits, propagating its exit code.
+
+!!! success "Success indicator"
+
+    Every scenario ends with its own banner, `<SCENARIO> DEMO COMPLETE ✓`, followed by a note on what it demonstrated.
+    A default `fv` run, for example, ends with:
+
+    ```text
+    FV DEMO COMPLETE ✓  (VFDPxa full lifecycle)
+    ```
+
+    A non-zero exit code from `demo-runner` means a step or check failed; see Step 5.
 
 ---
 
-## Step 4 — Read the output
+## Step 5 — Read the output
 
-Each demo step is wrapped in a `demo_step`, `demo_check`, or `demo_gate`
-context manager that prints structured lifecycle markers:
+Each step of a scenario is wrapped in a `demo_step`, `demo_check`, or `demo_gate` context manager that prints a structured lifecycle marker:
 
-| Symbol | Meaning                                  |
-|:-------|:-----------------------------------------|
-| 🚥    | A workflow step has started              |
-| 🟢    | The step completed successfully          |
-| 🔴    | The step raised an exception             |
-| 📋    | A verification check has started         |
-| ✅    | The verification check passed            |
-| ❌    | The verification check failed            |
-| 🚧    | A causal gate (precondition) has started |
-| 🔓    | The gate's precondition held             |
-| 🔒    | The gate failed; its dependent steps were skipped |
+| Symbol | Meaning                                                    |
+|:-------|:-----------------------------------------------------------|
+| 🚥    | A workflow step has started                                |
+| 🟢    | The step completed successfully                            |
+| 🔴    | The step raised an exception                               |
+| 📋    | A verification check has started                           |
+| ✅    | The verification check passed                              |
+| ❌    | The verification check failed                              |
+| 🚧    | A causal gate (a precondition for later steps) has started |
+| 🔓    | The gate's precondition held                               |
+| 🔒    | The gate failed; the steps that depend on it were skipped  |
 
-Watch for `🔴` or `❌` markers to diagnose failures. The compose
-`--abort-on-container-exit` flag stops the entire stack when `demo-runner`
-exits, so a failed scenario terminates cleanly.
+Watch for `🔴`, `❌`, and `🔒` markers to diagnose a failure.
+A gate waits for evidence that an earlier step's effect has been committed by the actor that owns it, rather than for a fixed delay, so a `🔒` names the protocol effect that never arrived.
 
-To examine logs from a specific container after a run:
+To examine the logs of one container after a run:
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml logs vendor
@@ -186,10 +143,10 @@ docker compose -f docker/docker-compose-multi-actor.yml logs vendor
 
 ---
 
-## Step 5 — Clean up
+## Step 6 — Clean up
 
-Named Docker volumes persist the SQLite databases between runs. Remove all
-volumes after a session to start fresh next time:
+Named Docker volumes persist the SQLite databases between runs.
+Remove all volumes after a session to start fresh next time:
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml down -v
@@ -197,10 +154,9 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 
 ---
 
-## Running multiple scenarios in sequence
+## Running scenarios from the integration test script
 
-The integration test script builds the images, runs a selected scenario,
-verifies the exit code, and removes all volumes automatically:
+The integration test script builds the images, runs one scenario, checks the exit code, and removes all volumes automatically:
 
 ```bash
 # From the repository root:
@@ -209,11 +165,16 @@ verifies the exit code, and removes all volumes automatically:
 ./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-handoff
 ```
 
+A passing run ends with the script's own summary line:
+
+```text
+[multi-actor-integration] SUCCESS: scenario 'fv' passed.
+```
+
 !!! tip
 
-    The integration test script uses `PROJECT_NAME=vultron-it` by default so
-    its containers do not conflict with a running development stack. Override
-    `PROJECT_NAME` to run multiple scenarios in parallel:
+    The integration test script uses `PROJECT_NAME=vultron-it` by default so its containers do not conflict with a running development stack.
+    Override `PROJECT_NAME` to run scenarios in parallel:
 
     ```bash
     PROJECT_NAME=vultron-it-two   DEMO=fv   \
@@ -228,26 +189,17 @@ verifies the exit code, and removes all volumes automatically:
 
 We have:
 
-- started a multi-container Vultron stack and run multi-actor CVD
-  workflows, each involving a different set of protocol participants,
-- observed trigger-based puppeteering where each actor's behavior tree and
-  outbox logic drives the workflow end-to-end, and
-- seen how Vultron handles two-party, three-party, and multi-vendor
-  coordination workflows including case ownership transfer.
+- started a multi-container Vultron stack and run a multi-actor CVD workflow across isolated participant containers,
+- observed trigger-based puppeteering, where each actor's own behavior tree and outbox logic drive the workflow end to end, and
+- read the step, check, and gate markers that show what the protocol did at each stage.
 
 ---
 
 ## Next steps
 
-- **Explore the single-container demos** — see
-  [Tutorial: Run the Receive-Report Demo](receive_report_demo.md) and
-  [Tutorial: Running the Other Demos](other_demos.md) to step through
-  individual protocol activities in detail.
-- **Read the scenario source** — the scripts are in
-  `vultron/demo/scenario/`; shared utilities are in `vultron/demo/utils.py`.
-- **Understand the protocol** — browse
-  [Vultron AS Activity Guides](../howto/activitypub/activities/index.md)
-  for task guides covering the exchanges these scenarios run.
-- **Consult the Docker README** — `docker/README.md` documents port
-  mappings, environment variable overrides, and manual seed commands for
-  debugging individual containers.
+- **Follow one run in detail** — [Run the FV Demo](fv-demo.md) explains each phase and milestone of the default scenario.
+- **Understand what each scenario shows** — the [Demo Scenario Narratives](../topics/scenarios/index.md) describe every scenario's case in CVD terms, step by step.
+- **Read the message-level trace** — the [FV Demo Protocol Reference](../reference/fv-demo-protocol.md) lists every activity the FV run exchanges and the ledger entries it produces.
+- **Explore the single-container demos** — see [Run the Receive-Report Demo](receive_report_demo.md) and [Running the Other Demos](other_demos.md) to step through individual protocol exchanges.
+- **Read the scenario source** — the scripts are in `vultron/demo/scenario/`; the shared helpers are in `vultron/demo/helpers/`.
+- **Consult the Docker README** — `docker/README.md` documents port mappings, environment variable overrides, and manual seed commands for debugging individual containers.

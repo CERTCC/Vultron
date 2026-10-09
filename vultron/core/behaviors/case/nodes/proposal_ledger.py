@@ -46,9 +46,15 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 
 logger = logging.getLogger(__name__)
+
+#: ``event_type`` of a case's genesis ledger entry, the root of the
+#: CASE_MANAGER's hash chain.  Its presence is what "the case's creation
+#: entries are committed" means to a later step (CM-14-007, CM-14-011).
+CREATE_CASE_EVENT_TYPE = "create_case"
 
 
 class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
@@ -59,54 +65,54 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
       1. ``create_case``                     actor=CaseActor
       2. ``add_report_to_case``              actor=CaseActor
       3. ``add_participant_status_to_participant`` × N  actor=CaseActor
-      4. ``add_case_status_to_case``         actor=vendor (the vendor set the
+      4. ``add_case_status_to_case``         actor=owner (the receiver set the
          genesis case status; ``("Add","CaseStatus")`` is nonetheless in
          ``_CASE_AUTHORED_SIGNATURES`` per CLP-12-001, so a CaseActor-authored
          entry would also validate)
 
     Best-effort: a single failed entry logs a warning but does not abort
-    the Sequence; initialization proceeds regardless (the ledger is an
-    audit record, not a precondition for the Accept/Create emissions).
+    the Sequence (the ledger is an audit record, not a precondition for the
+    Accept/Create emissions).
+
+    Runs *after* ``EmitCreateVulnerabilityCaseNode`` in the accept flow: every
+    commit fans its entry out through the FIFO outbox, and a participant must
+    hold the case object before its first ``Announce(CaseLedgerEntry)`` arrives
+    (CM-14-011, CP-09-009).  Committed ahead of the Create, the fan-out put ten
+    entries in front of it and every recipient took the SYNC-15 pre-genesis
+    path on the normal case-creation route (#3033, #2898).
 
     Reads ``case_id`` from the blackboard.
     """
 
     def __init__(
         self,
-        vendor_uri: str,
+        owner_uri: str,
         report_id: str | None,
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._vendor_uri = vendor_uri
+        self._owner_uri = owner_uri
         self._report_id = report_id
         self._offer_id = offer_id
         self._offer_actor_id = offer_actor_id
         self._case_id_bb: str | None = None
-        self.wire_render_port = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "case_id": PortInformation(data_type=str, required=False),
-        "wire_render_port": PortInformation(data_type=object, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id", "wire_render_port": "/wire_render_port"}
+        return {"case_id": "/case_id"}
 
     def initialise(self) -> None:
         super().initialise()
         self._case_id_bb = None
-        self.wire_render_port = None
         try:
             self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
-            pass
-        try:
-            self.wire_render_port = self.get_input("wire_render_port")
         except (NoDataAvailable, NotImplementedError):
             pass
 
@@ -126,6 +132,26 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         """
         assert self.datalayer is not None
         assert self.actor_id is not None
+        if (
+            _find_equivalent_recorded_entry(
+                case_id=case_id,
+                object_id=object_id,
+                event_type=event_type,
+                payload_snapshot=snapshot,
+                dl=cast(CaseOutboxPersistence, self.datalayer),
+            )
+            is not None
+        ):
+            # Already committed and fanned out by an earlier delivery.  The
+            # commit tree would reuse the entry, but it would also fan it out
+            # to every recipient again (CP-05-008).
+            logger.debug(
+                "%s: '%s' entry for '%s' already committed — skipping",
+                self.name,
+                event_type,
+                object_id,
+            )
+            return True
         tree = create_commit_log_entry_tree(
             case_id=case_id,
             object_id=object_id,
@@ -157,12 +183,11 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         because the ``OfferRecord`` belongs to the sibling that did and there is
         no read across that line (ADR-0073, PCR-01-003).
 
-        The fallback is not a nicety. Every invited actor rebuilds its
-        ``VultronOfferRecord`` from this entry's ``offerId``
-        (``ApplyOfferReportFromLedgerNode``, ADR-0035 DL-06-002), and that node
-        is deliberately lenient — a snapshot without one is skipped
-        "(non-fatal)". So the omission surfaced nowhere near here: the invitee's
-        ``validate-report`` answered ``404 Offer not found`` (#2548).
+        The fallback is not a nicety. The ledger entry is the only place the
+        report's Offer provenance (``offerId``, ``offerActorId``) survives for
+        the case's participants, who were never sent the Offer and read it from
+        here (CP-01-007). Without it the omission surfaces nowhere near here
+        (#2548).
         """
         assert self.datalayer is not None
         offer_id, offer_actor_id = find_offer_for_report(
@@ -281,7 +306,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             snapshot = build_add_case_status_snapshot(
                 status,
                 case,
-                self._vendor_uri,
+                self._owner_uri,
                 case_id,
                 self.wire_render_port,
             )
@@ -326,25 +351,31 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         # canonical hash chain.  Unlike the remaining best-effort entries, a
         # failure here must NOT be masked: if the genesis entry is missing,
         # the CaseActor's authoritative ledger has no root and every later
-        # entry (and every replica seeded from it) is broken.  Fail fast so
-        # the enclosing Sequence aborts before Accept/Create are emitted, and
-        # the vendor is not told a case exists that has no canonical ledger.
-        if self.wire_render_port is None:
-            self.feedback_message = "wire_render_port not available"
-            logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        # entry (and every replica seeded from it) is broken.  Return FAILURE
+        # so the enclosing Sequence fails and the handler reports it.
+        #
+        # What that FAILURE can and cannot do changed with CP-09-009.  This
+        # node now runs after the emit nodes, so Accept(as_CaseProposal) and
+        # Create(VulnerabilityCase) are already in the outbox and the retry
+        # marker is already cleared: the failure is surfaced (ERROR log,
+        # non-APPLIED verdict), not prevented.  Holding the Create back would
+        # mean fanning the genesis entry out ahead of it, which is the
+        # pre-genesis path CP-09-009 exists to avoid.  Pinned by
+        # test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued.
+        # A missing port is a composition fault, raised as VultronWiringError
+        # rather than reported as a failed genesis commit (ARCH-20-001).
+        port = self._require_wire_render_port()
 
         if not self._commit_one(
             case_id,
             case_id,
-            "create_case",
-            build_create_case_snapshot(
-                case, self.actor_id, case_id, self.wire_render_port
-            ),
+            CREATE_CASE_EVENT_TYPE,
+            build_create_case_snapshot(case, self.actor_id, case_id, port),
         ):
             self.feedback_message = (
                 f"genesis create_case ledger commit failed for case"
-                f" '{case_id}' — aborting native initialization"
+                f" '{case_id}' — the CASE_MANAGER ledger has no root;"
+                " Accept and Create were already queued (CP-09-009)"
             )
             logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -352,7 +383,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self._commit_add_reports(case, case_id)
         # 3. add_participant_status × N  (actor = CaseActor)
         self._commit_participant_statuses(case, case_id)
-        # 4. add_case_status  (actor = vendor_uri — provenance, not a guard
+        # 4. add_case_status  (actor = owner_uri — provenance, not a guard
         #    constraint: ("Add","CaseStatus") IS in _CASE_AUTHORED_SIGNATURES
         #    per CLP-12-001, so a CaseActor-authored entry validates too)
         self._commit_case_statuses(case, case_id)

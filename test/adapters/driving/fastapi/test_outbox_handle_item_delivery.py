@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -14,283 +14,234 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Unit tests for handle_outbox_item — delivery, logging, and regression cases.
+Unit tests for handle_outbox_item — delivery, logging, and skip conditions.
 
-Covers: basic delivery flow, skip conditions, log content requirements,
-DR-01 typed-target dehydration regression, and Announce(as_CaseLedgerEntry)
-inline field preservation.
+The handler delivers the *sealed body* of an outbox row exactly as sealed
+(VM-08-003).  These tests hand it a ``DataLayer`` double whose ``read``
+answers the sealed-body id, and assert on what reaches the emitter.
 
 Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
 
 Spec coverage:
-- OX-1.1: Delivery via async HTTP POST to recipient inbox URLs.
-- OX-1.3: Idempotency enforced at inbox endpoint (not delivery side).
+- OX-03-001: Activities in the outbox are delivered to recipient inboxes.
+- VM-08-003: the delivered payload is the sealed blob, unchanged.
+- SYNC-02-004: an Announce(CaseLedgerEntry) keeps its inline entry on the wire.
 """
 
 import asyncio
-from types import SimpleNamespace
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from vultron.adapters.driving.fastapi import outbox_handler as oh
-from vultron.core.models.activity import VultronActivity
+from vultron.adapters.outbox_sealed_body import (
+    SealedOutboundBody,
+    dump_outbound_body,
+    sealed_body_id,
+)
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
+RECIPIENT = "https://example.org/actors/alice"
+SENDER = "https://example.org/actors/bob"
+
+
+def _sealed(activity_id: str, body: dict) -> SealedOutboundBody:
+    """A sealed body for *activity_id* carrying *body* (id filled in)."""
+    return SealedOutboundBody(
+        id_=sealed_body_id(activity_id),
+        activity_id=activity_id,
+        body=json.dumps({"id": activity_id, **body}),
+    )
+
+
+def _dl_with(sealed: SealedOutboundBody | None) -> MagicMock:
+    """A DataLayer double that answers the sealed-body id with *sealed*."""
+    mock_dl = MagicMock()
+    mock_dl.read.side_effect = lambda id_: (
+        sealed if sealed is not None and id_ == sealed.id_ else None
+    )
+    return mock_dl
+
+
+def _deliver(actor_id: str, activity_id: str, dl, emitter) -> None:
+    asyncio.run(oh.handle_outbox_item(actor_id, activity_id, dl, emitter))
+
 
 # ---------------------------------------------------------------------------
-# handle_outbox_item — basic logging
+# Logging
 # ---------------------------------------------------------------------------
 
 
 def test_handle_outbox_item_logs_actor_id(caplog):
     """handle_outbox_item should log the actor_id at INFO level."""
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = None  # activity not found → just logs
     mock_emitter = AsyncMock()
     with caplog.at_level("INFO"):
-        asyncio.run(
-            oh.handle_outbox_item(
-                "actor-abc", "urn:test:act-001", mock_dl, mock_emitter
-            )
-        )
+        _deliver("actor-abc", "urn:test:act-001", _dl_with(None), mock_emitter)
     assert "actor-abc" in caplog.text
 
 
 def test_handle_outbox_item_logs_item(caplog):
     """handle_outbox_item should log the activity_id at INFO level."""
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = None  # activity not found → just logs
     mock_emitter = AsyncMock()
     with caplog.at_level("INFO"):
-        asyncio.run(
-            oh.handle_outbox_item(
-                "actor-abc", "urn:test:act-001", mock_dl, mock_emitter
-            )
-        )
-    assert caplog.text  # at minimum something is logged
-
-
-# ---------------------------------------------------------------------------
-# handle_outbox_item — OX-1.1 delivery logic
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.spec("OX-03-001")
-def test_handle_outbox_item_delivers_to_recipients():
-    """handle_outbox_item calls emitter.emit with activity and recipients."""
-    recipient = "https://example.org/actors/alice"
-    activity = VultronActivity(
-        id_="urn:test:act-deliver",
-        type_="Offer",
-        actor="https://example.org/actors/bob",
-        to=[recipient],
-    )
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = activity
-    mock_emitter = AsyncMock()
-
-    asyncio.run(
-        oh.handle_outbox_item("actor-abc", activity.id_, mock_dl, mock_emitter)
-    )
-
-    mock_emitter.emit.assert_called_once_with(activity, [recipient])
-
-
-def test_handle_outbox_item_skips_when_activity_not_found():
-    """handle_outbox_item does NOT call emitter when dl.read returns None."""
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = None
-    mock_emitter = AsyncMock()
-
-    asyncio.run(
-        oh.handle_outbox_item(
-            "actor-abc", "urn:test:missing", mock_dl, mock_emitter
-        )
-    )
-
-    mock_emitter.emit.assert_not_called()
-
-
-def test_handle_outbox_item_skips_when_no_recipients():
-    """handle_outbox_item does NOT call emitter when activity has no recipients."""
-    activity = SimpleNamespace(
-        id_="urn:test:act-no-recip",
-        to=None,
-        cc=None,
-        bto=None,
-        bcc=None,
-    )
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = activity
-    mock_emitter = AsyncMock()
-
-    asyncio.run(
-        oh.handle_outbox_item("actor-abc", activity.id_, mock_dl, mock_emitter)
-    )
-
-    mock_emitter.emit.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# handle_outbox_item — delivery log content (D5-6-LOGCTX)
-# ---------------------------------------------------------------------------
+        _deliver("actor-abc", "urn:test:act-001", _dl_with(None), mock_emitter)
+    assert "urn:test:act-001" in caplog.text
 
 
 def test_handle_outbox_item_logs_activity_type_in_delivery(caplog):
     """handle_outbox_item logs the activity type in the delivery message."""
-    recipient = "https://example.org/actors/alice"
-    activity = VultronActivity(
-        id_="urn:test:act-type-log",
-        type_="Announce",
-        actor="https://example.org/actors/bob",
-        to=[recipient],
+    sealed = _sealed(
+        "urn:test:act-type-log",
+        {"type": "Announce", "actor": SENDER, "to": [RECIPIENT], "object": {}},
     )
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = activity
-    mock_emitter = AsyncMock()
-
     with caplog.at_level("INFO"):
-        asyncio.run(
-            oh.handle_outbox_item(
-                "actor-bob", activity.id_, mock_dl, mock_emitter
-            )
+        _deliver(
+            "actor-bob", sealed.activity_id, _dl_with(sealed), AsyncMock()
         )
-
     assert "Announce" in caplog.text
 
 
 def test_handle_outbox_item_logs_recipient_in_delivery(caplog):
     """handle_outbox_item logs the recipient URL in the delivery message."""
-    recipient = "https://example.org/actors/alice"
-    activity = VultronActivity(
-        id_="urn:test:act-recip-log",
-        type_="Create",
-        actor="https://example.org/actors/bob",
-        to=[recipient],
+    sealed = _sealed(
+        "urn:test:act-recip-log",
+        {"type": "Create", "actor": SENDER, "to": [RECIPIENT], "object": {}},
     )
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = activity
-    mock_emitter = AsyncMock()
-
     with caplog.at_level("INFO"):
-        asyncio.run(
-            oh.handle_outbox_item(
-                "actor-bob", activity.id_, mock_dl, mock_emitter
-            )
+        _deliver(
+            "actor-bob", sealed.activity_id, _dl_with(sealed), AsyncMock()
         )
+    assert RECIPIENT in caplog.text
 
-    assert recipient in caplog.text
 
-
-def test_handle_outbox_item_delivery_log_no_pydantic_repr(caplog):
-    """Delivery log must not contain Pydantic field-repr noise (D5-7-LOGCLEAN-1).
-
-    The log should never include fragments like ``type_=<``, ``context_=``, or
-    ``id_='`` that indicate a raw Pydantic repr was used.
-    """
-    recipient = "https://example.org/actors/alice"
+def test_handle_outbox_item_delivery_log_summarises_the_object(caplog):
+    """Delivery log names the object by type and id, not by a raw dump."""
     obj_id = "urn:uuid:case-001"
-    domain_obj = SimpleNamespace(id_=obj_id)
-    activity = VultronActivity(
-        id_="urn:test:act-logclean",
-        type_="Create",
-        actor="https://example.org/actors/bob",
-        to=[recipient],
+    sealed = _sealed(
+        "urn:test:act-logclean",
+        {
+            "type": "Create",
+            "actor": SENDER,
+            "to": [RECIPIENT],
+            "object": {"type": "VulnerabilityCase", "id": obj_id, "name": "x"},
+        },
     )
-    activity.object_ = domain_obj  # type: ignore[assignment]
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = activity
-    mock_emitter = AsyncMock()
-
     with caplog.at_level("INFO"):
-        asyncio.run(
-            oh.handle_outbox_item(
-                "actor-bob", activity.id_, mock_dl, mock_emitter
-            )
+        _deliver(
+            "actor-bob", sealed.activity_id, _dl_with(sealed), AsyncMock()
         )
 
     delivery_log = " ".join(
         r.message for r in caplog.records if "Delivered" in r.message
     )
     assert delivery_log, "Expected a 'Delivered' log entry"
-    assert "SimpleNamespace" in delivery_log
-    assert obj_id in delivery_log
-    assert "type_=<" not in delivery_log
-    assert "context_=" not in delivery_log
+    assert f"VulnerabilityCase {obj_id}" in delivery_log
+    assert '"name"' not in delivery_log
 
 
 # ---------------------------------------------------------------------------
-# handle_outbox_item — DR-01 typed-target dehydration regression
+# Delivery and skip conditions
 # ---------------------------------------------------------------------------
 
 
-def test_handle_outbox_item_converts_typed_activity_with_full_target():
-    """handle_outbox_item delivers when activity.target is a full domain object.
-
-    Regression test for DR-01: typed AS2 activities (e.g. RmInviteToCaseActivity)
-    may store a full VulnerabilityCase as target.  The outbox handler must
-    dehydrate it to an ID string before VultronActivity.model_validate().
-    """
-    recipient = "https://example.org/actors/alice"
-    case_id = "https://example.org/cases/case-123"
-
-    activity_dict = {
-        "id": "urn:uuid:act-invite-001",
-        "type": "Invite",
-        "actor": "https://example.org/actors/coordinator",
-        "to": [recipient],
-        "object": {
-            "id": "urn:uuid:actor-alice",
-            "type": "Person",
-            "name": "Alice",
-        },
-        "target": {
-            "id": case_id,
-            "type": "VulnerabilityCase",
-            "name": "Test Case",
-        },
-    }
-
-    class FakeTypedActivity:
-        """Minimal stand-in for a typed AS2 activity from the DataLayer."""
-
-        def model_dump(self, *, by_alias=False, serialize_as_any=False):
-            return activity_dict
-
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = FakeTypedActivity()
+@pytest.mark.spec("OX-03-001")
+@pytest.mark.spec("VM-08-003")
+def test_handle_outbox_item_delivers_the_sealed_body_verbatim():
+    """The emitter receives the sealed text itself, byte for byte."""
+    sealed = _sealed(
+        "urn:test:act-deliver",
+        {"type": "Offer", "actor": SENDER, "to": [RECIPIENT], "object": {}},
+    )
     mock_emitter = AsyncMock()
 
-    asyncio.run(
-        oh.handle_outbox_item(
-            "actor-coordinator",
-            "urn:uuid:act-invite-001",
-            mock_dl,
-            mock_emitter,
-        )
+    _deliver("actor-abc", sealed.activity_id, _dl_with(sealed), mock_emitter)
+
+    mock_emitter.emit.assert_called_once_with(
+        sealed.activity_id, sealed.body, [RECIPIENT]
     )
 
-    mock_emitter.emit.assert_called_once()
-    emitted_activity, emitted_recipients = mock_emitter.emit.call_args[0]
-    assert emitted_activity.target == case_id
-    assert recipient in emitted_recipients
+
+def test_handle_outbox_item_drops_a_row_with_no_sealed_body(caplog):
+    """A queued id nobody sealed has nothing to deliver: ERROR, no emit."""
+    mock_emitter = AsyncMock()
+    with caplog.at_level("ERROR"):
+        _deliver(
+            "actor-abc", "urn:test:act-gone", _dl_with(None), mock_emitter
+        )
+    mock_emitter.emit.assert_not_called()
+    assert any(
+        "No sealed body" in r.message and r.levelname == "ERROR"
+        for r in caplog.records
+    )
+
+
+@pytest.mark.spec("OX-08-001")
+def test_handle_outbox_item_refuses_a_to_that_names_nobody():
+    """``to`` present but unusable (``[""]``) is refused like an absent one.
+
+    Refusing here keeps the row from being silently consumed: before, it passed
+    the non-empty-list check and was dropped at DEBUG.
+    """
+    from vultron.errors import VultronOutboxToFieldMissingError
+
+    sealed = _sealed(
+        "urn:test:act-nobody",
+        {"type": "Offer", "actor": SENDER, "to": [""], "object": {}},
+    )
+    mock_emitter = AsyncMock()
+    with pytest.raises(VultronOutboxToFieldMissingError):
+        _deliver(
+            "actor-abc", sealed.activity_id, _dl_with(sealed), mock_emitter
+        )
+    mock_emitter.emit.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
-# handle_outbox_item — Announce(as_CaseLedgerEntry) inline field preservation
+# What is sealed is what is delivered — the shapes the old re-read path lost
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("VM-08-003")
+@pytest.mark.spec("CM-17-002")
+def test_handle_outbox_item_keeps_the_case_stub_target_inline():
+    """An Invite's stub ``target`` reaches the emitter as the factory built it.
+
+    The old path read the activity record back, rehydrated ``target`` into
+    the full stored case and then collapsed it to a bare URI — so the stub
+    with the embargo enrichment CM-17-002 requires never reached the wire.
+    """
+    case_id = "https://example.org/cases/case-123"
+    stub = {"id": case_id, "type": "VulnerabilityCase", "activeEmbargo": {}}
+    sealed = _sealed(
+        "urn:uuid:act-invite-001",
+        {
+            "type": "Invite",
+            "actor": "https://example.org/actors/coordinator",
+            "to": [RECIPIENT],
+            "object": {"id": "urn:uuid:actor-alice", "type": "Person"},
+            "target": stub,
+        },
+    )
+    mock_emitter = AsyncMock()
+
+    _deliver(
+        "actor-coordinator", sealed.activity_id, _dl_with(sealed), mock_emitter
+    )
+
+    _, body, recipients = mock_emitter.emit.call_args[0]
+    assert json.loads(body)["target"] == stub
+    assert recipients == [RECIPIENT]
+
+
+@pytest.mark.spec("SYNC-02-004")
+@pytest.mark.spec("SYNC-13-004")
 def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
-    """Announce(as_CaseLedgerEntry) delivery keeps full inline log-entry fields."""
+    """Announce(as_CaseLedgerEntry) delivery keeps the full inline entry."""
     from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
     from vultron.core.models.case_ledger import HashChainLedgerRecord
     from vultron.wire.as2.factories import announce_log_entry_activity
-    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        as_CaseLedgerEntry as WireCaseLedgerEntry,
-    )
 
     recipient = "https://example.org/actors/participant"
     chain_entry = HashChainLedgerRecord(
@@ -307,28 +258,19 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
         actor="https://example.org/actors/case-actor",
         to=[recipient],
     )
-
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = activity
-    # Real hydrate is a no-op for an already-typed inline object; mimic that so
-    # the test observes the recovered typed entry rather than a MagicMock.
-    mock_dl.hydrate.side_effect = lambda obj: obj
+    sealed = SealedOutboundBody(
+        id_=sealed_body_id(activity.id_),
+        activity_id=activity.id_,
+        body=dump_outbound_body(activity),
+    )
     mock_emitter = AsyncMock()
 
-    asyncio.run(
-        oh.handle_outbox_item(
-            "actor-case", activity.id_, mock_dl, mock_emitter
-        )
-    )
+    _deliver("actor-case", activity.id_, _dl_with(sealed), mock_emitter)
 
-    mock_emitter.emit.assert_called_once()
-    emitted_activity, emitted_recipients = mock_emitter.emit.call_args[0]
-    assert emitted_recipients == [recipient]
-    # The outbound delivery now recovers the inline entry as a typed
-    # CaseLedgerEntry (SYNC-13-004) so serialize_as_any keeps its fields on the
-    # wire.  Assert against the typed object's attributes.
-    emitted_object = emitted_activity.object_
-    assert isinstance(emitted_object, WireCaseLedgerEntry)
-    assert emitted_object.case_id == entry.case_id
-    assert emitted_object.log_object_id == entry.log_object_id
-    assert emitted_object.event_type == entry.event_type
+    _, body, recipients = mock_emitter.emit.call_args[0]
+    assert recipients == [recipient]
+    emitted_object = json.loads(body)["object"]
+    assert emitted_object["type"] == "CaseLedgerEntry"
+    assert emitted_object["caseId"] == entry.case_id
+    assert emitted_object["logObjectId"] == entry.log_object_id
+    assert emitted_object["eventType"] == entry.event_type

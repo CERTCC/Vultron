@@ -201,7 +201,7 @@ def test_enumeration_ignores_classes_defined_outside_the_vocab_package() -> (
 
     before = vultron_context_terms()
 
-    class as_LeakProbe(as_VultronObject):  # noqa: N801
+    class as_LeakProbe(as_VultronObject):
         # Keeps the probe out of WIRE_TYPE_MAP too, not just enumeration (#3592).
         _wire_type_alias: ClassVar[bool] = True
         type_: Literal["LeakProbe"] = Field(

@@ -1,17 +1,20 @@
 import asyncio
+from datetime import UTC
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.errors import VultronProtocolViolationError
-from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.core.models.events import MessageSemantics, VultronEvent
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.use_case_result import HandlerResult
+from vultron.errors import VultronProtocolViolationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -19,10 +22,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
     """prepare_for_dispatch should return a VultronEvent from extract_event."""
+    import vultron.semantic_registry as registry_mod
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
-    import vultron.semantic_registry as registry_mod
 
     monkeypatch.setattr(
         registry_mod,
@@ -63,7 +66,7 @@ def test_handle_inbox_item_dispatches(monkeypatch):
     )
 
     mock_dispatcher = Mock()
-    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
     ih.handle_inbox_item(
         actor_id="https://example.org/actors/actor1",
@@ -80,46 +83,38 @@ def test_handle_inbox_item_dispatches(monkeypatch):
     )
 
 
-def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
-    """inbox_handler retries up to 3 errors then aborts, re-appending the item."""
+def test_inbox_handler_failing_item_dead_lettered_on_exhaustion(monkeypatch):
+    """An inbox item that always fails is dead-lettered after max_attempts.
+
+    Replaces the old abort-after-3-errors test: the new mechanism (IE-06-004)
+    tracks per-item attempts via the RetryStore.  When ``get_inbox_attempt_count``
+    returns ``max_attempts - 1``, the next failure is the last — the item is
+    dead-lettered and NOT re-appended to the queue.
+    """
     item_id = "https://example.org/activities/itm-001"
-    item = as_Activity(
-        id_=item_id,
-        type_="irrelevant",
-        actor="https://example.org/actors/test",
-        name="itm",
-    )
 
     mock_dl = MagicMock()
     mock_dl.read.return_value = None
-    # Inbox contains one item; after abort it should still be there
     _queue = [item_id]
     mock_dl.inbox_list.side_effect = lambda: list(_queue)
     mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
-    mock_dl.inbox_append.side_effect = lambda x: _queue.append(x)
-    # Prevent outbox_handler (called at end of inbox_handler) from looping
+    mock_dl.inbox_append.side_effect = _queue.append
     mock_dl.outbox_list.return_value = []
+    # Simulate attempt count at max_attempts - 1 so the next failure exhausts
+    # the budget and triggers dead-lettering instead of requeue.
+    mock_dl.get_inbox_attempt_count.return_value = 11  # default max = 12
 
-    monkeypatch.setattr(ih, "rehydrate", lambda x, dl=None: item)
-
-    def fail_and_requeue(
-        actor_id,
-        canonical_actor_id,
-        item_id,
-        item,
-        dl,
-        queue_dl,
-        dispatcher=None,
-    ):
-        queue_dl.inbox_append(item_id)
-        return False
-
-    monkeypatch.setattr(ih, "_process_inbox_item", fail_and_requeue)
+    monkeypatch.setattr(
+        ih,
+        "rehydrate",
+        lambda x, dl=None: (_ for _ in ()).throw(RuntimeError("always fails")),
+    )
 
     asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
 
-    # Item should have been re-appended after each error
-    assert item_id in _queue
+    # Item exhausted its budget: dead-lettered, not re-queued.
+    mock_dl.inbox_dead_letter_append.assert_called_once()
+    assert item_id not in _queue
 
 
 def test_inbox_handler_rehydrate_protocol_violation_does_not_propagate(
@@ -134,7 +129,7 @@ def test_inbox_handler_rehydrate_protocol_violation_does_not_propagate(
     _queue = [item_id]
     mock_dl.inbox_list.side_effect = lambda: list(_queue)
     mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
-    mock_dl.inbox_append.side_effect = lambda x: _queue.append(x)
+    mock_dl.inbox_append.side_effect = _queue.append
     mock_dl.outbox_list.return_value = []
 
     monkeypatch.setattr(
@@ -155,16 +150,28 @@ def test_inbox_handler_rehydrate_protocol_violation_does_not_propagate(
 
 def test_inbox_handler_rehydrate_transient_error_requeues_item(monkeypatch):
     """AC-2 (#3044): A generic exception from rehydrate() inside inbox_handler()
-    must not propagate — transient failure, item must be re-queued for retry.
+    must not propagate — transient failure, item must be re-queued for retry
+    (when below the attempt limit, IE-06-004).
+
+    The test uses separate lists for the active queue (what inbox_list sees)
+    and the retry buffer (what inbox_append writes to) so that a single
+    loop pass is enough to confirm requeue without an infinite loop.
     """
     item_id = "https://example.org/activities/transient-fail-001"
     mock_dl = MagicMock()
     mock_dl.read.return_value = None
-    _queue = [item_id]
-    mock_dl.inbox_list.side_effect = lambda: list(_queue)
-    mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
-    mock_dl.inbox_append.side_effect = lambda x: _queue.append(x)
+
+    # Active queue: only one item; after pop it is empty (ends the loop).
+    _active = [item_id]
+    # Retry buffer: collects requeued IDs without feeding the active loop.
+    _retried: list[str] = []
+
+    mock_dl.inbox_list.side_effect = lambda: list(_active)
+    mock_dl.inbox_pop.side_effect = lambda: _active.pop(0) if _active else None
+    mock_dl.inbox_append.side_effect = _retried.append
     mock_dl.outbox_list.return_value = []
+    # Attempt 0 → total 1 < max_attempts(12): item is requeued, not dead-lettered.
+    mock_dl.get_inbox_attempt_count.return_value = 0
 
     monkeypatch.setattr(
         ih,
@@ -176,15 +183,70 @@ def test_inbox_handler_rehydrate_transient_error_requeues_item(monkeypatch):
 
     asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
 
-    assert item_id in _queue, (
+    assert item_id in _retried, (
         "A transient rehydrate() failure must re-queue the item for retry"
-        " (#3044)"
+        " (#3044, IE-06-004)"
     )
+
+
+def _process_item_raising(
+    monkeypatch, item_id: str, exc: Exception, queue_dl: MagicMock
+) -> bool:
+    """Run ``_process_inbox_item`` with dispatch raising *exc*."""
+
+    def _raise(**_kwargs: Any) -> None:
+        raise exc
+
+    monkeypatch.setattr(ih, "_dispatch_or_defer_inbox_item", _raise)
+    return ih._process_inbox_item(
+        actor_id="actor-xyz",
+        canonical_actor_id="https://example.org/actors/actor-xyz",
+        item_id=item_id,
+        item=as_Activity(
+            id_=item_id,
+            type_="irrelevant",
+            actor="https://example.org/actors/test",
+        ),
+        dl=MagicMock(),
+        queue_dl=queue_dl,
+    )
+
+
+def test_process_inbox_item_protocol_violation_does_not_requeue(monkeypatch):
+    """#2865: VultronProtocolViolationError raised during dispatch is a
+    permanent failure — ``_process_inbox_item`` must not re-queue the item,
+    or every later ``inbox_handler()`` call retries it forever.
+    """
+    item_id = "https://example.org/activities/perm-dispatch-001"
+    queue_dl = MagicMock()
+    ok = _process_item_raising(
+        monkeypatch,
+        item_id,
+        VultronProtocolViolationError("perm dispatch failure"),
+        queue_dl,
+    )
+
+    assert ok is False
+    queue_dl.inbox_append.assert_not_called()
+
+
+def test_process_inbox_item_transient_error_requeues(monkeypatch):
+    """#2865: a non-protocol exception raised during dispatch is transient —
+    ``_process_inbox_item`` must still re-queue the item for retry.
+    """
+    item_id = "https://example.org/activities/transient-dispatch-001"
+    queue_dl = MagicMock()
+    ok = _process_item_raising(
+        monkeypatch, item_id, RuntimeError("transient failure"), queue_dl
+    )
+
+    assert ok is False
+    queue_dl.inbox_append.assert_called_once_with(item_id)
 
 
 def test_dispatch_uses_explicit_dispatcher(monkeypatch):
     """dispatch() should use the provided dispatcher, not the global."""
-    monkeypatch.setattr(ih, "_DISPATCHER", None)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", None)
     explicit_dispatcher = Mock()
     fake_event = cast(
         VultronEvent, SimpleNamespace(activity_id="x", semantic_type="y")
@@ -229,25 +291,25 @@ def test_make_dispatcher_add_participant_status_has_both_ports(monkeypatch):
     ih.make_dispatcher()
 
     sem = MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
-    assert (
-        sem in captured["port_factories"]
-    ), f"{sem} must have a port factory registered"
+    assert sem in captured["port_factories"], (
+        f"{sem} must have a port factory registered"
+    )
 
     factory = captured["port_factories"][sem]
     kwargs = factory(real_dl)
 
-    assert (
-        "sync_port" in kwargs
-    ), "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide sync_port"
-    assert isinstance(
-        kwargs["sync_port"], SyncActivityAdapter
-    ), "sync_port must be a SyncActivityAdapter instance, not None"
-    assert (
-        "trigger_activity" in kwargs
-    ), "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide trigger_activity"
-    assert isinstance(
-        kwargs["trigger_activity"], TriggerActivityAdapter
-    ), "trigger_activity must be a TriggerActivityAdapter instance, not None"
+    assert "sync_port" in kwargs, (
+        "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide sync_port"
+    )
+    assert isinstance(kwargs["sync_port"], SyncActivityAdapter), (
+        "sync_port must be a SyncActivityAdapter instance, not None"
+    )
+    assert "trigger_activity" in kwargs, (
+        "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide trigger_activity"
+    )
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter), (
+        "trigger_activity must be a TriggerActivityAdapter instance, not None"
+    )
 
 
 def test_make_dispatcher_overlapping_semantics_raises(monkeypatch):
@@ -258,9 +320,9 @@ def test_make_dispatcher_overlapping_semantics_raises(monkeypatch):
     """
     from vultron.core.models.events import MessageSemantics
 
-    # Inject an artificial overlap: put one sync-only semantic into the
+    # Inject an artificial overlap: put the submit-report semantic into the
     # trigger set as well.
-    overlapping = frozenset({MessageSemantics.ADD_NOTE_TO_CASE})
+    overlapping = frozenset({MessageSemantics.SUBMIT_REPORT})
     monkeypatch.setattr(ih, "_TRIGGER_ACTIVITY_PORT_SEMANTICS", overlapping)
 
     with pytest.raises(AssertionError, match="overlap"):
@@ -268,15 +330,15 @@ def test_make_dispatcher_overlapping_semantics_raises(monkeypatch):
 
 
 def test_make_dispatcher_does_not_mutate_global(monkeypatch):
-    """make_dispatcher() must not touch the module-level _DISPATCHER."""
+    """make_dispatcher() must not touch the module-level _DISPATCHER_SLOT."""
     sentinel = object()
-    monkeypatch.setattr(ih, "_DISPATCHER", sentinel)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", sentinel)
 
     result = ih.make_dispatcher()
 
-    assert ih._DISPATCHER is sentinel
+    assert ih._DISPATCHER_SLOT.value is sentinel
     assert result is not sentinel
-    monkeypatch.setattr(ih, "_DISPATCHER", None)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", None)
     fake_event = cast(
         VultronEvent, SimpleNamespace(activity_id="x", semantic_type="y")
     )
@@ -287,7 +349,7 @@ def test_make_dispatcher_does_not_mutate_global(monkeypatch):
 
 def test_init_dispatcher_sets_dispatcher(monkeypatch):
     mock_dispatcher = Mock()
-    monkeypatch.setattr(ih, "_DISPATCHER", None)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", None)
     monkeypatch.setattr(
         ih,
         "get_dispatcher",
@@ -295,7 +357,7 @@ def test_init_dispatcher_sets_dispatcher(monkeypatch):
     )
 
     ih.init_dispatcher()
-    assert ih._DISPATCHER is mock_dispatcher
+    assert ih._DISPATCHER_SLOT.value is mock_dispatcher
 
 
 def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
@@ -324,7 +386,7 @@ def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
         ih, "prepare_for_dispatch", lambda activity: fake_event
     )
     mock_dispatcher = Mock()
-    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
     result = ih._dispatch_or_defer_inbox_item(
         actor_id=actor_id,
@@ -340,7 +402,17 @@ def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
     mock_dispatcher.dispatch.assert_not_called()
 
 
-def test_inbox_handler_replays_deferred_items_after_case_announce(monkeypatch):
+@pytest.mark.parametrize(
+    ("verdict", "replays"),
+    [
+        (HandlerResult.applied(), True),
+        (HandlerResult.refused("not the case owner"), False),
+    ],
+)
+def test_inbox_handler_replays_deferred_items_after_case_announce(
+    monkeypatch: pytest.MonkeyPatch, verdict: HandlerResult, replays: bool
+) -> None:
+    """Held items replay only after a bootstrap whose verdict took effect."""
     actor_id = "https://example.org/actors/participant"
     case_id = "https://example.org/cases/case-replay"
     note_id = "https://example.org/activities/add-note-2"
@@ -385,17 +457,22 @@ def test_inbox_handler_replays_deferred_items_after_case_announce(monkeypatch):
 
     dispatched: list[str] = []
 
-    def fake_dispatch(event: VultronEvent, dl: SqliteDataLayer) -> None:
+    def fake_dispatch(
+        event: VultronEvent, dl: SqliteDataLayer
+    ) -> HandlerResult:
         dispatched.append(event.activity_id)
         if event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE:
+            # Stored either way, so only the verdict decides the replay.
             dl.save(as_VulnerabilityCase(id_=case_id, name="Replica"))
+            return verdict
+        return HandlerResult.applied()
 
     async def fake_outbox_handler(*_args: object, **_kwargs: object) -> None:
         return None
 
     mock_dispatcher = Mock()
     mock_dispatcher.dispatch.side_effect = fake_dispatch
-    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
     monkeypatch.setattr(ih, "prepare_for_dispatch", fake_prepare)
     monkeypatch.setattr(
         ih, "rehydrate", lambda item_id, dl=None: items[item_id]
@@ -404,8 +481,14 @@ def test_inbox_handler_replays_deferred_items_after_case_announce(monkeypatch):
 
     asyncio.run(ih.inbox_handler(actor_id, shared_dl, queue_dl))
 
-    assert dispatched == [announce_id, note_id]
-    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
+    pending = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
+    if replays:
+        assert dispatched == [announce_id, note_id]
+        assert pending is None
+    else:
+        assert dispatched == [announce_id]
+        assert isinstance(pending, VultronPendingCaseInbox)
+        assert pending.activity_ids == [note_id]
 
 
 # ---------------------------------------------------------------------------
@@ -443,7 +526,7 @@ def test_pre_bootstrap_activity_queued_not_dispatched(monkeypatch):
         ih, "prepare_for_dispatch", lambda activity: fake_event
     )
     mock_dispatcher = Mock()
-    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
     result = ih._dispatch_or_defer_inbox_item(
         actor_id=actor_id,
@@ -452,9 +535,9 @@ def test_pre_bootstrap_activity_queued_not_dispatched(monkeypatch):
         queue_dl=queue_dl,
     )
 
-    assert (
-        result is None
-    ), "Pre-bootstrap activity should be deferred, not dispatched"
+    assert result is None, (
+        "Pre-bootstrap activity should be deferred, not dispatched"
+    )
     mock_dispatcher.dispatch.assert_not_called()
 
     pending = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
@@ -469,7 +552,7 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     Covers CBT-05-003 (second bullet): expire safely.
     """
     import logging
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     actor_id = "https://example.org/actors/reporter"
     case_id = "https://example.org/cases/cbt-ac6"
@@ -481,7 +564,7 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     queue_dl = shared_dl.clone_for_actor(actor_id)
 
     # Create a pending queue entry that is already "old" (queued 10 minutes ago)
-    old_time = datetime.now(timezone.utc) - timedelta(minutes=10)
+    old_time = datetime.now(UTC) - timedelta(minutes=10)
     pending = VultronPendingCaseInbox(
         case_id=case_id,
         activity_ids=[activity_id],
@@ -513,8 +596,8 @@ def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
     When ``actor_dl`` is passed as a separate actor-scoped instance (distinct
     from the shared ``dl``), queue operations (``inbox_list``, ``inbox_pop``)
     must use ``actor_dl`` while rehydration and dispatch must receive the
-    shared ``dl`` (ARCH-13-003; ARCH-13-004 was retired by DL-07-001, which
-    removed the second identity it required to agree with the first).
+    shared ``dl`` (ARCH-13-003; DL-07-001 removed the second identity, so
+    there is no mismatch to test).
     """
     actor_id = "https://example.org/actors/participant"
     activity_id = "https://example.org/activities/act-dual-dl"
@@ -554,7 +637,7 @@ def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
     )
 
     mock_dispatcher = Mock()
-    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
     async def fake_outbox_handler(*args, **kwargs):
         return None
@@ -571,16 +654,16 @@ def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
 
     # Rehydration must have received the shared dl
     assert len(rehydrate_dl_args) == 1
-    assert (
-        rehydrate_dl_args[0] is shared_dl
-    ), "rehydrate must be called with shared dl, not actor_dl"
+    assert rehydrate_dl_args[0] is shared_dl, (
+        "rehydrate must be called with shared dl, not actor_dl"
+    )
 
     # Dispatch must have been called with the shared dl
     mock_dispatcher.dispatch.assert_called_once()
     _, dispatch_dl = mock_dispatcher.dispatch.call_args.args
-    assert (
-        dispatch_dl is shared_dl
-    ), "dispatch must be called with shared dl, not actor_dl"
+    assert dispatch_dl is shared_dl, (
+        "dispatch must be called with shared dl, not actor_dl"
+    )
 
 
 def test_inbox_port_factories_has_no_demo_import():
@@ -616,9 +699,9 @@ def test_resolve_actor_config_delegates_to_load_actor_config(monkeypatch):
     The production adapter must not import SeedConfig; instead it delegates
     to load_actor_config() from vultron.config.
     """
-    from vultron.config.actor import ActorConfig
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     import vultron.config.app as app_mod
+    from vultron.config.actor import ActorConfig
 
     called = []
 
@@ -636,16 +719,18 @@ def test_resolve_actor_config_delegates_to_load_actor_config(monkeypatch):
     assert result.auto_create_case is False
 
 
-def test_submit_report_port_factory_injects_actor_config(monkeypatch):
-    """_submit_report_port_factory returns actor_config from load_actor_config.
+def test_trigger_activity_with_actor_config_port_factory_injects_actor_config(
+    monkeypatch,
+):
+    """_trigger_activity_with_actor_config_port_factory returns actor_config from load_actor_config.
 
     When load_actor_config() is available, the factory must include an
     ``actor_config`` key so that ``SubmitReportReceivedUseCase`` can
     honour the local actor's ``auto_create_case`` policy (CM-15-001,
     issue #1319).
     """
-    from vultron.config.actor import ActorConfig
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.config.actor import ActorConfig
 
     fake_actor_config = ActorConfig(auto_create_case=False)
     monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake_actor_config)
@@ -654,22 +739,23 @@ def test_submit_report_port_factory_injects_actor_config(monkeypatch):
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    kwargs = pf._submit_report_port_factory(real_dl)
+    kwargs = pf._trigger_activity_with_actor_config_port_factory(real_dl)
 
     assert "actor_config" in kwargs, "factory must include actor_config"
     assert isinstance(kwargs["actor_config"], ActorConfig)
     assert kwargs["actor_config"].auto_create_case is False
-    assert "sync_port" in kwargs
-    assert "trigger_activity" in kwargs
+    # The sync and wire-render ports come only from the received baseline
+    # (with_received_baseline_ports, #4113), never from this factory.
+    assert set(kwargs) == {"actor_config", "trigger_activity"}
 
 
-def test_submit_report_port_factory_omits_actor_config_when_unavailable(
+def test_trigger_activity_with_actor_config_port_factory_omits_actor_config_when_unavailable(
     monkeypatch,
 ):
-    """_submit_report_port_factory omits actor_config when SeedConfig fails.
+    """_trigger_activity_with_actor_config_port_factory omits actor_config when SeedConfig fails.
 
     When SeedConfig cannot be loaded (e.g. env vars absent), the factory
-    must still return sync_port + trigger_activity and must NOT include an
+    must still return trigger_activity and must NOT include an
     ``actor_config`` key — so the use case falls back to always-create (CM-15-001).
     """
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
@@ -680,20 +766,19 @@ def test_submit_report_port_factory_omits_actor_config_when_unavailable(
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    kwargs = pf._submit_report_port_factory(real_dl)
+    kwargs = pf._trigger_activity_with_actor_config_port_factory(real_dl)
 
-    assert "actor_config" not in kwargs
-    assert "sync_port" in kwargs
-    assert "trigger_activity" in kwargs
+    assert set(kwargs) == {"trigger_activity"}
 
 
 def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
-    """make_dispatcher() must register _submit_report_port_factory for SUBMIT_REPORT.
+    """make_dispatcher() must register _trigger_activity_with_actor_config_port_factory for SUBMIT_REPORT.
 
-    SUBMIT_REPORT was moved out of _SYNC_AND_TRIGGER_PORT_SEMANTICS to
-    _SUBMIT_REPORT_SEMANTICS (issue #1319), so it must be wired to the
-    factory that also injects actor_config.
+    SUBMIT_REPORT has its own set, _SUBMIT_REPORT_SEMANTICS (issue #1319), so
+    it is wired to the factory that also injects actor_config.  The sync port
+    comes from the received baseline every semantic gets (#4113).
     """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
@@ -701,7 +786,6 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
         TriggerActivityAdapter,
     )
     from vultron.config.actor import ActorConfig
-    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     captured: dict = {}
 
@@ -719,9 +803,9 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
     ih.make_dispatcher()
 
     sem = MessageSemantics.SUBMIT_REPORT
-    assert (
-        sem in captured["port_factories"]
-    ), "SUBMIT_REPORT must have a factory"
+    assert sem in captured["port_factories"], (
+        "SUBMIT_REPORT must have a factory"
+    )
 
     real_dl = SqliteDataLayer(
         "sqlite:///:memory:",
@@ -736,11 +820,11 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
 
 
 def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
-    """make_dispatcher() must wire CLOSE_CASE to a factory supplying all three ports.
+    """make_dispatcher() must give CLOSE_CASE all three ports.
 
-    CLOSE_CASE was moved out of ``_SYNC_AND_TRIGGER_PORT_SEMANTICS`` into
-    ``_CLOSE_CASE_SEMANTICS`` so it also receives a ``WireRenderPort``.  Without
-    that port, ``CommitCaseActorRMClosedEntryNode`` cannot render the
+    The trigger port comes from ``_TRIGGER_ACTIVITY_PORT_SEMANTICS``; the sync
+    and wire-render ports come from the received baseline (#4113).  Without
+    the ``WireRenderPort``, ``CommitCaseActorRMClosedEntryNode`` cannot render the
     CASE_MANAGER's own ``RM.CLOSED`` snapshot and hard-fails, which would abort
     the owner-Leave path before ``case_fully_closed`` is committed.  This guards
     the wiring rather than the node, because a lost registration is silent at
@@ -778,26 +862,148 @@ def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
     assert isinstance(kwargs.get("wire_render_port"), As2WireRenderAdapter)
 
 
-def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
-    """_case_proposal_port_factory returns actor_config and both ports.
+@pytest.mark.spec("CM-31-009")
+@pytest.mark.parametrize(
+    "sem",
+    [
+        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+    ],
+)
+def test_make_dispatcher_gives_embargo_ending_paths_the_trigger_port(
+    monkeypatch, sem
+):
+    """Every received path that ends or replaces an embargo can send notices.
 
-    ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
-    CaseActor grants the proposing actor its real roles alongside CASE_OWNER
-    (CFG-07-002, CFG-07-004), ``wire_render_port`` so ledger entries are
-    rendered via the wire adapter (issue #2287), ``trigger_activity`` so the
-    admission decline path can emit Reject(as_CaseProposal) (CP-05-004), and
-    ``call_out`` as the admission-policy injection point (CP-05-002).
+    The CASE_MANAGER's direct notices to the bound signatories the ledger no
+    longer reaches are built through the trigger port (CM-31-009); a missing
+    port would fail the tree after the EM write.
     """
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    kwargs = captured["port_factories"][sem](real_dl)
+
+    assert isinstance(kwargs.get("trigger_activity"), TriggerActivityAdapter)
+
+
+@pytest.mark.spec("ARCH-20-001")
+@pytest.mark.spec("ARCH-20-004")
+def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
+    """Every received use case is constructed with a ``WireRenderPort``.
+
+    Every received tree ends in a guarded ledger commit, and its payload
+    snapshot is an AS2 rendering core cannot produce itself (CLP-07-009).  So a
+    semantic with no other port still needs this one, and the use case must
+    accept it: the dispatcher calls ``use_case_class(dl, event, **kwargs)``.
+    """
+    import inspect
+
     from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+    from vultron.semantic_registry import use_case_map
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        ih.inbox_port_factories, "_resolve_actor_config", lambda: None
+    )
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    for sem, use_case in use_case_map().items():
+        factory = captured["port_factories"].get(sem)
+        assert factory is not None, f"{sem.name} has no port factory"
+        assert isinstance(
+            factory(real_dl).get("wire_render_port"), As2WireRenderAdapter
+        ), f"{sem.name} is dispatched without a WireRenderPort"
+        assert "wire_render_port" in inspect.signature(use_case).parameters, (
+            f"{use_case.__name__} does not accept wire_render_port"
+        )
+
+
+@pytest.mark.spec("SYNC-02-003")
+def test_make_dispatcher_gives_every_semantic_a_sync_port(monkeypatch):
+    """Every received use case is constructed with a ``SyncActivityPort``.
+
+    Every received tree that names a case commits a ledger entry, and the
+    CASE_MANAGER announces each entry to the participants through this port
+    (SYNC-02-003).  A semantic left off a hand-kept list committed without
+    fan-out: ``OFFER_ACTOR_TO_CASE``, ``VALIDATE_REPORT`` and
+    ``REJECT_INVITE_ACTOR_TO_CASE`` did, and the ``fcv-reject`` demo's ledger
+    coverage gate timed out on the gap (#4113).
+    """
+    from vultron.semantic_registry import use_case_map
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        ih.inbox_port_factories, "_resolve_actor_config", lambda: None
+    )
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    # That each use case accepts the port is the architecture ratchet's job
+    # (test_received_use_cases_fan_out_commits.py); this pins the supply.
+    for sem in use_case_map():
+        factory = captured["port_factories"].get(sem)
+        assert factory is not None, f"{sem.name} has no port factory"
+        assert isinstance(
+            factory(real_dl).get("sync_port"), SyncActivityAdapter
+        ), f"{sem.name} is dispatched without a SyncActivityPort"
+
+
+def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
+    """_case_proposal_port_factory returns actor_config, its port and call-out.
+
+    ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
+    CaseActor grants the proposing actor its real roles alongside CASE_OWNER
+    (CFG-07-002, CFG-07-004), ``trigger_activity`` so the admission decline
+    path can emit Reject(as_CaseProposal) (CP-05-004), and ``call_out`` as the
+    admission-policy injection point (CP-05-002).  ``wire_render_port`` and
+    ``sync_port`` come only from the received baseline (#4113), so this
+    factory must not name them.
+    """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
     from vultron.config.actor import ActorConfig
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
         CASE_PROPOSAL_DETERMINISTIC,
     )
     from vultron.enums.roles import CVDRole
-    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     fake = ActorConfig(default_case_roles=[CVDRole.COORDINATOR])
     monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake)
@@ -810,35 +1016,27 @@ def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
     )
 
     assert kwargs["actor_config"] == fake
-    assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
     assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
     assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
-    assert set(kwargs) == {
-        "actor_config",
-        "wire_render_port",
-        "trigger_activity",
-        "call_out",
-    }
+    assert set(kwargs) == {"actor_config", "trigger_activity", "call_out"}
 
 
 def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     monkeypatch,
 ):
-    """The factory drops actor_config, keeping the ports, when config load fails.
+    """The factory drops actor_config, keeping the port, when config load fails.
 
-    The owner gets CASE_OWNER only (no inherited role guess) but ledger
-    entries are still rendered via the wire adapter (issue #2287), and the
-    decline path can still emit Reject(as_CaseProposal) (CP-05-004) under the
-    default admission policy.
+    The owner gets CASE_OWNER only (no inherited role guess), and the decline
+    path can still emit Reject(as_CaseProposal) (CP-05-004) under the default
+    admission policy.
     """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
         CASE_PROPOSAL_DETERMINISTIC,
     )
-    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     monkeypatch.setattr(pf, "_resolve_actor_config", lambda: None)
 
@@ -849,22 +1047,17 @@ def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
         )
     )
 
-    assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
     assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
     assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
-    assert set(kwargs) == {
-        "wire_render_port",
-        "trigger_activity",
-        "call_out",
-    }
+    assert set(kwargs) == {"trigger_activity", "call_out"}
 
 
 def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
     """make_dispatcher() must wire _case_proposal_port_factory for
     CREATE_CASE_PROPOSAL so the CaseActor sees ``default_case_roles``."""
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     from vultron.config.actor import ActorConfig
     from vultron.enums.roles import CVDRole
-    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     captured: dict = {}
 
@@ -882,9 +1075,9 @@ def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
     ih.make_dispatcher()
 
     sem = MessageSemantics.CREATE_CASE_PROPOSAL
-    assert (
-        sem in captured["port_factories"]
-    ), "CREATE_CASE_PROPOSAL must have a factory"
+    assert sem in captured["port_factories"], (
+        "CREATE_CASE_PROPOSAL must have a factory"
+    )
     kwargs = captured["port_factories"][sem](
         SqliteDataLayer(
             "sqlite:///:memory:",
@@ -894,6 +1087,50 @@ def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
     actor_config = kwargs.get("actor_config")
     assert isinstance(actor_config, ActorConfig)
     assert actor_config.default_case_roles == [CVDRole.COORDINATOR]
+
+
+@pytest.mark.parametrize(
+    "sem",
+    [
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+    ],
+)
+def test_make_dispatcher_embargo_invite_gets_actor_config(monkeypatch, sem):
+    """The two embargo-invite semantics get the trigger port and ActorConfig.
+
+    The CASE_MANAGER stamps each relayed Invite, and the EMB-17-003 re-invite,
+    with an RSVP deadline drawn from its configured windows (CM-28-012,
+    EP-07-002), so a lost registration would silently fall back to defaults.
+    """
+    from datetime import timedelta
+
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.config.actor import ActorConfig
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    fake = ActorConfig(default_rsvp_window=timedelta(days=10))
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake)
+
+    ih.make_dispatcher()
+
+    kwargs = captured["port_factories"][sem](
+        SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+    )
+    assert kwargs["actor_config"] is fake
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
 
 
 def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
@@ -907,13 +1144,13 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     as_VulnerabilityCase and must leave the actor's outbox empty (CM-15-001,
     issue #1319).
     """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
     from vultron.config.actor import ActorConfig
     from vultron.core.models.activity import VultronActivity
-    from vultron.core.models.case_actor import VultronCaseActor
+    from vultron.core.models.case_actor import CaseActor
     from vultron.core.models.events.report import SubmitReportReceivedEvent
-    from vultron.core.models.report import VultronReport
-    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.core.models.report import VulnerabilityReport
 
     VENDOR_ID = "https://example.org/actors/vendor-ac2"
     FINDER_ID = "https://example.org/users/finder-ac2"
@@ -935,9 +1172,9 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    dl.save(VultronCaseActor(id_=VENDOR_ID))
+    dl.save(CaseActor(id_=VENDOR_ID))
 
-    report = VultronReport(id_=REPORT_ID)
+    report = VulnerabilityReport(id_=REPORT_ID)
     activity = VultronActivity(
         id_=OFFER_ID,
         type_="Offer",
@@ -960,13 +1197,13 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     offer_ids = [row.get("id_") for row in dl.get_all("Offer")]
     assert OFFER_ID in offer_ids, "Offer activity must be stored"
     # No case created.
-    assert (
-        dl.get_all("VulnerabilityCase") == []
-    ), "No as_VulnerabilityCase should be created when auto_create_case=False"
+    assert dl.get_all("VulnerabilityCase") == [], (
+        "No as_VulnerabilityCase should be created when auto_create_case=False"
+    )
     # Outbox must remain empty.
-    assert (
-        dl.outbox_list() == []
-    ), "Outbox must be empty when auto_create_case=False"
+    assert dl.outbox_list() == [], (
+        "Outbox must be empty when auto_create_case=False"
+    )
 
 
 def test_pending_case_queue_expiry_emits_question(monkeypatch):
@@ -974,7 +1211,7 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
 
     Covers CBT-05-003 (third bullet): generate a replay request.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     actor_id = "https://example.org/actors/reporter"
     case_id = "https://example.org/cases/cbt-ac7"
@@ -986,7 +1223,7 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
     )
     queue_dl = shared_dl.clone_for_actor(actor_id)
 
-    old_time = datetime.now(timezone.utc) - timedelta(minutes=10)
+    old_time = datetime.now(UTC) - timedelta(minutes=10)
     pending = VultronPendingCaseInbox(
         case_id=case_id,
         activity_ids=[activity_id],
@@ -1006,9 +1243,9 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
     assert expired is True
 
     outbox = queue_dl.outbox_list()
-    assert (
-        len(outbox) == 1
-    ), "One Question should have been queued in the outbox"
+    assert len(outbox) == 1, (
+        "One Question should have been queued in the outbox"
+    )
 
     question_id = outbox[0]
     from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
@@ -1019,4 +1256,41 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
     assert isinstance(question, as_Question)
     assert question.context == case_id
     assert question.actor == actor_id
-    assert question.to == case_actor_id
+    assert question.to == [case_actor_id]
+
+
+@pytest.mark.spec("EP-07-001")
+def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
+    """The local actor's default RSVP window reaches extraction (#3737)."""
+    from datetime import datetime, timedelta
+
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.config.actor import ActorConfig
+    from vultron.core.models.events.embargo import (
+        InviteToEmbargoOnCaseReceivedEvent,
+    )
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Invite,
+    )
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    monkeypatch.setattr(
+        pf,
+        "_resolve_actor_config",
+        lambda: ActorConfig(default_rsvp_window=timedelta(days=14)),
+    )
+    published = datetime.now(tz=UTC)
+    case_id = "https://example.org/cases/rsvp"
+    invite = as_Invite(
+        object_=as_EmbargoEvent(
+            context=case_id, end_time=published + timedelta(days=90)
+        ),
+        context=as_VulnerabilityCase(id_=case_id),
+        actor="https://example.org/alice",
+        published=published,
+    )
+
+    event = ih.prepare_for_dispatch(invite)
+
+    assert isinstance(event, InviteToEmbargoOnCaseReceivedEvent)
+    assert event.rsvp_deadline == published + timedelta(days=14)

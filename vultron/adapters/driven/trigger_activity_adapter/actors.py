@@ -19,15 +19,23 @@ Covers actor invitations, recommendations, participant management, and
 Case Actor / CASE_MANAGER delegation activities.
 """
 
+import json
 import logging
+from collections.abc import Callable
+from datetime import datetime
 from typing import Any, cast
 
+from pydantic import BaseModel, ValidationError
+
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.models._helpers import _as_id
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.use_cases._helpers import read_received_activity
+from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronAlreadyExistsError,
     VultronNotFoundError,
@@ -41,24 +49,97 @@ from vultron.wire.as2.factories import (
     offer_case_participant_activity,
     recommend_actor_activity,
     reject_actor_recommendation_activity,
+    remove_participant_from_case_activity,
+    rm_accept_full_case_invite_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
+    rm_invite_to_full_case_activity,
+    rm_reject_full_case_invite_activity,
+    rm_tentative_reject_full_case_invite_activity,
 )
-from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories.case import (
-    accept_case_participant_role_activity,
     accept_case_ownership_transfer_activity,
+    accept_case_participant_role_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
+    validate_held_case_invite,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Invite,
+    as_Offer,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
-from ._base import _DUMP_KWARGS, _case_for_wire, _to_wire
+from ._base import _case_for_wire, _seal, _to_wire
 
 logger = logging.getLogger(__name__)
+
+
+def _active_embargo_of(
+    dl: CaseOutboxPersistence, case: VulnerabilityCase
+) -> Any:
+    """The case's active embargo as an object, whichever shape the field holds.
+
+    ``active_embargo`` is id-or-object: a case seeded from a sealed Announce
+    carries the ``EmbargoEvent`` inline (it is in the case's
+    ``inline_required_refs``), a locally built one holds the id.  Only the id
+    needs a store read.
+    """
+    active_embargo = case.active_embargo
+    if isinstance(active_embargo, str):
+        return dl.read(active_embargo)
+    return active_embargo
+
+
+def _stored_case_invite(
+    dl: CaseOutboxPersistence, invite_id: str
+) -> as_Invite:
+    """Read the received Invite as this invitee holds it, stub and all.
+
+    The Invite is read with ``read_received_activity``: archived by intake, or
+    held by the inbox while it waits for the case bootstrap.  The reply
+    factory checks that it is a case Invite.  The Accept or Reject embeds the
+    Invite as received, so its ``target`` stays the case stub
+    (VAM-04-005, VAM-04-006): the CASE_MANAGER reads the case from the stub's
+    ``caseId`` (CM-11-003), and the stub's ``type`` is what tells the reply
+    apart from a reply to a full-case Invite (CM-11-013).
+
+    The held record is validated into ``as_Invite`` here, at the adapter
+    edge (ADR-0032): intake archives the activity as the event carried it,
+    a core activity the wire factories cannot name (ARCH-22-001).
+
+    Raises:
+        VultronNotFoundError: when no activity with *invite_id* was received.
+        VultronValidationError: when the stored record is not a model, or it
+            does not validate as an Invite (a stub without ``caseId`` included).
+    """
+    held = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
+    if not isinstance(held, BaseModel):
+        raise VultronValidationError(
+            f"invite '{invite_id}' is held as {type(held).__name__},"
+            " not as an activity model"
+        )
+    # The protocol's ``model_copy`` returns the protocol; read it as the model.
+    invite = cast(BaseModel, held)
+    if isinstance(invite, as_Invite):
+        return invite
+    data = json.loads(
+        invite.model_dump_json(by_alias=True, serialize_as_any=True)
+    )
+    try:
+        validated = validate_held_case_invite(data)
+    except ValidationError as exc:
+        raise VultronValidationError(
+            f"invite '{invite_id}' does not validate as an Invite"
+        ) from exc
+    return validated
 
 
 class _ActorsMixin:
@@ -74,17 +155,19 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-        cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor, Case)`` activity.
+        """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
-        ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
-        MAY carry the case owner's ID for attribution.  ``cc`` MAY carry the
-        Case Actor's own ID for self-archival (CLP-10-001).
+        ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
+        MAY carry the case owner's ID for attribution.  The Invite carries no
+        ``cc`` (CM-17-006, ADR-0109).
 
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``as_VulnerabilityCase`` (projected to an enriched
@@ -94,12 +177,16 @@ class _ActorsMixin:
         CM-17-002 enrichment.
         """
         extra: dict[str, Any] = {"actor": actor, "to": to}
-        if cc is not None:
-            extra["cc"] = cc
         if id_ is not None:
             extra["id_"] = id_
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
+        if rsvp_deadline is not None:
+            extra["end_time"] = rsvp_deadline
+        if published is not None:
+            extra["published"] = published
+        if in_reply_to is not None:
+            extra["in_reply_to"] = in_reply_to
 
         # Read case and embargo from DataLayer; factory handles projection.
         resolved: Any = target
@@ -108,11 +195,11 @@ class _ActorsMixin:
             if not isinstance(resolved, VulnerabilityCase):
                 resolved = case_id
 
-        embargo_obj = None
-        if isinstance(resolved, VulnerabilityCase):
-            active_embargo_uri = getattr(resolved, "active_embargo", None)
-            if active_embargo_uri:
-                embargo_obj = self._dl.read(active_embargo_uri)
+        embargo_obj = (
+            _active_embargo_of(self._dl, resolved)
+            if isinstance(resolved, VulnerabilityCase)
+            else None
+        )
 
         activity = rm_invite_to_case_activity(
             invitee=invitee_id,
@@ -129,7 +216,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_case_invite(
         self,
@@ -145,7 +232,7 @@ class _ActorsMixin:
         hydrated AS2 object; a ``VultronValidationError`` is raised if the
         invite carries no routable actor reference.
         """
-        invite = cast(Any, self._dl.read(invite_id))
+        invite = _stored_case_invite(self._dl, invite_id)
         invite_actor_id = _as_id(getattr(invite, "actor", None))
         if not invite_actor_id:
             raise VultronValidationError(
@@ -162,7 +249,7 @@ class _ActorsMixin:
                 "accept_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def reject_case_invite(
         self,
@@ -176,7 +263,7 @@ class _ActorsMixin:
         outbox handler.  Mirrors ``accept_case_invite`` but uses
         ``rm_reject_invite_to_case_activity``.
         """
-        invite = cast(Any, self._dl.read(invite_id))
+        invite = _stored_case_invite(self._dl, invite_id)
         invite_actor_id = _as_id(getattr(invite, "actor", None))
         if not invite_actor_id:
             raise VultronValidationError(
@@ -193,7 +280,125 @@ class _ActorsMixin:
                 "reject_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
+
+    def invite_actor_to_full_case(
+        self,
+        invitee_id: str,
+        case_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the full-case ``Invite(Actor)[target=Case]``."""
+        extra: dict[str, Any] = {"actor": actor, "to": to}
+        if id_ is not None:
+            extra["id_"] = id_
+        activity = rm_invite_to_full_case_activity(
+            invitee=invitee_id,
+            case=case_id,
+            ledger_tail=LedgerPosition(
+                log_index=ledger_log_index, entry_hash=ledger_entry_hash
+            ),
+            **extra,
+        )
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "invite_actor_to_full_case: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return _seal(self._dl, activity)
+
+    def _full_case_reply(
+        self,
+        builder: Callable[..., Any],
+        label: str,
+        invite_id: str,
+        actor: str,
+        position: LedgerPosition,
+    ) -> tuple[str, str]:
+        """Persist the reply *builder* makes to the stored full-case Invite."""
+        invite = _stored_case_invite(self._dl, invite_id)
+        invite_actor_id = _as_id(getattr(invite, "actor", None))
+        if not invite_actor_id:
+            raise VultronValidationError(
+                f"{label}: invite '{invite_id}' has no routable actor field;"
+                " cannot derive the reply's recipient"
+            )
+        activity = builder(
+            invite=invite,
+            ledger_tail=position,
+            actor=actor,
+            to=[invite_actor_id],
+        )
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "%s: activity '%s' already exists — skipping",
+                label,
+                activity.id_,
+            )
+        return _seal(self._dl, activity)
+
+    def accept_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``Accept(full-case Invite)`` — RV."""
+        return self._full_case_reply(
+            rm_accept_full_case_invite_activity,
+            "accept_full_case_invite",
+            invite_id,
+            actor,
+            LedgerPosition(
+                log_index=ledger_log_index, entry_hash=ledger_entry_hash
+            ),
+        )
+
+    def tentative_reject_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``TentativeReject(full-case Invite)`` — RI."""
+        return self._full_case_reply(
+            rm_tentative_reject_full_case_invite_activity,
+            "tentative_reject_full_case_invite",
+            invite_id,
+            actor,
+            LedgerPosition(
+                log_index=ledger_log_index, entry_hash=ledger_entry_hash
+            ),
+        )
+
+    def reject_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``Reject(full-case Invite)`` — RC."""
+        return self._full_case_reply(
+            rm_reject_full_case_invite_activity,
+            "reject_full_case_invite",
+            invite_id,
+            actor,
+            LedgerPosition(
+                log_index=ledger_log_index, entry_hash=ledger_entry_hash
+            ),
+        )
 
     def accept_case_participant_offer(
         self,
@@ -208,15 +413,18 @@ class _ActorsMixin:
         The ``to:`` list should contain the CaseActor URI so the Accept routes
         back to CaseActor for processing.
         """
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (  # noqa: PLC0415
-            as_Offer,
-        )
-
         raw = self._dl.read(cp_offer_id)
         if raw is None:
             raise VultronNotFoundError("Offer(CaseParticipant)", cp_offer_id)
         cp_offer = cast(as_Offer, raw)
-        target = getattr(cp_offer, "target", None)
+        # Read-back rehydrates the offer's ``target`` into the full stored
+        # case; the Accept addresses the case by URI, as the Offer did on the
+        # wire (AKM-02-002, VM-08-003).
+        target = _as_id(getattr(cp_offer, "target", None))
+        if target is not None:
+            # The embedded Offer carries the same reconstruction one level
+            # down; it addressed the case by URI on the wire too.
+            cp_offer = cp_offer.model_copy(update={"target": target})
         activity = accept_case_participant_offer_activity(
             offer=cp_offer, actor=actor, to=to, target=target
         )
@@ -228,7 +436,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def suggest_actor_to_case(
         self,
@@ -258,7 +466,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def offer_actor_to_case(
         self,
@@ -304,7 +512,7 @@ class _ActorsMixin:
                 "offer_actor_to_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def emit_accept_actor_recommendation(
         self,
@@ -341,7 +549,7 @@ class _ActorsMixin:
                 " exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def emit_reject_actor_recommendation(
         self,
@@ -378,7 +586,7 @@ class _ActorsMixin:
                 " exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_actor_recommendation(
         self,
@@ -416,7 +624,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def add_participant_to_case(
         self,
@@ -424,13 +632,22 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
-        """Create and persist an ``Add(as_CaseParticipant, Case)`` activity."""
+        attributed_to: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Add(as_CaseParticipant, Case)`` activity.
+
+        The participant goes inline as the store holds it, removal fact
+        cleared.  Returns ``(activity_id, activity_blob)`` (CM-31-011).
+        """
         participant = _to_wire(
             self._dl.read(participant_id), as_CaseParticipant
         )
         activity = add_participant_to_case_activity(
-            participant=participant, target=case_id, actor=actor, to=to
+            participant=participant,
+            target=case_id,
+            actor=actor,
+            to=to,
+            attributed_to=attributed_to,
         )
         try:
             self._dl.create(activity)
@@ -440,7 +657,40 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return _seal(self._dl, activity)
+
+    def remove_participant_from_case(
+        self,
+        participant_id: str,
+        case_id: str,
+        actor: str,
+        attributed_to: str,
+        to: list[str],
+    ) -> tuple[str, str]:
+        """Create and persist the ``Remove(as_CaseParticipant, Case)`` notice.
+
+        The participant goes inline as the store holds it, removal fact
+        included.  Returns ``(activity_id, activity_blob)`` (CM-31-006).
+        """
+        participant = _to_wire(
+            self._dl.read(participant_id), as_CaseParticipant
+        )
+        activity = remove_participant_from_case_activity(
+            participant=participant,
+            target=case_id,
+            actor=actor,
+            attributed_to=attributed_to,
+            to=to,
+        )
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "remove_participant_from_case: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return _seal(self._dl, activity)
 
     def add_participant_status_to_participant(
         self,
@@ -477,7 +727,7 @@ class _ActorsMixin:
                 " exists — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return _seal(self._dl, activity)[0]
 
     def offer_case_participant_role(
         self,
@@ -494,8 +744,6 @@ class _ActorsMixin:
 
         Returns ``(activity_id, activity_dict)``.
         """
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
         case = _case_for_wire(self._dl, case_id)
         target = as_Actor(id_=target_actor_id)
         activity = offer_case_participant_role_activity(
@@ -513,7 +761,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_case_participant_role(
         self,
@@ -526,10 +774,6 @@ class _ActorsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Actor,
-        )  # noqa: PLC0415
-
         target = as_Actor(id_=target_actor_id)
         case = _case_for_wire(self._dl, case_id)
         offer = offer_case_participant_role_activity(
@@ -542,7 +786,6 @@ class _ActorsMixin:
         activity = accept_case_participant_role_activity(
             offer=offer, actor=actor, to=to
         )
-        activity_json = activity.model_dump_json(**_DUMP_KWARGS)
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:
@@ -551,7 +794,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity_json
+        return _seal(self._dl, activity)
 
     def reject_case_participant_role(
         self,
@@ -564,10 +807,6 @@ class _ActorsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Actor,
-        )  # noqa: PLC0415
-
         target = as_Actor(id_=target_actor_id)
         case = _case_for_wire(self._dl, case_id)
         offer = offer_case_participant_role_activity(
@@ -588,7 +827,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def offer_case_ownership_transfer(
         self,
@@ -627,7 +866,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def accept_case_ownership_transfer(
         self,
@@ -649,10 +888,6 @@ class _ActorsMixin:
         imports are allowed, so both delivery paths converge on the same Accept
         (#2225, ADR-0035 DL-06-002).
         """
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (  # noqa: PLC0415
-            as_Offer,
-        )
-
         raw = self._dl.read(offer_id)
         if raw is None:
             raise VultronNotFoundError("Offer(VulnerabilityCase)", offer_id)
@@ -674,7 +909,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+        return _seal(self._dl, activity)
 
     def _offer_from_core_record(
         self, record: "VultronOwnershipTransferOfferRecord"
@@ -688,10 +923,6 @@ class _ActorsMixin:
         replica (the SYNC path seeds it before the offer entry is applied), so
         read it and project it to its wire form.
         """
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: PLC0415
-            as_VulnerabilityCase,
-        )
-
         case = self._dl.read(record.case_id)
         if case is None:
             raise VultronNotFoundError("VulnerabilityCase", record.case_id)

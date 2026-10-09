@@ -20,15 +20,29 @@ boilerplate and ensures a single place to tune timeout/interval defaults.
 
 import logging
 import time
-from typing import Callable, Sequence
+from collections.abc import Callable, Sequence
 
 from vultron.adapters.utils import parse_id, strip_id_prefix
+from vultron.core.models.pending_case_inbox import (
+    VultronPendingCaseInbox,
+)
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import EmbargoConsentState
+from vultron.demo.helpers.verification import (
+    _all_fetchable_participants_rm_closed,
+    _fetch_participant,
+)
 from vultron.demo.utils import (
     CASE_ACTOR_SLUG,
     DataLayerClient,
+    case_actor_id_for_report,
+    case_references_report,
     demo_check,
     logfmt,
 )
+from vultron.enums.object_types import VultronObjectType
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -50,6 +64,25 @@ LATE_JOINER_TIMEOUT: float = 90.0
 LATE_JOINER_REPLICA_TIMEOUT: float = 30.0
 # 10 s: early participant's replica participant-index propagation budget.
 REPLICA_PARTICIPANT_TIMEOUT: float = 10.0
+# 30 s: contiguous ledger-coverage budget for a replica that has been receiving
+# Announce(CaseLedgerEntry) as each entry was committed. 15 s fired at 0/29
+# entries under CI load (#1911, #2337).
+LEDGER_COVERAGE_TIMEOUT: float = 30.0
+# 45 s: contiguous ledger-coverage budget for a late joiner, which catches up
+# from genesis through the CM-17-004 backfill — one Announce per prior entry.
+LATE_JOINER_COVERAGE_TIMEOUT: float = 45.0
+
+
+def _client_in(
+    client: DataLayerClient, clients: "Sequence[DataLayerClient]"
+) -> bool:
+    """Identity-based membership: is *client* one of *clients*?
+
+    Demo clients are plain objects with no equality of their own, and two
+    clients for the same container are still two clients, so membership in a
+    late-joiner or covered-replica list is decided by identity, not equality.
+    """
+    return any(client is candidate for candidate in clients)
 
 
 # ---------------------------------------------------------------------------
@@ -83,17 +116,22 @@ def _poll_until(
             bare timeout sends the reader looking for a slow protocol instead of
             a broken read.
     """
+    # The condition is always tried at least once, even with no time left: a
+    # wait handed the tail of a shared budget (SharedBudget) must still succeed
+    # when its effect has already landed, and fail only when it has not.
     deadline = time.monotonic() + timeout_seconds
     last_exc: Exception | None = None
-    while time.monotonic() < deadline:
+    while True:
         try:
             if condition_fn():
                 return
             last_exc = None
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if not swallow_exceptions:
                 raise
             last_exc = exc
+        if time.monotonic() >= deadline:
+            break
         time.sleep(poll_interval)
 
     if last_exc is not None:
@@ -174,6 +212,7 @@ def wait_for_case_participants(
     # 15 s: conservative cross-container delivery budget (temporal per EDF-06-006).
     timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
     poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
 ) -> None:
     """Poll until the case on *vendor_client* reflects all *expected_actor_ids*.
 
@@ -189,6 +228,9 @@ def wait_for_case_participants(
             participants before the gate passes.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Read this actor's store on the container instead of
+            the client's own — typically a self-hosted CaseActor, the only
+            store that holds an invitee that never joined (CM-11-006).
 
     Raises:
         AssertionError: If any expected actor is absent after *timeout_seconds*.
@@ -197,7 +239,9 @@ def wait_for_case_participants(
     """
 
     def _check() -> bool:
-        case_data = vendor_client.get(vendor_client.dl_path(case_id))
+        case_data = vendor_client.get(
+            vendor_client.dl_path(case_id, actor_id=dl_actor_id)
+        )
         case = as_VulnerabilityCase(**case_data)
         return expected_actor_ids.issubset(case.actor_participant_index.keys())
 
@@ -248,8 +292,9 @@ def wait_for_participants_on_replicas(
     (DEMOCI-01-003/004).  Wrapping here, in the shared helper, means all seven
     scenario callers inherit the fix (DRY) and one replica's timeout no longer
     hides another's: the failure is recorded and the loop continues to the next
-    replica rather than propagating.  This mirrors :func:`drain_phase1_ledger`,
-    which wraps its per-replica coverage poll internally (#2819, #3384).
+    replica rather than propagating.  This mirrors
+    :func:`vultron.demo.helpers.sync.wait_for_replica_ledger_coverage`, which
+    wraps its per-replica coverage poll internally (#2819, #3384, #3906).
 
     Args:
         replica_clients: Replica containers to poll, in order.
@@ -267,7 +312,7 @@ def wait_for_participants_on_replicas(
         contract for the unit tests that depend on it.
     """
     for replica_client in replica_clients:
-        is_late = any(replica_client is lj for lj in late_joiners)
+        is_late = _client_in(replica_client, late_joiners)
         label = replica_client.actor_id or replica_client.base_url
         with demo_check(f"replica {label!r} reflects all case participants"):
             wait_for_case_participants(
@@ -532,7 +577,7 @@ def wait_for_contiguous_ledger_coverage(
     client: DataLayerClient,
     case_id: str,
     expected_tail_index: int,
-    timeout_seconds: float = 30.0,
+    timeout_seconds: float = LEDGER_COVERAGE_TIMEOUT,
     poll_interval: float = 0.5,
 ) -> None:
     """Poll *client*'s DataLayer until it holds all log indices 0…*expected_tail_index*.
@@ -615,6 +660,7 @@ def _poll_datalayer_for(
     poll_interval: float,
     log_msg: str,
     error_msg: str,
+    id_fn: Callable[[str, dict], str] | None = None,
 ) -> str:
     """Poll the client's own DataLayer until *discriminator_fn* matches.
 
@@ -635,9 +681,12 @@ def _poll_datalayer_for(
         log_msg: ``%``-style format string with a single ``%s`` placeholder
             for the matched object ID; logged at INFO on a successful find.
         error_msg: Message for the ``AssertionError`` raised on timeout.
+        id_fn: Maps a match's raw ID and data to the ID returned; the raw ID
+            itself when omitted.  A record that wraps another object (a
+            received-activity archive) returns the wrapped object's ID.
 
     Returns:
-        The raw ID string of the first matching object.
+        The ID of the first matching object, as *id_fn* derives it.
 
     Raises:
         AssertionError: If no matching object is found within *timeout_seconds*.
@@ -651,10 +700,14 @@ def _poll_datalayer_for(
                     if not isinstance(obj_data, dict):
                         continue
                     if discriminator_fn(obj_data):
-                        obj_id = str(raw_id)
+                        obj_id = (
+                            id_fn(str(raw_id), obj_data)
+                            if id_fn is not None
+                            else str(raw_id)
+                        )
                         logger.info(log_msg, obj_id)
                         return obj_id
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         time.sleep(poll_interval)
     raise AssertionError(error_msg)
@@ -665,19 +718,129 @@ def _poll_datalayer_for(
 # ---------------------------------------------------------------------------
 
 
-def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
-    """Return True if *obj_data* is an Invite(Actor, Case) for *invitee_id*/*case_id*."""
-    if obj_data.get("type") != "Invite":
+def _received_activity(obj_data: dict) -> dict:
+    """The received activity *obj_data* holds, as the receiver keeps it.
+
+    Intake archives a dispatched activity as a ``ReceivedActivityRecord``
+    (CLP-10-017, ADR-0111), which wraps it.  An activity the inbox deferred
+    until its case is known — an invitee's Invite, usually — is held bare
+    under the sender's id instead.  Mirrors
+    :func:`vultron.core.use_cases._helpers.read_received_activity`.
+
+    Raises:
+        AssertionError: when a ``ReceivedActivityRecord`` wraps no activity.
+    """
+    if obj_data.get("type") != "ReceivedActivityRecord":
+        return obj_data
+    activity = obj_data.get("activity")
+    if not isinstance(activity, dict):
+        raise AssertionError(  # noqa: TRY004 — demo_check assertion, not a type error
+            f"received-activity record {obj_data.get('id')!r} wraps no"
+            f" activity: {activity!r}"
+        )
+    return activity
+
+
+def _received_activity_id(raw_id: str, obj_data: dict) -> str:
+    """The sender's id for the received activity *obj_data* holds.
+
+    A bare activity is stored under the sender's id (*raw_id*); a record is
+    stored under its own id and names the activity's id inside.
+
+    Raises:
+        AssertionError: when a record's activity carries no id.
+    """
+    if obj_data.get("type") != "ReceivedActivityRecord":
+        return raw_id
+    activity_id = _received_activity(obj_data).get("id")
+    if not activity_id:
+        raise AssertionError(
+            f"received-activity record {raw_id!r} holds an activity with no id"
+        )
+    return str(activity_id)
+
+
+def _is_case_invite_for(
+    obj_data: dict, case_id: str, invitee_id: str, *, full_case: bool = False
+) -> bool:
+    """Return True if *obj_data* holds a case Invite for *invitee_id*/*case_id*.
+
+    A stub Invite names its case in the stub's ``caseId`` (CM-11-013); the
+    stub's own ``id`` is ``<case-id>/stub`` and is never parsed.  A full-case
+    Invite names the case by URI (AKM-02-003).  *full_case* selects which of the
+    two is wanted: any case Invite by default, only a full-case one when true.
+    """
+    invite = _received_activity(obj_data)
+    if invite.get("type") != "Invite":
         return False
-    target_raw = obj_data.get("target")
-    target_id = (
-        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
+    target_raw = invite.get("target")
+    is_stub = (
+        isinstance(target_raw, dict)
+        and target_raw.get("type")
+        == VultronObjectType.VULNERABILITY_CASE_STUB.value
     )
-    if target_id != case_id:
+    if full_case and is_stub:
         return False
-    inner = obj_data.get("object")
+    if isinstance(target_raw, dict):
+        target_case_id = (
+            target_raw.get("caseId") if is_stub else target_raw.get("id")
+        )
+    else:
+        target_case_id = target_raw
+    if target_case_id != case_id:
+        return False
+    inner = invite.get("object")
     inner_id = inner.get("id") if isinstance(inner, dict) else inner
     return inner_id == invitee_id
+
+
+def read_received_activity_for(
+    client: DataLayerClient, activity_id: str
+) -> dict:
+    """The activity *activity_id* as the actor behind *client* holds it.
+
+    Reads intake's archive record or the inbox's deferred copy, as
+    :func:`_received_activity` describes.
+
+    Raises:
+        AssertionError: If the actor holds no activity *activity_id*.
+    """
+    all_objects = client.get(client.dl_path())
+    if isinstance(all_objects, dict):
+        for raw_id, obj_data in all_objects.items():
+            if (
+                isinstance(obj_data, dict)
+                and _received_activity_id(str(raw_id), obj_data) == activity_id
+            ):
+                return _received_activity(obj_data)
+    raise AssertionError(
+        f"{client.base_url} holds no received activity {activity_id!r}"
+    )
+
+
+def assert_received_from(
+    client: DataLayerClient,
+    activity_id: str,
+    sender_id: str,
+    consequence: str,
+) -> None:
+    """Assert the actor behind *client* received *activity_id* from *sender_id*.
+
+    Args:
+        client: DataLayerClient for the receiving actor's container.
+        activity_id: The sender's id for the received activity.
+        sender_id: The actor the activity must have been emitted as.
+        consequence: What goes wrong when it was not, for the failure message.
+
+    Raises:
+        AssertionError: If the activity is not held, or another actor sent it.
+    """
+    actor = read_received_activity_for(client, activity_id).get("actor")
+    emitted_as = actor.get("id") if isinstance(actor, dict) else actor
+    assert emitted_as == sender_id, (
+        f"'{activity_id}' was emitted as '{emitted_as}', not as"
+        f" '{sender_id}' — {consequence}"
+    )
 
 
 def find_case_invite_for_actor(
@@ -687,13 +850,15 @@ def find_case_invite_for_actor(
     timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
 ) -> str:
-    """Poll until the CaseActor's Invite(Actor, Case) for *invitee_id* arrives.
+    """Poll until the CaseActor's Invite(Actor, CaseStub) for *invitee_id* arrives.
 
-    In the ADR-0026 flow the CaseActor emits the Invite to the suggested actor
-    after the Case Owner accepts; the invitee must then send Accept(Invite) to
+    The CASE_MANAGER emits every case Invite — after the Case Owner accepts a
+    recommendation (ADR-0026) and on the owner's direct invite alike
+    (CM-17-007, ADR-0109); the invitee must then send Accept(Invite) to
     trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
     replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
-    for that Invite so the demo can drive the accept step.
+    for that Invite — archived by intake, or held by the inbox until the case
+    bootstrap — so the demo can drive the accept step.
 
     Args:
         client: DataLayerClient connected to the invitee container.
@@ -713,12 +878,59 @@ def find_case_invite_for_actor(
         discriminator_fn=lambda obj: _is_case_invite_for(
             obj, case_id, invitee_id
         ),
+        id_fn=_received_activity_id,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
         log_msg=f"Found Invite for actor {invitee_id} on case {case_id}: %s",
         error_msg=(
             f"Timed out waiting for CaseActor Invite for actor {invitee_id!r}"
             f" on case {case_id!r} to appear in DataLayer at {client.base_url}"
+        ),
+    )
+
+
+def find_full_case_invite_for_actor(
+    client: DataLayerClient,
+    case_id: str,
+    invitee_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll until the CASE_MANAGER's full-case Invite for *invitee_id* arrives.
+
+    The CASE_MANAGER sends it after the join-time ``Announce(VulnerabilityCase)``
+    and ledger replay (CM-11-010); the joined participant answers it with
+    ``accept-full-case-invite`` or one of its two siblings (CM-11-011).
+
+    Args:
+        client: DataLayerClient connected to the invitee container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        invitee_id: Full URI of the joined participant.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Returns:
+        The full-case Invite activity ID string.
+
+    Raises:
+        AssertionError: If no matching Invite is found within *timeout_seconds*.
+    """
+    return _poll_datalayer_for(
+        client=client,
+        discriminator_fn=lambda obj: _is_case_invite_for(
+            obj, case_id, invitee_id, full_case=True
+        ),
+        id_fn=_received_activity_id,
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        log_msg=(
+            f"Found full-case Invite for actor {invitee_id} on case"
+            f" {case_id}: %s"
+        ),
+        error_msg=(
+            f"Timed out waiting for the full-case Invite for actor"
+            f" {invitee_id!r} on case {case_id!r} to appear in DataLayer at"
+            f" {client.base_url}"
         ),
     )
 
@@ -908,9 +1120,83 @@ def find_case_actor_participant_id(
         return case_actor_participant_id_in(
             as_VulnerabilityCase.model_validate(case_data)
         )
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
         pass
     return None
+
+
+def wait_for_case_actor_ledger_event(
+    client: DataLayerClient,
+    case_id: str,
+    event_type: str,
+    timeout_seconds: float = PARTICIPANT_JOIN_TIMEOUT,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll the CaseActor's *own* ledger, read through *client*, for *event_type*.
+
+    The gate for "the CASE_MANAGER committed it": the commit lands in the
+    CaseActor's store the moment its received-side tree runs, before any
+    ``Announce(CaseLedgerEntry)`` has left its outbox.  Under ADR-0073 that
+    store is not its host's, so the read is scoped with
+    :func:`resolve_case_actor_store_id`; when the case has no co-hosted
+    CaseActor the host's own replica is read, which is then the earliest
+    observable *client* can offer.
+
+    Waiting here before waiting on any replica separates the two hops a
+    transfer takes — trigger → CaseActor inbox → commit, then CaseActor outbox
+    → every participant — so a late replica is reported as the fan-out being
+    late rather than as the transfer never having happened (EDF-06-002,
+    #3602).
+
+    Args:
+        client: DataLayerClient for the container that hosts the CaseActor.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        event_type: The ``event_type`` value to wait for.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If no such entry appears within *timeout_seconds*.
+    """
+    wait_for_event_type_in_ledger(
+        client=client,
+        case_id=case_id,
+        event_type=event_type,
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        dl_actor_id=resolve_case_actor_store_id(client, case_id),
+    )
+
+
+class SharedBudget:
+    """One timeout shared by consecutive waits on the same delivery chain.
+
+    When several replicas are fed by one fan-out, waiting on each with its
+    own full timeout multiplies the worst case by the number of replicas and
+    hides which hop was slow.  A shared budget bounds the whole fan-out once:
+    each wait is given what is left.  A wait that starts with nothing left
+    still checks its condition once (:func:`_poll_until`), so a replica that
+    has already caught up passes, and one that has not fails at once with
+    that wait's own message — the budget itself says only how much was left
+    (``repr(budget)``), which the scenario logs on exhaustion.
+
+    Args:
+        timeout_seconds: The total budget, started on construction.
+    """
+
+    def __init__(self, timeout_seconds: float) -> None:
+        self._total = timeout_seconds
+        self._deadline = time.monotonic() + timeout_seconds
+
+    def remaining(self) -> float:
+        """Seconds left, never negative."""
+        return max(0.0, self._deadline - time.monotonic())
+
+    def __repr__(self) -> str:
+        return (
+            f"SharedBudget(total={self._total:.1f}s,"
+            f" remaining={self.remaining():.1f}s)"
+        )
 
 
 def resolve_case_actor_store_id(
@@ -997,7 +1283,7 @@ def wait_for_object_stored(
                     client.base_url,
                 )
                 return True
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         return False
 
@@ -1007,6 +1293,58 @@ def wait_for_object_stored(
         poll_interval,
         f"Timed out waiting for object {obj_id!r} to appear in DataLayer "
         f"at {client.base_url} — outbox delivery may not have completed",
+        swallow_exceptions=True,
+    )
+
+
+def wait_for_report_submission_stored(
+    client: DataLayerClient,
+    receiver_id: str,
+    report_id: str,
+    offer_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll the receiver's own store until a submitted report and its Offer land.
+
+    The reporter's ``submit-report`` trigger delivers the ``Offer`` through its
+    outbox, so the receiver stores the report and the Offer when its inbox has
+    processed that delivery -- after the trigger returns, not before.  This
+    gates on that stored effect (EDF-06-002, EDF-06-003, DEMOMA-22-002) rather
+    than on anything the demo itself delivered.
+
+    Both reads name *receiver_id* explicitly (ADR-0073), so the result does not
+    depend on *client*'s own binding.
+
+    Args:
+        client: DataLayerClient connected to the receiver's container.
+        receiver_id: Actor id whose store to read.
+        report_id: Id of the submitted ``VulnerabilityReport``.
+        offer_id: Id of the submit-report ``Offer``.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between poll attempts.
+
+    Raises:
+        AssertionError: If either object is still absent at the deadline.
+    """
+    missing: set[str] = {report_id, offer_id}
+
+    def _check() -> bool:
+        for obj_id in sorted(missing):
+            try:
+                if client.get(client.dl_path(obj_id, actor_id=receiver_id)):
+                    missing.discard(obj_id)
+            except Exception:  # noqa: BLE001, S110
+                pass
+        return not missing
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for the submitted report/offer in {receiver_id!r}'s"
+        f" DataLayer at {client.base_url} — the reporter's outbox delivery may"
+        " not have completed",
         swallow_exceptions=True,
     )
 
@@ -1046,11 +1384,6 @@ def _wait_for_participant_status_field(
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
     """
-    # Import here to avoid a circular dependency with verification.py.
-    from vultron.demo.helpers.verification import (  # noqa: PLC0415
-        _fetch_participant,
-    )
-
     deadline = time.monotonic() + timeout_seconds
     poll_count = 0
     while time.monotonic() < deadline:
@@ -1191,6 +1524,64 @@ def wait_for_participant_d_state(
     )
 
 
+def wait_for_case_em_state(
+    client: DataLayerClient,
+    case_id: str,
+    expected: EM,
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
+    active_embargo_id: str | None = None,
+) -> None:
+    """Poll until the case EM state is *expected*.
+
+    EM moves when the CASE_MANAGER commits a transition and the ledger entry
+    reaches the replica, so a replica reads the new state some time after the
+    trigger returned (ADR-0058).
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        expected: The EM state to wait for.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor — the CASE_MANAGER's canonical case, for
+            instance (see :func:`resolve_case_actor_store_id`).
+        active_embargo_id: When given, the case must also name this embargo as
+            its active one.  A revised embargo leaves ``EM.ACTIVE`` and comes
+            back to it, so EM alone cannot tell a replica that has applied the
+            revision from one that has not yet heard of it.
+
+    Raises:
+        AssertionError: If *expected* is not observed within *timeout_seconds*.
+    """
+
+    def _check() -> bool:
+        case_data = client.get(client.dl_path(case_id, actor_id=dl_actor_id))
+        case = as_VulnerabilityCase.model_validate(case_data)
+        return case.current_status.em_state == expected and (
+            active_embargo_id is None
+            or case.active_embargo_id == active_embargo_id
+        )
+
+    store = dl_actor_id or client.actor_id
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for case '{case_id}' EM state to reach"
+        f" {expected.name}"
+        + (
+            f" with active embargo {active_embargo_id!r}"
+            if active_embargo_id is not None
+            else ""
+        )
+        + f" in the store of {store!r} at {client.base_url}",
+        swallow_exceptions=True,
+    )
+
+
 def wait_for_case_em_terminated(
     client: DataLayerClient,
     case_id: str,
@@ -1212,21 +1603,256 @@ def wait_for_case_em_terminated(
     Raises:
         AssertionError: If EM.EXITED is not observed within *timeout_seconds*.
     """
-    from vultron.core.states.em import is_em_exited  # noqa: PLC0415
+    wait_for_case_em_state(
+        client, case_id, EM.EXITED, timeout_seconds, poll_interval
+    )
+
+
+def _is_embargo_invite_for(
+    obj_data: dict, embargo_id: str, invitee_id: str
+) -> bool:
+    """Return True if *obj_data* holds an ``Invite`` of *embargo_id* to *invitee_id*.
+
+    The relayed Invite names its embargo in ``object`` (inline or by id) and its
+    invitee as the sole ``to`` recipient (EP-09-010).
+    """
+    invite = _received_activity(obj_data)
+    if invite.get("type") != "Invite":
+        return False
+    inner = invite.get("object")
+    inner_id = inner.get("id") if isinstance(inner, dict) else inner
+    if inner_id != embargo_id:
+        return False
+    recipients = invite.get("to")
+    if not isinstance(recipients, list):
+        recipients = [recipients]
+    return invitee_id in [
+        r.get("id") if isinstance(r, dict) else r for r in recipients
+    ]
+
+
+def find_embargo_invite_for_actor(
+    client: DataLayerClient,
+    embargo_id: str,
+    invitee_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll until the CASE_MANAGER's relayed ``Invite(EmbargoEvent)`` arrives.
+
+    The CASE_MANAGER relays every embargo proposal, first or revised, to each
+    participant but the proposer (EP-09-002).  The invitee answers only an
+    Invite addressed to it (EP-09-003), so a demo polls the invitee's own
+    DataLayer for it rather than reading another participant's mail.
+
+    Args:
+        client: DataLayerClient connected to the invitee's container.
+        embargo_id: Full URI of the proposed ``EmbargoEvent``.
+        invitee_id: Full URI of the invited actor.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Returns:
+        The relayed Invite's activity ID.
+
+    Raises:
+        AssertionError: If no matching Invite is found within *timeout_seconds*.
+    """
+    return _poll_datalayer_for(
+        client=client,
+        discriminator_fn=lambda obj: _is_embargo_invite_for(
+            obj, embargo_id, invitee_id
+        ),
+        id_fn=_received_activity_id,
+        timeout_seconds=timeout_seconds,
+        poll_interval=poll_interval,
+        log_msg=f"Found Invite of embargo {embargo_id} for {invitee_id}: %s",
+        error_msg=(
+            f"Timed out waiting for the relayed Invite of embargo"
+            f" {embargo_id!r} to actor {invitee_id!r} to appear in the"
+            f" DataLayer at {client.base_url}"
+        ),
+    )
+
+
+def wait_for_embargo_proposal_indexed(
+    client: DataLayerClient,
+    case_id: str,
+    embargo_id: str,
+    invite_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.25,
+) -> None:
+    """Poll until the invitee's case maps *embargo_id* to *invite_id*.
+
+    The relayed Invite is readable as soon as intake archives it, but the
+    accept and reject triggers correlate an embargo with its Invite through the
+    case's proposal index, which the received tree writes last (ID-04-005).
+    An answer posted between the two builds its Accept with no object, so the
+    Invite alone is not evidence the invitee can answer yet (EDF-06-002).
+
+    Args:
+        client: DataLayerClient connected to the invitee's container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        embargo_id: Full URI of the proposed ``EmbargoEvent``.
+        invite_id: The relayed Invite's activity ID, as the invitee holds it.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If the index does not name *invite_id* within
+            *timeout_seconds*.
+    """
 
     def _check() -> bool:
-        case_data = client.get(client.dl_path(case_id))
-        case = as_VulnerabilityCase.model_validate(case_data)
-        return is_em_exited(case.current_status.em_state)
+        case = as_VulnerabilityCase.model_validate(
+            client.get(client.dl_path(case_id))
+        )
+        return case.pending_embargo_proposal_index.get(embargo_id) == invite_id
 
     _poll_until(
         _check,
         timeout_seconds,
         poll_interval,
-        f"Timed out waiting for case '{case_id}' EM state to reach EXITED"
-        " — embargo teardown may not have completed",
+        f"Timed out waiting for the case '{case_id}' at {client.base_url} to"
+        f" index Invite {invite_id!r} for embargo {embargo_id!r}",
         swallow_exceptions=True,
     )
+
+
+def wait_for_participant_embargo_consent(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    embargo_id: str,
+    expected: EmbargoConsentState,
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
+) -> None:
+    """Poll until *actor_id*'s consent for *embargo_id* reaches *expected*.
+
+    Consent moves when the CASE_MANAGER commits the participant's answer, and
+    a replica learns it from the ledger (EP-09-003), so it reads the new value
+    some time after the answer's trigger returned.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor whose consent to check.
+        embargo_id: Full URI of the embargo being tracked.
+        expected: The :class:`~vultron.core.states.participant_embargo_consent.EmbargoConsentState` to wait for.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor — see :func:`_fetch_participant`.
+
+    Raises:
+        AssertionError: If *expected* is not observed within *timeout_seconds*.
+    """
+    _wait_for_participant_embargo_field(
+        client,
+        case_id,
+        actor_id,
+        lambda participant: participant.consent_for(embargo_id),
+        lambda value: value == expected,
+        f"embargo consent to reach {expected.name}",
+        timeout_seconds,
+        poll_interval,
+        dl_actor_id,
+    )
+
+
+def wait_for_participant_embargo_accepted(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    embargo_id: str,
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
+) -> None:
+    """Poll until *actor_id*'s consent row for *embargo_id* is ``ACCEPTED``.
+
+    An Accept always marks the accepted embargo's own row ``ACCEPTED``, including
+    for a proposed revision (ADR-0122), so the revision's row is the trace of it.
+    Read it where the CASE_MANAGER commits it: an owner that activates a longer
+    revision first lapses every signatory that has not answered (EP-05-001).
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor whose answer to check.
+        embargo_id: The embargo the actor answered.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor — see :func:`_fetch_participant`.
+
+    Raises:
+        AssertionError: If the answer is not observed within *timeout_seconds*.
+    """
+    _wait_for_participant_embargo_field(
+        client,
+        case_id,
+        actor_id,
+        lambda participant: participant.consent_for(embargo_id),
+        lambda value: value == EmbargoConsentState.ACCEPTED,
+        f"consent for {embargo_id!r} to be ACCEPTED",
+        timeout_seconds,
+        poll_interval,
+        dl_actor_id,
+    )
+
+
+def _wait_for_participant_embargo_field(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    read: Callable[[as_CaseParticipant], object],
+    satisfied: Callable[[object], bool],
+    description: str,
+    timeout_seconds: float,
+    poll_interval: float,
+    dl_actor_id: str | None,
+) -> None:
+    """Poll one embargo field of a participant record until *satisfied*.
+
+    The timeout names the last value read, and the last read error when no poll
+    completed, so a slow commit and a broken read look different.
+    """
+    current: list[object] = ["no participant record"]
+
+    def _check() -> bool:
+        participant = _fetch_participant(
+            client, case_id, actor_id, dl_actor_id=dl_actor_id
+        )
+        if participant is None:
+            return False
+        current[0] = read(participant)
+        return satisfied(current[0])
+
+    store = dl_actor_id or client.actor_id
+    try:
+        _poll_until(
+            _check,
+            timeout_seconds,
+            poll_interval,
+            "unused",
+            swallow_exceptions=True,
+        )
+    except AssertionError as exc:
+        # Built after the wait: ``current`` is what the last poll read.
+        cause = (
+            f"; {exc.__cause__.__class__.__name__}: {exc.__cause__}"
+            if exc.__cause__ is not None
+            else ""
+        )
+        raise AssertionError(
+            f"Timed out waiting for actor '{actor_id}' {description};"
+            f" current={current[0]!r} (polled {client.base_url}, store of"
+            f" {store!r}){cause}"
+        ) from exc
 
 
 def wait_for_participant_rm_state(
@@ -1285,9 +1911,6 @@ def wait_for_all_participants_rm_closed(
         AssertionError: If any participant is not RM.CLOSED within
             *timeout_seconds*.
     """
-    from vultron.demo.helpers.verification import (  # noqa: PLC0415
-        _all_fetchable_participants_rm_closed,
-    )
 
     def _check() -> bool:
         case_data = client.get(client.dl_path(case_id))
@@ -1335,11 +1958,6 @@ def wait_for_participant_pxa_state(
 
     Spec: DEMOMA-06-002.
     """
-    from vultron.core.states.cs import CS_pxa  # noqa: PLC0415
-    from vultron.demo.helpers.verification import (  # noqa: PLC0415
-        _fetch_participant,
-    )
-
     if expected_states is None:
         expected_states = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
 
@@ -1390,9 +2008,13 @@ def wait_for_case_attributed_to(
 ) -> None:
     """Poll until *case_id*'s ``attributed_to`` field equals *expected_attributed_to*.
 
-    Gates on the case ownership having been transferred and reflected in the
-    authoritative actor's DataLayer.  Read from the actor that commits the
-    ownership transfer (EDF-06-002).
+    Observes the ownership transfer on *client*'s replica of the case.  The
+    CaseActor's own store is the authority (CM-21-002, CM-21-004); every other
+    replica — the old owner's included — learns the new owner only from the
+    ``Announce(CaseLedgerEntry)`` fan-out applied by
+    ``ApplyOwnershipTransferFromLedgerNode`` (CM-21-007).  So this reads the
+    replica whose view is being asserted (EDF-06-002); to gate on the commit
+    itself, use :func:`wait_for_case_actor_ledger_event` first (#3602).
 
     Args:
         client: DataLayerClient connected to the committing actor's container.
@@ -1443,7 +2065,7 @@ def wait_for_initialized_case(
     timeout_seconds: float = PARTICIPANT_JOIN_TIMEOUT,
     poll_interval: float = 0.5,
 ) -> as_VulnerabilityCase:
-    """Poll the CaseActor's store until a VulnerabilityCase with participants appears.
+    """Poll the CaseActor's store until *report_id*'s case has participants.
 
     After ``ProposeReportCaseToActorNode`` runs during report validation the
     CaseActor creates the canonical ``VulnerabilityCase`` with vendor, reporter,
@@ -1451,7 +2073,10 @@ def wait_for_initialized_case(
     this helper polls instead, giving the BT time to complete.
 
     The CaseActor URI is derived from *report_id* via
-    :func:`~vultron.demo.utils.case_actor_id_for_report`.
+    :func:`~vultron.demo.utils.case_actor_id_for_report`.  The CaseActor
+    identity is constant per container, so its store may hold several cases;
+    only the case whose ``vulnerability_reports`` include *report_id* counts
+    (:func:`~vultron.demo.utils.case_references_report`).
 
     Args:
         client: DataLayerClient for the container that hosts the CaseActor.
@@ -1460,17 +2085,15 @@ def wait_for_initialized_case(
         poll_interval: Seconds between DataLayer poll attempts.
 
     Returns:
-        The first ``as_VulnerabilityCase`` found with non-empty
+        The ``as_VulnerabilityCase`` for *report_id* with non-empty
         ``case_participants``.
 
     Raises:
-        AssertionError: If no initialized VulnerabilityCase appears within
-            *timeout_seconds*.
+        AssertionError: If no initialized VulnerabilityCase for *report_id*
+            appears within *timeout_seconds*.
 
     Spec: ISSUE-2359 / ADR-0041.
     """
-    from vultron.demo.utils import case_actor_id_for_report  # noqa: PLC0415
-
     case_actor_id = case_actor_id_for_report(report_id)
     found: list[as_VulnerabilityCase] = []
 
@@ -1480,11 +2103,14 @@ def wait_for_initialized_case(
         )
         for case_raw in cases_by_id.values():
             case = as_VulnerabilityCase(**case_raw)
-            if case.case_participants:
+            if case.case_participants and case_references_report(
+                case, report_id
+            ):
                 found.append(case)
                 logger.info(
-                    "Initialized VulnerabilityCase found in CaseActor"
-                    " store %s: %s",
+                    "Initialized VulnerabilityCase for report %s found in"
+                    " CaseActor store %s: %s",
+                    report_id,
                     case_actor_id,
                     case.id_,
                 )
@@ -1495,13 +2121,14 @@ def wait_for_initialized_case(
         _check,
         timeout_seconds,
         poll_interval,
-        f"Timed out waiting for initialized VulnerabilityCase in CaseActor"
-        f" store {case_actor_id!r} at {client.base_url}",
+        f"Timed out waiting for initialized VulnerabilityCase for report"
+        f" {report_id!r} in CaseActor store {case_actor_id!r}"
+        f" at {client.base_url}",
         swallow_exceptions=True,
     )
-    assert (
-        found
-    ), "invariant: _poll_until returns only when _check returned True"
+    assert found, (
+        "invariant: _poll_until returns only when _check returned True"
+    )
     return found[0]
 
 
@@ -1534,10 +2161,6 @@ def wait_for_pending_inbox_quiescent(
 
     Spec: EDF-06-001.
     """
-    from vultron.core.models.pending_case_inbox import (  # noqa: PLC0415
-        VultronPendingCaseInbox,
-    )
-
     pending_id = VultronPendingCaseInbox.build_id(case_id)
 
     def _check() -> bool:
@@ -1547,7 +2170,7 @@ def wait_for_pending_inbox_quiescent(
                 return True
             activity_ids = data.get("activity_ids", [])
             return len(activity_ids) == 0
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001  # ruff-baseline #3326
             return True
 
     _poll_until(
@@ -1558,46 +2181,3 @@ def wait_for_pending_inbox_quiescent(
         f" on container {client.base_url}",
         swallow_exceptions=False,
     )
-
-
-def drain_phase1_ledger(
-    auth_client: DataLayerClient,
-    case_id: str,
-    replica_pairs: list[tuple[DataLayerClient, str]],
-    timeout_seconds: float = 30.0,
-) -> None:
-    """Wait for each replica to reach the authoritative ledger tail.
-
-    Drains the Phase 1 ``LedgerFanout`` outbox before Phase 2 steps begin.
-    Each replica is checked inside a ``demo_gate`` so that a lagging replica
-    skips dependent steps rather than triggering a spurious timeout
-    (ADR-0026, ADR-0058, issue #2819).
-
-    Args:
-        auth_client: DataLayerClient for the authoritative container whose
-            ledger tail defines "Phase 1 complete".
-        case_id: Full URI of the ``as_VulnerabilityCase``.
-        replica_pairs: ``(replica_client, label)`` pairs to check.  The label
-            appears in gate descriptions and log messages.
-        timeout_seconds: Per-replica timeout.  Defaults to 30 s.
-    """
-    from vultron.demo.helpers.sync import (  # noqa: PLC0415
-        _get_log_entries_for_case,
-    )
-    from vultron.demo.utils import demo_gate  # noqa: PLC0415
-
-    entries = _get_log_entries_for_case(auth_client, case_id)
-    if not entries:
-        return
-    tail_index: int = max(entries, key=lambda e: e["log_index"])["log_index"]
-    for replica_client, label in replica_pairs:
-        with demo_gate(
-            f"{label} ledger coverage (Phase 1 drain before Phase 2)"
-        ):
-            wait_for_contiguous_ledger_coverage(
-                client=replica_client,
-                case_id=case_id,
-                expected_tail_index=tail_index,
-                timeout_seconds=timeout_seconds,
-            )
-        logger.info("  %s Phase 1 ledger synchronized", label)

@@ -1,7 +1,11 @@
 ---
 status: accepted
 date: 2026-06-22
+created: 2026-06-22
+updated: 2026-06-22
+revision: 1
 deciders: [adh, Copilot]
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0023: Introduce `CaseProposal` for Distributed Case Actor Initialization

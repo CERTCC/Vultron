@@ -22,13 +22,13 @@ The matching ``<DOMAIN>_STOCHASTIC`` singletons live in the simulation layer
 (``vultron.demo.fuzzer.bundles``); core never imports them.
 """
 
-from vultron.core.behaviors.call_out.bundles.actor_discovery import (
-    ACTOR_DISCOVERY_DETERMINISTIC,
-    ActorDiscoveryCallOutBundle,
-)
 from vultron.core.behaviors.call_out.bundles.acquire_exploit import (
     ACQUIRE_EXPLOIT_DETERMINISTIC,
     AcquireExploitCallOutBundle,
+)
+from vultron.core.behaviors.call_out.bundles.actor_discovery import (
+    ACTOR_DISCOVERY_DETERMINISTIC,
+    ActorDiscoveryCallOutBundle,
 )
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,

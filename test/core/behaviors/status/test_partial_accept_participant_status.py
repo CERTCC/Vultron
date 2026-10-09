@@ -24,7 +24,8 @@ several independent state machines (``rm``, ``vfd``, ``em``, ``pxa``,
 ``rm`` or a status for a participant already at terminal ``RM.CLOSED`` —
 caused the receiving Case Actor to discard the entire snapshot and abort the
 ``AddParticipantStatusBT`` Sequence, which also killed the StatusAdoptionGate → EmbargoTeardownAuthorizationGate
-emit (``EmitAddCaseStatusToSelfNode``) and therefore embargo teardown
+emit (then ``EmitAddCaseStatusToSelfNode``, since replaced by
+``EmitCaseStatusUpdateNode`` and removed) and therefore embargo teardown
 (ADR-0046, RSH-01-003).
 
 The fix accepts each dimension independently: refused dimensions carry
@@ -43,7 +44,21 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.rm_declaration import (
+    ACTOR_ID,
+    CASE_ID,
+    CASE_MANAGER_ID,
+    PARTICIPANT_ID,
+    RMAnomalyProbe,
+    RMDeclarationCase,
+    all_cases,
+    assert_note_owed,
+    current_status as _current_status,
+    recorded_rm,
+    seed_case as _seed_case,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -61,28 +76,26 @@ from vultron.core.behaviors.status.nodes.dimension_filter import (
     FilterParticipantStatusDimensionsNode,
     resolve_dimension_filter,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
 )
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
-    PecDimension,
     PxaDimension,
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
@@ -98,7 +111,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -107,12 +119,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 # Constants
 # ---------------------------------------------------------------------------
 
-ACTOR_ID = "https://example.org/actors/vendor"
-CASE_MANAGER_ID = "https://example.org/actors/case-actor"
-CASE_ID = "https://example.org/cases/case-2235"
-PARTICIPANT_ID = f"{CASE_ID}/participants/vendor"
-CM_PARTICIPANT_ID = f"{CASE_ID}/participants/case-actor"
-CURRENT_STATUS_ID = f"{PARTICIPANT_ID}/statuses/current"
+# The case, its participants and ``store_for`` are shared with the
+# activity-typed RM handler tests, so both paths run against one table of
+# cases (RSH-06-006) — see ``test/support/rm_declaration.py``.
 ASSERTED_STATUS_ID = f"{PARTICIPANT_ID}/statuses/asserted"
 SECOND_STATUS_ID = f"{PARTICIPANT_ID}/statuses/asserted-2"
 
@@ -193,17 +202,17 @@ def _status_ids(dl: SqliteDataLayer, participant_id: str) -> list[str]:
     ]
 
 
-def _ledger_entries(dl: SqliteDataLayer) -> list[VultronCaseLedgerEntry]:
+def _ledger_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
     entries = [
-        cast(VultronCaseLedgerEntry, obj)
+        cast(CaseLedgerEntry, obj)
         for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, VultronCaseLedgerEntry)
-        and cast(VultronCaseLedgerEntry, obj).case_id == CASE_ID
+        if isinstance(obj, CaseLedgerEntry)
+        and cast(CaseLedgerEntry, obj).case_id == CASE_ID
     ]
     return sorted(entries, key=lambda e: e.log_index)
 
 
-def _receipt_entries(dl: SqliteDataLayer) -> list[VultronCaseLedgerEntry]:
+def _receipt_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
     """Return only the participant-status receipt entries (GuardedCommit), sorted."""
     return [
         e
@@ -215,55 +224,6 @@ def _receipt_entries(dl: SqliteDataLayer) -> list[VultronCaseLedgerEntry]:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
-@pytest.fixture
-def store_for():
-    """Factory: the store belonging to a given actor.
-
-    These tests split between two executing actors — the asserting participant
-    and the case manager — and a BT's store follows its executing actor
-    (ADR-0073), so one shared store cannot serve both. Each test opens the store
-    of the actor it runs as.
-    """
-    created: list[SqliteDataLayer] = []
-
-    def _make(actor_id: str) -> SqliteDataLayer:
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        created.append(dl)
-        return dl
-
-    yield _make
-    for dl in created:
-        dl.close()
-
-
-def _current_status(
-    rm_state: RM,
-    vf_state: CS_vf | None,
-    pxa_state: CS_pxa,
-) -> as_ParticipantStatus:
-    """The participant's status *before* the inbound assertion arrives."""
-    return as_ParticipantStatus(
-        id_=CURRENT_STATUS_ID,
-        context=CASE_ID,
-        rm=RmDimension(state=rm_state),
-        vf=(VfDimension(state=vf_state) if vf_state is not None else None),
-        consent=PecDimension(state=PEC.SIGNATORY),
-        case_status=as_CaseStatus(
-            id_=f"{CURRENT_STATUS_ID}/cs",
-            context=CASE_ID,
-            em=EmDimension(state=EM.NONE),
-            pxa=PxaDimension(state=pxa_state),
-        ),
-    )
 
 
 def _asserted_status(
@@ -293,47 +253,8 @@ def _asserted_status(
         context=CASE_ID,
         rm=RmDimension(state=rm_state),
         vf=(VfDimension(state=vf_state) if vf_state is not None else None),
-        consent=PecDimension(state=PEC.SIGNATORY),
         case_status=case_status,
     )
-
-
-def _seed_case(
-    dl: SqliteDataLayer,
-    current: as_ParticipantStatus,
-    asserted: as_ParticipantStatus | None,
-) -> None:
-    """Seed a two-participant case with *current* as the vendor's latest status."""
-    vendor = as_CaseParticipant(
-        id_=PARTICIPANT_ID,
-        context=CASE_ID,
-        attributed_to=ACTOR_ID,
-        case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR],
-    )
-    vendor.participant_statuses.append(current)
-    manager = as_CaseParticipant(
-        id_=CM_PARTICIPANT_ID,
-        context=CASE_ID,
-        attributed_to=CASE_MANAGER_ID,
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    # attributed_to is what seeds the per-case genesis hash (CLP-08-003);
-    # without it the ledger sits in the pre-genesis bootstrap window and the
-    # guarded commit cannot anchor a chain.
-    case = VulnerabilityCase(
-        id_=CASE_ID,
-        name="Issue 2235 Case",
-        attributed_to=CASE_MANAGER_ID,
-    )
-    case.add_participant(cast(CaseParticipant, vendor))
-    case.add_participant(cast(CaseParticipant, manager))
-
-    dl.create(case)
-    dl.create(vendor)
-    dl.create(manager)
-    dl.create(current)
-    if asserted is not None:
-        dl.create(asserted)
 
 
 class _CaptureOverride(py_trees.behaviour.Behaviour):
@@ -364,8 +285,13 @@ def _run_tree(
     executing_actor_id: str,
     make_payload: Any,
     capture: dict | None = None,
+    anomaly: dict | None = None,
 ) -> Any:
     """Run the full ``add_participant_status_tree`` for *asserted*.
+
+    When *anomaly* is provided, the tree is wrapped in an
+    :class:`RMAnomalyProbe` that records the ``BB_RM_ANOMALY`` the run
+    published under ``anomaly["anomaly"]``.
 
     When *capture* is provided, an ``_CaptureOverride`` probe is appended in an
     outer ``memory=False`` Sequence so the caller can inspect the override the
@@ -384,6 +310,7 @@ def _run_tree(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
     )
     tree = add_participant_status_tree(request=event, case_id=CASE_ID)
     if capture is not None:
@@ -392,6 +319,8 @@ def _run_tree(
             memory=False,
             children=[tree, _CaptureOverride(sink=capture)],
         )
+    if anomaly is not None:
+        tree = RMAnomalyProbe(tree, anomaly)
     # Production passes the parsed event as ``activity`` (see
     # SvcAddParticipantStatusToParticipantReceivedUseCase); the guarded commit
     # needs it on the blackboard to build a payload snapshot.
@@ -418,7 +347,9 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
         The status is appended with the participant's current ``rm`` carried
         forward and the two forward dimensions applied (RSH-05).
         """
-        dl = store_for(ACTOR_ID)
+        dl = store_for(
+            CASE_MANAGER_ID
+        )  # RSH-08-003 #3814: adoption runs at the CASE_MANAGER
         # rm=ACCEPTED, not VALID: a ready fix (vf=VF) entails an accepted
         # report, so pairing VF with a pre-acceptance rm would describe a state
         # no sequence of events can produce and be refused on entailment
@@ -427,7 +358,7 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
         asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.Pxa)
         _seed_case(dl, current, asserted)
 
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
         assert result.status == Status.SUCCESS, (
             "a refused rm dimension must not abort the whole update"
             f" (feedback: {result.feedback_message})"
@@ -435,16 +366,16 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
 
         assert ASSERTED_STATUS_ID in _status_ids(dl, PARTICIPANT_ID)
         latest = _latest_status(dl, PARTICIPANT_ID)
-        assert (
-            _rm_of(latest) == RM.ACCEPTED.name
-        ), "refused rm must carry forward"
+        assert _rm_of(latest) == RM.ACCEPTED.name, (
+            "refused rm must carry forward"
+        )
         assert _vf_of(latest) == CS_vf.VF.name, "accepted vfd must be recorded"
-        assert (
-            _pxa_of(latest) == CS_pxa.Pxa.name
-        ), "accepted pxa must be recorded"
-        assert (
-            _em_of(latest) == EM.NONE.name
-        ), "em is EmbargoTeardownAuthorizationGate's business (#2256)"
+        assert _pxa_of(latest) == CS_pxa.Pxa.name, (
+            "accepted pxa must be recorded"
+        )
+        assert _em_of(latest) == EM.NONE.name, (
+            "em is EmbargoTeardownAuthorizationGate's business (#2256)"
+        )
 
     @pytest.mark.spec("RSH-01-003")
     @pytest.mark.spec("RSH-04-004")
@@ -461,7 +392,9 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
         """
         from vultron.core.models.case import VulnerabilityCase as CoreCase
 
-        dl = store_for(ACTOR_ID)
+        dl = store_for(
+            CASE_MANAGER_ID
+        )  # RSH-08-003 #3814: adoption runs at the CASE_MANAGER
         # rm=ACCEPTED, not VALID: a ready fix (vf=VF) entails an accepted
         # report, so pairing VF with a pre-acceptance rm would describe a state
         # no sequence of events can produce and be refused on entailment
@@ -477,7 +410,7 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
             else 0
         )
 
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
         assert result.status == Status.SUCCESS
 
         # RSH-01-003, RSH-04-004: EmitCaseStatusUpdateNode must commit a new
@@ -571,16 +504,16 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
             "the ledger must record the carried-forward vf, not the refused"
             f" vf=VF assertion — got {_vf_of(snapshot_object)!r}"
         )
-        assert (
-            _rm_of(snapshot_object) == RM.VALID.name
-        ), "rm was acceptable and must be recorded as asserted"
+        assert _rm_of(snapshot_object) == RM.VALID.name, (
+            "rm was acceptable and must be recorded as asserted"
+        )
         assert _pxa_of(snapshot_object) == CS_pxa.Pxa.name, (
             "refusing vf must not discard the accepted pxa advance"
             " (RSH-05-001)"
         )
-        assert (
-            _vf_of(_latest_status(dl, PARTICIPANT_ID)) == CS_vf.Vf.name
-        ), "the participant's own recorded status must agree with the ledger"
+        assert _vf_of(_latest_status(dl, PARTICIPANT_ID)) == CS_vf.Vf.name, (
+            "the participant's own recorded status must agree with the ledger"
+        )
 
     @pytest.mark.spec("RSH-05-009")
     def test_ledger_snapshot_keeps_the_wire_shape_of_an_unfiltered_snapshot(
@@ -596,7 +529,7 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         sender's already-wire-shaped snapshot.  A snapshot built by dumping the
         core model instead would carry nested ``rm``/``vfd`` dimension objects
         and silently drop every field the guard never adjudicated
-        (CLP-07-001, CM-18-006, ADR-0009).
+        (CLP-07-011, CM-18-006, ADR-0009).
         """
         dl = store_for(CASE_MANAGER_ID)
         # rm=ACCEPTED, not VALID: a ready fix (vf=VF) entails an accepted
@@ -620,20 +553,17 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         assert snap["vfState"] == CS_vf.VF.name
 
         # Fields the guard never adjudicated survive the patch untouched.
-        assert (
-            snap.get("emConsentState") == PEC.SIGNATORY.name
-        ), "emConsentState must survive adjudication (fcvcv invariant harness)"
         assert "cvdRole" in snap, "cvdRole must survive adjudication"
         assert "@context" in snap, "@context must survive adjudication"
         assert snap.get("type") == "ParticipantStatus"
 
         # No core-model shapes, and no stale snake_case twin of a patched field.
-        assert not isinstance(
-            snap.get("rm"), dict
-        ), f"core 'rm' dimension object leaked into the snapshot: {snap!r}"
-        assert not isinstance(
-            snap.get("vf"), dict
-        ), f"core 'vf' dimension object leaked into the snapshot: {snap!r}"
+        assert not isinstance(snap.get("rm"), dict), (
+            f"core 'rm' dimension object leaked into the snapshot: {snap!r}"
+        )
+        assert not isinstance(snap.get("vf"), dict), (
+            f"core 'vf' dimension object leaked into the snapshot: {snap!r}"
+        )
         assert "rm_state" not in snap
         assert "vf_state" not in snap
 
@@ -664,7 +594,9 @@ class TestOmittedCaseStatusIsNotAnAssertion:
         self, store_for, make_payload
     ):
         """vfd advances; the receiver's own ``case_status`` carries forward."""
-        dl = store_for(ACTOR_ID)
+        dl = store_for(
+            CASE_MANAGER_ID
+        )  # RSH-08-003 #3814: adoption runs at the CASE_MANAGER
         # rm=ACCEPTED so the asserted vf=VF is not refused on entailment
         # grounds; this test is about the omitted case_status (#2906).
         current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pXa)
@@ -672,7 +604,7 @@ class TestOmittedCaseStatusIsNotAnAssertion:
         assert asserted.case_status is None
         _seed_case(dl, current, asserted)
 
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
         assert result.status == Status.SUCCESS, (
             "an omitted case_status is not a refusal"
             f" (feedback: {result.feedback_message})"
@@ -680,12 +612,12 @@ class TestOmittedCaseStatusIsNotAnAssertion:
 
         latest = _latest_status(dl, PARTICIPANT_ID)
         assert _vf_of(latest) == CS_vf.VF.name, "the vfd advance is accepted"
-        assert (
-            _pxa_of(latest) == CS_pxa.pXa.name
-        ), "an unasserted pxa must be carried forward, not blanked"
-        assert (
-            _em_of(latest) == EM.NONE.name
-        ), "an unasserted em must be carried forward, not blanked"
+        assert _pxa_of(latest) == CS_pxa.pXa.name, (
+            "an unasserted pxa must be carried forward, not blanked"
+        )
+        assert _em_of(latest) == EM.NONE.name, (
+            "an unasserted em must be carried forward, not blanked"
+        )
 
     @pytest.mark.spec("RSH-05-005")
     def test_omitted_case_status_alone_carries_no_new_state(
@@ -729,12 +661,14 @@ class TestTerminalClosedParticipant:
 
         ``rm`` stays CLOSED (terminal); ``vfd`` advances Vfd → VFd.
         """
-        dl = store_for(ACTOR_ID)
+        dl = store_for(
+            CASE_MANAGER_ID
+        )  # RSH-08-003 #3814: adoption runs at the CASE_MANAGER
         current = _current_status(RM.CLOSED, CS_vf.Vf, CS_pxa.pxa)
         asserted = _asserted_status(RM.CLOSED, CS_vf.VF, CS_pxa.pxa)
         _seed_case(dl, current, asserted)
 
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
         assert result.status == Status.SUCCESS, (
             "a CLOSED participant may still report vfd/pxa progress"
             f" (feedback: {result.feedback_message})"
@@ -771,9 +705,7 @@ class TestTerminalClosedParticipant:
 # ---------------------------------------------------------------------------
 
 
-def _status_snapshot_entry(
-    rm_state: str, vf_state: str
-) -> VultronCaseLedgerEntry:
+def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
     """A canonical ``add_participant_status_to_participant`` entry."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -797,7 +729,7 @@ def _status_snapshot_entry(
 
 
 def _announce_event(
-    entry: VultronCaseLedgerEntry,
+    entry: CaseLedgerEntry,
 ) -> AnnounceLogEntryReceivedEvent:
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
@@ -831,7 +763,9 @@ class TestLedgerApplyRmRatchet:
         event = _announce_event(entry)
 
         bridge = BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(
             tree=ApplyParticipantStatusFromLedgerNode(
@@ -843,12 +777,12 @@ class TestLedgerApplyRmRatchet:
         assert result.status == Status.SUCCESS
 
         latest = _latest_status(dl, PARTICIPANT_ID)
-        assert (
-            _rm_of(latest) == RM.ACCEPTED.name
-        ), "a replicated entry must not regress the replica's rm state"
-        assert (
-            _vf_of(latest) == CS_vf.VF.name
-        ), "the accepted vfd advance must still be applied"
+        assert _rm_of(latest) == RM.ACCEPTED.name, (
+            "a replicated entry must not regress the replica's rm state"
+        )
+        assert _vf_of(latest) == CS_vf.VF.name, (
+            "the accepted vfd advance must still be applied"
+        )
 
     def test_ratchet_holds_when_the_status_object_is_already_stored_locally(
         self, store_for
@@ -879,7 +813,9 @@ class TestLedgerApplyRmRatchet:
         event = _announce_event(entry)
 
         bridge = BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(
             tree=ApplyParticipantStatusFromLedgerNode(
@@ -934,7 +870,9 @@ class TestLedgerApplyRmRatchet:
         event = _announce_event(entry)
 
         bridge = BTBridge(
-            datalayer=dl, wire_render_port=As2WireRenderAdapter()
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         )
         result = bridge.execute_with_setup(
             tree=ApplyParticipantStatusFromLedgerNode(
@@ -943,9 +881,9 @@ class TestLedgerApplyRmRatchet:
             actor_id=ACTOR_ID,
             activity=event,
         )
-        assert (
-            result.status == Status.FAILURE
-        ), "an unreadable RM floor must fail, not silently skip the ratchet"
+        assert result.status == Status.FAILURE, (
+            "an unreadable RM floor must fail, not silently skip the ratchet"
+        )
 
         assert real_read(ASSERTED_STATUS_ID) is None, (
             "the regressing status must not be persisted when the ratchet"
@@ -1042,9 +980,9 @@ class TestLedgerOverrideDoesNotLeakBetweenExecutions:
         assert len(entries) == 2
         second_snap = entries[1].payload_snapshot["object"]
         assert second_snap["id"] == SECOND_STATUS_ID
-        assert (
-            second_snap["rmState"] == RM.ACCEPTED.name
-        ), "the second status must be snapshotted as asserted"
+        assert second_snap["rmState"] == RM.ACCEPTED.name, (
+            "the second status must be snapshotted as asserted"
+        )
 
     def test_filter_clears_a_stale_override_when_no_datalayer_is_available(
         self,
@@ -1119,7 +1057,7 @@ class TestMergeSnapshotObjectFields:
                 "id": ASSERTED_STATUS_ID,
                 "rmState": "RECEIVED",
                 "rm_state": "RECEIVED",
-                "emConsentState": "SIGNATORY",
+                "cvdRole": ["VENDOR"],
                 "name": "RECEIVED VFd",
             },
             {"rmState": "VALID", "vfState": "VFd"},
@@ -1130,7 +1068,7 @@ class TestMergeSnapshotObjectFields:
             "a stale snake_case twin would let a consumer read the value the"
             " receiver just refused"
         )
-        assert merged["emConsentState"] == "SIGNATORY"
+        assert merged["cvdRole"] == ["VENDOR"]
         assert merged["id"] == ASSERTED_STATUS_ID
         assert "name" not in merged, "the sender's derived label is dropped"
 
@@ -1175,13 +1113,6 @@ class TestMergeSnapshotObjectFields:
 class TestRMGapAnomalyFlag:
     """FilterParticipantStatusDimensionsNode publishes BB_RM_ANOMALY (RSH-06)."""
 
-    def _read_anomaly(self) -> Any:
-        from vultron.core.behaviors.status.nodes.dimension_filter import (
-            BB_RM_ANOMALY,
-        )
-
-        return py_trees.blackboard.Blackboard.storage.get("/" + BB_RM_ANOMALY)
-
     @pytest.mark.spec("RSH-06-001")
     def test_nonadjacent_forward_jump_sets_gap_anomaly(
         self, store_for, make_payload
@@ -1192,13 +1123,14 @@ class TestRMGapAnomalyFlag:
         asserted = _asserted_status(RM.ACCEPTED, None, None)
         _seed_case(dl, current, asserted)
 
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        seen: dict = {}
+        result = _run_tree(dl, asserted, ACTOR_ID, make_payload, anomaly=seen)
 
         assert result.status == Status.SUCCESS
-        anomaly = self._read_anomaly()
-        assert (
-            anomaly is not None
-        ), "BB_RM_ANOMALY not set for non-adjacent RM gap"
+        anomaly = seen["anomaly"]
+        assert anomaly is not None, (
+            "BB_RM_ANOMALY not set for non-adjacent RM gap"
+        )
         assert anomaly["anomaly_type"] == "gap"
         assert anomaly["from_rm"] == RM.RECEIVED
         assert anomaly["to_rm"] == RM.ACCEPTED
@@ -1212,12 +1144,13 @@ class TestRMGapAnomalyFlag:
         asserted = _asserted_status(RM.VALID, None, None)
         _seed_case(dl, current, asserted)
 
-        _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        seen: dict = {}
+        _run_tree(dl, asserted, ACTOR_ID, make_payload, anomaly=seen)
 
-        anomaly = self._read_anomaly()
-        assert (
-            anomaly is None
-        ), f"Expected no anomaly for adjacent transition, got {anomaly}"
+        anomaly = seen["anomaly"]
+        assert anomaly is None, (
+            f"Expected no anomaly for adjacent transition, got {anomaly}"
+        )
 
     @pytest.mark.spec("RSH-06-002")
     def test_backward_regression_refused_sets_regression_anomaly(
@@ -1229,15 +1162,49 @@ class TestRMGapAnomalyFlag:
         asserted = _asserted_status(RM.RECEIVED, None, None)
         _seed_case(dl, current, asserted)
 
-        _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        seen: dict = {}
+        _run_tree(dl, asserted, ACTOR_ID, make_payload, anomaly=seen)
 
-        anomaly = self._read_anomaly()
-        assert (
-            anomaly is not None
-        ), "BB_RM_ANOMALY not set for backward regression"
+        anomaly = seen["anomaly"]
+        assert anomaly is not None, (
+            "BB_RM_ANOMALY not set for backward regression"
+        )
         assert anomaly["anomaly_type"] == "regression"
         assert anomaly["from_rm"] == RM.ACCEPTED
         assert anomaly["to_rm"] == RM.RECEIVED
+
+
+class TestSharedRMAcceptanceRule:
+    """The ``Add(ParticipantStatus)`` half of the shared RM table (RSH-06-006).
+
+    ``test/core/behaviors/report/test_rm_declaration_adjudication.py`` runs the
+    activity-typed handlers against the same rows; both must record the same
+    RM state and flag the same anomaly.
+    """
+
+    @pytest.mark.spec("RSH-06-001")
+    @pytest.mark.spec("RSH-06-002")
+    @pytest.mark.spec("RSH-06-003")
+    @pytest.mark.spec("RSH-06-004")
+    @pytest.mark.spec("RSH-06-006")
+    @pytest.mark.parametrize("case", all_cases())
+    def test_status_path_applies_the_shared_rule(
+        self, case: RMDeclarationCase, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        current = _current_status(case.current, CS_vf.Vf, CS_pxa.pxa)
+        asserted = _asserted_status(case.declared, CS_vf.Vf, None)
+        _seed_case(dl, current, asserted)
+
+        seen: dict = {}
+        _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload, anomaly=seen)
+
+        assert recorded_rm(dl) == case.expected_rm
+        assert (seen["anomaly"] or {}).get("anomaly_type") == case.anomaly
+        # The note follows an accepted gap from the effect stage, and a
+        # wholly refused regression from the refusal-effects stage
+        # (RSH-06-004, CLP-10-022).
+        assert_note_owed(case, dl)
 
 
 # ---------------------------------------------------------------------------
@@ -1269,9 +1236,9 @@ class TestOverrideIncludesProducerType:
         assert result.status == Status.SUCCESS
 
         override = captured.get("override")
-        assert isinstance(
-            override, dict
-        ), "override must be a dict after partial accept"
+        assert isinstance(override, dict), (
+            "override must be a dict after partial accept"
+        )
         assert (
             override.get("producer_type")
             == "FilterParticipantStatusDimensionsNode"
@@ -1346,9 +1313,9 @@ class TestAdjudicateDimensionsRoleGuards:
             current, asserted, roles=[CVDRole.VENDOR]
         )
 
-        assert (
-            "vf" not in refused
-        ), "VF write must be accepted with VENDOR role"
+        assert "vf" not in refused, (
+            "VF write must be accepted with VENDOR role"
+        )
 
     def test_vf_not_ready_d_deployed_refused_on_receive(self):
         """#2893 received path: peer with vf=Vf asserting d=D must have D refused.
@@ -1376,9 +1343,9 @@ class TestAdjudicateDimensionsRoleGuards:
             roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
         )
 
-        assert (
-            "d" in refused
-        ), "D write must be refused when vf≠VF + d=D (CSB-17-001 received path)"
+        assert "d" in refused, (
+            "D write must be refused when vf≠VF + d=D (CSB-17-001 received path)"
+        )
 
     def test_vf_refused_no_history_does_not_spuriously_refuse_d(self):
         """Fix: when VF is refused (no VENDOR) and current_vf=None, effective_vf
@@ -1490,9 +1457,9 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
             current, asserted, roles=[CVDRole.VENDOR]
         )
 
-        assert (
-            "vf" not in refused
-        ), "a first VF observation must be accepted when rm=ACCEPTED allows it"
+        assert "vf" not in refused, (
+            "a first VF observation must be accepted when rm=ACCEPTED allows it"
+        )
 
     @pytest.mark.spec("RSH-05-020")
     def test_vf_refused_when_both_asserted_and_carried_rm_are_pre_acceptance(
@@ -1571,12 +1538,12 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
             current, asserted, roles=[CVDRole.DEPLOYER]
         )
 
-        assert (
-            "d" in refused
-        ), "d=D asserted with rm=VALID must be refused (CSB-18-001)"
-        assert (
-            update_fields["d"].state is CS_d.d
-        ), "the refused dimension carries the participant's current d forward"
+        assert "d" in refused, (
+            "d=D asserted with rm=VALID must be refused (CSB-18-001)"
+        )
+        assert update_fields["d"].state is CS_d.d, (
+            "the refused dimension carries the participant's current d forward"
+        )
 
     @pytest.mark.spec("RSH-05-020")
     def test_d_deployed_accepted_when_rm_has_reached_acceptance(self):
@@ -1593,9 +1560,9 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
             current, asserted, roles=[CVDRole.VENDOR, CVDRole.DEPLOYER]
         )
 
-        assert (
-            "d" not in refused
-        ), "d→D must be accepted when rm=ACCEPTED and vf=VF allow it"
+        assert "d" not in refused, (
+            "d→D must be accepted when rm=ACCEPTED and vf=VF allow it"
+        )
 
     @pytest.mark.spec("RSH-05-020")
     def test_entailment_refusal_is_per_dimension(self):
@@ -1613,9 +1580,9 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
 
         assert "vf" in refused
         assert "pxa" not in refused, "the pxa advance is independent of vf"
-        assert (
-            "case_status" not in update_fields
-        ), "an accepted pxa advance is recorded as asserted, not rewritten"
+        assert "case_status" not in update_fields, (
+            "an accepted pxa advance is recorded as asserted, not rewritten"
+        )
 
     @pytest.mark.spec("RSH-05-020")
     def test_dimension_is_not_refused_twice(self):

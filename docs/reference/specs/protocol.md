@@ -6,7 +6,7 @@ level: 400
 # Protocol Specifications
 
 Required for Vultron compliance in any implementation and any language. Covers
-wire behaviour, state machine invariants, behavioral contracts, message
+wire behavior, state machine invariants, behavioral contracts, message
 semantics, and protocol rules.
 
 ```python exec="true" idprefix=""

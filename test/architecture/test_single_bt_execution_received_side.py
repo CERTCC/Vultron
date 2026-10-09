@@ -106,8 +106,7 @@ def test_received_use_cases_do_not_dispatch_guarded_commit_directly():
         diff_lines.extend(f"  + {v}" for v in sorted(new_violations))
     if resolved:
         diff_lines.append(
-            "RESOLVED violations (remove these entries from"
-            " KNOWN_VIOLATIONS):"
+            "RESOLVED violations (remove these entries from KNOWN_VIOLATIONS):"
         )
         diff_lines.extend(f"  - {v}" for v in sorted(resolved))
 
@@ -238,13 +237,13 @@ def test_detector_catches_synthetic_multi_execute_with_setup_violation(
         encoding="utf-8",
     )
     violations = _count_multi_execute_violations(violation_file)
-    assert (
-        violations
-    ), "Detector did not flag the synthetic double execute_with_setup call"
+    assert violations, (
+        "Detector did not flag the synthetic double execute_with_setup call"
+    )
     counts = list(violations.values())
-    assert counts == [
-        2
-    ], f"Expected exactly 2 calls detected; got: {violations}"
+    assert counts == [2], (
+        f"Expected exactly 2 calls detected; got: {violations}"
+    )
 
     # One direct call plus one call inside a nested helper — must NOT be flagged.
     nested_ok_file = tmp_path / "synthetic_nested_ok.py"

@@ -3,15 +3,18 @@ title: Case State Model Notes
 status: active
 description: "CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append-only history, and canonical CaseLedgerEntry history."
 related_specs:
+  - specs/architecture.yaml (ARCH-12-002)
   - specs/case-management.yaml
   - specs/cs-behavior.yaml
   - specs/received-status-handling.yaml
+  - specs/rm-behavior.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/message-type-reference.md
   - notes/protocol-event-cascades.md
   - notes/received-status-authorization.md
   - notes/domain-validation.md
+  - notes/case-joining.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -167,46 +170,10 @@ As of PR #2479, `cs_invariants.py` is wired into the BT write paths:
 `is_valid_cs_transition` (AC-3 / SM-09-002) is enforced in
 `CreateParticipantStatusNode`, and pX→PX / vP→VP promotion (AC-1 / SM-09-001)
 is enforced in `CreateParticipantStatusNode`, `AppendCaseStatusToCaseNode`, and
-`EmitCaseStatusUpdateNode`. Receive-path history validation
-(`is_valid_cs_history`) remains unwired — see #2524.
-
----
-
-## Case Object: Documentation vs. Implementation Gap
-
-### Original Design (`docs/howto/case_object.md`)
-
-The how-to doc describes a UML class diagram for a `Case` object with:
-
-- `em_state: EMStateEnum` (embargo management state)
-- `pxa_state: PXAStateEnum` (public/exploit/attack state)
-- `Participant` with `rm_state: RMStateEnum` and `vfd_state: VFDStateEnum`
-- `VendorParticipant` and `DeployerParticipant` subclasses
-- `Message`, `LogEvent`, `Report` associations
-
-This design was written before the ActivityStreams vocabulary was adopted.
-
-### Current Implementation (`vultron/wire/as2/vocab/objects/vulnerability_case.py`)
-
-The `VulnerabilityCase` class is a Pydantic model inheriting from
-`VultronObject` (which inherits from the ActivityStreams `as_Object`). It
-incorporates:
-
-- Links to `CaseParticipant` objects (via `CaseParticipantRef`)
-- Links to `CaseStatus` objects (via `CaseStatusRef`)
-- Links to `EmbargoEvent` objects (via `EmbargoEventRef`)
-- Links to `VulnerabilityReport` objects
-- Links to `as_Activity` history
-
-The VFD/PXA state tracking is embedded in `CaseStatus` and `CaseParticipant`
-objects, not directly on the case. This reflects the ActivityStreams-first
-design.
-
-**Documentation debt**: `docs/howto/case_object.md` needs updating to reflect
-the ActivityStreams-based implementation. Not high priority, but should be
-addressed before the prototype is considered stable. When updating, preserve
-the UML diagram concept while replacing the class names with their
-ActivityStreams equivalents.
+`EmitCaseStatusUpdateNode`. Receive-path history validation is wired too
+(#2524): `CheckCsHistoryPrefixNode`
+(`core/behaviors/status/nodes/cs_invariant_guards.py`) checks each received CS
+event with `is_valid_cs_history_prefix` against the current state.
 
 ---
 
@@ -292,7 +259,6 @@ The canonical Python implementation is in
 - `actor` — references the participant Actor
 - `context` — references the `VulnerabilityCase`
 - `case_engagement: bool` — whether participant is engaged
-- `embargo_adherence: bool` — whether participant respects the embargo
 - `tracking_id: str | None` — participant's local tracking ID for the case
 - `case_status: CaseStatus | None` — optionally embeds the shared case status
 
@@ -422,23 +388,11 @@ Implemented in PR #3197 (closes #3109):
   → `CreateParticipantStatusNode` → emit.
 - **BT wiring (on-behalf path)**: in `add_on_behalf_status_trigger_tree.py`, when
   `d_state` is non-None `CheckSomeVendorAtVFNode` is inserted after
-  `EnsureOnBehalfParticipantExistsNode`, applying the same causal gate when a
-  CASE_MANAGER asserts d→D on behalf of a DEPLOYER participant.
+  `CheckOnBehalfTargetIsParticipantNode`, applying the same causal gate when a
+  CASE_MANAGER asserts d→D on behalf of an existing DEPLOYER participant.
 
 The gate is generic — "some vendor at VF" — because per-deployer/per-vendor
 dependency tracking is intentionally out of scope (Concern #2665).
-
-### OPP-06 — Future VFD/PXA transition handling
-
-When vendor-fix or public/exploit/attack transitions are implemented beyond
-object creation, reuse the authoritative VFD/PXA transition definitions rather
-than encoding bespoke conditionals in individual use cases or BT nodes. That
-keeps participant-specific VFD logic and shared PXA logic aligned with the
-formal state model and ensures future persistence guards stay consistent across
-code paths.
-
-See `archived_notes/state-machine-findings.md` OPP-06 and
-`specs/case-management.yaml` `CM-04-005`.
 
 ### Key Reference Documents
 
@@ -449,15 +403,16 @@ consulted when implementing state-related handlers or BT nodes:
   explanation of the participant-agnostic vs. participant-specific split
 - `docs/reference/activitypub/objects.md` — how objects are structured in the
   ActivityStreams vocabulary
-- `docs/howto/case_object.md` — case object design (note: predates
-  ActivityStreams; see "Documentation vs. Implementation Gap" section above)
+- `docs/topics/case_lifecycle/case_model.md` — the case model as implemented
+  (`docs/howto/case_object.md` is now a moved stub pointing here)
 - `docs/topics/behavior_logic/msg_cs_bt.md` — behavior tree logic for CS
   message handling
 - `docs/topics/process_models/cs/index.md` — CS model overview
-- `docs/topics/process_models/cs/model_definition.md` — formal CS model
-  definition
-- `docs/reference/formal_protocol/states.md` — formal state space for each
-  participant role (Vendor, Deployer, Finder/Reporter, Coordinator, Other)
+- `docs/topics/process_models/cs/transitions.md` — CS transitions, diagrams, and
+  grammar
+- `docs/reference/formal_protocol/states.md` — formal participant state space;
+  per-role state-space counts are in
+  `docs/topics/measuring_cvd/state_space_size.md`
 - `docs/reference/formal_protocol/conclusion.md` — protocol design conclusions
 
 ---
@@ -490,10 +445,9 @@ Using participant-supplied timestamps would allow different copies of a
 case (held by different actors) to disagree on event ordering, undermining
 auditability and the single-source-of-truth guarantee provided by CM-02-002.
 
-**Implementation note**: `set_embargo()` and similar mutation helpers on
-`VulnerabilityCase` MUST operate on `current_status`, not on the raw list.
-Directly setting `.em_state` on the `case_status` list attribute is a bug
-(lists do not support arbitrary attribute assignment).
+**Implementation note**: EM is not set on a status at all. It is derived from
+the case's embargo register (ADR-0122), and the case stamps the derived value
+onto `current_status`; `append_case_status(em_state=...)` is refused.
 
 **Trusted timestamp implementation note**: When the spec says the CASE_MANAGER
 must timestamp state-changing events on receipt, this does NOT mean modifying
@@ -552,58 +506,70 @@ Work genuinely happens in both stages, and participants exist in both.
 
 > **Source**: CONCERN-1756. Corrects CM-11-001 and `CreateInviteeParticipantAtAcceptedNode`.
 
-Participants who join a case via the invite-accept path enter at **RM.RECEIVED**,
-not RM.ACCEPTED. This is a protocol-correctness requirement, not merely a
-demo-visibility gap.
+Participants who join a case via the invite path sit at **RM.RECEIVED** until
+they judge the case, never RM.ACCEPTED. This is a protocol-correctness
+requirement, not merely a demo-visibility gap. ADR-0114 and ADR-0121 refine it
+into two Invites; the full flow is in [case-joining.md](case-joining.md).
 
-### Why Accept(Invite) ≠ RM.ACCEPTED
+### Why Accept(Invite(stub)) ≠ RM.ACCEPTED
 
-When an actor sends `Accept(Invite(actor, case))`, they have seen only a redacted
-or stub view of the `VulnerabilityCase` — enough to agree to join and consent to
-the embargo, but not the full vulnerability details (report, description, affected
+When an actor sends `Accept(Invite(actor, VulnerabilityCaseStub))`, they have
+seen only the case stub — enough to agree to join and consent to the embargo,
+but not the full vulnerability details (report, description, affected
 versions, etc.). The full case is replicated to them *after* the CASE_MANAGER
 processes their Accept. Therefore:
 
-- `Accept(Invite)` = "I am willing to join this case and accept its embargo terms."
-- It does NOT mean "I have validated the vulnerability and committed to remediation."
+- `Accept(Invite(stub))` = "I am joining this case and accept its embargo
+  terms."
+- It does NOT mean "I have validated the vulnerability" (RV) or "I have
+  committed to remediation" (RA).
 
-Recording the invitee at RM.ACCEPTED on Accept is incorrect because RM.ACCEPTED
-means the participant has validated the report and chosen to engage. An actor
-cannot be in that state before seeing the report.
+Recording the participant at RM.ACCEPTED — or RM.VALID — on the stub Accept is
+incorrect, because both are judgements of a case the actor has not yet seen.
 
 ### Correct Lifecycle for Invited Participants
 
-After the CASE_MANAGER processes `Accept(Invite)`:
-
-1. CASE_MANAGER records invitee at **RM.RECEIVED**.
-2. CASE_MANAGER replicates the full `VulnerabilityCase` to the invitee via
-   `Announce(VulnerabilityCase)` and join-time ledger backfill.
-3. Invitee reviews the full case, runs their own validation:
-   - Transitions to **RM.VALID** or **RM.INVALID** and notifies the CASE_MANAGER.
-4. If valid, invitee decides to engage or defer:
-   - Transitions to **RM.ACCEPTED** or **RM.DEFERRED** and notifies the CASE_MANAGER.
-5. CASE_MANAGER updates its representation of the invitee's RM state based on
-   the received status messages (CM-11-002).
+1. CASE_MANAGER sends the stub Invite and, in the same step, creates the
+   invitee's participant record, inert, at **RM.RECEIVED** (CM-11-006).
+   `Reject(Invite(stub))` closes that kept record, `R → C` (CM-11-007,
+   RMB-14-004).
+2. On `Accept(Invite(stub))` RM stays at RECEIVED (CM-11-001). The CASE_MANAGER
+   replicates the full `VulnerabilityCase` via `Announce(VulnerabilityCase)`
+   and ledger replay (CM-11-008).
+3. CASE_MANAGER sends the **full-case Invite** `Invite(Actor,
+   VulnerabilityCase)`, queued after the last replayed entry, carrying its
+   ledger position (CM-11-010).
+4. The participant reviews the full case and replies to the full-case Invite:
+   `Accept` → **RM.VALID**, `TentativeReject` → **RM.INVALID**, `Reject` →
+   **RM.CLOSED**; the reply carries its own ledger position (CM-11-011,
+   CM-11-012). It never answers the original `Offer(VulnerabilityReport)`
+   (CM-11-020).
+5. If valid, the participant decides to engage or defer with
+   `Join(VulnerabilityCase)` (**RM.ACCEPTED**) or `Ignore(VulnerabilityCase)`
+   (**RM.DEFERRED**) (CM-11-002, CM-11-004).
 
 ### Scope Boundary
 
 This rule applies to **post-initialization invitees** only — participants added
-to an existing case via `Invite(actor, case)`. It does not apply to the initial
-reporter and receiver participants created during case initialization (CM-12,
-CM-13), whose RM states are set as part of the case creation sequence.
+to an existing case via an Invite. It does not apply to the initial reporter
+and receiver participants created during case initialization (CM-12, CM-13),
+whose RM states are set as part of the case creation sequence.
 
 ### Implementation
 
-- **`CreateInviteeParticipantNode`** constructs the invitee participant at
-  `RM.START`; **`AdvanceInviteeToReceivedNode`** then records `RM.RECEIVED` for
-  the invitee through the sole writer (`CreateParticipantStatusNode`) in the
-  CASE_MANAGER's DataLayer, after the participant is attached (ADR-0089 birth:
-  construct → attach → advance).
-- The invitee's subsequent V/A transitions are driven by received RM status
-  messages from the invitee themselves.
+- **`CreateInertInviteeParticipantNode`** creates the invitee's participant
+  when the CASE_MANAGER sends the stub Invite (CM-11-006), at `RM.RECEIVED`
+  (ADR-0089 birth: construct → attach → advance, through the sole writer
+  `CreateParticipantStatusNode`). The stub `Accept` moves no RM state
+  (CM-11-001).
+- The accept-invite tree creates no participant. `InviteeHasParticipantRecordNode`
+  refuses, before any write, an Accept whose invitee has no record (CM-11-021);
+  `ActivateInviteeParticipantNode` marks the inert record joined.
+- The participant's subsequent RM transitions are driven by messages from the
+  participant itself — its full-case Invite reply and then `Join`/`Ignore`.
 
 **Normative requirements**: `specs/case-management.yaml` CM-11-001 through
-CM-11-004.
+CM-11-016.
 
 ---
 
@@ -670,3 +636,13 @@ therefore unmet and #1912 resolves to "no change." See
 **See**: `docs/adr/0033-lifecycle-staged-case-types.md`,
 `docs/adr/0036-status-dimension-objects.md`,
 `docs/adr/0075-split-vfd-state-machine.md`; `vultron/core/states/cs.py`.
+
+## Replica Principle (2026-10-02 audit, CM-23-016)
+
+A participant's replica of a case is `case(t0)` plus the ledger entries that
+followed it. A replica applies the transitions the ledger records; it never
+re-derives a transition by walking the RM table (#4091). The RM table (including
+the `R → C` row, `Leave` from V as `V → D → C`, and from S as `S → R → C`,
+ratified in ADR-0114) governs what the CASE_MANAGER may commit, not what a
+replica may infer. Closure semantics (CM-23-002/013/014, #4065/#4066) await a
+separate maintainer decision and are unchanged here.

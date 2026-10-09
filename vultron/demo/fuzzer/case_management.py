@@ -32,6 +32,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
 from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
@@ -62,7 +64,9 @@ class EvaluateCaseProposal(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     warrant a coordinated case typically needs human review.
     """
 
-    output_keys = {"evaluate_case_proposal_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {
+        "evaluate_case_proposal_verdict": str
+    }
 
 
 __all__ = ["EvaluateCaseProposal"]

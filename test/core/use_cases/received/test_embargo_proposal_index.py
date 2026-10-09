@@ -19,27 +19,38 @@ Verifies that:
   - InviteToEmbargoOnCaseReceivedUseCase populates pending_embargo_proposal_index
   - SvcAcceptEmbargoUseCase resolves proposal from core state (no Invite DL read)
   - SvcRejectEmbargoUseCase resolves proposal from core state (no Invite DL read)
-  - Counter-proposal case: first pending proposal used when no proposal_id given
+  - Counter-proposal case: the earliest-expiring open proposal is used when no
+    proposal_id is given (EP-08-002) — never the first recorded
   - No-op: VultronNotFoundError raised when pending_embargo_proposal_index is empty
   - RejectInviteToEmbargoOnCaseReceivedEvent.case_id comes from inner_context_id
 """
 
+from datetime import UTC, timedelta
 from typing import cast
 
 import pytest
 
+from test.core.use_cases.received.conftest import seed_case_owner_participant
+from test.support.embargo_register import propose
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.states.em import EM
 from vultron.core.models.events.embargo import (
     InviteToEmbargoOnCaseReceivedEvent,
+    RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     InviteToEmbargoOnCaseReceivedUseCase,
+    RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import (
@@ -53,7 +64,10 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import VultronNotFoundError
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.factories import em_propose_embargo_activity
+from vultron.wire.as2.factories import (
+    em_propose_embargo_activity,
+    reject_embargo_proposal_activity,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -62,19 +76,28 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 )
 
 
-def _make_case_with_case_manager(dl, actor_id, em_state=EM.PROPOSED):
-    """Create and persist a VulnerabilityCase with a CASE_MANAGER participant."""
+def _make_case_with_case_manager(dl, actor_id, manager_id: str | None = None):
+    """Create and persist a VulnerabilityCase with a CASE_MANAGER participant.
+
+    The case starts with an empty embargo register (EM NONE); a test that
+    needs an open proposal proposes it.  The role holder is a fresh
+    ``CaseManager`` service unless *manager_id*
+    names an actor already in *dl* — the receiver, for a test of work only
+    the CASE_MANAGER does (BT-17-001, BT-17-005).
+    """
     from vultron.enums.roles import CVDRole
 
     case = VulnerabilityCase(
         name="Proposal Index Test",
         attributed_to=actor_id,
     )
-    case.append_case_status(em_state=em_state)
     dl.create(case)
 
-    case_manager = as_Service(name="CaseManager")
-    dl.create(case_manager)
+    if manager_id is None:
+        case_manager = as_Service(name="CaseManager")
+        dl.create(case_manager)
+    else:
+        case_manager = cast(as_Service, dl.read(manager_id))
     cm_p = as_CaseParticipant(
         attributed_to=case_manager.id_,
         context=case.id_,
@@ -99,13 +122,17 @@ class TestInviteToEmbargoRecordsIndex:
 
         actor = as_Service(id_=actor_id, name="Vendor")
         dl.create(actor)
+        # The vendor is the CASE_MANAGER, so its own proposal is adjudicated
+        # here and its index is written (ADR-0115: a replica takes a
+        # proposal from the CASE_MANAGER only).
         case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.NONE
+            dl, actor_id, manager_id=actor_id
         )
 
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
 
@@ -113,6 +140,7 @@ class TestInviteToEmbargoRecordsIndex:
             embargo,
             context=case.id_,
             actor=actor_id,
+            to=[actor_id],
         )
         raw_event = extract_event(proposal)
         event = cast(
@@ -120,7 +148,13 @@ class TestInviteToEmbargoRecordsIndex:
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),
         )
 
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
@@ -140,13 +174,17 @@ class TestInviteToEmbargoRecordsIndex:
 
         actor = as_Service(id_=actor_id, name="Vendor")
         dl.create(actor)
+        # The vendor is the CASE_MANAGER, so its own proposal is adjudicated
+        # here and its index is written (ADR-0115: a replica takes a
+        # proposal from the CASE_MANAGER only).
         case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.NONE
+            dl, actor_id, manager_id=actor_id
         )
 
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e_idem",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
 
@@ -154,6 +192,7 @@ class TestInviteToEmbargoRecordsIndex:
             embargo,
             context=case.id_,
             actor=actor_id,
+            to=[actor_id],
         )
         raw_event = extract_event(proposal)
         event = cast(
@@ -161,8 +200,20 @@ class TestInviteToEmbargoRecordsIndex:
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),
         )
 
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
-        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
@@ -174,7 +225,7 @@ class TestProposeTriggerRecordsIndex:
 
     def test_propose_trigger_populates_index(self):
         """After triggering a proposal, case.pending_embargo_proposal_index is populated."""
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta
 
         from vultron.core.use_cases.triggers.requests import (
             ProposeEmbargoTriggerRequest,
@@ -186,41 +237,80 @@ class TestProposeTriggerRecordsIndex:
 
         actor = as_Service(id_=actor_id, name="Coordinator")
         dl.create(actor)
+        # The CASE_MANAGER indexes its own proposal (EP-09-001, EP-09-008).
         case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.NONE
+            dl, actor_id, manager_id=actor_id
         )
 
-        end_time = datetime.now(timezone.utc) + timedelta(days=90)
+        end_time = datetime.now(UTC) + timedelta(days=90)
         request = ProposeEmbargoTriggerRequest(
             actor_id=actor_id,
             case_id=case.id_,
             end_time=end_time,
         )
         result = SvcProposeEmbargoUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        assert "activity" in result
+        assert result.activity is not None
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
         assert len(updated_case.pending_embargo_proposal_index) == 1
         proposal_ids = list(
             updated_case.pending_embargo_proposal_index.values()
         )
-        assert proposal_ids[0] == result["activity"]["id"]
+        assert proposal_ids[0] == activity_of(result)["id"]
+
+    @pytest.mark.spec("EP-09-008")
+    def test_non_manager_proposal_is_not_indexed_locally(self):
+        """A non-manager only asks: the manager's relay indexes the proposal."""
+        from datetime import datetime, timedelta
+
+        from vultron.core.use_cases.triggers.requests import (
+            ProposeEmbargoTriggerRequest,
+        )
+
+        actor_id = "https://example.org/actors/finder"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        dl.create(as_Service(id_=actor_id, name="Finder"))
+        case, _cm = _make_case_with_case_manager(dl, actor_id)
+
+        SvcProposeEmbargoUseCase(
+            dl,
+            ProposeEmbargoTriggerRequest(
+                actor_id=actor_id,
+                case_id=case.id_,
+                end_time=datetime.now(UTC) + timedelta(days=90),
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        updated_case = dl.read(case.id_)
+        assert isinstance(updated_case, VulnerabilityCase)
+        assert updated_case.pending_embargo_proposal_index == {}
+        assert updated_case.current_status.em.state == EM.NONE
 
 
 class TestAcceptRejectFromCoreState:
     """accept/reject trigger use cases must resolve proposal from core state."""
 
     def _make_proposed_case(self, dl, actor_id, actor):
-        """Build a PROPOSED case with index populated."""
+        """Build a PROPOSED case with index populated, managed by *actor_id*.
+
+        Only the CASE_MANAGER's answer moves the case (EP-09-008).
+        """
         case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.PROPOSED
+            dl, actor_id, manager_id=actor_id
         )
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -230,7 +320,7 @@ class TestAcceptRejectFromCoreState:
         )
         dl.create(proposal)
         case_obj = dl.read(case.id_)
-        case_obj.proposed_embargoes.append(embargo.id_)
+        propose(case_obj, embargo.id_)
         case_obj.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         dl.save(case_obj)
         return case, embargo, proposal
@@ -243,7 +333,9 @@ class TestAcceptRejectFromCoreState:
         actor = as_Service(id_=actor_id, name="AcceptActor")
         dl.create(actor)
 
-        case, embargo, proposal = self._make_proposed_case(dl, actor_id, actor)
+        case, _embargo, proposal = self._make_proposed_case(
+            dl, actor_id, actor
+        )
 
         request = AcceptEmbargoTriggerRequest(
             actor_id=actor_id,
@@ -251,38 +343,76 @@ class TestAcceptRejectFromCoreState:
             proposal_id=proposal.id_,
         )
         result = SvcAcceptEmbargoUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        assert "activity" in result
+        assert result.activity is not None
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
         assert updated_case.current_status.em.state == EM.ACTIVE
 
-    def test_accept_without_proposal_id_uses_first_pending(self):
-        """SvcAcceptEmbargoUseCase finds first pending proposal from index when no proposal_id given."""
+    @pytest.mark.spec("EP-08-002")
+    def test_accept_without_proposal_id_uses_earliest_expiring(self):
+        """No ``proposal_id``: the earliest-expiring open proposal is accepted.
+
+        The counter-proposal (recorded *second*) expires sooner than the
+        original, so an arrival-order resolver would activate the superseded
+        terms (EP-08-002, ADR-0100, #3470).
+        """
         actor_id = "https://example.org/actors/accept-auto"
         # The trigger runs as actor_id, so this is its store.
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
         actor = as_Service(id_=actor_id, name="AcceptAutoActor")
         dl.create(actor)
 
-        case, _embargo, _proposal = self._make_proposed_case(
+        case, original, _original_proposal = self._make_proposed_case(
             dl, actor_id, actor
         )
+        counter = as_EmbargoEvent(
+            id_=f"{case.id_}/embargo_events/e2",
+            context=case.id_,
+            end_time=original.end_time - timedelta(days=10),
+        )
+        dl.create(counter)
+        counter_proposal = em_propose_embargo_activity(
+            counter, context=case.id_, actor=actor_id
+        )
+        dl.create(counter_proposal)
+        case_obj = dl.read(case.id_)
+        assert isinstance(case_obj, VulnerabilityCase)
+        propose(case_obj, counter.id_)
+        case_obj.pending_embargo_proposal_index[counter.id_] = (
+            counter_proposal.id_
+        )
+        dl.save(case_obj)
 
         request = AcceptEmbargoTriggerRequest(
             actor_id=actor_id,
             case_id=case.id_,
         )
         result = SvcAcceptEmbargoUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        assert "activity" in result
+        assert result.activity is not None
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
-        assert updated_case.current_status.em.state == EM.ACTIVE
+        # The original is still an open proposal over the now-active
+        # counter, so the register derives REVISE (ADR-0122).
+        assert updated_case.em_state == EM.REVISE
+        assert updated_case.active_embargo_id == counter.id_
+        assert updated_case.proposed_embargo_ids == [original.id_]
+        # The decided proposal left both records; the other stays open.
+        assert counter.id_ not in updated_case.pending_embargo_proposal_index
+        assert original.id_ in updated_case.pending_embargo_proposal_index
 
     def test_reject_uses_core_state_index(self):
         """SvcRejectEmbargoUseCase resolves embargo from core state (no Invite DL read)."""
@@ -302,10 +432,14 @@ class TestAcceptRejectFromCoreState:
             proposal_id=proposal.id_,
         )
         result = SvcRejectEmbargoUseCase(
-            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        assert "activity" in result
+        assert result.activity is not None
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
         # Owner-reject drives EM to NONE; non-owner records rejection only.
@@ -319,9 +453,10 @@ class TestAcceptRejectFromCoreState:
         actor = as_Service(id_=actor_id, name="AcceptNoProposalActor")
         dl.create(actor)
 
-        case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.PROPOSED
-        )
+        case, _cm = _make_case_with_case_manager(dl, actor_id)
+        # An open proposal the pending-proposal index has no entry for.
+        propose(case, f"{case.id_}/embargo_events/unindexed")
+        dl.save(case)
 
         request = AcceptEmbargoTriggerRequest(
             actor_id=actor_id,
@@ -329,7 +464,11 @@ class TestAcceptRejectFromCoreState:
         )
         with pytest.raises(VultronNotFoundError):
             SvcAcceptEmbargoUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
 
     def test_reject_raises_notfound_when_index_empty(self):
@@ -340,9 +479,10 @@ class TestAcceptRejectFromCoreState:
         actor = as_Service(id_=actor_id, name="RejectNoProposalActor")
         dl.create(actor)
 
-        case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.PROPOSED
-        )
+        case, _cm = _make_case_with_case_manager(dl, actor_id)
+        # An open proposal the pending-proposal index has no entry for.
+        propose(case, f"{case.id_}/embargo_events/unindexed")
+        dl.save(case)
 
         request = RejectEmbargoTriggerRequest(
             actor_id=actor_id,
@@ -350,8 +490,155 @@ class TestAcceptRejectFromCoreState:
         )
         with pytest.raises(VultronNotFoundError):
             SvcRejectEmbargoUseCase(
-                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
             ).execute()
+
+
+class TestReceivedRejectPrunesOpenProposals:
+    """Only the owner's Reject(EmbargoEvent, target=Case) prunes an open
+    proposal in the CASE_MANAGER's store (EP-08-003, ADR-0122); every
+    Reject(Invite(EmbargoEvent)) is consent, the owner's included (#3470).
+
+    Only the CASE_MANAGER receives an answer (EP-09); a participant replica
+    learns it from the committed entry's ledger replay, tested in
+    ``test/core/behaviors/sync/nodes/test_embargo_relay_effect.py``.
+    """
+
+    _OWNER = "https://example.org/actors/reject-owner"
+    _REPLICA = "https://example.org/actors/reject-manager"
+
+    def _replica_with_open_proposal(self):
+        """The CASE_MANAGER's store holding the owner's case with one open proposal."""
+        from vultron.wire.as2.factories import em_reject_embargo_activity
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._REPLICA)
+        dl.create(as_Service(id_=self._REPLICA, name="Manager"))
+        dl.create(as_Service(id_=self._OWNER, name="Owner"))
+        case, _cm = _make_case_with_case_manager(
+            dl, self._OWNER, manager_id=self._REPLICA
+        )
+        embargo = as_EmbargoEvent(
+            id_=f"{case.id_}/embargo_events/e1",
+            context=case.id_,
+            end_time=days_from_now_utc(45),
+        )
+        dl.create(embargo)
+        proposal = em_propose_embargo_activity(
+            embargo=embargo, context=case.id_, actor=self._OWNER
+        )
+        dl.create(proposal)
+        case_obj = cast(VulnerabilityCase, dl.read(case.id_))
+        propose(case_obj, embargo.id_)
+        case_obj.pending_embargo_proposal_index = {embargo.id_: proposal.id_}
+        dl.save(case_obj)
+
+        def received_reject_by(actor_id: str):
+            # Each participant answers the Invite the manager relayed to it
+            # (EP-09-002); only the invitee may answer it (EP-09-010).
+            relayed = em_propose_embargo_activity(
+                embargo=embargo,
+                context=case.id_,
+                actor=self._REPLICA,
+                attributed_to=self._OWNER,
+                to=[actor_id],
+                id_=f"{case.id_}/embargo_invites/{actor_id.rsplit('/', 1)[-1]}",
+            )
+            dl.create(relayed)
+            reject = em_reject_embargo_activity(
+                proposal=relayed,
+                context=case.id_,
+                actor=actor_id,
+                to=[self._REPLICA],
+            )
+            return cast(
+                RejectInviteToEmbargoOnCaseReceivedEvent,
+                extract_event(reject).model_copy(
+                    update={"receiving_actor_id": self._REPLICA}
+                ),
+            )
+
+        return dl, case, embargo, proposal, received_reject_by
+
+    def _seat_owner(self, dl, case) -> None:
+        stored = cast(VulnerabilityCase, dl.read(case.id_))
+        seed_case_owner_participant(dl, stored, self._OWNER)
+        dl.save(stored)
+
+    @pytest.mark.spec("EP-08-003")
+    def test_owners_decision_prunes_both_records_in_the_managers_store(self):
+        dl, case, embargo, _proposal, _received_reject_by = (
+            self._replica_with_open_proposal()
+        )
+        self._seat_owner(dl, case)
+        decision = reject_embargo_proposal_activity(
+            embargo, target=case.id_, actor=self._OWNER, to=[self._REPLICA]
+        )
+        event = cast(
+            RejectEmbargoProposalOnCaseReceivedEvent,
+            extract_event(decision).model_copy(
+                update={"receiving_actor_id": self._REPLICA}
+            ),
+        )
+
+        result = RejectEmbargoProposalOnCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+        replica_case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert replica_case.proposed_embargo_ids == []
+        assert replica_case.pending_embargo_proposal_index == {}
+
+    @pytest.mark.spec("EP-08-003")
+    @pytest.mark.spec("MSM-07-004")
+    def test_owners_reject_of_an_invite_prunes_nothing(self):
+        dl, case, embargo, proposal, received_reject_by = (
+            self._replica_with_open_proposal()
+        )
+        self._seat_owner(dl, case)
+
+        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            received_reject_by(self._OWNER),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+        replica_case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert replica_case.proposed_embargo_ids == [embargo.id_]
+        assert replica_case.pending_embargo_proposal_index == {
+            embargo.id_: proposal.id_
+        }
+
+    @pytest.mark.spec("EP-08-003")
+    def test_participants_reject_is_consent_and_prunes_nothing(self):
+        dl, case, embargo, proposal, received_reject_by = (
+            self._replica_with_open_proposal()
+        )
+        participant = "https://example.org/actors/reject-participant"
+        dl.create(as_Service(id_=participant, name="Participant"))
+
+        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            received_reject_by(participant),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        replica_case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert replica_case.proposed_embargo_ids == [embargo.id_]
+        assert replica_case.pending_embargo_proposal_index == {
+            embargo.id_: proposal.id_
+        }
 
 
 class TestRejectEventCarriesCaseAndEmbargoIds:
@@ -366,7 +653,9 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         actor_id = "https://example.org/actors/rejector"
         proposal_id = f"{case_id}/proposals/p1"
 
-        embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
+        embargo = as_EmbargoEvent(
+            id_=embargo_id, context=case_id, end_time=days_from_now_utc(45)
+        )
         proposal = em_propose_embargo_activity(
             embargo=embargo,
             context=case_id,
@@ -389,6 +678,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
     def test_reject_use_case_uses_event_case_id_not_dl_read(self, monkeypatch):
         """RejectInviteToEmbargoOnCaseReceivedUseCase uses case_id from event, not dl.read(invite_id)."""
         from unittest.mock import patch
+
         from vultron.wire.as2.factories import em_reject_embargo_activity
 
         actor_id = "https://example.org/actors/rej-actor"
@@ -400,17 +690,22 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         actor = as_Service(id_=actor_id, name="RejActor")
         dl.create(actor)
         case, _cm = _make_case_with_case_manager(
-            dl, actor_id, em_state=EM.PROPOSED
+            dl, actor_id, manager_id=actor_id
         )
         embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo_events/e1",
             context=case.id_,
+            end_time=days_from_now_utc(45),
         )
         dl.create(embargo)
         proposal = em_propose_embargo_activity(
-            embargo=embargo, context=case.id_, actor=actor_id
+            embargo=embargo, context=case.id_, actor=actor_id, to=[actor_id]
         )
         dl.create(proposal)
+        # A Reject must name an open proposal (or the active embargo).
+        case_obj = cast(VulnerabilityCase, dl.read(case.id_))
+        propose(case_obj, embargo.id_)
+        dl.save(case_obj)
 
         reject_activity = em_reject_embargo_activity(
             proposal=proposal,
@@ -426,17 +721,28 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         dl_read_calls = []
         original_read = dl.read
 
-        def spy_read(obj_id):
+        def spy_read(obj_id, **kwargs):
             dl_read_calls.append(obj_id)
-            return original_read(obj_id)
+            return original_read(obj_id, **kwargs)
 
         with patch.object(dl, "read", side_effect=spy_read):
-            RejectInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+            result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
-        # dl.read must NOT have been called with the proposal/invite ID
-        assert (
-            proposal.id_ not in dl_read_calls
-        ), f"dl.read({proposal.id_!r}) was called — invite wire re-read must be eliminated"
+        # The use case takes the case and embargo from the event, never from
+        # a re-read of the Invite.  The only reads of the recorded Invite are
+        # the two sender guards' lookups of its invitee: the handler's
+        # pre-flight and the tree's sender stage (EP-09-010).
+        assert dl_read_calls.count(proposal.id_) == 2, (
+            f"dl.read({proposal.id_!r}) was called"
+            f" {dl_read_calls.count(proposal.id_)} times — only the two"
+            " sender guards may read the recorded Invite"
+        )
 
         assert event.case_id == case.id_
         assert event.embargo_id == embargo.id_

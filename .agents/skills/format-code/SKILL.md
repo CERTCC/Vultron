@@ -1,29 +1,30 @@
 ---
 id: "format-code"
-title: "Format code with Black"
-description: "Format Python sources in the repository using Black (pre-commit enforced)."
+title: "Format code with ruff"
+description: "Format Python sources in the repository with ruff and apply its safe lint fixes (pre-commit enforced)."
 author: "CERTCC / Vultron"
 tags:
   - formatting
   - dev-workflow
 shell: "zsh"
 commands:
-  - "G=.agents/skills/shared/run-if-changed.sh; \"$G\" black vultron/ test/ pyproject.toml uv.lock -- uv run black vultron/ test/ && \"$G\" flake8 vultron/ test/ .flake8 uv.lock -- uv run flake8 vultron/ test/"
+  - "uv run ruff check --fix && uv run ruff format"
 inputs:
   - name: repo_root
     description: "Repository root"
     default: "."
 outputs:
   - name: formatted_files
-    description: "Files modified by Black (stdout)"
+    description: "Files fixed or reformatted by ruff (stdout)"
 ---
 
-# Skill: Format code with Black
+# Skill: Format code with ruff
 
 ## Purpose
 
-Format Python source files in the repository using Black. This ensures a
-consistent code style and avoids pre-commit failures.
+Format Python source files with `ruff format` and apply ruff's safe lint fixes
+(import sorting among them). This keeps a consistent code style and avoids
+pre-commit failures.
 
 ## Inputs
 
@@ -32,41 +33,31 @@ consistent code style and avoids pre-commit failures.
 
 ## Outputs
 
-- `formatted_files` (string): stdout from Black listing files reformatted.
+- `formatted_files` (string): stdout from ruff listing files fixed or
+  reformatted.
 
 ## Procedure
 
-1. From the repository root, run Black and flake8 on the `vultron/` and
-   `test/` directories. Route each through the shared `run-if-changed.sh`
-   guard so a tool is skipped when its inputs (source files + its config +
-   `uv.lock`) are unchanged since the last successful run:
+1. From the repository root, run:
 
-```bash
-G=.agents/skills/shared/run-if-changed.sh
-"$G" black  vultron/ test/ pyproject.toml uv.lock -- uv run black  vultron/ test/
-"$G" flake8 vultron/ test/ .flake8       uv.lock -- uv run flake8 vultron/ test/
-```
+   ```bash
+   uv run ruff check --fix
+   uv run ruff format
+   ```
 
-1. Inspect the output and stage changes if any files were reformatted. A
-   `... inputs unchanged since last success — skipping` line means the guard
-   reused a prior pass; it is not an error.
+2. Inspect the output and stage changes if any files were rewritten.
 
 ## Constraints / Rules
 
-- Do NOT run Black on markdown files; use `markdownlint-cli2` for markdown.
-- Run Black before staging changes for commit; pre-commit hooks assume code is
-  formatted.
-
-## Examples
-
-```bash
-cd "$REPO_ROOT"
-G=.agents/skills/shared/run-if-changed.sh
-"$G" black  vultron/ test/ pyproject.toml uv.lock -- uv run black  vultron/ test/
-"$G" flake8 vultron/ test/ .flake8       uv.lock -- uv run flake8 vultron/ test/
-```
+- Do not pass paths. Scope is declared in `[tool.ruff]` in `pyproject.toml`
+  (IMPLTS-07-021); `ruff format` excludes Markdown there, so fenced Python in
+  docs, notes and `plan/history/` is never rewritten.
+- Use `markdownlint-cli2` for Markdown.
+- Formatting can rewrap a line and strand an inline pragma. `run-linters` runs
+  `ruff check`, mypy and pyright after formatting; use it before committing.
 
 ## Rationale
 
-Using Black guarantees consistent formatting across the codebase and prevents
-pre-commit failures during CI and developer commits.
+One formatter, whose import sorting and lint fixes share one configuration,
+keeps the pre-commit hook, the CI `lint-ruff` job and local runs in agreement
+(ADR-0094).

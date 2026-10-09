@@ -1,21 +1,23 @@
 """Tests for vultron.wire.as2.extractor."""
 
-from datetime import datetime, timedelta, timezone
+import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import pytest
 
-from vultron.core.models.events import MessageSemantics
-from vultron.wire.as2.extractor import (
-    ActivityPattern,
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.dimensions import (
+    VfDimension,
 )
+from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
     extract_event,
     find_matching_semantics,
 )
-from vultron.core.models.dimensions import (
-    VfDimension,
+from vultron.wire.as2.extractor import (
+    ActivityPattern,
 )
 
 
@@ -74,12 +76,12 @@ def test_all_message_semantics_except_unknown_have_patterns():
 
 @pytest.mark.spec("SE-01-001")
 def test_activity_pattern_match_returns_false_for_wrong_activity_type():
+    from vultron.wire.as2.enums import (
+        as_ObjectType as AOtype,
+        as_TransitiveActivityType as TAtype,
+    )
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
-    )
-    from vultron.wire.as2.enums import (
-        as_TransitiveActivityType as TAtype,
-        as_ObjectType as AOtype,
     )
 
     pattern = ActivityPattern(activity_=TAtype.ADD, object_=AOtype.NOTE)
@@ -96,7 +98,7 @@ def test_activity_pattern_match_returns_false_for_wrong_activity_type():
 @pytest.mark.spec("VAM-02-001")
 @pytest.mark.spec("SE-01-002")
 def test_extract_intent_report_pass_through_fields():
-    """New VultronReport fields (summary, url, media_type, published, updated) survive extraction."""
+    """New VulnerabilityReport fields (summary, url, media_type, published, updated) survive extraction."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
@@ -104,7 +106,7 @@ def test_extract_intent_report_pass_through_fields():
         as_VulnerabilityReport,
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     report = as_VulnerabilityReport(
         name="VR-001",
         summary="Brief summary",
@@ -130,7 +132,7 @@ def test_extract_intent_report_pass_through_fields():
 
 @pytest.mark.spec("VAM-03-001")
 def test_extract_intent_case_pass_through_fields():
-    """New VultronCase fields (published, updated) survive extraction."""
+    """New VulnerabilityCase fields (published, updated) survive extraction."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
@@ -138,7 +140,7 @@ def test_extract_intent_case_pass_through_fields():
         as_VulnerabilityCase,
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     case = as_VulnerabilityCase(
         name="CASE-001",
         summary="Case summary",
@@ -156,17 +158,18 @@ def test_extract_intent_case_pass_through_fields():
 
 @pytest.mark.spec("VAM-05-001")
 def test_extract_intent_embargo_pass_through_fields():
-    """New VultronEmbargoEvent fields (published, updated) survive extraction."""
+    """New EmbargoEvent fields (published, updated) survive extraction."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     embargo = as_EmbargoEvent(
         context="https://example.org/cases/1",
         published=now,
         updated=now,
+        end_time=days_from_now_utc(45),
     )
     # CreateEmbargoEvent pattern: Create + EVENT + context=VULNERABILITY_CASE
     activity = as_Create(
@@ -247,7 +250,7 @@ def test_extract_intent_preserves_sender_published_timestamp():
         as_VulnerabilityReport,
     )
 
-    claimed = datetime(2026, 3, 4, 5, 6, 7, tzinfo=timezone.utc)
+    claimed = datetime(2026, 3, 4, 5, 6, 7, tzinfo=UTC)
     report = as_VulnerabilityReport(name="VR-001", content="test")
     activity = as_Create(
         actor="https://example.org/alice",
@@ -262,14 +265,14 @@ def test_extract_intent_preserves_sender_published_timestamp():
 
 @pytest.mark.spec("VAM-06-001")
 def test_extract_intent_participant_case_roles():
-    """VultronParticipant.case_roles is populated from the wire as_CaseParticipant."""
+    """CaseParticipant.case_roles is populated from the wire as_CaseParticipant."""
+    from vultron.enums.roles import CVDRole
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_CaseParticipant,
     )
-    from vultron.enums.roles import CVDRole
 
     participant = as_CaseParticipant(
         attributed_to="https://example.org/alice",
@@ -314,11 +317,11 @@ def test_extract_intent_case_status_name():
 @pytest.mark.spec("VAM-08-003")
 def test_extract_intent_participant_status_vf_state():
     """vf_state is extracted and populated on the core ParticipantStatus (ADR-0075)."""
+    from vultron.core.states.cs import CS_vf
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
     from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-    from vultron.core.states.cs import CS_vf
 
     ps = as_ParticipantStatus(
         context="https://example.org/cases/1",
@@ -340,8 +343,11 @@ def test_extract_intent_participant_status_vf_state():
 # ---------------------------------------------------------------------------
 
 
-def _make_embargo_invite(end_time=None):
-    """Build an as_Invite(as_EmbargoEvent) with optional activity-level end_time."""
+def _make_embargo_invite(end_time=None, embargo_end=None, published=None):
+    """Build an as_Invite(as_EmbargoEvent) with optional activity-level end_time.
+
+    The invited embargo ends *embargo_end* (default: 90 days out).
+    """
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Invite,
     )
@@ -352,7 +358,7 @@ def _make_embargo_invite(end_time=None):
 
     embargo = as_EmbargoEvent(
         context="https://example.org/cases/1",
-        end_time=datetime.now(tz=timezone.utc) + timedelta(days=90),
+        end_time=embargo_end or datetime.now(tz=UTC) + timedelta(days=90),
     )
     case = as_VulnerabilityCase(id_="https://example.org/cases/1")
     kwargs = {
@@ -362,13 +368,15 @@ def _make_embargo_invite(end_time=None):
     }
     if end_time is not None:
         kwargs["end_time"] = end_time
+    if published is not None:
+        kwargs["published"] = published
     return as_Invite(**kwargs)
 
 
-@pytest.mark.spec("CM-27-001")
+@pytest.mark.spec("CM-28-001")
 def test_invite_rsvp_deadline_extracted_when_present():
     """AC-2: activity-level end_time is extracted as rsvp_deadline on the event."""
-    deadline = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    deadline = datetime.now(tz=UTC) + timedelta(days=5)
     invite = _make_embargo_invite(end_time=deadline)
     event = extract_event(invite)
 
@@ -376,29 +384,38 @@ def test_invite_rsvp_deadline_extracted_when_present():
     ev = cast(Any, event)
     assert ev.rsvp_deadline is not None
     # rsvp_deadline carries the invite end_time, NOT the nested embargo end_time
-    assert ev.rsvp_deadline == deadline.astimezone(timezone.utc)
+    assert ev.rsvp_deadline == deadline.astimezone(UTC)
 
 
-@pytest.mark.spec("CM-27-001")
-def test_invite_rsvp_deadline_absent_when_no_end_time():
-    """AC-7 (absent): no end_time on invite → rsvp_deadline is None."""
-    invite = _make_embargo_invite(end_time=None)
+@pytest.mark.spec("EP-07-001")
+def test_invite_rsvp_deadline_defaults_to_policy_window_when_no_end_time():
+    """No Invite.end_time → the 7-day policy window from ``published``."""
+    published = datetime.now(tz=UTC)
+    invite = _make_embargo_invite(end_time=None, published=published)
     event = extract_event(invite)
 
-    assert hasattr(event, "rsvp_deadline")
-    assert cast(Any, event).rsvp_deadline is None
+    assert cast(Any, event).rsvp_deadline == published + timedelta(days=7)
 
 
-@pytest.mark.spec("CM-27-001")
+@pytest.mark.spec("EP-07-001")
+def test_extract_event_honours_custom_default_rsvp_window():
+    published = datetime.now(tz=UTC)
+    invite = _make_embargo_invite(end_time=None, published=published)
+    event = extract_event(invite, default_rsvp_window=timedelta(days=10))
+
+    assert cast(Any, event).rsvp_deadline == published + timedelta(days=10)
+
+
+@pytest.mark.spec("CM-28-001")
 def test_invite_rsvp_deadline_distinct_from_embargo_end_time():
     """AC-2: invite.end_time and invite.object_.end_time are distinct fields."""
-    rsvp = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    rsvp = datetime.now(tz=UTC) + timedelta(days=5)
     invite = _make_embargo_invite(end_time=rsvp)
     event = extract_event(invite)
 
     # The nested embargo's end_time is on the activity's object_, not rsvp_deadline
     ev = cast(Any, event)
-    assert ev.rsvp_deadline == rsvp.astimezone(timezone.utc)
+    assert ev.rsvp_deadline == rsvp.astimezone(UTC)
     # The embargo expiry is on event.activity.object_.end_time (90 days out)
     embargo_end_time = getattr(
         getattr(ev.activity, "object_", None), "end_time", None
@@ -411,14 +428,14 @@ def test_invite_rsvp_deadline_distinct_from_embargo_end_time():
 def test_invite_rsvp_deadline_clamped_when_below_floor():
     """AC-5: sub-floor rsvp_deadline is clamped up (not rejected)."""
     # end_time is in the past / far below the 72h floor
-    past_deadline = datetime.now(tz=timezone.utc) - timedelta(hours=1)
+    past_deadline = datetime.now(tz=UTC) - timedelta(hours=1)
     invite = _make_embargo_invite(end_time=past_deadline)
     event = extract_event(invite)
 
     ev = cast(Any, event)
     assert ev.rsvp_deadline is not None
     # Clamped up: deadline is >= now (was in the past)
-    assert ev.rsvp_deadline > datetime.now(tz=timezone.utc)
+    assert ev.rsvp_deadline > datetime.now(tz=UTC)
 
 
 @pytest.mark.spec("CM-28-006")
@@ -429,9 +446,8 @@ def test_invite_rsvp_deadline_normalized_when_naive_end_time():
     ADR-0032's validate_datetime now normalises naive datetimes to UTC before
     they reach the extractor, so a naive input produces a valid UTC rsvp_deadline.
     """
-    from datetime import timezone
 
-    naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
+    naive_deadline = datetime.now() + timedelta(days=5)  # noqa: DTZ005 — deliberately naive
     assert naive_deadline.tzinfo is None
     invite = _make_embargo_invite(end_time=naive_deadline)
     # validate_datetime normalises naive → UTC; invite.end_time is now UTC-aware
@@ -443,17 +459,17 @@ def test_invite_rsvp_deadline_normalized_when_naive_end_time():
     assert hasattr(event, "rsvp_deadline")
     rsvp = cast(Any, event).rsvp_deadline
     assert rsvp is not None
-    assert rsvp.tzinfo == timezone.utc
+    assert rsvp.tzinfo == UTC
 
 
 @pytest.mark.spec("EP-07-003")
 def test_invite_rsvp_deadline_clamped_uses_custom_min_rsvp_window():
     """EP-07-003: extract_intent uses the caller-supplied min_rsvp_window for clamping."""
-    from vultron.wire.as2.extractor._extract import extract_intent
     from vultron.semantic_registry import find_matching_semantics, lookup_entry
+    from vultron.wire.as2.extractor._extract import extract_intent
 
     # deadline 5 days out: above 72 h default floor, but below 10-day custom floor
-    deadline = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    deadline = datetime.now(tz=UTC) + timedelta(days=5)
     invite = _make_embargo_invite(end_time=deadline)
 
     semantics = find_matching_semantics(invite)
@@ -469,7 +485,7 @@ def test_invite_rsvp_deadline_clamped_uses_custom_min_rsvp_window():
     ev = cast(Any, event)
     assert ev.rsvp_deadline is not None
     # Clamped to 10-day floor — must be strictly greater than 5-day deadline
-    assert ev.rsvp_deadline > deadline.astimezone(timezone.utc)
+    assert ev.rsvp_deadline > deadline.astimezone(UTC)
 
 
 @pytest.mark.spec("EP-07-003")
@@ -480,7 +496,7 @@ def test_extract_event_honours_custom_min_rsvp_window():
     applied the 72 h default floor, regardless of actor configuration.
     """
     # deadline 5 days out: above 72 h default, but below the 10-day custom floor
-    deadline = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    deadline = datetime.now(tz=UTC) + timedelta(days=5)
     invite = _make_embargo_invite(end_time=deadline)
 
     event = extract_event(invite, min_rsvp_window=timedelta(days=10))
@@ -488,9 +504,152 @@ def test_extract_event_honours_custom_min_rsvp_window():
     ev = cast(Any, event)
     assert ev.rsvp_deadline is not None
     # Clamped to 10-day floor — must be strictly greater than 5-day deadline
-    assert ev.rsvp_deadline > deadline.astimezone(timezone.utc), (
+    assert ev.rsvp_deadline > deadline.astimezone(UTC), (
         "extract_event() must apply the caller-supplied min_rsvp_window,"
         " not always use the 72 h default (#3045)"
+    )
+
+
+# --- RSVP deadline bounded by the embargo's end (issue #3391) ---
+
+
+@pytest.mark.spec("EP-07-006")
+@pytest.mark.spec("CM-28-011")
+def test_invite_on_day_28_of_30_day_embargo_gets_two_day_window(caplog):
+    """The 7-day policy window and the 72 h minimum both yield to the end."""
+    published = datetime.now(tz=UTC)
+    embargo_end = published + timedelta(days=2)
+    invite = _make_embargo_invite(
+        end_time=None, embargo_end=embargo_end, published=published
+    )
+
+    with caplog.at_level(logging.INFO):
+        event = extract_event(invite)
+
+    assert cast(Any, event).rsvp_deadline == embargo_end
+    assert any("EP-07-006" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("EP-07-006")
+def test_explicit_deadline_after_embargo_end_is_clamped_down(caplog):
+    published = datetime.now(tz=UTC)
+    embargo_end = published + timedelta(days=10)
+    invite = _make_embargo_invite(
+        end_time=published + timedelta(days=20),
+        embargo_end=embargo_end,
+        published=published,
+    )
+
+    with caplog.at_level(logging.INFO):
+        event = extract_event(invite)
+
+    assert cast(Any, event).rsvp_deadline == embargo_end
+    messages = [r.getMessage() for r in caplog.records]
+    assert any(
+        "EP-07-006" in m
+        and "Invite.end_time" in m
+        and "https://example.org/alice" in m
+        for m in messages
+    )
+
+
+@pytest.mark.spec("EP-07-002")
+@pytest.mark.spec("EP-07-003")
+def test_minimum_is_the_remaining_embargo_when_shorter_than_72_hours(caplog):
+    """A 12-hour embargo gets a 12-hour window, not a raise to 72 h."""
+    published = datetime.now(tz=UTC)
+    embargo_end = published + timedelta(hours=12)
+    invite = _make_embargo_invite(
+        end_time=published + timedelta(hours=1),
+        embargo_end=embargo_end,
+        published=published,
+    )
+
+    with caplog.at_level(logging.INFO):
+        event = extract_event(invite)
+
+    assert cast(Any, event).rsvp_deadline == embargo_end
+    assert any("EP-07-003" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("EP-07-003")
+@pytest.mark.spec("EP-07-005")
+def test_clamp_up_is_logged_with_both_values(caplog):
+    published = datetime.now(tz=UTC)
+    requested = published + timedelta(hours=1)
+    invite = _make_embargo_invite(end_time=requested, published=published)
+
+    with caplog.at_level(logging.INFO):
+        event = extract_event(invite)
+
+    effective = cast(Any, event).rsvp_deadline
+    assert effective == published + timedelta(hours=72)
+    assert any(
+        "EP-07-003" in r.getMessage()
+        and requested.isoformat() in r.getMessage()
+        and effective.isoformat() in r.getMessage()
+        for r in caplog.records
+    )
+
+
+@pytest.mark.spec("EP-07-005")
+def test_unclamped_deadline_logs_nothing(caplog):
+    published = datetime.now(tz=UTC)
+    invite = _make_embargo_invite(
+        end_time=published + timedelta(days=5), published=published
+    )
+
+    with caplog.at_level(logging.INFO):
+        extract_event(invite)
+
+    assert not any("rsvp_deadline" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("EP-07-004")
+def test_sub_minimum_deadline_is_not_rejected():
+    """A deadline already past is clamped, and the invite still extracts."""
+    published = datetime.now(tz=UTC)
+    invite = _make_embargo_invite(
+        end_time=published - timedelta(days=1), published=published
+    )
+
+    event = extract_event(invite)
+
+    assert event.semantic_type == MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    assert cast(Any, event).rsvp_deadline == published + timedelta(hours=72)
+
+
+@pytest.mark.spec("EP-07-004")
+@pytest.mark.spec("EP-07-006")
+def test_naive_embargo_end_is_read_as_utc_not_rejected():
+    """A nested embargo end without an offset is taken as UTC.
+
+    The wire edge normalises the activity's own datetimes but not the nested
+    embargo's, so a naive value reaches the clamp and must not raise there.
+    """
+    published = datetime.now(tz=UTC).replace(microsecond=0)
+    naive_end = (published + timedelta(days=2)).replace(tzinfo=None)
+    invite = _make_embargo_invite(embargo_end=naive_end, published=published)
+
+    event = extract_event(invite)
+
+    assert cast(Any, event).rsvp_deadline == published + timedelta(days=2)
+
+
+@pytest.mark.spec("EP-07-005")
+def test_deadline_already_past_is_warned(caplog):
+    """A backdated invite yields a past deadline; that is surfaced, not hidden."""
+    published = datetime.now(tz=UTC) - timedelta(days=30)
+    invite = _make_embargo_invite(
+        end_time=published + timedelta(days=5), published=published
+    )
+
+    with caplog.at_level(logging.WARNING):
+        extract_event(invite)
+
+    assert any(
+        r.levelno == logging.WARNING and "already past" in r.getMessage()
+        for r in caplog.records
     )
 
 
@@ -666,53 +825,14 @@ def test_activity_snapshot_never_reprs_a_non_uri_attributed_to(raw, expected):
         assert not event.activity.attributed_to.startswith(("{", "["))
 
 
-def test_coerce_pec_or_none_maps_no_embargo_to_unbound():
-    """ADR-0091 renamed NO_EMBARGO → UNBOUND; _coerce_pec_or_none must migrate legacy wire values (issue #3376)."""
-    from vultron.core.states.participant_embargo_consent import PEC
-    from vultron.wire.as2.extractor._builders import _coerce_pec_or_none
+def test_consent_coercion_helpers_are_retired():
+    """The scalar-consent coercion helpers are gone with the scalar (ADR-0122, #4178).
 
-    assert _coerce_pec_or_none("NO_EMBARGO") == PEC.UNBOUND
-
-
-def test_coerce_pec_or_none_is_single_shared_helper():
-    """The extractor and wire vocab must reference one shared _coerce_pec_or_none (issue #3346).
-
-    Two private copies with different lookup strategies (name-lookup PEC[v] vs
-    value-lookup PEC(v)) previously coexisted; they could silently diverge once
-    any PEC member's wire value differed from its name. Consolidation is only
-    real if both import sites resolve to the same function object — this test is
-    the ratchet against re-divergence.
+    Consent is per-embargo rows on the core participant; neither the extractor
+    nor the wire vocab base coerces a PEC string any more.
     """
     from vultron.wire.as2.extractor import _builders
     from vultron.wire.as2.vocab.objects import base
 
-    assert _builders._coerce_pec_or_none is base._coerce_pec_or_none
-
-    # ``case_status`` no longer re-imports the helper: ADR-0099 detail 3 collapsed
-    # as_CaseStatus/as_ParticipantStatus into their core classes, so that module is
-    # aliases only and does no coercion. The divergence this ratchet guards is
-    # therefore narrower, not gone — the remaining import site still has to resolve
-    # to the one function.
-
-
-def test_coerce_pec_or_none_unknown_string_raises_value_error():
-    """Unknown PEC strings raise ValueError, never KeyError (#2964, #3346).
-
-    The consolidated helper uses value-lookup PEC(v), so pydantic field
-    validators surface a clean ValidationError instead of an uncaught,
-    500-class KeyError from name-lookup PEC[v].
-    """
-    from vultron.wire.as2.vocab.objects.base import _coerce_pec_or_none
-
-    with pytest.raises(ValueError):
-        _coerce_pec_or_none("BOGUS_PEC")
-
-
-def test_coerce_pec_or_none_passthrough_and_none():
-    """PEC members pass through unchanged and None maps to None (issue #3346)."""
-    from vultron.core.states.participant_embargo_consent import PEC
-    from vultron.wire.as2.vocab.objects.base import _coerce_pec_or_none
-
-    assert _coerce_pec_or_none(None) is None
-    assert _coerce_pec_or_none(PEC.SIGNATORY) is PEC.SIGNATORY
-    assert _coerce_pec_or_none("INVITED") == PEC.INVITED
+    assert not hasattr(_builders, "_coerce_pec_or_none")
+    assert not hasattr(base, "_coerce_pec_or_none")

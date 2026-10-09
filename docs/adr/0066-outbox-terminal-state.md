@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-08-14
+created: 2026-08-14
+updated: 2026-08-14
+revision: 1
 deciders: Vultron maintainers
 consulted: CERT/CC CVD research team
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Outbox Terminal State: Per-Activity Attempt Counter, 4xx Classification, and Dead-Letter Store
@@ -124,14 +128,26 @@ succeed with the same payload; burning four retry attempts with backoff and then
 requeueing indefinitely is a positive-feedback loop (more load → more 422s →
 more retries → more load).
 
-### Per-activity abort scope (OX-13-006)
+### Per-activity abort scope (OX-13-006, OX-13-010, OX-13-011)
 
 `outbox_handler`'s per-pass error handling is restructured so that `err_count` is
 reset after each activity (not per-pass). When an activity hits the per-pass cap:
 
-- The current pass **continues** (`continue`, not `break`) — other activities in
-  the queue are unaffected.
-- The activity is re-appended to the queue tail for the next drain pass.
+- The current pass **continues** — other activities in the queue are unaffected.
+- The activity stays in the persistent queue (it was re-queued immediately on
+  failure) and is recorded in an in-memory `capped_this_pass` set.
+- Whenever the loop pops an activity that is in `capped_this_pass`, it re-queues it
+  **without attempting delivery** and without incrementing the attempt counter.
+  This ensures the activity is deferred to the next drain pass without being lost
+  on a crash (OX-13-011).
+- The pass ends when every remaining queued item is in `capped_this_pass`.
+
+> **Implementation note:** The queue tail belongs to the *current* pass, not the
+> next one — the drain loop is `while outbox_list()`, so any item appended during
+> the loop is popped in the same pass.
+> Holding capped activities in memory and re-queuing after the loop would widen the
+> crash-loss window (activities in memory are gone on a crash mid-pass), so they
+> are kept in the persistent queue throughout and skipped via the set.
 
 The per-pass cap is retained as a backstop against a single activity consuming all
 delivery bandwidth in one pass; it is now per-activity rather than per-drain.
@@ -157,6 +173,32 @@ pool growth.
   compatible).
 - Deferred — protocol-level NACK on exhaustion, and the inbound terminal-state
   model (#1880), are not decided here.
+
+## Inbox Unification (IE-06-004, #4168)
+
+The original decision text at line 40 and § "More Information" above noted that
+the analogous inbound question "SHOULD be unified with this model in a future ADR."
+That future ADR was superseded by spec requirement IE-06-004, which mandates the
+same persisted attempt counter and dead-letter store for inbox processing.
+The implementation landed in CERTCC/Vultron#4168:
+
+- A shared `QueueAttemptEntry` SQLModel table (composite PK: `queue`, `activity_id`)
+  backs both inbox and outbox attempt counters.
+  The former outbox-only `OutboxAttemptEntry` table (`vultron_outbox_attempts`)
+  is removed; all outbox methods use the shared table with `queue="outbox"`.
+  Attempt counts in an existing store's old table are **not migrated**: they are
+  dropped, which resets in-flight outbox retry budgets to zero on upgrade.
+  The cost is bounded (at most one extra retry budget per undelivered activity),
+  and a reset only widens the retry window, so no counter migration is warranted.
+  Stores that predate the per-actor layout are orphaned regardless (ADR-0073,
+  #2551), which is a separate upgrade path.
+  `create_all` neither reads nor drops the leftover table in old files.
+- `InboxDeadLetterEntry(CoreRecord)` mirrors `OutboxDeadLetterEntry` and is
+  stored via `dl.save()` / `dl.by_type()`.
+- `RetryStore` extends `OutboxRetryStore` with the inbox-specific methods;
+  `SqliteDataLayer` satisfies both protocols structurally.
+- `AppConfig.max_inbox_retry_attempts` (default 12, matching the outbox default)
+  makes the inbox retry budget configurable.
 
 ## Generated Requirements
 

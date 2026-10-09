@@ -26,14 +26,32 @@ Submodules:
 - ``chain``: Chain reconstruction and log entry creation action nodes
 - ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
 - ``replay``: Reject-driven replay action nodes for replication
+- ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-002)
+- ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
+- ``embargo_backfill``: ``BackfillAdmittedParticipantsNode`` (CM-10-006)
 - ``fanout``: Fan-out action nodes, plain and RM.CLOSED-filtered
-- ``effects``: Ledger-apply side-effect nodes (note, invite-accept, close-case)
+- ``effects``: Ledger-apply side-effect nodes (note, invite-accept)
 - ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, with the
   monotonic-RM ratchet (ADR-0061)
-- ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``:
-  per-effect ledger-apply nodes
+- ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``,
+  ``participant_removal_effect``: per-effect ledger-apply nodes
+- ``case_status_effect``: Ledger-apply of ``add_case_status_to_case``, under
+  the RSH-05-023/019 acceptance rules
+- ``rm_verdict_effect``: Ledger-apply of the activity-typed RM moves (report
+  verdicts, engage/defer) to the sender's participant
+
+The ``close_case`` effect is not here: it composes the case participant-status
+writer, so it lives in :mod:`vultron.core.behaviors.case.nodes.close_case_effect`.
+Every case node that commits imports
+:mod:`~vultron.core.behaviors.sync.commit_tree`, which loads this package, so
+a module here that imported ``case.nodes`` would close an import cycle
+(CS-05-003).  Nodes in this package depend on no domain node package.
 """
 
+from vultron.core.behaviors.sync.nodes.case_status_effect import (
+    ApplyCaseStatusFromLedgerNode,
+    IsAddCaseStatusEventNode,
+)
 from vultron.core.behaviors.sync.nodes.chain import (
     CreateLogEntryNode,
     PersistLogEntryNode,
@@ -43,40 +61,49 @@ from vultron.core.behaviors.sync.nodes.chain import (
 from vultron.core.behaviors.sync.nodes.conditions import (
     CheckLedgerEntryAlreadyStoredNode,
     CheckLedgerFreshnessNode,
-    VerifySenderIsCaseActorNode,
-    VerifySenderIsOwnIdNode,
-    _require_log_entry,  # noqa: F401
+    _require_log_entry,
+)
+from vultron.core.behaviors.sync.nodes.embargo_backfill import (
+    BackfillAdmittedParticipantsNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
+    IsAcceptEmbargoInviteEventNode,
     IsAddNoteEventNode,
     IsCloseCaseEventNode,
+    IsEmbargoAbandonmentEventNode,
+    IsEmbargoInviteRelayEventNode,
+    IsEmbargoProposalEventNode,
+    IsEmbargoReinviteEventNode,
+    IsHonourLateAcceptEventNode,
     IsInviteAcceptEventNode,
+    IsInviteExpiryEventNode,
+    IsInviteExpiryNoopEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
+    IsRejectEmbargoInviteEventNode,
     IsRemoveEmbargoEventNode,
+    IsRemoveNoteEventNode,
     IsSubmitReportEventNode,
 )
-from vultron.core.behaviors.sync.nodes.receive import (
-    BufferOutOfOrderEntryNode,
-    BufferPreGenesisEntryNode,
-    CheckHashMatchesNode,
-    CheckHashOrRejectOnMismatchNode,
-    LogDeliveryConfirmationNode,
-    PersistReceivedLogEntryNode,
-    SendRejectLogEntryNode,
+from vultron.core.behaviors.sync.nodes.fanout import (
+    CollectLogEntryRecipientsNode,
+    CollectNonClosedLogEntryRecipientsNode,
+    FanOutLogEntryExcludingClosedNode,
+    FanOutLogEntryNode,
+    SendLogEntryToEachNode,
 )
-from vultron.core.behaviors.sync.nodes.close_case_effect import (
-    ApplyCloseCaseFromLedgerNode,
+from vultron.core.behaviors.sync.nodes.genesis_announce import (
+    AnnounceCaseOnGenesisRejectNode,
 )
 from vultron.core.behaviors.sync.nodes.invite_accept_effect import (
     ApplyInviteAcceptFromLedgerNode,
 )
+from vultron.core.behaviors.sync.nodes.ledger_authority import (
+    DeclineForeignLedgerCommitNode,
+)
 from vultron.core.behaviors.sync.nodes.note_effect import (
     ApplyNoteFromLedgerNode,
-)
-from vultron.core.behaviors.sync.nodes.participant_status_effect import (
-    ApplyParticipantStatusFromLedgerNode,
-    EmitImpossibleStateFaultNode,
+    ApplyRemoveNoteFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.offer_report_effect import (
     ApplyOfferReportFromLedgerNode,
@@ -88,42 +115,64 @@ from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
     ApplyOfferOwnershipTransferFromLedgerNode,
     IsOfferOwnershipTransferEventNode,
 )
-from vultron.core.behaviors.sync.nodes.ledger_authority import (
-    DeclineForeignLedgerCommitNode,
+from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
+    ApplyReinstateCaseParticipantFromLedgerNode,
+    ApplyRemoveCaseParticipantFromLedgerNode,
+    IsReinstateCaseParticipantEventNode,
+    IsRemoveCaseParticipantEventNode,
 )
-from vultron.core.behaviors.sync.nodes.fanout import (
-    CollectLogEntryRecipientsNode,
-    CollectNonClosedLogEntryRecipientsNode,
-    FanOutLogEntryExcludingClosedNode,
-    FanOutLogEntryNode,
-    SendLogEntryToEachNode,
+from vultron.core.behaviors.sync.nodes.participant_status_effect import (
+    ApplyParticipantStatusFromLedgerNode,
+    EmitImpossibleStateFaultNode,
+)
+from vultron.core.behaviors.sync.nodes.port_guard import RequireSyncPortNode
+from vultron.core.behaviors.sync.nodes.receive import (
+    BufferOutOfOrderEntryNode,
+    BufferPreGenesisEntryNode,
+    CheckHashMatchesNode,
+    CheckHashOrRejectOnMismatchNode,
+    LogDeliveryConfirmationNode,
+    PersistReceivedLogEntryNode,
+    SendRejectLogEntryNode,
 )
 from vultron.core.behaviors.sync.nodes.replay import (
-    AnnounceCaseOnGenesisRejectNode,
     CollectAndSortCaseLedgerEntriesNode,
     FindCaseActorNode,
     FindDivergenceIndexNode,
     ReplayMissingEntriesNode,
     SendMissingEntriesNode,
 )
+from vultron.core.behaviors.sync.nodes.rm_verdict_effect import (
+    RM_VERDICT_TARGETS,
+    ApplyRmVerdictFromLedgerNode,
+    IsRmVerdictEventNode,
+)
 
 __all__ = [
     # conditions
-    "VerifySenderIsCaseActorNode",
-    "VerifySenderIsOwnIdNode",
     "CheckLedgerEntryAlreadyStoredNode",
     "CheckLedgerFreshnessNode",
     "IsRemoveEmbargoEventNode",
     "IsParticipantStatusEventNode",
     "IsAddNoteEventNode",
+    "IsRemoveNoteEventNode",
     "IsInviteAcceptEventNode",
     "IsCloseCaseEventNode",
     "IsSubmitReportEventNode",
     "IsOwnershipTransferEventNode",
+    "IsEmbargoProposalEventNode",
+    "IsEmbargoReinviteEventNode",
+    "IsEmbargoInviteRelayEventNode",
+    "IsAcceptEmbargoInviteEventNode",
+    "IsRejectEmbargoInviteEventNode",
+    "IsEmbargoAbandonmentEventNode",
+    "IsHonourLateAcceptEventNode",
+    "IsInviteExpiryEventNode",
+    "IsInviteExpiryNoopEventNode",
     # effects
     "ApplyNoteFromLedgerNode",
+    "ApplyRemoveNoteFromLedgerNode",
     "ApplyInviteAcceptFromLedgerNode",
-    "ApplyCloseCaseFromLedgerNode",
     # participant_status_effect
     "ApplyParticipantStatusFromLedgerNode",
     "EmitImpossibleStateFaultNode",
@@ -132,6 +181,16 @@ __all__ = [
     "ApplyOwnershipTransferFromLedgerNode",
     "ApplyOfferOwnershipTransferFromLedgerNode",
     "IsOfferOwnershipTransferEventNode",
+    # participant_removal_effect (CM-31-007, CM-31-011)
+    "ApplyReinstateCaseParticipantFromLedgerNode",
+    "ApplyRemoveCaseParticipantFromLedgerNode",
+    "IsReinstateCaseParticipantEventNode",
+    "IsRemoveCaseParticipantEventNode",
+    "ApplyCaseStatusFromLedgerNode",
+    "IsAddCaseStatusEventNode",
+    "RM_VERDICT_TARGETS",
+    "ApplyRmVerdictFromLedgerNode",
+    "IsRmVerdictEventNode",
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",
@@ -144,6 +203,8 @@ __all__ = [
     "ReconstructChainTailNode",
     # ledger authority
     "DeclineForeignLedgerCommitNode",
+    # port guard
+    "RequireSyncPortNode",
     "UpdateReplicationStateNode",
     "CreateLogEntryNode",
     "PersistLogEntryNode",
@@ -159,6 +220,8 @@ __all__ = [
     "SendLogEntryToEachNode",
     "FanOutLogEntryNode",
     "FanOutLogEntryExcludingClosedNode",
+    # embargo_backfill
+    "BackfillAdmittedParticipantsNode",
     # re-exported helper function (backward compat)
     "_require_log_entry",
 ]

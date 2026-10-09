@@ -288,7 +288,7 @@ This is a judgment call well-suited to LLM assistance or human review:
 2. The evaluator suggests new participants.
 3. A human or policy rule reviews and confirms the suggestions.
 4. For confirmed suggestions, trigger the "notify-others" flow (which uses
-   `Invite(Actor, Case)` semantics — see below).
+   `Invite(Actor, CaseStub)` semantics — see below).
 
 The `Suggest(Actor)` protocol message is already semantically supported,
 which enables an agent workflow where a suggester-agent evaluates cases and
@@ -298,7 +298,7 @@ via the normal accept/reject flow.
 ### Notify Others (notify-actor)
 
 The "notify others" behavior (report to others) iterates over a list of
-potential participants and sends each an `Invite(Actor, Case)` message.
+potential participants and sends each an `Invite(Actor, CaseStub)` message.
 Key design constraints:
 
 1. **Embargo must be established first** (or the invitation implies

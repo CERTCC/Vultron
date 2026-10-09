@@ -15,12 +15,13 @@
 
 """Trigger-side behavior trees for actor-participation workflows.
 
-Three trigger trees are provided:
+Trigger trees provided here include:
 
 - ``suggest_actor_to_case_trigger_bt`` — SenderSideBT wrapper for
-  Offer(Actor, Case) routed through the Case Manager (PCR-08-001).
-- ``invite_actor_to_case_trigger_bt`` — direct-route Sequence for
-  Invite(Actor, Case) sent from the Case Actor identity.
+  Offer(Actor, Case) routed through the Case Manager (PCR-08-001).  The Case
+  Owner's direct invite uses it too: the owner asks the CASE_MANAGER to
+  invite, and the CASE_MANAGER emits the Invite from its own received tree
+  (CM-17-007, ADR-0109).  No trigger tree emits an Invite.
 - ``accept_case_invite_trigger_bt`` — Sequence for Accept(Invite)
   sent by the invitee.
 
@@ -28,16 +29,16 @@ Per specs/behavior-tree-integration.yaml BT-15-001, BT-15-002.
 """
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.actor import (
-    EmitInviteActorToCaseNode,
-)
 from vultron.core.behaviors.case.nodes.invite_response import (
     EmitAcceptCaseInviteNode,
+    EmitAcceptFullCaseInviteNode,
     EmitRejectCaseInviteNode,
+    EmitRejectFullCaseInviteNode,
+    EmitTentativeRejectFullCaseInviteNode,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
@@ -47,6 +48,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
+from vultron.core.models.ledger_position import LedgerPosition
 
 logger = logging.getLogger(__name__)
 
@@ -70,53 +72,6 @@ def suggest_actor_to_case_trigger_bt(
         SenderSideBT Sequence.
     """
     return sender_side_bt(case_id=case_id, activity_builder=activity_builder)
-
-
-def invite_actor_to_case_trigger_bt(
-    invitee_id: str,
-    case_id: str,
-    case_actor_id: str | None = None,
-    attributed_to: str | None = None,
-    captured: dict | None = None,
-) -> py_trees.behaviour.Behaviour:
-    """Return the trigger-side BT for the invite-actor workflow.
-
-    Emits Invite(Actor, Case) from the Case Actor's identity directly to
-    the invitee (no Case Manager resolution needed — the Case Actor IS the
-    routing endpoint here per PCR-08-007).  When ``case_actor_id`` is
-    provided it is added to ``cc:`` so ASGI self-delivery routes a copy to
-    the CaseActor's own inbox for canonical ledger archival (CLP-10-001).
-
-    Args:
-        invitee_id: Actor URI of the participant being invited.
-        case_id: ID of the VulnerabilityCase.
-        case_actor_id: Optional Case Actor URI added to ``cc:`` for
-            self-archival (CLP-10-001).
-        attributed_to: Optional original requesting actor URI.
-        captured: Optional dict; ``captured["activity"]`` is set on success.
-
-    Returns:
-        Sequence containing a single EmitInviteActorToCaseNode.
-    """
-    root = py_trees.composites.Sequence(
-        name="InviteActorToCaseTriggerBT",
-        memory=False,
-        children=[
-            EmitInviteActorToCaseNode(
-                invitee_id=invitee_id,
-                case_id=case_id,
-                case_actor_id=case_actor_id,
-                attributed_to=attributed_to,
-                captured=captured,
-            ),
-        ],
-    )
-    logger.debug(
-        "Created InviteActorToCaseTriggerBT for invitee=%s case=%s",
-        invitee_id,
-        case_id,
-    )
-    return root
 
 
 def accept_case_invite_trigger_bt(
@@ -179,6 +134,44 @@ def reject_case_invite_trigger_bt(
     return root
 
 
+def full_case_invite_reply_trigger_bt(
+    emit_node: type[
+        EmitAcceptFullCaseInviteNode
+        | EmitTentativeRejectFullCaseInviteNode
+        | EmitRejectFullCaseInviteNode
+    ],
+    invite_id: str,
+    position: LedgerPosition,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for a reply to the full-case Invite.
+
+    Emits the reply (RV, RI or RC, by *emit_node*) from the participant's
+    identity, carrying its own ledger *position* (CM-11-011); the factory
+    derives the recipient from the persisted Invite.
+
+    Args:
+        emit_node: The emit node class naming the reply.
+        invite_id: ID of the full-case Invite being answered.
+        position: The participant's own ledger position.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single emit node.
+    """
+    root = py_trees.composites.Sequence(
+        name=f"{emit_node.__name__}TriggerBT",
+        memory=False,
+        children=[
+            emit_node(
+                invite_id=invite_id, position=position, captured=captured
+            )
+        ],
+    )
+    logger.debug("Created %s for invite=%s", root.name, invite_id)
+    return root
+
+
 def accept_actor_recommendation_trigger_bt(
     cp_offer_id: str,
     case_actor_id: str,
@@ -219,8 +212,8 @@ def accept_actor_recommendation_trigger_bt(
 def offer_case_ownership_transfer_trigger_bt(
     case_id: str,
     transferee_id: str,
+    requesting_actor_id: str,
     content: str | None = None,
-    attributed_to: str | None = None,
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the offer-case-ownership-transfer workflow.
@@ -232,7 +225,8 @@ def offer_case_ownership_transfer_trigger_bt(
         case_id: ID of the VulnerabilityCase whose ownership is being offered.
         transferee_id: Actor URI of the intended new owner.
         content: Optional human-readable message included in the offer.
-        attributed_to: Offering actor URI for delegated-message attribution (CM-24-002).
+        requesting_actor_id: Offering actor URI; the Offer is attributed to it
+            through the delegated-authorship helper (CM-24-002, CM-24-005).
         captured: Optional dict; ``captured["activity"]`` is set on success.
 
     Returns:
@@ -246,7 +240,7 @@ def offer_case_ownership_transfer_trigger_bt(
                 case_id=case_id,
                 transferee_id=transferee_id,
                 content=content,
-                attributed_to=attributed_to,
+                requesting_actor_id=requesting_actor_id,
                 captured=captured,
             ),
         ],

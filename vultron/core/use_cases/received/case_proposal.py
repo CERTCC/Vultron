@@ -3,18 +3,18 @@
 Three use cases covering the full CP message flow (ADR-0023):
 
 - ``CreateCaseProposalReceivedUseCase`` — case-actor service receives
-  ``Create(as_CaseProposal)`` from a vendor; creates a VulnerabilityCase
+  ``Create(as_CaseProposal)`` from a report receiver; creates a VulnerabilityCase
   and emits ``Accept(as_CaseProposal)`` + ``Create(VulnerabilityCase)``
   (CP-05-001 through CP-05-004).
 
-- ``AcceptCaseProposalReceivedUseCase`` — vendor receives
+- ``AcceptCaseProposalReceivedUseCase`` — report receiver receives
   ``Accept(as_CaseProposal)`` from the case-actor service; records the
-  case-actor URI in the vendor's VultronReportCaseLink (CP-06-001,
+  case-actor URI in the receiver's VultronReportCaseLink (CP-06-001,
   CP-06-003).
 
-- ``RejectCaseProposalReceivedUseCase`` — vendor receives
+- ``RejectCaseProposalReceivedUseCase`` — report receiver receives
   ``Reject(as_CaseProposal)`` from the case-actor service; logs the
-  rejection so the vendor can surface it (CP-06-002, CP-06-004).
+  rejection so the receiver can surface it (CP-06-002, CP-06-004).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -31,28 +31,44 @@ Three use cases covering the full CP message flow (ADR-0023):
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import TYPE_CHECKING, Any
-
-from py_trees.common import Status
-from pydantic import ValidationError
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
+from vultron.errors import VultronWiringError
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
         CaseProposalCallOutBundle,
     )
+    from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.behaviors.case.accept_case_proposal_received_tree import (
+    RecordCaseActorAcceptanceNode,
     create_accept_case_proposal_received_tree,
 )
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     create_case_proposal_received_tree,
 )
+from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
+    RecordProposalDeclineNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
+    CheckDeclineRecordExistsNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+    CheckMarkerExistsNode,
+)
 from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
+    RecordCaseProposalRejectionNode,
     create_reject_case_proposal_received_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    SenderEntitlementKind,
+    exempt,
 )
 from vultron.core.models.events.case_proposal import (
     AcceptCaseProposalReceivedEvent,
@@ -60,13 +76,45 @@ from vultron.core.models.events.case_proposal import (
     RejectCaseProposalReceivedEvent,
 )
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
 )
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import (
+    find_node,
+    node_succeeded,
+    verdict_from_bt,
+)
+from vultron.core.use_cases.received._sender_embargo_proposal import (
+    sender_embargo_proposal_inputs,
+)
+from vultron.core.use_cases.received._store_only import refuse_after_intake
 
 logger = logging.getLogger(__name__)
+
+
+def _skipped_if_no_link(
+    tree: Any,
+    node_type: (
+        type[RecordCaseActorAcceptanceNode]
+        | type[RecordCaseProposalRejectionNode]
+    ),
+    report_id: str,
+) -> HandlerResult:
+    """``SKIPPED`` when there was no report link to record the answer on.
+
+    The tree succeeds either way; with no link (a relay, or a proposal this
+    actor never made) nothing changed (#2255).
+    """
+    node = find_node(tree, node_type)
+    if node is not None and not node.link_found:
+        return HandlerResult.skipped(
+            f"no VultronReportCaseLink for report '{report_id}'"
+        )
+    return HandlerResult.applied()
 
 
 class CreateCaseProposalReceivedUseCase:
@@ -75,14 +123,20 @@ class CreateCaseProposalReceivedUseCase:
     Delegates to ``CreateCaseProposalReceivedBT``, which creates a
     VulnerabilityCase and emits two outbound activities:
 
-    1. ``Accept(as_CaseProposal)`` — acknowledgement to the vendor
-    2. ``Create(VulnerabilityCase)`` — case announcement to the vendor
+    1. ``Accept(as_CaseProposal)`` — acknowledgement to the report receiver
+    2. ``Create(VulnerabilityCase)`` — case announcement to the report receiver
 
     BT-15-001 audit: all DataLayer mutations and outbox enqueues are
     delegated to leaf nodes of the BT tree.
 
     Spec: CP-05-001 through CP-05-004.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#812",
+        "prototype admits a Create(CaseProposal) from any sender (CP-05-002); "
+        "sender must be the report receiver once CaseActors are spawned",
+    )
 
     def __init__(
         self,
@@ -92,9 +146,17 @@ class CreateCaseProposalReceivedUseCase:
         wire_render_port: "WireRenderPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
         call_out: "CaseProposalCallOutBundle | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: CreateCaseProposalReceivedEvent = request
+        # The native ledger commits (CommitNativeLedgerEntriesNode) fan each
+        # entry out through this port.  It is injected explicitly so the
+        # fan-out is part of the use case's declared contract — and so a test
+        # can observe the outbox order it produces (CM-14-011, CP-05-003)
+        # rather than inheriting whatever port a previous execution left on
+        # the blackboard (BT-17-007 restores it, so normally: none).
+        self._sync_port = sync_port
         # CFG-07-002/CFG-07-004: the CVD roles the proposing actor receives
         # alongside CVDRole.CASE_OWNER come from the local actor config, not a
         # hard-coded assumption that every report receiver is a vendor.
@@ -115,54 +177,54 @@ class CreateCaseProposalReceivedUseCase:
     def _core_inline_report(
         activity_obj: Any, proposal_id: str
     ) -> VulnerabilityReport | None:
-        """Return the proposal's inline report in its core shape, if present.
+        """Return the proposal's inline report, if the proposal carries one.
 
-        The proposal dict handed to the tree is deliberately wire-spelled — the
-        ``Accept`` must carry the proposal inline on the wire (CP-05-003,
-        AKM-03-001) — and that is exactly why the report cannot be rebuilt from
-        it: ``by_alias=True`` writes the reporter as ``attributedTo``, while the
-        core ``VulnerabilityReport`` declares ``attributed_to`` and sets
-        ``extra="ignore"``. Validating that dict dropped the reporter without
-        complaint, the report stored fine, and the three things derived from it —
-        the reporter participant, its ledger entry, the SIGNATORY seed — each
-        skipped "best-effort" (#2482).
-
-        Mapping the spellings is the wire layer's own job, via ``to_core()``.
-        Duck-typed for the same reason ``model_dump`` is at the call site: core
-        MUST NOT import wire (ARCH-03-001).
+        Under ADR-0099 detail 3 the report the wire parser validated *is* the
+        core ``VulnerabilityReport`` — ``as_VulnerabilityReport`` is an alias
+        of that class — so there is no projection step and none is duck-typed
+        (ARCH-20-008).  Anything else in the slot (a bare IRI the parser could
+        not dereference, or a foreign object) is not a report the tree can
+        seed from; ``None`` tells ``StoreProposalReportNode`` to rebuild the
+        report from the proposal dict instead, and that node owns the WARNING
+        when the rebuild has nothing to work with.
         """
         raw_report = getattr(
             getattr(activity_obj, "object_", None), "object_", None
         )
-        to_core = getattr(raw_report, "to_core", None)
-        if not callable(to_core):
-            return None
-        try:
-            candidate = to_core()
-        except ValidationError as exc:
-            logger.warning(
-                "create_case_proposal_received: could not convert the inline"
-                " report of proposal '%s' to its core shape: %s — falling back"
-                " to the proposal dict",
+        if isinstance(raw_report, VulnerabilityReport):
+            return raw_report
+        if raw_report is not None:
+            # ``StoreProposalReportNode._report_from_proposal_dict`` warns on
+            # the same condition with the CP-01-004 remedy, so keep this at
+            # DEBUG rather than doubling the WARNING.
+            logger.debug(
+                "create_case_proposal_received: proposal '%s' carries a %s"
+                " where an inline report was expected — falling back to the"
+                " proposal dict",
                 proposal_id,
-                exc,
+                type(raw_report).__name__,
             )
-            return None
-        return (
-            candidate if isinstance(candidate, VulnerabilityReport) else None
-        )
+        return None
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         proposal_id = request.proposal_id
         if proposal_id is None:
             logger.warning(
-                "create_case_proposal_received: no proposal_id — skipping"
+                "create_case_proposal_received: no proposal_id — refusing"
             )
-            return
+            return refuse_after_intake(
+                self._dl,
+                request,
+                "Create(CaseProposal) carries no proposal id",
+                name="CreateCaseProposalReceivedBT",
+                sync_port=self._sync_port,
+                wire_render_port=self._wire_render_port,
+            )
 
-        # The vendor who sent Create(as_CaseProposal) is the activity actor.
-        vendor_uri = request.actor_id
+        # The report receiver who sent Create(as_CaseProposal) is the activity
+        # actor, and becomes the CASE_OWNER if the proposal is admitted.
+        proposer_uri = request.actor_id
 
         # The inner object is the VulnerabilityReport embedded in the proposal.
         report_id = request.inner_object_id
@@ -173,47 +235,40 @@ class CreateCaseProposalReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        # Extract the wire proposal as a plain dict so the Accept can carry it
-        # inline (CP-05-003, AKM-03-001). Uses duck-typing to avoid a core→wire
-        # import dependency.
+        # Render the proposal as a plain AS2 dict so the Accept can carry it
+        # inline (CP-05-003, AKM-03-001).  The subject handed to the port is the
+        # core-branch ``VultronActivity`` the extractor built; its ``object`` is
+        # the as_CaseProposal as it arrived.  Core renders nothing itself
+        # (ARCH-20-001): the port is the only route to the AS2 shape, so a
+        # proposal cannot be handled without it.  A missing port is this
+        # actor's composition fault, never the sender's, so it raises rather
+        # than refusing the proposal (#2255, ADR-0095).
+        #
+        # The render keeps the proposal's inline ``object_`` — the vulnerability
+        # report — because ``VultronActivity.object_`` is typed ``Any`` and so is
+        # serialised by its runtime type.  Losing it would give the tree a
+        # proposal with no report to store, and everything derived from the
+        # report (the reporter participant, its ledger entry, the SIGNATORY
+        # seed) would silently skip, so the reporter would never get a replica.
         proposal_dict: dict | None = None
         activity_obj = request.activity
-        if activity_obj is not None:
-            raw_proposal = getattr(activity_obj, "object_", None)
-            if raw_proposal is not None and hasattr(
-                raw_proposal, "model_dump"
-            ):
-                # `serialize_as_any=True` is required, not cosmetic: without it
-                # Pydantic serialises each field by its *declared* type, so the
-                # proposal's inline `object_` — the vulnerability report — is
-                # flattened away and the tree receives a proposal with no report
-                # to store. Everything derived from the report (the reporter
-                # participant, its ledger entry, the SIGNATORY seed) then skips
-                # "best-effort" and the reporter never gets a replica. The same
-                # flag is needed on the delivery path for the same reason, which
-                # `_TestClientRouter.emit` documents.
-                #
-                # A workaround previously sat here, normalising `target` back to a
-                # string because `_rehydrate_fields` had expanded it to a full
-                # actor. That expansion was itself the bug and is fixed at source
-                # (rehydration now respects the field's declared type), so the
-                # workaround is gone.
-                #
-                # ARCH-20-001 permits this ``by_alias=True``: the subject is a
-                # *wire object*, not a core-branch one — ``raw_proposal`` is the
-                # inbound activity's own ``object_``, the as_CaseProposal as it
-                # arrived. Dumping it reproduces the bytes the vendor sent; it
-                # does not synthesise a wire shape for a core object.
-                proposal_dict = raw_proposal.model_dump(
-                    by_alias=True, serialize_as_any=True
-                )
+        if activity_obj is not None and hasattr(
+            getattr(activity_obj, "object_", None), "model_dump"
+        ):
+            if self._wire_render_port is None:
+                raise VultronWiringError(WIRE_RENDER_PORT_UNAVAILABLE)
+            rendered = self._wire_render_port.render(activity_obj).get(
+                "object"
+            )
+            if isinstance(rendered, dict):
+                proposal_dict = rendered
 
         inline_report = self._core_inline_report(activity_obj, proposal_id)
 
         tree = create_case_proposal_received_tree(
             report_id=report_id,
             proposal_id=proposal_id,
-            vendor_uri=vendor_uri,
+            proposer_uri=proposer_uri,
             proposal_dict=proposal_dict,
             actor_config=self._actor_config,
             inline_report=inline_report,
@@ -223,30 +278,68 @@ class CreateCaseProposalReceivedUseCase:
             datalayer=self._dl,
             wire_render_port=self._wire_render_port,
             trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
+            # The proposer's inline profile is the only source of the
+            # CASE_OWNER's actor default (CP-01-010).
+            owner_profile=request.proposer_profile,
+            **sender_embargo_proposal_inputs(request),
         )
-        if result.status != Status.SUCCESS:
+        verdict = verdict_from_bt(
+            tree, result, label="CreateCaseProposalReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.APPLIED:
+            verdict = self._classify_success(tree, proposal_id)
+        if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
-                "create_case_proposal_received: BT did not fully succeed"
-                " for proposal '%s': %s",
+                "create_case_proposal_received: refused proposal '%s': %s",
                 proposal_id,
-                BTBridge.get_failure_reason(tree) or result.feedback_message,
+                verdict.reason,
             )
-        else:
+        elif verdict.disposition is HandlerDisposition.APPLIED:
             logger.info(
                 "create_case_proposal_received: case created and responses"
                 " queued for proposal '%s'",
                 proposal_id,
             )
+        return verdict
+
+    @staticmethod
+    def _classify_success(tree: Any, proposal_id: str) -> HandlerResult:
+        """Say which arm of the idempotency Selector answered (#2255).
+
+        The tree succeeds on all four arms, but only the accept arm applied
+        the proposal.  A Selector leaves the arms it tried ahead of the winner
+        FAILED and the ones after it INVALID, so the first guard that
+        succeeded names the arm.
+        """
+        if node_succeeded(tree, CheckMarkerExistsNode):
+            # CP-05-005: Accept already sent; the retry runner owns the Create.
+            return HandlerResult.skipped(
+                f"proposal '{proposal_id}' already accepted; Create in flight"
+            )
+        if node_succeeded(tree, CheckDeclineRecordExistsNode):
+            # HP-01-003: a pre-existing decline record is a duplicate — the
+            # earlier REFUSED is the record; replaying the same message is a
+            # benign no-op, not a new refusal.
+            return HandlerResult.skipped(
+                f"proposal '{proposal_id}' was previously declined"
+            )
+        if node_succeeded(tree, RecordProposalDeclineNode):
+            # CP-05-002, CP-05-004: the admission policy said no.
+            return HandlerResult.refused(
+                f"proposal '{proposal_id}' declined by admission policy"
+            )
+        return HandlerResult.applied()
 
 
 class AcceptCaseProposalReceivedUseCase:
-    """Handle an inbound ``Accept(as_CaseProposal)`` on the vendor actor.
+    """Handle an inbound ``Accept(as_CaseProposal)`` on the report receiver.
 
-    Updates the vendor's ``VultronReportCaseLink`` with the case-actor URI
+    Updates the receiver's ``VultronReportCaseLink`` with the case-actor URI
     so the subsequent ``Create(VulnerabilityCase)`` bootstrap can validate
     the sender (CP-06-001, CP-06-003).
 
@@ -255,15 +348,25 @@ class AcceptCaseProposalReceivedUseCase:
     Spec: CP-06-001, CP-06-003.
     """
 
+    # The sender must be the actor the vendor addressed the proposal to,
+    # as recorded on the report case link (CP-06-005).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.NAMED_ACTOR
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
         request: AcceptCaseProposalReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: AcceptCaseProposalReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         # The case-actor service that accepted the proposal is the activity actor.
         case_actor_id = request.actor_id
@@ -275,7 +378,9 @@ class AcceptCaseProposalReceivedUseCase:
                 "accept_case_proposal_received: no report_id available"
                 " — cannot update VultronReportCaseLink (CP-06-003)"
             )
-            return
+            return HandlerResult.refused(
+                "Accept(CaseProposal) carries no inline report"
+            )
 
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
@@ -285,31 +390,42 @@ class AcceptCaseProposalReceivedUseCase:
             report_id=report_id,
             case_actor_id=case_actor_id,
         )
-        result = BTBridge(datalayer=self._dl).execute_with_setup(
+        result = BTBridge(
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
         )
-        if result.status != Status.SUCCESS:
-            logger.warning(
-                "accept_case_proposal_received: BT did not succeed"
-                " for report '%s': %s",
-                report_id,
-                BTBridge.get_failure_reason(tree) or result.feedback_message,
+        verdict = verdict_from_bt(
+            tree, result, label="AcceptCaseProposalReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.APPLIED:
+            verdict = _skipped_if_no_link(
+                tree, RecordCaseActorAcceptanceNode, report_id
             )
-        else:
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "accept_case_proposal_received: refused for report '%s': %s",
+                report_id,
+                verdict.reason,
+            )
+        elif verdict.disposition is HandlerDisposition.APPLIED:
             logger.info(
                 "accept_case_proposal_received: recorded case-actor '%s'"
                 " for report '%s'",
                 case_actor_id,
                 report_id,
             )
+        return verdict
 
 
 class RejectCaseProposalReceivedUseCase:
-    """Handle an inbound ``Reject(as_CaseProposal)`` on the vendor actor.
+    """Handle an inbound ``Reject(as_CaseProposal)`` on the report receiver.
 
-    Updates the vendor's ``VultronReportCaseLink`` to reflect the rejection,
+    Updates the receiver's ``VultronReportCaseLink`` to reflect the rejection,
     setting ``proposal_rejected=True`` and recording any ``rejection_reason``
     present in the activity's ``summary`` field (CP-06-002, CP-06-004).
 
@@ -318,15 +434,23 @@ class RejectCaseProposalReceivedUseCase:
     Spec: CP-06-002, CP-06-004.
     """
 
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.NAMED_ACTOR
+    )
+
     def __init__(
         self,
         dl: CasePersistence,
         request: RejectCaseProposalReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
         self._request: RejectCaseProposalReceivedEvent = request
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
 
         # The inner object is the VulnerabilityReport embedded in the proposal.
@@ -336,7 +460,9 @@ class RejectCaseProposalReceivedUseCase:
                 "reject_case_proposal_received: no report_id available"
                 " — cannot update VultronReportCaseLink (CP-06-004)"
             )
-            return
+            return HandlerResult.refused(
+                "Reject(CaseProposal) carries no inline report"
+            )
 
         # The rejection reason comes from the Reject activity's summary field.
         rejection_reason: str | None = None
@@ -349,21 +475,32 @@ class RejectCaseProposalReceivedUseCase:
 
         tree = create_reject_case_proposal_received_tree(
             report_id=report_id,
+            sender_actor_id=request.actor_id,
             rejection_reason=rejection_reason,
         )
-        result = BTBridge(datalayer=self._dl).execute_with_setup(
+        result = BTBridge(
+            datalayer=self._dl,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
         )
-        if result.status != Status.SUCCESS:
-            logger.warning(
-                "reject_case_proposal_received: BT did not succeed"
-                " for report '%s': %s",
-                report_id,
-                BTBridge.get_failure_reason(tree) or result.feedback_message,
+        verdict = verdict_from_bt(
+            tree, result, label="RejectCaseProposalReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.APPLIED:
+            verdict = _skipped_if_no_link(
+                tree, RecordCaseProposalRejectionNode, report_id
             )
-        else:
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "reject_case_proposal_received: refused for report '%s': %s",
+                report_id,
+                verdict.reason,
+            )
+        elif verdict.disposition is HandlerDisposition.APPLIED:
             logger.info(
                 "reject_case_proposal_received: case-actor '%s' rejected"
                 " proposal for report '%s' (reason: %r) (CP-06-004)",
@@ -371,3 +508,4 @@ class RejectCaseProposalReceivedUseCase:
                 report_id,
                 rejection_reason,
             )
+        return verdict

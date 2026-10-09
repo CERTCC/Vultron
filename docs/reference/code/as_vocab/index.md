@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Vultron Activity Streams Vocabulary
 
 The Vultron Activity Streams Vocabulary is a Python package that provides

@@ -12,9 +12,14 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for CaseParticipantRole received use cases (ADR-0039)."""
 
+import json
 import logging
 from unittest.mock import MagicMock
 
+import pytest
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.accept_reject_case_participant_role import (
     AcceptCaseParticipantRoleReceivedUseCase,
     RejectCaseParticipantRoleReceivedUseCase,
@@ -28,6 +33,18 @@ from vultron.wire.as2.factories import (
     offer_case_participant_role_activity,
     reject_case_participant_role_activity,
 )
+
+
+def _archived_by_intake(dl, activity_id: str) -> bool:
+    """True when intake archived *activity_id* under the receiver's key."""
+    from vultron.core.models.received_activity_record import (
+        ReceivedActivityRecord,
+    )
+
+    return isinstance(
+        dl.read(ReceivedActivityRecord.build_id(activity_id)),
+        ReceivedActivityRecord,
+    )
 
 
 class TestOfferCaseParticipantRoleReceivedUseCase:
@@ -55,6 +72,34 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             actor=self._VENDOR_URI,
         )
 
+    def _execute(self, dl, event):
+        """Run the handler wired as production wires it: with a trigger port.
+
+        Without one the tree cannot answer the offer, which is a wiring fault
+        that raises rather than a refusal (#2255).
+        """
+        trigger = MagicMock()
+        trigger.accept_case_participant_role.return_value = (
+            "https://example.org/activities/accept-1",
+            json.dumps({"type": "Accept", "actor": self._CASE_ACTOR_URI}),
+        )
+        return OfferCaseParticipantRoleReceivedUseCase(
+            dl, event, trigger_activity=trigger
+        ).execute()
+
+    def _seed_case(self, dl):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        dl.create(
+            as_VulnerabilityCase(
+                id_=self._CASE_URI,
+                name="ROLE-TEST",
+                attributed_to=self._VENDOR_URI,
+            )
+        )
+
     def test_offer_case_participant_role_persists_offer(self, make_payload):
         """OfferCaseParticipantRoleReceivedUseCase persists the offer activity."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -66,10 +111,9 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
-        OfferCaseParticipantRoleReceivedUseCase(dl, event).execute()
+        self._execute(dl, event)
 
-        stored = dl.get(offer.type_.value, offer.id_)
-        assert stored is not None
+        assert _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_idempotent(self, make_payload):
         """Repeated execution of OfferCaseParticipantRoleReceivedUseCase is a no-op."""
@@ -82,36 +126,30 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         offer = self._make_offer()
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
-        OfferCaseParticipantRoleReceivedUseCase(dl, event).execute()
-        OfferCaseParticipantRoleReceivedUseCase(dl, event).execute()
+        self._execute(dl, event)
+        self._execute(dl, event)
 
-        stored = dl.get(offer.type_.value, offer.id_)
-        assert stored is not None
+        assert _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_uses_store_owner_when_no_receiving_actor(
         self, make_payload
     ):
         """When receiving_actor_id is absent the store owner processes the offer."""
-        import py_trees
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-        py_trees.blackboard.Blackboard.storage.clear()
-        try:
-            dl = SqliteDataLayer(
-                "sqlite:///:memory:",
-                actor_id=self._CASE_ACTOR_URI,
-            )
-            offer = self._make_offer()
-            event = make_payload(offer, receiving_actor_id=None)
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_ACTOR_URI,
+        )
+        offer = self._make_offer()
+        event = make_payload(offer, receiving_actor_id=None)
 
-            OfferCaseParticipantRoleReceivedUseCase(dl, event).execute()
+        self._execute(dl, event)
 
-            # The BT runs under the store owner's identity; the tree stores the
-            # offer idempotently regardless of receiving_actor_id stamp.
-            stored = dl.get(offer.type_.value, offer.id_)
-            assert stored is not None
-        finally:
-            py_trees.blackboard.Blackboard.storage.clear()
+        # The BT runs under the store owner's identity; the tree stores the
+        # offer idempotently regardless of receiving_actor_id stamp.
+        assert _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_coordinator_persists(
         self, make_payload
@@ -126,16 +164,16 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         offer = self._make_offer(role=CVDRole.COORDINATOR)
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
-        OfferCaseParticipantRoleReceivedUseCase(dl, event).execute()
+        self._execute(dl, event)
 
-        stored = dl.get(offer.type_.value, offer.id_)
-        assert stored is not None
+        assert _archived_by_intake(dl, offer.id_)
 
     def test_offer_case_participant_role_auto_accepts_when_trigger_given(
         self, make_payload
     ):
         """OfferCaseParticipantRoleReceivedUseCase auto-accepts when trigger_activity provided."""
         from unittest.mock import MagicMock
+
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(
@@ -146,9 +184,10 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
         trigger = MagicMock()
+        # The port returns the payload snapshot as a JSON string.
         trigger.accept_case_participant_role.return_value = (
             "https://example.org/activities/accept-1",
-            {"type": "Accept", "actor": self._CASE_ACTOR_URI},
+            json.dumps({"type": "Accept", "actor": self._CASE_ACTOR_URI}),
         )
 
         OfferCaseParticipantRoleReceivedUseCase(
@@ -159,6 +198,56 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         call_kwargs = trigger.accept_case_participant_role.call_args
         assert call_kwargs.kwargs["offer_id"] == offer.id_
         assert call_kwargs.kwargs["vendor_id"] == self._VENDOR_URI
+
+    @pytest.mark.spec("HP-01-003")
+    def test_offer_case_participant_role_auto_accept_is_applied(
+        self, make_payload
+    ):
+        """An auto-accepted, ledgered and queued Accept is APPLIED."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_ACTOR_URI,
+        )
+        self._seed_case(dl)
+        offer = self._make_offer()
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+
+        result = OfferCaseParticipantRoleReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert len(dl.outbox_list()) == 1
+
+    @pytest.mark.spec("HP-01-003")
+    def test_offer_case_participant_role_refused_when_neither_reply_sent(
+        self, make_payload
+    ):
+        """When the actor can neither Accept nor Reject, the offer is refused."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_ACTOR_URI,
+        )
+        offer = self._make_offer()
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+
+        trigger = MagicMock()
+        trigger.accept_case_participant_role.side_effect = RuntimeError("down")
+        trigger.reject_case_participant_role.side_effect = RuntimeError("down")
+
+        result = OfferCaseParticipantRoleReceivedUseCase(
+            dl, event, trigger_activity=trigger
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason
 
 
 class TestAcceptCaseParticipantRoleReceivedUseCase:
@@ -200,10 +289,10 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         )
         event = make_payload(accept)
 
-        AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
+        result = AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(accept.type_.value, accept.id_)
-        assert stored is not None
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert _archived_by_intake(dl, accept.id_)
 
     def test_accept_case_participant_role_idempotent(self, make_payload):
         """Repeated AcceptCaseParticipantRoleReceivedUseCase execution is a no-op."""
@@ -220,11 +309,13 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         )
         event = make_payload(accept)
 
-        AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
-        AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
+        first = AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
+        second = AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(accept.type_.value, accept.id_)
-        assert stored is not None
+        assert first.disposition is HandlerDisposition.APPLIED
+        assert second.disposition is HandlerDisposition.SKIPPED
+
+        assert _archived_by_intake(dl, accept.id_)
 
     def test_accept_case_participant_role_logs_acceptance(
         self, caplog, make_payload
@@ -280,10 +371,15 @@ class TestRejectCaseParticipantRoleReceivedUseCase:
             offer, actor=self._CASE_ACTOR_URI
         )
         event = make_payload(reject)
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
 
         with caplog.at_level(logging.WARNING):
-            RejectCaseParticipantRoleReceivedUseCase(
-                MagicMock(), event
+            result = RejectCaseParticipantRoleReceivedUseCase(
+                dl, event
             ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
+        # A declined offer leaves nothing on this side to change.
+        assert result.disposition is HandlerDisposition.SKIPPED
+        # The run still archives the Reject that arrived (CLP-10-017).
+        assert _archived_by_intake(dl, reject.id_)

@@ -77,9 +77,9 @@ def _declared_dependencies() -> list[str]:
 def test_dependency_discovery_is_not_vacuous():
     """A ratchet that resolves no targets must fail, not pass (DF-09-009)."""
     declared = _declared_dependencies()
-    assert (
-        declared
-    ), f"No dependencies parsed from {_PYPROJECT} — parser is broken."
+    assert declared, (
+        f"No dependencies parsed from {_PYPROJECT} — parser is broken."
+    )
     # A known-present dependency, so a silently-emptied list cannot pass.
     assert any(entry.startswith("pydantic") for entry in declared)
 

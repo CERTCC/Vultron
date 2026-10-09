@@ -53,20 +53,18 @@ ACTOR_ID = "https://example.org/actors/case-actor"
 _ledger_counter: dict[str, int] = {}
 
 
-def _seed_ledger_entry(
-    dl, case_id, object_id, event_type, actor_id=ACTOR_ID
-):  # noqa: ARG001
+def _seed_ledger_entry(dl, case_id, object_id, event_type, actor_id=ACTOR_ID):
     """Insert a CaseLedgerEntry directly without traversing the hash chain.
 
     Uses a simple per-test counter for log_index so entries don't collide.
     Hash fields are left as empty strings — find_protocol_pair only reads
     event_type, case_id, and log_object_id.
     """
-    from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
     _ledger_counter[case_id] = _ledger_counter.get(case_id, -1) + 1
     index = _ledger_counter[case_id]
-    entry = VultronCaseLedgerEntry(
+    entry = CaseLedgerEntry(
         case_id=case_id,
         log_index=index,
         log_object_id=object_id,

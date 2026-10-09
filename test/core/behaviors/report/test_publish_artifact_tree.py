@@ -43,14 +43,6 @@ from vultron.demo.fuzzer.report_management.publication import (
 CASE_ID = "https://example.org/cases/test-001"
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Clear py_trees global blackboard state between tests."""
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 def _marker_factory(label):
     def factory(name):
         class _Marker(py_trees.behaviour.Behaviour):

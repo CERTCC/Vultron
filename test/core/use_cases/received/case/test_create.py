@@ -12,15 +12,17 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for Case Bootstrap Trust (CBT-05-001 through CBT-05-004).
+"""Tests for Case Bootstrap Trust (CBT-05-001 through CBT-05-004, CBT-06-002).
 
 Covers:
   CBT-05-001  Reporter accepts CaseActor Announce after bootstrap Create.
-  CBT-05-002  Bootstrap Create rejected when sender ≠ trusted_case_creator_id.
+  CBT-05-002  Bootstrap Create rejected when sender ≠ case_creator_id.
   CBT-05-003  No-link path: Create without a matching ReportCaseLink is a
               no-op (receiver is not the original reporter).
-  CBT-05-004  trusted_case_actor_id is extracted from the CASE_MANAGER participant
+  CBT-05-004  case_manager_id is extracted from the CASE_MANAGER participant
               in the bootstrap snapshot and recorded in the ReportCaseLink.
+  CBT-06-002  One report offered to two recipients: each recipient's bootstrap
+              is accepted and seeds its own case (strict xfail until #3698).
 
 See also:
   test_bootstrap_participants.py  CBT-05-005/006 embedded participant storage.
@@ -28,11 +30,15 @@ See also:
                                   and RM.ACCEPTED upgrade (#589, #624).
 """
 
+from collections.abc import Callable
+
 import pytest
 
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.enums.roles import CVDRole
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor import _find_case_actor_id
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
@@ -40,10 +46,13 @@ from vultron.core.use_cases.received.actor.announce import (
 from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     create_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
 )
@@ -95,15 +104,15 @@ def _case_with_case_actor_participant() -> tuple:
 
 def _build_link(
     *,
-    trusted_case_creator_id: str | None = _CREATOR_ID,
+    case_creator_id: str | None = _CREATOR_ID,
     case_id: str | None = None,
-    trusted_case_actor_id: str | None = None,
+    case_manager_id: str | None = None,
 ) -> VultronReportCaseLink:
     return VultronReportCaseLink(
         report_id=_REPORT_ID,
         case_id=case_id,
-        trusted_case_creator_id=trusted_case_creator_id,
-        trusted_case_actor_id=trusted_case_actor_id,
+        case_creator_id=case_creator_id,
+        case_manager_id=case_manager_id,
     )
 
 
@@ -122,7 +131,7 @@ def dl():
 
 @pytest.fixture()
 def case_with_participant():
-    """Return (as_VulnerabilityCase, VultronParticipant) with CASE_MANAGER role."""
+    """Return (as_VulnerabilityCase, CaseParticipant) with CASE_MANAGER role."""
     return _case_with_case_actor_participant()
 
 
@@ -152,12 +161,25 @@ class TestBootstrapCreateAccepted:
         link = _build_link()
         dl.save(link)
 
-        CreateCaseReceivedUseCase(dl, create_event).execute()
+        result = CreateCaseReceivedUseCase(dl, create_event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is not None
-        ), "Case should be seeded after valid bootstrap"
+        assert stored is not None, (
+            "Case should be seeded after valid bootstrap"
+        )
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_redelivered_bootstrap_is_skipped(
+        self, dl, create_event, case_with_participant
+    ):
+        """A second bootstrap for a replica already seeded is a no-op."""
+        dl.save(_build_link())
+        CreateCaseReceivedUseCase(dl, create_event).execute()
+
+        again = CreateCaseReceivedUseCase(dl, create_event).execute()
+
+        assert again.disposition == HandlerDisposition.SKIPPED
 
     def test_report_case_link_updated_with_case_id(
         self, dl, create_event, case_with_participant
@@ -172,10 +194,10 @@ class TestBootstrapCreateAccepted:
         assert isinstance(updated, VultronReportCaseLink)
         assert updated.case_id == _CASE_ID
 
-    def test_report_case_link_updated_with_trusted_case_actor_id(
+    def test_report_case_link_updated_with_case_manager_id(
         self, dl, create_event, case_with_participant
     ):
-        """Bootstrap extracts trusted_case_actor_id from CASE_MANAGER participant
+        """Bootstrap extracts case_manager_id from CASE_MANAGER participant
         (CBT-01-003, CBT-01-006)."""
         link = _build_link()
         dl.save(link)
@@ -184,11 +206,11 @@ class TestBootstrapCreateAccepted:
 
         updated = dl.read(link.id_)
         assert isinstance(updated, VultronReportCaseLink)
-        assert updated.trusted_case_actor_id == _CASE_ACTOR_ID
+        assert updated.case_manager_id == _CASE_ACTOR_ID
 
 
 # ---------------------------------------------------------------------------
-# CBT-05-002: Bootstrap Create rejected when sender ≠ trusted_case_creator_id
+# CBT-05-002: Bootstrap Create rejected when sender ≠ case_creator_id
 # ---------------------------------------------------------------------------
 
 
@@ -205,20 +227,23 @@ class TestBootstrapCreateRejectedBadSender:
         return make_payload(imposter_activity)
 
     def test_case_not_created(self, dl, imposter_event, case_with_participant):
-        """Case must NOT be seeded when sender ≠ trusted_case_creator_id."""
-        link = _build_link(trusted_case_creator_id=_CREATOR_ID)
+        """Case must NOT be seeded when sender ≠ case_creator_id."""
+        link = _build_link(case_creator_id=_CREATOR_ID)
         dl.save(link)
 
-        CreateCaseReceivedUseCase(dl, imposter_event).execute()
+        result = CreateCaseReceivedUseCase(dl, imposter_event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is None
-        ), "Case must not be seeded when sender is not trusted creator"
+        assert stored is None, (
+            "Case must not be seeded when sender is not trusted creator"
+        )
+        # HP-01-003: an untrusted sender is refused, not "processed".
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and _IMPOSTER_ID in result.reason
 
     def test_link_not_updated(self, dl, imposter_event, case_with_participant):
         """ReportCaseLink must NOT be updated when bootstrap is rejected."""
-        link = _build_link(trusted_case_creator_id=_CREATOR_ID)
+        link = _build_link(case_creator_id=_CREATOR_ID)
         dl.save(link)
 
         CreateCaseReceivedUseCase(dl, imposter_event).execute()
@@ -226,7 +251,7 @@ class TestBootstrapCreateRejectedBadSender:
         updated = dl.read(link.id_)
         assert isinstance(updated, VultronReportCaseLink)
         assert updated.case_id is None
-        assert updated.trusted_case_actor_id is None
+        assert updated.case_manager_id is None
 
 
 # ---------------------------------------------------------------------------
@@ -243,16 +268,27 @@ class TestBootstrapCreateNoLink:
         """Without a ReportCaseLink, CreateCaseReceivedUseCase is a no-op."""
         # Do NOT create a VultronReportCaseLink
 
-        CreateCaseReceivedUseCase(dl, create_event).execute()
+        result = CreateCaseReceivedUseCase(dl, create_event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is None
-        ), "Case should not be seeded when receiver has no matching ReportCaseLink"
+        assert stored is None, (
+            "Case should not be seeded when receiver has no matching ReportCaseLink"
+        )
+        # The sender is not this case's CASE_MANAGER either, so nothing
+        # vouches for it: an untrusted sender is REFUSED (HP-01-003).
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_create_without_case_object_is_refused(self, dl, create_event):
+        event = create_event.model_copy(update={"object_": None})
+
+        result = CreateCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
 
 
 # ---------------------------------------------------------------------------
-# CBT-05-004: trusted_case_actor_id gates subsequent Announce acceptance
+# CBT-05-004: case_manager_id gates subsequent Announce acceptance
 # ---------------------------------------------------------------------------
 
 
@@ -280,27 +316,23 @@ class TestAnnounceValidatedByTrustedCaseActorId:
     def test_trusted_actor_announce_accepted(
         self, dl, make_payload, case_obj, announce_from_trusted
     ):
-        """Announce from trusted_case_actor_id is accepted (CBT-05-004)."""
-        link = _build_link(
-            case_id=_CASE_ID, trusted_case_actor_id=_CASE_ACTOR_ID
-        )
+        """Announce from case_manager_id is accepted (CBT-05-004)."""
+        link = _build_link(case_id=_CASE_ID, case_manager_id=_CASE_ACTOR_ID)
         dl.save(link)
 
         event = make_payload(announce_from_trusted)
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(_CASE_ID)
-        assert (
-            stored is not None
-        ), "Announce from trusted CaseActor must seed the case"
+        assert stored is not None, (
+            "Announce from trusted CaseActor must seed the case"
+        )
 
     def test_imposter_announce_rejected(
         self, dl, make_payload, case_obj, announce_from_imposter
     ):
-        """Announce from actor other than trusted_case_actor_id is rejected."""
-        link = _build_link(
-            case_id=_CASE_ID, trusted_case_actor_id=_CASE_ACTOR_ID
-        )
+        """Announce from actor other than case_manager_id is rejected."""
+        link = _build_link(case_id=_CASE_ID, case_manager_id=_CASE_ACTOR_ID)
         dl.save(link)
 
         event = make_payload(announce_from_imposter)
@@ -308,16 +340,157 @@ class TestAnnounceValidatedByTrustedCaseActorId:
 
         stored = dl.read(_CASE_ID)
         assert stored is None, (
-            "Announce from imposter must be rejected when trusted_case_actor_id "
+            "Announce from imposter must be rejected when case_manager_id "
             "is set (CBT-05-004, PCR-03-001)"
         )
 
     def test_find_case_actor_id_prefers_link_over_service(self, dl, case_obj):
-        """_find_case_actor_id returns trusted_case_actor_id from link first."""
-        link = _build_link(
-            case_id=_CASE_ID, trusted_case_actor_id=_CASE_ACTOR_ID
-        )
+        """_find_case_actor_id returns case_manager_id from link first."""
+        link = _build_link(case_id=_CASE_ID, case_manager_id=_CASE_ACTOR_ID)
         dl.save(link)
 
         result = _find_case_actor_id(dl, _CASE_ID)
         assert result == _CASE_ACTOR_ID
+
+
+# ---------------------------------------------------------------------------
+# CBT-06-002: one report offered to two recipients — both bootstraps accepted
+# ---------------------------------------------------------------------------
+
+_COORDINATOR_ID = "https://example.org/actors/coordinator"
+_SECOND_CASE_ID = "https://example.org/cases/cbt-test-002"
+_SECOND_CASE_ACTOR_ID = "https://example.org/actors/case-actor-002"
+
+
+def _offer_report_to(dl: SqliteDataLayer, recipient_id: str) -> None:
+    """Record what the reporter trusts after offering the report to *recipient_id*.
+
+    Mirrors the recording step of ``SvcSubmitReportUseCase._prepare``, which
+    cannot yet re-offer an existing report (it always mints a new one).  When
+    #3698 adds that path, drive this through the trigger instead.
+    """
+    try:
+        dl.create(
+            VultronReportCaseLink(
+                report_id=_REPORT_ID, case_creator_id=recipient_id
+            )
+        )
+    except VultronAlreadyExistsError:
+        pass
+
+
+def _bootstrap_event(
+    make_payload: Callable[[as_Activity], VultronEvent],
+    case_id: str,
+    creator_id: str,
+    case_actor_id: str,
+) -> CreateCaseReceivedEvent:
+    participant = as_CaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
+        id_=f"{case_id}/participants/case-actor",
+        attributed_to=case_actor_id,
+        context=case_id,
+        name="CaseActor",
+    )
+    case = as_VulnerabilityCase.model_construct(
+        id_=case_id, name="CBT-06 case", case_participants=[participant]
+    )
+    event = make_payload(create_case_activity(case, actor=creator_id))
+    if not isinstance(event, CreateCaseReceivedEvent):
+        raise TypeError(f"expected CreateCaseReceivedEvent, got {type(event)}")
+    return event
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "CBT-06-002: the reporter trusts one case creator per report, so no "
+        "link is recorded for the second recipient and its bootstrap is "
+        "dropped. Tracked by #3698."
+    ),
+)
+@pytest.mark.spec("CBT-06-002")
+@pytest.mark.parametrize(
+    "bootstrap_order",
+    [(_CREATOR_ID, _COORDINATOR_ID), (_COORDINATOR_ID, _CREATOR_ID)],
+    ids=["first-recipient-first", "second-recipient-first"],
+)
+def test_each_recipient_of_one_report_can_bootstrap_its_own_case(
+    dl: SqliteDataLayer,
+    make_payload: Callable[[as_Activity], VultronEvent],
+    bootstrap_order: tuple[str, str],
+) -> None:
+    """A report offered to two recipients yields two accepted bootstraps.
+
+    Each case gets its own CaseActor, so a CASE_MANAGER recorded against the
+    wrong recipient's case is caught.
+    """
+    case_for = {
+        _CREATOR_ID: (_CASE_ID, _CASE_ACTOR_ID),
+        _COORDINATOR_ID: (_SECOND_CASE_ID, _SECOND_CASE_ACTOR_ID),
+    }
+    _offer_report_to(dl, _CREATOR_ID)
+    _offer_report_to(dl, _COORDINATOR_ID)
+
+    for creator_id in bootstrap_order:
+        case_id, case_actor_id = case_for[creator_id]
+        event = _bootstrap_event(
+            make_payload, case_id, creator_id, case_actor_id
+        )
+        CreateCaseReceivedUseCase(dl, event).execute()
+
+    for case_id, case_actor_id in case_for.values():
+        assert dl.read(case_id) is not None
+        assert _find_case_actor_id(dl, case_id) == case_actor_id
+
+
+# ---------------------------------------------------------------------------
+# EMB-18-003: a received case naming an embargo this store cannot read
+# ---------------------------------------------------------------------------
+
+_UNHELD_EMBARGO_ID = f"{_CASE_ID}/embargo_events/unheld"
+
+
+def _case_naming_unheld_embargo() -> as_VulnerabilityCase:
+    case, _ = _case_with_case_actor_participant()
+    unheld: as_VulnerabilityCase = case.model_copy(deep=True)
+    activate(unheld, _UNHELD_EMBARGO_ID)
+    return unheld
+
+
+@pytest.mark.spec("EMB-18-003")
+class TestCreateRefusesAnUnheldEmbargo:
+    """A Create naming an embargo this store cannot read seeds nothing."""
+
+    def test_bootstrap_is_refused_and_nothing_is_stored(
+        self, dl, make_payload
+    ):
+        link = _build_link()
+        dl.save(link)
+        event = make_payload(
+            create_case_activity(
+                _case_naming_unheld_embargo(), actor=_CREATOR_ID
+            )
+        )
+
+        result = CreateCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "EMB-18-003" in (result.reason or "")
+        assert dl.read(_CASE_ID) is None
+        stored_link = dl.read(link.id_)
+        assert isinstance(stored_link, VultronReportCaseLink)
+        assert stored_link.case_id is None
+
+    def test_direct_participant_bootstrap_is_refused(self, dl, make_payload):
+        event = make_payload(
+            create_case_activity(
+                _case_naming_unheld_embargo(), actor=_CASE_ACTOR_ID
+            )
+        )
+
+        result = CreateCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert dl.read(_CASE_ID) is None

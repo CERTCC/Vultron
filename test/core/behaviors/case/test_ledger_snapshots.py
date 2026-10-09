@@ -39,10 +39,10 @@ from vultron.core.behaviors.sync.nodes.canonical_entry import (
 )
 from vultron.core.models._helpers import parse_published
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.vultron_types import VultronCaseActor
 
 VENDOR_ID = "https://example.org/actors/vendor"
 CASE_ACTOR_ID = "https://example.org/actors/case-actor"
@@ -65,7 +65,7 @@ def port():
 
 @pytest.fixture
 def vendor_actor(dl):
-    actor = VultronCaseActor(id_=VENDOR_ID, name="Vendor Co")
+    actor = CaseActor(id_=VENDOR_ID, name="Vendor Co")
     dl.create(actor)
     return actor
 
@@ -129,17 +129,17 @@ class TestSnapshotBuilders:
         assert snap["target"]["type"] == "CaseParticipant"
         assert snap["context"] == CASE_ID
 
-    def test_participant_status_pec_flattened_to_em_consent_state(
+    def test_participant_status_carries_no_consent_keys(
         self, participant, port
     ):
-        """The PEC dimension is rendered as the flat wire key ``emConsentState``."""
+        """Consent lives on the participant rows, so the status snapshot has no consent keys (ADR-0122)."""
         status = participant.participant_statuses[0]
         snap = build_add_participant_status_snapshot(
             status, participant, CASE_ACTOR_ID, CASE_ID, port
         )
-        assert status.consent is not None
-        assert "consent" not in snap["object"]
-        assert snap["object"]["emConsentState"] == status.consent.state.value
+        assert not {"consent", "emConsentState", "embargoAdherence"} & set(
+            snap["object"]
+        )
 
     def test_build_add_case_status_snapshot(self, case, port):
         raw_status = case.case_statuses[0]
@@ -389,9 +389,9 @@ class TestSnapshotsCarryPublished:
             for name, s in built.items()
             if parse_published(s["published"]) is None
         )
-        assert (
-            not unparseable
-        ), f"builders whose `published` does not parse: {unparseable}"
+        assert not unparseable, (
+            f"builders whose `published` does not parse: {unparseable}"
+        )
 
     def test_published_is_timezone_aware_utc(self, built):
         """A naive stamp would compare against an aware one and raise."""

@@ -25,14 +25,19 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import AckReportReceivedEvent
-from vultron.core.models.report import VultronReport
-from vultron.enums.roles import CVDRole
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.report import AckReportReceivedUseCase
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
+    as_Read,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -58,15 +63,6 @@ CASE_ID = "https://example.org/cases/c-ack-test"
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    import py_trees
-
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 def _make_case_store(owner_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
     """*owner_id*'s replica of the case, with the CaseActor as CASE_MANAGER.
 
@@ -81,7 +77,7 @@ def _make_case_store(owner_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
 
-    ca_svc = VultronCaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
+    ca_svc = CaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
     case = as_VulnerabilityCase(
@@ -111,9 +107,10 @@ def _make_case_store(owner_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
 
 def _make_ack_event(
     receiving_actor_id: str | None = CASE_ACTOR_ID,
+    sender_id: str = VENDOR_ID,
 ) -> AckReportReceivedEvent:
-    """Construct an AckReportReceivedEvent (Read(Offer(Report)))."""
-    report_obj = VultronReport(id_=REPORT_ID)
+    """Construct an AckReportReceivedEvent (Read(Offer(Report))) from *sender_id*."""
+    report_obj = VulnerabilityReport(id_=REPORT_ID)
     offer_obj = VultronActivity(
         id_=OFFER_ID,
         type_="Offer",
@@ -124,14 +121,14 @@ def _make_ack_event(
     read_activity = VultronActivity(
         id_="https://example.org/activities/read-ack",
         type_="Read",
-        actor=VENDOR_ID,
+        actor=sender_id,
         object_=offer_obj,
         context=CASE_ID,
     )
     return AckReportReceivedEvent(
         semantic_type=MessageSemantics.ACK_REPORT,
         activity_id=read_activity.id_,
-        actor_id=VENDOR_ID,
+        actor_id=sender_id,
         object_=offer_obj,
         inner_object=report_obj,
         activity=read_activity,
@@ -161,12 +158,14 @@ class TestAckReportLedgerRouting:
         when it receives an AckReport activity.
         """
         dl = _make_case_store(CASE_ACTOR_ID)
-        AckReportReceivedUseCase(
+        result = AckReportReceivedUseCase(
             dl=dl,
             request=_make_ack_event(receiving_actor_id=CASE_ACTOR_ID),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
         event_types = _ledger_event_types(dl)
         assert "ack_report" in event_types, (
@@ -185,6 +184,7 @@ class TestAckReportLedgerRouting:
             request=_make_ack_event(receiving_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -205,6 +205,7 @@ class TestAckReportLedgerRouting:
             request=_make_ack_event(receiving_actor_id=None),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -212,3 +213,88 @@ class TestAckReportLedgerRouting:
             "Store-owner fallback (CaseActor) MUST write an ack_report"
             f" ledger entry when receiving_actor_id is absent; found: {event_types}"
         )
+
+
+def _queued_reads(dl: SqliteDataLayer) -> list[as_Read]:
+    """The ``Read`` activities queued in *dl*'s outbox."""
+    queued = [dl.read(activity_id) for activity_id in dl.outbox_list()]
+    return [a for a in queued if isinstance(a, as_Read)]
+
+
+class TestAckReportEcho:
+    """Who re-emits an AckReport, and to whom (#2667).
+
+    ``EmitAckReportActivity`` exists for the legacy own-inbox pattern: an
+    actor that acknowledges a report by posting the ``Read`` to its *own*
+    inbox relies on this tree to forward it to the CASE_MANAGER.  Any other
+    receiver is hearing someone else's acknowledgement and must not echo it
+    under its own name — and the CASE_MANAGER, which the echo is addressed
+    to, would otherwise address one to itself, re-deliver it over HTTP to
+    its own inbox (OX-12-001) with a fresh id, and loop.
+    """
+
+    @pytest.mark.parametrize(
+        "receiver", [CASE_ACTOR_ID, FINDER_ID], ids=["case_manager", "finder"]
+    )
+    def test_ack_from_other_actor_emits_nothing(self, receiver: str):
+        dl = _make_case_store(receiver)
+        AckReportReceivedUseCase(
+            dl=dl,
+            request=_make_ack_event(receiving_actor_id=receiver),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert _queued_reads(dl) == []
+
+    def test_own_ack_is_forwarded_to_case_manager(self):
+        """The vendor's own ``Read`` in its own inbox still reaches the CM."""
+        dl = _make_case_store(VENDOR_ID)
+        AckReportReceivedUseCase(
+            dl=dl,
+            request=_make_ack_event(receiving_actor_id=VENDOR_ID),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        reads = _queued_reads(dl)
+        assert len(reads) == 1
+        assert reads[0].actor == VENDOR_ID
+        assert reads[0].to == [CASE_ACTOR_ID]
+
+    def test_case_manager_still_commits_without_echo(self):
+        """Skipping the echo at the CM does not skip its ledger commit."""
+        dl = _make_case_store(CASE_ACTOR_ID)
+        AckReportReceivedUseCase(
+            dl=dl,
+            request=_make_ack_event(receiving_actor_id=CASE_ACTOR_ID),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert "ack_report" in _ledger_event_types(dl)
+        assert _queued_reads(dl) == []
+
+    def test_case_manager_own_ack_is_not_forwarded_to_itself(self):
+        """The CM's own ``Read`` in its own inbox commits and is not echoed.
+
+        Sender, receiver and CASE_MANAGER are one actor, so the foreign-sender
+        skip does not apply; only ``SkipIfCaseManager`` stops the forward that
+        would address the CM itself and loop via loopback delivery (#2667).
+        """
+        dl = _make_case_store(CASE_ACTOR_ID)
+        AckReportReceivedUseCase(
+            dl=dl,
+            request=_make_ack_event(
+                receiving_actor_id=CASE_ACTOR_ID, sender_id=CASE_ACTOR_ID
+            ),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert "ack_report" in _ledger_event_types(dl)
+        assert _queued_reads(dl) == []

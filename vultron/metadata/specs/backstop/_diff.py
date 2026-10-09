@@ -20,9 +20,9 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from vultron.metadata.specs.backstop._model import (
-    GitRunner,
     BackstopError,
     FileChange,
+    GitRunner,
 )
 
 _HUNK_RE = re.compile(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@")
@@ -66,7 +66,11 @@ def parse_diff_hunks(diff: str) -> tuple[dict[str, set[int]], set[str]]:
 def _run_git(root: Path) -> GitRunner:
     def run(args: Sequence[str]) -> str:
         proc = subprocess.run(  # nosec B603 B607 - fixed git argv
-            ["git", *args], cwd=root, capture_output=True, text=True
+            ["git", *args],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if proc.returncode != 0:
             detail = proc.stderr.strip() or f"exit {proc.returncode}"
@@ -99,8 +103,11 @@ def collect_git_changes(
             "--no-renames",
             "--src-prefix=a/",
             "--dst-prefix=b/",
+            merge_base,
+            "--",
+            "vultron",
+            "test",
         ]
-        + [merge_base, "--", "vultron", "test"]
     )
     changed, deleted = parse_diff_hunks(diff)
     changes = [

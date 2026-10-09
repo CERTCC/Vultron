@@ -29,6 +29,10 @@ from typing import cast
 from pydantic import ValidationError
 
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories._context import (
+    case_target_ref,
+    with_case_context,
+)
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,
@@ -83,9 +87,9 @@ def recommend_actor_activity(
     try:
         return _RecommendActorActivity(
             object_=recommended,
-            target=target,
+            target=case_target_ref(target),
             suggested_roles=suggested_roles,
-            **kwargs,
+            **with_case_context(kwargs, target),
         )
     except ValidationError as exc:
         logger.warning("recommend_actor_activity: invalid arguments: %s", exc)
@@ -124,8 +128,8 @@ def accept_actor_recommendation_activity(
     try:
         return _AcceptActorRecommendationActivity(
             object_=cast(_RecommendActorActivity, offer),
-            target=target,
-            **kwargs,
+            target=case_target_ref(target),
+            **with_case_context(kwargs, target),
         )
     except ValidationError as exc:
         logger.warning(
@@ -165,8 +169,8 @@ def reject_actor_recommendation_activity(
     try:
         return _RejectActorRecommendationActivity(
             object_=cast(_RecommendActorActivity, offer),
-            target=target,
-            **kwargs,
+            target=case_target_ref(target),
+            **with_case_context(kwargs, target),
         )
     except ValidationError as exc:
         logger.warning(
@@ -213,7 +217,9 @@ def offer_case_participant_activity(
     )
     try:
         return _OfferCaseParticipantActivity(
-            object_=participant, target=target, **kwargs
+            object_=participant,
+            target=case_target_ref(target),
+            **with_case_context(kwargs, target),
         )
     except ValidationError as exc:
         logger.warning(
@@ -254,8 +260,8 @@ def accept_case_participant_offer_activity(
         )
         return _AcceptCaseParticipantOfferActivity(
             object_=typed_offer,
-            target=target,
-            **kwargs,
+            target=case_target_ref(target),
+            **with_case_context(kwargs, target),
         )
     except ValidationError as exc:
         logger.warning(
@@ -288,8 +294,8 @@ def reject_case_participant_offer_activity(
     try:
         return _RejectCaseParticipantOfferActivity(
             object_=cast(_OfferCaseParticipantActivity, offer),
-            target=target,
-            **kwargs,
+            target=case_target_ref(target),
+            **with_case_context(kwargs, target),
         )
     except ValidationError as exc:
         logger.warning(

@@ -51,6 +51,10 @@ from unittest.mock import MagicMock
 import pytest
 
 import vultron.demo.utils as demo_utils
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.notes import participant_adds_note_to_case
@@ -64,10 +68,6 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
-    VfDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -120,7 +120,7 @@ def test_participant_adds_note_no_unbound_on_trigger_failure(monkeypatch):
         )
     except UnboundLocalError:
         raised_unbound = True
-    except Exception:
+    except Exception:  # noqa: BLE001, S110  # ruff-baseline #3989
         # Any other exception (e.g. AssertionError from note_id is None)
         # is acceptable — it is not the UnboundLocalError that masked failures.
         pass
@@ -205,7 +205,7 @@ def test_wait_for_case_participants_does_not_count_id_strings():
     client = MagicMock()
     client.get.return_value = case_payload
 
-    with pytest.raises(AssertionError, match="[Tt]imed out"):
+    with pytest.raises(AssertionError, match=r"[Tt]imed out"):
         wait_for_case_participants(
             vendor_client=cast(DataLayerClient, client),
             case_id=_CASE_ID,
@@ -228,7 +228,7 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
     fired.  The error must include ``client.base_url`` so the container is
     identifiable from the message alone.
     """
-    import vultron.demo.helpers.verification as verification_module
+    import vultron.demo.helpers.polling as polling_module
     from vultron.demo.helpers.polling import _wait_for_participant_status_field
 
     ps = as_ParticipantStatus(
@@ -241,7 +241,7 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
     )
 
     monkeypatch.setattr(
-        verification_module,
+        polling_module,
         "_fetch_participant",
         lambda *a, **kw: participant,
     )
@@ -364,16 +364,6 @@ def test_run_invite_path_rm_triage_polls_invited_client_for_rm_state(
     )
     monkeypatch.setattr(
         workflow_module,
-        "wait_for_event_type_in_ledger",
-        lambda *a, **kw: None,
-    )
-    monkeypatch.setattr(
-        workflow_module,
-        "receiver_validates_report",
-        lambda *a, **kw: None,
-    )
-    monkeypatch.setattr(
-        workflow_module,
         "receiver_engages_case",
         lambda *a, **kw: None,
     )
@@ -403,7 +393,7 @@ def test_run_invite_path_rm_triage_polls_invited_client_for_rm_state(
     )
     valid_calls = [s for s in invited_client_ids if RM.VALID in s]
     accepted_calls = [s for s in invited_client_ids if RM.ACCEPTED in s]
-    assert (
-        valid_calls
-    ), "invited_client must be polled for RM.VALID (or {VALID,ACCEPTED})"
+    assert valid_calls, (
+        "invited_client must be polled for RM.VALID (or {VALID,ACCEPTED})"
+    )
     assert accepted_calls, "invited_client must be polled for RM.ACCEPTED"

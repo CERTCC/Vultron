@@ -38,13 +38,13 @@ import py_trees
 import pytest
 
 import vultron.core.behaviors.case.nodes.participant as participant_pkg
-from vultron.core.models.case import VulnerabilityCase
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.behaviors.port_contract import (
     PortDecl,
     decl_id,
     discover_port_declarations,
 )
+from vultron.core.models.case import VulnerabilityCase
 
 PORT = "participant_case"
 #: Physical blackboard key the nodes bind ``participant_case`` to when
@@ -60,9 +60,6 @@ CASE_ID = "https://example.org/cases/case-001"
 #: below fails if the roster grows beyond this table, so a new node cannot be
 #: silently dropped from the enforcement tests.
 CONSTRUCTOR_KWARGS: dict[str, dict[str, Any]] = {
-    "PersistOwnerCaseNode": {},
-    "RecordOwnerJoinedEventNode": {},
-    "AttachOwnerParticipantToCaseNode": {},
     "AttachParticipantToCaseNode": {
         "participant_actor_id": PARTICIPANT_ACTOR_ID
     },
@@ -136,8 +133,8 @@ class TestParticipantCaseInputEnforcement:
 
     # py_trees' blackboard storage is a process-global singleton, so a value
     # left behind would be visible to the next test. The repo-wide autouse
-    # `clear_py_trees_blackboard` in test/core/behaviors/conftest.py clears it
-    # around every test in this tree (TB-06-005).
+    # `clear_py_trees_blackboard` in test/conftest.py clears it
+    # around every test (TB-06-005).
 
     @pytest.mark.parametrize("decl", READERS, ids=decl_id)
     def test_wrong_type_raises_type_error(self, decl: PortDecl) -> None:
@@ -187,9 +184,9 @@ class TestParticipantCaseTickLevelEnforcement:
             result, reason="not of type", allow_internal=True
         )
         errors = result.errors or []
-        assert any(
-            "not of type" in err for err in errors
-        ), f"expected a port type-mismatch error, got {errors}"
+        assert any("not of type" in err for err in errors), (
+            f"expected a port type-mismatch error, got {errors}"
+        )
 
 
 @pytest.mark.spec("BTND-03-012")

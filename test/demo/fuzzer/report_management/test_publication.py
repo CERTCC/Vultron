@@ -1,13 +1,8 @@
 """Tests for vultron.demo.fuzzer.report_management.publication."""
 
-import pytest
 import py_trees
+import pytest
 
-from vultron.demo.fuzzer.call_out_point import (
-    ActuatorCallOutPoint,
-    ComposerCallOutPoint,
-    EvaluatorCallOutPoint,
-)
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -16,6 +11,11 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
+from vultron.demo.fuzzer.call_out_point import (
+    ActuatorCallOutPoint,
+    ComposerCallOutPoint,
+    EvaluatorCallOutPoint,
+)
 from vultron.demo.fuzzer.report_management.publication import (
     AllPublished,
     DraftAdvisoryArtifact,
@@ -23,12 +23,12 @@ from vultron.demo.fuzzer.report_management.publication import (
     NoPublishExploit,
     NoPublishFix,
     NoPublishReport,
-    PrepareFix,
     PrepareExploit,
+    PrepareFix,
     PrepareReport,
     PrioritizePublicationIntents,
-    Publish,
     PublicationIntentsSet,
+    Publish,
     ReprioritizeExploit,
     ReprioritizeFix,
     ReprioritizeReport,
@@ -124,7 +124,7 @@ def test_prioritize_publication_intents_is_evaluator():
 
 def test_prioritize_publication_intents_output_is_structured_record():
     """AC-3: output key is the typed PublicationIntentDecision (not str)."""
-    from vultron.core.behaviors.report.publication_tree import (
+    from vultron.core.behaviors.report.publication_intent import (
         INTENT_DECISION_KEY,
         PublicationIntentDecision,
     )

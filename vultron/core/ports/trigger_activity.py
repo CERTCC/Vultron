@@ -41,6 +41,7 @@ See also:
     - ``vultron/wire/as2/factories/AGENTS.md``
 """
 
+from datetime import datetime, timedelta
 from typing import Any, Protocol
 
 from vultron.core.models.case import VulnerabilityCase
@@ -107,8 +108,13 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: str,
         target: str,
+        proposed_embargo_id: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityReport)`` activity.
+
+        *proposed_embargo_id* names the Reporter's stored ``EmbargoEvent`` for
+        this report (EP-04-004); when given, the Offer carries it as
+        ``proposedEmbargo``.
 
         Returns ``(offer_id, offer_dict)``.
         """
@@ -233,23 +239,6 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
-    def add_case_status_to_case(
-        self,
-        status_id: str,
-        case_id: str,
-        actor: str,
-        to: list[str] | None = None,
-    ) -> str:
-        """Create and persist an ``Add(CaseStatus, VulnerabilityCase)`` activity.
-
-        Used by ``EmitAddCaseStatusToSelfNode`` to route a self-addressed
-        ``Add(CaseStatus)`` from the receiving actor to the CaseActor
-        (RSH-01-003).
-
-        Returns the activity ID (callers only need the ID for outbox queueing).
-        """
-        ...
-
     def create_case_proposal(
         self,
         actor: str,
@@ -272,8 +261,17 @@ class TriggerActivityPort(Protocol):
         (CP-01-007).  The CaseActor cannot recover them on its own; see
         ``as_CaseProposal.offer_id`` for why they have to travel on the wire.
 
+        The Create's ``actor`` is ``actor``'s own full profile, read from this
+        DataLayer with its ``embargo_policy``: the CASE_MANAGER reads the
+        CASE_OWNER's actor default from that inline profile and nowhere else
+        (CP-01-010).
+
         Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
         Returns ``(activity_id, activity_dict)``.
+
+        Raises:
+            ValueError: when the report, or ``actor``'s own profile, is not
+                in this DataLayer.
         """
         ...
 
@@ -301,6 +299,36 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def accept_case_proposal(
+        self,
+        actor: str,
+        proposal: dict,
+        to: list[str],
+        result: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Accept(as_CaseProposal)`` activity.
+
+        The CASE_MANAGER sends this to acknowledge that it will open (or has
+        already opened) a case for the proposal (CP-05-002).  *proposal* is the
+        wire-serialised ``as_CaseProposal`` the inbound ``Create`` carried,
+        embedded inline (AKM-03-001); *result* is the URI of the case the
+        Accept ties to (CP-05-006).
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def emit_prepared_create_case(self, payload: dict) -> tuple[str, str]:
+        """Persist a ``Create(VulnerabilityCase)`` prepared at marker time.
+
+        *payload* is the AS2 document stored on the
+        ``PendingCreateCaseActivity`` marker, so a replay after a crash sends
+        the same activity under the same id (CP-05-005).
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Actors (invitations, recommendations)
     # -----------------------------------------------------------------------
@@ -311,24 +339,94 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-        cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        in_reply_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor, Case)`` activity.
+        """Create and persist an ``Invite(Actor, CaseStub)`` activity.
 
-        ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
-        MAY carry the case owner's ID for attribution.
-        ``cc`` MAY carry the Case Actor's own ID for self-archival (CLP-10-001).
+        ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
+        MAY carry the case owner's ID for attribution.  There is no ``cc``:
+        the CASE_MANAGER commits the Invite in the tree that emits it and
+        never addresses a copy to itself (CM-17-006, ADR-0109).
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``VulnerabilityCase`` (the adapter projects it
         to an enriched stub including ``end_time`` when ``em_state == EM.ACTIVE``),
         a pre-built stub, or a bare URI string.  When ``None``, the adapter reads
         the case from the DataLayer by ``case_id`` (CM-17-002).
+        ``rsvp_deadline`` becomes the Invite's ``endTime``, the reply deadline
+        the CASE_MANAGER stamps as it does on an embargo Invite (CM-11-014,
+        CM-28-012, ASK-03-004); ``published`` is the instant it was measured
+        from.  ``in_reply_to`` names the stub Invite this one replaces, in the
+        standard AS2 ``inReplyTo`` property, after an embargo change or a
+        re-invite (CM-11-015, CM-11-016).  Each is forwarded only when given.
         Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def invite_actor_to_full_case(
+        self,
+        invitee_id: str,
+        case_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the full-case ``Invite(Actor)[target=Case]``.
+
+        ``actor`` MUST be the CASE_MANAGER's ID.  The Invite references the
+        case by ID and carries the CASE_MANAGER's ledger tail
+        (``ledger_log_index``, ``ledger_entry_hash``) as the floor the
+        invitee's reply must reach (CM-11-010, VAM-04-011).
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def accept_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``Accept(full-case Invite)`` — RV (VAM-04-012).
+
+        The reply carries the replier's own ledger position
+        (``ledger_log_index``, ``ledger_entry_hash``).  The ``to:`` field is
+        the Invite's sender.  Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def tentative_reject_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``TentativeReject(full-case Invite)`` — RI (VAM-04-013).
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def reject_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``Reject(full-case Invite)`` — RC (VAM-04-014).
+
+        Returns ``(activity_id, activity_blob)``.
         """
         ...
 
@@ -489,10 +587,36 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+        attributed_to: str | None = None,
+    ) -> tuple[str, str]:
         """Create and persist an ``Add(CaseParticipant, Case)`` activity.
 
-        Returns the activity ID (callers only need the ID for outbox queueing).
+        The CASE_MANAGER's direct notice to a reinstated participant
+        (CM-31-011): ``actor`` is the CASE_MANAGER and ``attributed_to`` the
+        Case Owner who asked for the reinstatement (CM-24-001, CM-24-002).
+        The notice is delivery, not a record, so the caller does not ledger
+        it.
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def remove_participant_from_case(
+        self,
+        participant_id: str,
+        case_id: str,
+        actor: str,
+        attributed_to: str,
+        to: list[str],
+    ) -> tuple[str, str]:
+        """Create and persist a ``Remove(CaseParticipant, Case)`` notice.
+
+        The CASE_MANAGER's direct notice to a removed participant (CM-31-006):
+        ``actor`` is the CASE_MANAGER and ``attributed_to`` the Case Owner who
+        asked for the removal (CM-24-001, CM-24-002).  The notice is delivery,
+        not a record, so the caller does not ledger it.
+
+        Returns ``(activity_id, activity_blob)``.
         """
         ...
 
@@ -582,9 +706,26 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
+        activity_id: str | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        min_rsvp_window: timedelta | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Invite(EmbargoEvent, Case)`` proposal.
 
+        ``attributed_to`` carries the proposer when the CASE_MANAGER relays a
+        proposal on a participant's behalf (CM-24-002, EP-09-002): ``actor`` is
+        then the CASE_MANAGER and ``attributed_to`` the participant whose terms
+        these are.
+        ``activity_id`` is the Invite's id when the caller recorded it before
+        the emission — the creation-time revision is indexed under its
+        Invite's id at registration and relayed only after the initialization
+        sequence completes (EP-04-011, CM-14-007).  ``None`` mints a fresh id.
+        ``rsvp_deadline`` becomes the Invite's ``endTime`` (CM-28-012,
+        ASK-03-004); ``published`` is the instant it was measured from and
+        ``min_rsvp_window`` the configured floor the factory checks it against
+        (EP-07-002).  Each is forwarded only when given.
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -615,14 +756,60 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
-    def announce_embargo(
+    def activate_embargo(
         self,
         embargo_id: str,
         case_id: str,
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
+        """Create and persist the case owner's ``Accept(EmbargoEvent, target=case)``.
+
+        The owner's activation of a proposed embargo (ADR-0122), distinct
+        from :meth:`accept_embargo`, the sender's own consent to an Invite.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def reject_embargo_proposal(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the case owner's ``Reject(EmbargoEvent, target=case)``.
+
+        The owner's rejection of a proposed embargo (ADR-0122), distinct
+        from :meth:`reject_embargo`, the sender's own refusal of an Invite.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def requeue_embargo_refusal(self, actor: str, proposal_id: str) -> bool:
+        """Whether *actor* already rejected the Invite *proposal_id*.
+
+        A ``Reject`` of one Invite by one actor is a single activity, so a
+        repeat refusal of a re-delivered Invite can be told from the first.
+        A ``Reject`` that was sealed but is no longer pending is queued again
+        under the same id, so an ER whose queue write failed is not lost
+        (ID-04-005).
+        """
+        ...
+
+    def announce_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        attributed_to: str | None = None,
+    ) -> tuple[str, str]:
         """Create and persist an ``Announce(EmbargoEvent)`` activity.
+
+        *attributed_to*, when given, names the actor whose request the
+        CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
+        of a shorter revision.
 
         Returns ``(activity_id, activity_dict)``.
         """
@@ -634,10 +821,14 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity.
 
         Corresponds to the ET (Embargo Termination) protocol message.
+        *attributed_to*, when given, names the actor whose request the
+        CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
+        to a bound signatory the ledger no longer reaches.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

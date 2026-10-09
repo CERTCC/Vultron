@@ -14,12 +14,12 @@
 """Shared fixtures and helpers for demo tests."""
 
 import functools
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import Mock, patch
 from urllib.parse import urlparse
-
-import logging
 
 import anyio.to_thread
 import pytest
@@ -27,19 +27,19 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
-from vultron.adapters.driven.http_delivery import DeliveryError
-from vultron.adapters.driving.fastapi.deps import get_actor_dl
+from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
+    make_testclient_call,
+)
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.http_delivery import DeliveryError
+from vultron.adapters.driving.fastapi import outbox_handler
 from vultron.adapters.driving.fastapi.app import create_app
+from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driving.fastapi.outbox_handler import get_default_emitter
-from vultron.core.models.activity import VultronActivity
-from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
-    make_testclient_call,
-)
 
 # Eliminate wait delays in all demo tests. The FastAPI TestClient processes
 # background tasks synchronously, so no sleep is needed between inbox posts
@@ -115,7 +115,7 @@ class _TestClientRouter:
     """
 
     def __init__(self) -> None:
-        self._clients: dict[str, "TestClient"] = {}
+        self._clients: dict[str, TestClient] = {}
         self._failing_hosts: set[str] = set()
 
     def register(self, base_url: str, client: "TestClient") -> None:
@@ -134,24 +134,20 @@ class _TestClientRouter:
         self._failing_hosts.add(base_url.rstrip("/"))
 
     async def emit(
-        self, activity: VultronActivity, recipients: list[str]
+        self, activity_id: str, json_body: str, recipients: list[str]
     ) -> None:
-        """Deliver *activity* to each recipient via the registered client."""
-        # serialize_as_any=True mirrors the production HttpDeliveryAdapter so
-        # inline nested-object subtype fields
-        # (e.g. a CaseLedgerEntry's case_id/event_type) survive the wire hop
-        # between isolated apps — otherwise this test double would silently
-        # drop them and mask SYNC-02-004 / SYNC-13-004 regressions.
-        json_body: str = activity.model_dump_json(
-            by_alias=True, exclude_none=True, serialize_as_any=True
-        )
+        """Deliver the sealed *json_body* to each recipient's registered client.
+
+        Posts the body exactly as the outbox handler hands it over, as the
+        production ``HttpDeliveryAdapter`` does (VM-08-003): a test double
+        that re-serialised would mask any divergence between what the ledger
+        recorded and what the wire carried.
+        """
         for recipient_id in recipients:
             parsed = urlparse(recipient_id.rstrip("/") + "/inbox/")
             base = f"{parsed.scheme}://{parsed.netloc}"
             if base in self._failing_hosts:
-                raise DeliveryError(
-                    [recipient_id], getattr(activity, "id_", None)
-                )
+                raise DeliveryError([recipient_id], activity_id)
             client = self._clients.get(base)
             if client is None:
                 host = parsed.hostname or ""
@@ -186,7 +182,7 @@ class _TestClientRouter:
                     inbox_path,
                     response.status_code,
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
                 logger.warning(
                     "_TestClientRouter: delivery to %s failed: %s",
                     inbox_path,
@@ -511,6 +507,48 @@ def restore_config_if_leaked(before: dict) -> bool:
 
 
 @pytest.fixture(autouse=True)
+def _no_outbox_row_is_dropped(caplog):
+    """Fail any demo test during which the outbox dropped a row (VM-08-003).
+
+    A queued id with no sealed body is logged at ERROR and dropped; the demo
+    runner's own "ERROR SUMMARY" covers only exceptions, so without this guard
+    a silently undelivered activity would pass every scenario (#2655 AC-5).
+    """
+    yield
+    dropped = [
+        r.getMessage()
+        for r in caplog.get_records("call")
+        if r.levelno >= logging.ERROR and "No sealed body" in r.getMessage()
+    ]
+    assert not dropped, (
+        "the outbox dropped a row nobody sealed:\n" + "\n".join(dropped)
+    )
+
+
+@pytest.fixture(autouse=True)
+def _no_outbox_row_is_dead_lettered(caplog):
+    """Fail any demo test during which the outbox dead-lettered a row.
+
+    A scenario that runs to completion can still have left an activity
+    undelivered: the outbox dead-letters it with an ERROR and carries on
+    (OX-13-002, OX-13-013).  A recipient-less ``create-case`` ``Create`` went
+    unnoticed this way, retried on backoff in every scenario built on
+    ``setup_initialized_case``, until this guard.
+    """
+    yield
+    # Keyed on the outbox handler's logger: the inbox dead-letters with the
+    # same wording (IE-06-004), and this guard must not blame the outbox for it.
+    dead = [
+        r.getMessage()
+        for r in caplog.get_records("call")
+        if r.name == outbox_handler.__name__
+        and r.levelno >= logging.ERROR
+        and "moved to dead letter" in r.getMessage().lower()
+    ]
+    assert not dead, "the outbox dead-lettered a row:\n" + "\n".join(dead)
+
+
+@pytest.fixture(autouse=True)
 def restore_case_actor_url_after_each_test():
     """Restore the session's CaseActor/server config after every demo test.
 
@@ -591,6 +629,17 @@ def client():
     )
 
     with TestClient(api_app) as test_client:
+        # The root lifespan now starts the production OutboxMonitor
+        # (OX-09-002).  These tests assert on the effect of a trigger right
+        # after its 202 and rely on the TestClient running the inline drain
+        # before it returns; a monitor draining concurrently would take the
+        # rows first and hand the inline drain a "look again" no-op, turning
+        # that immediate read into a race.  The monitor's own behaviour is
+        # covered by test_outbox_monitor.py, the root-lifespan test and the
+        # Docker demo matrix.
+        monitor = getattr(api_app.state, "outbox_monitor", None)
+        if monitor is not None:
+            monitor.stop()
         # Build a router that routes deliveries back to the single app and
         # drops anything sent to external fictional URLs.
         router = _TestClientRouter()
@@ -599,6 +648,7 @@ def client():
         # actor IDs hosted on api_app — regardless of which base URL was used
         # to construct them — route back to this TestClient.
         from urllib.parse import urlparse as _urlparse
+
         from vultron.config import get_config
 
         tc_base = str(test_client.base_url).rstrip("/")
@@ -631,3 +681,38 @@ def client():
             configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
             api_app.state.emitter = previous_app_emitter
             app_v2.state.node_base_url = previous_node_base_url
+
+
+@pytest.fixture(autouse=True)
+def stub_summary_seed():
+    """Skip ``stub_summary`` seeding when the case manager's client is a mock.
+
+    Seeding is infrastructure the mock-driven scenario tests do not exercise;
+    a real client (in-process app) still seeds, since its Invite needs it
+    (#4285).  ``test_invite_chain`` overrides this fixture to test the seed.
+    """
+    from vultron.demo.helpers import invite_chain
+
+    real = invite_chain._seed_stub_summary
+
+    def seed(client, case):
+        if not isinstance(client, Mock):
+            real(client, case)
+
+    with patch.object(invite_chain, "_seed_stub_summary", seed):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def stub_full_case_reply():
+    """Skip the chain's full-case Invite wait and reply in mock-driven tests.
+
+    After the join the invite chain waits for the full-case Invite and answers
+    it (CM-11-010, CM-11-011).  Mock-driven scenario tests have no container
+    to poll and no trigger to post, so the step is a no-op there;
+    ``test_invite_chain`` overrides this fixture to test the real step.
+    """
+    from vultron.demo.helpers import invite_chain
+
+    with patch.object(invite_chain, "reply_to_full_case_invite"):
+        yield

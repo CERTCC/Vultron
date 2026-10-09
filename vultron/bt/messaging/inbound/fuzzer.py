@@ -16,13 +16,12 @@ Provides fuzzer classes for inbound message handling
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import random
 
-from vultron.bt.messaging.states import MessageTypes
-from vultron.core.states.rm import RM
-from vultron.bt.states import ActorState
 from vultron.bt.messaging.message import Message
+from vultron.bt.messaging.states import MessageTypes
+from vultron.bt.states import ActorState
+from vultron.core.states.rm import RM
 
 
 def _message_gen(msg_type: MessageTypes) -> Message:
@@ -45,9 +44,8 @@ def random_external_event_message() -> Message:
 
 def generate_inbound_message(state: ActorState) -> Message | None:
     # if no report yet, receive a report
-    if state.q_rm == RM.START:
-        if random.random() < 0.4:
-            return _message_gen(MessageTypes.RS)
+    if state.q_rm == RM.START and random.random() < 0.4:
+        return _message_gen(MessageTypes.RS)
 
     # otherwise, with 1 in 5 chance, maybe something happened out in the world
     if random.random() < 0.10:

@@ -10,20 +10,30 @@ registry lookup automatically, use ``vultron.semantic_registry.extract_event``.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.events import (
     AnyReceivedEvent,
     MessageSemantics,
     VultronEvent,
 )
+from vultron.core.models.rsvp_deadline import (
+    DEFAULT_MIN_RSVP_WINDOW,
+    DEFAULT_RSVP_WINDOW,
+    RsvpDeadlineClamp,
+    resolve_rsvp_deadline,
+)
+from vultron.enums.object_types import VultronObjectType as VOtype
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.extractor._builders import (
     _build_object_kwargs,
     _get_id,
     _to_domain_obj,
+    ledger_position_from_content,
+    proposed_embargo_from,
 )
-from vultron.wire.as2.factories.embargo import _DEFAULT_MIN_RSVP_WINDOW
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
@@ -34,7 +44,8 @@ def extract_intent(
     semantics: MessageSemantics,
     event_class: type[VultronEvent],
     include_activity: bool = False,
-    min_rsvp_window: timedelta = _DEFAULT_MIN_RSVP_WINDOW,
+    min_rsvp_window: timedelta = DEFAULT_MIN_RSVP_WINDOW,
+    default_rsvp_window: timedelta = DEFAULT_RSVP_WINDOW,
 ) -> AnyReceivedEvent:
     """Extract domain fields from an AS2 activity given pre-computed semantics.
 
@@ -52,10 +63,12 @@ def extract_intent(
         event_class: Concrete ``VultronEvent`` subclass to instantiate.
         include_activity: When ``True``, populate ``event.activity`` with a
             summarised ``VultronActivity`` snapshot of the outer activity.
-        min_rsvp_window: Floor applied when clamping a sub-floor inbound
-            ``end_time`` (EP-07-003). Defaults to ``_DEFAULT_MIN_RSVP_WINDOW``
-            (72 h). Pass ``ActorConfig.min_rsvp_window`` from the caller to
-            apply the actor-configured floor.
+        min_rsvp_window: Minimum RSVP window for an inbound embargo invite
+            (EP-07-002, EP-07-003); 72 h by default.  Pass
+            ``ActorConfig.min_rsvp_window`` to apply the configured floor.
+        default_rsvp_window: Policy window used when an inbound embargo
+            invite names no deadline (EP-07-001, CM-18-002); 7 days by
+            default.  Pass ``ActorConfig.default_rsvp_window``.
 
     Returns:
         A concrete VultronEvent subclass discriminated by MessageSemantics.
@@ -85,26 +98,41 @@ def extract_intent(
         origin,
     )
 
-    # AC-2/AC-3/AC-5 (issue #2211): extract activity-level end_time as
-    # rsvp_deadline for event classes that carry it.  Applies UTC normalization
-    # and clamps sub-floor values up to the configured minimum window (EP-07-003).
     if "rsvp_deadline" in event_class.model_fields:
-        raw_end_time = getattr(activity, "end_time", None)
-        # ADR-0032: validate_datetime normalises naive datetimes to UTC at the
-        # wire edge, so raw_end_time is always UTC-aware here.
-        if isinstance(raw_end_time, datetime):
-            floor = datetime.now(tz=timezone.utc) + min_rsvp_window
-            if raw_end_time < floor:
-                logger.info(
-                    "extract_intent: inbound rsvp_deadline %s is below floor"
-                    " %s; clamped to floor (EP-07-003)",
-                    raw_end_time.isoformat(),
-                    floor.isoformat(),
-                )
-                raw_end_time = floor
-            extra_kwargs["rsvp_deadline"] = raw_end_time.astimezone(
-                timezone.utc
+        extra_kwargs["rsvp_deadline"] = _effective_rsvp_deadline(
+            activity, actor_id, obj, min_rsvp_window, default_rsvp_window
+        )
+    if "proposed_embargo" in event_class.model_fields:
+        # Offer(VulnerabilityReport) carries it itself; Create(CaseProposal)
+        # carries it on the Offer inlined in the proposal (EP-04-004,
+        # CP-01-008).  Surfaced here so no use case re-reads the wire
+        # activity for it (ADR-0035).
+        carrier = activity if _obj_type != str(VOtype.CASE_PROPOSAL) else obj
+        extra_kwargs["proposed_embargo"] = proposed_embargo_from(
+            carrier, activity_id=activity.id_
+        )
+
+    if "ledger_tail" in event_class.model_fields:
+        # The full-case Invite and its replies each carry a ledger position as
+        # the JSON dump of a LedgerPosition in ``content`` (VAM-04-011..014).
+        # It is parsed here, at the edge, so core receives the model
+        # (ADR-0032); an absent or unparseable one is refused with a reason.
+        extra_kwargs["ledger_tail"] = ledger_position_from_content(activity)
+
+    if "proposer_profile" in event_class.model_fields:
+        # Create(CaseProposal)'s actor is the proposer's inline profile
+        # (CP-01-010).  The parse edge refuses any other shape; an activity
+        # that reached here some other way is refused the same way, so core
+        # always receives the profile (ADR-0032).
+        actor = getattr(activity, "actor", None)
+        if not isinstance(actor, CoreActor):
+            raise VultronParseValidationError(
+                f"Create(CaseProposal) {activity.id_!r} carries no inline"
+                f" actor profile (got {type(actor).__name__}); the"
+                " proposer's profile is the only source of the CASE_OWNER's"
+                " actor default (CP-01-010)"
             )
+        extra_kwargs["proposer_profile"] = actor
 
     return cast(
         AnyReceivedEvent,
@@ -114,7 +142,7 @@ def extract_intent(
             activity_type=str(activity.type_) if activity.type_ else None,
             actor_id=actor_id,
             # object_ comes from extra_kwargs if a typed domain object was built;
-            # otherwise fall back to a minimal VultronObject wrapper.
+            # otherwise fall back to a minimal CoreObject wrapper.
             object_=extra_kwargs.pop("object_", None) or _to_domain_obj(obj),
             target=_to_domain_obj(target),
             context=_to_domain_obj(context),
@@ -126,3 +154,70 @@ def extract_intent(
             **extra_kwargs,
         ),
     )
+
+
+def _effective_rsvp_deadline(
+    activity: as_Activity,
+    actor_id: str,
+    embargo: object,
+    min_window: timedelta,
+    default_window: timedelta,
+) -> datetime:
+    """Return the deadline an inbound embargo invite is held to.
+
+    Clamps are applied, never refused (EP-07-004), and each one is logged
+    (EP-07-005).  Windows are measured from the invite's ``published`` time;
+    an activity without one is measured from now.
+
+    Every input is already UTC-aware: the activity's fields by
+    ``as_Object.validate_datetime`` and the nested embargo's ``end_time`` by
+    ``CoreObject`` (CS-13-001, #3784).
+    """
+    raw_end_time = getattr(activity, "end_time", None)
+    requested = raw_end_time if isinstance(raw_end_time, datetime) else None
+    raw_published = getattr(activity, "published", None)
+    published = raw_published if isinstance(raw_published, datetime) else None
+    raw_embargo_end = getattr(embargo, "end_time", None)
+    embargo_end = (
+        raw_embargo_end if isinstance(raw_embargo_end, datetime) else None
+    )
+    deadline = resolve_rsvp_deadline(
+        requested=requested,
+        published=published,
+        embargo_end=embargo_end,
+        min_window=min_window,
+        default_window=default_window,
+    )
+    source = "Invite.end_time" if requested is not None else "policy window"
+    if deadline.clamp is RsvpDeadlineClamp.RAISED_TO_MINIMUM:
+        logger.info(
+            "extract_intent: activity '%s' from actor '%s' rsvp_deadline %s"
+            " (%s) is below the applicable minimum; clamped up to %s"
+            " (EP-07-003)",
+            activity.id_,
+            actor_id,
+            deadline.computed.isoformat(),
+            source,
+            deadline.effective.isoformat(),
+        )
+    elif deadline.clamp is RsvpDeadlineClamp.LOWERED_TO_EMBARGO_END:
+        logger.info(
+            "extract_intent: activity '%s' from actor '%s' rsvp_deadline %s"
+            " (%s) is after the embargo end; clamped down to %s (EP-07-006)",
+            activity.id_,
+            actor_id,
+            deadline.computed.isoformat(),
+            source,
+            deadline.effective.isoformat(),
+        )
+    if deadline.effective <= datetime.now(tz=UTC):
+        logger.warning(
+            "extract_intent: activity '%s' from actor '%s' rsvp_deadline %s"
+            " is already past (published %s); the invitation lapses on the"
+            " next check",
+            activity.id_,
+            actor_id,
+            deadline.effective.isoformat(),
+            published.isoformat() if published is not None else "absent",
+        )
+    return deadline.effective

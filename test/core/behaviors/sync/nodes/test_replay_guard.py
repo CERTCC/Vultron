@@ -5,6 +5,11 @@ from datetime import timedelta
 
 import pytest
 
+from test.core.behaviors.sync.nodes.conftest import (
+    CASE_ID,
+    PARTICIPANT_ACTOR_ID,
+    _make_entry,
+)
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     GENESIS_REPLAY_COOLDOWN_SECONDS,
     REPLAY_COOLDOWN_SECONDS,
@@ -13,12 +18,6 @@ from vultron.core.behaviors.sync.nodes.replay_guard import (
     should_replay,
 )
 from vultron.core.models.replication_state import VultronReplicationState
-
-from test.core.behaviors.sync.nodes.conftest import (
-    CASE_ID,
-    PARTICIPANT_ACTOR_ID,
-    _make_entry,
-)
 
 
 class TestReplayFromHash:

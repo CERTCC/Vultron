@@ -4,10 +4,6 @@ Wire-layer alias for CaseLedgerEntry.
 
 Per ADR-0099 detail 3: the core class is the canonical form.
 The as_-prefixed name is retained for backward compatibility.
-
-Re-exports :class:`VultronCaseLedgerEntry` and
-:data:`VultronCaseLedgerEntryRef` from the core domain module so that
-callers importing from this wire module continue to work unchanged.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -23,11 +19,7 @@ callers importing from this wire module continue to work unchanged.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.core.models.case_ledger_entry import (
-    CaseLedgerEntry,
-    VultronCaseLedgerEntry,
-    VultronCaseLedgerEntryRef,
-)
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
 # Backward-compatibility alias (ADR-0099 detail 3)
@@ -38,6 +30,4 @@ WIRE_TYPE_MAP["CaseLedgerEntry"] = CaseLedgerEntry
 
 __all__ = [
     "as_CaseLedgerEntry",
-    "VultronCaseLedgerEntry",
-    "VultronCaseLedgerEntryRef",
 ]

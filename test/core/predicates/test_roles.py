@@ -152,7 +152,7 @@ class TestVendorVfStateIsValid:
         assert vendor_vf_state_is_valid([CVDRole.VENDOR], CS_vf.VF) is True
 
     def test_vendor_vf_unaware_is_invalid(self):
-        """Vendor with CS_vf.vf (vendor-unaware) violates ADR-0084."""
+        """Vendor with CS_vf.vf (vendor-unaware) violates ADR-0121."""
         assert vendor_vf_state_is_valid([CVDRole.VENDOR], CS_vf.vf) is False
 
     def test_non_vendor_vf_unaware_is_valid(self):

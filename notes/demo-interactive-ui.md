@@ -1,24 +1,34 @@
 ---
 title: Interactive Demo UI — Scenarios and Architecture
-status: draft
+status: active
 description: >
-  Design notes for the Vultron interactive demo UI: a ReactFlow-based
-  choose-your-own-adventure experience for stakeholder presentations,
-  covering the three scenario set, UI architecture, actor visualization,
-  WebSocket event streaming, and the relationship to existing demo scripts.
+  Design for the Vultron interactive demo UI: a React/ReactFlow dashboard for
+  stakeholder presentations that watches the real system's case ledgers live
+  over a prototype-only SSE stream, operator-side with no case identity, with
+  branch-point choices driven through the real trigger endpoints. Records the
+  feature/demo-ui prior art and the Task sequence under epic #676.
 related_notes:
   - notes/demo-future-ideas.md
   - notes/fv-demo.md
+  - notes/demo-scenario-registry.md
+  - notes/case-ledger-authority.md
 related_specs:
   - specs/multi-actor-demo.yaml
-  - specs/event-driven-control-flow.yaml
+  - specs/triggerable-behaviors.yaml
+  - specs/demo-report.yaml
 relevant_packages:
   - vultron/demo/scenario
+  - vultron/adapters/driving/fastapi/routers
 ---
 
 # Interactive Demo UI — Scenarios and Architecture
 
-**Source**: 2026-05-15 design session (grill-me).
+**Sources**: 2026-05-15 design session (#533); 2026-09-24 planning session for
+planning group G19 (#2847), which settled the vehicle, the data path, and the
+Task sequence. Decision record: ADR-0104.
+
+This is presentation tooling, not protocol work. It generates no `specs/`
+requirements (G19 AC-3); everything below is design guidance.
 
 ---
 
@@ -32,9 +42,7 @@ convinces developers; it does nothing for funders. The UI replaces logs
 with a live, interactive visualization of protocol state and message
 exchange that tells a story.
 
----
-
-## Target Audiences (in priority order)
+### Target audiences (in priority order)
 
 1. **Government funders / program managers** — Does this work? Is it
    worth continued investment?
@@ -46,235 +54,248 @@ exchange that tells a story.
 
 ---
 
-## Three-Scenario Set
+## Decisions (2026-09-24)
 
-All three scenarios share the same UI; only the number of actor bubbles
-and swim lanes differs.
+1. **Vehicle: the React/ReactFlow app on `feature/demo-ui`.** The lighter
+   alternatives (a self-contained HTML live page reusing
+   `vultron/demo/report.py`, or presenting the static report after the
+   fact) were considered and rejected: the prior art already exists and is
+   the more compelling presentation artifact.
+2. **Backbone: the real system, live.** The headline mode is the branch's
+   *Log Replay* mode grown into a live view of a running scenario. What the
+   audience sees is what the containers actually did.
+3. **The TypeScript simulation is frozen.** The branch's client-side
+   *Multi-Vendor* mode re-implements protocol rules in TypeScript. It stays
+   as an offline, explicitly *illustrative* mode, but receives no new
+   protocol logic — a second protocol implementation drifts silently, and an
+   audience watching it is not watching Vultron.
+4. **The dashboard is operator-side, with no case identity.** It reads each
+   actor's prototype-only ledger stream; it is never a case
+   participant, never appears in a roster, and never changes the case being
+   demonstrated. It is the watching half of a **Sentinel** (a call-in
+   pattern, ADR-0097 — not a capability shape); it becomes a full Sentinel
+   once branch-point choices call trigger endpoints. The rejected
+   alternative — an Observer participant receiving `Announce(CaseLedgerEntry)`
+   — would alter every scenario's roster and see only what it is sent.
+5. **Transport: server-sent events of case ledger entries, polled
+   server-side.** One direction of flow only (choices go out as ordinary
+   trigger POSTs), so SSE rather than the WebSocket the 2026-05-15 session
+   proposed. The stream is justified on its own observability merits
+   (`curl -N` tailing during debugging and CI), independent of the UI.
+6. **Delivery is blocked on the branch landing.** The branch is not ready to
+   land; landing it is Greg Strom's work, tracked as its own Task that
+   blocks the UI Tasks. The SSE endpoint does not wait for it.
 
-### Scenario A — Two-Actor: Simple CVD
+---
 
-**Narrative framing**: A security researcher finds a bug in a single
-product and reports it directly to the vendor.
+## Prior Art — `origin/feature/demo-ui`
 
-**Actors**: Finder (Reporter), Vendor, Case Actor (co-located in Vendor
-container)
+As of 2026-09-08 (tip `4398ed7be`, forked from `main` at `ff4b39cbc`,
+2026-09-03), about 16k lines, authored by Greg Strom:
 
-**Docker containers**: 2 (`finder`, `vendor`)
+- **`ui/`** — React 19 + TypeScript + Vite + `@xyflow/react` (ReactFlow).
+  `DemoSelector.tsx` toggles two modes:
+  - **Multi-Vendor** (`App-multivendor.tsx`, `ui/src/actions/*.ts`) —
+    client-side CYOA simulation; Finder, up to two extra vendors, Case
+    Actor; decision and consequence nodes in per-participant swimlanes;
+    external-event buttons for exploit publication and attacks.
+  - **Log Replay** (`App-logreplay.tsx`, `ui/src/utils/caseLedgerParser.ts`,
+    `caseLedgerMapper.ts`) — loads case-ledger JSONL by file upload or from
+    bundled samples (`ui/src/sample-logs/`) and renders it with the same
+    swimlane components (`ActorPanel`, `AnimatedNode`, `Swimlanes`).
+- **`vultron/scripts/export_states.py`** → `data/json/protocol_states.json`
+  (deterministic export of the RM/EM/VFD/PXA machines from their
+  `create_*_machine()` factories) plus `test/test_demo_states_export.py`
+  as a drift test, so the UI does not hard-code which transitions exist.
+- **No network code**: no `fetch`, `EventSource`, or `WebSocket`. Live mode
+  is the missing piece.
+- **Housekeeping before landing**: file-mode flips on several `.sh`
+  scripts, a deleted `docs/reference/codebase/.codebase-scan.txt`, and
+  stale `ui/LOG_REPLAY_README.md` content (old `case-log.jsonl` file names
+  and event types). Several files are very large (`caseLedgerMapper.ts`
+  1709 lines, `vendorActions.ts` 1642 lines).
 
-**Status**: Being rebuilt from the ground up (current work). This is
-the foundational scenario — all others depend on it.
+---
 
-### Scenario B — Three-Actor: MPCVD with Coordinator
+## Architecture
 
-**Narrative framing**: A widely-used open source library has a
-vulnerability. The reporter doesn't know who all the affected vendors
-are, so they report to a neutral coordinator (a CERT-style organization)
-who manages the multi-party disclosure.
+### Data path
 
-**Actors**: Finder (Reporter), Vendor, Coordinator, Case Actor
+```text
+actor container (finder, vendor, coordinator, …; may host several actors)
+  └─ GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream   (SSE, prototype-only)
+        ▲  one stream per actor — each shows that actor's replica
+        │
+  ui compose service: serves built ui/ and reverse-proxies /<service>/…
+        ▲
+  browser (EventSource per actor)  ──POST trigger──▶  actor the presenter plays
+```
 
-**Docker containers**: 4 (`finder`, `vendor`, `coordinator`,
-`case-actor`)
+- **Reverse proxy, not CORS.** Actor containers publish ephemeral host ports
+  and the server has no CORS middleware. The UI's compose service serves
+  the built app and proxies each actor under one origin, so the Vultron
+  server needs no change.
+- **One stream per actor, not per container.** A container can host several
+  actors, each with its own store: in `fvv` the case-actor is a sub-actor of
+  the vendor container, in `fcv` of the coordinator container, and in `fv` the
+  standalone `case-actor` container deliberately does not hold the case. Live
+  mode picks its streams the way the report tool picks its ledgers — the
+  `LedgerDumpTarget` list each scenario module builds — so it never misses
+  the case manager's authoritative ledger.
+- **Per-replica view.** Because the dashboard reads every actor, it can
+  show replica convergence side by side — the same per-actor presence view
+  `vultron/demo/report.py` builds after the fact (DRPT-02-005).
 
-**Status**: Existing code must be removed and reconstructed on the
-rebuilt FV foundation.
+### Live case log stream
 
-### Scenario C — Multi-Vendor: Supply Chain
+Extends the existing prototype-only ledger read endpoints in
+`vultron/adapters/driving/fastapi/routers/demo_triggers.py`
+(`GET /actors/{actor_id}/demo/cases/{case_id}/log` and `…/log/{index}`,
+TRIG-09).
 
-**Narrative framing**: A shared software component (e.g., a logging
-library) is used by multiple vendors. A vulnerability is discovered,
-requiring coordinated disclosure across an expanding set of vendors.
+- **Path**: `GET /actors/{actor_id}/demo/cases/{case_id}/log/stream`, beside
+  the existing ledger endpoints — not the `/actors/{actor_id:path}/cases/…`
+  path first proposed in #665. Like every route here it is mounted under
+  `/api/v2`, so the full path the reverse proxy forwards is
+  `/api/v2/actors/{actor_id}/demo/cases/{case_id}/log/stream`. It resolves
+  the case id with the same `_resolve_case_id` helper as its siblings.
+- **Route order**: the stream route MUST be declared before `…/log/{index}`.
+  Declared after it, `stream` is parsed as the integer `index` and the request
+  fails with 422. A test must prove the stream route is reachable.
+- **Mounted only in `RunMode.PROTOTYPE`** (TRIG-09-002/003); returns 404
+  otherwise because the route is absent.
+- **Response**: `text/event-stream`. Each event's `id:` is the entry's
+  `log_index` and its `data:` is the entry serialized exactly as the list
+  endpoint serializes it (wire form, by alias, `exclude_none`).
+- **Replay**: `?since=<log_index>` (or the browser's `Last-Event-ID` on
+  reconnect) skips entries at or below that index; absent means replay from
+  the beginning.
+- **Notification: server-side polling.** The handler re-reads the case's
+  ledger entries on a short interval (~250 ms) and emits those above the last
+  index sent. Chosen over an in-process queue because it needs no hook in
+  the commit path, catches entries however they arrived (local commit or
+  replicated in), and needs no app-scoped pub/sub state that could leak
+  between test apps. The bounded read load is acceptable for a
+  prototype-only endpoint.
+- **Termination**: stops cleanly when the client disconnects; emits a
+  terminal `event: close` when the server shuts down (and, if cheaply
+  detectable, when the case closes).
+- **Not a replication channel.** Like its siblings, it is demo tooling;
+  participants replicate through the ActivityStreams inbox (SYNC-02-001).
 
-**Actors**: Finder (Reporter), Coordinator, Vendor1, Vendor2, Case Actor
+---
 
-**Docker containers**: 5 (`finder`, `coordinator`, `vendor1`, `vendor2`,
-`case-actor`)
+## Three-Scenario Presentation Set
 
-**Status**: Existing code must be removed and reconstructed.
+All presentation scenarios share one UI; only the number of actor lanes
+differs. They map onto registered demo scenarios (`vultron-demo` sub-commands,
+ADR-0098). Where the Case Actor runs differs by scenario (see *One stream
+per actor* above), so the UI must not assume a fixed container layout.
+
+| Presentation | Narrative | Closest registered scenario |
+|---|---|---|
+| A — Two-Actor | Researcher reports a bug directly to a single vendor | `fv` |
+| B — Coordinator | Reporter routes through a neutral coordinator for a widely-used library | `fcv` |
+| C — Multi-Vendor | Shared component used by several vendors; the vendor set expands | `fvv`, `fvcv-*`, `fcvcv` |
+
+The pre-rebuild `three_actor_demo.py` and `multi_vendor_demo.py` scripts the
+2026-05-15 session planned to remove are already gone.
 
 ---
 
 ## Choose-Your-Own-Adventure (CYOA) Model
 
-The interactive UI lets a human viewer "play" one or more actors in the
-scenario, making real protocol decisions at key branch points. The human
-is explicitly assigned a role at each decision: **"As the Vendor, choose
-one of the following..."**
+The human viewer "plays" one or more actors, making real protocol decisions
+at key branch points. The human is explicitly assigned a role at each
+decision: **"As the Vendor, choose one of the following..."** Choices POST to
+the same trigger endpoints the Python demo scripts use
+(`POST /actors/{id}/trigger/{behavior}`, `POST /actors/{id}/demo/{behavior}`);
+the UI then animates from the ledger entries that result. It never invents
+state client-side in the live mode.
 
-### Branch Points (in priority order)
+### Branch points (in priority order)
 
-1. **Report Submission** — As the Vendor: validate / invalidate-hold /
-   invalidate-close
-2. **Embargo Negotiation** — As the Finder or Vendor: accept the
-   proposed embargo / reject / counter-propose different terms
+1. **Report validation** — As the Vendor: validate / invalidate-hold /
+   invalidate-close. *First to build, on scenario A.*
+2. **Embargo negotiation** — As the Finder or Vendor: accept the proposed
+   embargo / reject / counter-propose different terms
 3. **Publication** — As any participant: publish on the agreed date /
    announce early publication / request embargo extension
-4. **Embargo Collapse** — As participants: re-negotiate / agree to
+4. **Embargo collapse** — As participants: re-negotiate / agree to
    accelerate
-5. **Case Ownership Transfer** — As the Vendor: retain ownership /
-   offer to a Coordinator
+5. **Case ownership transfer** — As the Vendor: retain ownership / offer to
+   a Coordinator
 
-The full set of CYOA branch points corresponds to protocol decision
-nodes that the original Vultron simulator exposed via fuzzer BT nodes.
-Any place the current demo scripts call a trigger that advances the
-protocol state is a candidate branch point. Future work may expose all
-of them; the priority order above governs what gets interactive first.
+The full set of branch points corresponds to the protocol decision nodes the
+original Vultron simulator exposed via fuzzer BT nodes; any place a demo
+script calls a trigger that advances protocol state is a candidate.
 
-### Scripted Baseline
+### Scripted baseline
 
-The Python demo scripts (`fv_demo.py`, etc.) remain as
-**automated puppeteers** that take the happy-path branch at every
-decision point. They are not replaced by the UI; they are a
-complementary way to drive the same trigger endpoints. Critically, the
-demo scripts can be observed through the same UI — a presenter can run
-the script automatically while the audience watches the UI animate.
+The Python demo scripts remain **automated puppeteers** that take the
+happy-path branch at every decision. A presenter can run a script while the
+audience watches the UI animate — this is the first live milestone, before
+any branch point is interactive.
 
 ---
 
-## UI Architecture
-
-### Deployment
-
-Single `docker compose up` includes the UI service alongside the
-Vultron actor containers. The full stack is self-contained:
-`git clone; docker compose up; open browser`.
-
-### Frontend
-
-**ReactFlow** (JS/React) for the network graph and interactive
-node/edge rendering. ReactFlow was chosen over Streamlit because:
-
-- Native graph visualization with animatable edges
-- Interactive nodes that can surface action panels ("As the Vendor,
-  choose...")
-- Richer and more polished for stakeholder presentations
-
-### Layout
+## Layout and Actor Scorecards
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
 │  VULTRON DEMO   [Scenario A ▼]   [Reset]   [Run Auto]   │
 │  CERT/CC — Research Prototype                           │
 ├─────────────────────────────────────────────────────────┤
-│                                                         │
 │   [Finder]  ──msgs──>  [Vendor]  ──msgs──>  [Case Actor]│
 │   scorecard            scorecard            scorecard   │
-│                                                         │
 ├─────────────────────────────────────────────────────────┤
 │  Message Timeline (newest at top, history grows down)   │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │ Finder ──[Offer(VulnReport)]──> Vendor           │  │
-│  │ Vendor ──[Create(Case)]──> CaseActor             │  │
-│  │ ...                                              │  │
-│  └──────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Top section**: Network graph of actor nodes with animated message
-edges. Each actor node shows a **scorecard**: a visual LED-style
-indicator panel for RM / EM / CS state machines (not raw enum labels)
-plus a plain-language narrative status (e.g., "Embargo Active",
-"Waiting for vendor response").
-
-**Bottom section**: Vertical swimlane message timeline, newest messages
-at the top. Each message is a row in the swimlane showing sender →
-receiver, activity type, and a human-readable description.
-
-**Landing page**: Scenario selector with CERT/CC branding and a
-"Research Prototype — Not for Production Use" disclaimer.
-
-### Actor Scorecards
-
-Each actor bubble displays:
-
-- **Visual state machine map**: small diagram or "LED row" for RM / EM
-  / CS states — current state highlighted
-- **Narrative label**: plain-English status (e.g., "Report received,
-  waiting for validation", "Embargo active", "Case closed")
-- **Role badges**: REPORTER, VENDOR, COORDINATOR, CASE_MANAGER
-
-Raw state-machine labels (RM.V, EM.A, etc.) are available on hover /
-expand, but are not the primary display.
-
-### Live State Updates — WebSocket Event Stream
-
-Each Vultron actor container exposes a **demo-only WebSocket endpoint**
-(e.g., `ws://vendor:7902/api/v2/demo/events`). This endpoint streams
-internal state-change events to any connected observer.
-
-Key constraints:
-
-- **Demo-only**: this endpoint MUST NOT be present in the production
-  Vultron server. It is gated by a feature flag or build variant to
-  prevent accidental information leakage in real deployments.
-- The UI maintains one WebSocket connection per actor in the scenario.
-- Each event message includes: actor ID, event type, new state,
-  activity ID, and a human-readable description.
-
-The UI does not poll DataLayer endpoints for live updates; it relies on
-the WebSocket stream. DataLayer reads are used only for initial state
-hydration on page load and for milestone verification assertions.
-
-### Trigger Calls
-
-The UI drives the scenario by calling the same trigger endpoints used
-by the Python demo scripts:
-
-```http
-POST /actors/{id}/trigger/{behavior}
-POST /actors/{id}/demo/{behavior}
-```
-
-When the user clicks a CYOA choice (e.g., "Validate Report"), the UI
-POSTs the corresponding trigger and then waits for the resulting
-WebSocket events to animate the message flow.
+- **Top**: actor network graph with animated message edges; each actor
+  node carries a scorecard.
+- **Bottom**: vertical swimlane timeline, newest at top — sender → receiver,
+  activity type, human-readable description.
+- **Landing page**: scenario selector with CERT/CC branding and a
+  "Research Prototype — Not for Production Use" disclaimer.
+- **Scorecard**: LED-style RM / EM / CS indicators (raw labels such as
+  `RM.V` on hover, not primary), a plain-language narrative label
+  ("Embargo active", "Waiting for vendor response"), and role badges
+  (REPORTER, VENDOR, COORDINATOR, CASE_MANAGER).
 
 ---
 
-## Development Sequence
+## Task Sequence (epic #676)
 
-1. **Finish FV happy path** (current work) — automated scripted
-   demo with milestone verification.
-2. **Build the interactive UI** on top of the FV demo — ReactFlow
-   graph + swimlane timeline + WebSocket event stream + CYOA branching
-   for the FV scenario.
-3. **Port three-actor scenario** (removing and reconstructing from old
-   broken code) — the UI is already ready; plug in additional actor
-   nodes and swim lanes.
-4. **Port multi-vendor scenario** — same pattern.
-
-The old demo scripts (`three_actor_demo.py`, `multi_vendor_demo.py`)
-MUST be removed before reconstruction. They are built on the old
-(broken) architecture and will create confusion if kept alongside the
-new implementations.
-
----
-
-## Relationship to the Roadmap
-
-This design fits into the roadmap at two points:
-
-- **Now** (completing FV):: foundational scenario is the
-  prerequisite for the UI.
-- **Later** (full protocol behavior): the CYOA branching model is the
-  natural home for failure-mode scenarios — embargo collapse, vendor
-  decline, reporter going silent. Once the happy-path UI exists, adding
-  non-happy branches is a matter of wiring up new CYOA options.
+1. **Land `feature/demo-ui` on `main`** (#3640) — Greg Strom. Blocks 3
+   and 4.
+2. **Live case log SSE endpoint** (#3641) — independent; can start now.
+3. **Live mode** (#3642) — compose service with reverse proxy; Log Replay
+   subscribes to each actor's stream; scenario selector, branding,
+   disclaimer. Blocked by 1 and 2.
+4. **Branch-point choices via real triggers** (#3643) — report validation
+   on scenario A first. Blocked by 3.
 
 ---
 
 ## Open Questions / Future Work
 
-- **WebSocket event schema**: needs to be formally specified as part of
-  the demo-only API surface.
-- **CYOA script format**: the branching scenario logic may benefit from
-  a declarative format (e.g., a YAML scenario tree) rather than
-  hard-coded React state.
-- **State machine visualization**: LED-style indicators need a visual
-  design pass. Could use SVG state diagrams from the existing Vultron
-  documentation as the base.
-- **Multi-actor container startup sequence**: the "Start Demo" button
-  behavior (spinning up containers vs. assuming they're already up)
-  needs to be decided for the docker-compose integration.
-- **Accessibility**: the graph visualization must be accessible for
-  stakeholders who cannot read color-coded state indicators.
+- **CI for `ui/`**: whether `ui/` gets a lint/build job is a maintainer
+  decision (agents do not touch CI); raised in #3640.
+- **Duplicated display logic**: `caseLedgerMapper.ts` holds its own event
+  phrasing, parallel to the `SEMANTIC_REGISTRY` phrases `report.py` renders
+  (DRPT-03-005 forbids that duplication *within* the report tool). Consider
+  exporting the registry phrases to JSON the way `export_states.py` exports
+  the state machines.
+- **CYOA script format**: branching logic may benefit from a declarative
+  format (e.g., a YAML scenario tree) rather than hard-coded React state.
+- **State machine visualization**: LED-style indicators need a visual design
+  pass; the SVG state diagrams in the Vultron docs are a candidate base.
+- **Container startup**: whether "Start Demo" spins up containers or assumes
+  they are already running.
+- **Accessibility**: the graph must be usable by viewers who cannot read
+  color-coded state indicators.
+- **Later branches**: once the happy-path UI exists, failure-mode scenarios
+  (embargo collapse, vendor decline, reporter going silent) are a matter of
+  wiring new CYOA options.

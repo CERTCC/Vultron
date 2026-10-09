@@ -17,10 +17,10 @@ actor ID:
 - **Strict** (`LookupParticipantNode`, fail-on-missing): Required for
   operations that must have a participant record (e.g., recording acceptance).
   Returns `FAILURE` when the participant is not found.
-- **Lenient** (`OptionalLookupParticipantNode`, succeed-on-missing): Correct
-  for operations where the participant may not exist on this peer yet (e.g.,
-  processing an invite or reject). Returns `SUCCESS` even when the participant
-  is absent, so the broadcast log entry can proceed.
+- **Lenient** (succeed-on-missing): Correct for operations where the
+  participant may not exist on this peer yet (e.g., a ledger replay on a
+  partial replica, `ApplyEmbargoInviteFromLedgerNode`). Returns `SUCCESS` even
+  when the participant is absent, so the broadcast log entry can proceed.
 
 **Why "Always SUCCESS" is intentional for the lenient variant**: When a
 peer receives a log entry for a participant it has not yet seen, succeeding

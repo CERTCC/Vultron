@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
-from typing import Sequence
+from collections.abc import Sequence
 
 import pytest
 
@@ -29,9 +29,15 @@ class MyTestCase(unittest.TestCase):
     def test_rm_enum(self):
         self.assertGreater(len(RM), 0)
 
-        for (
-            medname
-        ) in "START RECEIVED INVALID VALID DEFERRED ACCEPTED CLOSED".split():
+        for medname in [
+            "START",
+            "RECEIVED",
+            "INVALID",
+            "VALID",
+            "DEFERRED",
+            "ACCEPTED",
+            "CLOSED",
+        ]:
             shortname = medname[0]
             self.assertTrue(
                 hasattr(RM, shortname), f"RM does not have {shortname}"
@@ -69,8 +75,9 @@ class MyTestCase(unittest.TestCase):
                 self.assertNotIn(s, alias)
 
     @pytest.mark.spec("RMB-14-001")
+    @pytest.mark.spec("RMB-14-004")
     def test_closable(self):
-        self._test_convenience_aliases(RM_CLOSABLE, (RM.I, RM.D, RM.A))
+        self._test_convenience_aliases(RM_CLOSABLE, (RM.R, RM.I, RM.D, RM.A))
 
     def test_unclosed(self):
         self._test_convenience_aliases(

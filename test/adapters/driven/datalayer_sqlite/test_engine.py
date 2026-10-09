@@ -375,4 +375,4 @@ class TestDisposeActorEngines:
     def test_disposing_an_unknown_actor_is_a_no_op(self):
         before = dict(_ENGINES)
         dispose_actor_engines("sqlite:///:memory:", "…/actors/disp-absent")
-        assert _ENGINES == before
+        assert before == _ENGINES

@@ -1,9 +1,7 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
-from typing import TYPE_CHECKING
-
-from py_trees.common import Status
+from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.accept_invite_tree import (
@@ -13,98 +11,66 @@ from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
     create_reject_invite_actor_to_case_received_tree,
 )
-from vultron.core.behaviors.narrative_log import log_invite_received
+from vultron.core.behaviors.case.nodes.invite_participant import (
+    CheckInviteeNotAlreadyParticipantNode,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlement,
+    SenderEntitlementKind,
+    exempt,
+)
 from vultron.core.models.events.actor import (
     AcceptInviteActorToCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
 )
-from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
 )
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.use_cases._helpers import (
-    _find_case_actor_id,
-    _idempotent_create,
-    resolve_receiving_actor_id,
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
+from vultron.core.use_cases.received._bt_verdict import (
+    intake_verdict,
+    node_failed,
+    not_case_manager_refusal,
+    verdict_from_bt,
 )
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
 
 logger = logging.getLogger(__name__)
 
 
-def _record_invite_trust_anchor(
-    dl: "CaseOutboxPersistence", case_id: str, case_actor_id: str
-) -> None:
-    """Write a VultronPendingCaseInbox trust anchor for the inviting CASE_MANAGER.
-
-    Called by the invitee path of InviteActorToCaseReceivedUseCase so that
-    AnnounceVulnerabilityCaseReceivedUseCase can admit a subsequent Announce
-    from the same actor even before the local case replica exists
-    (PCR-03-004 path b, AC-2).
-
-    First-invite-wins: if a record already exists with a case_actor_id, it is
-    kept unchanged.  A record with case_actor_id=None (created by the pre-
-    bootstrap queue for an earlier ledger entry) is updated with the sender.
-    """
-    pending_id = VultronPendingCaseInbox.build_id(case_id)
-    existing = dl.read(pending_id)
-    if not isinstance(existing, VultronPendingCaseInbox):
-        dl.save(
-            VultronPendingCaseInbox(
-                case_id=case_id,
-                case_actor_id=case_actor_id,
-            )
-        )
-        logger.debug(
-            "InviteActorToCase: trust anchor recorded for case '%s'",
-            case_id,
-        )
-    elif existing.case_actor_id is None:
-        dl.save(existing.model_copy(update={"case_actor_id": case_actor_id}))
-        logger.debug(
-            "InviteActorToCase: trust anchor added to existing pending"
-            " record for case '%s'",
-            case_id,
-        )
-
-
 class InviteActorToCaseReceivedUseCase:
-    """Handle an incoming Invite(Actor, Case) activity.
+    """Handle an incoming ``Invite(Actor, CaseStub)`` activity.
 
-    Two delivery paths use this use case (CLP-10-001, ADR-0021):
+    One path for every receiver (CLP-10-005, CLP-10-013): the use case builds
+    ``InviteActorToCaseReceivedBT`` and runs it once as the receiving actor.
+    The CASE_MANAGER emits the Invite from its own store and commits it in
+    the emitting tree, with no ``cc:`` copy to itself (CM-17-006, ADR-0109),
+    so the receiver is the invitee.  Intake stores the Invite idempotently;
+    the commit stays behind the CASE_MANAGER gate and skips; the invitee's
+    effect nodes log the receipt (SL-04-006) and record the sender as the
+    case's expected CASE_MANAGER (PCR-03-004).  The invitee creates no case
+    from the stub (MV-10-004): the full case arrives in an Announce
+    (MV-10-003).
 
-    1. **Invitee inbox** — ``receiving_actor_id`` is absent (``None``).
-       The invited actor stores the Invite idempotently and logs the case-stub
-       ID per MV-10-004.  No ledger commit occurs; that is reserved for the
-       CaseActor.
+    A redelivered Invite that intake finds already archived is the benign
+    no-op, ``SKIPPED`` (HP-01-003).
 
-    2. **CaseActor inbox** (self-delivered ``cc:`` copy) — ``receiving_actor_id``
-       is set by the inbox adapter to the CaseActor's URI.  The BT runs via
-       BTBridge; ``GuardedCommitCaseLedgerEntryBT`` inside
-       ``InviteActorToCaseReceivedBT`` commits the canonical
-       ``CaseLedgerEntry`` only when the receiving actor holds
-       ``CVDRole.CASE_MANAGER`` (CLP-10-006).  ``StoreActivityNode`` in the
-       BT's effect nodes handles idempotent storage for this path.
-
-    Note: when the trigger could not resolve the authority's address
-    (``_find_case_actor_id`` returned ``None``), the outbound Invite is sent
-    without a ``cc:`` field and no self-delivery occurs, so no ledger entry is
-    committed.  Under ADR-0088 that ``None`` means only "no resolvable address"
-    — a case with no CASE_MANAGER on its roster and no recorded
-    ``ReportCaseLink``.  It is *not* the older ADR-0021 reading, in which a
-    separate CaseActor entity could be absent while the role was held: there is
-    no such entity, and an ordinary participant enacting ``CVDRole.CASE_MANAGER``
-    is the authority and does resolve here (ARCH-24-004, CM-02-011).
-
-    The ``sync_port`` kwarg is injected when ``INVITE_ACTOR_TO_CASE`` is in
-    ``_SYNC_PORT_SEMANTICS`` so ``CommitCaseLedgerEntryNode`` can fan out
-    via ``sync_port`` (SYNC-02-002).
+    The ``sync_port`` kwarg is injected for every received use case by
+    ``with_received_baseline_ports`` so ``CommitCaseLedgerEntryNode`` can fan
+    out via ``sync_port`` (SYNC-02-002, #4113).
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
+        "#4070", "no sender check for actor invite"
+    )
 
     def __init__(
         self,
@@ -112,98 +78,75 @@ class InviteActorToCaseReceivedUseCase:
         request: InviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: InviteActorToCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
-        receiving_actor_id = request.receiving_actor_id
-
-        if receiving_actor_id is None:
-            # Invitee path: this branch is deliberately NOT converted to
-            # resolve_receiving_actor_id() because the receiving actor is the
-            # *invitee* — an actor who does not yet own the case store.  Routing
-            # work into the store owner would silently create state in the wrong
-            # actor's database.  The stub-creation and log below are safe because
-            # they use self._dl directly (the caller's store), not an actor-scoped
-            # DataLayer.  (See issue #2446 AC-2.)
-            # Invitee path: store idempotently and log the case-stub reference.
-            _idempotent_create(
-                self._dl,
-                request.activity_type,
-                request.activity_id,
-                request.activity,
-                "InviteActorToCase",
+        case_id = request.case_id
+        invitee_id = request.object_id
+        if not case_id or not invitee_id:
+            logger.warning(
+                "InviteActorToCase: invite '%s' is missing its case or"
+                " invitee — refusing",
                 request.activity_id,
             )
-            # MV-10-004: do NOT create a case from the stub target.  Full case
-            # details arrive later in an AnnounceVulnerabilityCase (MV-10-003).
-            case_stub_id = request.target_id
-            if case_stub_id:
-                # SL-04-001/SL-04-006: the invitee's receipt of the invite is a
-                # protocol milestone and must read in human terms at INFO.
-                log_invite_received(
-                    logger,
-                    request.object_id or "<unknown>",
-                    case_stub_id,
-                    request.actor_id or "<unknown>",
-                )
-                logger.debug(
-                    "InviteActorToCase: received invite with case stub '%s'."
-                    " Awaiting AnnounceVulnerabilityCase before creating case.",
-                    case_stub_id,
-                )
-                # Record the invite sender as the expected CASE_MANAGER for
-                # this case so AnnounceVulnerabilityCaseReceivedUseCase can
-                # admit a subsequent Announce before the case replica exists
-                # (PCR-03-004 trust anchor, AC-2).
-                if request.actor_id:
-                    _record_invite_trust_anchor(
-                        self._dl, case_stub_id, request.actor_id
-                    )
-            return
+            return HandlerResult.refused(
+                "Invite is missing its case id or invitee id"
+            )
 
-        # CaseActor self-delivery path (CLP-10-001): the BT handles idempotent
-        # storage via StoreActivityNode and commits the canonical CaseLedgerEntry
-        # via GuardedCommitCaseLedgerEntryBT (CLP-10-006).
-        case_id = request.target_id or ""
+        actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
         tree = create_invite_actor_to_case_received_tree(
-            invite_id=request.activity_id,
-            invite_obj=request.activity,
             case_id=case_id,
+            invitee_id=invitee_id,
+            inviter_id=request.actor_id,
         )
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
-            actor_id=receiving_actor_id,
+            actor_id=actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "InviteActorToCaseReceivedUseCase: BT did not fully succeed"
-                " for invite '%s': %s",
+        verdict = intake_verdict(
+            tree, result, label="InviteActorToCaseReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "InviteActorToCaseReceivedUseCase: invite '%s' refused: %s",
                 request.activity_id,
-                BTBridge.get_failure_reason(tree) or result.feedback_message,
+                verdict.reason,
             )
+        return verdict
 
 
 class AcceptInviteActorToCaseReceivedUseCase:
-    """CaseActor processes ``Accept(Invite(actor, case))`` from the invitee.
+    """The CASE_MANAGER processes ``Accept(Invite(actor, case))`` from the invitee.
 
     Delegates all protocol-significant work to
     ``AcceptInviteActorToCaseBT`` via BTBridge.  The BT runs as the
-    CaseActor (not the invitee), recording the invitee's participation in
-    the CaseActor's own DataLayer without identity spoofing (PCR-08-010).
+    receiving actor (not the invitee), recording the invitee's participation
+    in its own DataLayer without identity spoofing (PCR-08-010).  Those
+    effects are the CASE_MANAGER's (PCR-08-009) and sit behind a role gate
+    (BT-17-001); any other receiver of a copy refuses (HP-01-005, #3752).
 
     BT-06-001, BT-15-001: all RM transitions, participant creation, case
     events, and outbox work live in leaf nodes of the BT.
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.INVITEE
+    )
 
     def __init__(
         self,
@@ -211,72 +154,101 @@ class AcceptInviteActorToCaseReceivedUseCase:
         request: AcceptInviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: AcceptInviteActorToCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
-        invitee_id = request.invitee_id
-        if case_id is None or invitee_id is None:
+        invite_id = request.invite_id
+        if case_id is None or request.invitee_id is None or not invite_id:
             logger.warning(
-                "accept_invite_actor_to_case: missing case_id or invitee_id"
+                "accept_invite_actor_to_case: missing case_id, invitee_id"
+                " or invite_id"
             )
-            return
+            return HandlerResult.refused(
+                "Accept(Invite) is missing its case id, invitee id or"
+                " Invite id"
+            )
+        # The invitee is the reply's sender, never the actor the embedded
+        # copy of the Invite names (CM-11-017).
+        invitee_id = request.actor_id
 
-        # Resolve the CaseActor ID to use as the BT actor.
-        # receiving_actor_id is set by the inbox adapter to the CaseActor's ID.
-        # Fall back to _find_case_actor_id when dispatched outside the inbox
-        # path (e.g. CLI, tests that do not set receiving_actor_id).
-        actor_id = request.receiving_actor_id or _find_case_actor_id(
-            self._dl, case_id
+        # The BT runs as the *receiving* actor: the inbox-stamped
+        # receiving_actor_id, else the owner of the store we hold (BT-17-006).
+        # It used to fall back to the case's CASE_MANAGER address instead,
+        # which ran the tree under a foreign identity whenever the stamp was
+        # absent and let the role gate pass for a store that is not the
+        # manager's (#3752; the antipattern in notes/case-communication-model.md).
+        actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
         )
-        if actor_id is None:
-            # Not a failure: no dedicated CaseActor is a legitimate topology
-            # (ADR-0021), and the store we hold is the receiving actor's own.
-            actor_id = resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            )
-            logger.debug(
-                "accept_invite_actor_to_case: no CaseActor for case '%s' —"
-                " running as the store's own actor '%s'",
-                case_id,
-                actor_id,
-            )
 
+        # The reply's sender is the invitee: the tree's sender guard refuses
+        # any sender that is not the recorded Invite's invitee, so the
+        # participant is never taken from the embedded copy (CM-11-017).
+        tree = create_accept_invite_actor_to_case_tree(
+            case_id=case_id,
+            invitee_id=invitee_id,
+            invite_id=invite_id,
+        )
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
-            tree=create_accept_invite_actor_to_case_tree(
-                case_id=case_id,
-                invitee_id=invitee_id,
-            ),
+            tree=tree,
             actor_id=actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
 
-        if result.status == Status.FAILURE:
-            logger.debug(
-                "accept_invite_actor_to_case: BT returned FAILURE for"
-                " invitee '%s' case '%s': %s",
+        # The idempotency guard fails both for a fully joined invitee (a
+        # duplicate, CLP-13-001) and for a case this actor does not hold.
+        if node_failed(tree, CheckInviteeNotAlreadyParticipantNode):
+            if self._dl.read(case_id) is None:
+                verdict = HandlerResult.refused(f"unknown case '{case_id}'")
+            else:
+                return HandlerResult.skipped(
+                    f"'{invitee_id}' already joined case '{case_id}'"
+                )
+        else:
+            verdict = verdict_from_bt(
+                tree, result, label="AcceptInviteActorToCaseBT"
+            )
+            if verdict.disposition is not HandlerDisposition.REFUSED:
+                # Admitting the invitee is the CASE_MANAGER's job alone.
+                refusal = not_case_manager_refusal(tree, self._dl, case_id)
+                if refusal is not None:
+                    verdict = refusal
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "accept_invite_actor_to_case: refused invitee '%s' case"
+                " '%s': %s",
                 invitee_id,
                 case_id,
-                result.feedback_message,
+                verdict.reason,
             )
+        return verdict
 
 
 class RejectInviteActorToCaseReceivedUseCase:
-    """CaseActor processes ``Reject(Invite(actor, case))`` from an invitee.
+    """The CASE_MANAGER processes ``Reject(Invite(actor, case))`` from an invitee.
 
     Commits a canonical ``CaseLedgerEntry`` for the received rejection
     (``("Reject", "Invite")`` in ``_CANONICAL_PAYLOAD_SIGNATURES``) via BTBridge.
-    The CaseActor records that the invitee declined the invitation.
+    The CASE_MANAGER records that the invitee declined the invitation; any
+    other receiver of a copy refuses (HP-01-005).
     """
+
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.INVITEE
+    )
 
     def __init__(
         self,
@@ -284,13 +256,15 @@ class RejectInviteActorToCaseReceivedUseCase:
         request: RejectInviteActorToCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
         self._dl = dl
+        self._wire_render_port = wire_render_port
         self._request: RejectInviteActorToCaseReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:
         request = self._request
         logger.info(
             "Actor '%s' rejected invitation '%s'",
@@ -298,13 +272,15 @@ class RejectInviteActorToCaseReceivedUseCase:
             request.invite_id,
         )
         case_id = request.case_id or ""
-        if not case_id:
+        if not case_id or not request.invite_id:
             logger.warning(
-                "RejectInviteActorToCase: missing case_id for invite '%s'"
-                " — skipping ledger commit",
+                "RejectInviteActorToCase: missing case_id or invite_id for"
+                " invite '%s' — refusing",
                 request.invite_id,
             )
-            return
+            return HandlerResult.refused(
+                "Reject(Invite) is missing its case id or Invite id"
+            )
 
         # The store we hold *is* the receiving actor's, so this resolves
         # without scanning for an actor object (ADR-0073).
@@ -314,20 +290,33 @@ class RejectInviteActorToCaseReceivedUseCase:
 
         tree = create_reject_invite_actor_to_case_received_tree(
             case_id=case_id,
+            invite_id=request.invite_id,
+            invitee_id=request.actor_id or None,
         )
         result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
         ).execute_with_setup(
             tree=tree,
             actor_id=actor_id,
             activity=request,
-            sync_port=self._sync_port,
         )
-        if result.status != Status.SUCCESS:
-            logger.debug(
-                "RejectInviteActorToCaseReceivedUseCase: BT did not fully"
-                " succeed for invite '%s': %s",
+        verdict = verdict_from_bt(
+            tree, result, label="RejectInviteActorToCaseReceivedBT"
+        )
+        if verdict.disposition is not HandlerDisposition.REFUSED:
+            # Recording the decline is the CASE_MANAGER's job alone; the gate
+            # also reads a case we do not hold as "not the manager".
+            refusal = not_case_manager_refusal(tree, self._dl, case_id)
+            if refusal is not None:
+                verdict = refusal
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "RejectInviteActorToCaseReceivedUseCase: invite '%s' refused:"
+                " %s",
                 request.invite_id,
-                BTBridge.get_failure_reason(tree) or result.feedback_message,
+                verdict.reason,
             )
+        return verdict

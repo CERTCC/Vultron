@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+description: >
+  A baseline in which every allowed transition is equally likely, from the principle of indifference.
 ---
 
 # A Random Walk through CVD States
@@ -24,7 +26,7 @@ organizational skills that transferred to better CVD. We follow the
     exclusive and jointly exhaustive possibilities. In the absence of any
     relevant evidence pertaining to which cell of the partition is the
     true one, a rational agent should assign an equal initial credence of
-    $n$ to each cell.
+    $1/n$ to each cell.
 
 While the principle of indifference is rather strong, it is inherently
 difficult to reason about absolutely skill-less CVD when the work
@@ -85,7 +87,7 @@ to ever reflect such a sad state of affairs (because CVD *is* happening after al
 
 !!! tip "State Transition Diagram"
 
-    For convenience, we've reproduced the [CS model](../process_models/cs/model_definition.md) state transition diagram
+    For convenience, we've reproduced the [CS model](../process_models/cs/transitions.md#the-full-cs-model-diagram) state transition diagram
     here.
     The diagram below shows the allowed transitions between states in the
     CS model. The diagram is a directed graph with states as nodes and

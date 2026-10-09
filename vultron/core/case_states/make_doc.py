@@ -14,7 +14,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import os
 import re
 
@@ -23,6 +22,10 @@ from vultron.core.case_states.patterns.explanations import explain
 from vultron.core.states.cs import CS_d, CS_vf
 
 _DISCLAIMER = "This file is auto-generated. Do not edit."
+
+# Every generated page is project working record (DF-11-003): it is addressed
+# to contributors and carries no level (DF-11-012).
+_WORKING_RECORD_DECLARATION = "stakeholder_type: [project-contributor]\n"
 
 # CS_vf/CS_d StrEnum names are terse protocol symbols, not prose. Map them to
 # the same human-readable labels the old VfdState namedtuple produced so that
@@ -98,7 +101,7 @@ def _write_path_links(fp, paths, sg) -> None:
         transitions = sg.transitions_in_path(path)
         links = [
             f"[**{t}**]({_fname(end)})"
-            for t, (_start, end) in zip(transitions, path)
+            for t, (_start, end) in zip(transitions, path, strict=False)
         ]
         fp.write(_bullet(" &rarr; ".join(links)))
 
@@ -108,12 +111,10 @@ def print_readme(model_dir="../../docs/case_states"):
 
     fpath = os.path.join(model_dir, "index.md")
     with open(fpath, "w") as fp:
-        # The Reference landing page lists this page by its description:
-        # (DF-11-005), so regenerating must not drop it.
         fp.write(
             "---\ndescription: >\n"
             "  An annotated listing of every state in the case state model.\n"
-            "---\n\n"
+            f"{_WORKING_RECORD_DECLARATION}---\n\n"
         )
         fp.write(f"{_comment(_DISCLAIMER)}\n")
 
@@ -132,7 +133,7 @@ def print_readme(model_dir="../../docs/case_states"):
         fp.write("| --- | --- | --- | --- | --- | --- | --- |\n")
 
         for state in sg.states:
-            explanation = "| ".join((_enum2title(x) for x in explain(state)))
+            explanation = "| ".join(_enum2title(x) for x in explain(state))
             fp.write(f"| [{state}]({_fname(state)}) | {explanation} |\n")
         fp.write("\n")
 
@@ -147,6 +148,7 @@ def print_model(model_dir="../../docs/reference/case_states"):
         print(filepath)
 
         with open(filepath, "w") as fp:
+            fp.write(f"---\n{_WORKING_RECORD_DECLARATION}---\n\n")
             fp.write(f"{_comment(_DISCLAIMER)}\n")
 
             fp.write(f"# {state}\n")
@@ -202,7 +204,9 @@ def main():
     # check if parent dir exists
     parent_dir = os.path.abspath(os.path.dirname(outdir))
     if not os.path.exists(parent_dir):
-        raise Exception(f"Parent directory {parent_dir} does not exist")
+        raise FileNotFoundError(
+            f"Parent directory {parent_dir} does not exist"
+        )
 
     os.makedirs(outdir, exist_ok=True)
 

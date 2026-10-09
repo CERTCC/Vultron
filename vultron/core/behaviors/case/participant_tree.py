@@ -26,13 +26,10 @@ Subtrees defined here:
 
 - ``SeedParticipantAsSignatoryIfEmbargoActiveNode`` — conditionally seeds a
   new participant as SIGNATORY when an active embargo exists.
-- ``CreateCaseOwnerParticipant`` — creates and attaches the case-owner
-  participant with optional RM advancement.
 - ``CreateCaseParticipantNode`` — creates and attaches a non-owner case
-  participant with embargo consent seeding and outbox notification.
-
-These subtrees are consumed by ``create_tree.py``,
-``receive_report_case_tree.py``, and related tree factories in this package.
+  participant with embargo consent seeding.  It sends no
+  ``Add(CaseParticipant)``: that message only reinstates (CM-31-011,
+  ADR-0116).
 
 Per specs/case-management.yaml CM-02-008, CM-14, and
 specs/behavior-tree-node-design.yaml BTND-07-003.
@@ -40,26 +37,15 @@ specs/behavior-tree-node-design.yaml BTND-07-003.
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.participant.owner import (
-    AttachOwnerParticipantToCaseNode,
-    CreateOwnerInitialStatusNode,
-    CreateOwnerParticipantNode,
-    PersistOwnerCaseNode,
-    RecordOwnerJoinedEventNode,
-)
 from vultron.core.behaviors.case.nodes.participant.participant_add import (
     AttachParticipantToCaseNode,
     CaseHasActiveEmbargoNode,
     CaseHasNoActiveEmbargoNode,
     CreateParticipantInitialStatusNode,
     CreateParticipantNode,
-    QueueAddParticipantNotificationNode,
     RecordParticipantAddedEventNode,
     SeedParticipantAsSignatoryNode,
 )
-from vultron.config.actor import ActorConfig
-from vultron.core.models.vultron_types import VultronCase
-from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
 
@@ -90,39 +76,6 @@ class SeedParticipantAsSignatoryIfEmbargoActiveNode(
                     ],
                 ),
                 CaseHasNoActiveEmbargoNode(report_id=report_id),
-            ],
-        )
-
-
-class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
-    """
-    Composed subtree that creates and attaches the case-owner participant.
-
-    Per specs/case-management.yaml CM-02-008, BTND-05-002, and BTND-07-001.
-    """
-
-    def __init__(
-        self,
-        actor_config: ActorConfig | None = None,
-        report_id: str | None = None,
-        case_obj: VultronCase | None = None,
-        initial_rm_state: RM = RM.VALID,
-        name: str | None = None,
-    ):
-        super().__init__(
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                CreateOwnerParticipantNode(
-                    actor_config=actor_config, report_id=report_id
-                ),
-                AttachOwnerParticipantToCaseNode(report_id=report_id),
-                PersistOwnerCaseNode(report_id=report_id),
-                CreateOwnerInitialStatusNode(
-                    initial_rm_state=initial_rm_state,
-                    report_id=report_id,
-                ),
-                RecordOwnerJoinedEventNode(report_id=report_id),
             ],
         )
 
@@ -160,9 +113,6 @@ class CreateCaseParticipantNode(py_trees.composites.Sequence):
                 ),
                 RecordParticipantAddedEventNode(report_id=report_id),
                 SeedParticipantAsSignatoryIfEmbargoActiveNode(
-                    participant_actor_id=actor_id, report_id=report_id
-                ),
-                QueueAddParticipantNotificationNode(
                     participant_actor_id=actor_id, report_id=report_id
                 ),
             ],

@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+description: >
+  Triggers `engage_case` and `defer_case`: choosing whether to work the case now or park it, and announcing which.
 ---
 
 # Prioritize Report
@@ -51,7 +53,7 @@ The practical rule for implementers: anything that can *refuse* an inbound asser
 ## Where judgment enters
 
 **EvaluateCasePriority** (Evaluator) is the decision itself: given this case, should this actor engage it or defer it?
-Evaluator is one of the five capability shapes in [ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md); the backend answering it is injected, not compiled in ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
+Evaluator is one of the four capability shapes ([ADR-0097](../../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), BT-18-013); the backend answering it is injected, not compiled in ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
 
 This is the natural home for a Stakeholder-Specific Vulnerability Categorization (SSVC) integration, or for any prioritization scheme an organization already runs.
 The protocol asks for a decision, not for a methodology, and deliberately says nothing about which inputs a Participant should weigh.
@@ -90,14 +92,14 @@ Departing a case is a different step with a different message.
 
 | Requirement | Obligation |
 |---|---|
-| [RMB-10-001](../../../reference/specs/protocol.md#rmb-10) | A Participant entering `RM.VALID` MUST start a prioritization evaluation |
-| [RMB-12-001](../../../reference/specs/protocol.md#rmb-12) | A Participant entering `RM.DEFERRED` SHOULD emit RD |
-| [RMB-12-002](../../../reference/specs/protocol.md#rmb-12) | A Participant in `RM.DEFERRED` SHOULD watch for information justifying reprioritization |
-| [RMB-12-003](../../../reference/specs/protocol.md#rmb-12) | A Participant in `RM.DEFERRED` MAY close the report after a policy period of inactivity |
-| [RMB-13-001](../../../reference/specs/protocol.md#rmb-13) | A Participant MUST be in `RM.ACCEPTED` before sending Report Status (RS) to another Participant |
-| [RMB-13-002](../../../reference/specs/protocol.md#rmb-13) | A Participant entering `RM.ACCEPTED` SHOULD emit RA |
-| [RMB-13-003](../../../reference/specs/protocol.md#rmb-13) | A Participant in `RM.ACCEPTED` SHOULD perform active work on the report |
-| [RMB-15-001](../../../reference/specs/protocol.md#rmb-15) | An RM write MUST validate the transition before persisting |
+| [RMB-10-001](../../../reference/specs/protocol.md#rmb-10-001) | A Participant entering `RM.VALID` MUST start a prioritization evaluation |
+| [RMB-12-001](../../../reference/specs/protocol.md#rmb-12-001) | A Participant entering `RM.DEFERRED` SHOULD emit RD |
+| [RMB-12-002](../../../reference/specs/protocol.md#rmb-12-002) | A Participant in `RM.DEFERRED` SHOULD watch for information justifying reprioritization |
+| [RMB-12-003](../../../reference/specs/protocol.md#rmb-12-003) | A Participant in `RM.DEFERRED` MAY close the report after a policy period of inactivity |
+| [RMB-13-001](../../../reference/specs/protocol.md#rmb-13-001) | A Participant MUST be in `RM.ACCEPTED` before sending Report Status (RS) to another Participant |
+| [RMB-13-002](../../../reference/specs/protocol.md#rmb-13-002) | A Participant entering `RM.ACCEPTED` SHOULD emit RA |
+| [RMB-13-003](../../../reference/specs/protocol.md#rmb-13-003) | A Participant in `RM.ACCEPTED` SHOULD perform active work on the report |
+| [RMB-15-001](../../../reference/specs/protocol.md#rmb-15-001) | An RM write MUST validate the transition before persisting |
 
 RMB-13-001 is the constraint with the longest reach.
 Only a Participant in `RM.ACCEPTED` may submit the report onward to another party, so engaging is the gate on the entire multi-party expansion of a case.

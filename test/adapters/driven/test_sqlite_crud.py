@@ -22,9 +22,9 @@ import os
 
 import pytest
 
-from vultron.adapters.driven.db_record import Record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.engine import actor_db_url
+from vultron.adapters.driven.db_record import Record
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM
 
@@ -162,7 +162,6 @@ def test_create_wire_shaped_storable_record_reads_back_as_core(dl):
         "type_": "ParticipantStatus",
         "rm_state": "RECEIVED",
         "case_engagement": True,
-        "embargo_adherence": True,
         "context": "urn:uuid:test-case-01",
     }
     storable = StorableRecord(
@@ -202,7 +201,6 @@ def test_update_wire_shaped_storable_record_reads_back_as_core(dl):
         "type_": "ParticipantStatus",
         "rm_state": "RECEIVED",
         "case_engagement": True,
-        "embargo_adherence": True,
         "context": "urn:uuid:test-case-02",
     }
     storable = StorableRecord(
@@ -217,6 +215,52 @@ def test_update_wire_shaped_storable_record_reads_back_as_core(dl):
     stored = dl.read("urn:uuid:ps-wire-update-001")
     assert isinstance(stored, ParticipantStatus)
     assert stored.rm is not None and stored.rm.state == RM.RECEIVED
+
+
+def test_retired_embargo_adherence_row_does_not_read_back_as_clean_core(
+    dl, caplog
+):
+    """A stored row still carrying the retired embargo_adherence key does not
+    read back as a clean core ParticipantStatus (ADR-0122, ARCH-12-003).
+
+    Pins the observed dl.read() behaviour for a row written before consent
+    left the status, so that a future change to the read path cannot silently
+    change it, and that the row is not *silently* dark: hydration logs a
+    WARNING naming the row, so an unreadable row stays distinguishable from a
+    missing one.
+    """
+    import logging
+
+    from vultron.core.ports.datalayer import StorableRecord
+
+    retired_data = {
+        "id_": "urn:uuid:ps-retired-001",
+        "type_": "ParticipantStatus",
+        "context": "urn:uuid:test-case-retired",
+        "embargo_adherence": True,
+    }
+    storable = StorableRecord(
+        id_="urn:uuid:ps-retired-001",
+        type_="ParticipantStatus",
+        data_=retired_data,
+    )
+    dl.create(storable)
+
+    with caplog.at_level(
+        logging.WARNING, logger="vultron.adapters.driven.datalayer_sqlite"
+    ):
+        result = dl.read("urn:uuid:ps-retired-001")
+    # extra="forbid" refuses the retired key; the read path returns None
+    # rather than handing back an object that silently dropped it.
+    assert result is None
+    warnings = [
+        r
+        for r in caplog.records
+        if "urn:uuid:ps-retired-001" in r.getMessage()
+    ]
+    assert warnings, caplog.text
+    assert all(r.levelno == logging.WARNING for r in warnings)
+    assert "embargo_adherence" in warnings[0].getMessage()
 
 
 def test_save_inserts_new_object(dl):

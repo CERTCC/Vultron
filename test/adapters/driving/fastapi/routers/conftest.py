@@ -15,42 +15,33 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driven.db_record import object_to_record
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
-from vultron.adapters.driving.fastapi.deps import (
-    get_canonical_actor_dl,
-    get_trigger_dl,
-    get_trigger_service,
-)
-from vultron.adapters.driving.fastapi.routers import actors as actors_router
+from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
+    actors as actors_router,
     datalayer as datalayer_router,
-)
-from vultron.adapters.driving.fastapi.routers import (
     trigger_embargo as trigger_embargo_router,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import CoreActor
-from vultron.core.states.em import EM
+from vultron.core.models.case import VulnerabilityCase
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Application,
+    as_Group,
     as_Organization,
     as_Person,
     as_Service,
-    as_Application,
-    as_Group,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
@@ -227,16 +218,49 @@ def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
     return case_actor
 
 
+def make_case_manager(case_id: str, actor_id: str, dl) -> None:
+    """Make *actor_id* the case's sole CASE_MANAGER (CM-24-006).
+
+    A trigger writes shared EM state only as the role holder (EP-09-008), so
+    a test of the state an endpoint writes runs as it; the fixtures' separate
+    case actor gives up the role and stays a participant.
+    """
+    case = dl.read(case_id)
+    for participant_id in list(case.actor_participant_index.values()):
+        participant = dl.read(participant_id)
+        if CVDRole.CASE_MANAGER in participant.case_roles:
+            participant.case_roles = [
+                r for r in participant.case_roles if r != CVDRole.CASE_MANAGER
+            ]
+            dl.save(participant)
+    existing_id = case.actor_participant_index.get(actor_id)
+    if existing_id is not None:
+        # The actor keeps its one participant record and gains the role.
+        existing = dl.read(existing_id)
+        existing.case_roles = [*existing.case_roles, CVDRole.CASE_MANAGER]
+        dl.save(existing)
+        return
+    manager = as_CaseParticipant(
+        attributed_to=actor_id,
+        context=case_id,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(manager)
+    case.add_participant(manager)
+    dl.save(case)
+
+
 @pytest.fixture
 def client_triggers(dl):
-    """TestClient wired to the trigger_embargo router with overridden deps."""
+    """TestClient wired to the trigger_embargo router over the ``dl`` store.
+
+    ``get_trigger_dispatcher`` resolves its store through ``get_trigger_dl``,
+    so overriding that one seam runs the real registry-backed dispatcher over
+    the in-memory store (TRIG-06-002; ``vultron/core/ports/AGENTS.md``).
+    """
     app = FastAPI()
     app.include_router(trigger_embargo_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl, trigger_activity=TriggerActivityAdapter(dl)
-    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
-    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -259,10 +283,11 @@ def case_with_embargo(dl, actor):
     case_obj = VulnerabilityCase(
         name="EMBARGO-CASE-001", attributed_to=actor.id_
     )
-    embargo = as_EmbargoEvent(context=case_obj.id_)
+    embargo = as_EmbargoEvent(
+        context=case_obj.id_, end_time=days_from_now_utc(45)
+    )
     dl.create(embargo)
-    case_obj.set_embargo(embargo.id_)
-    case_obj.append_case_status(em_state=EM.ACTIVE)
+    activate(case_obj, embargo.id_)
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj, embargo
@@ -275,14 +300,15 @@ def case_with_proposal(dl, actor):
         name="PROPOSAL-CASE-001",
         attributed_to=actor.id_,
     )
-    embargo = as_EmbargoEvent(context=case_obj.id_)
+    embargo = as_EmbargoEvent(
+        context=case_obj.id_, end_time=days_from_now_utc(45)
+    )
     dl.create(embargo)
     proposal = em_propose_embargo_activity(
         embargo, context=case_obj.id_, actor=actor.id_
     )
     dl.create(proposal)
-    case_obj.append_case_status(em_state=EM.PROPOSED)
-    case_obj.proposed_embargoes.append(embargo.id_)
+    propose(case_obj, embargo.id_)
     case_obj.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)

@@ -16,8 +16,10 @@ This module contains functions to validate the various strings and patterns used
 """
 
 import re
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, TypeVar, Any
+from itertools import product
+from typing import Any, TypeVar
 
 from vultron.errors import (
     HistoryValidationError,
@@ -70,7 +72,7 @@ def is_valid_pattern(pat: str) -> None:
     if not len(pat) == 6:
         raise PatternValidationError(f"Invalid Pattern [{pat}]")
 
-    for p, c in zip(pat.lower(), "vfdpxa"):
+    for p, c in zip(pat.lower(), "vfdpxa", strict=False):
         if p == c:
             continue
         # if you got here, the chars don't match
@@ -103,8 +105,8 @@ def ensure_valid_pattern(func: F) -> F:
         pat = args[0]
         try:
             is_valid_pattern(pat)
-        except PatternValidationError as e:
-            raise e
+        except PatternValidationError:  # noqa: TRY203  # ruff-baseline #3353
+            raise
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore[return-value]
@@ -130,7 +132,7 @@ def is_valid_state(state: str) -> None:
     try:
         is_valid_pattern(state)
     except PatternValidationError as e:
-        raise StateValidationError(e)
+        raise StateValidationError(e)  # noqa: B904  # ruff-baseline #3353
 
     # disqualify impossible states
     if re.match("vF....", state):
@@ -139,6 +141,29 @@ def is_valid_state(state: str) -> None:
         raise StateValidationError(f"Invalid state [{state}]")
     if not re.match("[vV.][fF.][dD.][pP.][xX.][aA.]", state):
         raise StateValidationError(f"Invalid state [{state}]")
+
+
+CS_EVENT_LETTERS = tuple("VFDPXA")
+"""The six case-state events, in the order a state string spells them."""
+
+
+def valid_states() -> list[str]:
+    """Return every valid case-state string, in lattice product order.
+
+    Enumerates each upper/lower-case combination of :data:`CS_EVENT_LETTERS`
+    and keeps those :func:`is_valid_state` accepts. The hypercube model builds
+    its state graph from this list, and the pattern modules' report scripts
+    iterate it directly, so neither needs the other to enumerate states.
+    """
+    states = []
+    for seq in product(*(f"{e.lower()}{e.upper()}" for e in CS_EVENT_LETTERS)):
+        state = "".join(seq)
+        try:
+            is_valid_state(state)
+        except StateValidationError:
+            continue
+        states.append(state)
+    return states
 
 
 def ensure_valid_state(func: F) -> F:
@@ -164,8 +189,8 @@ def ensure_valid_state(func: F) -> F:
         state = args[0]
         try:
             is_valid_state(state)
-        except StateValidationError as e:
-            raise e
+        except StateValidationError:  # noqa: TRY203  # ruff-baseline #3353
+            raise
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore[return-value]
@@ -221,8 +246,8 @@ def ensure_valid_state_method_wrapper(func: F) -> F:
         for state in states:
             try:
                 is_valid_state(state)
-            except StateValidationError as e:
-                raise e
+            except StateValidationError:  # noqa: TRY203  # ruff-baseline #3353
+                raise
 
         return func(self, *args, **kwargs)
 
@@ -261,11 +286,11 @@ def _ensure_transition_state(state: str) -> None:
     try:
         is_valid_state(state)
     except StateValidationError as e:
-        raise TransitionValidationError(e)
+        raise TransitionValidationError(e)  # noqa: B904  # ruff-baseline #3353
 
 
 def _transition_diff(src: str, dst: str) -> list[tuple[str, str]]:
-    return [(c1, c2) for c1, c2 in zip(src, dst) if c1 != c2]
+    return [(c1, c2) for c1, c2 in zip(src, dst, strict=False) if c1 != c2]
 
 
 def _validate_transition_case(diff: tuple[str, str]) -> None:
@@ -371,8 +396,8 @@ def ensure_valid_history(func: F) -> F:
         history = args[0]
         try:
             is_valid_history(history)
-        except HistoryValidationError as e:
-            raise e
+        except HistoryValidationError:  # noqa: TRY203  # ruff-baseline #3353
+            raise
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore[return-value]

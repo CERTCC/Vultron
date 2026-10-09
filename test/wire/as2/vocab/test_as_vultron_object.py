@@ -119,6 +119,6 @@ class TestAsVultronObjectNoShim:
     def test_VultronObject_not_exported_from_wire_base(self):
         import vultron.wire.as2.vocab.objects.base as wire_base
 
-        assert not hasattr(
-            wire_base, "VultronObject"
-        ), "VultronObject alias must not exist in wire objects base module"
+        assert not hasattr(wire_base, "VultronObject"), (
+            "VultronObject alias must not exist in wire objects base module"
+        )

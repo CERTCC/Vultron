@@ -1,8 +1,13 @@
 ---
 status: accepted
+status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-07-28
+created: 2026-07-28
+updated: 2026-10-06
+revision: 2
 deciders: [adh, Claude Sonnet 4.6]
 supersedes: 0015-create-case-at-report-receipt.md
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0041: CASE_MANAGER-Authoritative Case Initialization
@@ -126,7 +131,7 @@ Receiver (on Create(VulnerabilityCase)):
 - `CreateCaseNode`, `CreateCaseOwnerParticipant`, `InitializeDefaultEmbargoNode`,
   `CreateCaseActivity`/`UpdateActorOutbox` from the vendor's
   `receive_report_case_tree.py`. The vendor tree becomes: store report →
-  write pending link → `ProposeCaseToActorNode` → done.
+  write pending link → `ProposeReportCaseToActorNode` → done.
 - `WritePrologueLedgerEntriesNode` (Issue #1688) — the back-fill is no longer
   needed when the CaseActor commits init entries natively.
 - `SendOfferCaseManagerRoleNode` from `receive_report_case_tree.py`, and the
@@ -143,8 +148,10 @@ Receiver (on Create(VulnerabilityCase)):
   the operation's later deletion belongs to ADR-0039.
 - `CreateCaseActorNode` from the vendor's `receive_report_case_tree.py` — the
   CaseActor is a pre-existing service; the vendor does not spawn it at report
-  receipt. The node itself is **retained**: `create_tree.py` still uses it for
-  standalone case construction outside the report-receipt flow.
+  receipt. The node itself was retained for `create_tree.py`'s standalone
+  case construction, but that factory had no production caller and was
+  deleted (#4330); the node and all other orphaned case-construction nodes
+  were deleted in issue #4353.
 
 ### Signature authorization
 
@@ -159,8 +166,10 @@ This is a consequence of Option 1, not an alternative to it — see Option 3.
 
 ### What stays
 
-- `ProposeCaseToActorNode` — still needed; the vendor sends
+- `ProposeReportCaseToActorNode` — still needed; the vendor sends
   `Create(as_CaseProposal)` to initiate the CaseActor-authoritative flow.
+  (The original node named in this ADR, `ProposeCaseToActorNode`, was
+  superseded by the slimmed-tree rename and deleted in issue #4353.)
 - `CreateCaseReceivedUseCase` — already handles `Create(VulnerabilityCase)`
   arriving at the vendor inbox; now actually seeds the case rather than hitting
   the idempotency skip.
@@ -244,7 +253,22 @@ stands:
   rejects only *substituting* that authorization for removal of the back-fill.
 - "What is removed" listed the `Offer(CaseManagerRole)` accept path and
   `CreateCaseActorNode` without qualification, conflicting with MUST-level
-  DEMOMA-08 specs and with `create_tree.py`'s live use of the node. Both entries
-  are now scoped to the report-receipt path.
+  DEMOMA-08 specs and with the then-live `create_tree.py` use of the node
+  (that factory had no production caller and was deleted, #4330; #4353 tracks
+  deleting the node). Both entries are now scoped to the report-receipt path.
 - The Issue #1767 consequence claimed removal of the back-fill was sufficient on
   its own. It is sufficient only for multi-actor deployments.
+
+## Amendment — 2026-10-02
+
+Problem 1 and the creation flow above place authorship of the case on the CaseActor.
+The decision stands (the CASE_MANAGER is the `actor` of `Create(VulnerabilityCase)`), but one detail is replaced: who `attributed_to` names.
+
+Replaced text, in Context problem 1: "the vendor creates a `VulnerabilityCase` with itself as `attributed_to`, but per ADR-0023 the CaseActor is the authoritative case creator and the only correct `actor` on `Create(VulnerabilityCase)`."
+And in the creation flow: "Create VulnerabilityCase (attributed_to=CaseActor)".
+
+Now: `attributed_to` on a `VulnerabilityCase` is the CASE_OWNER, the actor that received the report, on every creation path (CM-02-008, CM-22-001, CP-09-001).
+The CASE_MANAGER records that it created the case as the `actor` of `Create(VulnerabilityCase)`.
+The original text had conflated ADR-0023's rule about the Create `actor` with the case's `attributedTo`.
+An earlier change (commit `0882ed1c7`, #3979) made this correction in place without a trail; the 2026-10-02 audit of unsupervised agent decisions (#4195) confirmed the reversal, and the original text above is restored so this section is the record of it.
+Confirmed by Allen D. Householder, 2026-10-02.

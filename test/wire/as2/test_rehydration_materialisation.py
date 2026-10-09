@@ -35,8 +35,8 @@ from pydantic import ValidationError
 
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.ports.datalayer import DataLayer
-from vultron.errors import VultronReferenceResolutionError
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronReferenceResolutionError
 from vultron.wire.as2.rehydration import (
     materialise,
     materialise_object_slots,
@@ -259,9 +259,9 @@ def test_materialised_activity_carries_its_own_actor(
     activity_ref = case.case_activity[0]
     assert isinstance(activity_ref, str), "activity must stay as a string URI"
     assert activity_ref == recorded_activity.id_
-    assert (
-        activity_ref != CASE_OWNER
-    ), "synthesized the case owner as the actor"
+    assert activity_ref != CASE_OWNER, (
+        "synthesized the case owner as the actor"
+    )
     assert activity_ref != CASE_ID, "synthesized the case's own URI"
 
 
@@ -589,3 +589,35 @@ def test_core_dimension_slots_are_not_treated_as_references() -> None:
 
     assert dl.reads == [], "a bare state value must not be looked up"
     assert out is dumped
+
+
+def test_uri_admitting_slot_is_still_seen_through_non_empty_string() -> None:
+    """VM-06-007 turns on the ``str`` branch; ``NonEmptyString`` is that branch.
+
+    The reference aliases spell their IRI branch ``NonEmptyString`` — an
+    ``Annotated[str, ...]`` the union keeps (CS-08-001, #3876).  Had
+    ``_annotation_branches`` recursed into the wrapper, it would have reported
+    ``str`` *and* the validator object as branches; had it not unwrapped at
+    all, ``branch is str`` would have found nothing and every
+    ``ActivityStreamRef`` slot would have been misread as object-only and its
+    unresolvable references refused instead of deferred (VM-06-004).
+    """
+    from vultron.primitives import NonEmptyString
+    from vultron.wire.as2.rehydration import (
+        _annotation_branches,
+        _slot_requires_object,
+    )
+    from vultron.wire.as2.vocab.base.links import as_Link
+    from vultron.wire.as2.vocab.base.objects.base import as_ObjectRef
+
+    # The expansion of ``ActivityStreamRef[as_Object]``, spelled out because
+    # mypy does not accept a parametrised ``TypeAlias`` as a runtime expression.
+    assert _annotation_branches(
+        as_Object | as_Link | NonEmptyString | None
+    ) == [
+        as_Object,
+        as_Link,
+        str,
+    ]
+    assert not _slot_requires_object(as_ObjectRef)
+    assert _slot_requires_object(as_CaseStatus)

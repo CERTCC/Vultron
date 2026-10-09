@@ -45,9 +45,9 @@ ActivityStreams offers three verbs for consuming a piece of content: `as:Read`, 
 Most Coordinated Vulnerability Disclosure (CVD) cases are text-centric, so `as:Read` is the verb Vultron uses.
 `as:View` and `as:Listen` remain available to an implementation whose participants consume a video recording or an audio recording as part of a case, and neither is forbidden.
 
-The acknowledgement is `Read(Offer(VulnerabilityReport))`: an `as:Read` whose object is the report's original `Offer` rather than the report itself.
+The acknowledgment is `Read(Offer(VulnerabilityReport))`: an `as:Read` whose object is the report's original `Offer` rather than the report itself.
 Naming a dedicated form rather than reusing a bare `Read(VulnerabilityReport)` lets a recipient acknowledge that a report arrived without committing to anything further.
-That separation is the point: it leaves `Accept(Offer(VulnerabilityReport))` and `TentativeReject(Offer(VulnerabilityReport))` free to carry the judgment, so acknowledgement and validity are distinct claims on the wire.
+That separation is the point: it leaves `Accept(Offer(VulnerabilityReport))` and `TentativeReject(Offer(VulnerabilityReport))` free to carry the judgment, so acknowledgment and validity are distinct claims on the wire.
 
 ```mermaid
 ---
@@ -57,7 +57,7 @@ flowchart LR
     subgraph RM:RECEIVED
         a{Accept?}
         subgraph as:Read
-            RmReadReport["Report Acknowledgement (RK)<br/>Read(Offer(VulnerabilityReport))"]
+            RmReadReport["Report Acknowledgment (RK)<br/>Read(Offer(VulnerabilityReport))"]
         end
     end
     subgraph RM:START
@@ -84,10 +84,10 @@ flowchart LR
 The diagram shows the three ways a recipient can answer a submitted report.
 `Read(Offer(VulnerabilityReport))` is the answer available while the recipient is still undecided; the other two arms carry a verdict.
 
-An acknowledgement is therefore optional whenever a verdict follows.
+An acknowledgment is therefore optional whenever a verdict follows.
 An `Accept(Offer(VulnerabilityReport))` sent as a reply to `Offer(VulnerabilityReport)` already implies the report was read, because validating it required reading it.
 Sending a separate `Read(Offer(VulnerabilityReport))` in that case adds a message without adding information.
-[Faults and Acknowledgements](../reference/messages/faults_and_acknowledgements.md) gives the acknowledgement activities that can serve this role.
+[Faults and Acknowledgments](../reference/messages/faults_and_acknowledgements.md) gives the acknowledgment activities that can serve this role.
 
 ---
 
@@ -176,41 +176,40 @@ What it cannot do is merge the two verbs into one activity and expect a Vultron 
 
 ### Where fewer activities are worth having
 
-Adding a participant to a case is the clearest case.
-Expressed as separate activities, one participant addition is four messages.
+Posting a participant's status is the clearest case.
+Expressed as separate activities, one status update is two messages.
 
 ```mermaid
 ---
-title: Adding a participant as four separate activities
+title: Posting a participant status as two separate activities
 ---
 flowchart LR
-    a[create participant] --> b[create participant status]
-    b --> c[add participant status to participant]
-    c --> d[add participant to case]
+    a[create participant status] --> b[add participant status to participant]
 ```
 
-The diagram shows the fully expanded form: two `Create` activities and two `Add` activities to seat one participant.
-Three of the four are avoidable, because an object can be sent inline inside the activity that attaches it.
-A single `Add(CaseParticipant)[target=Case]` carrying a participant that already holds its status object expresses the same outcome.
+The diagram shows the fully expanded form: a `Create` that mints the status and an `Add` that attaches it.
+The `Create` is avoidable, because an object can be sent inline inside the activity that attaches it.
+A single `Add(ParticipantStatus)[target=CaseParticipant]` carrying the new status object expresses the same outcome.
 
 ```mermaid
 ---
-title: The same addition as one Add carrying an inline participant
+title: The same update as one Add carrying an inline status
 ---
 flowchart LR
-    a["Add(CaseParticipant with status)"] -->|target| b[case]
+    a["Add(ParticipantStatus)"] -->|target| b[participant]
 ```
 
 What shrank is the number of activities, not the verb.
-The attachment is still an `Add` with the case as its `target`, which is what a Vultron peer's dispatch recognizes.
+The attachment is still an `Add` with the participant as its `target`, which is what a Vultron peer's dispatch recognizes.
 
 The same reasoning applies at case creation.
 A case can be created with its report, its known participants, and its notes already inline in the initial case object, so no `Add` is needed for any of them.
 The activity guides break the steps out individually because the individual steps are easier to follow, not because a conformant implementation must emit them one at a time.
 
-A separate `Create(CaseParticipant)` is still necessary when the participants are not all known when the case is created.
+Participants that are not known when the case is created are not attached later with an `Add`.
 A Reporter may report a vulnerability to a Coordinator, who creates a case before the affected Vendors have been identified.
-The Coordinator seats itself and the Reporter at case creation, then adds each Vendor as it is identified.
+The Coordinator seats itself and the Reporter at case creation, then invites each Vendor as it is identified, and each Vendor joins by accepting its Invite ([ADR-0114](../adr/0114-joining-a-case-stub-invite-inert-participant.md)).
+`Add(CaseParticipant)` has one meaning: the Case Owner reinstates a participant it removed ([ADR-0116](../adr/0116-removing-a-participant-withdraws-entitlement-not-membership.md)).
 
 ### `Create(VulnerabilityReport)` and `Offer(VulnerabilityReport)`
 
@@ -295,7 +294,7 @@ The asymmetry follows from what exists at the moment of closure.
 `as:Leave` needs something to leave, and a participant can only leave a case it joined, so `Leave` is the right verb once a case exists ([ADR-0050](../adr/0050-leave-vul-case-canonical-rm-closure.md)).
 Before a case exists there is no membership to end — there is only an outstanding `Offer(VulnerabilityReport)`.
 Closing at that point means refusing the offer, which `as:Reject` already says.
-`Reject(Offer(VulnerabilityReport))` is therefore reachable only from `RM.INVALID`, because a report that reached `RM.VALID` has a case, and closing that case is `Leave(VulnerabilityCase)`'s job.
+`Reject(Offer(VulnerabilityReport))` is therefore reachable only from `RM.RECEIVED` or `RM.INVALID` (both have a close edge, [ADR-0114](../adr/0114-joining-a-case-stub-invite-inert-participant.md)), because a report that reached `RM.VALID` has a case, and closing that case is `Leave(VulnerabilityCase)`'s job.
 
 This is the second design rule at work.
 Reusing `as:Leave` for a report the sender never joined would have claimed a membership that never existed, and minting a third verb for report closure was unnecessary when `as:Reject` expresses refusal.
@@ -319,7 +318,7 @@ Adding an object type was necessary, because nothing in the existing vocabulary 
 
 ---
 
-## Faults and acknowledgements took different axes
+## Faults and acknowledgments took different axes
 
 The formal protocol partitions faults by which state machine the bad message belonged to, giving one error shorthand per machine: `RE`, `EE`, `CE`, and `GE`.
 The wire vocabulary partitions faults by *why* the message failed instead.
@@ -328,12 +327,12 @@ The three modes are received but not understood, received and understood but dec
 We consider failure mode the better axis for a receiver.
 Knowing that a message was not understood tells a sender to check its serialization; knowing that a message was declined tells a sender to check the protocol state it assumed.
 Knowing which state machine the message belonged to tells a sender something it already knew.
-The same reasoning moved acknowledgement.
+The same reasoning moved acknowledgment.
 For ledger-replicated state, a matching hash chain acknowledges the entire log prefix at once, so a per-message `EK` or `CK` would repeat what the chain already proves (MSM-05-002).
 
 Neither mechanism is missing from the implementation.
 Both are shaped differently from the formal set, which is why the mapping specification records them as *evolved* rather than as absent.
-The mechanisms themselves — which activity conveys which failure mode, and how the hash chain carries an acknowledgement — are described in [Faults and Acknowledgements](../reference/messages/faults_and_acknowledgements.md).
+The mechanisms themselves — which activity conveys which failure mode, and how the hash chain carries an acknowledgment — are described in [Faults and Acknowledgments](../reference/messages/faults_and_acknowledgements.md).
 
 ---
 
@@ -343,7 +342,7 @@ The mechanisms themselves — which activity conveys which failure mode, and how
 |---|---|
 | Verb reuse | Use an existing ActivityStreams type where one expresses the act. |
 | Unambiguous combinations | No two activity types share a verb, object, and target. |
-| Verb selection | `as:Read` for text-centric acknowledgement; `as:View` and `as:Listen` stay available. |
+| Verb selection | `as:Read` for text-centric acknowledgment; `as:View` and `as:Listen` stay available. |
 | Unused verbs | `as:Like`, `as:Dislike`, `as:Flag` carry no protocol meaning; `as:Undo` misdescribes a forward transition. |
 | Create and Add | A wire expansion with no formal counterpart, and still two distinct messages on the wire. Inline the object to send fewer activities; do not merge the two verbs. |
 | Invite and Add | `as:Invite` asks; `as:Add` asserts. Late arrivals are invited. |

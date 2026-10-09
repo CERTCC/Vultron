@@ -29,6 +29,7 @@ from typing import Any, cast
 
 from fastapi import HTTPException, status
 
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.core.models.actor import (
     CoreActor,
     VultronApplication,
@@ -37,7 +38,6 @@ from vultron.core.models.actor import (
     VultronPerson,
     VultronService,
 )
-from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.core.ports.datalayer import DataLayer
 
 _ACTOR_RECORD_TYPES = [

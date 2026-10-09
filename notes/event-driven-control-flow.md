@@ -376,7 +376,7 @@ assert_participant_added(dl, case_id, finder_id)
 # ❌ WRONG — BT does nothing, cascade never fires, no signal of why
 class SuggestActorReceivedUseCase:
     def execute(self) -> None:
-        _idempotent_create(self._request)
+        self._store(self._request)
         # (silence — no BT, no explanation of why no cascade)
 ```
 
@@ -384,7 +384,7 @@ class SuggestActorReceivedUseCase:
 # ✅ CORRECT — BT runs, routes on conversation state, asks and terminates
 class SuggestActorReceivedUseCase:
     def execute(self) -> None:
-        _idempotent_create(self._request)
+        self._store(self._request)
         tree = create_recommend_actor_to_case_received_tree(...)
         bridge.execute_with_setup(tree, actor_id=case_owner_id)
         # The tree's Selector routes on where the exchange stands — already a
@@ -450,7 +450,7 @@ manual invitation spoofing):
        ↓ added to coordinator outbox → delivered to case_actor inbox
 
 2. Case-actor receives RecommendActorActivity
-       ↓ BT: verify case_actor IS the case owner (attributed_to check)
+       ↓ BT: verify case_actor holds CASE_MANAGER (BT-17-001; not the owner)
        ↓ BT: emit AcceptActorRecommendationActivity(to=[coordinator])
        ↓ BT: emit RmInviteToCaseActivity(actor=case_actor, object=invitee, target=case, to=[invitee])
        ↓ both activities added to case_actor outbox → delivered

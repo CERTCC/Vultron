@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+description: >
+  Wire activities for the General message types GI, GK, and GE.
 ---
 
 # General (GI) Messages
@@ -32,6 +34,11 @@ print(render_page("general", heading=False))
   (`Offer(Actor)[target=VulnerabilityCase]`,
   `Offer(CaseParticipant)[target=VulnerabilityCase]`, and its `Accept`/`Reject`).
   Suggesting a Participant is a `GI` inquiry, not a case-management message.
+- **Who may send:**
+  The CASE_MANAGER accepts `Remove(Note)[target=VulnerabilityCase]` from the note's author while that author is an active participant, or from the Case Owner.
+  It accepts `Add(VulnerabilityReport)[target=VulnerabilityCase]` only from the Case Owner.
+  Any other sender is refused, and the note stays in the case or the report stays out of it.
+  A participant replica accepts either message only from the CASE_MANAGER, because replicas learn of the change from the ledger entry the CASE_MANAGER fans out.
 - **How-to:** [How to Post a Status Update or a Case Note](../../howto/activitypub/activities/status_updates.md)
   (notes); [How to Suggest an Actor for a Case](../../howto/activitypub/activities/suggest_actor.md)
   (actor suggestion).
@@ -90,11 +97,11 @@ This handshake is a `GI` inquiry rather than a role offer.
 For the `CVDRole` delegation that uses a dedicated object type, see
 [Case Management Messages](case_management.md).
 
-## GK — General Acknowledgement
+## GK — General Acknowledgment
 
 - **Protocol role:** Acknowledges receipt of a `GI` message.
 - **Triggering transition:** any valid `GI` message.
-- **Wire activity:** none dedicated. Acknowledgement of ledger-replicated state
+- **Wire activity:** none dedicated. Acknowledgment of ledger-replicated state
   is cumulative and implicit through hash-chain continuity
   ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#other-message-types).

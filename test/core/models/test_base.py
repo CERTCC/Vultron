@@ -1,6 +1,6 @@
-"""Tests for VultronObject base class and domain model inheritance."""
+"""Tests for CoreObject base class and domain model inheritance."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -11,42 +11,42 @@ from vultron.core.models.activity import (
     VultronCreateCaseActivity,
     VultronOffer,
 )
-from vultron.core.models.base import VultronObject
-from vultron.core.models.case import VultronCase
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.embargo_event import VultronEmbargoEvent
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.note import VultronNote
-from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 
 DOMAIN_OBJECT_CLASSES = [
-    VultronReport,
-    VultronCase,
+    VulnerabilityReport,
+    VulnerabilityCase,
     VultronNote,
-    VultronParticipant,
+    CaseParticipant,
     CaseStatus,
-    VultronEmbargoEvent,
-    VultronCaseActor,
+    EmbargoEvent,
+    CaseActor,
     VultronActivity,
     VultronOffer,
     VultronAccept,
     VultronCreateCaseActivity,
 ]
 
-_FUTURE_DT = datetime(2030, 1, 1, tzinfo=timezone.utc)
+_FUTURE_DT = datetime(2030, 1, 1, tzinfo=UTC)
 
 REQUIRED_KWARGS: dict[type, dict] = {
     VultronNote: {"content": "test content"},
-    VultronParticipant: {
+    CaseParticipant: {
         "context": "urn:uuid:case-123",
     },
     CaseStatus: {
         "context": "urn:uuid:case-123",
         "attributed_to": "urn:uuid:actor-456",
     },
-    VultronEmbargoEvent: {
+    EmbargoEvent: {
         "context": "urn:uuid:case-123",
         "end_time": _FUTURE_DT,
     },
@@ -68,8 +68,8 @@ def make_instance(cls, **extra):
 
 
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
-def test_inherits_from_vultron_object(cls):
-    assert issubclass(cls, VultronObject)
+def test_inherits_from_core_object(cls):
+    assert issubclass(cls, CoreObject)
 
 
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
@@ -89,7 +89,7 @@ def test_has_as_type(cls):
 #: ADR-0099 detail 5 moved that derivation from the wire class onto the core
 #: class, which is what makes these the exception — the label is a function of
 #: the object's state, and the class that holds the state owns it.
-DERIVES_ITS_OWN_NAME = frozenset({CaseStatus, VultronEmbargoEvent})
+DERIVES_ITS_OWN_NAME = frozenset({CaseStatus, EmbargoEvent})
 
 
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
@@ -107,7 +107,7 @@ def test_vultron_participant_status_context_required():
     with pytest.raises(ValidationError):
         ParticipantStatus()
     ps = ParticipantStatus(context="urn:uuid:case-123")
-    assert issubclass(ParticipantStatus, VultronObject)
+    assert issubclass(ParticipantStatus, CoreObject)
     assert ps.id_.startswith("urn:uuid:")
     assert ps.type_ == "ParticipantStatus"
     assert ps.context == "urn:uuid:case-123"
@@ -125,19 +125,17 @@ def test_vultron_activity_as_type_required():
 
 
 def test_domain_object_as_id_unique():
-    a = VultronReport()
-    b = VultronReport()
+    a = VulnerabilityReport()
+    b = VulnerabilityReport()
     assert a.id_ != b.id_
 
 
 def test_domain_object_expected_as_types():
-    assert VultronReport().type_ == "VulnerabilityReport"
-    assert VultronCase().type_ == "VulnerabilityCase"
+    assert VulnerabilityReport().type_ == "VulnerabilityReport"
+    assert VulnerabilityCase().type_ == "VulnerabilityCase"
     assert VultronNote(content="test").type_ == "Note"
     assert (
-        VultronParticipant(
-            context="urn:uuid:c", attributed_to="urn:uuid:a"
-        ).type_
+        CaseParticipant(context="urn:uuid:c", attributed_to="urn:uuid:a").type_
         == "CaseParticipant"
     )
     assert (
@@ -145,10 +143,10 @@ def test_domain_object_expected_as_types():
         == "CaseStatus"
     )
     assert (
-        VultronEmbargoEvent(context="urn:uuid:c", end_time=_FUTURE_DT).type_
+        EmbargoEvent(context="urn:uuid:c", end_time=_FUTURE_DT).type_
         == "EmbargoEvent"
     )
-    assert VultronCaseActor().type_ == "Service"
+    assert CaseActor().type_ == "Service"
     _test_actor = "https://example.org/actors/test"
     assert VultronOffer(actor=_test_actor).type_ == "Offer"
     assert VultronAccept(actor=_test_actor).type_ == "Accept"
@@ -156,7 +154,7 @@ def test_domain_object_expected_as_types():
 
 
 def test_vultron_note_content_required():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         VultronNote()
     note = VultronNote(content="test content")
     assert note.content == "test content"
@@ -168,10 +166,10 @@ def test_vultron_participant_required_fields():
     Both context and attributed_to are optional; when attributed_to is
     provided, name is auto-derived from it.
     """
-    p_empty = VultronParticipant()
+    p_empty = CaseParticipant()
     assert p_empty.context is None
 
-    p = VultronParticipant(
+    p = CaseParticipant(
         context="urn:uuid:case-123", attributed_to="urn:uuid:actor-456"
     )
     assert p.context == "urn:uuid:case-123"
@@ -180,7 +178,7 @@ def test_vultron_participant_required_fields():
 
 
 def test_vultron_case_status_required_fields():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         CaseStatus()
     # attributed_to is optional; context alone is sufficient
     cs_no_attr = CaseStatus(context="urn:uuid:case-123")
@@ -195,23 +193,23 @@ def test_vultron_case_status_required_fields():
 
 def test_vultron_embargo_event_required_fields():
     # context is required; omitting it must raise
-    with pytest.raises(Exception):
-        VultronEmbargoEvent()
-    # end_time is optional (has a default); context alone is sufficient
-    em_default = VultronEmbargoEvent(context="urn:uuid:case-123")
-    assert em_default.context == "urn:uuid:case-123"
-    assert em_default.end_time is not None
-    # explicit end_time is also accepted
-    em = VultronEmbargoEvent(context="urn:uuid:case-123", end_time=_FUTURE_DT)
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
+        EmbargoEvent(end_time=_FUTURE_DT)
+    # end_time is required too — no implicit default duration (EP-04-010,
+    # #3404); context alone is not sufficient
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
+        EmbargoEvent(context="urn:uuid:case-123")
+    # both supplied is the only valid construction
+    em = EmbargoEvent(context="urn:uuid:case-123", end_time=_FUTURE_DT)
     assert em.context == "urn:uuid:case-123"
     assert em.end_time == _FUTURE_DT
 
 
 def test_vultron_case_init_case_statuses():
-    case_no_actor = VultronCase()
+    case_no_actor = VulnerabilityCase()
     assert case_no_actor.case_statuses == []
 
-    case_with_actor = VultronCase(attributed_to="urn:uuid:actor-123")
+    case_with_actor = VulnerabilityCase(attributed_to="urn:uuid:actor-123")
     assert len(case_with_actor.case_statuses) == 1
     assert isinstance(case_with_actor.case_statuses[0], CaseStatus)
     assert case_with_actor.case_statuses[0].context == case_with_actor.id_
@@ -219,7 +217,7 @@ def test_vultron_case_init_case_statuses():
         case_with_actor.case_statuses[0].attributed_to == "urn:uuid:actor-123"
     )
 
-    case_existing_statuses = VultronCase(
+    case_existing_statuses = VulnerabilityCase(
         attributed_to="urn:uuid:actor-123",
         case_statuses=[
             CaseStatus(
@@ -238,7 +236,7 @@ def test_vultron_case_init_case_statuses():
 
 def test_vultron_case_rewrites_status_context_to_case_id():
     """An inline status belongs to the case holding it (``set_cs_context``)."""
-    case = VultronCase(
+    case = VulnerabilityCase(
         case_statuses=[
             CaseStatus(context="urn:uuid:other", attributed_to="urn:uuid:a")
         ],

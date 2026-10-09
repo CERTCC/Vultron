@@ -165,92 +165,10 @@ class TestCaseTimelineEventParsing:
         assert event.vf_state == "VF"
         assert event.d_state == "D"
 
-    def test_pec_state_from_consent_dimension_object(self):
-        """PEC state extracted from ADR-0036 consent dimension object."""
-        raw = _snake_entry(
-            payload_snapshot={
-                "type": "Add",
-                "actor": "http://finder:7999/api/v2/actors/finder",
-                "object": {
-                    "id": "urn:uuid:ps2",
-                    "type": "ParticipantStatus",
-                    "consent": {"state": "SIGNATORY"},
-                },
-            }
-        )
-        event = CaseTimelineEvent.from_raw(raw)
-        assert event.pec_state == "SIGNATORY"
-
-    def test_pec_state_from_flat_em_consent_state(self):
-        """Legacy emConsentState flat field tolerated."""
-        raw = _camel_entry(
-            eventType="add_participant_status_to_participant",
-            payloadSnapshot={
-                "type": "Add",
-                "actor": "http://vendor:7999/api/v2/actors/vendor",
-                "object": {
-                    "id": "urn:uuid:ps3",
-                    "type": "ParticipantStatus",
-                    "emConsentState": "INVITED",
-                },
-            },
-        )
-        event = CaseTimelineEvent.from_raw(raw)
-        assert event.pec_state == "INVITED"
-
-    def test_pec_state_from_flat_embargo_consent_state(self):
-        """Legacy embargoConsentState flat field tolerated."""
-        raw = _camel_entry(
-            eventType="add_participant_status_to_participant",
-            payloadSnapshot={
-                "type": "Add",
-                "actor": "http://vendor:7999/api/v2/actors/vendor",
-                "object": {
-                    "id": "urn:uuid:ps4",
-                    "type": "ParticipantStatus",
-                    "embargoConsentState": "DECLINED",
-                },
-            },
-        )
-        event = CaseTimelineEvent.from_raw(raw)
-        assert event.pec_state == "DECLINED"
-
-    def test_pec_state_from_flat_em_consent_state_snake(self):
-        """Legacy em_consent_state snake_case short form tolerated."""
-        raw = _snake_entry(
-            payload_snapshot={
-                "type": "Add",
-                "actor": "http://finder:7999/api/v2/actors/finder",
-                "object": {
-                    "id": "urn:uuid:ps5",
-                    "type": "ParticipantStatus",
-                    "em_consent_state": "SIGNATORY",
-                },
-            }
-        )
-        event = CaseTimelineEvent.from_raw(raw)
-        assert event.pec_state == "SIGNATORY"
-
-    def test_pec_state_from_flat_embargo_consent_state_snake(self):
-        """Legacy embargo_consent_state snake_case long form tolerated."""
-        raw = _snake_entry(
-            payload_snapshot={
-                "type": "Add",
-                "actor": "http://finder:7999/api/v2/actors/finder",
-                "object": {
-                    "id": "urn:uuid:ps6",
-                    "type": "ParticipantStatus",
-                    "embargo_consent_state": "LAPSED",
-                },
-            }
-        )
-        event = CaseTimelineEvent.from_raw(raw)
-        assert event.pec_state == "LAPSED"
-
-    def test_pec_state_absent_when_not_in_payload(self):
-        """pec_state is None when no consent field is present."""
+    def test_event_carries_no_pec_state(self):
+        """Consent is per embargo on the participant, not on status snapshots."""
         event = CaseTimelineEvent.from_raw(_camel_entry())
-        assert event.pec_state is None
+        assert not hasattr(event, "pec_state")
 
     def test_em_state_from_case_status(self):
         raw = _camel_entry(
@@ -564,32 +482,32 @@ class TestEventPhraseBehavioural:
     def test_actor_only_phrase_no_dangling_dash(self):
         """Actor-only phrase: ``{actor}`` filled with "—", result is coherent."""
         result = event_phrase("create_report")
-        assert not result.endswith(
-            "—"
-        ), f"event_phrase('create_report') ends with '—': {result!r}"
-        assert not _has_dangling_slot(
-            result
-        ), f"Un-substituted slot in event_phrase('create_report'): {result!r}"
+        assert not result.endswith("—"), (
+            f"event_phrase('create_report') ends with '—': {result!r}"
+        )
+        assert not _has_dangling_slot(result), (
+            f"Un-substituted slot in event_phrase('create_report'): {result!r}"
+        )
 
     def test_actor_object_phrase_no_dangling_dash(self):
         """Actor+object phrase: both slots filled; no dangling em-dash."""
         result = event_phrase("offer_actor_to_case")
-        assert not result.endswith(
-            "—"
-        ), f"event_phrase('offer_actor_to_case') ends with '—': {result!r}"
-        assert not _has_dangling_slot(
-            result
-        ), f"Un-substituted slot in event_phrase('offer_actor_to_case'): {result!r}"
+        assert not result.endswith("—"), (
+            f"event_phrase('offer_actor_to_case') ends with '—': {result!r}"
+        )
+        assert not _has_dangling_slot(result), (
+            f"Un-substituted slot in event_phrase('offer_actor_to_case'): {result!r}"
+        )
 
     def test_actor_target_phrase_no_dangling_dash(self):
         """Actor+target phrase: both slots filled; no dangling em-dash."""
         result = event_phrase("submit_report")
-        assert not result.endswith(
-            "—"
-        ), f"event_phrase('submit_report') ends with '—': {result!r}"
-        assert not _has_dangling_slot(
-            result
-        ), f"Un-substituted slot in event_phrase('submit_report'): {result!r}"
+        assert not result.endswith("—"), (
+            f"event_phrase('submit_report') ends with '—': {result!r}"
+        )
+        assert not _has_dangling_slot(result), (
+            f"Un-substituted slot in event_phrase('submit_report'): {result!r}"
+        )
 
     def test_all_semantics_no_dangling_slot(self):
         """Every MessageSemantics value: event_phrase() must not leave {slot} markers."""
@@ -600,10 +518,9 @@ class TestEventPhraseBehavioural:
             result = event_phrase(sem.value)
             if _has_dangling_slot(result):
                 failures.append(f"{sem.name}: {result!r}")
-        assert (
-            not failures
-        ), "event_phrase() left un-substituted slots for:\n" + "\n".join(
-            failures
+        assert not failures, (
+            "event_phrase() left un-substituted slots for:\n"
+            + "\n".join(failures)
         )
 
 
@@ -639,17 +556,17 @@ class TestSummarySlotsFilledBehavioural:
     def test_actor_only_event_summary_no_trailing_dash(self):
         """Summary for actor-only phrase must not trail with '—'."""
         event = self._event_with_actor("create_report")
-        assert not event.summary.endswith(
-            "—"
-        ), f"summary ends with '—': {event.summary!r}"
+        assert not event.summary.endswith("—"), (
+            f"summary ends with '—': {event.summary!r}"
+        )
         assert not _has_dangling_slot(event.summary)
 
     def test_actor_object_event_summary_no_trailing_dash(self):
         """Summary for actor+object phrase with resolved target_label."""
         event = self._event_with_actor_and_object("offer_actor_to_case")
-        assert not event.summary.endswith(
-            "—"
-        ), f"summary ends with '—': {event.summary!r}"
+        assert not event.summary.endswith("—"), (
+            f"summary ends with '—': {event.summary!r}"
+        )
         assert not _has_dangling_slot(event.summary)
 
     def test_actor_object_event_summary_no_trailing_dash_when_no_object(self):
@@ -660,9 +577,9 @@ class TestSummarySlotsFilledBehavioural:
         # When there is no resolvable object, the phrase renders with "—" in
         # the object slot.  The test verifies this is an intentional fallback
         # (non-empty output), not a structural slot-substitution failure.
-        assert not _has_dangling_slot(
-            event.summary
-        ), f"Un-substituted slot: {event.summary!r}"
+        assert not _has_dangling_slot(event.summary), (
+            f"Un-substituted slot: {event.summary!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -877,7 +794,7 @@ class TestMarkdownRenderer:
         # Distilled field columns + one column per actor.
         assert "| finder | vendor |" in header
         assert "Actor" in header and "Event" in header
-        assert "| PEC |" in header
+        assert "PEC" not in header
         # Separator row present.
         sep_idx = lines.index(header) + 1
         assert set(lines[sep_idx].replace("|", "").split()) == {"---"}
@@ -1130,87 +1047,20 @@ class TestHtmlRenderer:
 
 
 # ---------------------------------------------------------------------------
-# DRPT-02-008 — PEC column in renderers
+# No PEC column: status snapshots carry no consent (ADR-0122)
 # ---------------------------------------------------------------------------
 
 
-def _pec_entry(pec_value: str, **overrides):
-    """A raw ledger entry carrying a ParticipantStatus with a consent dimension."""
-    return _camel_entry(
-        eventType="add_participant_status_to_participant",
-        payloadSnapshot={
-            "type": "Add",
-            "actor": "http://vendor:7999/api/v2/actors/vendor",
-            "object": {
-                "id": "urn:uuid:ps_pec",
-                "type": "ParticipantStatus",
-                "consent": {"state": pec_value},
-                "rm": {"state": "ACCEPTED"},
-            },
-        },
-        **overrides,
-    )
-
-
-class TestPecColumn:
-    def test_pec_state_appears_in_markdown_table(self):
-        replicas = {"vendor": [_pec_entry("SIGNATORY")]}
-        md = render_markdown(build_timeline(replicas), ["vendor"])
-        assert "| PEC |" in md
-        assert "SIGNATORY" in md
-
-    def test_pec_state_absent_renders_empty_cell_markdown(self):
-        """An entry without PEC state renders an empty PEC cell, not an error."""
+class TestNoPecColumn:
+    def test_markdown_table_has_no_pec_column(self):
         replicas = {"vendor": [_camel_entry()]}
         md = render_markdown(build_timeline(replicas), ["vendor"])
-        assert "| PEC |" in md
+        assert "PEC" not in md
 
-    def test_pec_state_appears_in_html_table(self):
-        replicas = {"vendor": [_pec_entry("LAPSED")]}
-        out = render_html(build_timeline(replicas), ["vendor"])
-        assert "<th>PEC</th>" in out
-        assert "LAPSED" in out
-
-    def test_pec_state_absent_renders_empty_cell_html(self):
+    def test_html_table_has_no_pec_column(self):
         replicas = {"vendor": [_camel_entry()]}
         out = render_html(build_timeline(replicas), ["vendor"])
-        assert "<th>PEC</th>" in out
-
-    def test_pec_flat_em_consent_state_extracted(self):
-        """Legacy emConsentState flat field surfaces in the report."""
-        raw = _camel_entry(
-            eventType="add_participant_status_to_participant",
-            payloadSnapshot={
-                "type": "Add",
-                "actor": "http://vendor:7999/api/v2/actors/vendor",
-                "object": {
-                    "id": "urn:uuid:ps_flat",
-                    "type": "ParticipantStatus",
-                    "emConsentState": "INVITED",
-                },
-            },
-        )
-        replicas = {"vendor": [raw]}
-        md = render_markdown(build_timeline(replicas), ["vendor"])
-        assert "INVITED" in md
-
-    def test_pec_flat_embargo_consent_state_extracted(self):
-        """Legacy embargoConsentState camelCase form surfaces in the report."""
-        raw = _camel_entry(
-            eventType="add_participant_status_to_participant",
-            payloadSnapshot={
-                "type": "Add",
-                "actor": "http://vendor:7999/api/v2/actors/vendor",
-                "object": {
-                    "id": "urn:uuid:ps_long",
-                    "type": "ParticipantStatus",
-                    "embargoConsentState": "DECLINED",
-                },
-            },
-        )
-        replicas = {"vendor": [raw]}
-        md = render_markdown(build_timeline(replicas), ["vendor"])
-        assert "DECLINED" in md
+        assert "<th>PEC</th>" not in out
 
 
 # ---------------------------------------------------------------------------
@@ -1415,7 +1265,7 @@ class TestDiscovery:
 
     def test_no_matching_files_raises(self, tmp_path):
         (tmp_path / "empty").mkdir()
-        with pytest.raises(ReportError, match="No.*files found"):
+        with pytest.raises(ReportError, match=r"No.*files found"):
             discover_replicas(tmp_path)
 
     def test_parse_error_raises(self, tmp_path):
@@ -1468,9 +1318,7 @@ class TestCli:
     def test_no_open_suppresses_browser(self, tmp_path, monkeypatch):
         _write_replicas(tmp_path, {"vendor": [_camel_entry()]})
         calls: list[str] = []
-        monkeypatch.setattr(
-            report.webbrowser, "open", lambda url: calls.append(url)
-        )
+        monkeypatch.setattr(report.webbrowser, "open", calls.append)
         out_file = tmp_path / "report.html"
         rc = main(
             [
@@ -1489,9 +1337,7 @@ class TestCli:
     def test_html_opens_browser_without_no_open(self, tmp_path, monkeypatch):
         _write_replicas(tmp_path, {"vendor": [_camel_entry()]})
         calls: list[str] = []
-        monkeypatch.setattr(
-            report.webbrowser, "open", lambda url: calls.append(url)
-        )
+        monkeypatch.setattr(report.webbrowser, "open", calls.append)
         out_file = tmp_path / "report.html"
         rc = main(
             [str(tmp_path), "--format", "html", "--output", str(out_file)]

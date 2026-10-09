@@ -16,16 +16,18 @@ Agent guidance for suggest-actor BT nodes in this package.
 `suggested_roles` blackboard key. `EmitInviteActorToCaseNode` reads this key
 via `_read_suggested_roles()`, gets a `KeyError`, and passes `roles=None` to
 `factory.invite_actor_to_case()`. The resulting `Invite` carries `roles=None`,
-so after `Accept(Invite)` the new `VultronParticipant.case_roles` is `[]`.
+so after `Accept(Invite)` the new `CaseParticipant.case_roles` is `[]`.
 
 This is documented behavior (ADR-0032, BT-HELPER-01: no silent default
 substitution), not a bug.
 
-**Test implication**: Only the `invite_actor_to_case_trigger_bt` path (or a
-tree with `EvaluateDefaultRolesNode`) produces a non-empty `case_roles`. The
-`AcceptOfferCaseParticipant` received-side use case always produces
-`roles=None` in the Invite. Tests that verify roles end up on a participant
-MUST exercise the trigger path, not the received path.
+**Test implication**: Only the owner-direct branch of
+`create_recommend_actor_to_case_received_tree` (the CASE_MANAGER receives the
+case owner's own `Offer`, whose roles `EvaluateDefaultRolesNode` injects; #3821,
+ADR-0109) produces a non-empty `case_roles`. The `AcceptOfferCaseParticipant`
+received-side use case always produces `roles=None` in the Invite. Tests that
+verify roles end up on a participant MUST exercise the owner-direct branch, not
+the accept-recommendation path.
 
 **Blackboard key contrast**:
 

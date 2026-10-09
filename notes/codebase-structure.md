@@ -7,6 +7,9 @@ description: >
   hexagonal architecture layout.
 related_specs:
   - specs/prototype-shortcuts.yaml
+  - specs/code-style.yaml
+  - specs/behavior-tree-node-design.yaml
+  - specs/architecture.yaml
 related_notes:
   - notes/codebase-structure-fastapi-patterns.md
   - notes/bt-integration.md
@@ -29,10 +32,6 @@ A few modules remain at the top level of `vultron/` by necessity:
 
 - `vultron/errors.py` — top-level error base; adapter-layer errors live at
   `vultron/adapters/driving/fastapi/errors.py`
-- `vultron/types.py` — shared type aliases (`BehaviorHandler` Protocol);
-  neutral module used to break circular import chains. Contents should be
-  migrated into `vultron/core/types.py` once circular imports are fully
-  resolved.
 
 **Constraint**: `types.py` MUST remain accessible to both core dispatch
 modules and adapter layers without creating circular imports. See `AGENTS.md`
@@ -272,41 +271,6 @@ structure). Docker Compose services are in `docker/docker-compose.yml`.
 
 ---
 
-## Technical Debt: Object IDs Should Be URL-Like, Not Bare UUIDs
-
-The `datalayer.read(key)` method and the `/datalayer/{key:path}` route use
-`as_id` as the lookup key. Currently `generate_new_id()` returns a bare
-UUID-4 string (e.g., `2196cbb2-fb6f-407c-b473-1ed8ae806578`) rather than a
-full URL (e.g., `https://vultron.example/participants/2196cbb2-...`).
-
-**Why bare UUIDs were used**: Avoids URL-encoding/escaping issues when
-using object IDs as path segments in API routes (a full URL contains `/`
-characters that are treated as path-segment separators by Starlette, even
-after percent-encoding as `%2F`).
-
-**Current tactical fix**: The `/{key:path}` Starlette path converter is used
-throughout the FastAPI routers (actors, datalayer) to accept URL-form keys
-with embedded slashes. See
-[Starlette Path-Type Parameters for URL-Keyed Endpoints](#starlette-path-type-parameters-for-url-keyed-endpoints)
-below.
-
-**Deeper architectural goal**: Object IDs should be proper URL-like identifiers
-per the ActivityStreams spec. The long-term resolution is to separate routing
-identity from object identity by assigning each actor and case a stable,
-locally-unique, routing-safe surrogate key (e.g., a UUID or slug) used in all
-URL path segments while keeping the full IRI as the canonical `id` field inside
-the object graph. This mirrors ActivityPub practice of using
-`preferredUsername` for routing while the full actor IRI lives in the payload.
-
-**Affected areas**:
-
-- `generate_new_id()` in `vultron/wire/as2/vocab/base/utils.py` — add a default
-  `prefix` based on object type
-- Demo scripts and tests that assert on `as_id` format
-- Any handler that constructs participant or case IDs inline
-
----
-
 ## Starlette Path-Type Parameters for URL-Keyed Endpoints
 
 (DR-10, 2026-05-21 — fixed in #617, which resolves #610)
@@ -432,25 +396,6 @@ See [How to Report a Vulnerability](/howto/activitypub/activities/report_vulnera
 
 ---
 
-## Known Gap: `docker/README.md` Out of Date
-
-`docker/README.md` does not reflect the current services available in
-`docker/docker-compose.yml`. It was written before the unified `demo`
-service, health checks, and `api-dev` service were added. Update it to
-describe how to start the API server, run the demo, and any relevant
-`docker-compose` commands.
-
----
-
-## Known Gap: Inline Code Blocks in `docs/` Reference Old Module Paths
-
-Several Python inline code examples in `docs/` reference old module paths
-(e.g., `vultron.as_vocab.*`) that were moved to `vultron.wire.as2.vocab.*`
-during the P60-1 package relocation. Run `mkdocs build` to surface errors,
-then update the affected code blocks.
-
----
-
 ## Bulk Module-Rename Lessons Learned (VCR-019a)
 
 When doing large-scale module renames (moving packages from one location to
@@ -470,6 +415,61 @@ another with import path changes), the following approach works reliably:
 - **Find all callers first.** Use `grep -r "from old.path\|import old.path"`
   across `vultron/` and `test/` to get the complete call-site list before
   starting.
+
+---
+
+## Module Splits: No New God Modules, Always Re-Export
+
+- **A split must not produce a new god module.** Submodules stay at or under
+  500 lines and are split again when they re-accumulate (CS-18-001 through
+  CS-18-004). A flat `nodes.py` in a BT process area fails; leaf modules go in a
+  `nodes/` subpackage grouped by semantic concern (BTND-07-001, BTND-07-003,
+  BTND-07-006).
+- **Check `wc -l` before documenting a leaf.** A BT leaf module within ~20
+  lines of the 500-line cap (BTND-07-004) is split *before* docstrings or audit
+  comments are added: extract a semantic concern into a sibling submodule first,
+  then write the documentation.
+- **A split re-exports what it moved.** A use-case subpackage re-exports its
+  classes *and* their request models. A module split re-imports each moved name
+  in the old module (`# noqa: F401`) so `monkeypatch` targets keep resolving
+  (#972). A FastAPI router package re-exports the names used as
+  `dependency_overrides` keys (#970).
+- **Deleting a module instead of re-exporting needs importer proof**: no live
+  importers in `vultron/` or `test/`. See also "Bulk Module-Rename Lessons
+  Learned" above for the no-shim case.
+
+---
+
+## Small Coding Habits
+
+- **mypy infers a variable's type from its first assignment.** Use distinct
+  names per `except` or `if`/`else` branch rather than reusing one name with
+  different types.
+- **Pre-build dedup sets before fallback loops** — `seen = set(d.values())`
+  turns an O(n×m) membership scan into O(n+m).
+- **Use the walrus operator for single-assignment guards**:
+  `if (f := self._require_factory()) is not None:`.
+
+---
+
+## Protocol Declarations Stay in Sync With Concrete Classes (CS-20)
+
+When a field or method leaves a class that structurally conforms to a
+`Protocol` (`vultron/core/models/protocols.py`, `vultron/core/ports/`), remove the
+matching Protocol member too, and vice versa (CS-20-001) — type checkers never flag a
+Protocol member that no implementation still has. No `TypeGuard` discriminators
+remain: #1504 replaced most with concrete `isinstance` checks, and the last,
+`has_outbox`, went in #4143. A new one MAY `hasattr`-check only Protocol-declared
+members (CS-20-002).
+
+---
+
+## `HashChainLedgerRecord` ≠ `CaseLedgerEntry`
+
+`HashChainLedgerRecord` (`core/models/case_ledger.py`) is the in-memory
+hash-chain record, a plain `BaseModel`; `CaseLedgerEntry`
+(`core/models/case_ledger_entry.py`) is the wire-serializable `CoreObject`
+(ARCH-12-007). They are distinct types: import each by its full module path.
 
 ---
 

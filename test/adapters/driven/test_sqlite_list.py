@@ -97,7 +97,7 @@ class TestListMethod:
         actor = as_Service(name="Coordinator")
         invitee = as_Service(name="Vendor")
         stub = as_VulnerabilityCaseStub(
-            id_="https://example.org/cases/list-test"
+            case_id="https://example.org/cases/list-test"
         )
         invite = rm_invite_to_case_activity(
             invitee,

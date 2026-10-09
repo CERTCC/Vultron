@@ -3,13 +3,18 @@ title: Structured Logging — Narrative Standard and Infrastructure Demotion Gui
 status: active
 tags: [logging, observability, debugging]
 description: >
-  Narrative log template (SL-04-006), infrastructure demotion list (SL-04-007),
-  and per-module guidance for keeping INFO logs readable as a CVD protocol story.
+  Log-call shape (SL-01-005: literal template plus lazy positional args, never an
+  f-string), how correlation fields reach a record (SL-02-003: boundary filter,
+  not per-call `extra=`), narrative log template (SL-04-006), infrastructure
+  demotion list (SL-04-007), and per-module guidance for keeping INFO logs
+  readable as a CVD protocol story.
 related_specs:
   - specs/structured-logging.yaml
 related_notes:
   - notes/codebase-structure.md
   - notes/bt-integration.md
+  - notes/lint-tooling.md
+  - notes/devcontainer-tooling.md
 ---
 
 # Structured Logging — Narrative Standard and Infrastructure Demotion Guide
@@ -25,6 +30,92 @@ The underlying requirement is SL-04-001: all state transitions MUST be logged
 at INFO. The concrete gap is that many state transitions are only visible at
 DEBUG (or not at all), while the INFO channel is dominated by infrastructure
 noise.
+
+---
+
+## Log-Call Shape: Template Plus Lazy Arguments (SL-01-005)
+
+Every log call passes a **literal template** and its values as **positional
+arguments**, and nothing else:
+
+```python
+# Right
+logger.info("Actor %s engaged case %s", actor_id, case_id)
+self.logger.debug("BT structure:\n%s", tree_repr)
+
+# Wrong — the string is built before logging sees it
+logger.info(f"Actor {actor_id} engaged case {case_id}")
+logger.info("Actor {} engaged case {}".format(actor_id, case_id))
+logger.info("Actor " + actor_id + " engaged case " + case_id)
+```
+
+This is not a style preference. Python's `logging` keeps `msg` and `args` apart
+on the record and formats them only when a handler actually emits, and the
+project relies on all three consequences of that split:
+
+- **The template is the event's identity.** Every "Actor %s engaged case %s"
+  shares one `msg`, so a test, a grep, or a log tool can group and assert on the
+  event. An f-string makes every line a unique string with no key.
+- **Rendering faults stay inside logging.** A value whose `__str__` raises, or a
+  `%d` handed a string, is reported by the logging machinery through
+  `Handler.handleError` and never raised into the caller. In an f-string the same
+  fault raises in the BT node, and `update()` is the only sanctioned catch in a
+  node (BT-HELPER-01).
+- **Rendering is deferred.** `str()` and `%` conversion of the arguments happen
+  only when a handler emits, so a filtered record never pays for them.
+
+Only rendering is deferred. The argument *expressions* are still evaluated at
+the call, so lazy args do not make an expensive value free: `unicode_tree(tree)`
+in `vultron/core/behaviors/bridge.py` and a demo `logfmt(obj)` run whether or not
+the record is emitted. A guard whose only purpose was to avoid f-string
+formatting goes; a guard around a value produced by a call stays, with a
+one-line comment saying why (#3991 AC-3). Likewise an argument expression that
+raises (`case.id` on `None`) raises in the caller under either form; only faults
+in rendering move into logging.
+
+**A plain `py_trees` node's `self.logger` cannot take lazy arguments.** It is
+`py_trees.logging.Logger`, whose level methods accept one pre-rendered message,
+so `self.logger.debug("tick %s", n)` raises `TypeError` inside `update()`; and
+ruff's `G` rules recognize a logger by its receiver name (`logger`, `log`,
+`self.logger`), not its type, so pre-rendering into an f-string fails the gate.
+Log through the stdlib logger that `vultron/core/behaviors/node_logger.py`'s
+`node_logger(node)` returns: the `DataLayer*` bases and the other Vultron node
+bases rebind `self.logger` to it, and a module-level helper that logs on a
+node's behalf binds `log = node_logger(node)` first and calls `log.error(...)`.
+Bind before calling: ruff cannot see a call on a call result, so
+`node_logger(node).error(f"...")` would pass `G004` and `TRY400` unchecked.
+mypy reports the original mistake as `Too many arguments for "debug" of
+"Logger"` where the receiver is typed.
+
+**A message built once for two consumers is passed as one `%s` argument.** A
+node that composes a `feedback_message` (or a result or error string) and also
+logs it logs `self.logger.warning("%s", self.feedback_message)`, not the bare
+variable and not a second copy of the template: the text has one source, and
+the log call still has a literal template. Banner lines such as `"=" * 80`
+format no values and are left as they are.
+
+The rule is decided in SL-01-005 and enforced by ruff rules `G001`–`G004`. The
+shape was decided under #3378; #3991 enabled the rules by deleting the
+provisional `G004` `ignore` entry ADR-0094 had recorded and rewriting every site.
+The `G004` finding count at the time is in ADR-0094, not here (MS-16-001).
+
+### `extra=` is not the other option
+
+The concern that stalled `G004` framed the choice as "lazy `%`-args *or*
+structured `extra=` fields". They answer different questions. The template rule
+decides how the **message text** gets its values. Correlation fields
+(`activity_id`, `actor_id`; SL-02) decide what **attributes** the record
+carries beside the message, and SL-02-003 puts them there through ambient
+context set once at the processing boundary and a `logging.Filter`, not through
+`extra=` at each call. Per-call `extra=` at hundreds of sites is the same
+duplication failure as f-strings, on the other side of the record.
+
+Two things follow for anyone rewriting a log line:
+
+- Naming an actor or case in the message is for the human reader and stays
+  (SL-04-006). It does not satisfy SL-02 (SL-02-004); the record attribute does.
+- Rendering is the formatter's job. Plain text today, structured output if a
+  consumer ever needs it, and neither requires touching a call site.
 
 ---
 
@@ -67,15 +158,14 @@ MUST be at DEBUG or lower. Verify with a grep after any bulk refactor.
 |---|---|---|
 | `BT structure:\n<tree>` (before every execution) | `vultron/core/behaviors/bridge.py:209` | BT scaffolding, not story |
 | `DataLayer stored/saved/updated X 'ID'` | `vultron/adapters/driven/datalayer_sqlite/crud.py:70,152,195,301` | Persistence internals; higher-level "Created X" messages above them are fine |
-| `Parsing activity from request body` / `Parsing activity from body` | `vultron/adapters/driving/fastapi/routers/actors/_inbox.py:62`, `vultron/wire/as2/parser.py:113` | HTTP handler internals; duplicate pair |
+| `Parsing activity from request body` / `Parsing activity from body` | `vultron/adapters/driving/fastapi/routers/actors/_inbox.py:64`, `vultron/wire/as2/parser.py:113` | HTTP handler internals; duplicate pair |
 | `Processing outbox for actor ...` | `vultron/adapters/driving/fastapi/outbox_handler.py:242` | Preamble; delivery result is the meaningful line |
 | `Dispatch: dispatched X activity_id=...` / `process_payload: outcome status=processed` / `run_inbox_pipeline: status=processed` | `vultron/core/behaviors/inbox/_process_payload.py:214`, `vultron/adapters/driving/fastapi/inbox_orchestration.py:370,386` | Mechanical pipeline completion repeats |
 | `EM FSM: Finished processing state X exit/enter callbacks` | `transitions` library logger (see below) | FSM internals; the `Actor X proposed embargo Y (EM A → B)` already captures this |
 | `Final BT state:\n<tree>` (after every execution) | `vultron/core/behaviors/bridge.py` | Same scaffolding as `BT structure` |
 | `sync adapter: queued Announce(CaseLedgerEntry) 'UUID' → ['actor']` | `vultron/adapters/driven/sync_activity_adapter.py:116` | Fires per recipient per entry |
-| `store_embedded_participants: stored participant 'UUID'` | `vultron/core/use_cases/received/case/_helpers.py:92` | Fires per participant on every case announcement |
+| `store_embedded_participants: stored participant 'UUID'` | `vultron/core/services/case_replica_seeding.py` | Fires per participant on every case announcement |
 | `SeedAnnouncedCaseNode: case already exists locally — skipping save` | `vultron/core/behaviors/case/nodes/announce.py:78` | Routine idempotency skip |
-| `Activity UUID already received by actor; ignoring duplicate submission` | `vultron/adapters/driving/fastapi/routers/actors/_routes.py:365` | Normal sync protocol behaviour |
 | `discover_actors()` full logfmt() actor object at INFO | `vultron/demo/utils.py:280,283,286` | logfmt() actor object output at INFO; only the ID is meaningful — full formatted object → DEBUG |
 
 ---
@@ -123,7 +213,7 @@ from the #1988 implementation:
   `TransitionRMtoValid`, …), reading the before-state from the latest
   `ParticipantStatus` and falling back to `RM.START`.
   `CreateParticipantStatusNode` is the second path — `leave.py`,
-  `sync/nodes/close_case_effect.py` (`ApplyCloseCaseFromLedgerNode`), and
+  `case/nodes/close_case_effect.py` (`ApplyCloseCaseFromLedgerNode`), and
   `add_participant_status_trigger_tree.py` set `rm_state=` on it directly
   without going through the helper — so it logs the RM line itself. A new
   RM-writing node MUST route through one of these two, or its transition will
@@ -202,24 +292,13 @@ grep -rn "logger\.info.*DataLayer stored\|logger\.info.*DataLayer saved\|logger\
 
 If any hits remain, they are regressions.
 
-### `discover_actors()` — trim to ID only
-
-```python
-# Before
-logger.info(f"Found finder actor: {logfmt(finder)}")
-# After
-logger.info("Found finder actor: %s", finder.get("id", "<unknown>"))
-```
-
-Full `logfmt()` actor object output belongs at DEBUG; only the actor ID is
-meaningful at INFO.
-
----
-
 ## Relationship to SL specs
 
 | Spec | Rule |
 |---|---|
+| SL-01-005 | Log calls pass a literal template and lazy positional args; enforced by ruff `G001`–`G004` |
+| SL-02-003 | Correlation fields are record attributes set by a boundary filter, not per-call `extra=` |
+| SL-02-004 | An id in the message text does not satisfy SL-02; the record attribute does |
 | SL-04-001 | All state transitions MUST be logged at INFO — the missing messages above violate this |
 | SL-04-006 | Narrative template SHOULD; see table above |
 | SL-04-007 | Infrastructure patterns MUST NOT be at INFO; see demotion list above |

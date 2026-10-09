@@ -6,21 +6,13 @@ Raises domain errors; driving adapters are responsible for mapping these
 to transport-level error responses (e.g., HTTP status codes).
 """
 
+import json
 import logging
 from typing import Any, cast
 
-from pydantic import BaseModel
-
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.registry import (
-    WIRE_TYPE_MAP,
-    find_in_vocabulary,
+from vultron.wire.as2.case_proposal_envelope import (
+    refuse_malformed_case_proposal_envelope,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCaseStub,
-)
-from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.utils import is_blank
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingPublishedError,
@@ -28,22 +20,19 @@ from vultron.wire.as2.errors import (
     VultronParseUnknownTypeError,
     VultronParseValidationError,
 )
+from vultron.wire.as2.unknown_keys import (
+    OPAQUE_PAYLOAD_KEYS,
+    SetAsideKey,
+    partition_unknown_keys,
+    resolve_inline_class,
+)
+from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.utils import is_blank
 
 logger = logging.getLogger(__name__)
 
-
-_VULNERABILITY_CASE_STUB_KEYS = frozenset(
-    {"@context", "id", "type", "summary"}
-)
-
-# Field names whose values are opaque data blobs (declared ``dict[str, Any]``),
-# NOT AS2 object references.  These must not be recursively coerced into typed
-# vocabulary instances: a ``CaseLedgerEntry.payload_snapshot`` may itself carry
-# an ``{"type": "Announce", "object": {...}}`` snapshot dict, and coercing it to
-# an ``as_Announce`` model would make ``CaseLedgerEntry`` validation fail
-# (payload_snapshot expects a dict), causing the parser to fall back to the base
-# ``as_Object`` type and mis-route the entry (SYNC-13-004).
-_OPAQUE_PAYLOAD_KEYS = frozenset({"payloadSnapshot", "payload_snapshot"})
 
 #: Marks every ``model_validate`` call in this module as reading inbound data,
 #: which is what tells ``as_Base`` to read an absent clock-defaulted timestamp as
@@ -51,53 +40,6 @@ _OPAQUE_PAYLOAD_KEYS = frozenset({"payloadSnapshot", "payload_snapshot"})
 #: Parsing is the only place this belongs: a caller *authoring* an object wants
 #: the default, and passing this context for one would silently drop its time.
 _INBOUND_CONTEXT = {as_Base.INBOUND_CONTEXT_KEY: True}
-
-
-def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
-    """Return the most specific *wire* vocabulary class for an inline dict.
-
-    Returns ``None`` when the type is unregistered or resolves outside the wire
-    branch, which leaves the dict unexpanded for the parent field to validate.
-
-    The wire-branch restriction is load-bearing. ``find_in_vocabulary`` falls
-    back to ``CORE_TYPE_MAP`` (ARCH-12-003), and a core instance placed inside a
-    wire tree is rejected by the wire parent's field type: ``OrderedCollection``
-    is registered only in the core map, so an inline actor's ``inbox`` expanded
-    to a ``CoreActorCollection`` that ``as_VultronOrganization.inbox`` refused,
-    degrading the whole actor to a bare ``as_Link`` (ISSUE-3217).
-
-    Scope of that claim: the fields this function feeds are declared
-    ``as_ObjectRef``/``as_ObjectRequiredRef``, whose unions *do* admit
-    ``CoreObject``, so "wire trees contain only wire objects" is not true in
-    general.  What is true, and is all this restriction needs, is that resolving
-    an inline ``type`` string through the core map is never the *right* way to
-    populate them: the core map is keyed for core-layer callers, so a hit there
-    is a coincidence of naming rather than a wire counterpart (ARCH-23-002).
-    Returning ``None`` leaves the dict for the parent field, which is the
-    declared authority on whether a core instance belongs in that position.
-    """
-    obj_type = value.get("type")
-    if not isinstance(obj_type, str):
-        return None
-
-    if (
-        obj_type == "VulnerabilityCase"
-        and value.keys() <= _VULNERABILITY_CASE_STUB_KEYS
-    ):
-        return as_VulnerabilityCaseStub
-
-    try:
-        cls = find_in_vocabulary(obj_type)
-    except KeyError:
-        return None
-
-    # Allow classes that are native wire types (as_Base subclasses) OR that are
-    # explicitly registered in WIRE_TYPE_MAP (covers core aliases per ADR-0099
-    # detail 3).  Classes found only via the core-map fallback are rejected to
-    # avoid ISSUE-3217 (e.g. OrderedCollection mis-inserted into a wire tree).
-    if issubclass(cls, as_Base) or obj_type in WIRE_TYPE_MAP:
-        return cls
-    return None
 
 
 def _expand_inline_value(value: object, path: str = "") -> object:
@@ -127,12 +69,12 @@ def _expand_inline_value(value: object, path: str = "") -> object:
     expanded = {
         key: (
             item
-            if key in _OPAQUE_PAYLOAD_KEYS
+            if key in OPAQUE_PAYLOAD_KEYS
             else _expand_inline_value(item, f"{path}.{key}" if path else key)
         )
         for key, item in value.items()
     }
-    inline_cls = _inline_vocab_class(expanded)
+    inline_cls = resolve_inline_class(expanded)
     if inline_cls is None:
         return expanded
 
@@ -182,7 +124,11 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             or blank.
         VultronParseUnknownTypeError: If the `type` value is not in the vocabulary.
         VultronParseValidationError: If Pydantic validation fails, including
-            when a recognised inline object fails its own class's validation.
+            when a recognised inline object fails its own class's validation,
+            if a ``Create(CaseProposal)`` does not carry its proposer's inline
+            actor profile (CP-01-010),
+            or if the body cannot be re-serialized as strict JSON to seal it
+            as received evidence (VM-08-002).
     """
     logger.debug("Parsing activity from body (type=%r)", body.get("type"))
 
@@ -209,10 +155,12 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             f"Unrecognized activity type: {type_!r}."
         )
 
+    # Wire-only lookup (VM-06-008): a core-only name is an unknown type here,
+    # not a core class to validate a sender's activity against.
     try:
         cls = find_in_vocabulary(type_)
     except KeyError:
-        raise VultronParseUnknownTypeError(
+        raise VultronParseUnknownTypeError(  # noqa: B904  # ruff-baseline #3353
             f"Unrecognized activity type: {type_!r}."
         )
 
@@ -256,11 +204,23 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             "clock (CLP-15-004)."
         )
 
+    # Taken before anything expands or validates the body: this text is the
+    # received artifact VM-08-002 governs, and nothing downstream can alter it.
+    evidence_json = _received_evidence_json(body)
+
+    # Decided once, here, for every object at every depth (MV-11-001): a near
+    # miss refuses, a foreign key is set aside and reported.  Nothing below
+    # sees a set-aside key, so a core class's ``extra="forbid"`` is never the
+    # rule that decides a peer's property (MV-11-004).
+    declared_body, set_aside = partition_unknown_keys(body, cls)
+    _report_set_aside(body, set_aside)
+
     try:
-        return cast(
+        activity = cast(
             as_Activity,
             cls.model_validate(
-                _expand_inline_object(body), context=_INBOUND_CONTEXT
+                _expand_inline_object(declared_body),
+                context=_INBOUND_CONTEXT,
             ),
         )
     except VultronParseError:
@@ -269,3 +229,72 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         raise
     except Exception as exc:
         raise VultronParseValidationError(str(exc)) from exc
+
+    # A schema-valid envelope can still be one this receiver cannot act on;
+    # the Create(CaseProposal) checks are the CP-01-010 refusals.
+    refuse_malformed_case_proposal_envelope(activity)
+
+    activity.seal_received_evidence(evidence_json)
+    return activity
+
+
+def _report_set_aside(
+    body: dict[str, Any], set_aside: list[SetAsideKey]
+) -> None:
+    """Log one INFO record per set-aside key (MV-11-003, SL-02-001/002).
+
+    INFO, not WARNING: a property this receiver does not read is a normal
+    protocol event — usually a peer's extension — not an anomaly (SL-03-001).
+    The key survives only in the received evidence (VM-08-002).
+    """
+    if not set_aside:
+        return
+    activity_id = body.get("id")
+    actor = body.get("actor")
+    actor_id = actor.get("id") if isinstance(actor, dict) else actor
+    for entry in set_aside:
+        logger.info(
+            "Set aside unknown key %r at %s; it is not read by this receiver"
+            " (MV-11-003) [activity_id=%s actor_id=%s]",
+            entry.key,
+            entry.location,
+            activity_id,
+            actor_id,
+        )
+
+
+def _received_evidence_json(body: dict[str, Any]) -> str:
+    """Serialize *body* as the received evidence, refusing non-JSON content.
+
+    Why a class config cannot hold VM-08-002 any more: ``frozen=True`` covers
+    only the class that declares it, and since ADR-0099 detail 3 a parsed
+    activity nests *core* classes, which are mutable by design because they are
+    also the domain objects (ISSUE-3584).  Pydantic has no per-instance
+    freezing, so the guarantee moves from the object graph to a value copy taken
+    here.  Serialized text rather than a deep-copied ``dict``: a ``str`` cannot
+    be mutated in place by anyone, so no reader has to be trusted.
+
+    A body that cannot be re-serialized is refused rather than coerced into a
+    string form.  That covers a ``dict`` built in process with a non-JSON value,
+    and a JSON number such as ``1e400`` that decodes to ``inf``, which strict
+    JSON cannot carry back out.  ``json.dumps`` would also quietly rewrite some
+    in-process values it *can* serialize (a non-string key becomes a string, a
+    tuple a list), so the text is decoded again and must equal *body*; otherwise
+    the evidence would describe a body that never arrived.
+
+    Raises:
+        VultronParseValidationError: If *body* holds a non-JSON value, or one
+            that does not survive a JSON round trip unchanged.
+    """
+    try:
+        evidence_json = json.dumps(body, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise VultronParseValidationError(
+            f"Activity body is not JSON-serializable: {exc}"
+        ) from exc
+    if json.loads(evidence_json) != body:
+        raise VultronParseValidationError(
+            "Activity body does not survive a JSON round trip unchanged "
+            "(a non-string key or a tuple value?); it is not a JSON body."
+        )
+    return evidence_json

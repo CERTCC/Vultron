@@ -25,6 +25,7 @@ Coverage reporter requirements: specs/spec-registry.yaml SR-05-004, SR-05-005.
 
 from __future__ import annotations
 
+import argparse
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -111,8 +112,6 @@ def compute_protocol_coverage(
 
 def main() -> None:
     """CLI entry point: print uncovered protocol-kind spec IDs to stdout."""
-    import argparse
-
     parser = argparse.ArgumentParser(
         description=(
             "Report @pytest.mark.spec coverage for protocol-kind requirements."

@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError
 
+from vultron.core.models._helpers import strip_annotated
 from vultron.core.models.base import CoreObject
 from vultron.core.models.wire_keys import input_keys
 from vultron.errors import VultronReferenceResolutionError
@@ -55,8 +56,12 @@ def _annotation_branches(annotation: Any) -> list[Any]:
 
     ``list[as_Activity]`` yields ``[as_Activity]``; ``as_Foo | as_Link | str``
     yields all three; ``list[as_Foo | str]`` yields both.  Used only to decide
-    whether a slot can hold a bare URI, so containers are transparent.
+    whether a slot can hold a bare URI, so containers are transparent — and so
+    is the ``Annotated`` wrapper of ``NonEmptyString``, the IRI branch of every
+    reference union (CS-08-001): it is stripped to ``str`` rather than
+    recursed into, or its validator metadata would be reported as a branch.
     """
+    annotation = strip_annotated(annotation)
     args = get_args(annotation)
     if not args:
         return [annotation]
@@ -72,22 +77,23 @@ def _slot_requires_object(annotation: Any) -> bool:
     """True when *annotation* can hold a model but cannot hold a bare URI.
 
     This is the test ADR-0099 detail 9 turns on.  A slot declared
-    ``ActivityStreamRef[as_Foo]`` expands to ``as_Foo | as_Link | str``, so a
+    ``ActivityStreamRef[as_Foo]`` expands to ``as_Foo | as_Link | NonEmptyString``
+    (a ``str`` branch once its ``Annotated`` wrapper is stripped), so a
     URI is a legal value there and an unresolvable reference is *deferred* —
     left as the string, warned about, and carried on (VM-06-004).  A slot
     declared ``as_Foo`` or ``list[as_Foo]`` admits no ``str`` branch at all, so
     a bare URI is not a value it can legally hold: the reference must either be
     materialised or *refused*.
 
-    ``as_Collection`` slots are excluded.  An AS2 actor's ``inbox``, ``outbox``,
-    ``following``, ``followers``, ``liked`` and ``streams`` are declared as
-    collections but are *endpoints* — ActivityPub publishes them as URIs, they
-    usually belong to a remote actor, and they are not rows in anybody's data
-    layer.  ``as_Actor`` already declares how a URI becomes the object there: a
-    ``mode="before"`` validator constructs the collection around it, and
-    ``set_collections`` derives it from ``id_`` when absent.  Materialising
-    would pre-empt a coercion the class has already specified, and would send a
-    ``dl.read()`` after a remote URL that can only come back empty.
+    ``as_Collection`` slots are excluded.  An AS2 actor's ``inbox`` and
+    ``outbox`` are declared as collections but are *endpoints* — ActivityPub
+    publishes them as URIs, they usually belong to a remote actor, and they
+    are not rows in anybody's data layer.  ``as_Actor`` already declares how a
+    URI becomes the object there: a ``mode="before"`` validator constructs the
+    collection around it, and ``set_collections`` derives it from ``id_`` when
+    absent.  Materialising would pre-empt a coercion the class has already
+    specified, and would send a ``dl.read()`` after a remote URL that can only
+    come back empty.
 
     Slots that are **not** on the wire branch are excluded too, and that
     exclusion is load-bearing rather than defensive.  A core dimension field is
@@ -336,7 +342,7 @@ def _resolve_string_id(obj_id: str, dl: DataLayer) -> as_Object:
     if resolved is None:
         raise ValueError(f"Object '{obj_id}' not found in data layer")
     if not isinstance(resolved, (as_Object, CoreObject)):
-        raise ValueError(
+        raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
             f"Object '{obj_id}' resolved to unsupported type "
             f"{type(resolved).__name__}"
         )
@@ -412,10 +418,13 @@ def _cast_to_vocabulary_type(obj: as_Object, dl: DataLayer) -> as_Object:
         raise ValueError(f"Object {obj} has no 'type_' attribute.")
     if obj.type_ is None:
         raise ValueError(f"Object {obj} has no 'type_' value.")
+    # Wire-only lookup (VM-06-008): this rehydrates a wire tree to wire
+    # classes, and a core-only name must be an unknown type here, not a core
+    # class returned as ``as_Object``.
     try:
         cls = find_in_vocabulary(obj.type_)
     except KeyError:
-        logger.error("Unknown object type: %s.", obj.type_)
+        logger.error("Unknown object type: %s.", obj.type_)  # noqa: TRY400  # ruff-baseline #3353
         raise
     if isinstance(obj, cls):
         logger.debug(
@@ -433,10 +442,10 @@ def _cast_to_vocabulary_type(obj: as_Object, dl: DataLayer) -> as_Object:
     try:
         rehydrated = cls.model_validate(data)
     except ValidationError:
-        logger.error("%s validation failed on %s.", cls.__name__, obj)
+        logger.error("%s validation failed on %s.", cls.__name__, obj)  # noqa: TRY400  # ruff-baseline #3353
         raise
     if not isinstance(rehydrated, (as_Object, CoreObject)):
-        raise ValueError(
+        raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
             f"Rehydration of {obj.type_} produced unsupported type "
             f"{type(rehydrated).__name__}"
         )

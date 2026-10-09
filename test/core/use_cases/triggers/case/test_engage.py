@@ -6,27 +6,27 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.core.models.case_participant import CaseParticipant
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.case import (
     EngageCaseTriggerRequest,
     SvcEngageCaseUseCase,
 )
-from vultron.errors import VultronValidationError
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
     FinderParticipant,
+    as_CaseParticipant,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
 )
 
 
@@ -147,12 +147,12 @@ class TestEngageCaseRMTransitionViaBT:
         activity = self.dl.read(activity_id)
         assert activity is not None
         to_ids = _to_ids(activity)
-        assert (
-            self.case_actor.id_ in to_ids
-        ), f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
-        assert (
-            len(to_ids) == 1
-        ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        assert self.case_actor.id_ in to_ids, (
+            f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
+        )
+        assert len(to_ids) == 1, (
+            f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+        )
 
     def test_engage_logged_with_actual_before_state(self, caplog):
         """Engagement reports the real RM before-state (SL-04-006, AC-15).
@@ -228,6 +228,30 @@ class TestEngageCaseRMTransitionViaBT:
             case_id=case_solo.id_,
         )
         with pytest.raises(VultronValidationError):
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_engage_case_unknown_actor_raises_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = EngageCaseTriggerRequest(
+            actor_id="urn:uuid:no-such-actor", case_id=self.case.id_
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_engage_case_unknown_case_raises_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = EngageCaseTriggerRequest(
+            actor_id=self.vendor.id_, case_id="urn:uuid:no-such-case"
+        )
+        with pytest.raises(VultronNotFoundError):
             SvcEngageCaseUseCase(
                 self.dl,
                 request,

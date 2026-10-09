@@ -30,22 +30,23 @@ import py_trees.behaviour
 import pytest
 from py_trees.common import Status
 
+from test.support.embargo_register import register
+from test.support.participant_status import advance_participant_rm
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.vultron_types import (
+from vultron.core.models.activity import (
     VultronAccept,
-    VultronCaseActor,
     VultronOffer,
-    VultronReport,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from test.support.participant_status import advance_participant_rm
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ def _mock_read_helper(
     if id_ in storage:
         return storage[id_]
     if "report" in id_:
-        return VultronReport(
+        return VulnerabilityReport(
             id_=id_,
             name="TEST-REPORT",
             content="Test vulnerability report",
@@ -116,7 +117,7 @@ def _mock_read_helper(
             object_="test-report-123",
         )
     if id_.startswith("https://example.org/"):
-        return VultronCaseActor(id_=id_, name="Test Actor")
+        return CaseActor(id_=id_, name="Test Actor")
     if raise_on_missing:
         raise ValueError(f"Object not found: {id_}")
     return None
@@ -170,7 +171,9 @@ def _seed_mock_case(storage: dict) -> VulnerabilityCase:
         name="Perf test case",
         attributed_to=_PERF_ACTOR_ID,
         vulnerability_reports=["test-report-123"],
-        active_embargo="https://example.org/embargoes/perf-embargo",
+        embargo_register=register(
+            active="https://example.org/embargoes/perf-embargo"
+        ),
     )
     participant = CaseParticipant(
         id_=f"{case.id_}/participants/vendor",
@@ -216,7 +219,7 @@ def mock_datalayer():
 @pytest.fixture
 def sample_activity():
     """Sample validation activity for testing."""
-    report = VultronReport(
+    report = VulnerabilityReport(
         name="TEST-PERF-001",
         content="Performance test report",
     )

@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-08-11
+created: 2026-08-11
+updated: 2026-08-11
+revision: 1
 deciders: Allen D. Householder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Buffer Pre-Genesis `Announce(CaseLedgerEntry)` and Drain on Case Seed
@@ -17,6 +21,11 @@ with **no ordering guarantee** (HTTP `BackgroundTasks` fan-out), so a replica ca
 receive a ledger entry *before* the case that anchors it. In that pre-genesis
 window `_reconstruct_tail_hash` cannot derive the per-case genesis hash
 (CLP-08-005): there is no local tail and no case object to seed one from.
+
+> **Amended 2026-09-29 (#3033, #2898).** The reordering this ADR attributes to the transport was, in the observed failures, produced by the CASE_MANAGER itself: the CaseProposal accept tree committed and fanned out the initialization ledger entries before it queued `Create(VulnerabilityCase)`, and the accept-invite tree fanned out the add-participant entry to a late joiner before `Announce(VulnerabilityCase)`.
+> Every recipient of every new case therefore entered the pre-genesis window on the normal path, and the reject → replay round-trip ran as the steady state.
+> Both trees now queue the case seed first (CP-09-009, CM-17-009).
+> The decision below stands unchanged: buffering remains the correct backstop for the transport race this ADR describes, which can still occur.
 
 ADR-0037 buffers *forward-gap* entries — those for a case whose genesis anchor is
 already known — but its forward-gap test (`log_index > tail_index + 1`) never
@@ -65,7 +74,7 @@ a valid ledger entry that arrives before its case?
 Chosen option: **B, buffer pre-genesis entries and drain on case seed.**
 
 The genesis hash is **deterministic from the case object alone** —
-`compute_genesis_hash(case_id, created_at, case_actor_id)` runs at
+`compute_genesis_hash(case_id, created_at, owner_actor_id)` runs at
 `VulnerabilityCase` construction whenever `attributed_to` is present (CLP-08) — so
 seeding the case is sufficient to anchor the chain; the replica need not wait for
 the genesis ledger entry to be re-delivered. That makes option C strictly weaker

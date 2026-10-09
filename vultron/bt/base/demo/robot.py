@@ -332,12 +332,13 @@ def main(args):
 
     if bot.bb.asked_for_help:
         logger.info(
-            f"Robot failed to complete its mission after {bot.bb.ticks} ticks."
+            "Robot failed to complete its mission after %s ticks.",
+            bot.bb.ticks,
         )
     elif bot.bb.ball_placed:
-        logger.info(f"Robot completed its mission in {bot.bb.ticks} ticks.")
+        logger.info("Robot completed its mission in %s ticks.", bot.bb.ticks)
     else:
-        logger.info(f"Not sure what happened. {bot.bb}")
+        logger.info("Not sure what happened. %s", bot.bb)
 
 
 if __name__ == "__main__":

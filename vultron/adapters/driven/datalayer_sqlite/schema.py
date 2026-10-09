@@ -60,25 +60,26 @@ class QueueEntry(SQLModel, table=True):
     activity_id: str
 
 
-class OutboxAttemptEntry(SQLModel, table=True):
-    """Persisted per-activity delivery attempt count for the outbox handler.
+class QueueAttemptEntry(SQLModel, table=True):
+    """Shared persisted attempt counter for inbox and outbox retry tracking.
 
-    Keyed by ``activity_id`` alone so counts survive drain-pass resets
-    (OX-13-001).  Cleared when an activity is dead-lettered (OX-13-002).
+    Covers both inbox and outbox queues via a ``queue`` discriminator,
+    satisfying the DRY requirement in IE-06-004 and #4168.
 
-    Like :class:`VultronObjectRecord` and :class:`QueueEntry`, this carries no
-    ``actor_id``: the counter lives in the store of the actor whose outbox is
-    being drained (ADR-0073).  ``activity_id`` is the primary key rather than a
-    surrogate integer, which makes the counter structurally single-valued —
-    there is no layout in which one activity accumulates two rival counts for
-    one actor, so the upsert in
-    :func:`~vultron.adapters.driven.datalayer_sqlite.queues.set_outbox_attempt_count`
-    cannot silently start counting in parallel.
+    The primary key is ``(queue, activity_id)`` so a single activity_id may
+    appear at most once per queue name within one actor's store, with no
+    cross-queue interference.
+
+    Like the other queue tables, this table carries no ``actor_id``: the counter
+    lives in the store of the actor whose queue is being drained (ADR-0073).
+
+    ``queue`` values: ``"inbox"`` (IE-06-004) and ``"outbox"`` (OX-13-001).
     """
 
-    __tablename__ = "vultron_outbox_attempts"  # type: ignore[assignment]
+    __tablename__ = "vultron_queue_attempts"  # type: ignore[assignment]
     __table_args__ = {"extend_existing": True}
 
+    queue: str = Field(primary_key=True)  # "inbox" | "outbox"
     activity_id: str = Field(primary_key=True)
     attempt_count: int = Field(default=0)
 

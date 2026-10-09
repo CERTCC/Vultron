@@ -64,8 +64,11 @@ class RM(StrEnum):
     C = CLOSED
 
 
-# Report Management States that can be closed
+# Report Management States that can be closed by a single transition.
+# RM.VALID is deliberately absent (VP-02-004): a Valid report is accepted or
+# deferred before it closes (RMB-14-004).
 RM_CLOSABLE = (
+    RM.RECEIVED,
     RM.INVALID,
     RM.DEFERRED,
     RM.ACCEPTED,
@@ -151,6 +154,9 @@ _transitions = [
         trigger=RM_Trigger.DEFER, source=RM.ACCEPTED, dest=RM.DEFERRED
     ).model_dump(),
     RmTransition(
+        trigger=RM_Trigger.CLOSE, source=RM.RECEIVED, dest=RM.CLOSED
+    ).model_dump(),
+    RmTransition(
         trigger=RM_Trigger.CLOSE, source=RM.ACCEPTED, dest=RM.CLOSED
     ).model_dump(),
     RmTransition(
@@ -167,6 +173,55 @@ def is_valid_rm_transition(source: RM, dest: RM) -> bool:
     return any(
         t["source"] == source and t["dest"] == dest for t in _transitions
     )
+
+
+def is_rm_write_permitted(current: RM, target: RM) -> bool:
+    """Return True if an RM write may move *current* to *target*.
+
+    A write that keeps the state (a status confirmation) is permitted, and so
+    is one along an edge of the RM transition function (RMB-15-001).  Every
+    other move is refused, whatever its direction.
+    """
+    return current == target or is_valid_rm_transition(current, target)
+
+
+# The ordinary transitions an RM closure writes, from each source state
+# (RMB-14-005, CM-23-012).  Every closable state closes in one step; RM.VALID
+# has no close edge (VP-02-004), so it closes through RM.DEFERRED; RM.START
+# has not yet received the report, so it receives it first.  Pinned against
+# ``_transitions`` by ``test/core/states/test_rm_close_from_received.py``.
+_RM_CLOSURE_PATHS: dict[RM, tuple[RM, ...]] = {
+    RM.START: (RM.RECEIVED, RM.CLOSED),
+    RM.RECEIVED: (RM.CLOSED,),
+    RM.INVALID: (RM.CLOSED,),
+    RM.VALID: (RM.DEFERRED, RM.CLOSED),
+    RM.DEFERRED: (RM.CLOSED,),
+    RM.ACCEPTED: (RM.CLOSED,),
+    RM.CLOSED: (),
+}
+
+# Every state an RM closure path writes, in path order (for pre-building the
+# writers a closure node needs, BTND-10-004).
+RM_CLOSURE_RUNGS: tuple[RM, ...] = tuple(
+    dict.fromkeys(rung for path in _RM_CLOSURE_PATHS.values() for rung in path)
+)
+
+
+def rm_closure_path(source: RM) -> tuple[RM, ...]:
+    """Return the RM states a closure from *source* writes, in order.
+
+    Each consecutive pair, starting from *source*, is a transition the RM
+    transition function permits, so a closure never overrides the table
+    (RMB-14-005).  A ``Leave`` from ``VALID`` is therefore recorded as
+    ``V → D → C`` (CM-23-012), and a closure from ``CLOSED`` writes nothing.
+
+    Examples::
+
+        rm_closure_path(RM.RECEIVED)  # (RM.CLOSED,)
+        rm_closure_path(RM.VALID)     # (RM.DEFERRED, RM.CLOSED)
+        rm_closure_path(RM.CLOSED)    # ()
+    """
+    return _RM_CLOSURE_PATHS[source]
 
 
 # Progress values for each RM state: higher = closer to CLOSED.
@@ -191,6 +246,68 @@ def is_monotonic_rm_forward(source: RM, dest: RM) -> bool:
     return _RM_PROGRESS.get(dest, 0) > _RM_PROGRESS.get(source, 0)
 
 
+class RMDeclaration(StrEnum):
+    """How a received RM declaration relates to the sender's recorded state.
+
+    The classification behind the received-side RM acceptance rule (RSH-06-001
+    to RSH-06-003, RSH-06-006), applied whichever wire activity carried the
+    declaration:
+
+    - ``CONFIRMATION`` — the declared state is the recorded one; a restated
+      move, not an anomaly (RSH-08-002).
+    - ``ADVANCE`` — an edge of the RM transition function.
+    - ``GAP`` — a non-adjacent forward move; accepted, but anomalous
+      (RSH-06-001).
+    - ``REGRESSION`` — anything else: a backward move, a sideways move between
+      states of equal progress, or any move out of ``CLOSED``; refused, and
+      anomalous (RSH-06-002).
+    """
+
+    CONFIRMATION = auto()
+    ADVANCE = auto()
+    GAP = auto()
+    REGRESSION = auto()
+
+
+def classify_rm_declaration(current: RM, declared: RM) -> RMDeclaration:
+    """Classify a received RM declaration against the recorded *current* state.
+
+    Examples::
+
+        classify_rm_declaration(RM.RECEIVED, RM.RECEIVED)  # CONFIRMATION
+        classify_rm_declaration(RM.RECEIVED, RM.VALID)     # ADVANCE
+        classify_rm_declaration(RM.VALID, RM.CLOSED)       # GAP
+        classify_rm_declaration(RM.ACCEPTED, RM.INVALID)   # REGRESSION
+        classify_rm_declaration(RM.CLOSED, RM.RECEIVED)    # REGRESSION
+    """
+    if declared == current:
+        return RMDeclaration.CONFIRMATION
+    if current == RM.CLOSED:
+        return RMDeclaration.REGRESSION
+    if is_valid_rm_transition(current, declared):
+        return RMDeclaration.ADVANCE
+    if is_monotonic_rm_forward(current, declared):
+        return RMDeclaration.GAP
+    return RMDeclaration.REGRESSION
+
+
+class RMRule(StrEnum):
+    """Which RM rule a ``ParticipantStatus`` write is held to.
+
+    - ``TRANSITION`` — an actor moving its own RM, or the bootstrap of a
+      participant record: the declared state must be the current one or an
+      edge of the RM transition function (CSB-16-001).
+    - ``DECLARATION`` — a received-side write recording the state the sender
+      declared about itself (RSH-08-001): the acceptance rule of
+      :func:`classify_rm_declaration`, which also admits a non-adjacent
+      forward move (RSH-06-001, RSH-06-006).  Adjacency-only validation is
+      never the receive-side rule.
+    """
+
+    TRANSITION = auto()
+    DECLARATION = auto()
+
+
 def is_rm_at_least(state: RM, threshold: RM) -> bool:
     """Return True if *state* is at or beyond *threshold* on the RM progress scale.
 
@@ -204,6 +321,20 @@ def is_rm_at_least(state: RM, threshold: RM) -> bool:
         is_rm_at_least(RM.START,    RM.ACCEPTED)  # False
     """
     return _RM_PROGRESS.get(state, 0) >= _RM_PROGRESS.get(threshold, 0)
+
+
+def is_rm_replay_acceptable(local: RM | None, recorded: RM) -> bool:
+    """Return True if a replayed ledger entry may move RM *local* → *recorded*.
+
+    The no-regression ratchet for a replica applying the CASE_MANAGER's ledger
+    (RSH-05-007): the recorded state must not be behind the replica's local one
+    on the RM progress scale.  Same-rank moves (``VALID`` ↔ ``INVALID``,
+    ``DEFERRED`` ↔ ``ACCEPTED``) are re-adjudication and are accepted; with no
+    local state anything is.  ``ApplyParticipantStatusFromLedgerNode`` and
+    ``ApplyRmVerdictFromLedgerNode`` both apply it, so the two replay paths
+    cannot ratchet differently.
+    """
+    return local is None or is_rm_at_least(recorded, local)
 
 
 def is_rm_validated(state: RM) -> bool:

@@ -16,8 +16,11 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeVar, TypeAlias
+from typing import Literal, TypeAlias, TypeVar
 
+from pydantic import Field
+
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.base import as_Base
 
 
@@ -31,24 +34,37 @@ class as_Link(as_Base):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-link>
     """
 
+    #: Narrowed so the class registers under the ``type`` it presents
+    #: (VM-03-002).
+    type_: Literal["Link"] = Field(
+        default="Link",
+        validation_alias="type",
+        serialization_alias="type",
+    )
     width: int | None = None
     height: int | None = None
     rel: str | None = None
-    href: str | None = None
+    #: A Link with a blank ``href`` points nowhere; CS-08-001 refuses it.
+    href: NonEmptyString | None = None
     hreflang: str | None = None
 
 
-class as_Mention(as_Link):
-    """A Link that represents an @mention."""
+T_co = TypeVar("T_co", covariant=True)
 
+# The IRI branch of every reference union is ``NonEmptyString`` (CS-08-001,
+# CS-08-002): a blank string names no resource, so it is refused inbound rather
+# than carried and then silently dropped on the way out (VM-07-001).  Code that
+# introspects these unions for their string branch must unwrap the ``Annotated``
+# (``vultron.core.models._helpers.strip_annotated``) instead of testing
+# ``is str``.
 
-T = TypeVar("T", covariant=True)
+# an ActivityStreamRequiredRef is an object of type T_co, a Link, or a non-empty
+# string (IRI)
+ActivityStreamRequiredRef: TypeAlias = T_co | as_Link | NonEmptyString
 
-# an ActivityStreamRequiredRef is an object of type T, a Link, or a string (IRI)
-ActivityStreamRequiredRef: TypeAlias = T | as_Link | str
-
-# an ActivityStreamRef can be an object of type T, a Link, a string (IRI), or None (for optional fields)
-ActivityStreamRef: TypeAlias = T | as_Link | str | None
+# an ActivityStreamRef can be an object of type T_co, a Link, a non-empty string
+# (IRI), or None (for optional fields)
+ActivityStreamRef: TypeAlias = T_co | as_Link | NonEmptyString | None
 
 
 def main():

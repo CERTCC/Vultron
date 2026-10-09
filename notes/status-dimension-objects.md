@@ -82,7 +82,7 @@ pxa: PxaDimension = Field(default_factory=PxaDimension)
 rm: RmDimension = Field(default_factory=RmDimension)
 vf: VfDimension | None = None   # non-None for VENDOR participants
 d: DDimension | None = None     # non-None for DEPLOYER participants
-consent: PecDimension | None = None
+# No consent field: participant embargo consent is per-embargo rows on CaseParticipant (ADR-0122)
 ```
 
 ---
@@ -97,7 +97,7 @@ consent: PecDimension | None = None
 | `VfDimension` | `CS_vf` | `ParticipantStatus.vf` (VENDOR participants; ADR-0075) |
 | `DDimension` | `CS_d` | `ParticipantStatus.d` (DEPLOYER participants; ADR-0075) |
 | `VfdDimension` | `CS_vfd` | retained in `vultron/bt/` legacy only; use `VfDimension`/`DDimension` in new code |
-| `PecDimension` | `PEC` | `ParticipantStatus.em_consent_state` |
+| ~~`PecDimension`~~ | — | removed by ADR-0122; consent is per-embargo rows on `CaseParticipant` |
 
 The `*Dimension` suffix was chosen to avoid collision with the existing
 `VfdState` and `PxaState` NamedTuples in `vultron/core/states/cs.py`.
@@ -195,10 +195,13 @@ Two consequences worth carrying:
   side. A reader that handles only the older two silently reports `None`, which is
   the issue #2262 / #2232 failure shape.
 
-Projection still lives on the wire classes (`from_core` / `to_core`) for now.
-ADR-0099 supersedes ARCH-12-005's relocation of it: there is no pairing registry
-and no adapter-side translator to move it to, because the second hierarchy is being
-removed rather than reconciled. See
+There is no projection step for these types any more. ADR-0099 detail 3
+aliased `as_CaseStatus` and `as_ParticipantStatus` onto the core classes and
+deleted `from_core` / `to_core` with the paired classes; a `by_alias` dump of
+the core object is its AS2 form (ARCH-12-003). ARCH-12-005's relocation of
+projection into a pairing registry and adapter-side translator never happened,
+and SDO-04-001 — which required the translators to move with the model — was
+removed with #3840 because there is no second shape to keep in step. See
 [notes/wire-core-boundary.md](wire-core-boundary.md).
 
 ---

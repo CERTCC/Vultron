@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # First day maintainer setup
 
 By the end of this tutorial, we will have a working local maintainer
@@ -37,7 +41,7 @@ Notice that `.venv/` is created and synced.
 Run:
 
 ```bash
-uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Notice that the final lines report the pytest summary.

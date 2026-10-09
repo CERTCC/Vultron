@@ -20,21 +20,29 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.report import (
     AckReportReceivedUseCase,
     SubmitReportReceivedUseCase,
@@ -42,9 +50,6 @@ from vultron.core.use_cases.received.report import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
 )
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
@@ -70,7 +75,7 @@ def configure_case_actor_url(monkeypatch):
 class TestAckReportNoStandaloneStatus:
     """AckReportReceivedUseCase must NOT create standalone ParticipantStatus.
 
-    Per IDEA-260408-01-6: RM history lives in VultronParticipant.participant_statuses.
+    Per IDEA-260408-01-6: RM history lives in CaseParticipant.participant_statuses.
     """
 
     def test_ack_report_does_not_persist_participant_status(self):
@@ -84,10 +89,10 @@ class TestAckReportNoStandaloneStatus:
             semantic_type=MessageSemantics.ACK_REPORT,
             activity_id="https://example.org/activities/accept-ack-1",
             actor_id="https://example.org/actors/vendor",
-            object_=VultronReport(
+            object_=VulnerabilityReport(
                 id_="https://example.org/activities/offer-ack-1"
             ),
-            inner_object=VultronReport(
+            inner_object=VulnerabilityReport(
                 id_="https://example.org/reports/r-ack-1"
             ),
             activity=offer_activity,
@@ -97,7 +102,9 @@ class TestAckReportNoStandaloneStatus:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        AckReportReceivedUseCase(dl, event).execute()
+        AckReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         all_statuses = dl.get_all("ParticipantStatus")
         assert all_statuses == [], (
@@ -127,14 +134,14 @@ class TestFullReportFlow:
     def _setup_dl(self):
         """Create a DataLayer pre-seeded with the report, vendor, and offer."""
         from vultron.core.models.activity import VultronOffer
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=self.VENDOR_ID,
         )
-        report = VultronReport(id_=self.REPORT_ID)
-        vendor = VultronCaseActor(id_=self.VENDOR_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
+        vendor = CaseActor(id_=self.VENDOR_ID)
         offer = VultronOffer(
             id_=self.OFFER_ID,
             actor=self.FINDER_ID,
@@ -164,14 +171,14 @@ class TestFullReportFlow:
         RM.RECEIVED, and the active embargo (DUR-07-004).
         """
         from vultron.core.states.rm import RM
+        from vultron.core.use_cases.received.case.create import (
+            CreateCaseReceivedUseCase,
+        )
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.factories import create_case_activity
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
             as_ParticipantStatus,
-        )
-        from vultron.core.use_cases.received.case.create import (
-            CreateCaseReceivedUseCase,
         )
 
         case_manager = as_CaseParticipant(
@@ -193,12 +200,21 @@ class TestFullReportFlow:
                 )
             ],
         )
+        # The receiver holds the embargo record its replica names, as the
+        # inbox pre-store leaves it when the sender carries it inline
+        # (EMB-18-003).
+        embargo = EmbargoEvent(
+            id_=f"{self.CASE_ID}/embargoes/flow-embargo",
+            context=self.CASE_ID,
+            end_time=days_from_now_utc(45),
+        )
+        dl.save(embargo)
         case = as_VulnerabilityCase.model_construct(
             id_=self.CASE_ID,
             name="Flow test case",
             vulnerability_reports=[self.REPORT_ID],
             case_participants=[case_manager, vendor_participant],
-            active_embargo=f"{self.CASE_ID}/embargoes/flow-embargo",
+            embargo_register=register(active=embargo.id_),
             # The index travels on the wire alongside the inline participants
             # (CM-19-003): participants are resolved through it, never by
             # scanning inline snapshots.
@@ -208,7 +224,9 @@ class TestFullReportFlow:
             },
         )
         activity = create_case_activity(case, actor=self.CASE_ACTOR_ID)
-        CreateCaseReceivedUseCase(dl, make_payload(activity)).execute()
+        CreateCaseReceivedUseCase(
+            dl, make_payload(activity), wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
     def _make_submit_event(self):
         """Build a SubmitReportReceivedEvent (Offer(Report) from finder to vendor)."""
@@ -218,7 +236,7 @@ class TestFullReportFlow:
             actor=self.FINDER_ID,
             to=[self.VENDOR_ID],
         )
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         return SubmitReportReceivedEvent(
             semantic_type=MessageSemantics.SUBMIT_REPORT,
             activity_id=self.OFFER_ID,
@@ -235,8 +253,8 @@ class TestFullReportFlow:
             type_="Accept",
             actor=self.VENDOR_ID,
         )
-        offer = VultronObject(id_=self.OFFER_ID, type_="Offer")
-        report = VultronReport(id_=self.REPORT_ID)
+        offer = CoreObject(id_=self.OFFER_ID, type_="Offer")
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         return ValidateReportReceivedEvent(
             semantic_type=MessageSemantics.VALIDATE_REPORT,
             activity_id=self.ACCEPT_ID,
@@ -259,13 +277,14 @@ class TestFullReportFlow:
             dl,
             self._make_submit_event(),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
         link = dl.read(link_id)
-        assert isinstance(
-            link, VultronReportCaseLink
-        ), "Expected a pending VultronReportCaseLink (ADR-0041)"
+        assert isinstance(link, VultronReportCaseLink), (
+            "Expected a pending VultronReportCaseLink (ADR-0041)"
+        )
         assert link.case_id is None
 
     def test_full_flow_validate_does_not_recreate_case(self):
@@ -275,11 +294,18 @@ class TestFullReportFlow:
         ValidateReportReceivedUseCase must not create an additional case.
         """
         dl = self._setup_dl()
-        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        SubmitReportReceivedUseCase(
+            dl,
+            self._make_submit_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
         cases_after_submit = set(dl.by_type("VulnerabilityCase").keys())
 
         ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         cases_after_validate = set(dl.by_type("VulnerabilityCase").keys())
 
@@ -288,31 +314,45 @@ class TestFullReportFlow:
             "(case was created at RM.RECEIVED per ADR-0015)"
         )
 
-    def test_full_flow_vendor_in_rm_valid_after_validate(self, make_payload):
-        """After the case replica lands, validate-report records vendor RM.VALID.
+    def test_full_flow_validate_at_a_replica_is_gated(self, make_payload):
+        """RSH-08-003 (#3814): the vendor is the CASE_OWNER, not the case's
+        CASE_MANAGER (the CaseActor is), so processing its own validate-report
+        in its own store writes no RM.VALID — ``validate_report`` is committed
+        and replayed from the CASE_MANAGER's ledger (RmVerdict slot), and the
+        vendor converges to VALID from that fan-out, not from the direct
+        Accept.  The transition at the CASE_MANAGER and the convergence are
+        covered by ``test_receive_tree_ledger_commit.py`` and
+        ``test_rm_verdict_effect.py``.
 
-        Per ADR-0015: validation transitions the vendor's RM state from
-        RECEIVED to VALID; this state change must be persisted.
-        Engage/defer is a separate, explicit protocol step.
-
-        The replica delivery is not optional set-up dressing: under ADR-0041 the
-        vendor has no case of its own at RM.RECEIVED, and RM.VALID is a
-        case-scoped transition (ISSUE-2548).
+        The replica delivery is still required: under ADR-0041 the vendor has
+        no case of its own at RM.RECEIVED (ISSUE-2548), so the guards resolve
+        a case before the gate skips.
         """
         from vultron.core.states.rm import RM
 
         dl = self._setup_dl()
-        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
-        self._deliver_case_replica(dl, make_payload)
-        ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+        SubmitReportReceivedUseCase(
+            dl,
+            self._make_submit_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
+        self._deliver_case_replica(dl, make_payload)
+        result = ValidateReportReceivedUseCase(
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
 
+        # The gated write did not run: the report-phase link and the
+        # case-scoped participant both stay at RECEIVED on the replica.
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
-        assert (
-            isinstance(link, VultronReportCaseLink)
-            and link.rm_state == RM.VALID
-        ), f"Vendor {self.VENDOR_ID} must have RM.VALID after validate-report"
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.rm_state == RM.RECEIVED, (
+            "a replica (not the CASE_MANAGER) writes no RM.VALID; it converges"
+            " from the ledger (RSH-08-003, #3814)"
+        )
 
         participant = cast(
             CaseParticipant, dl.read(f"{self.CASE_ID}/participants/vendor")
@@ -320,11 +360,7 @@ class TestFullReportFlow:
         assert participant is not None
         status = participant.participant_status
         assert status is not None
-        assert status.rm.state == RM.VALID, (
-            "The case-scoped participant RM state must advance in lockstep with"
-            " the report-phase record — a report-phase RM.VALID with the"
-            " participant still at RECEIVED is the ISSUE-2548 split"
-        )
+        assert status.rm.state == RM.RECEIVED
 
     def test_full_flow_no_rm_valid_before_case_replica_arrives(self):
         """Without the case replica, validate-report writes no RM.VALID latch.
@@ -342,10 +378,19 @@ class TestFullReportFlow:
         from vultron.core.states.rm import RM
 
         dl = self._setup_dl()
-        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
-        ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+        SubmitReportReceivedUseCase(
+            dl,
+            self._make_submit_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
+        result = ValidateReportReceivedUseCase(
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        # No local case yet: refused, not reported as applied (#2255).
+        assert result.disposition == HandlerDisposition.REFUSED
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
         assert not (
@@ -370,6 +415,7 @@ class TestFullReportFlow:
             dl,
             self._make_submit_event(),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
@@ -382,13 +428,17 @@ class TestFullReportFlow:
         )
 
     def test_full_flow_produces_correct_final_state(self, make_payload):
-        """ADR-0041: submit + replica + validate produces link + vendor RM.VALID.
+        """ADR-0041: submit + replica + validate produces the pending link.
 
         After ADR-0041:
         - SubmitReportReceivedUseCase writes a pending VultronReportCaseLink.
         - The CaseActor's Create(VulnerabilityCase) seeds the case replica.
-        - ValidateReportReceivedUseCase records vendor RM.VALID status.
         - No VulnerabilityCase is created by either report use case.
+
+        RSH-08-003 (#3814): the vendor is a replica (the CaseActor is the
+        CASE_MANAGER), so processing its own validate writes no RM.VALID — the
+        link stays at RECEIVED and the vendor converges to VALID from the
+        CASE_MANAGER's ledger fan-out.
         """
         from vultron.core.states.rm import RM
 
@@ -397,22 +447,25 @@ class TestFullReportFlow:
             dl,
             self._make_submit_event(),
             trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
         self._deliver_case_replica(dl, make_payload)
         ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
-        assert isinstance(
-            dl.read(link_id), VultronReportCaseLink
-        ), "Pending VultronReportCaseLink must exist after submit (ADR-0041)"
+        assert isinstance(dl.read(link_id), VultronReportCaseLink), (
+            "Pending VultronReportCaseLink must exist after submit (ADR-0041)"
+        )
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
         assert (
             isinstance(link, VultronReportCaseLink)
-            and link.rm_state == RM.VALID
-        ), "Vendor must have RM.VALID after validate-report"
+            and link.rm_state == RM.RECEIVED
+        ), "a replica writes no RM.VALID; it converges from the ledger (#3814)"
 
 
 class TestValidateReportReceivedGuardedCommit:
@@ -440,8 +493,8 @@ class TestValidateReportReceivedGuardedCommit:
             type_="Accept",
             actor=self.VENDOR_ID,
         )
-        offer = VultronObject(id_=offer_id, type_="Offer")
-        report = VultronReport(id_=report_id)
+        offer = CoreObject(id_=offer_id, type_="Offer")
+        report = VulnerabilityReport(id_=report_id)
         return ValidateReportReceivedEvent(
             semantic_type=MessageSemantics.VALIDATE_REPORT,
             activity_id=self.OFFER_ID,
@@ -458,22 +511,19 @@ class TestValidateReportReceivedGuardedCommit:
         The BT runs under the store owner's identity (CLP-10-005 fallback).
         The guarded commit fires because the store owner holds CASE_MANAGER.
         """
-        import py_trees
 
-        py_trees.blackboard.Blackboard.storage.clear()
-        try:
-            dl = SqliteDataLayer(
-                "sqlite:///:memory:",
-                actor_id=self.CASE_ACTOR_ID,
-            )
-            event = self._make_validate_event_with_receiving_actor(
-                receiving_actor_id=None
-            )
-            ValidateReportReceivedUseCase(dl, event).execute()
-            # No assertion on ledger (case lookup returns None in this minimal
-            # fixture), but the use case must NOT raise VultronValidationError.
-        finally:
-            py_trees.blackboard.Blackboard.storage.clear()
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self.CASE_ACTOR_ID,
+        )
+        event = self._make_validate_event_with_receiving_actor(
+            receiving_actor_id=None
+        )
+        ValidateReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        # No assertion on ledger (case lookup returns None in this minimal
+        # fixture), but the use case must NOT raise VultronValidationError.
 
     def test_skip_commit_when_no_case_found(self, caplog):
         """ValidateReportReceivedUseCase skips commit when no case for report.
@@ -492,7 +542,9 @@ class TestValidateReportReceivedGuardedCommit:
         )
 
         with caplog.at_level(logging.DEBUG):
-            ValidateReportReceivedUseCase(dl, event).execute()
+            ValidateReportReceivedUseCase(
+                dl, event, wire_render_port=As2WireRenderAdapter()
+            ).execute()
 
         assert any(
             "no case found" in r.message.lower() for r in caplog.records
@@ -517,7 +569,7 @@ class TestValidateReportReceivedGuardedCommit:
         )
 
         # Create a report and link it to a case with CaseActor
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         dl.save(report)
 
         case = as_VulnerabilityCase(
@@ -545,7 +597,7 @@ class TestValidateReportReceivedGuardedCommit:
         link = VultronReportCaseLink(
             report_id=self.REPORT_ID,
             case_id=case.id_,
-            trusted_case_actor_id=self.CASE_ACTOR_ID,
+            case_manager_id=self.CASE_ACTOR_ID,
         )
         dl.save(link)
 
@@ -554,7 +606,9 @@ class TestValidateReportReceivedGuardedCommit:
             receiving_actor_id=self.VENDOR_ID  # != case_actor_id
         )
 
-        ValidateReportReceivedUseCase(dl, event).execute()
+        ValidateReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
         assert not entries, (
@@ -589,7 +643,7 @@ class TestValidateReportReceivedGuardedCommit:
             actor_id=self.CASE_ACTOR_ID,
         )
 
-        report = VultronReport(id_=self.REPORT_ID)
+        report = VulnerabilityReport(id_=self.REPORT_ID)
         dl.save(report)
 
         case = as_VulnerabilityCase(
@@ -612,7 +666,7 @@ class TestValidateReportReceivedGuardedCommit:
         link = VultronReportCaseLink(
             report_id=self.REPORT_ID,
             case_id=CASE_ID,
-            trusted_case_actor_id=self.CASE_ACTOR_ID,
+            case_manager_id=self.CASE_ACTOR_ID,
         )
         dl.save(link)
 
@@ -630,14 +684,14 @@ class TestValidateReportReceivedGuardedCommit:
             name: str,
             case_id: str | None = None,
             precondition_guards: list | None = None,
-            effect_nodes: list | None = None,
+            **kwargs,
         ):
             commit_tree_calls.append(case_id)
             return original_create(
                 name=name,
                 case_id=case_id,
                 precondition_guards=precondition_guards or [],
-                effect_nodes=effect_nodes or [],
+                **kwargs,
             )
 
         monkeypatch.setattr(
@@ -646,7 +700,18 @@ class TestValidateReportReceivedGuardedCommit:
             tracking_create,
         )
 
-        ValidateReportReceivedUseCase(dl, event).execute()
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
+        )
+
+        # The commit tree refuses to mint without a sync port, and that
+        # wiring fault now reaches the handler as an internal error (#4113).
+        ValidateReportReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         assert commit_tree_calls, (
             "Expected create_receive_activity_tree to be "
@@ -656,3 +721,25 @@ class TestValidateReportReceivedGuardedCommit:
             f"Expected guarded commit called for case {CASE_ID!r}, "
             f"got {commit_tree_calls[0]!r}"
         )
+
+
+class TestValidateReportMalformed:
+    @pytest.mark.spec("HP-01-003")
+    def test_missing_offer_id_is_refused(self):
+        """A malformed validate is refused, not raised (#2255)."""
+        # The event model rejects a missing offer at construction, so bypass
+        # validation to reach the handler's own guard.
+        event = ValidateReportReceivedEvent.model_construct(
+            semantic_type=MessageSemantics.VALIDATE_REPORT,
+            activity_id="https://example.org/activities/accept-malformed",
+            actor_id="https://example.org/actors/vendor",
+            object_=None,
+            receiving_actor_id="https://example.org/actors/vendor",
+        )
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id="https://example.org/actors/vendor"
+        )
+        result = ValidateReportReceivedUseCase(
+            dl, event, wire_render_port=As2WireRenderAdapter()
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED

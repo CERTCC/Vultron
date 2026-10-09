@@ -91,13 +91,9 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         # Remaining violations import helpers other than _as_id /
         # _report_phase_status_id (fixed by #1428) — tracked for future
         # migration.
-        "vultron/core/behaviors/case/nodes/announce.py",
-        "vultron/core/behaviors/case/nodes/lifecycle.py",
+        "vultron/core/behaviors/case/nodes/ledger_payload.py",  # moved from lifecycle.py (#3930)
         "vultron/core/behaviors/embargo/nodes/emit.py",
-        "vultron/core/behaviors/embargo/nodes/proposal.py",
-        "vultron/core/behaviors/embargo/nodes/teardown.py",
         "vultron/core/behaviors/report/nodes/emit.py",
-        "vultron/core/behaviors/report/nodes/storage.py",
         "vultron/core/behaviors/sender/nodes/actions.py",
     ]
 )

@@ -40,3 +40,15 @@ VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE = (
 VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD = (
     f"{VULTRON_FAILURE_STATUS_ASSERTION_REFUSED}/CorruptLocalRecord"
 )
+
+# EP-09-010, MSM-05-001: an Invite(EmbargoEvent) whose shape the protocol
+# does not allow — no `to` recipient or several — was received but not
+# understood.
+VULTRON_FAILURE_MISROUTED_EMBARGO_INVITE = (
+    f"{_VULTRON_NS}/errors/MisroutedEmbargoInvite"
+)
+
+# EP-09-010, MSM-05-001: an Invite(EmbargoEvent) that names no embargo.
+VULTRON_FAILURE_EMBARGO_INVITE_WITHOUT_EMBARGO = (
+    f"{_VULTRON_NS}/errors/EmbargoInviteWithoutEmbargo"
+)

@@ -19,28 +19,28 @@ import sys
 from pathlib import Path
 
 from vultron.metadata.base import repo_root
+from vultron.metadata.specs.backstop._analysis import (
+    analyze,
+    load_requirements,
+)
+from vultron.metadata.specs.backstop._diff import (
+    _run_git,
+    changes_from_paths,
+    collect_git_changes,
+    git_toplevel,
+)
+from vultron.metadata.specs.backstop._manifest import (
+    parse_manifest,
+    unresolved_groups,
+)
 from vultron.metadata.specs.backstop._model import (
     HUB_THRESHOLD,
     BackstopError,
     FileChange,
     Manifest,
 )
-from vultron.metadata.specs.backstop._diff import (
-    changes_from_paths,
-    collect_git_changes,
-    git_toplevel,
-    _run_git,
-)
-from vultron.metadata.specs.backstop._symbols import build_test_index
-from vultron.metadata.specs.backstop._analysis import (
-    analyze,
-    load_requirements,
-)
-from vultron.metadata.specs.backstop._manifest import (
-    parse_manifest,
-    unresolved_groups,
-)
 from vultron.metadata.specs.backstop._render import render_json, render_text
+from vultron.metadata.specs.backstop._symbols import build_test_index
 
 
 def _build_parser() -> argparse.ArgumentParser:

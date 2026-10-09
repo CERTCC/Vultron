@@ -38,6 +38,7 @@ import logging
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
@@ -54,6 +55,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
 from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import DDimension
 from vultron.core.ports.case_persistence import CasePersistence
@@ -288,7 +290,7 @@ class CheckNoNewDeploymentInfoNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class TransitionCStoFixDeployed(DataLayerActionWithPorts):
+class TransitionCStoFixDeployed(DataLayerActionWithPorts, StateWriteCapable):
     """Persist a VFD ParticipantStatus snapshot for the actor in this case.
 
     Advances the actor's D dimension to ``d_state=D`` (fix deployed) and
@@ -328,8 +330,6 @@ class TransitionCStoFixDeployed(DataLayerActionWithPorts):
         assert self.datalayer is not None
 
         try:
-            from vultron.core.behaviors.bridge import BTBridge
-
             result = BTBridge(datalayer=self.datalayer).execute_with_setup(
                 tree=self._fix_deployed_node,
                 actor_id=self._actor_id,
@@ -345,8 +345,8 @@ class TransitionCStoFixDeployed(DataLayerActionWithPorts):
                     self._case_id,
                 )
             return result.status
-        except Exception as e:
-            self.logger.error(
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: Error transitioning to VFD: %s", self.name, e
             )
             return Status.FAILURE

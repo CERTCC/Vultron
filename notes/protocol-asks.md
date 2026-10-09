@@ -11,6 +11,8 @@ related_specs:
   - specs/event-driven-control-flow.yaml
   - specs/received-status-handling.yaml
   - specs/embargo-policy.yaml
+  - specs/case-management.yaml
+  - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-pitfalls.md
@@ -20,6 +22,7 @@ related_notes:
   - notes/coordination-agents.md
   - notes/activitystreams-semantics.md
   - notes/embargo-lifecycle.md
+  - notes/participant-embargo-consent.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/core/models
@@ -202,6 +205,38 @@ participant's claim is appended, and only *adoption as canonical* is gated
 (RSH-01). An action with no representable not-yet state must be refused rather
 than asked about (ASK-02-005).
 
+**The embargo Invite is an ask kind, and a relayed ask belongs to the relayer.**
+`Invite(EmbargoEvent)` is closed by `Accept`/`Reject` from the invitee, carries
+its deadline in `end_time` (CM-28-012), and a late reply is still honoured
+(EMB-17) — stale expiry, not void (ASK-03-007). Under the embargo relay
+(EP-09, ADR-0113) the CASE_MANAGER emits one Invite per participant with itself
+as `actor` and the proposer in `attributedTo`, so the manager records those as
+its own outstanding asks; the proposer records only its proposal to the manager
+(ASK-04-010). `find_protocol_pair`'s one-open-request-per-type assumption does
+not survive N simultaneous Invites of one event type — the ask-kind registry
+(#2884) is where that gets fixed, not a per-call-site workaround.
+
+**The pending-assertion store has a second client.** Embargo triggers that do
+not hold the CASE_MANAGER role emit their proposal, answer or termination to
+the manager and record it in the pending-assertion store; they write no EM
+state (EP-09-008). Every asker records through one helper,
+`record_pending_assertion()` in `vultron/core/models/pending_assertion.py`
+(SYNC-11-002, ASK-04-008). The received-side teardown ask the P/X/A cascade
+sends records through it as well, from the send node's `_on_queued` hook, and
+a guard node ahead of the send makes the triggers' suppression check through
+the shared `suppressed_repeat_reason()` (#4147). An embargo repeat carries a
+fresh activity id, so its entry also carries a `subject_id` — the terms a
+proposal offers, the proposal an answer names, the embargo a teardown ends —
+and `SvcEmbargoTriggerBase._suppressed_duplicate()` checks
+`pending_for_subject()` (through `suppressed_repeat_reason()`) before the tree
+runs: a repeat inside the window is reported with no activity and queues
+nothing. The store stays what it is — a
+duplicate suppressor that never holds case state (CLP-06-002). An announced
+commit clears the entry (SYNC-11-003); a refused proposal is never committed,
+so the received CASE_MANAGER's `Reject` of it closes the entry instead
+(`close_refused_embargo_proposal`, `received/_pending_refusal.py`), and a
+`Reject` from anyone else closes nothing.
+
 **Asks are visible to the whole case.** An ask is an ordinary recorded entry and
 replicates normally (ASK-06-001), so a stalled decision is visible to
 participants. Consequently an ask must carry nothing undisclosable to them
@@ -290,7 +325,7 @@ subclasses:
 
 ```text
 case/nodes/actor.py                        EmitInviteActorToCaseNode._call_factory()
-case/nodes/accept_invite.py                EmitAddCaseParticipantNode._call_factory()
+case/nodes/case_participant_received.py    EmitParticipantMoveNoticeNode._call_factory()
 case/nodes/delegation.py                   EmitRejectCaseParticipantRoleNode._call_factory()
 case/nodes/suggest_actor/accept_offer.py   EmitAcceptCaseParticipantOfferNode._call_factory()
 ```

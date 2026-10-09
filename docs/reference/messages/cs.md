@@ -1,6 +1,8 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+description: >
+  Wire activities for the Case State message types CV, CF, CD, CP, CX, CA, CK, and CE.
 ---
 
 # Case State (CS) Messages
@@ -157,12 +159,12 @@ from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_case, j
 print(json2md(add_status_to_case()))
 ```
 
-## CK — CS Acknowledgement
+## CK — CS Acknowledgment
 
 - **Protocol role:** Acknowledges receipt of a CS message.
 - **Triggering transition:** any valid CS message.
 - **Wire activity:** none dedicated. Case-status changes are ledger-replicated,
-  so acknowledgement is cumulative and implicit through hash-chain continuity
+  so acknowledgment is cumulative and implicit through hash-chain continuity
   ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#cs-message-types).
 

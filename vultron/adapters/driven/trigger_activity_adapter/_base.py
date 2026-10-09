@@ -16,49 +16,31 @@
 """Shared constants and base class for TriggerActivityAdapter submodules."""
 
 import logging
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
-from vultron.core.ports.case_persistence import (
-    CaseOutboxPersistence,
-    CasePersistence,
+from vultron.adapters.driven.db_record import _AS_LIST_REF_FIELDS
+from vultron.adapters.outbox_sealed_body import (
+    outbound_activity_id,
+    seal_outbound_body,
 )
+from vultron.core.models.base import CoreObject
+from vultron.core.models.embargo_register import carry_embargo_inline
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
+    VultronValidationError,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.registry import (
-    declared_wire_type,
-    find_in_vocabulary,
+from vultron.wire.as2.vocab.base.registry import declared_wire_type
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
 )
-from vultron.wire.as2.vocab.objects.base import as_VultronObject
-
-if TYPE_CHECKING:  # pragma: no cover - deferred to avoid a wire import cycle
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCase,
-    )
-
-#: Serialisation options for every outbound activity dict this adapter returns.
-#:
-#: ``serialize_as_any=True`` is load bearing, not cosmetic. Without it Pydantic
-#: serialises each field by its *declared* type, so an inline nested object held
-#: in a field typed as a reference union is flattened — for
-#: ``as_CaseProposal.object_`` (declared ``ActivityStreamRequiredRef[
-#: as_VulnerabilityReport]``) the report came out as ``null``, putting a proposal
-#: on the wire with no report at all in breach of CP-01-004. The receiver then had
-#: nothing to store, and everything derived from the report — the reporter
-#: participant, its ledger entry, the SIGNATORY seed — skipped "best-effort", so
-#: the reporter silently never received a case replica.
-#:
-#: The same flag is required on the delivery path and in the test router, both of
-#: which say so; this is the third place that needs it.
-_DUMP_KWARGS: dict[str, Any] = {
-    "by_alias": True,
-    "exclude_none": True,
-    "serialize_as_any": True,
-}
 
 logger = logging.getLogger(__name__)
 
@@ -87,141 +69,187 @@ def _to_wire(core_obj: Any, wire_cls: type[_BM]) -> _BM:
 
 
 def _to_wire_object(core_obj: Any, object_id: str) -> Any:
-    """Convert a stored object of any type to the object an activity carries.
+    """Check that a stored object of any type can be carried, and return it.
 
-    The generic counterpart of :func:`_to_wire`, for callers that do not know
-    the object's type in advance (``add_object_to_case`` accepts any stored
-    object). The wire class is looked up by the object's class name and the
-    conversion itself is delegated to :func:`_to_wire`, so a wire class's
-    custom ``from_core`` still applies.
+    For callers that do not know the object's type in advance
+    (``add_object_to_case`` accepts any stored object). Under ADR-0099 detail 3
+    a ``CoreObject`` *is* its own wire form, so an ``as_Object`` or a
+    ``CoreObject`` is returned unchanged; nothing is converted.
 
-    An object that is already an ``as_Object``, or already an instance of the
-    class registered for its name, is returned unchanged. The second case is
-    what a core class looks like once it *is* its own wire class (ADR-0099
-    detail 3): there is nothing to convert.
+    No vocabulary lookup is made: resolving the object's class name would be a
+    name-coincidence lookup ARCH-23-002 forbids, and its answer is always the
+    object's own class (ISSUE-3565).
 
     Raises:
         VultronNotFoundError: when *core_obj* is ``None`` (dl.read returned
             no match for *object_id*) — not a vocabulary error about
             ``'NoneType'``.
-        VultronActivityConstructionError: when no wire class is registered for
-            the object's type, the object's class declares no wire ``type``
-            (an abstract core class), the registered class has no ``from_core``
-            projection, or the projection fails with a ``ValueError``
-            (including ``ValidationError``) or ``TypeError``. The original
-            error, if any, is the ``__cause__``.
+        VultronActivityConstructionError: when the object is not an AS2 object
+            (a ``CoreRecord`` bookkeeping type, or anything else), or its class
+            declares no wire ``type`` (an abstract core class).
     """
     if core_obj is None:
         raise VultronNotFoundError("AS2Object", object_id)
     if isinstance(core_obj, as_Object):
         return core_obj
     type_name = type(core_obj).__name__
-    try:
-        wire_cls = find_in_vocabulary(type_name)
-    except KeyError as exc:
+    if not isinstance(core_obj, CoreObject):
         raise VultronActivityConstructionError(
-            f"object '{object_id}': no wire class registered for"
-            f" {type_name!r}"
-        ) from exc
-    # Checked here rather than left to _to_wire: a class that is its own wire
-    # class need not be an as_VultronObject, so the gate below would refuse it.
-    if isinstance(core_obj, wire_cls):
-        # Under ADR-0099 an activity's object refs admit any CoreObject, so
-        # as_Add no longer refuses an abstract one (``CoreActor``) for us. An
-        # abstract class declares no ``type`` (its instances fill ``type_`` from
-        # the class name), so it has no wire form a receiver could dispatch.
-        if declared_wire_type(type(core_obj)) is None:
-            raise VultronActivityConstructionError(
-                f"object '{object_id}': {type_name!r} declares no wire type"
-                " and cannot be carried in an activity"
-            )
-        return core_obj
-    if not issubclass(wire_cls, as_VultronObject):
-        raise VultronActivityConstructionError(
-            f"object '{object_id}': {type_name!r} has no as_VultronObject"
-            " wire counterpart"
+            f"object '{object_id}': {type_name!r} is not an AS2 object and"
+            " cannot be carried in an activity"
         )
-    # Narrowed per CS-23-001: a from_core projection fails by raising
-    # ValidationError (a ValueError) or TypeError. Anything else — a
-    # VultronError, or a programming error such as AttributeError — surfaces
-    # as itself rather than being relabelled "from_core failed".
-    try:
-        return _to_wire(core_obj, wire_cls)
-    except (ValueError, TypeError) as exc:
+    # Under ADR-0099 an activity's object refs admit any CoreObject, so as_Add
+    # does not refuse an abstract one (``CoreActor``) for us. An abstract class
+    # declares no ``type`` (its instances fill ``type_`` from the class name),
+    # so it has no wire form a receiver could dispatch.
+    if declared_wire_type(type(core_obj)) is None:
         raise VultronActivityConstructionError(
-            f"object '{object_id}': from_core failed for {type_name!r}: {exc}"
-        ) from exc
+            f"object '{object_id}': {type_name!r} declares no wire type"
+            " and cannot be carried in an activity"
+        )
+    return core_obj
 
 
 def _case_for_wire(
     dl: CasePersistence, case_id: str
 ) -> "as_VulnerabilityCase":
-    """Return the stored case as a wire object, with its embargo carried inline.
+    """Return the stored case as a wire object with its references carried inline.
 
     Takes the narrow read port rather than the full ``DataLayer``: reading is all
     this does, and every caller holds a ``CaseOutboxPersistence``
     (``_TriggerAdapterBase._dl``), which is a ``CasePersistence``.
 
-    Every activity that puts a case on the wire goes through here, because
-    ``active_embargo`` is a reference the *receiver* cannot dereference: it may
-    not hold the ``EmbargoEvent``, and no dereferencing mechanism is specified
-    (AKM-03-001, the same rule as CP-01-004). Sending the id alone therefore
-    hands the recipient a case pointing at an object it can never read.
+    Every activity that puts a case on the wire goes through here, because a
+    reference in the case is one the *receiver* cannot dereference: it may not
+    hold the object, and no dereferencing mechanism is specified (AKM-03-001,
+    the same rule as CP-01-004). Sending an id alone therefore hands the
+    recipient a case pointing at an object it can never read. Three fields
+    carry references the recipient needs:
 
-    That is not hypothetical. A CaseActor holding such a case tore the embargo
-    down locally and then could not announce it: ``terminate_embargo`` begins by
-    reading the ``EmbargoEvent`` it is about, so it raised
-    ``VultronNotFoundError`` mid-sequence and no ``Remove(EmbargoEvent, Case)``
-    was ever emitted. Every other participant's replica kept an embargo the
-    manager had already removed, EM stayed ACTIVE for all of them, and nothing
-    surfaced — the receiving side had no way to tell a missing object from an
-    embargo that was genuinely still active.
+    - ``active_embargo``: a CaseActor holding a case with only the id tore the
+      embargo down locally and then could not announce it — ``terminate_embargo``
+      begins by reading the ``EmbargoEvent``, so it raised
+      ``VultronNotFoundError`` mid-sequence and no ``Remove(EmbargoEvent, Case)``
+      was ever emitted; every other replica kept an embargo the manager had
+      already removed.
+    - ``case_participants``: the recipient of a bootstrap ``Create`` or
+      ``Announce`` stores each embedded participant as its own record
+      (CBT-05-005, CBT-01-007). With ids alone it has no participant at
+      ``RM.RECEIVED`` to move to ``VALID`` and no CASE_MANAGER participant to
+      route its reply to. The outbox used to expand these at delivery time
+      (``dl.hydrate()``); the sealed body is delivered as built (VM-08-003), so
+      the expansion belongs here, where the body is made.
+    - ``vulnerability_reports``: the same, for the reports the case names.
 
-    ``as_VulnerabilityCase.active_embargo`` is an ``as_EmbargoEventRef``, so it
-    admits the object; ``to_core()`` reduces it back to an id, so a receiver's
-    stored case is unchanged in shape. The recipient stores the carried object
-    separately (see ``_store_embedded_embargo``), which is what makes the id
-    resolve on its side too.
+    The stored case is untouched — the carried objects live on a ``model_copy``.
+    ``as_VulnerabilityCase`` admits the objects in every one of these slots, and
+    ``to_core()`` reduces them back to ids, so a receiver's stored case is
+    unchanged in shape; the recipient stores each carried object separately
+    (``store_carried_embargo``, ``store_embedded_participants``).
+
+    A participant or report reference the sender's own store cannot resolve
+    is left as the id with a WARNING: this function's job is to carry what is
+    there, and a sender-side gap is the business of whoever wrote the
+    dangling reference. ``announce_vulnerability_case`` then refuses to send
+    a case whose report is missing (CBT-01-007). An unreadable active embargo
+    is the exception: it raises (EMB-18-003, :func:`_carried_embargo`).
     """
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCase,
-    )
-
     case = _to_wire(dl.read(case_id), as_VulnerabilityCase)
+    updates: dict[str, Any] = {}
+    embargo = _carried_embargo(dl, case, case_id)
+    if embargo is not None:
+        updates["embargo_register"] = carry_embargo_inline(
+            case.embargo_register, embargo
+        )
+    for field_name in _CARRIED_LIST_FIELDS:
+        carried = _carried_list(dl, case, case_id, field_name)
+        if carried is not None:
+            updates[field_name] = carried
+    return case.model_copy(update=updates) if updates else case
+
+
+#: Case list fields whose bare ids are carried as objects by ``_case_for_wire``.
+#: ``_AS_LIST_REF_FIELDS`` is the DataLayer's own list of list-reference fields
+#: (the ones its retired delivery-time ``hydrate()`` expanded); the reports are
+#: added because a recipient seeding a case needs them too (CBT-01-007).
+_CARRIED_LIST_FIELDS: frozenset[str] = _AS_LIST_REF_FIELDS | {
+    "vulnerability_reports"
+}
+
+
+def _carried_embargo(dl: CasePersistence, case: Any, case_id: str) -> Any:
+    """The case's ``active_embargo`` as a wire object, or ``None`` to leave it.
+
+    Fails closed (EMB-18-003): a sender whose case names an active embargo
+    its own store cannot read has already broken the invariant, and sending
+    the bare id would hand every recipient a case it must refuse.
+
+    Raises:
+        VultronValidationError: If the sender does not hold the record, the
+            record is not an ``EmbargoEvent``, or it cannot be projected to
+            its wire shape -- one error carrying the context, logged once at
+            the caller's boundary.
+    """
     embargo_ref = getattr(case, "active_embargo", None)
     if not isinstance(embargo_ref, str) or not embargo_ref:
-        # Already an object, or no embargo at all — nothing to carry.
-        return case
-
-    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-
-    stored = dl.read(embargo_ref)
-    if stored is None:
-        # The sender does not hold it either. Left as an id: this function's job
-        # is to carry what is there, and a sender-side gap is the business of
-        # whoever wrote the dangling reference.
-        logger.warning(
-            "_case_for_wire: case '%s' references active_embargo '%s' which is"
-            " absent from the sending actor's own store, so it cannot be"
-            " carried inline (AKM-03-001); the recipient will receive an"
-            " unresolvable reference",
-            case_id,
-            embargo_ref,
-        )
-        return case
+        return None  # already an object, or no embargo at all
     try:
-        case = case.model_copy(
-            update={"active_embargo": _to_wire(stored, as_EmbargoEvent)}
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "_case_for_wire: could not project active_embargo '%s' of case"
-            " '%s' to its wire shape (%s); sending the reference alone",
-            embargo_ref,
-            case_id,
-            exc,
-        )
-    return case
+        stored = read_embargo_event(dl, embargo_ref)
+    except (VultronNotFoundError, VultronValidationError) as exc:
+        raise VultronValidationError(
+            f"_case_for_wire: case '{case_id}' names active embargo"
+            f" '{embargo_ref}', which the sending actor's own store cannot"
+            f" read (EMB-18-003); refusing to send an unresolvable"
+            f" reference: {exc}"
+        ) from exc
+    try:
+        return _to_wire(stored, as_EmbargoEvent)
+    except Exception as exc:
+        raise VultronValidationError(
+            f"_case_for_wire: could not project active_embargo"
+            f" '{embargo_ref}' of case '{case_id}' to its wire shape: {exc}"
+        ) from exc
+
+
+def _carried_list(
+    dl: CasePersistence, case: Any, case_id: str, field_name: str
+) -> list[Any] | None:
+    """*field_name*'s items with every resolvable bare id replaced by its object.
+
+    Returns ``None`` when nothing changed, so the caller copies nothing.
+    """
+    items = getattr(case, field_name, None)
+    if not isinstance(items, list):
+        return None
+    carried: list[Any] = []
+    changed = False
+    for item in items:
+        stored = dl.read(item) if isinstance(item, str) and item else None
+        if stored is None:
+            if isinstance(item, str):
+                logger.warning(
+                    "_case_for_wire: case '%s' names %s '%s' which is absent"
+                    " from the sending actor's own store, so it cannot be"
+                    " carried inline (AKM-03-001, CBT-01-007)",
+                    case_id,
+                    field_name,
+                    item,
+                )
+            carried.append(item)
+            continue
+        carried.append(stored)
+        changed = True
+    return carried if changed else None
+
+
+def _seal(dl: CaseOutboxPersistence, activity: BaseModel) -> tuple[str, str]:
+    """Seal *activity*'s outbound body in *dl* and return ``(id, body)``.
+
+    Every adapter method that persists an outbound activity ends here, so the
+    text handed back to core is the text the outbox delivers (VM-08-003).
+    """
+    body = seal_outbound_body(dl, activity)  # refuses an activity with no id_
+    return outbound_activity_id(activity), body
 
 
 class _TriggerAdapterBase:

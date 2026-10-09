@@ -33,8 +33,13 @@ from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
 )
-from vultron.core.models._helpers import project_wire_snapshot_to_core
-from vultron.core.models.case import VultronCase
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models._helpers import (
+    _new_urn,
+    now_utc,
+    project_wire_snapshot_to_core,
+)
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report import VulnerabilityReport
 from vultron.errors import VultronAlreadyExistsError
 
@@ -42,39 +47,100 @@ logger = logging.getLogger(__name__)
 
 
 class LoadExistingCaseNode(RequireCaseForReport):
-    """Find an existing ``VulnerabilityCase`` for *report_id* and load it.
+    """Find the *proposer's own* case for *report_id* and load it.
 
-    AC-1 / AC-2 (CP-05-006): detects a duplicate ``Create(as_CaseProposal)``
-    for a report that already has a case.  Writes the existing ``case_id`` to
-    the blackboard so ``EmitAcceptCaseProposalNode`` and
-    ``WriteCreateCaseMarkerNode`` can reference it, then returns SUCCESS.
+    CP-05-006 / CP-05-008: a ``Create(as_CaseProposal)`` under a new proposal
+    id may name a report that already has a case.  The case is reused only
+    when the proposer owns it (``attributed_to``); a case for the same report
+    owned by anyone else is not this proposer's, so this node fails and the
+    outer Selector creates a separate case (CBT-06-002).  ``report_id`` is
+    chosen by the sender, so the report alone never identifies a case.
 
-    Returns FAILURE when no existing case is found, allowing the outer
-    Selector to fall through to ``CreateCaseFromProposalNode`` (normal path).
+    Writes the existing ``case_id`` to the blackboard so
+    ``EmitAcceptCaseProposalNode`` and ``WriteCreateCaseMarkerNode`` can
+    reference it, then returns SUCCESS.  Returns FAILURE when the proposer owns
+    no case for the report, allowing the Selector to fall through to
+    ``CreateCaseFromProposalNode`` (normal path).
 
-    Behaviour is inherited wholesale from
-    :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`
-    — "resolve this store's case for a report, publish ``/case_id``, fail when
-    absent" has exactly one implementation (ARCH-15-004).  The subclass exists
-    only to keep the CP-05-006 node name in BT traces and to document what
-    FAILURE means *here*: no duplicate, so create the case.
-    """
-
-
-class CreateCaseFromProposalNode(DataLayerActionWithPorts):
-    """Create a VulnerabilityCase from the proposal and write case_id to blackboard.
-
-    The case-actor service is the ``attributed_to`` author of the new case,
-    preserving AS2 "I created this" semantics (CP-05-003, ADR-0023).
+    The store may hold several cases for one report (one per proposer), so the
+    single-row ``find_case_by_report_id`` lookup is only the fast path; when it
+    returns another proposer's case the cases are scanned for the proposer's.
     """
 
     def __init__(
         self,
         report_id: str | None,
+        owner_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(report_id=report_id, name=name)
+        self._owner_id = owner_id
+
+    def _find_case(self, report_id: str) -> VulnerabilityCase | None:
+        assert self.datalayer is not None
+        first = self.datalayer.find_case_by_report_id(report_id)
+        if first is None:
+            return None
+        if str(first.attributed_to) == self._owner_id:
+            return first
+        for case in self.datalayer.list_objects("VulnerabilityCase"):
+            if (
+                isinstance(case, VulnerabilityCase)
+                and str(case.attributed_to) == self._owner_id
+                and report_id in _report_ids(case)
+            ):
+                return case
+        return None
+
+    def _absence_message(self, report_id: str) -> str:
+        return (
+            f"no VulnerabilityCase for report '{report_id}' owned by"
+            f" '{self._owner_id}' in this actor's store"
+        )
+
+
+def _report_ids(case: VulnerabilityCase) -> set[str]:
+    """The report ids *case* references, whether stored bare or inline."""
+    return {
+        entry if isinstance(entry, str) else str(entry.id_)
+        for entry in case.vulnerability_reports
+    }
+
+
+class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
+    """Create a VulnerabilityCase from the proposal and write case_id to blackboard.
+
+    The new case is attributed to the **proposing actor** — the report
+    receiver, who becomes the CASE_OWNER — never to the CASE_MANAGER that
+    creates it (CP-09-001, CM-22-001, CM-02-008).  ``attributed_to`` is the
+    case's owner field: the update gate, embargo consent and answers, and
+    teardown authorization all read it (MSM-07-008), and ownership transfer
+    rewrites it (CM-21-002), so naming the CASE_MANAGER there would make
+    every one of those checks treat it as the owner.  The CASE_MANAGER's
+    authorship is carried where AS2 puts it instead: it is the ``actor`` of
+    the ``Create(VulnerabilityCase)`` it emits (CP-05-003).
+
+    *owner_id* is the actor that sent the ``Create(as_CaseProposal)``, the one
+    ``AddOwnerParticipantNode`` records as CASE_OWNER, so the owner field
+    and the CASE_OWNER participant cannot name different actors.  The proposal's
+    ``attributed_to`` names the same actor (CP-01-010).
+
+    The genesis hash is anchored to that owner, not to the CaseActor creating
+    the case: the CaseActor is the owner's delegated proxy, so a case it
+    creates hashes exactly as one the owner created itself (CLP-08-002).  No
+    hash is passed here; ``VulnerabilityCase`` computes it from
+    ``attributed_to`` at construction, the single definition of the formula.
+    """
+
+    def __init__(
+        self,
+        report_id: str | None,
+        owner_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
+        self._owner_id = owner_id
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "case_id": PortInformation(data_type=str, required=True),
@@ -87,10 +153,13 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts):
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
+        assert self.datalayer is not None and self.actor_id is not None
 
-        case = VultronCase(attributed_to=self.actor_id)
+        case = VulnerabilityCase(
+            id_=_new_urn(),
+            published=now_utc(),
+            attributed_to=self._owner_id,
+        )
         if self._report_id is not None:
             case.vulnerability_reports.append(self._report_id)
 
@@ -103,9 +172,10 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts):
 
         self._set_output("case_id", case.id_)
         logger.info(
-            "%s: Created VulnerabilityCase '%s' from proposal",
+            "%s: Created VulnerabilityCase '%s' from proposal, owned by '%s'",
             self.name,
             case.id_,
+            self._owner_id,
         )
         return Status.SUCCESS
 
@@ -120,22 +190,23 @@ class StoreProposalReportNode(DataLayerAction):
     three places, and the visible symptom was a participant who never appeared
     and a replica the reporter never received.
 
-    A shared store hid it: the *vendor* had stored the report when it received
+    A shared store hid it: the *report receiver* had stored the report when it received
     the Offer, and that row was visible to everyone. With per-actor stores the
     CaseActor has its own, and the report only reaches it inline on the proposal
     (CP-01-004) — so it has to be written here.
 
-    Prefers *inline_report*, a report already converted to the core shape by the
-    caller. The fallback — validating the proposal's serialised ``object`` — can
+    Prefers *inline_report*, the ``VulnerabilityReport`` the wire parser
+    validated on the proposal — under ADR-0099 detail 3 that object already
+    *is* the core class, so the caller hands it down unchanged (ARCH-20-008).
+    The fallback — rebuilding from the proposal's serialised ``object`` — can
     only be as good as that dict's spelling, and the dict the received-side use
     case has is a ``by_alias=True`` wire dump, because the ``Accept`` must carry
     the proposal inline on the wire (CP-05-003, AKM-03-001). In wire spelling the
-    reporter is ``attributedTo``; this core model declares ``attributed_to`` and
-    sets ``extra="ignore"``, so validating that dict quietly produced a report
-    with no reporter, and the complaint surfaced three nodes later as "has no
-    attributed_to" (#2482). Converting is the wire layer's job — it owns
-    ``to_core()`` — and core MUST NOT import wire to do it itself (ARCH-03-001),
-    so the caller converts and passes the result down.
+    reporter is ``attributedTo``; before the core model carried the AS2 alias,
+    validating that dict quietly produced a report with no reporter, and the
+    complaint surfaced three nodes later as "has no attributed_to" (#2482). The
+    rebuild therefore goes through ``project_wire_snapshot_to_core``, the one
+    seam core has for a snapshot dict (ARCH-20-008).
     """
 
     def __init__(

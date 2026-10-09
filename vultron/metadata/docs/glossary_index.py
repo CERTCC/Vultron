@@ -43,7 +43,7 @@ GLOSSARY_PATH = Path("docs/reference/glossary.md")
 _EMPTY_ALIASES = frozenset({"", "—", "-", "–", "n/a", "N/A"})
 
 
-def _strip_bold(cell: str) -> str:
+def strip_bold(cell: str) -> str:
     return cell.replace("**", "").strip()
 
 
@@ -56,10 +56,10 @@ def _term_entries(table: MarkdownTable) -> list[str]:
         else ("",) * len(table.rows)
     )
     entries = []
-    for row, alias in zip(table.rows, aliases):
+    for row, alias in zip(table.rows, aliases, strict=False):
         if not row:
             continue
-        term = _strip_bold(row[0])
+        term = strip_bold(row[0])
         if alias.strip() not in _EMPTY_ALIASES:
             term = f"{term} (not: {alias.strip()})"
         entries.append(term)

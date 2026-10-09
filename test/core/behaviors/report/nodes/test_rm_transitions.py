@@ -18,6 +18,8 @@
 import pytest
 from py_trees.composites import Sequence
 
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.participant_status import advance_participant_rm
 from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseActivity,
@@ -30,29 +32,27 @@ from vultron.core.behaviors.report.nodes.conditions import (
     EvaluateReportValidity,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
-    _ReportPhaseRMTransition,
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
+    _ReportPhaseRMTransition,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.report import VultronReport
 from vultron.core.models.activity import VultronOffer
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
-from test.support.participant_status import advance_participant_rm
 
 
 @pytest.mark.spec("RMB-15-001")
 @pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_valid(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
     report_case_link: VultronReportCaseLink,
@@ -79,8 +79,8 @@ def test_transition_rm_to_valid(
 @pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_invalid(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     report_case_link: VultronReportCaseLink,
 ) -> None:
@@ -101,8 +101,8 @@ def test_transition_rm_to_invalid(
 @pytest.mark.spec("BT-03-004")
 def test_full_validation_workflow(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
     report_case_link: VultronReportCaseLink,
@@ -170,8 +170,8 @@ def test_full_validation_workflow(
 @pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_valid_sets_link_rm_state(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
     report_case_link: VultronReportCaseLink,
@@ -193,8 +193,8 @@ def test_transition_rm_to_valid_sets_link_rm_state(
 @pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_invalid_sets_link_rm_state(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     report_case_link: VultronReportCaseLink,
 ) -> None:
@@ -215,8 +215,8 @@ def test_transition_rm_to_invalid_sets_link_rm_state(
 @pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_closed_sets_link_rm_state(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     report_case_link: VultronReportCaseLink,
 ) -> None:
@@ -264,6 +264,7 @@ def test_transition_rm_to_valid_is_single_atomic_node() -> None:
     update().
     """
     import py_trees
+
     from vultron.core.behaviors.case.nodes.participant.status import (
         CreateParticipantStatusNode,
     )
@@ -295,8 +296,8 @@ def test_transition_rm_to_closed_target_rm() -> None:
 @pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_valid_without_case_fails_without_updating_link(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     report_case_link: VultronReportCaseLink,
 ) -> None:
@@ -324,8 +325,8 @@ def test_transition_rm_to_valid_without_case_fails_without_updating_link(
 
 def test_transition_rm_to_valid_without_participant_fails_without_updating_link(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     case: VulnerabilityCase,
     report_case_link: VultronReportCaseLink,
@@ -355,8 +356,8 @@ def test_transition_rm_to_valid_without_participant_fails_without_updating_link(
 @pytest.mark.spec("BT-03-004")
 def test_transition_rm_to_valid_absent_link_advances_without_latching(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
 ) -> None:
@@ -382,7 +383,9 @@ def test_transition_rm_to_valid_absent_link_advances_without_latching(
     link_id = VultronReportCaseLink.build_id(report.id_)
     assert not isinstance(
         bt_scenario.dl.read(link_id), VultronReportCaseLink
-    ), "test setup error: a ReportCaseLink was seeded despite omitting the fixture"
+    ), (
+        "test setup error: a ReportCaseLink was seeded despite omitting the fixture"
+    )
 
     result = bt_scenario.run(
         TransitionRMtoValid(
@@ -414,8 +417,8 @@ def test_transition_rm_to_valid_absent_link_advances_without_latching(
 @pytest.mark.spec("BT-03-004")
 def test_two_participants_one_report_both_reach_valid_in_shared_store(
     bt_scenario: BTTestScenario,
-    actor: VultronCaseActor,
-    report: VultronReport,
+    actor: CaseActor,
+    report: VulnerabilityReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
 ) -> None:

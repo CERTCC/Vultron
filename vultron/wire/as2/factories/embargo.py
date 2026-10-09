@@ -23,28 +23,30 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Sequence, cast
+from datetime import datetime, timedelta
+from typing import cast
 
 from pydantic import ValidationError
 
+from vultron.core.models._helpers import as_utc, now_utc
+from vultron.core.models.rsvp_deadline import (
+    DEFAULT_MIN_RSVP_WINDOW,
+    RsvpDeadlineClamp,
+    resolve_rsvp_deadline,
+)
+from vultron.wire.as2.factories._context import case_target_ref
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
-    _AddEmbargoToCaseActivity,
     _AnnounceEmbargoActivity,
-    _ChoosePreferredEmbargoActivity,
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
+    _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
-)
-from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
-    as_Question,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Add,
     as_Announce,
     as_Invite,
     as_Reject,
@@ -52,7 +54,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent,
-    as_EmbargoEventRef,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseRef,
@@ -61,14 +62,34 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 logger = logging.getLogger(__name__)
 
 
-_DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
+def _published_instant(published: object) -> datetime | None:
+    """Read a caller-supplied ``published`` as an aware instant.
+
+    This is the one input to the RSVP-deadline check not read from a
+    validated object, so it is normalised at this edge (ADR-0032, CS-13-001)
+    whether it arrived as an ISO 8601 string or a naive ``datetime``;
+    ``resolve_rsvp_deadline`` expects aware inputs (#3784).  Anything else
+    yields ``None``, which the deadline check measures from now.
+
+    Raises:
+        VultronActivityConstructionError: If a string is not ISO 8601.
+    """
+    if isinstance(published, str):
+        try:
+            published = datetime.fromisoformat(published)
+        except ValueError as exc:
+            raise VultronActivityConstructionError(
+                f"em_propose_embargo_activity: published {published!r}"
+                " is not an ISO 8601 datetime"
+            ) from exc
+    return as_utc(published) if isinstance(published, datetime) else None
 
 
 def em_propose_embargo_activity(
     embargo: as_EmbargoEvent,
     context: as_VulnerabilityCaseRef | None = None,
     rsvp_deadline: datetime | None = None,
-    min_rsvp_window: timedelta = _DEFAULT_MIN_RSVP_WINDOW,
+    min_rsvp_window: timedelta = DEFAULT_MIN_RSVP_WINDOW,
     **kwargs,
 ) -> as_Invite:
     """Build an Invite(as_EmbargoEvent) — the EP/EV message.
@@ -80,11 +101,14 @@ def em_propose_embargo_activity(
         context: The ``VulnerabilityCase`` (or its URI) for which the
             embargo is being proposed.
         rsvp_deadline: Optional RSVP-by deadline set on the activity-level
-            ``end_time`` (CM-27-001, ADR-0065). MUST be timezone-aware and
-            at least ``min_rsvp_window`` in the future (EP-07-002).
-        min_rsvp_window: Minimum time between now and the deadline; defaults
-            to 72 hours (EP-07-002). Pass ``ActorConfig.min_rsvp_window``
-            from the caller to apply the configured floor.
+            ``end_time`` (CM-27-001, ADR-0065). MUST be timezone-aware, no
+            earlier than the applicable minimum — ``min_rsvp_window`` after
+            ``published`` (or now), or the embargo's ``end_time`` if that is
+            sooner (EP-07-002) — and no later than the embargo's
+            ``end_time`` (EP-07-006).
+        min_rsvp_window: Configured minimum RSVP window; defaults to 72 hours
+            (EP-07-002). Pass ``ActorConfig.min_rsvp_window`` from the caller
+            to apply the configured floor.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -94,7 +118,8 @@ def em_propose_embargo_activity(
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails, or
-            if *rsvp_deadline* is naive or below the minimum window.
+            if *rsvp_deadline* is naive, below the applicable minimum, or
+            after the embargo's end.
     """
     if rsvp_deadline is not None:
         if rsvp_deadline.tzinfo is None:
@@ -102,12 +127,27 @@ def em_propose_embargo_activity(
                 "em_propose_embargo_activity: rsvp_deadline must be"
                 " timezone-aware (naive datetime rejected per EP-07-002)"
             )
-        floor = datetime.now(tz=timezone.utc) + min_rsvp_window
-        if rsvp_deadline < floor:
+        # Fix ``published`` before measuring from it, so the window the
+        # sender checks is the one the receiver measures (EP-07-002).
+        deadline = resolve_rsvp_deadline(
+            requested=rsvp_deadline,
+            published=_published_instant(
+                kwargs.setdefault("published", now_utc())
+            ),
+            embargo_end=embargo.end_time,
+            min_window=min_rsvp_window,
+        )
+        if deadline.clamp is RsvpDeadlineClamp.RAISED_TO_MINIMUM:
             raise VultronActivityConstructionError(
                 f"em_propose_embargo_activity: rsvp_deadline"
                 f" {rsvp_deadline.isoformat()} is below the minimum"
-                f" window floor {floor.isoformat()} (EP-07-002)"
+                f" window floor {deadline.minimum.isoformat()} (EP-07-002)"
+            )
+        if deadline.clamp is RsvpDeadlineClamp.LOWERED_TO_EMBARGO_END:
+            raise VultronActivityConstructionError(
+                f"em_propose_embargo_activity: rsvp_deadline"
+                f" {rsvp_deadline.isoformat()} is after the embargo end"
+                f" {deadline.effective.isoformat()} (EP-07-006)"
             )
         kwargs["end_time"] = rsvp_deadline
     try:
@@ -205,79 +245,35 @@ def em_reject_embargo_activity(
         ) from exc
 
 
-def choose_preferred_embargo_activity(
-    any_of: Sequence[as_EmbargoEventRef] | None = None,
-    one_of: Sequence[as_EmbargoEventRef] | None = None,
-    **kwargs,
-) -> as_Question:
-    """Build a Question asking participants to indicate embargo preferences.
-
-    Case participants should respond with
-    :func:`em_accept_embargo_activity` or :func:`em_reject_embargo_activity`
-    for each proposed embargo. Either ``any_of`` or ``one_of`` SHOULD be
-    specified but not both.
-
-    Args:
-        any_of: Sequence of ``as_EmbargoEventRef`` items — participants
-            may select any subset.
-        one_of: Sequence of ``as_EmbargoEventRef`` items — participants
-            must select exactly one.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``).
-
-    Returns:
-        An ``as_Question`` whose ``any_of`` or ``one_of`` lists the
-        embargo choices.
-
-    Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
-    """
-    try:
-        return _ChoosePreferredEmbargoActivity(
-            any_of=any_of, one_of=one_of, **kwargs
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "choose_preferred_embargo_activity: invalid arguments: %s", exc
-        )
-        raise VultronActivityConstructionError(
-            "choose_preferred_embargo_activity: invalid arguments"
-        ) from exc
-
-
 def activate_embargo_activity(
     embargo: as_EmbargoEvent,
     target: as_VulnerabilityCaseRef | None = None,
-    in_reply_to: _EmProposeEmbargoActivity | str | None = None,
     **kwargs,
-) -> as_Add:
-    """Build an Add(as_EmbargoEvent) — activates the embargo on the case.
+) -> as_Accept:
+    """Build an Accept(as_EmbargoEvent, target=VulnerabilityCase).
 
-    Corresponds to the EA/EC message at the case level.  Use this when
-    the case owner is activating an embargo in response to a previous
-    :func:`em_propose_embargo_activity`.
+    The case owner's activation of a proposed embargo (ADR-0122): the
+    receiver activates the embargo's register entry, superseding any entry
+    in force, and records the owner's agreement.  Distinct from
+    :func:`em_accept_embargo_activity`, the sender's own consent to an
+    Invite.  Only the case owner sends it.
 
     Args:
-        embargo: The ``as_EmbargoEvent`` being activated.
-        target: The ``VulnerabilityCase`` (or its URI) for which the
-            embargo is activated.
-        in_reply_to: The ``_EmProposeEmbargoActivity`` (or its URI)
-            that proposed this embargo.
+        embargo: The ``as_EmbargoEvent`` being activated, carried inline.
+        target: The ``VulnerabilityCase`` (or its URI) the embargo was
+            proposed for.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+            (e.g. ``actor``, ``to``, ``context``).
 
     Returns:
-        An ``as_Add`` whose ``object_`` is the embargo event.
+        An ``as_Accept`` whose ``object_`` is the embargo event.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
         return _ActivateEmbargoActivity(
-            object_=embargo,
-            target=target,
-            in_reply_to=in_reply_to,
-            **kwargs,
+            object_=embargo, target=case_target_ref(target), **kwargs
         )
     except ValidationError as exc:
         logger.warning("activate_embargo_activity: invalid arguments: %s", exc)
@@ -286,40 +282,41 @@ def activate_embargo_activity(
         ) from exc
 
 
-def add_embargo_to_case_activity(
+def reject_embargo_proposal_activity(
     embargo: as_EmbargoEvent,
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
-) -> as_Add:
-    """Build an Add(as_EmbargoEvent, target=VulnerabilityCase).
+) -> as_Reject:
+    """Build a Reject(as_EmbargoEvent, target=VulnerabilityCase).
 
-    Use when the case owner is adding an embargo without a prior
-    proposal.  When activating in response to a prior proposal, prefer
-    :func:`activate_embargo_activity` which carries ``in_reply_to``.
+    The case owner's rejection of a proposed embargo (ADR-0122): the
+    receiver rejects the embargo's register entry and writes no consent.
+    Distinct from :func:`em_reject_embargo_activity`, the sender's own
+    refusal of an Invite.  Only the case owner sends it.
 
     Args:
-        embargo: The ``as_EmbargoEvent`` to add.
-        target: The ``VulnerabilityCase`` (or its URI) to which the
-            embargo is being added.
+        embargo: The ``as_EmbargoEvent`` being rejected, carried inline.
+        target: The ``VulnerabilityCase`` (or its URI) the embargo was
+            proposed for.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+            (e.g. ``actor``, ``to``, ``context``).
 
     Returns:
-        An ``as_Add`` whose ``object_`` is the embargo event.
+        An ``as_Reject`` whose ``object_`` is the embargo event.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return _AddEmbargoToCaseActivity(
-            object_=embargo, target=target, **kwargs
+        return _RejectEmbargoProposalActivity(
+            object_=embargo, target=case_target_ref(target), **kwargs
         )
     except ValidationError as exc:
         logger.warning(
-            "add_embargo_to_case_activity: invalid arguments: %s", exc
+            "reject_embargo_proposal_activity: invalid arguments: %s", exc
         )
         raise VultronActivityConstructionError(
-            "add_embargo_to_case_activity: invalid arguments"
+            "reject_embargo_proposal_activity: invalid arguments"
         ) from exc
 
 
@@ -361,8 +358,10 @@ def remove_embargo_from_case_activity(
 ) -> as_Remove:
     """Build a Remove(as_EmbargoEvent, origin=VulnerabilityCase).
 
-    Removes an ``as_EmbargoEvent`` from the ``proposedEmbargoes`` of a
-    case. This MUST only be performed by the case owner.
+    Ends the embargo in force on a case (ET): the receiver terminates the
+    case's ``ACTIVE`` embargo register entry and cancels every open proposal
+    with it (MSM-07-006, ADR-0122).  This MUST only be performed by the case
+    owner.
 
     Note: this activity uses ``origin`` (not ``target``) for the case
     reference, following the ActivityStreams convention for Remove.

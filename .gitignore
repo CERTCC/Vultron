@@ -186,6 +186,7 @@ plan/data/
 ui/.vite/
 ui/node_modules/
 .claude/pr-*.json
+.claude/work-epic-*.json
 # Board/project node-ID cache — auto-regenerated on first run, contains volatile timestamp
 .agents/skills/shared/board-ids.json
 .idea/

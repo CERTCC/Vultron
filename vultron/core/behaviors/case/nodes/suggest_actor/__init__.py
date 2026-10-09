@@ -41,6 +41,8 @@ from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
     ActorAlreadyParticipantNode,
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
+    SuggestedActorIsNotRemovedNode,
+    case_manager_admits_suggested_actor_guard,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     EmitNoteDuplicateRecommendationToOwnerNode,
@@ -54,6 +56,8 @@ from vultron.core.behaviors.case.nodes.suggest_actor.emit_response import (
 
 __all__ = [
     "ActorAlreadyParticipantNode",
+    "SuggestedActorIsNotRemovedNode",
+    "case_manager_admits_suggested_actor_guard",
     "EmitAcceptActorRecommendationNode",
     "EmitAcceptCaseParticipantOfferNode",
     "EmitNoteDuplicateRecommendationToOwnerNode",

@@ -40,6 +40,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -52,6 +53,10 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     create_case_proposal_received_tree,
 )
+from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+    case_is_announced,
+)
+from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_proposal_decline import (
     CaseProposalDeclineRecord,
@@ -136,11 +141,13 @@ def _admitting_bundle(ticks: list[str]) -> CaseProposalCallOutBundle:
     return _spy_bundle(ticks, Status.SUCCESS)
 
 
-def _proposal() -> as_CaseProposal:
+def _proposal(
+    proposal_uri: str = _PROPOSAL_URI, proposer_uri: str = _VENDOR_URI
+) -> as_CaseProposal:
     """A proposal carrying its report inline, as CP-01-004 requires."""
     return as_CaseProposal(
-        id_=_PROPOSAL_URI,
-        attributed_to=_VENDOR_URI,
+        id_=proposal_uri,
+        attributed_to=proposer_uri,
         object_=as_VulnerabilityReport(
             id_=_REPORT_URI, attributed_to=_REPORTER_URI
         ),
@@ -155,24 +162,31 @@ def _run_tree(
     report_id: str | None = _REPORT_URI,
     with_proposal_dict: bool = True,
     with_trigger_port: bool = True,
+    proposal_uri: str = _PROPOSAL_URI,
+    proposer_uri: str = _VENDOR_URI,
 ) -> Status:
     """Build and run the received-side tree the way the use case does.
+
+    ``proposal_uri`` and ``proposer_uri`` let a test send a second proposal, from
+    the same or another proposer, for the report an earlier one named.
 
     ``with_proposal_dict`` and ``with_trigger_port`` model the two ways the
     ``Reject`` emit can fail: a replay path that carries no wire proposal, and a
     caller that injected no ``TriggerActivityPort``.
     """
-    proposal = _proposal()
+    proposal = _proposal(proposal_uri, proposer_uri)
     activity = as_Create(
-        actor=_VENDOR_URI, object_=proposal, to=[_CASE_ACTOR_URI]
+        actor=VultronOrganization(id_=proposer_uri),
+        object_=proposal,
+        to=[_CASE_ACTOR_URI],
     )
     event = extract_event(activity).model_copy(
         update={"receiving_actor_id": _CASE_ACTOR_URI}
     )
     tree = create_case_proposal_received_tree(
         report_id=report_id,
-        proposal_id=_PROPOSAL_URI,
-        vendor_uri=_VENDOR_URI,
+        proposal_id=proposal_uri,
+        proposer_uri=proposer_uri,
         proposal_dict=(
             proposal.model_dump(by_alias=True, serialize_as_any=True)
             if with_proposal_dict
@@ -189,7 +203,13 @@ def _run_tree(
         trigger_activity=(
             TriggerActivityAdapter(dl) if with_trigger_port else None
         ),
-    ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI, activity=event)
+        sync_port=SyncActivityAdapter(dl),
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=_CASE_ACTOR_URI,
+        activity=event,
+        owner_profile=activity.actor,
+    )
     return result.status
 
 
@@ -280,9 +300,9 @@ class TestDeclineEmitsReject:
 
         (reject,) = _outbox_activities(dl)
         proposal = reject.object_
-        assert not isinstance(
-            proposal, str
-        ), f"object_ must not be a bare URI, got {proposal!r}"
+        assert not isinstance(proposal, str), (
+            f"object_ must not be a bare URI, got {proposal!r}"
+        )
         assert getattr(proposal, "id_", None) == _PROPOSAL_URI
         # The report the proposal was about travels with it, so the vendor can
         # correlate the refusal without reading anything from our store.
@@ -518,7 +538,7 @@ class TestAnsweredProposalsAreNotReAdjudicated:
                 id_=PendingCreateCaseActivity.build_id(_PROPOSAL_URI),
                 proposal_id=_PROPOSAL_URI,
                 case_actor_id=_CASE_ACTOR_URI,
-                vendor_uri=_VENDOR_URI,
+                owner_uri=_VENDOR_URI,
                 create_activity_payload={},
             )
         )
@@ -596,7 +616,7 @@ class TestDeclineReasonReachesTheProposer:
             CaseProposalDeclineRecord(
                 proposal_id=_PROPOSAL_URI,
                 case_actor_id=_CASE_ACTOR_URI,
-                vendor_uri=_VENDOR_URI,
+                proposer_uri=_VENDOR_URI,
                 reason="proposing actor is not on the admission list",
             )
         )
@@ -744,9 +764,9 @@ class TestAHalfBuiltCaseIsNotRejected:
             assert _run_tree(dl, call_out=_admitting_bundle([])) == (
                 Status.FAILURE
             )
-            assert (
-                len(_cases(dl)) == 1
-            ), "the case was created before the fault"
+            assert len(_cases(dl)) == 1, (
+                "the case was created before the fault"
+            )
             assert _types_in_outbox(dl) == []
 
             dl.fail = False
@@ -788,7 +808,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
 
     def test_a_second_proposal_on_the_same_report_is_still_adjudicated(self):
         second_proposal_uri = "https://evil.example.org/proposals/p-002"
-        second_vendor_uri = "https://evil.example.org/actors/attacker"
+        second_proposer_uri = "https://evil.example.org/actors/attacker"
 
         _dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
         _dl.clear_all()
@@ -799,22 +819,24 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                 Status.SUCCESS
             )
             assert len(_cases(_dl)) == 1
-            _dl.outbox_pop()
-            _dl.outbox_pop()
-            assert _dl.outbox_list() == []
+            # Drain the first admission's mail: its Create and Accept, plus
+            # the Announce(CaseLedgerEntry) fan-out of every entry it
+            # committed (SYNC-02-003).
+            while _dl.outbox_list():
+                _dl.outbox_pop()
 
             # A different proposal, from a different actor, naming the same
             # report. The deployment's policy refuses it.
             proposal = as_CaseProposal(
                 id_=second_proposal_uri,
-                attributed_to=second_vendor_uri,
+                attributed_to=second_proposer_uri,
                 object_=as_VulnerabilityReport(
                     id_=_REPORT_URI, attributed_to=_REPORTER_URI
                 ),
                 target=_CASE_ACTOR_URI,
             )
             activity = as_Create(
-                actor=second_vendor_uri,
+                actor=VultronOrganization(id_=second_proposer_uri),
                 object_=proposal,
                 to=[_CASE_ACTOR_URI],
             )
@@ -825,7 +847,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
             tree = create_case_proposal_received_tree(
                 report_id=_REPORT_URI,
                 proposal_id=second_proposal_uri,
-                vendor_uri=second_vendor_uri,
+                proposer_uri=second_proposer_uri,
                 proposal_dict=proposal.model_dump(
                     by_alias=True, serialize_as_any=True
                 ),
@@ -839,9 +861,13 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                     datalayer=_dl,
                     wire_render_port=As2WireRenderAdapter(),
                     trigger_activity=TriggerActivityAdapter(_dl),
+                    sync_port=SyncActivityAdapter(_dl),
                 )
                 .execute_with_setup(
-                    tree=tree, actor_id=_CASE_ACTOR_URI, activity=event
+                    tree=tree,
+                    actor_id=_CASE_ACTOR_URI,
+                    activity=event,
+                    owner_profile=activity.actor,
                 )
                 .status
             )
@@ -862,13 +888,13 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                 )
                 is not None
             )
-            assert (
-                len(_cases(_dl)) == 1
-            ), "no second case, and the first is untouched"
+            assert len(_cases(_dl)) == 1, (
+                "no second case, and the first is untouched"
+            )
             participants = [
                 p
                 for p in _dl.list_objects("CaseParticipant")
-                if second_vendor_uri in str(getattr(p, "actor_id", ""))
+                if second_proposer_uri in str(getattr(p, "actor_id", ""))
             ]
             assert participants == [], (
                 "a refused actor must not end up on the roster of the case it "
@@ -877,3 +903,142 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
         finally:
             _dl.clear_all()
             _dl.close()
+
+
+# ---------------------------------------------------------------------------
+# A new proposal id for an accepted report is a new request (CP-05-008)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CP-05-008")
+def test_second_proposer_for_an_accepted_report_gets_its_own_case(dl):
+    """Reuse is keyed on (report, proposer), never on the report alone.
+
+    The first proposer's case stays its own: the second proposer is admitted
+    through the normal gate, gets a separate case it owns, and is not added to
+    the first proposer's roster.
+    """
+    second_proposal_uri = "https://other.example.org/proposals/p-002"
+    second_proposer_uri = "https://other.example.org/actors/other-vendor"
+
+    _run_tree(dl)  # the first proposer's proposal is accepted
+    first_case = _cases(dl)[0]
+
+    status = _run_tree(
+        dl,
+        proposal_uri=second_proposal_uri,
+        proposer_uri=second_proposer_uri,
+    )
+
+    assert status == Status.SUCCESS
+    cases = _cases(dl)
+    assert len(cases) == 2, "each proposer gets a case of its own"
+    owners = {str(c.attributed_to) for c in cases}
+    assert owners == {_VENDOR_URI, second_proposer_uri}
+    on_first_roster = [
+        p
+        for p in dl.list_objects("CaseParticipant")
+        if second_proposer_uri in str(getattr(p, "actor_id", ""))
+        and str(getattr(p, "context", "")) == str(first_case.id_)
+    ]
+    assert on_first_roster == [], (
+        "the second proposer must not join the first proposer's case"
+    )
+
+
+@pytest.mark.spec("CP-05-008")
+def test_new_proposal_id_from_the_owner_reuses_its_case(dl):
+    """The owner's second proposal for its own report is answered, not re-created.
+
+    It gets its own ``Accept`` (a new proposal is a new request) whose result
+    names the existing case; no second case is created, and committing the
+    canonical ledger entries again does not raise "log entry already exists".
+    """
+    second_proposal_uri = "https://vendor.example.org/proposals/p-002"
+
+    assert _run_tree(dl) == Status.SUCCESS
+    (first_case,) = _cases(dl)
+    ledger_before = len(list(dl.list_objects("CaseLedgerEntry")))
+    types_before = _types_in_outbox(dl)
+
+    status = _run_tree(dl, proposal_uri=second_proposal_uri)
+
+    assert status == Status.SUCCESS
+    assert [c.id_ for c in _cases(dl)] == [first_case.id_], (
+        "the owner's case is reused, never duplicated"
+    )
+    all_accepts = list(dl.list_objects("Accept"))
+    assert len(all_accepts) == 2, "each proposal is answered by its own Accept"
+    assert len({a.id_ for a in all_accepts}) == 2
+    assert {str(getattr(a.result, "id_", a.result)) for a in all_accepts} == {
+        str(first_case.id_)
+    }, "both Accepts name the one case"
+    creates = [
+        c
+        for c in dl.list_objects("Create")
+        if str(first_case.id_) in str(getattr(c, "object_", ""))
+    ]
+    assert len(creates) == 1, "no second Create(VulnerabilityCase)"
+    # The native ledger commits are skipped, not re-run: a re-run reuses each
+    # recorded entry but fans it out to every recipient a second time.
+    assert len(list(dl.list_objects("CaseLedgerEntry"))) == ledger_before
+    new_types = _types_in_outbox(dl)[len(types_before) :]
+    assert new_types == ["Accept"], (
+        "the new proposal is answered with its Accept and nothing else"
+    )
+
+
+@pytest.mark.spec("CP-05-008")
+def test_an_unannounced_owner_case_is_completed_not_skipped(dl):
+    """A case no ``Create`` has announced yet still gets its ``Create``.
+
+    The reuse path skips the announcement only for a case already announced; a
+    half-built case left by a failed earlier delivery must still be finished.
+    """
+    assert _run_tree(dl) == Status.SUCCESS
+    (case,) = _cases(dl)
+    for create in list(dl.list_objects("Create")):
+        if str(getattr(create, "context", "")) == str(case.id_):
+            dl.delete("Create", create.id_)
+    assert not case_is_announced(dl, str(case.id_))
+
+    status = _run_tree(
+        dl, proposal_uri="https://vendor.example.org/proposals/p-002"
+    )
+
+    assert status == Status.SUCCESS
+    assert case_is_announced(dl, str(case.id_))
+    assert len(_cases(dl)) == 1
+
+
+@pytest.mark.spec("CP-05-008")
+@pytest.mark.spec("CBT-06-002")
+def test_second_proposer_re_proposing_reuses_its_own_case(dl):
+    """The report-only fast path returns the first proposer's case; the second
+    proposer's own case is still found, not duplicated.
+    """
+    second_proposer_uri = "https://other.example.org/actors/other-vendor"
+
+    assert _run_tree(dl) == Status.SUCCESS
+    assert (
+        _run_tree(
+            dl,
+            proposal_uri="https://other.example.org/proposals/p-002",
+            proposer_uri=second_proposer_uri,
+        )
+        == Status.SUCCESS
+    )
+    assert len(_cases(dl)) == 2
+
+    status = _run_tree(
+        dl,
+        proposal_uri="https://other.example.org/proposals/p-003",
+        proposer_uri=second_proposer_uri,
+    )
+
+    assert status == Status.SUCCESS
+    cases = _cases(dl)
+    assert len(cases) == 2, "the second proposer's own case is reused"
+    assert sorted(str(c.attributed_to) for c in cases) == sorted(
+        [_VENDOR_URI, second_proposer_uri]
+    )

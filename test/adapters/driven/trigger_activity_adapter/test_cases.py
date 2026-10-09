@@ -14,21 +14,27 @@
 """Unit tests for TriggerActivityAdapter case-domain methods."""
 
 import json
-from typing import ClassVar
 from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
 
+from test.support.embargo_register import activate, register
+from vultron.adapters.driven.trigger_activity_adapter import _base
 from vultron.adapters.driven.trigger_activity_adapter._base import (
     _to_wire_object,
 )
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.actor import VultronPerson
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.note import VultronNote
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
+    VultronValidationError,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.base import as_VultronObject
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -146,9 +152,6 @@ class TestAddObjectToCase:
         assert dl.read(activity_id) is not None
 
 
-_VOCAB_PATH = (
-    "vultron.adapters.driven.trigger_activity_adapter._base.find_in_vocabulary"
-)
 _TO_WIRE_OBJECT_PATH = (
     "vultron.adapters.driven.trigger_activity_adapter.cases._to_wire_object"
 )
@@ -188,10 +191,8 @@ class TestAddObjectToCaseConversionBranch:
         assert activity_id
         assert isinstance(activity_dict, str)
 
-    def test_unregistered_core_type_raises_construction_error(
-        self, adapter, dl
-    ):
-        """KeyError from find_in_vocabulary is re-raised as VultronActivityConstructionError."""
+    def test_non_as2_object_raises_construction_error(self, adapter, dl):
+        """An object that is neither ``as_Object`` nor ``CoreObject`` is refused."""
         case = _make_case(dl)
         fake_id = "urn:test:unregistered-1"
 
@@ -205,7 +206,7 @@ class TestAddObjectToCaseConversionBranch:
         ):
             with pytest.raises(
                 VultronActivityConstructionError,
-                match="no wire class registered",
+                match="'_UnknownDomainObj' is not an AS2 object",
             ):
                 adapter.add_object_to_case(
                     actor=_ACTOR,
@@ -213,74 +214,31 @@ class TestAddObjectToCaseConversionBranch:
                     case_id=case.id_,
                 )
 
-    def test_from_core_failure_raises_construction_error(self, adapter, dl):
-        """Exception from wire_cls.from_core is wrapped in VultronActivityConstructionError."""
-        from vultron.core.models.case import VulnerabilityCase
+    def test_core_record_raises_construction_error(self, adapter, dl):
+        """A ``CoreRecord`` bookkeeping type has no AS2 form and is refused.
+
+        ``VultronOfferRecord`` declares a ``type`` and is registered in
+        ``CORE_TYPE_MAP``, so the class-name lookup this replaced found it and
+        let it through to ``as_Add`` (ISSUE-3565).
+        """
+        from vultron.core.models.offer_record import VultronOfferRecord
 
         case = _make_case(dl)
-        fake_id = "urn:test:core-vuln-case-2"
-        core_obj = VulnerabilityCase(attributed_to=_ACTOR)
+        fake_id = "urn:test:offer-record-1"
+        record = VultronOfferRecord(
+            id_=fake_id,
+            offer_id="urn:test:offer-1",
+            report_id="urn:test:report-1",
+            offer_actor_id=_ACTOR,
+        )
 
-        class _BrokenWireClass(as_VultronObject):
-            # Declared an alias so defining this stand-in does not take
-            # as_VulnerabilityCase's WIRE_TYPE_MAP key for the rest of the
-            # session: registration is process-global and a class defined in a
-            # test body cannot be unregistered (VM-01-008). The adapter receives
-            # it by patching find_in_vocabulary, not through the registry.
-            _wire_type_alias: ClassVar[bool] = True
-
-            type_: str = "VulnerabilityCase"
-
-            @classmethod
-            def from_core(cls, obj):
-                raise ValueError("simulated from_core failure")
-
-        with (
-            patch.object(
-                dl,
-                "read",
-                side_effect=self._patched_read(dl, fake_id, core_obj),
-            ),
-            patch(_VOCAB_PATH, return_value=_BrokenWireClass),
+        with patch.object(
+            dl, "read", side_effect=self._patched_read(dl, fake_id, record)
         ):
             with pytest.raises(
-                VultronActivityConstructionError, match="from_core failed"
+                VultronActivityConstructionError,
+                match="'VultronOfferRecord' is not an AS2 object",
             ):
-                adapter.add_object_to_case(
-                    actor=_ACTOR,
-                    object_id=fake_id,
-                    case_id=case.id_,
-                )
-
-    def test_vultron_error_from_from_core_is_not_rewrapped(self, adapter, dl):
-        """A VultronError raised by from_core surfaces as itself (CS-23-001)."""
-        from vultron.core.models.case import VulnerabilityCase
-
-        case = _make_case(dl)
-        fake_id = "urn:test:core-vuln-case-3"
-        core_obj = VulnerabilityCase(attributed_to=_ACTOR)
-
-        class _NotFoundWireClass(as_VultronObject):
-            # An alias for the same reason as _BrokenWireClass above: without
-            # it this stand-in takes as_VulnerabilityCase's WIRE_TYPE_MAP key
-            # for the rest of the session (VM-01-008).
-            _wire_type_alias: ClassVar[bool] = True
-
-            type_: str = "VulnerabilityCase"
-
-            @classmethod
-            def from_core(cls, obj):
-                raise VultronNotFoundError("Thing", "urn:test:missing-ref")
-
-        with (
-            patch.object(
-                dl,
-                "read",
-                side_effect=self._patched_read(dl, fake_id, core_obj),
-            ),
-            patch(_VOCAB_PATH, return_value=_NotFoundWireClass),
-        ):
-            with pytest.raises(VultronNotFoundError, match="missing-ref"):
                 adapter.add_object_to_case(
                     actor=_ACTOR,
                     object_id=fake_id,
@@ -308,36 +266,6 @@ class TestAddObjectToCaseConversionBranch:
             with pytest.raises(
                 VultronActivityConstructionError,
                 match="'CoreActor' declares no wire type",
-            ):
-                adapter.add_object_to_case(
-                    actor=_ACTOR,
-                    object_id=fake_id,
-                    case_id=case.id_,
-                )
-
-    def test_non_vultron_wire_class_raises_construction_error(
-        self, adapter, dl
-    ):
-        """Wire class that is not as_VultronObject raises VultronActivityConstructionError."""
-        case = _make_case(dl)
-        fake_id = "urn:test:non-as2-obj-1"
-
-        class _SomeNonAS2DomainObj:
-            pass
-
-        with (
-            patch.object(
-                dl,
-                "read",
-                side_effect=self._patched_read(
-                    dl, fake_id, _SomeNonAS2DomainObj()
-                ),
-            ),
-            patch(_VOCAB_PATH, return_value=as_Note),
-        ):
-            with pytest.raises(
-                VultronActivityConstructionError,
-                match="no as_VultronObject wire counterpart",
             ):
                 adapter.add_object_to_case(
                     actor=_ACTOR,
@@ -400,28 +328,59 @@ class TestToWireObject:
 
         assert _to_wire_object(note, note.id_) is note
 
-    def test_core_object_converted_via_from_core(self):
-        from vultron.core.models.case import VulnerabilityCase
+    @pytest.mark.spec("ARCH-23-002")
+    @pytest.mark.parametrize(
+        "core_obj",
+        [
+            pytest.param(
+                VulnerabilityCase(attributed_to=_ACTOR),
+                id="paired-VulnerabilityCase",
+            ),
+            pytest.param(
+                VultronPerson(name="Pat"),
+                id="class-name-differs-from-type-VultronPerson",
+            ),
+            pytest.param(
+                VultronNote(content="details"), id="unpaired-VultronNote"
+            ),
+        ],
+    )
+    def test_core_object_is_carried_as_itself(self, core_obj):
+        """A ``CoreObject`` is its own wire form (ADR-0099 detail 3).
 
-        core_obj = VulnerabilityCase(attributed_to=_ACTOR)
-
-        result = _to_wire_object(core_obj, core_obj.id_)
-
-        assert isinstance(result, as_VulnerabilityCase)
-        assert result.id_ == core_obj.id_
-
-    def test_object_already_of_registered_class_returned_unchanged(self):
-        """A class registered as its own wire class needs no conversion.
-
-        This is the shape ADR-0099 detail 3 produces once a paired ``as_*``
-        class is deleted and the core class serialises directly.
+        No counterpart is resolved by class name: that lookup matched
+        ``WIRE_TYPE_MAP`` only by coincidence (``VulnerabilityCase``) and
+        otherwise found the class itself through the core-map fallback
+        (``VultronPerson``, ``VultronNote``), which ARCH-23-002 forbids and
+        VM-06-008 no longer offers by default (ISSUE-3565).
         """
-        from vultron.core.models.case import VulnerabilityCase
+        assert _to_wire_object(core_obj, core_obj.id_) is core_obj
 
-        core_obj = VulnerabilityCase(attributed_to=_ACTOR)
+    @pytest.mark.spec("ARCH-23-002")
+    def test_package_does_not_resolve_a_wire_counterpart(self):
+        """No module in the package names a type registry or its lookups.
 
-        with patch(_VOCAB_PATH, return_value=VulnerabilityCase):
-            assert _to_wire_object(core_obj, core_obj.id_) is core_obj
+        A class-name counterpart lookup needs one of these to look the name up
+        in, so naming none of them is what keeps ``_to_wire_object`` — and any
+        sibling — from reintroducing it (ISSUE-3694). Import aliases are
+        checked too, so ``import find_in_vocabulary as f`` is still caught.
+        """
+        import vultron.adapters.driven.trigger_activity_adapter as package
+        from test.support.source_names import (
+            REGISTRY_LOOKUP_NAMES,
+            package_modules,
+            referenced_names,
+        )
+
+        modules = package_modules(package)
+        assert len(modules) > 1, "fixture must scan the package's submodules"
+
+        found = {
+            module.__name__: hits
+            for module in modules
+            if (hits := referenced_names(module) & REGISTRY_LOOKUP_NAMES)
+        }
+        assert found == {}
 
 
 class TestAnnounceVulnerabilityCase:
@@ -448,6 +407,255 @@ class TestAnnounceVulnerabilityCase:
         )
 
         assert dl.read(activity_id) is not None
+
+
+class TestCaseOnTheWireCarriesItsParticipants:
+    """CBT-05-005 / CBT-01-007: a case put on the wire carries its participants
+    (and reports) inline, not as ids.
+
+    The recipient of a bootstrap ``Create`` or ``Announce`` stores each embedded
+    participant as its own record; with ids alone it has no participant at
+    ``RM.RECEIVED`` to validate and no CASE_MANAGER participant to route its
+    reply to — the vendor's validate-report trigger failed with "no routable
+    recipients" and "RM.START -> RM.VALID" in the fcvcv demo once the outbox
+    stopped expanding them at delivery time (#3923).
+    """
+
+    @staticmethod
+    def _case_with_participant_ids(dl):
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            as_VulnerabilityReport,
+        )
+
+        case_id = "https://example.org/cases/wire-participants"
+        manager = CaseParticipant(
+            context=case_id,
+            attributed_to=_ACTOR,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        vendor = CaseParticipant(
+            context=case_id, attributed_to=_PEER, case_roles=[CVDRole.VENDOR]
+        )
+        report = as_VulnerabilityReport(name="CVE-2025-030", content="PoC")
+        for obj in (manager, vendor, report):
+            dl.create(obj)
+        case = as_VulnerabilityCase(
+            id_=case_id,
+            name="CVE-2025-030",
+            attributed_to=_ACTOR,
+            case_participants=[str(manager.id_), str(vendor.id_)],
+            actor_participant_index={
+                _ACTOR: str(manager.id_),
+                _PEER: str(vendor.id_),
+            },
+            vulnerability_reports=[str(report.id_)],
+        )
+        dl.create(case)
+        return case, {str(manager.id_), str(vendor.id_)}, str(report.id_)
+
+    @staticmethod
+    def _sealed_case(dl, activity_id):
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        return body["object"]
+
+    @pytest.mark.spec("CBT-05-005")
+    @pytest.mark.spec("CBT-01-007")
+    def test_create_case_carries_participants_and_reports(self, adapter, dl):
+        case, participant_ids, report_id = self._case_with_participant_ids(dl)
+
+        activity_id, _ = adapter.create_case(
+            case_id=case.id_, actor=_ACTOR, to=[_PEER]
+        )
+
+        wire_case = self._sealed_case(dl, activity_id)
+        carried = wire_case["caseParticipants"]
+        assert all(
+            isinstance(p, dict) and p["type"] == "CaseParticipant"
+            for p in carried
+        ), carried
+        assert {p["id"] for p in carried} == participant_ids
+        [report] = wire_case["vulnerabilityReports"]
+        assert report["id"] == report_id and report["content"] == "PoC"
+
+    @pytest.mark.spec("CBT-01-007")
+    def test_announce_carries_participants(self, adapter, dl):
+        case, participant_ids, _ = self._case_with_participant_ids(dl)
+
+        activity_id = adapter.announce_vulnerability_case(
+            case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+        )
+
+        carried = self._sealed_case(dl, activity_id)["caseParticipants"]
+        assert {p["id"] for p in carried} == participant_ids
+        assert all(p["type"] == "CaseParticipant" for p in carried)
+
+    def test_the_stored_case_still_holds_ids(self, adapter, dl):
+        """Carrying is done on a copy: the store keeps its reference shape."""
+        case, participant_ids, _ = self._case_with_participant_ids(dl)
+
+        adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+
+        stored = dl.read(case.id_)
+        assert {
+            p if isinstance(p, str) else p.id_
+            for p in stored.case_participants
+        } == participant_ids
+
+    def test_a_participant_the_store_lacks_stays_an_id(
+        self, adapter, dl, caplog
+    ):
+        case = as_VulnerabilityCase(
+            name="CVE-2025-031",
+            attributed_to=_ACTOR,
+            case_participants=["https://example.org/participants/absent"],
+        )
+        dl.create(case)
+
+        with caplog.at_level("WARNING"):
+            activity_id, _ = adapter.create_case(
+                case_id=case.id_, actor=_ACTOR, to=[_PEER]
+            )
+
+        assert self._sealed_case(dl, activity_id)["caseParticipants"] == [
+            "https://example.org/participants/absent"
+        ]
+        assert any(
+            "cannot be carried inline" in r.message for r in caplog.records
+        )
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_the_active_embargo_is_carried_inline(self, adapter, dl):
+        case = as_VulnerabilityCase(name="CVE-2025-032", attributed_to=_ACTOR)
+        embargo = EmbargoEvent(
+            id_=f"{case.id_}/embargo_events/e1",
+            context=case.id_,
+            end_time=days_from_now_utc(45),
+        )
+        dl.create(embargo)
+        activate(case, embargo.id_)
+        dl.create(case)
+
+        activity_id, _ = adapter.create_case(
+            case_id=case.id_, actor=_ACTOR, to=[_PEER]
+        )
+
+        (entry,) = self._sealed_case(dl, activity_id)["embargoRegister"]
+        carried = entry["embargo"]
+        assert isinstance(carried, dict) and carried["id"] == embargo.id_
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_an_active_embargo_the_store_lacks_is_not_sent(self, adapter, dl):
+        case = as_VulnerabilityCase(
+            name="CVE-2025-033",
+            attributed_to=_ACTOR,
+            embargo_register=register(
+                active="https://example.org/embargo_events/absent"
+            ),
+        )
+        dl.create(case)
+
+        with pytest.raises(VultronValidationError, match="EMB-18-003"):
+            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_an_active_embargo_naming_a_non_embargo_record_is_not_sent(
+        self, adapter, dl
+    ):
+        note = VultronNote(content="not an embargo")
+        dl.create(note)
+        case = as_VulnerabilityCase(
+            name="CVE-2025-034",
+            attributed_to=_ACTOR,
+            embargo_register=register(active=note.id_),
+        )
+        dl.create(case)
+
+        with pytest.raises(VultronValidationError, match="EMB-18-003"):
+            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_an_active_embargo_that_cannot_be_projected_is_not_sent(
+        self, adapter, dl
+    ):
+        case = as_VulnerabilityCase(name="CVE-2025-035", attributed_to=_ACTOR)
+        embargo = EmbargoEvent(
+            id_=f"{case.id_}/embargo_events/e1",
+            context=case.id_,
+            end_time=days_from_now_utc(45),
+        )
+        dl.create(embargo)
+        activate(case, embargo.id_)
+        dl.create(case)
+        real_to_wire = _base._to_wire
+
+        def _refuse_embargo(obj, cls):
+            if isinstance(obj, EmbargoEvent):
+                raise TypeError("cannot project")
+            return real_to_wire(obj, cls)
+
+        with (
+            patch.object(_base, "_to_wire", side_effect=_refuse_embargo),
+            pytest.raises(VultronValidationError, match="wire shape"),
+        ):
+            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+
+
+class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
+    """CBT-01-007: the Announce embeds each report the case names, or is not
+    sent.  The sealed body is delivered as built, so a bare reference here
+    would reach a recipient that cannot resolve it."""
+
+    def _case_naming(self, dl, report_ids):
+        case = as_VulnerabilityCase(name="CVE-2025-020")
+        case.vulnerability_reports.extend(report_ids)
+        dl.create(case)
+        return case
+
+    @pytest.mark.spec("CBT-01-007")
+    def test_a_report_the_store_lacks_refuses_the_announce(self, adapter, dl):
+        case = self._case_naming(
+            dl, ["https://example.org/reports/not-in-this-store"]
+        )
+
+        with pytest.raises(VultronNotFoundError):
+            adapter.announce_vulnerability_case(
+                case_id=case.id_,
+                actor=_ACTOR,
+                context_id=_CONTEXT_ID,
+                to=[_PEER],
+            )
+
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CBT-01-007")
+    def test_a_held_report_is_embedded_inline(self, adapter, dl):
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            as_VulnerabilityReport,
+        )
+
+        report = as_VulnerabilityReport(name="CVE-2025-020", content="PoC")
+        dl.create(report)
+        case = self._case_naming(dl, [report.id_])
+
+        activity_id = adapter.announce_vulnerability_case(
+            case_id=case.id_,
+            actor=_ACTOR,
+            context_id=_CONTEXT_ID,
+            to=[_PEER],
+        )
+
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        [embedded] = body["object"]["vulnerabilityReports"]
+        assert embedded["id"] == report.id_
+        assert embedded["content"] == "PoC"
 
 
 class TestRejectCaseProposal:
@@ -501,9 +709,9 @@ class TestRejectCaseProposal:
         )
 
         stored = dl.read(activity_id)
-        assert not isinstance(
-            stored.object_, str
-        ), "a bare URI is unreadable to the vendor (AKM-03-001)"
+        assert not isinstance(stored.object_, str), (
+            "a bare URI is unreadable to the vendor (AKM-03-001)"
+        )
         assert stored.object_.id_ == proposal["id"]
 
     def test_addresses_the_proposer_when_no_recipients_given(self, adapter):

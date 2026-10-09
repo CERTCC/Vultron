@@ -14,15 +14,22 @@
 """Unit tests for TriggerActivityAdapter embargo-domain methods."""
 
 import json
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _ACTOR = "https://example.org/actors/coordinator"
 _PEER = "https://example.org/actors/vendor"
+_PROPOSER = "https://example.org/actors/proposer"
 _CASE_ID = "https://example.org/cases/case-001"
 
 
 def _make_embargo(dl) -> as_EmbargoEvent:
-    embargo = as_EmbargoEvent(context=_CASE_ID)
+    embargo = as_EmbargoEvent(context=_CASE_ID, end_time=days_from_now_utc(45))
     dl.create(embargo)
     return embargo
 
@@ -64,6 +71,97 @@ class TestProposeEmbargo:
         )
 
         assert dl.read(activity_id) is not None
+
+    def test_relayed_proposal_carries_the_proposer_in_attributed_to(
+        self, adapter, dl
+    ):
+        """CM-24-002: a relayed Invite names the proposer, not the sender."""
+        embargo = _make_embargo(dl)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+            attributed_to=_PROPOSER,
+        )
+
+        body = json.loads(blob)
+        assert body["actor"] == _ACTOR
+        assert body["attributedTo"] == _PROPOSER
+
+    def test_a_participants_own_proposal_has_no_attribution(self, adapter, dl):
+        embargo = _make_embargo(dl)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        assert "attributedTo" not in json.loads(blob)
+
+    def test_a_given_activity_id_is_the_invites_id(self, adapter, dl):
+        """EP-04-011: the creation-time relay emits under the id it indexed."""
+        embargo = _make_embargo(dl)
+        given = "urn:uuid:pre-indexed-invite"
+
+        activity_id, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            activity_id=given,
+        )
+
+        assert activity_id == given
+        assert json.loads(blob)["id"] == given
+        assert dl.read(given) is not None
+
+    @pytest.mark.spec("CM-28-012")
+    def test_a_given_rsvp_deadline_is_the_invites_end_time(self, adapter, dl):
+        """The relaying manager's stamp reaches the wire as ``endTime``."""
+        embargo = _make_embargo(dl)
+        published = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+        deadline = published + timedelta(days=7)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+            rsvp_deadline=deadline,
+            published=published,
+        )
+
+        body = json.loads(blob)
+        assert datetime.fromisoformat(body["endTime"]) == deadline
+        assert datetime.fromisoformat(body["published"]) == published
+
+    def test_a_deadline_inside_the_given_floor_is_refused(self, adapter, dl):
+        """The forwarded floor is the one the factory validates (EP-07-002)."""
+        embargo = _make_embargo(dl)
+        published = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+
+        with pytest.raises(
+            VultronActivityConstructionError, match="EP-07-002"
+        ):
+            adapter.propose_embargo(
+                embargo_id=embargo.id_,
+                case_id=_CASE_ID,
+                actor=_ACTOR,
+                to=[_PEER],
+                rsvp_deadline=published + timedelta(days=2),
+                published=published,
+                min_rsvp_window=timedelta(days=3),
+            )
+
+    def test_no_deadline_given_means_no_end_time(self, adapter, dl):
+        """A participant's own proposal carries no manager stamp."""
+        embargo = _make_embargo(dl)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        assert "endTime" not in json.loads(blob)
 
 
 class TestAcceptEmbargo:
@@ -109,9 +207,9 @@ class TestAcceptEmbargo:
         )
 
         obj = json.loads(activity_dict).get("object")
-        assert isinstance(
-            obj, dict
-        ), "object_ must be an inline dict, not a URI"
+        assert isinstance(obj, dict), (
+            "object_ must be an inline dict, not a URI"
+        )
         assert obj.get("id") == proposal_id
 
 
@@ -158,9 +256,9 @@ class TestRejectEmbargo:
         )
 
         obj = json.loads(activity_dict).get("object")
-        assert isinstance(
-            obj, dict
-        ), "object_ must be an inline dict, not a URI"
+        assert isinstance(obj, dict), (
+            "object_ must be an inline dict, not a URI"
+        )
         assert obj.get("id") == proposal_id
 
 
@@ -213,4 +311,41 @@ class TestTerminateEmbargo:
             to=[_PEER],
         )
 
+        assert dl.read(activity_id) is not None
+
+
+@pytest.mark.parametrize(
+    ("method", "verb"),
+    [("activate_embargo", "Accept"), ("reject_embargo_proposal", "Reject")],
+)
+class TestOwnerEmbargoDecision:
+    """The case owner's Accept/Reject of the EmbargoEvent itself (ADR-0122)."""
+
+    def _build(self, adapter, dl, method: str) -> tuple[str, dict, str]:
+        embargo = _make_embargo(dl)
+        activity_id, blob = getattr(adapter, method)(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+        )
+        return activity_id, json.loads(blob), embargo.id_
+
+    def test_object_is_the_inline_embargo_not_an_invite(
+        self, adapter, dl, method, verb
+    ):
+        _, body, embargo_id = self._build(adapter, dl, method)
+        assert body["type"] == verb
+        assert body["object"]["type"] == "EmbargoEvent"
+        assert body["object"]["id"] == embargo_id
+
+    def test_case_is_target_and_context(self, adapter, dl, method, verb):
+        """``context`` lets the CASE_MANAGER commit it as an entry (VM-08-003)."""
+        _, body, _ = self._build(adapter, dl, method)
+        assert body["target"] == _CASE_ID
+        assert body["context"] == _CASE_ID
+        assert body["to"] == [_PEER]
+
+    def test_persists_activity(self, adapter, dl, method, verb):
+        activity_id, _, _ = self._build(adapter, dl, method)
         assert dl.read(activity_id) is not None

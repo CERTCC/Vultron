@@ -24,13 +24,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from vultron.adapters.utils import strip_id_prefix
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.adapters.driving.fastapi.routers import (
+    actors as actors_router,
     datalayer as datalayer_router,
 )
+from vultron.adapters.utils import strip_id_prefix
 from vultron.wire.as2.vocab.objects.embargo_policy import as_EmbargoPolicy
 from vultron.wire.as2.vocab.objects.vultron_actor import (
     as_VultronApplication,
@@ -67,6 +67,7 @@ def _host_actor(actor):
 @pytest.fixture
 def client_actors(datalayer):
     from fastapi import Path as FastAPIPath
+
     from vultron.adapters.driven.datalayer_sqlite import get_datalayer
     from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
@@ -95,6 +96,7 @@ def client_actors(datalayer):
 @pytest.fixture
 def client_datalayer(datalayer):
     from fastapi import Path as FastAPIPath
+
     from vultron.adapters.driven.datalayer_sqlite import get_datalayer
     from vultron.adapters.driving.fastapi.deps import get_actor_dl
 
@@ -111,13 +113,16 @@ def client_datalayer(datalayer):
     app.dependency_overrides = {}
 
 
-@pytest.fixture
-def embargo_policy():
+def _embargo_policy(actor_id: str) -> as_EmbargoPolicy:
+    """The policy *actor_id*'s own profile carries (EP-01-001).
+
+    A profile carries only its own policy, so each actor gets one naming it.
+    """
     from datetime import timedelta
 
     return as_EmbargoPolicy(
-        actor_id="https://example.org/actors/alice",
-        inbox="https://example.org/actors/alice/inbox",
+        actor_id=actor_id,
+        inbox=f"{actor_id}/inbox",
         preferred_duration=timedelta(days=90),
     )
 
@@ -128,47 +133,47 @@ def embargo_policy():
 # store for an id ending in that segment, so an id under some other authority
 # can never be addressed on this node — it is not an actor this node hosts.
 @pytest.fixture
-def vultron_person(embargo_policy):
+def vultron_person():
     return as_VultronPerson(
         name="Alice",
         id_=canonical_actor_uri("alice"),
-        embargo_policy=embargo_policy,
+        embargo_policy=_embargo_policy(canonical_actor_uri("alice")),
     )
 
 
 @pytest.fixture
-def vultron_organization(embargo_policy):
+def vultron_organization():
     return as_VultronOrganization(
         name="ACME Corp",
         id_=canonical_actor_uri("acme"),
-        embargo_policy=embargo_policy,
+        embargo_policy=_embargo_policy(canonical_actor_uri("acme")),
     )
 
 
 @pytest.fixture
-def vultron_service(embargo_policy):
+def vultron_service():
     return as_VultronService(
         name="VulnBot",
         id_=canonical_actor_uri("vulnbot"),
-        embargo_policy=embargo_policy,
+        embargo_policy=_embargo_policy(canonical_actor_uri("vulnbot")),
     )
 
 
 @pytest.fixture
-def vultron_application(embargo_policy):
+def vultron_application():
     return as_VultronApplication(
         name="VulnApp",
         id_=canonical_actor_uri("vulnapp"),
-        embargo_policy=embargo_policy,
+        embargo_policy=_embargo_policy(canonical_actor_uri("vulnapp")),
     )
 
 
 @pytest.fixture
-def vultron_group(embargo_policy):
+def vultron_group():
     return as_VultronGroup(
         name="VulnGroup",
         id_=canonical_actor_uri("vulngroup"),
-        embargo_policy=embargo_policy,
+        embargo_policy=_embargo_policy(canonical_actor_uri("vulngroup")),
     )
 
 
@@ -209,9 +214,9 @@ def test_get_actors_list_includes_embargo_policy(
         if item.get("id") == actor.id_
         or item.get("id", "").endswith(actor.id_)
     ]
-    assert (
-        matching
-    ), f"Actor {actor.id_} not found in response. IDs: {[d.get('id') for d in data]}"
+    assert matching, (
+        f"Actor {actor.id_} not found in response. IDs: {[d.get('id') for d in data]}"
+    )
     actor_data = matching[0]
     assert "embargoPolicy" in actor_data, (
         f"Response for {actor_type} actor missing 'embargoPolicy' field. "
@@ -301,9 +306,9 @@ def test_post_actors_create_returns_actor_type(client_actors, actor_type):
     )
     assert resp.status_code == 201
     data = resp.json()
-    assert (
-        data.get("type") == actor_type
-    ), f"Expected type={actor_type!r}, got {data.get('type')!r}"
+    assert data.get("type") == actor_type, (
+        f"Expected type={actor_type!r}, got {data.get('type')!r}"
+    )
 
 
 def test_post_actors_idempotency_returns_full_actor(
@@ -326,9 +331,9 @@ def test_post_actors_idempotency_returns_full_actor(
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert (
-        "embargoPolicy" in data
-    ), f"Idempotency response missing 'embargoPolicy'. Keys: {list(data.keys())}"
+    assert "embargoPolicy" in data, (
+        f"Idempotency response missing 'embargoPolicy'. Keys: {list(data.keys())}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -344,12 +349,11 @@ def test_datalayer_get_actors_includes_embargo_policy(
     Regression test for HTTP-08-001 violation where -> dict[str, as_Actor]
     return annotation stripped subclass fields.
     """
-    from vultron.core.ports.datalayer import StorableRecord
-
     # The debug router is actor-scoped in its path now (ADR-0073): there is no
     # node-wide store to inspect, so the record goes in this actor's own store
     # and the request names that actor.
     from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+    from vultron.core.ports.datalayer import StorableRecord
 
     hosted = get_datalayer(vultron_person.id_, db_url="sqlite:///:memory:")
     hosted.create(
@@ -378,6 +382,6 @@ def test_datalayer_get_actors_includes_embargo_policy(
         f"IDs: {[v.get('id') for v in data.values()]}"
     )
     person_data = next(iter(matching.values()))
-    assert (
-        "embargoPolicy" in person_data
-    ), f"Response missing 'embargoPolicy'. Keys: {list(person_data.keys())}"
+    assert "embargoPolicy" in person_data, (
+        f"Response missing 'embargoPolicy'. Keys: {list(person_data.keys())}"
+    )

@@ -38,6 +38,9 @@ import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from vultron.adapters.driven.datalayer_sqlite import (
+    get_all_actor_datalayers,
+)
 from vultron.adapters.driven.datalayer_sqlite.engine import (
     _is_memory_url,
     actor_slug,
@@ -130,10 +133,6 @@ def hosted_actor_ids(
     base = base_url if base_url is not None else cfg.server.base_url
 
     if _is_memory_url(url):
-        from vultron.adapters.driven.datalayer_sqlite import (
-            get_all_actor_datalayers,
-        )
-
         return sorted(get_all_actor_datalayers())
 
     return sorted(

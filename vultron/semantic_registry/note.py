@@ -41,6 +41,7 @@ ENTRIES: list[SemanticEntry] = [
         event_class=CreateNoteReceivedEvent,
         use_case_class=CreateNoteReceivedUseCase,
         phrase="{actor} created a note",
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_NOTE_TO_CASE,
@@ -57,5 +58,6 @@ ENTRIES: list[SemanticEntry] = [
         event_class=RemoveNoteFromCaseReceivedEvent,
         use_case_class=RemoveNoteFromCaseReceivedUseCase,
         phrase="{actor} removed a note from the case",
+        include_activity=True,
     ),
 ]

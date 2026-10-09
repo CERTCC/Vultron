@@ -39,24 +39,33 @@ from __future__ import annotations
 
 import pytest
 
+from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models.case import VulnerabilityCase
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import ValidateReportReceivedEvent
-from vultron.core.models.report import VultronReport
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.received.report import (
     ValidateReportReceivedUseCase,
 )
-from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.use_cases.triggers.report import SvcValidateReportUseCase
+from vultron.core.use_cases.triggers.requests import (
+    ValidateReportTriggerRequest,
+)
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -68,9 +77,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -124,7 +130,7 @@ def _make_case_at_received(
         name="Test Case at Received",
         attributed_to=vendor_id,
         vulnerability_reports=[report_id],
-        active_embargo=embargo_id,
+        embargo_register=register(active=embargo_id),
     )
     dl.create(case)
 
@@ -167,6 +173,30 @@ def _make_case_at_received(
     return case, offer
 
 
+def _add_participant_at_received(
+    dl: SqliteDataLayer, case: VulnerabilityCase, actor_id: str
+) -> None:
+    """Add *actor_id* to *case* as a participant at RM.RECEIVED.
+
+    The caller saves *case* afterwards.
+    """
+    participant = as_CaseParticipant(
+        attributed_to=actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor_id,
+                context=case.id_,
+                rm=RmDimension(state=RM.RECEIVED),
+            )
+        ],
+    )
+    dl.create(participant)
+    case.actor_participant_index[actor_id] = participant.id_
+    case.case_participants.append(participant.id_)
+
+
 def _ledger_event_types(dl: SqliteDataLayer) -> list[str]:
     """Return all ``event_type`` values in the DataLayer's CaseLedgerEntry set."""
     return [
@@ -199,15 +229,6 @@ def _configure_case_actor_url(monkeypatch):
     reload_config()
 
 
-@pytest.fixture(autouse=True)
-def _clear_blackboard():
-    import py_trees
-
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 # ---------------------------------------------------------------------------
 # Layer 1 — Trigger emits to the CaseActor's outbox
 # ---------------------------------------------------------------------------
@@ -238,9 +259,9 @@ class TestTriggerEmitsToCaseActorOutbox:
             dl, self.VENDOR_ID, self.FINDER_ID, self.REPORT_ID
         )
         case_actor_id = _find_case_actor_id(dl, case.id_)
-        assert (
-            case_actor_id is not None
-        ), "BT must register a CaseActor Service"
+        assert case_actor_id is not None, (
+            "BT must register a CaseActor Service"
+        )
         return dl, case, offer, case_actor_id
 
     def test_emit_addressed_to_case_actor_id(self):
@@ -254,21 +275,27 @@ class TestTriggerEmitsToCaseActorOutbox:
         dl, _case, offer, case_actor_id = self._setup()
 
         before = outbox_ids(self.VENDOR_ID, dl)
-        TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
-        ).validate_report(self.VENDOR_ID, offer.id_, None)
+        SvcValidateReportUseCase(
+            dl,
+            ValidateReportTriggerRequest(
+                actor_id=self.VENDOR_ID, offer_id=offer.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
         after = outbox_ids(self.VENDOR_ID, dl)
 
         new_ids = after - before
-        assert (
-            new_ids
-        ), "validate-report trigger must emit at least one activity"
+        assert new_ids, (
+            "validate-report trigger must emit at least one activity"
+        )
 
         activity_id = next(iter(new_ids))
         emitted = dl.read(activity_id)
-        assert (
-            emitted is not None
-        ), f"Emitted activity '{activity_id}' not found in DL"
+        assert emitted is not None, (
+            f"Emitted activity '{activity_id}' not found in DL"
+        )
 
         to_list = getattr(emitted, "to", None) or []
         assert case_actor_id in to_list, (
@@ -287,22 +314,28 @@ class TestTriggerEmitsToCaseActorOutbox:
         dl, _case, offer, _case_actor_id = self._setup()
 
         before = outbox_ids(self.VENDOR_ID, dl)
-        TriggerService(
-            dl, trigger_activity=TriggerActivityAdapter(dl)
-        ).validate_report(self.VENDOR_ID, offer.id_, None)
+        SvcValidateReportUseCase(
+            dl,
+            ValidateReportTriggerRequest(
+                actor_id=self.VENDOR_ID, offer_id=offer.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
         after = outbox_ids(self.VENDOR_ID, dl)
 
         new_ids = after - before
-        assert (
-            new_ids
-        ), "validate-report trigger must emit at least one activity"
+        assert new_ids, (
+            "validate-report trigger must emit at least one activity"
+        )
 
         activity_id = next(iter(new_ids))
         emitted = dl.read(activity_id)
         to_list = getattr(emitted, "to", None) or []
-        assert (
-            self.VENDOR_ID not in to_list
-        ), "Emitted activity must not be addressed back to the sending vendor"
+        assert self.VENDOR_ID not in to_list, (
+            "Emitted activity must not be addressed back to the sending vendor"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -330,13 +363,13 @@ class TestCaseActorReceivedWritesLedgerEntry:
 
     def _make_case_actor_dl(self) -> SqliteDataLayer:
         """DataLayer as seen by the CaseActor: case + CASE_MANAGER + Service link."""
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
 
         dl = _make_dl(self.CASE_ACTOR_ID)
 
         # The CaseActor Service must have context=case_id so that
         # _find_case_actor_id resolves it via the Service scan.
-        case_actor_svc = VultronCaseActor(
+        case_actor_svc = CaseActor(
             id_=self.CASE_ACTOR_ID,
             context=self.CASE_ID,
         )
@@ -352,7 +385,9 @@ class TestCaseActorReceivedWritesLedgerEntry:
             id_=self.CASE_ID,
             name="Ledger Routing Test Case",
             attributed_to=self.CASE_ACTOR_ID,
-            active_embargo=f"{self.CASE_ID}/embargoes/ledger-test",
+            embargo_register=register(
+                active=f"{self.CASE_ID}/embargoes/ledger-test"
+            ),
         )
         case.vulnerability_reports.append(self.REPORT_ID)
 
@@ -364,6 +399,10 @@ class TestCaseActorReceivedWritesLedgerEntry:
         dl.create(cm_participant)
         case.case_participants.append(cm_participant.id_)
         case.actor_participant_index[self.CASE_ACTOR_ID] = cm_participant.id_
+        # The sender must be a participant of the case the CaseActor manages:
+        # its declaration is refused before the commit otherwise (HP-01-006),
+        # and RM.RECEIVED is the state it holds before validate-report.
+        _add_participant_at_received(dl, case, self.VENDOR_ID)
         dl.save(case)
         dl.create(
             VultronReportCaseLink(
@@ -387,7 +426,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
             receiving_actor_id = self.CASE_ACTOR_ID
 
         # The inner Offer carries the as_VulnerabilityReport.
-        report_obj = VultronReport(id_=self.REPORT_ID)
+        report_obj = VulnerabilityReport(id_=self.REPORT_ID)
         offer_obj = VultronActivity(
             id_=self.OFFER_ID,
             type_="Offer",
@@ -421,7 +460,10 @@ class TestCaseActorReceivedWritesLedgerEntry:
         """
         dl = self._make_case_actor_dl()
         ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -434,7 +476,10 @@ class TestCaseActorReceivedWritesLedgerEntry:
         """The persisted ledger entry references the correct case_id."""
         dl = self._make_case_actor_dl()
         ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
@@ -457,7 +502,12 @@ class TestCaseActorReceivedWritesLedgerEntry:
         dl = self._make_case_actor_dl()
         event = self._make_validate_event(receiving_actor_id=self.VENDOR_ID)
 
-        ValidateReportReceivedUseCase(dl, event).execute()
+        ValidateReportReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         event_types = _ledger_event_types(dl)
         assert "validate_report" not in event_types, (
@@ -474,41 +524,19 @@ class TestCaseActorReceivedWritesLedgerEntry:
         message sender regardless of which actor ``execute_with_setup`` runs
         under (receiving_actor_id=CASE_ACTOR_ID).
         """
-        from vultron.core.states.rm import RM
         from vultron.core.models.report_case_link import VultronReportCaseLink
+        from vultron.core.states.rm import RM
 
         dl = self._make_case_actor_dl()
 
-        # Register VENDOR as a case participant so TransitionRMtoValid can
-        # persist the status record.
-        case = dl.read(self.CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
-        from vultron.core.models.case_actor import VultronCaseActor
-
-        vendor_svc = VultronCaseActor(id_=self.VENDOR_ID)
-        dl.save(vendor_svc)
-        # RM.RECEIVED is the state the sender holds before validate-report;
-        # RECEIVED -> VALID is a legal move, START -> VALID is not (ISSUE-2548).
-        vendor_p = as_CaseParticipant(
-            attributed_to=self.VENDOR_ID,
-            context=self.CASE_ID,
-            case_roles=[CVDRole.COORDINATOR],
-            participant_statuses=[
-                as_ParticipantStatus(
-                    attributed_to=self.VENDOR_ID,
-                    context=self.CASE_ID,
-                    rm=RmDimension(state=RM.RECEIVED),
-                )
-            ],
-        )
-        dl.create(vendor_p)
-        case.case_participants.append(vendor_p.id_)
-        case.actor_participant_index[self.VENDOR_ID] = vendor_p.id_
-        dl.save(case)
-
+        # The fixture registers VENDOR as a RM.RECEIVED participant so
+        # TransitionRMtoValid can persist the status record; RECEIVED -> VALID
+        # is a legal move, START -> VALID would be a gap (ISSUE-2548).
         ValidateReportReceivedUseCase(
             dl,
-            self._make_validate_event(),  # actor_id=VENDOR, receiving=CASE_ACTOR
+            self._make_validate_event(),  # actor_id=VENDOR, receiving=CASE_ACTOR,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
@@ -544,7 +572,7 @@ class TestFullValidateReportLedgerChain:
 
     def test_case_actor_ledger_contains_validate_report_after_trigger(self):
         """CaseActor ledger has 'validate_report' after vendor triggers validate."""
-        from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.models.case_actor import CaseActor
         from vultron.core.use_cases._helpers import outbox_ids
 
         # ── Step 1: vendor_dl — case at RM.RECEIVED ──────────────────────────
@@ -558,28 +586,34 @@ class TestFullValidateReportLedgerChain:
             vendor_dl, self.VENDOR_ID, self.FINDER_ID, self.REPORT_ID
         )
         case_actor_id = _find_case_actor_id(vendor_dl, case.id_)
-        assert (
-            case_actor_id is not None
-        ), "BT must register a CaseActor Service"
+        assert case_actor_id is not None, (
+            "BT must register a CaseActor Service"
+        )
 
         # ── Step 2: trigger validate-report on vendor_dl ─────────────────────
         before = outbox_ids(self.VENDOR_ID, vendor_dl)
-        TriggerService(
-            vendor_dl, trigger_activity=TriggerActivityAdapter(vendor_dl)
-        ).validate_report(self.VENDOR_ID, offer.id_, None)
+        SvcValidateReportUseCase(
+            vendor_dl,
+            ValidateReportTriggerRequest(
+                actor_id=self.VENDOR_ID, offer_id=offer.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(vendor_dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(vendor_dl),
+        ).execute()
         after = outbox_ids(self.VENDOR_ID, vendor_dl)
 
         new_ids = after - before
-        assert (
-            new_ids
-        ), "validate-report trigger must emit at least one activity"
+        assert new_ids, (
+            "validate-report trigger must emit at least one activity"
+        )
 
         # ── Step 3: verify emitted activity targets the CaseActor ────────────
         emitted_id = next(iter(new_ids))
         emitted = vendor_dl.read(emitted_id)
-        assert (
-            emitted is not None
-        ), f"Emitted activity '{emitted_id}' not in vendor_dl"
+        assert emitted is not None, (
+            f"Emitted activity '{emitted_id}' not in vendor_dl"
+        )
         to_list = getattr(emitted, "to", None) or []
         assert case_actor_id in to_list, (
             f"Emitted activity should target CaseActor {case_actor_id!r}; "
@@ -597,7 +631,7 @@ class TestFullValidateReportLedgerChain:
         case_actor_dl = _make_dl(case_actor_id)
 
         # The CaseActor Service needs context=case.id_ for _find_case_actor_id.
-        ca_svc = VultronCaseActor(id_=case_actor_id, context=case.id_)
+        ca_svc = CaseActor(id_=case_actor_id, context=case.id_)
         case_actor_dl.save(ca_svc)
 
         ca_case = as_VulnerabilityCase(
@@ -615,6 +649,9 @@ class TestFullValidateReportLedgerChain:
         case_actor_dl.create(ca_participant)
         ca_case.case_participants.append(ca_participant.id_)
         ca_case.actor_participant_index[case_actor_id] = ca_participant.id_
+        # The vendor is a participant of the case the CaseActor manages; the
+        # CaseActor refuses a declaration from anyone else (HP-01-006).
+        _add_participant_at_received(case_actor_dl, ca_case, self.VENDOR_ID)
         case_actor_dl.save(ca_case)
 
         # ── Step 5: dispatch ValidateReportReceivedUseCase on case_actor_dl ───
@@ -624,7 +661,7 @@ class TestFullValidateReportLedgerChain:
                 report_id=self.REPORT_ID, rm_state=RM.RECEIVED
             )
         )
-        report_obj = VultronReport(id_=self.REPORT_ID)
+        report_obj = VulnerabilityReport(id_=self.REPORT_ID)
         offer_obj = VultronActivity(
             id_=offer.id_,
             type_="Offer",
@@ -650,7 +687,12 @@ class TestFullValidateReportLedgerChain:
             receiving_actor_id=case_actor_id,
         )
 
-        ValidateReportReceivedUseCase(case_actor_dl, event).execute()
+        ValidateReportReceivedUseCase(
+            case_actor_dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(case_actor_dl),
+        ).execute()
 
         # ── Step 6: assert CaseActor ledger has the validate_report entry ─────
         event_types = _ledger_event_types(case_actor_dl)

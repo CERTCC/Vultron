@@ -38,6 +38,7 @@ class VultronObjectType(StrEnum):
     """Enumeration of Vultron-specific domain object types."""
 
     VULNERABILITY_CASE = "VulnerabilityCase"
+    VULNERABILITY_CASE_STUB = "VulnerabilityCaseStub"
     VULNERABILITY_REPORT = "VulnerabilityReport"
     VULNERABILITY_RECORD = "VulnerabilityRecord"
     CASE_REFERENCE = "CaseReference"

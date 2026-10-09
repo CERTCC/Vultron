@@ -27,35 +27,74 @@ Nodes enforce CVD protocol correctness for received-side status authorization
   ``vf.state=VF`` (fix-ready) before a deployer may advance d→D (CSB-15-004)
 - :class:`CheckNotSoleObserverVfdNode` — gates v→V (vf_state=Vf): actor
   MUST NOT hold ``CVDRole.OBSERVER`` as their only role (CM-25-005)
-- :class:`CheckIsCaseOwnerNode` — hard bypass in ``StatusAdoptionGate``:
-  sender MUST hold ``CVDRole.CASE_OWNER`` (RSH-01-002)
 
-On-behalf assertion guards (ADR-0084) live in :mod:`on_behalf_guards` and are
+Note: ``CheckIsCaseOwnerNode`` has been consolidated into
+``SenderIsCaseOwnerNode`` in
+``vultron.core.behaviors.sender_entitlement`` (ADR-0115, AC-2).
+
+On-behalf assertion guards (ADR-0121) live in :mod:`on_behalf_guards` and are
 re-exported here for backward compatibility.
 """
 
 import logging
 
 from py_trees.common import Status
-from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.participants._lookup import iter_case_participants
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants._lookup import iter_case_participants
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.participants import some_vendor_at_vf
 from vultron.core.predicates.roles import (
-    has_case_owner_role,
     has_deployer_role,
     has_vendor_role,
     is_sole_observer,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
+
+
+class ActorNotInCaseError(VultronNotFoundError):
+    """The actor has no entry in ``case.actor_participant_index``."""
+
+    def __init__(self, case_id: str, actor_id: str) -> None:
+        super().__init__("Participant for actor", actor_id)
+        self.case_id = case_id
+
+
+class ParticipantRecordUnreadableError(VultronNotFoundError):
+    """The index names a participant record that is missing or mistyped."""
+
+    def __init__(self, participant_id: str, actor_id: str) -> None:
+        super().__init__("CaseParticipant", participant_id)
+        self.actor_id = actor_id
+
+
+def _read_indexed_participant(
+    datalayer: CasePersistence,
+    case: VulnerabilityCase,
+    actor_id: str,
+) -> CaseParticipant:
+    """Return *actor_id*'s participant in *case* via the roster index.
+
+    Raises :class:`ActorNotInCaseError` when the actor is not indexed, and
+    :class:`ParticipantRecordUnreadableError` when the indexed record is
+    missing or not a :class:`CaseParticipant` (BT-HELPER-01: raise, never
+    return ``None``).  The two are distinct so a caller can tell a policy
+    outcome (not a participant) from a broken store.
+    """
+    participant_id = case.actor_participant_index.get(actor_id)
+    if participant_id is None:
+        raise ActorNotInCaseError(case.id_, actor_id)
+    participant = datalayer.read(participant_id)
+    if not isinstance(participant, CaseParticipant):
+        raise ParticipantRecordUnreadableError(participant_id, actor_id)
+    return participant
 
 
 def _resolve_actor_roles(
@@ -78,19 +117,18 @@ def _resolve_actor_roles(
         logger.warning("%s: case '%s' not found", node_name, case_id)
         return None
 
-    participant_id = case.actor_participant_index.get(actor_id)
-    if participant_id is None:
+    try:
+        participant = _read_indexed_participant(datalayer, case, actor_id)
+    except ActorNotInCaseError:
         logger.warning(
             "%s: actor '%s' not in case '%s'", node_name, actor_id, case_id
         )
         return None
-
-    participant = datalayer.read(participant_id)
-    if not isinstance(participant, CaseParticipant):
+    except ParticipantRecordUnreadableError as exc:
         logger.warning(
             "%s: participant '%s' not found or wrong type",
             node_name,
-            participant_id,
+            exc.resource_id,
         )
         return None
 
@@ -326,93 +364,3 @@ class CheckNotSoleObserverVfdNode(DataLayerConditionWithPorts):
             self._actor_id,
         )
         return Status.SUCCESS
-
-
-class CheckIsCaseOwnerNode(DataLayerConditionWithPorts):
-    """Check whether the *sender* actor is a CASE_OWNER participant.
-
-    Used as the hard-bypass child of ``StatusAdoptionGate`` (RSH-01-002):
-    a CASE_OWNER's status reports are authoritative ("gospel") and do not
-    require approval by the CaseOwnerApprovesStatusUpdate call-out.
-
-    Reads the case from the DataLayer, resolves the sender's participant
-    record via ``actor_participant_index``, and returns ``SUCCESS`` only
-    when that participant holds ``CVDRole.CASE_OWNER``.
-
-    Returns ``FAILURE`` (proceed to the approval call-out) for any actor
-    that is not a known CASE_OWNER, including unknown actors or those
-    holding other roles (e.g. COORDINATOR, VENDOR).
-    """
-
-    def __init__(
-        self,
-        sender_actor_id: str,
-        case_id: str | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._sender_actor_id = sender_actor_id
-        self._case_id = case_id
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerConditionWithPorts.INPUT_PORTS,
-        "case_id": PortInformation(data_type=str, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._case_id_bb = None
-        try:
-            self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
-            pass
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case_id = self._case_id or self._case_id_bb
-
-        case, failure = self._require_case(case_id)
-        if failure is not None:
-            return failure  # Regime 1: CASE_OWNER role gate needs the case (ADR-0087)
-
-        participant_id = case.actor_participant_index.get(
-            self._sender_actor_id
-        )
-        if participant_id is None:
-            self.logger.debug(
-                "%s: sender '%s' not in actor_participant_index for case '%s'",
-                self.name,
-                self._sender_actor_id,
-                case_id,
-            )
-            return Status.FAILURE
-
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return Status.FAILURE
-
-        roles = participant.roles if hasattr(participant, "roles") else []
-        if has_case_owner_role(roles):
-            self.logger.debug(
-                "%s: sender '%s' IS CASE_OWNER for case '%s'",
-                self.name,
-                self._sender_actor_id,
-                case_id,
-            )
-            return Status.SUCCESS
-
-        self.logger.debug(
-            "%s: sender '%s' is NOT CASE_OWNER for case '%s' (roles=%s)",
-            self.name,
-            self._sender_actor_id,
-            case_id,
-            roles,
-        )
-        return Status.FAILURE

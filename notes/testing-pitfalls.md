@@ -6,13 +6,20 @@ description: >
   two-tier timeout guardrail and why the timeout *method* matters more than the
   ceiling, measuring effective markers rather than declarations,
   `filterwarnings` precedence, fixture and blackboard isolation, py_trees test
-  patterns, assertion-quality traps (vacuous asserts, "falls back to" tests,
-  bare MagicMock), and test layout rules for module splits. `test/AGENTS.md`
-  keeps the short index and the rules you need on every run.
+  patterns, CoreObject subclass isolation, assertion-quality traps (vacuous
+  asserts, "falls back to" tests, bare MagicMock), and test layout rules for
+  module splits, why a two-sided count pin races concurrent PRs (keep a
+  per-item record instead), why `nproc` overstates a worktree slot's CPUs for
+  `-n auto`, why order-dependent tests need an `xdist_group`, and how outbox
+  retry backoff hides inside a passing demo.
+  `test/AGENTS.md` keeps the short index and the rules you need on every run.
 related_specs:
   - specs/testability.yaml
   - specs/behavior-tree-integration.yaml
   - specs/spec-registry.yaml
+  - specs/meta-specifications.yaml
+  - specs/handler-protocol.yaml
+  - specs/outbox.yaml
 related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
@@ -22,8 +29,12 @@ related_notes:
   - notes/triggers-test-coverage.md
   - notes/demo-ci-invariants.md
   - notes/wire-artifact-immutability.md
+  - notes/spec-authoring-rules.md
+  - notes/architecture-ratchet-corpus.md
+  - notes/outbox-delivery-reliability.md
 relevant_packages:
   - pytest
+  - pytest-xdist
   - py_trees
 ---
 
@@ -265,6 +276,56 @@ the assertion block if setup noise accumulates.
 
 Source: ISSUE-2086
 
+### `nproc` Lies Inside a Worktree Slot
+
+`start-dev.sh` starts each slot with `--cpus 2 --memory 6g`, but `nproc`,
+`os.cpu_count()` and xdist's stock `-n auto` all report every host core. On a
+12-core host, `-n 10` in a slot ran the full suite in 12m51s at 1.8 cores busy,
+and five workers were OOM-killed — xdist reports each as a failure of whatever
+test the worker held, so the failures name innocent tests. `-n 2` ran the same
+suite green in 9m56s.
+
+`test/conftest.py` therefore implements `pytest_xdist_auto_num_workers` from
+the cgroup files (`test/support/xdist_workers.py`): the CPU quota, the
+scheduler affinity, and the memory limit at 1.5 GiB per worker.
+`PYTEST_XDIST_AUTO_NUM_WORKERS` still overrides it. When a worker "crashed"
+before any assertion failed, read `/sys/fs/cgroup/memory.events` — a non-zero
+`oom_kill` means the test it names is not the cause.
+
+### Order-Dependent Tests Need an `xdist_group`
+
+Under `-n`, xdist's default `--dist load` hands tests to whichever worker is
+free, so two tests of one module can land in different processes. A test that
+reads state an earlier test left behind then runs without it: the ordered pairs
+in `test/test_process_global_isolation.py` failed CI this way on their first
+parallel run. `addopts` sets `--dist loadgroup`, which distributes like `load`
+but keeps every test sharing an `xdist_group` mark on one worker, in collection
+order. Mark an order-dependent module with
+`pytestmark = pytest.mark.xdist_group("<name>")`; the mark does nothing without
+`loadgroup`, and `loadgroup` does nothing without `-n`.
+
+A group is for tests that *assert* an order. A test that merely *depends* on
+one is a leak to fix: splitting a module across workers also exposes
+process-global state that collection order used to clean up. The second CI run
+failed `test_logging_setup.py` that way: tests that suppressed third-party
+loggers left the saved-levels map behind, and a test in the same module had
+always emptied it first. The reset belongs in root `test/conftest.py`
+(TB-06-003), with an ordered pair in `test_process_global_isolation.py`.
+
+### A Retry Loop With Real Backoff Hides Inside a Passing Demo
+
+A demo test that takes 25 seconds with no sleep of its own is usually waiting on
+the outbox's in-pass backoff (1s, 2s, 4s per failure). The scenarios built on
+`setup_initialized_case` queued a `Create(VulnerabilityCase)` addressed to no
+one; delivery refused it, and the outbox retried it on backoff twelve times per
+case before dead-lettering it — about 24 seconds per test, every test still
+green. Profile a slow demo with a wall-clock, all-threads profiler (`yappi`):
+`cProfile` sees only the main thread, which is idle in `epoll` waiting on the
+TestClient portal while the app's thread sleeps. The fixes: a refused sealed
+body is dead-lettered on its first refusal (OX-13-013), and
+`_no_outbox_row_is_dead_lettered` in `test/demo/conftest.py` fails any demo test
+that dead-letters a row.
+
 ---
 
 ## Fixture and Store Isolation
@@ -323,23 +384,41 @@ Database".
 
 ## py_trees and BT Tests
 
-### `py_trees` Blackboard Is Process-Global — Clear Between Test BT Runs
+### `py_trees` Blackboard Is Process-Global — Cleared Once, at the Test Root
 
 `py_trees.blackboard.Blackboard.storage` is a module-level singleton.
-Constructing a fresh `BtNode` tree per test does **not** clear it; keys set by a
-previous `execute_with_setup` remain visible to the next run. Either use a scoped
-namespace per run or clear the blackboard explicitly between executions. In
-production, BT-17-003 already requires domain-specific output keys to be reset on
-every tick; tests must also prevent cross-test contamination.
+Constructing a fresh `BtNode` tree per test does **not** clear it.
+`BTBridge.execute_with_setup` restores only the keys on its `managed_keys` list,
+so any other key a node writes outlives the run and is visible to the next one.
+In production, BT-17-003 requires a node to write `None` to its output keys on a
+no-op path; tests must also prevent cross-test contamination (TB-06-005).
 
-Source: ISSUE-2232
+The autouse `clear_py_trees_blackboard` fixture in the root `test/conftest.py`
+clears the storage before **and** after every test in the suite. Do not add a
+per-directory or per-file copy: a copy covers only its own directory, and the
+gap between copies is where #3996 lived. The same root conftest resets the
+other per-actor registries (`_reset_buffers()` for the ledger gap buffer, the
+pending-assertion stores, the actor stores). A new process-global registry gets
+its reset there too.
+
+**#3996 diagnosis.** The received embargo Reject/Invite tests failed in some
+orders. The issue blamed the per-actor store cache, but the stores were already
+disposed after every test. The real cause was a stale `/participant` key: the
+since-deleted `OptionalLookupParticipantNode` wrote it only when it *found* a
+participant (a BT-17-003 breach), and the use-case tests outside
+`test/core/behaviors/` had no clearing fixture, so a later test transitioned
+the previous test's participant. Ratchet: the ordered pairs in
+`test/test_process_global_isolation.py`. The second test of each pair fails
+loudly if the first did not run.
+
+Source: ISSUE-2232, ISSUE-3996
 
 ### `SUBFAILED` in `unittest.TestCase` Subtests Does Not Fail pytest
 
 `test/bt/test_vultrabot.py::MyTestCase::test_main` may show `SUBFAILED` due to
 py_trees `Blackboard.storage` global-state ordering, but pytest exits 0. When
 investigating that test, run it targeted with `-v` and treat `SUBFAILED` as real.
-Clear `py_trees.blackboard.Blackboard.storage` in BT-using fixtures.
+The root `clear_py_trees_blackboard` fixture clears the storage between tests.
 
 ### `py_trees` BT Subclasses in Tests MUST Be Defined at Module Level
 
@@ -353,6 +432,52 @@ level, prefixed with `_` to mark them as non-public:
 functions or fixtures. See also [notes/bt-pitfalls.md](bt-pitfalls.md).
 
 Source: CONCERN-2321
+
+### CoreObject and CoreRecord Subclasses in Tests: Use `isolated_core_registries`
+
+`CoreObject.__init_subclass__` and `CoreRecord.__init_subclass__` register every
+concrete subclass in `CORE_VOCABULARY` and `CORE_TYPE_MAP` at class-definition
+time.
+These are module-level dicts — pollution is visible to every test that runs
+in the same process after the class is first defined.
+
+There is also a second, irrecoverable side-effect: the class permanently joins
+Python's `CoreObject.__subclasses__()` graph.
+Unlike the dicts, that graph cannot be restored by any fixture.
+Architecture ratchets that walk `__subclasses__()` (e.g.
+`test_every_core_object_forbids_extra_with_no_exemption_list`) will see the
+test-local class for the rest of the session, but because `CoreObject`
+subclasses inherit `extra="forbid"` those ratchets still pass.
+The dict pollution is the actionable risk.
+
+**Rule**: any test that defines a local `CoreObject` or `CoreRecord` subclass
+MUST request the `isolated_core_registries` fixture.
+It snapshots and restores both `CORE_VOCABULARY` and `CORE_TYPE_MAP`:
+
+```python
+def test_something(isolated_core_registries):
+    class _Probe(CoreObject):
+        type_: Literal["_Probe"] = "_Probe"
+    ...
+```
+
+The fixture lives in the root `test/conftest.py`, so it is available to every
+test in the suite — such subclasses appear under `test/core/`, `test/adapters/`
+and `test/architecture/` alike. The snapshot/restore itself is
+`test.support.core_vocab.restore_core_registries()`, a context manager the
+fixture wraps, so the restore is tested directly rather than by test ordering.
+Do not hand-roll a `dict(CORE_VOCABULARY)` snapshot or a `CORE_TYPE_MAP.pop()`
+in a test body: those restore one map and miss the other (#3789, fixed
+by #3801).
+
+This mirrors the py_trees rule (see `### py_trees BT Subclasses in Tests MUST
+Be Defined at Module Level` above): both patterns protect process-global
+registries from test-local class definitions.
+The key difference is that py_trees requires module-level definitions; the
+CoreObject rule allows function-local definitions as long as the fixture is
+present, because the dict registries can be fully restored.
+
+Source: CONCERN-3789
 
 ### BT Factory Determinism
 
@@ -411,8 +536,8 @@ refactor that accidentally stubs the node under test fails loudly.
 
 The blackboard storage key carries a **leading slash**
 (`/publication_intent_decision`); assert against
-`py_trees.blackboard.Blackboard.storage` and rely on the `autouse
-clear_blackboard` fixture to keep the assertion non-vacuous.
+`py_trees.blackboard.Blackboard.storage` and rely on the root autouse
+`clear_py_trees_blackboard` fixture to keep the assertion non-vacuous.
 
 Source: ISSUE-1594
 
@@ -666,3 +791,57 @@ uv run pytest -m "new_mark_name" --collect-only > /tmp/collect.log 2>&1; rc=$?; 
 
 Incidental coverage via `test_trignotify.py` is insufficient. See
 [notes/triggers-test-coverage.md](triggers-test-coverage.md).
+
+---
+
+## Ratchets
+
+### A Two-Sided Count Pin Races Every Concurrent PR
+
+A ratchet that asserts `live_count == PINNED` fails in both directions: above
+the pin means new debt, below means a fix that forgot to lower the pin. That
+is correct on the PR that sets the pin and wrong on every other PR in flight.
+If a sibling PR moves the count by one (verifying a requirement, adding a
+marker), each PR is green on its own base and the merge is red on `main`, and
+then on every branch rooted at it, through no change of their own. Each
+affected session then does a clean-base proof, finds the cause, and applies the
+same one-line fix. That fix collides on the next sync. Two PRs that make the
+*identical* edit to the pin merge cleanly, to the wrong number.
+
+MS-10-006's `VERIFICATION_CEILINGS` table was this shape. It turned `main`
+red twice: #3974/#3975 pinned project at 1004 while a sibling lowered it to
+1003, and #4031 repeated it with the MS-12 kind gates. Nor is a one-sided pin
+the fix, because it collects silent slack instead (#3959).
+
+**Keep a per-item record instead of a shared number.** Mark each item that is
+still in debt (`verification_debt: '#N'` on the requirement itself) and check
+each item on its own. Then two PRs conflict only when they edit the same item,
+and git reports that as a real conflict. The count is still printed, computed
+from the markers, so progress stays visible without being committed. Hold back
+growth with a one-way, PR-only diff guard (#4200), not a pinned total. Where a
+committed baseline is unavoidable, make it a named set (`KNOWN_VIOLATIONS`,
+ARCH-18), never a bare number. A set entry names what it exempts, and a
+concurrent PR that removes a different entry merges cleanly to the right
+answer.
+
+## Delete an Ephemeral Migration Check When the Migration Lands
+
+A test written to prove a migration is complete (every call site moved, no
+caller of the old name left, old and new outputs equal) is scaffolding. Once the
+migration has landed, the check guards a transition that is over, so it keeps
+costing runtime and review attention while protecting nothing a durable test does
+not. Delete it in the PR that finishes the migration (#4190). If part of it
+states an invariant that must keep holding, promote that part to a durable test
+under its own spec ID (an architecture ratchet with a named known-violations set
+is the usual shape; see § Ratchets) and delete the rest.
+
+## A Test Timeout Is Acceptable Verification of a Time-Limit MUST
+
+When a requirement is a time limit ("MUST complete within N seconds", "MUST NOT
+block longer than N"), a test that fails by timing out *is* its verification.
+Do not add a stopwatch assertion beside the timeout; it measures the same thing
+with more noise. HP-07-002 stands on this reading. The timeout *method* still
+matters (see the two-tier timeout guardrail above): a timeout that cannot
+interrupt the blocked call verifies nothing.
+
+Source: ISSUE-4190, ISSUE-4195

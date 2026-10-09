@@ -221,8 +221,9 @@ class TestSeedCommand:
             )
         )
         runner = CliRunner()
-        with patch("vultron.demo.cli.seed_actor", mock_fn), patch(
-            "vultron.demo.cli.seed_peer", mock_seed_peer
+        with (
+            patch("vultron.demo.cli.seed_actor", mock_fn),
+            patch("vultron.demo.cli.seed_peer", mock_seed_peer),
         ):
             result = runner.invoke(
                 main,
@@ -287,18 +288,21 @@ class TestSeedCommand:
         config_file.write_text(json.dumps(data))
 
         mock_fn = MagicMock(
-            side_effect=lambda client, name, actor_type="Organization", actor_id=None: as_Organization.model_validate(
-                {"id": actor_id or f"http://mock/{name}", "name": name}
+            side_effect=lambda client, name, actor_type="Organization", actor_id=None: (
+                as_Organization.model_validate(
+                    {"id": actor_id or f"http://mock/{name}", "name": name}
+                )
             )
         )
         mock_seed_peer = MagicMock(
-            side_effect=lambda client, local_actor_id, peer_id, name, actor_type="Organization": as_Actor.model_validate(
-                {"id": peer_id, "name": name}
+            side_effect=lambda client, local_actor_id, peer_id, name, actor_type="Organization": (
+                as_Actor.model_validate({"id": peer_id, "name": name})
             )
         )
         runner = CliRunner()
-        with patch("vultron.demo.cli.seed_actor", mock_fn), patch(
-            "vultron.demo.cli.seed_peer", mock_seed_peer
+        with (
+            patch("vultron.demo.cli.seed_actor", mock_fn),
+            patch("vultron.demo.cli.seed_peer", mock_seed_peer),
         ):
             result = runner.invoke(
                 main,

@@ -37,11 +37,16 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import UriString, VultronObject
+from vultron.core.models.base import (
+    CoreRecord,
+    NonEmptyString,
+    UriString,
+    with_record_id,
+)
 from vultron.core.models.wire_keys import wire_key
 
 
-class VultronOfferRecord(VultronObject):
+class VultronOfferRecord(CoreRecord):
     """Core state record for the domain facts carried in a report Offer.
 
     Stored by the adapter layer (``TriggerActivityAdapter.submit_report``)
@@ -61,7 +66,7 @@ class VultronOfferRecord(VultronObject):
     offer_actor_id: UriString = Field(
         ..., description="URI of the actor that submitted the Offer"
     )
-    offer_to: list[str] = Field(
+    offer_to: list[NonEmptyString] = Field(
         default_factory=list,
         description="'to' recipients from the original Offer",
     )
@@ -79,16 +84,16 @@ class VultronOfferRecord(VultronObject):
         if isinstance(data, dict):
             offer_id = data.get("offer_id")
             if offer_id is not None:
-                data = dict(data)
-                data["id"] = cls.build_id(offer_id)
+                data = with_record_id(data, cls.build_id(offer_id))
         return data
 
 
 #: The AS2 keys under which a canonical ``add_report_to_case`` payload snapshot
-#: carries the two Offer provenance facts an invited actor needs to rebuild a
-#: :class:`VultronOfferRecord` from a SYNC backfill (ISSUE-2134, SYNC-02-002).
+#: carries the two Offer provenance facts (CP-01-007).  They are provenance read
+#: from the ledger; no invited actor rebuilds a :class:`VultronOfferRecord` from
+#: them, because it was never sent the Offer (CM-11-020, ISSUE-2134).
 #:
-#: A payload snapshot is a *wire object*: CLP-07-001 makes it the AS2
+#: A payload snapshot is a *wire object*: CLP-07-011 makes it the AS2
 #: serialization of the inbound activity, so its keys are AS2-spelled by
 #: definition.  These two are snapshot-only extension properties with no core
 #: model of their own to carry a field alias, so they are derived here from this

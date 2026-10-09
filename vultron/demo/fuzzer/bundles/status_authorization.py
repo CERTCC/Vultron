@@ -32,26 +32,23 @@ from __future__ import annotations
 
 import py_trees
 
-from vultron.core.behaviors.call_out.bundles.status_authorization import (  # noqa: F401
+from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     STATUS_AUTHORIZATION_PERMISSIVE,
     StatusAuthorizationCallOutBundle,
 )
+from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
 
 
 def _stochastic_status_adoption_gate(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
-
     return AlmostAlwaysSucceed(name)
 
 
 def _stochastic_embargo_teardown_authorization_gate(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
-
     return AlmostAlwaysSucceed(name)
 
 

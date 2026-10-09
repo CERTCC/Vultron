@@ -1,9 +1,14 @@
 ---
 status: accepted
+status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-09-18
+created: 2026-09-18
+updated: 2026-10-06
+revision: 2
 deciders: [adh, Claude Opus 5]
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0096: A Protocol Default Embargo Replaces the Pre-Case Phase
@@ -422,3 +427,24 @@ CM-12-004, CM-14-006, CM-14-010 and CM-28-002 (amended);
 `specs/vultron-protocol-spec.yaml` VP-07-001 (amended);
 `specs/vultron-as2-mapping.yaml` VAM-05-001 (amended). Design notes:
 `notes/embargo-default-semantics.md`.
+
+## Amendment — 2026-09-28
+
+The decision named the carrier of a Reporter's terms (a proposed `EmbargoEvent` on `Offer(VulnerabilityReport)`) but not how those terms reach the actor that creates the case.
+The Offer is received by the vendor; the case is created by the case-actor service when it accepts the vendor's `CaseProposal`, and nothing carried the terms across that hop.
+
+Resolved in #3392: the `CaseProposal` carries the Offer itself, whole, as `inReplyTo` (CP-01-008).
+This is the inline twin of the bare provenance CP-01-007 already carried (`offerId`, `offerActorId`), and it follows ADR-0107's rule that a sender inlines the objects it introduces — the case-actor has never seen the Offer.
+The Reporter's terms therefore arrive as the Reporter stated them, not as the vendor's paraphrase of one field, and the case-actor extracts them with the same extractor the vendor used.
+The proposed event keeps its identity at case creation; only its `context` is rewritten from the report to the case (EP-04-004).
+The losing side of shortest-wins is registered as a pending revision through `EmbargoLifecycle.propose_embargo`, so a contested creation leaves the case at `EM.REVISE` (EP-04-003).
+The decision itself is unchanged.
+
+## Amendment — 2026-10-02
+
+The "Actor default" row of the terms table reads "A duration from a published `EmbargoPolicy`".
+That text is replaced: an actor default is a duration from the `EmbargoPolicy` on the Case Owner's actor profile.
+The embargo policy is a field of the actor profile, not a separately stored object, and `attributedTo` on the case is the CASE_OWNER (ADR-0041, amended 2026-10-02).
+An earlier change (commit `0882ed1c7`, #3979) edited the row in place without a trail; the 2026-10-02 audit of unsupervised agent decisions (#4195) confirmed the policy-is-a-profile-field position and the original text above is restored so this section is the record of it.
+The decision itself is unchanged.
+Confirmed by Allen D. Householder, 2026-10-02.

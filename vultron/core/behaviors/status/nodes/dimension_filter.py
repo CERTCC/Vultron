@@ -17,8 +17,7 @@
 
 An inbound ``Add(ParticipantStatus, CaseParticipant)`` carries a snapshot of
 several *independent* state machines: ``rm`` (Report Management), ``vfd``
-(vendor fix path), ``pxa`` (public state), ``em`` (embargo) and ``consent``
-(participant embargo consent).  Because they are independent, a value that is
+(vendor fix path), ``pxa`` (public state) and ``em`` (embargo).  Because they are independent, a value that is
 unacceptable in one dimension says nothing about the others.
 
 Before RSH-05, one refused dimension discarded the entire snapshot: the Case
@@ -41,7 +40,6 @@ from typing import TYPE_CHECKING, Any
 import py_trees
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
-from pydantic import ValidationError
 
 if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
@@ -54,18 +52,14 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.ledger_patch import PARTICIPANT_STATUS_PATCH_KEYS
+from vultron.core.behaviors.status.nodes._adjudication import (
+    _adjudicate_dimensions,
+)
+from vultron.core.behaviors.status.nodes.rm_rule import RMAnomaly, rm_anomaly
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.behaviors.status.nodes._adjudication import (
-    _adjudicate_dimensions,
-)
-from vultron.core.states.rm import (
-    RM,
-    is_monotonic_rm_forward,
-    is_valid_rm_transition,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -104,31 +98,17 @@ def _accepted_wire_patch(
 
 
 def _to_core_status(status_obj: Any) -> ParticipantStatus | None:
-    """Return *status_obj* as a core :class:`ParticipantStatus`, or ``None``.
+    """Return *status_obj* if it is a core :class:`ParticipantStatus`.
 
-    ``SqliteDataLayer.read`` already returns core models.  For any other
-    object (e.g. a wire-layer ``as_ParticipantStatus`` supplied as a
-    fallback by the tree factory), call ``to_core()`` to project it to the
-    core type (ARCH-20-007).
+    ``SqliteDataLayer.read`` returns core models, and under ADR-0099 detail 3
+    the wire ``as_ParticipantStatus`` *is* this class, so a status is either
+    already canonical or not a status at all.  No projection capability is
+    duck-typed on the object (ARCH-20-008); anything else answers ``None`` and
+    the caller treats it as "no status to filter".
     """
     if isinstance(status_obj, ParticipantStatus):
         return status_obj
-    if status_obj is None:
-        return None
-    to_core = getattr(status_obj, "to_core", None)
-    if to_core is None:
-        return None
-    try:
-        result = to_core()
-        return result if isinstance(result, ParticipantStatus) else None
-    except ValidationError as exc:
-        logger.warning(
-            "FilterParticipantStatusDimensionsNode: could not normalise"
-            " status object '%s' to a core ParticipantStatus: %s",
-            _as_id(status_obj),
-            exc,
-        )
-        return None
+    return None
 
 
 def _significant_state(status: ParticipantStatus) -> tuple:
@@ -146,7 +126,6 @@ def _significant_state(status: ParticipantStatus) -> tuple:
         None if status.d is None else status.d.state,
         None if case_status is None else case_status.em.state,
         None if case_status is None else case_status.pxa.state,
-        None if status.consent is None else status.consent.state,
         status.case_engagement,
         tuple(sorted(str(role) for role in status.cvd_role)),
     )
@@ -184,7 +163,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
     refused otherwise.  Refused dimensions carry forward the current value into
     a *filtered* status which is published on the blackboard for the append
     nodes and, as a serialized ``object`` override, for the canonical ledger
-    commit.  ``em``, ``consent``, ``case_engagement``, ``embargo_adherence``,
+    commit.  ``em``, ``case_engagement``,
     ``cvd_role`` and ``tracking_id`` pass through untouched — ``em`` in
     particular is EmbargoTeardownAuthorizationGate's to adjudicate (ADR-0046, ISSUE-2256).
 
@@ -212,7 +191,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         self.participant_id = participant_id
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
-        self.wire_render_port: "WireRenderPort | None" = None
+        self.wire_render_port: WireRenderPort | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
@@ -247,7 +226,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         self,
         refused: tuple[str, ...],
         filtered: ParticipantStatus | None,
-        rm_anomaly: dict | None = None,
+        rm_anomaly: RMAnomaly | None = None,
     ) -> None:
         """Publish (or clear) the filter outcome on the blackboard.
 
@@ -296,43 +275,6 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         )
         self._set_output(BB_RM_ANOMALY, rm_anomaly)
 
-    def _detect_rm_anomaly(
-        self,
-        refused: list[str],
-        current_rm: RM,
-        asserted_rm: RM,
-    ) -> dict | None:
-        """Return an anomaly dict when an RM transition anomaly is detected.
-
-        Returns ``None`` when there is nothing anomalous to record.
-        """
-        if "rm" in refused:
-            return {
-                "anomaly_type": "regression",
-                "from_rm": current_rm,
-                "to_rm": asserted_rm,
-            }
-        if (
-            current_rm != RM.CLOSED
-            and asserted_rm != current_rm
-            and not is_valid_rm_transition(current_rm, asserted_rm)
-            and is_monotonic_rm_forward(current_rm, asserted_rm)
-        ):
-            self.logger.warning(
-                "%s: non-adjacent forward RM jump %s → %s for participant"
-                " '%s'; accepting sender-authoritative state (RSH-06-001)",
-                self.name,
-                current_rm,
-                asserted_rm,
-                self.participant_id,
-            )
-            return {
-                "anomaly_type": "gap",
-                "from_rm": current_rm,
-                "to_rm": asserted_rm,
-            }
-        return None
-
     def _resolve_asserted(self) -> ParticipantStatus | None:
         """Return the asserted status as a core model, DataLayer first."""
         assert self.datalayer is not None
@@ -378,14 +320,19 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         refused, update_fields = _adjudicate_dimensions(
             current, asserted, roles=list(participant.case_roles)
         )
-        rm_anomaly = self._detect_rm_anomaly(
-            refused, current.rm.state, asserted.rm.state
+        anomaly = rm_anomaly(
+            current.rm.state,
+            asserted.rm.state,
+            sender_actor_id=_as_id(participant.attributed_to)
+            or self.participant_id,
+            log=self.logger,
+            node_name=self.name,
         )
 
         if not update_fields:
             # No dimension filtering needed; publish the anomaly flag only.
-            if rm_anomaly is not None:
-                self._set_output(BB_RM_ANOMALY, rm_anomaly)
+            if anomaly is not None:
+                self._set_output(BB_RM_ANOMALY, anomaly)
             return Status.SUCCESS
 
         # ``name`` on a ParticipantStatus is a derived state summary (the wire
@@ -411,11 +358,11 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
             self._publish((), None)
             # Still publish the anomaly even on a wholly-refused assertion:
             # the receiver detected an anomaly and must emit a note (RSH-06).
-            if rm_anomaly is not None:
-                self._set_output(BB_RM_ANOMALY, rm_anomaly)
+            if anomaly is not None:
+                self._set_output(BB_RM_ANOMALY, anomaly)
             return Status.FAILURE
 
-        self._publish(tuple(refused), filtered, rm_anomaly=rm_anomaly)
+        self._publish(tuple(refused), filtered, rm_anomaly=anomaly)
         self.feedback_message = (
             f"Partially accepted status '{self.status_id}' for participant"
             f" '{self.participant_id}': {self._carry_summary(refused)}"

@@ -16,9 +16,9 @@ Vultron API Backend Helpers
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from fastapi import HTTPException
 from typing import cast
 
+from fastapi import HTTPException
 from pydantic import ValidationError
 
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -40,17 +40,19 @@ def obj_from_item(item: dict) -> as_Base:
             status_code=400, detail="Item must have a 'type' field."
         )
 
+    # Wire-only lookup (VM-06-008): the item is client input and the result is
+    # returned as ``as_Base``, so a core-only name is an unknown type.
     try:
         cls = find_in_vocabulary(item["type"])
     except KeyError:
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=400, detail=f"Unknown item type: {item['type']}"
         )
 
     try:
         obj = cls.model_validate(item)
     except ValidationError as e:
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
             status_code=400, detail=f"Invalid item data: {e.errors()}"
         )
 

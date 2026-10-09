@@ -1,7 +1,11 @@
 ---
 status: accepted
 date: 2026-07-31
+created: 2026-07-31
+updated: 2026-07-31
+revision: 1
 deciders: [adh, Claude Opus 4.8]
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0049: Core Does Not Model Inbound Protocol Error Message Types; No `create_inbound_error_followup_tree`

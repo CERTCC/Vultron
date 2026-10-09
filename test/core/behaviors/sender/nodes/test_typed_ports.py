@@ -22,8 +22,8 @@ execution via BTTestScenario for sender Type-B nodes.
 import pytest
 from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.sender.nodes.actions import QueueToOutboxNode
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.behaviors.sender.nodes.actions import QueueToOutboxNode
 
 ACTOR_ID = "https://example.org/actors/vendor"
 

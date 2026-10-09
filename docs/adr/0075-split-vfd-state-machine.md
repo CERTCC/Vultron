@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-08-26
+created: 2026-08-26
+updated: 2026-08-26
+revision: 1
 deciders: Allen D. Householder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Split Per-Participant VFD Tracking into Separate Vendor-Path and Deployer-Path Sub-Machines

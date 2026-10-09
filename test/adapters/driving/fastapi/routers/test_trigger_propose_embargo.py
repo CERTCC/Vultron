@@ -20,12 +20,16 @@ Tests for the propose-embargo trigger endpoint
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
-import pytest
-from fastapi import status
 from unittest.mock import AsyncMock, patch
 
+import pytest
+from fastapi import status
+
+from test.support.embargo_register import activate, terminate
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.states.em import EM
+
+from .conftest import make_case_manager
 
 FUTURE_END_TIME = "2099-12-01T00:00:00Z"
 
@@ -42,15 +46,13 @@ def _no_outbox_delivery():
     ``outbox_handler`` uses HTTP with exponential-backoff retries. When
     tests run with non-existent recipient URLs the retry sleeps add ~3.5 s
     per test. Patching to a no-op ``AsyncMock`` eliminates that overhead
-    while keeping the scheduler logic testable.
-
-    The test ``test_propose_embargo_schedules_outbox_handler`` uses
-    ``unittest.mock.patch`` as a context manager inside the test body, which
-    overrides this fixture's patch for the duration of that context.
+    while keeping the scheduler logic testable.  The flush is scheduled by
+    ``run_trigger``, so its ``outbox_handler`` reference is the one patched;
+    that it is queued at all is asserted once for every verb in
+    ``test_trigger_routes_contract.py`` (TRIG-07-001).
     """
     with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
+        "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler",
         new_callable=AsyncMock,
     ):
         yield
@@ -216,6 +218,7 @@ def test_trigger_propose_embargo_updates_em_state_to_proposed(
     client_triggers, dl, actor, case_without_participant
 ):
     """propose-embargo transitions case EM state from N to P."""
+    make_case_manager(case_without_participant.id_, actor.id_, dl)  # EP-09-008
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo",
         json={
@@ -229,11 +232,30 @@ def test_trigger_propose_embargo_updates_em_state_to_proposed(
     assert updated_case.current_status.em.state == EM.PROPOSED
 
 
+@pytest.mark.spec("EP-09-008")
+def test_trigger_propose_embargo_as_non_manager_only_asks(
+    client_triggers, dl, actor, case_without_participant
+):
+    """A non-manager's proposal goes to the CASE_MANAGER; EM is unchanged."""
+    case_id = case_without_participant.id_
+    manager_id = next(iter(dl.read(case_id).actor_participant_index))
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/propose-embargo",
+        json={"case_id": case_id, "end_time": FUTURE_END_TIME},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    assert resp.json()["activity"]["to"] == [manager_id]
+    assert dl.read(case_id).current_status.em.state == EM.NONE
+
+
 def test_trigger_propose_embargo_from_active_updates_em_state_to_revise(
     client_triggers, dl, actor, case_with_embargo
 ):
     """propose-embargo transitions case EM state from A to R when embargo is active."""
     case_obj, _ = case_with_embargo
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo",
@@ -250,8 +272,10 @@ def test_trigger_propose_embargo_exited_returns_409(
 ):
     """propose-embargo returns HTTP 409 when EM state is EXITED."""
     case_obj = dl.read(case_without_participant.id_)
-    case_obj.current_status.em.state = EM.EXITED
+    activate(case_obj, f"{case_obj.id_}/embargo_events/ended")
+    terminate(case_obj)
     dl.update(case_obj.id_, object_to_record(case_obj))
+    make_case_manager(case_obj.id_, actor.id_, dl)  # EP-09-008
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo",
@@ -263,30 +287,3 @@ def test_trigger_propose_embargo_exited_returns_409(
     assert resp.status_code == status.HTTP_409_CONFLICT
     data = resp.json()
     assert data["detail"]["error"] == "Conflict"
-
-
-def test_propose_embargo_schedules_outbox_handler(
-    client_triggers, dl, actor, case_without_participant
-):
-    """D5-6-TRIGDELIV: propose-embargo schedules outbox delivery after execution."""
-    with patch(
-        "vultron.adapters.driving.fastapi.routers"
-        ".trigger_embargo.outbox_handler",
-        new_callable=AsyncMock,
-    ) as mock_outbox:
-        resp = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/propose-embargo",
-            json={
-                "case_id": case_without_participant.id_,
-                "end_time": FUTURE_END_TIME,
-            },
-        )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
-    mock_outbox.assert_called_once()
-    assert mock_outbox.call_args.args[0] == actor.id_
-    assert mock_outbox.call_args.args[1] is dl
-    # No third positional: that slot is `emitter` now, and a store
-    # passed there silently becomes the emitter (see the ratchet in
-    # test/architecture/test_outbox_handler_emitter_keyword.py).
-    assert len(mock_outbox.call_args.args) == 2
-    assert "emitter" not in mock_outbox.call_args.kwargs

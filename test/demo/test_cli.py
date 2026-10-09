@@ -49,9 +49,9 @@ class TestCliLogging:
 
         # After CLI runs, root logger should have a handler (logging configured)
         root_handlers = logging.getLogger().handlers
-        assert (
-            len(root_handlers) > 0
-        ), "CLI did not configure any logging handlers"
+        assert len(root_handlers) > 0, (
+            "CLI did not configure any logging handlers"
+        )
 
     def test_root_logger_level_is_info_by_default(self):
         """Root logger effective level must be INFO (or lower) after CLI invocation."""
@@ -160,15 +160,15 @@ class TestCliAll:
 
         assert result.exit_code == 0, result.output
         expected_order = [name for name, _ in DEMOS]
-        assert (
-            call_order == expected_order
-        ), f"Expected order {expected_order}, got {call_order}"
+        assert call_order == expected_order, (
+            f"Expected order {expected_order}, got {call_order}"
+        )
 
     def test_all_stops_after_first_failure(self):
         """The `all` sub-command must not invoke subsequent demos after a failure."""
         runner = CliRunner()
         fail_index = 2
-        fail_name, fail_module = DEMOS[fail_index]
+        fail_name, _fail_module = DEMOS[fail_index]
 
         call_order: list[str] = []
 
@@ -206,7 +206,7 @@ class TestCliAll:
         """The `all` sub-command must exit non-zero when a demo raises."""
         runner = CliRunner()
 
-        name0, module0 = DEMOS[0]
+        name0, _module0 = DEMOS[0]
         mock_fail = MagicMock(side_effect=RuntimeError("demo failed"))
         mock_ok = MagicMock()
 
@@ -238,6 +238,6 @@ class TestCliSubCommandFailure:
         mock_fn = MagicMock(side_effect=RuntimeError("demo failure"))
         with patch.object(module, "main", mock_fn):
             result = runner.invoke(main, [name, "--skip-health-check"])
-        assert (
-            result.exit_code != 0
-        ), f"Expected non-zero exit for '{name}' when demo raises"
+        assert result.exit_code != 0, (
+            f"Expected non-zero exit for '{name}' when demo raises"
+        )

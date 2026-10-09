@@ -5,7 +5,7 @@ level: 300
 
 # How to Delegate a Role to Another Participant
 
-Use this guide to offer a `CVDRole` on a case to another actor.
+Use this guide to offer a [`CVDRole`](../../../topics/case_lifecycle/case_model.md) on a case to another actor.
 Delegation is an offer, so the recipient decides whether to take the role.
 You finish with the recipient holding the role, or with the roster unchanged.
 
@@ -51,16 +51,18 @@ sequenceDiagram
 ## Offer the role
 
 1. Send `Offer(CaseParticipantRole)` to the target actor's inbox.
-2. Carry the role in an `as_CaseParticipantRole` object, name the target actor in `target`, and name the case in `context`.
+2. Carry the role in a `CaseParticipantRole` object, name the target actor in `target`, and name the case in `context`.
+   `CaseParticipantRole` is a Vultron vocabulary type; its fields and a rendered example are under [Offer Case Participant Role](../../../reference/messages/case_management.md#offer-case-participant-role).
 3. Wait for the reply.
    Nothing changes until the target answers.
 
 In the reference implementation this is the `offer-case-participant-role` trigger behavior.
+No `vultron-demo` scenario exercises role delegation yet; drive it through the [Trigger API](../../../reference/trigger-api.md#actor-participation) endpoints listed under Further reading.
 
 !!! warning "Offer a role, not a case"
 
     A role offer and a case ownership transfer are both offers, and they used to serialize identically.
-    Carrying an `as_CaseParticipantRole` object is what tells a peer which one you mean (ADR-0039), so do not offer the `VulnerabilityCase` when you mean to delegate a role.
+    Carrying a `CaseParticipantRole` object is what tells a peer which one you mean (ADR-0039), so do not offer the `VulnerabilityCase` when you mean to delegate a role.
     For the transfer, see [Ownership Transfer](../../../topics/case_lifecycle/ownership_transfer.md).
 
 ---
@@ -75,7 +77,7 @@ Reply to the offering actor with the original `Offer` as your `object`.
   The roster is unchanged.
 
 Consider what the role obliges you to do before accepting.
-`CVDRole.CASE_MANAGER` in particular makes you the single-writer authority for the case ledger, so accepting it moves real work onto your actor.
+The [CASE_MANAGER](../../../topics/case_lifecycle/case_manager_and_ledger.md) role in particular makes you the single-writer authority for the case ledger, so accepting it moves real work onto your actor.
 
 ---
 
@@ -83,7 +85,7 @@ Consider what the role obliges you to do before accepting.
 
 | What you sent | What to confirm |
 |---|---|
-| `Offer(CaseParticipantRole)` | The target holds an `Offer` carrying an `as_CaseParticipantRole`. |
+| `Offer(CaseParticipantRole)` | The target holds an `Offer` carrying a `CaseParticipantRole`. |
 | `Accept(Offer(CaseParticipantRole))` | Your `CaseParticipant` record lists the new role. |
 | `Reject(Offer(CaseParticipantRole))` | Your roles are unchanged and the refusal is recorded. |
 

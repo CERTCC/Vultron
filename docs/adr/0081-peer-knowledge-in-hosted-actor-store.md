@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-08-31
+created: 2026-08-31
+updated: 2026-08-31
+revision: 1
 deciders: Allen D. Householder
 consulted: Claude Sonnet 4.6
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Peer Knowledge Lives in the Hosted Actor's Own Store, Not as a Hosted Actor

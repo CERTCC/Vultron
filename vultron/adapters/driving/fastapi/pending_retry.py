@@ -27,8 +27,8 @@ This module provides :func:`retry_pending_create_case_activities`, which:
 2. Reconstructs the pre-built ``Create(VulnerabilityCase)`` payload from
    the marker (never re-constructs the activity from scratch, to preserve
    the original ``id_``).
-3. Writes the activity to the DataLayer if not already present (idempotency
-   guard).
+3. Persists the activity, if not already present, and seals its body through
+   the trigger adapter (idempotency guard; VM-08-003).
 4. Re-enqueues the activity to the actor's outbox so the
    :class:`~vultron.adapters.driving.fastapi.outbox_monitor.OutboxMonitor`
    can deliver it.
@@ -56,20 +56,58 @@ the natural recovery point.
 
 Spec: ``specs/case-proposal.yaml`` CP-05-005.
 Issue: #1139.
+
+The same startup scan recovers a second obligation of the case-creation
+tree: :func:`retry_pending_creation_time_revision_relays` finds every
+``PendingCreationTimeRevisionRelay`` marker, the revision a contested case
+creation registered but whose ``Invite(EmbargoEvent)`` relay failed
+(EP-04-011), and re-runs ``RelayCreationTimeRevisionNode`` for its case.
+Creation-time initialization runs once per case (EP-04-012), so without the
+marker and this runner a failed relay would never be retried unless the
+proposal happened to be redelivered (#4121).
 """
 
 import logging
+from collections.abc import Callable, Mapping
 from typing import cast
-from collections.abc import Callable
 
+import py_trees
 from py_trees.common import Status
 
-from vultron.core.models.activity import VultronCreateCaseActivity
+from vultron.adapters.driven import actor_hosts
+from vultron.adapters.driven.datalayer import (
+    get_all_actor_datalayers,
+    get_datalayer,
+)
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.embargo_revision_relay import (
+    RelayCreationTimeRevisionNode,
+)
+from vultron.core.behaviors.case.nodes.proposal import (
+    RequeuePendingCreateCaseActivityNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_ledger import (
+    CREATE_CASE_EVENT_TYPE,
+)
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+)
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
+from vultron.core.models.pending_creation_time_revision_relay import (
+    PendingCreationTimeRevisionRelay,
+)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.sync_helpers import recorded_entries_for_case
+from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +128,6 @@ def _discover_actor_ids_from_stores() -> list[str]:
     Returns:
         Unique ``case_actor_id`` values found in any hosted actor's store.
     """
-    from vultron.adapters.driven import actor_hosts
-    from vultron.adapters.driven.datalayer import get_datalayer
-
     actor_ids: set[str] = set()
     for host_id in actor_hosts.hosted_actor_ids():
         host_dl = get_datalayer(host_id)
@@ -102,13 +137,16 @@ def _discover_actor_ids_from_stores() -> list[str]:
     return list(actor_ids)
 
 
-def _reconstruct_activity(
+def _persist_prepared_activity(
+    dl: DataLayer,
     marker: PendingCreateCaseActivity,
-) -> VultronCreateCaseActivity | None:
-    """Reconstruct Create(VulnerabilityCase) from a marker's stored payload.
+) -> str | None:
+    """Persist and seal the marker's Create(VulnerabilityCase); return its id.
 
-    Returns the reconstructed activity, or ``None`` if the payload is
-    missing or invalid (errors are logged at ERROR level).
+    Goes through the same adapter method the emitting node uses, so a
+    recovered activity is persisted under the marker's id and its delivered
+    body is the sealed one (CP-05-005, VM-08-003).  Returns ``None`` if the
+    payload is missing or invalid (errors are logged at ERROR level).
     """
     if not marker.create_activity_payload:
         logger.warning(
@@ -119,47 +157,49 @@ def _reconstruct_activity(
         return None
 
     try:
-        return VultronCreateCaseActivity.model_validate(
-            marker.create_activity_payload
-        )
-    except Exception as exc:
-        logger.error(
-            "retry_pending: could not reconstruct Create(VulnerabilityCase)"
+        activity_id, _body = TriggerActivityAdapter(
+            cast(CaseOutboxPersistence, dl)
+        ).emit_prepared_create_case(marker.create_activity_payload)
+    except VultronError as exc:
+        logger.error(  # noqa: TRY400  # ruff-baseline #3353
+            "retry_pending: could not persist Create(VulnerabilityCase)"
             " from marker '%s': %s",
             marker.id_,
             exc,
         )
         return None
+    return activity_id
 
 
-def _ensure_activity_persisted(
-    dl: DataLayer,
-    activity: VultronCreateCaseActivity,
+def _run_recovery_tree(
+    bridge: BTBridge,
+    tree: py_trees.behaviour.Behaviour,
+    actor_id: str,
+    what: str,
 ) -> bool:
-    """Write *activity* to *dl* if not already present.
+    """Run a recovery *tree* as *actor_id*; log and return ``False`` on failure.
 
-    Returns ``True`` on success (including when the activity already exists),
-    ``False`` if the DataLayer create call raises.
+    Recovery work is protocol-significant, so it runs as a BT through the
+    bridge (BT-15-001), and a failure is diagnosed through
+    ``BTBridge.get_failure_reason`` (BT-13-001).  *what* names the work in
+    the log line.
     """
-    if dl.read(activity.id_) is not None:
-        return True
-    try:
-        dl.create(activity)
-        return True
-    except ValueError as exc:
+    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+    if result.status != Status.SUCCESS:
         logger.error(
-            "retry_pending: could not persist Create(VulnerabilityCase)"
-            " '%s': %s",
-            activity.id_,
-            exc,
+            "retry_pending: %s did not succeed for actor '%s': %s",
+            what,
+            actor_id,
+            BTBridge.get_failure_reason(tree),
         )
         return False
+    return True
 
 
 def _enqueue_and_clear(
     dl: DataLayer,
     marker: PendingCreateCaseActivity,
-    activity: VultronCreateCaseActivity,
+    activity_id: str,
 ) -> bool:
     """Re-queue *activity* and clear *marker*, via the BT.
 
@@ -174,32 +214,19 @@ def _enqueue_and_clear(
     the operation the same audit trail as every other protocol effect, which is
     exactly what a crash-recovery path should have.
     """
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.case.nodes.proposal import (
-        RequeuePendingCreateCaseActivityNode,
-    )
-
     tree = RequeuePendingCreateCaseActivityNode(
-        marker=marker, activity_id=activity.id_
+        marker=marker, activity_id=activity_id
     )
     # `dl` is typed as the narrow `DataLayer` port; the BT needs case-aware
     # reads.  `SqliteDataLayer` satisfies both protocols structurally, but a bare
     # `DataLayer` does not, because `CasePersistence.clone_for_actor` is declared
     # to return a `CasePersistence`.
-    result = BTBridge(datalayer=cast(CasePersistence, dl)).execute_with_setup(
-        tree=tree,
-        actor_id=marker.case_actor_id,
+    return _run_recovery_tree(
+        BTBridge(datalayer=cast(CasePersistence, dl)),
+        tree,
+        marker.case_actor_id,
+        f"re-queue of marker '{marker.id_}'",
     )
-    if result.status != Status.SUCCESS:
-        logger.error(
-            "retry_pending: re-queue BT did not succeed for actor '%s'"
-            " marker '%s': %s",
-            marker.case_actor_id,
-            marker.id_,
-            BTBridge.get_failure_reason(tree),
-        )
-        return False
-    return True
 
 
 def retry_pending_create_case_activities(
@@ -245,8 +272,6 @@ def retry_pending_create_case_activities(
     if actor_datalayers_factory is not None:
         actor_dls: dict[str, DataLayer] = dict(actor_datalayers_factory())
     else:
-        from vultron.adapters.driven.datalayer import get_all_actor_datalayers
-
         actor_dls = dict(get_all_actor_datalayers())  # type: ignore[assignment]
 
     # Supplement the map with actors discovered from persisted markers.  On
@@ -259,8 +284,6 @@ def retry_pending_create_case_activities(
         marker_scan_factory is not None
     )
     if _run_marker_scan:
-        from vultron.adapters.driven.datalayer import get_datalayer
-
         discovered = (
             marker_scan_factory()
             if marker_scan_factory is not None
@@ -314,17 +337,160 @@ def _retry_actor_dl(actor_id: str, dl: DataLayer) -> int:
             )
             continue
 
-        activity = _reconstruct_activity(raw_marker)
-        if activity is None:
+        activity_id = _persist_prepared_activity(dl, raw_marker)
+        if activity_id is None:
             continue
 
-        if not _ensure_activity_persisted(dl, activity):
-            continue
-
-        if _enqueue_and_clear(dl, raw_marker, activity):
+        if _enqueue_and_clear(dl, raw_marker, activity_id):
             retried += 1
 
     return retried
 
 
-__all__ = ["retry_pending_create_case_activities"]
+def _hosted_datalayers() -> dict[str, DataLayer]:
+    """Every store this node holds: the actor cache plus each hosted actor.
+
+    Unlike the ``Create`` runner, which opens a store for each
+    ``case_actor_id`` its markers name, this marker always sits in the store
+    of the CASE_MANAGER that owes it (the store its writer executed against),
+    so the hosted stores are the whole search space (ADR-0073).
+    """
+    dls: dict[str, DataLayer] = {**get_all_actor_datalayers()}
+    for host_id in actor_hosts.hosted_actor_ids():
+        if host_id not in dls:
+            dls[host_id] = get_datalayer(host_id)
+    return dls
+
+
+def _relay_pending_revision(
+    dl: DataLayer, marker: PendingCreationTimeRevisionRelay
+) -> bool:
+    """Re-run the creation-time revision relay for *marker*'s case, via the BT.
+
+    Sending the Invite is protocol-significant, so the work is the case tree's
+    own ``RelayCreationTimeRevisionNode`` run through ``BTBridge`` (BT-15-001),
+    behind the CASE_MANAGER gate (BT-17-001) so only the current role holder
+    relays, as the actor the marker names, with the ports the received tree
+    gives it.  The node deletes the marker once the relay is discharged and
+    keeps it on any failure, while the case's creation entries are still
+    uncommitted, or when the gate turns the actor away, so a later run can
+    retry.  Returns ``True`` only when the marker was discharged.
+    """
+    cop = cast(CaseOutboxPersistence, dl)
+    tree = create_case_manager_gated_tree(
+        name="RetryCreationTimeRevisionRelay",
+        case_id=marker.case_id,
+        children=[RelayCreationTimeRevisionNode(case_id=marker.case_id)],
+    )
+    bridge = BTBridge(
+        datalayer=cast(CasePersistence, dl),
+        trigger_activity=TriggerActivityAdapter(cop),
+        sync_port=SyncActivityAdapter(cop),
+        wire_render_port=As2WireRenderAdapter(),
+    )
+    if not _run_recovery_tree(
+        bridge,
+        tree,
+        marker.case_actor_id,
+        f"relay of creation-time revision '{marker.embargo_id}'"
+        f" on case '{marker.case_id}'",
+    ):
+        return False
+    if dl.read(marker.id_) is None:
+        return True
+    if not any(
+        e.event_type == CREATE_CASE_EVENT_TYPE
+        for e in recorded_entries_for_case(case_id=marker.case_id, dl=cop)
+    ):
+        # Nothing at startup commits a case's creation entries: only a
+        # redelivered proposal re-runs the case tree that does, so without one
+        # this relay waits at every boot (CM-14-007, CM-14-011).
+        logger.warning(
+            "retry_pending: relay of creation-time revision '%s' on case '%s'"
+            " waits for the case's creation entries, which only a redelivered"
+            " proposal commits; kept for a later run",
+            marker.embargo_id,
+            marker.case_id,
+        )
+    else:
+        logger.info(
+            "retry_pending: relay of creation-time revision '%s' on case '%s'"
+            " is still owed by '%s', which no longer holds CASE_MANAGER;"
+            " kept for a later run",
+            marker.embargo_id,
+            marker.case_id,
+            marker.case_actor_id,
+        )
+    return False
+
+
+def retry_pending_creation_time_revision_relays(
+    datalayers_factory: Callable[[], Mapping[str, DataLayer]] | None = None,
+) -> int:
+    """Complete every creation-time revision relay still owed (EP-04-011).
+
+    Scans each store for ``PendingCreationTimeRevisionRelay`` markers and
+    re-runs the relay for each one's case.  Idempotent: the relay sends the
+    Invite under the id the marker carries, and an Invite already in the
+    ledger is indexed rather than sent again.  A failure is logged and leaves
+    the marker for the next run; it never stops the server from starting.
+
+    Args:
+        datalayers_factory: Callable returning the ``{actor_id: DataLayer}``
+            stores to scan.  Defaults to the actor cache plus every hosted
+            actor's own store.  Inject a test double to avoid touching the
+            module-level cache.
+
+    Returns:
+        The number of markers whose relay was discharged during this run.
+
+    Spec: EP-04-011.  Issue: #4121.
+    """
+    stores = (
+        datalayers_factory()
+        if datalayers_factory is not None
+        else _hosted_datalayers()
+    )
+    relayed = 0
+    for actor_id, dl in stores.items():
+        try:
+            markers = dl.list_objects("PendingCreationTimeRevisionRelay")
+        except Exception as exc:  # noqa: BLE001 - recovery must not crash boot
+            logger.error(  # noqa: TRY400  # ruff-baseline #3353
+                "retry_pending: could not scan actor '%s' for pending"
+                " revision relays: %s",
+                actor_id,
+                exc,
+            )
+            continue
+        for marker in markers:
+            if not isinstance(marker, PendingCreationTimeRevisionRelay):
+                continue
+            if marker.case_actor_id != actor_id:
+                # A tree runs against the store of the actor it executes as
+                # (BT-05-005, DL-07-004); a marker naming another actor was not
+                # written by this store's owner, so relaying it here would
+                # read one actor's case as another's.
+                logger.warning(
+                    "retry_pending: store '%s' holds a revision relay owed by"
+                    " '%s' for case '%s'; skipped",
+                    actor_id,
+                    marker.case_actor_id,
+                    marker.case_id,
+                )
+                continue
+            if _relay_pending_revision(dl, marker):
+                relayed += 1
+    if relayed:
+        logger.info(
+            "retry_pending: %d pending creation-time revision relay(s)"
+            " completed.",
+            relayed,
+        )
+    return relayed
+
+
+__all__ = [
+    "retry_pending_create_case_activities",
+    "retry_pending_creation_time_revision_relays",
+]

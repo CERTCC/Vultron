@@ -50,20 +50,13 @@ properties rather than by the original offer's id (EDF-06-004).
 
 # Standard library imports
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
-# Vultron imports
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 from vultron.demo.helpers.polling import wait_for_case_attributed_to
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     await_forwarded_ownership_transfer_offer,
-    case_actor_invites_actor_to_case,
+    seat_participant_through_stub_invite,
     setup_canonical_case,
 )
 from vultron.demo.utils import (
@@ -75,13 +68,21 @@ from vultron.demo.utils import (
     logfmt,
     post_to_inbox_and_wait,
     seed_peer,
-    verify_object_stored,
     setup_demo_logging,
+    verify_object_stored,
 )
+
+# Vultron imports
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     offer_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ def _setup_transfer_precondition(
     finder: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
-) -> Tuple[as_VulnerabilityCase, str]:
+) -> tuple[as_VulnerabilityCase, str]:
     """Build the precondition both transfer paths share.
 
     A canonical CaseActor-owned case (so there *is* a CaseActor to route
@@ -131,13 +132,15 @@ def _setup_transfer_precondition(
         name=coordinator.name or "Coordinator",
         actor_type="Organization",
     )
-    case_actor_invites_actor_to_case(
+    # The CaseActor seats the coordinator when it accepts its stub Invite;
+    # the CaseActor's copy is the one the ownership transfer later resolves
+    # (ADR-0073, CM-21-002).
+    seat_participant_through_stub_invite(
         client,
-        case=case,
-        inviter=vendor,
+        case,
+        owner=vendor,
         invitee=coordinator,
-        case_actor_id=case_actor_id,
-        roles=[CVDRole.COORDINATOR.value],
+        role=CVDRole.COORDINATOR,
     )
     return case, case_actor_id
 
@@ -170,7 +173,7 @@ def _vendor_offers_ownership(
         to=[case_actor_id],
         content=f"Offering to transfer ownership of {case.name} to you.",
     )
-    logger.info(f"Sending offer to the CaseActor: {logfmt(offer)}")
+    logger.info("Sending offer to the CaseActor: %s", logfmt(offer))
     post_to_inbox_and_wait(client, case_actor_id, offer)
     with demo_check("Ownership offer recorded by the CaseActor (CM-21-005)"):
         # The CaseActor's store, not the vendor's: the Offer is addressed to
@@ -214,7 +217,7 @@ def demo_transfer_ownership_accept(
     )
     if initial_case is None:
         raise ValueError("Could not retrieve initial case state")
-    logger.info(f"Initial owner: {initial_case.attributed_to}")
+    logger.info("Initial owner: %s", initial_case.attributed_to)
 
     with demo_step(
         "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
@@ -244,7 +247,7 @@ def demo_transfer_ownership_accept(
                 to=[case_actor_id],
                 content=(f"Accepting ownership of {case.name}."),
             )
-            logger.info(f"Sending accept to the CaseActor: {logfmt(accept)}")
+            logger.info("Sending accept to the CaseActor: %s", logfmt(accept))
             post_to_inbox_and_wait(client, case_actor_id, accept)
 
         with demo_step(
@@ -304,7 +307,7 @@ def demo_transfer_ownership_reject(
     if initial_case is None:
         raise ValueError("Could not retrieve initial case state")
     original_owner = initial_case.attributed_to
-    logger.info(f"Initial owner: {original_owner}")
+    logger.info("Initial owner: %s", original_owner)
 
     with demo_step(
         "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
@@ -331,7 +334,7 @@ def demo_transfer_ownership_reject(
                 to=[case_actor_id],
                 content=(f"Declining ownership of {case.name}."),
             )
-            logger.info(f"Sending reject to the CaseActor: {logfmt(reject)}")
+            logger.info("Sending reject to the CaseActor: %s", logfmt(reject))
             post_to_inbox_and_wait(client, case_actor_id, reject)
 
         with demo_step("Step 5: Verify case ownership unchanged"):
@@ -366,7 +369,7 @@ def demo_transfer_ownership_reject(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     ("Demo: Transfer Ownership — Accept Path", demo_transfer_ownership_accept),
     ("Demo: Transfer Ownership — Reject Path", demo_transfer_ownership_reject),
 ]
@@ -374,7 +377,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the transfer_ownership demo script."""
     run_exchange_demos(

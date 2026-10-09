@@ -1,30 +1,31 @@
 {
-  "id": "urn:uuid:b8bfc105-1f12-436f-b94c-d5d5c9e63f89",
-  "type": "Add",
-  "name": "https://vultron.example/organizations/vendorco Add VendorCo to urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
-  "content": "We're adding ourselves as a participant to this case.",
   "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Add",
+  "id": "urn:uuid:98eb8198-560a-4663-8a72-a8bfd848680a",
+  "name": "https://vultron.example/organizations/vendorco Add VendorCo to urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+  "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+  "content": "We're adding ourselves as a participant to this case.",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+  "target": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "object": {
-    "id": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6/participants/vendorco",
+    "id": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927/participants/vendorco",
     "type": "CaseParticipant",
     "name": "VendorCo",
-    "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
-    "published": "2026-09-23T16:41:57+00:00",
-    "updated": "2026-09-23T16:41:57+00:00",
+    "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+    "published": "2026-09-30T16:00:59+00:00",
+    "updated": "2026-09-30T16:00:59+00:00",
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "caseRoles": [
       "vendor"
     ],
     "participantStatuses": [
       {
-        "id": "urn:uuid:c5e4675e-671f-4892-a709-21aa608f0ed8",
+        "id": "urn:uuid:200ea717-e62c-48f0-8d73-1f493548ef40",
         "type": "ParticipantStatus",
         "name": "RECEIVED Vf",
-        "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
-        "published": "2026-09-23T16:41:57+00:00",
-        "updated": "2026-09-23T16:41:57+00:00",
+        "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+        "published": "2026-09-30T16:00:59+00:00",
+        "updated": "2026-09-30T16:00:59+00:00",
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "rmState": "RECEIVED",
         "vfState": "Vf",
@@ -32,12 +33,11 @@
         "cvdRole": [
           "OBSERVER"
         ],
-        "embargoAdherence": false,
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
       }
     ],
-    "acceptedEmbargoIds": [],
-    "embargoConsentState": "UNBOUND",
+    "embargoConsents": [],
+    "joined": true,
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

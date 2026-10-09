@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Embargo Management Behavior Trees
 
 Auto-generated reference documentation for the Embargo Management (EM) behavior trees

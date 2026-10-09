@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Do Work Behavior Tree
 
 ## Related Requirements

@@ -18,7 +18,7 @@
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
+from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -26,24 +26,23 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.nodes import _require_log_entry
+from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
 from vultron.core.states.em import EM
-from vultron.core.models.case import case_addressees
-from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.use_cases._helpers import (
-    _as_id,
-    reset_case_participant_embargo_consent,
-)
-from vultron.errors import VultronNotFoundError
+from vultron.core.states.embargo_register import TerminationReason
+from vultron.errors import BtNodePreconditionError, VultronNotFoundError
 
 
 class HasEmbargoActiveNode(DataLayerConditionWithPorts):
     """Condition: EM state is ACTIVE or REVISE (embargo is active).
 
-    Returns SUCCESS when ``case.current_status.em.state`` is not EXITED
+    Returns SUCCESS when ``case.em_state`` is not EXITED
     (i.e., the embargo is still active and teardown has not been applied).
     Returns FAILURE when EM is EXITED (teardown already done — idempotent
     guard) or when the case is not found.
@@ -60,18 +59,12 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        result_out: dict[str, object] = {}
-        read_node = ReadEmStateNode(
-            case_id=self.case_id, result_out=result_out
-        )
-        read_node.datalayer = self.datalayer
-        read_status = read_node.update()
-        if read_status != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        try:
+            em_state = read_case_em_state(self.datalayer, self.case_id)
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             return Status.FAILURE
 
-        em_state = result_out["em_before"]
-        assert isinstance(em_state, EM)
         if em_state == EM.EXITED:
             self.feedback_message = f"Case '{self.case_id}' EM already EXITED — teardown not needed"
             return Status.FAILURE
@@ -79,39 +72,38 @@ class HasEmbargoActiveNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class ClearActiveEmbargoNode(DataLayerActionWithPorts):
-    """Apply EM → EXITED transition and clear active_embargo.
+class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
+    """Terminate the embargo in force, so EM derives ``EXITED``.
 
-    Reads the current EM state via ``ReadEmStateNode``, then delegates the
-    transition to ``EmbargoLifecycle.terminate_active_embargo()`` in OBSERVED
-    mode (EMB-18-001).  The service performs a single ``datalayer.save()``
-    covering both the EM state change and ``active_embargo = None``.
+    Reads the current EM state via ``ReadEmStateNode``, then delegates to
+    ``EmbargoLifecycle.terminate_active_embargo()`` in OBSERVED mode
+    (EMB-18-001): one register step terminates the ``ACTIVE`` entry and
+    cancels every open proposal (EP-08-004, ADR-0122), in one
+    ``datalayer.save()``.  A ``Remove`` ends the embargo before its end time,
+    so the reason passed is ``EARLY`` (stored once #4293 carries it).
 
     Handles idempotency: returns SUCCESS without modifying state when EM is
-    already EXITED.  Logs a WARNING for non-standard transitions (state-sync
-    override).
+    already EXITED.  A case with no embargo in force is also left unchanged
+    and returns SUCCESS, but reports the skip and logs no EM transition;
+    :attr:`applied` tells a caller which happened.
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+        #: True only when this tick terminated an embargo.
+        self.applied = False
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        result_out: dict[str, object] = {}
-        read_node = ReadEmStateNode(
-            case_id=self.case_id, result_out=result_out
-        )
-        read_node.datalayer = self.datalayer
-        read_status = read_node.update()
-        if read_status != Status.SUCCESS:
-            self.feedback_message = read_node.feedback_message
+        try:
+            current_em = read_case_em_state(self.datalayer, self.case_id)
+        except BtNodePreconditionError as exc:
+            self.feedback_message = str(exc)
             return Status.FAILURE
-        current_em = result_out["em_before"]
-        assert isinstance(current_em, EM)
 
         if current_em == EM.EXITED:
             self.feedback_message = (
@@ -120,21 +112,12 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        if current_em not in (EM.ACTIVE, EM.REVISE):
-            self.logger.warning(
-                "%s: EM transition %s → EXITED is not a standard machine"
-                " transition for case '%s'; applying state-sync override",
-                self.name,
-                current_em,
-                self.case_id,
-            )
-
-        # EMB-18-001: route EM exit through EmbargoLifecycle.terminate_active_embargo().
-        # OBSERVED mode allows state-sync override for non-standard EM transitions.
+        # EMB-18-001: route the termination through EmbargoLifecycle.
         lifecycle = EmbargoLifecycle(persistence=self.datalayer)
         try:
             result = lifecycle.terminate_active_embargo(
                 case_id=self.case_id,
+                reason=TerminationReason.EARLY,
                 actor_id=self.actor_id,
                 transition_mode=TransitionMode.OBSERVED,
             )
@@ -144,6 +127,16 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         em_after = result.em_after
+        if not result.case_changed:
+            # The lifecycle has already warned; no teardown happened here.
+            self.feedback_message = (
+                f"No embargo in force on case '{self.case_id}'"
+                f" (EM {current_em}) — teardown skipped"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        self.applied = True
         self.feedback_message = (
             f"Cleared active embargo on case '{self.case_id}'"
             f" (EM {current_em} → {em_after})"
@@ -160,46 +153,17 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class ResetParticipantConsentNode(DataLayerActionWithPorts):
-    """Reset all participant embargo consent states to UNBOUND.
-
-    Calls ``reset_case_participant_embargo_consent`` for the given case.
-    Returns FAILURE when the case is not found.  Returns SUCCESS when
-    consent reset completes (including when the case has no participants).
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        reset_case_participant_embargo_consent(self.datalayer, case)
-        self.feedback_message = (
-            f"Reset participant embargo consent for case '{self.case_id}'"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-
-class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
+class ApplyEmbargoTeardownNode(DataLayerActionWithPorts, StateWriteCapable):
     """Apply receiver-side embargo teardown.
 
-    Performs the ACTIVE/REVISE → EXITED EM state transition, clears
-    ``active_embargo``, and resets all participant embargo consent states.
+    Terminates the register's ``ACTIVE`` entry and cancels every open
+    proposal in one step, so EM derives ``EXITED``; participant consent needs
+    no write, because with no embargo in force nobody is bound (ADR-0122).
     Handles idempotency: if EM state is already EXITED, logs and returns
     SUCCESS without modifying the DataLayer.
 
-    For unexpected EM states a state-sync override is applied (the sender
-    is authoritative) with a WARNING log entry, mirroring the pattern used
-    by ``AddEmbargoEventToCaseReceivedUseCase``.
+    A case with no embargo in force is left unchanged with a WARNING: the
+    register is never forced into a state its rules refuse.
 
     When ``case_id`` is not provided at construction (``None``), the node
     reads it from the log entry in the blackboard ``activity`` key.  This
@@ -240,8 +204,6 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
         if self.case_id is not None:
             case_id = self.case_id
         else:
-            from vultron.core.behaviors.sync.nodes import _require_log_entry
-
             entry = _require_log_entry(self._activity, self.name)
             case_id = entry.case_id
 
@@ -256,9 +218,9 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        reset_node = ResetParticipantConsentNode(case_id=case_id)
-        reset_node.datalayer = self.datalayer
-        reset_node.update()
+        if not clear_node.applied:
+            self.feedback_message = clear_node.feedback_message
+            return Status.SUCCESS
 
         self.feedback_message = f"Embargo teardown applied on case '{case_id}'"
         self.logger.debug("%s: %s", self.name, self.feedback_message)
@@ -278,10 +240,11 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
     not be blocked by notification gaps.  Returns FAILURE only on hard data
     errors (case read fails, case not found, factory dispatch raises).
 
-    Used immediately after ``ApplyEmbargoTeardownNode`` in the
+    Used immediately after ``ClearActiveEmbargoNode`` in the CASE_MANAGER's
     ``ActiveTeardown`` sequence of ``remove_embargo_from_case_tree`` so
     that all participants receive a protocol-level announcement of the
-    embargo termination.
+    embargo termination; a participant replica's arm never runs it
+    (BT-17-008).
     """
 
     def __init__(
@@ -318,13 +281,22 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
             return Status.SUCCESS
 
         # Recipients are every *other* participant, not the Case Manager.  This
-        # node runs inside `remove_embargo_from_case_tree`, whose ledger commit
-        # is gated on CASE_MANAGER, so the executing actor *is* the manager —
+        # node runs in the CASE_MANAGER arm of `remove_embargo_from_case_tree`
+        # (its `manager_effects`), so the executing actor *is* the manager —
         # addressing the announce to the manager addressed it to itself and the
         # teardown reached nobody.  The Case Manager is still resolved above,
         # because "the case has a manager" remains the precondition for
         # announcing canonical case state at all.
-        self._recipients = case_addressees(case, self.actor_id or "")
+        # Only active participants receive the announce (CM-10-004); the shared
+        # selection decides who those are (CM-10-007).  A participant at RM
+        # CLOSED gets no embargo announcement (CM-23-004); a closed signatory
+        # gets the CM-31-009 notice instead.
+        self._recipients = case_content_recipients(
+            case,
+            self.datalayer,
+            excluding={self.actor_id or ""},
+            skip_closed=True,
+        )
         if not self._recipients:
             self.feedback_message = (
                 f"No other participants on case '{self._case_id}'"
@@ -355,52 +327,4 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
             " — activity constructed but not queued"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-
-class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
-    """Remove the embargo from the case's proposed_embargoes list.
-
-    Idempotent cleanup: returns SUCCESS if embargo successfully removed or was
-    not in proposed_embargoes (nothing to remove). Returns FAILURE only if the
-    case cannot be read (critical prerequisite missing).
-
-    Saves the case only when a change is made.
-    """
-
-    def __init__(self, case_id: str, embargo_id: str, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.embargo_id = embargo_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        proposed_ids = [_as_id(e) for e in case.proposed_embargoes]
-        if self.embargo_id in proposed_ids:
-            case.proposed_embargoes = [
-                e
-                for e in case.proposed_embargoes
-                if _as_id(e) != self.embargo_id
-            ]
-            self.datalayer.save(case)
-            self.feedback_message = (
-                f"Removed embargo '{self.embargo_id}' from proposed_embargoes"
-                f" of case '{self.case_id}'"
-            )
-            self.logger.info(
-                "RemoveFromProposedEmbargoes: %s", self.feedback_message
-            )
-        else:
-            self.feedback_message = (
-                f"Embargo '{self.embargo_id}' not in proposed_embargoes"
-                f" of case '{self.case_id}' — nothing to remove"
-            )
-
         return Status.SUCCESS

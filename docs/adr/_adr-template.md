@@ -7,10 +7,31 @@
 # says the design is provisional / "formed in sand" / expected to converge, use
 # accepted-provisional, never accepted.
 status: {proposed | accepted | accepted-provisional | deprecated | rejected | superseded by (link to new ADR)}
-date: {YYYY-MM-DD when the decision was last updated}
+date: {YYYY-MM-DD the ADR was first written; never changed}
+# Lifecycle fields (ADR-0120). created never changes. updated moves only on a
+# material edit (editorial edits and annotations leave it alone). revision is an
+# integer bumped by each material edit. A new ADR has created = updated = date
+# and revision = 1.
+# Epochs, measured from updated: under 72 hours `proposed` (edit in place freely);
+# 72 hours to day 10 `accepted-provisional` (ask the human: edit or supersede);
+# day 10 on `accepted` (supersede; one detail changed with the option intact is a
+# dated Amendment quoting the replaced text). Editorial edits and append-only
+# annotations are allowed in any epoch without bumping updated.
+created: {YYYY-MM-DD}
+updated: {YYYY-MM-DD}
+revision: 1
+# status_override: {the reason a human set a status that disagrees with the epoch}
+# All three lifecycle fields are required. spec-lint fails a status that
+# disagrees with the epoch unless status_override (a reason) is present; the
+# adr-lifecycle-check pre-commit hook refuses an epoch-3 Decision Outcome or
+# Considered Options edit without a dated Amendment heading, and a bump of
+# updated past epoch 1 without status_override.
 deciders: {list everyone involved in the decision}
 consulted: {list everyone whose opinions are sought (typically subject-matter experts); and with whom there is a two-way communication}
 informed: {list everyone who is kept up-to-date on progress; and with whom there is a one-way communication}
+# stakeholder_type: fixed. Every ADR is project working record: it declares
+# [project-contributor] and never a level (DF-11-012).
+stakeholder_type: [project-contributor]
 ---
 
 # {short title of solved problem and solution}

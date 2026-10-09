@@ -72,6 +72,7 @@ class TestResolveAndPersistStatusObjectNode:
     def test_uses_fallback_when_missing_from_dl(self, bridge):
         """Fallback object is persisted and resolved when ID absent from DL."""
         from vultron.core.models.participant_status import ParticipantStatus
+
         from .conftest import CASE_ID
 
         fallback = ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
@@ -84,10 +85,12 @@ class TestResolveAndPersistStatusObjectNode:
     def test_resolves_from_filtered_status(self, bridge):
         """Filtered status from dimension filter is persisted and used directly without DL read-back."""
         import py_trees
-        from vultron.core.models.participant_status import ParticipantStatus
+
         from vultron.core.behaviors.status.nodes.dimension_filter import (
             BB_DIMENSION_FILTER,
         )
+        from vultron.core.models.participant_status import ParticipantStatus
+
         from .conftest import CASE_ID, PARTICIPANT_ID
 
         filtered = ParticipantStatus(id_=STATUS_ID, context=CASE_ID)

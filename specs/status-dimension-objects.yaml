@@ -3,7 +3,6 @@ title: Status Dimension Objects
 description: Normative requirements for per-machine dimension objects decomposed from CaseStatus and ParticipantStatus. Each
   independent state machine (EM, PXA, RM, VFD, PEC) is represented by a lightweight Pydantic BaseModel that holds its state
   enum and owns immutable transition() validation and guard methods.
-version: 0.1.0
 scope:
 - prototype
 - production
@@ -17,16 +16,20 @@ groups:
   - id: SDO-01-001
     priority: MUST
     kind: project
-    statement: Each status dimension (EM, PXA, RM, VFD, PEC) MUST be implemented as a lightweight Pydantic BaseModel subclass
-      (not a CoreObject subclass) that holds exactly one state enum field and owns the transition validation and guard methods
-      for that machine.
+    verification_debt: '#2575'
+    statement: Each status dimension (EM, PXA, RM, VFD) MUST be implemented as a lightweight Pydantic BaseModel subclass
+      (not a CoreObject subclass) that holds exactly one state enum field and, except EM, owns the transition validation and
+      guard methods for that machine. EM has no transitions of its own, and `EmDimension` holds the copy of the EM state that the
+      case derives from its embargo register (ADR-0122).
     rationale: Dimension objects are embedded value objects; they have no independent identity and do not require CORE_VOCABULARY
       registration or AS2 id_. See ADR-0036.
     adr:
     - ADR-0036
+    - ADR-0122
   - id: SDO-01-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Dimension objects MUST NOT be registered in CORE_VOCABULARY or given an id_ field.
     rationale: They are always embedded in CaseStatus or ParticipantStatus, which already carries identity. Independent registration
       would create unnecessary schema complexity. See ADR-0036.
@@ -35,8 +38,10 @@ groups:
   - id: SDO-01-003
     priority: MUST
     kind: project
-    statement: 'The five dimension objects MUST be named: EmDimension (EM state), PxaDimension (CS_pxa state), RmDimension
-      (RM state), VfdDimension (CS_vfd state), and PecDimension (PEC state).'
+    verification_debt: '#2575'
+    statement: 'The dimension objects MUST be named: EmDimension (EM state), PxaDimension (CS_pxa state), RmDimension
+      (RM state), and VfdDimension (CS_vfd state). Participant embargo consent is not a status dimension: it is a per-embargo
+      row set on the participant (CM-18-001, ADR-0122).'
     rationale: The "Dimension" suffix avoids collision with existing VfdState and PxaState NamedTuples in vultron/core/states/cs.py.
       See ADR-0036.
     adr:
@@ -74,8 +79,9 @@ groups:
   - id: SDO-02-001
     priority: MUST
     kind: protocol
-    statement: Each dimension object MUST implement a transition(trigger) method that validates the trigger against the current
-      state, applies the state machine rules, and returns a NEW dimension object with the updated state.
+    statement: Each dimension object except `EmDimension` MUST implement a transition(trigger) method that validates the trigger
+      against the current state, applies the state machine rules, and returns a NEW dimension object with the updated state.
+      `EmDimension` has none, because EM changes only by an embargo register step (ADR-0122).
     rationale: Immutable transitions are consistent with Pydantic's design philosophy and with the append-only status history
       model. Callers replace the embedded field rather than mutating the existing object. See ADR-0036.
     verification: Unit tests confirm that calling `transition(trigger)` on each dimension object returns a new instance
@@ -102,6 +108,7 @@ groups:
   - id: SDO-02-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: transition() MUST NOT mutate self. The caller MUST use the returned dimension object as the updated state.
     rationale: Mutation of embedded Pydantic models is fragile and inconsistent with the append-only history model. See ADR-0036.
     adr:
@@ -132,6 +139,7 @@ groups:
   - id: SDO-02-005
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: >-
       The SDO-02-004 transition-rejection invariant MUST be enforced via Pydantic
       field or model validators so that validation occurs at model construction time,
@@ -159,11 +167,11 @@ groups:
   - id: SDO-03-002
     priority: MUST
     kind: protocol
-    statement: 'ParticipantStatus MUST replace its flat enum fields (rm_state: RM, vfd_state: CS_vfd, em_consent_state: PEC
-      | None) with embedded dimension object fields: rm: RmDimension, vfd: VfdDimension, and consent: PecDimension | None.'
+    statement: 'ParticipantStatus MUST replace its flat enum fields (rm_state: RM, vfd_state: CS_vfd) with embedded dimension
+      object fields: rm: RmDimension and vfd: VfdDimension. It carries no embargo consent (CM-18-001, ADR-0122).'
     rationale: Same rationale as SDO-03-001. See ADR-0036.
     verification: 'Inspection of `vultron/core/models/` confirms `ParticipantStatus` declares `rm: RmDimension`, `vfd:
-      VfdDimension`, and `consent: PecDimension | None` with no residual flat enum fields.'
+      VfdDimension`, with no residual flat enum fields and no consent field.'
     adr:
     - ADR-0036
     stories:
@@ -172,6 +180,7 @@ groups:
   - id: SDO-03-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The old flat enum fields (em_state, pxa_state, rm_state, vfd_state, em_consent_state) MUST NOT be retained
       as aliases or shim properties after the migration is complete.
     rationale: Keeping both representations creates an extended half-migrated state and perpetuates the flat-enum problem.
@@ -181,6 +190,7 @@ groups:
   - id: SDO-03-004
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: 'CaseStatus and ParticipantStatus MUST remain round-trippable through the DataLayer after the dimension-object
       migration: a persisted record MUST rehydrate correctly to the new dimension-object shape.'
     rationale: DataLayer round-trip compatibility is a binding design constraint per LST-05-003 and ADR-0033. A dimension
@@ -206,7 +216,7 @@ groups:
       `extra="forbid"` is strictly stronger than a reject-guard enumerating the known flat keys: it also catches typos and
       stale keys from an older schema, needs no per-class maintenance, and covers every registered core type rather than the
       two named here. Because Pydantic itself raises, the failure surfaces as a pydantic `ValidationError` rather than
-      `VultronValidationError`, and no wire→core recovery is attempted (ADR-0082 supersedes the ADR-0062 backstop).'
+      `VultronValidationError`, and no wire→core recovery is attempted (ADR-0082 retired the ADR-0062 backstop, and ADR-0099 keeps `extra="forbid"` as the guard).'
     verification: '`ParticipantStatus.model_validate({"rm_state": "RECEIVED"})` and the camelCase equivalent both raise pydantic
       `ValidationError`; neither yields a model whose `rm.state` is `RM.START`. No `CaseStatus` or `ParticipantStatus` class
       declares a `model_validator(mode="before")` reject-guard for those keys.'
@@ -223,33 +233,36 @@ groups:
     - ADR-0062
     - ADR-0063
     - ADR-0082
+    - ADR-0099
+  - id: SDO-03-006
+    priority: MUST
+    kind: project
+    statement: A `CaseStatus`'s EM copy MUST be immutable once the status is constructed. `EmDimension` MUST be a frozen
+      model and `CaseStatus.em` a frozen field, so assigning `status.em`, `status.em.state`, or any flat EM spelling raises.
+      A status with a different EM is built by construction or `model_copy(update=...)`, never by mutation; the owning
+      `VulnerabilityCase` stamps its current status that way from its embargo register.
+    rationale: EM is derived from the case's embargo register (ADR-0122); the status holds only a stamped copy. An in-place
+      write makes the copy disagree with the register, and EMB-18-001 forbade it with no enforcement. Freezing fails every
+      write path at runtime, including dynamic ones a source ratchet would miss, while the case's copy-based stamp still
+      works. EmDimension has no transitions, so freezing removes no behavior (#4321).
+    verification: Unit tests show that `status.em = EmDimension(...)` and `status.em.state = EM.X` each raise pydantic
+      `ValidationError`, that `CaseStatus` defines no `em_state` setter so `status.em_state = EM.X` raises `AttributeError`,
+      and that a case whose register changes still stamps the derived EM onto its current status.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-001
+      note: EMB-18-001 forbids assigning `case.current_status.em`; this requirement makes the assignment impossible.
+    - rel_type: depends_on
+      spec_id: SDO-03-001
+    adr:
+    - ADR-0122
 - id: SDO-04
   title: Wire Projection and Migration Scope
   specs:
-  - id: SDO-04-001
-    priority: MUST
-    kind: protocol
-    statement: The wire-layer shapes as_CaseStatus and as_ParticipantStatus, and the adapter-side translators that pair them
-      with their core counterparts, MUST be updated in the same implementation as the core model changes so that translation
-      in both directions correctly handles the dimension-object field shape.
-    rationale: Deferring wire changes creates an extended period of core/wire divergence requiring shim adapters. Both layers
-      are in scope per ADR-0036, and per ADR-0082 the translation itself is a third artifact on the adapter side that must
-      move with them.
-    verification: Inspection confirms the adapter-side `CaseStatus` and `ParticipantStatus` translators project the dimension-object
-      field shape in both directions without accessing flat enum fields.
-    relationships:
-    - rel_type: depends_on
-      spec_id: ARCH-12-005
-      note: ARCH-12-005 locates the translation on the adapter side rather than as methods on the wire classes.
-    adr:
-    - ADR-0036
-    - ADR-0082
-    stories:
-    - story_2022_062
-    - story_2022_088
   - id: SDO-04-002
     priority: MUST
     kind: project
+    verification_debt: '#2575'
     statement: All call sites in vultron/ and test/ (excluding vultron/bt/) that access the old flat enum fields (em_state,
       pxa_state, rm_state, vfd_state, em_consent_state) MUST be migrated to use the new dimension object accessors (e.g. .em.state,
       .rm.state) in the same implementation.
@@ -260,6 +273,7 @@ groups:
   - id: SDO-04-003
     priority: MUST_NOT
     kind: project
+    verification_debt: '#2575'
     statement: The vultron/bt/ legacy simulation layer MUST NOT be migrated to dimension objects as part of this implementation.
     rationale: vultron/bt/ uses the custom BT engine and is not part of the active prototype. It accesses RM/EM/PEC state
       enums directly and is explicitly excluded from prototype handler work per codebase conventions. See notes/codebase-structure.md.

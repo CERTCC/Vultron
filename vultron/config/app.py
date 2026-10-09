@@ -23,6 +23,7 @@ NOT import from ``vultron.adapters`` or ``vultron.core``.
 
 from __future__ import annotations
 
+import functools
 import logging
 import os
 from collections.abc import Generator
@@ -166,6 +167,11 @@ class AppConfig(BaseSettings):
             CBT-03-004).  Override via
             ``VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS``.  Defaults to
             300 (5 minutes).
+        max_inbox_retry_attempts: Maximum cumulative processing attempts for
+            a single inbox activity before it is moved to the dead-letter
+            store (IE-06-004).  Matches the outbox default of 12 so that
+            inbox and outbox share the same retry budget.  Override via
+            ``VULTRON_MAX_INBOX_RETRY_ATTEMPTS``.  Defaults to 12.
     """
 
     server: ServerConfig = ServerConfig()
@@ -174,6 +180,7 @@ class AppConfig(BaseSettings):
     ledger: LedgerConfig = LedgerConfig()
     mode: RunMode = RunMode.PROTOTYPE
     pre_bootstrap_queue_timeout_seconds: int = 300
+    max_inbox_retry_attempts: int = 12
 
     model_config = SettingsConfigDict(
         env_prefix="VULTRON_",
@@ -195,23 +202,30 @@ class AppConfig(BaseSettings):
         return (env_settings, YamlConfigSource(settings_cls))
 
 
-_config_cache: AppConfig | None = None
-
-
+@functools.cache
 def get_config() -> AppConfig:
     """Return the cached :class:`AppConfig` instance.
 
     Loads configuration on first call, then returns the same instance for
-    all subsequent calls.  Use :func:`reload_config` to force a reload (e.g.
-    in tests).
+    all subsequent calls.  The cache is owned by ``functools.cache`` rather
+    than a module global; use :func:`clear_config_cache` to drop it (the next
+    call reloads) or :func:`reload_config` to drop it and reload at once.
 
     Returns:
         The active :class:`AppConfig` instance.
     """
-    global _config_cache
-    if _config_cache is None:
-        _config_cache = AppConfig()
-    return _config_cache
+    return AppConfig()
+
+
+def clear_config_cache() -> None:
+    """Drop the cached :class:`AppConfig` without loading a new one.
+
+    The next :func:`get_config` call reloads from the environment as it stands
+    then.  This is the test-teardown form (CFG-06-003): unlike
+    :func:`reload_config`, it does not read the environment while a test's
+    ``monkeypatch`` changes are still in force.
+    """
+    get_config.cache_clear()
 
 
 def load_actor_config() -> ActorConfig:
@@ -245,8 +259,7 @@ def reload_config() -> AppConfig:
     Returns:
         A newly loaded :class:`AppConfig` instance.
     """
-    global _config_cache
-    _config_cache = None
+    clear_config_cache()
     return get_config()
 
 

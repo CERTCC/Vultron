@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 {% include-markdown "../../CONTRIBUTING.md" %}
 
 ## Contribution Instructions

@@ -11,11 +11,12 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 import unittest
-
-from vultron.core.models.case_participant import CaseParticipant
 from typing import cast
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -35,8 +36,6 @@ from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.core.states.cs import CS_pxa
-from vultron.core.states.em import EM
 
 
 class TestVocabCaseObjectExamples(unittest.TestCase):

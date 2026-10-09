@@ -141,7 +141,7 @@ def test_write_manifest_creates_historical_entries_and_readme(
 ) -> None:
     legacy_file = fake_repo / "plan" / "history" / "IMPLEMENTATION_HISTORY.md"
     legacy_file.write_text(
-        "## BUG-001: outbox_handler early-return fix\n\n" "- Fixed the bug.\n"
+        "## BUG-001: outbox_handler early-return fix\n\n- Fixed the bug.\n"
     )
 
     monkeypatch.setattr(

@@ -1,12 +1,12 @@
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError as PydanticValidationError
 
 from vultron.errors import (
-    VultronInvalidStateTransitionError,
     VultronError,
+    VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -18,7 +18,22 @@ def domain_error_translation() -> Generator[None, None, None]:
     try:
         yield
     except (VultronError, PydanticValidationError) as e:
-        raise translate_domain_errors(e)
+        raise translate_domain_errors(e)  # noqa: B904  # ruff-baseline #3353
+
+
+def conflict_http_exception(
+    message: str, *, activity_id: str | None = None
+) -> HTTPException:
+    """A 409 carrying the structured EH-05-001 body every conflict uses."""
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "status": 409,
+            "error": "Conflict",
+            "message": message,
+            "activity_id": activity_id,
+        },
+    )
 
 
 def translate_domain_errors(exc: Exception) -> HTTPException:
@@ -34,14 +49,8 @@ def translate_domain_errors(exc: Exception) -> HTTPException:
             },
         )
     if isinstance(exc, VultronInvalidStateTransitionError):
-        return HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "status": 409,
-                "error": "Conflict",
-                "message": str(exc),
-                "activity_id": getattr(exc, "activity_id", None),
-            },
+        return conflict_http_exception(
+            str(exc), activity_id=getattr(exc, "activity_id", None)
         )
     if isinstance(exc, (VultronValidationError, PydanticValidationError)):
         detail: dict[str, object] = {

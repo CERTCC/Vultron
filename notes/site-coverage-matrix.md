@@ -26,13 +26,11 @@ types is counted in both of their rows.
 
 | Stakeholder type | 100 | 200 | 300 | 400 | 500 |
 |---|---:|---:|---:|---:|---:|
-| `cvd-practitioner` | 0 | 7 | 14 | 9 | 0 |
-| `platform-developer` | 0 | 5 | 45 | 45 | 0 |
-| `process-researcher` | 0 | 5 | 2 | 12 | 14 |
-| `project-contributor` | 0 | 0 | 14 | 16 | 0 |
-| `ALL` | 3 | 2 | 1 | 0 | 0 |
+| `cvd-practitioner` | 1 | 16 | 20 | 1 | 0 |
+| `platform-developer` | 1 | 11 | 55 | 54 | 0 |
+| `process-researcher` | 1 | 7 | 1 | 13 | 14 |
+| `project-contributor` | 1 | 1 | 19 | 13 | 0 |
+| `ALL` | 9 | 2 | 0 | 0 | 0 |
 
-Reader-facing pages that declare both keys: 138.
-Pages that declare neither yet are listed in
-`vultron/metadata/docs/page_frontmatter_baseline.txt`, not here;
-working-record pages carry no level (DF-11-012) and are not counted.
+Reader-facing pages that declare both keys: 173.
+Working-record pages carry no level (DF-11-012) and are not counted.

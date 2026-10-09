@@ -27,9 +27,11 @@ import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.call_out import unwrap_call_out
-from vultron.core.behaviors.report.publication_tree import (
+from vultron.core.behaviors.report.publication_intent import (
     INTENT_DECISION_KEY,
     PublicationIntentDecision,
+)
+from vultron.core.behaviors.report.publication_tree import (
     ShouldPublishExploit,
     ShouldPublishFix,
     ShouldPublishReport,
@@ -54,14 +56,6 @@ _ARM_NAMES = [
     "FixPublicationArm",
     "ReportPublicationArm",
 ]
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Clear py_trees global blackboard state between tests."""
-    py_trees.blackboard.Blackboard.storage.clear()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _marker_factory(label):
@@ -214,7 +208,9 @@ def test_default_publish_pipeline_nodes_are_deterministic():
     from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
     tree = create_publication_tree(case_id=CASE_ID)
-    for arm, label in zip(tree.children[1:], ["Exploit", "Fix", "Report"]):
+    for arm, label in zip(
+        tree.children[1:], ["Exploit", "Fix", "Report"], strict=False
+    ):
         pipeline = arm.children[0].children[2]  # PublishArtifactBT_<label>
         assert pipeline.name == f"PublishArtifactBT_{label}"
         assert isinstance(unwrap_call_out(pipeline.children[0]), AlwaysSucceed)
@@ -229,7 +225,9 @@ def test_stochastic_publish_pipeline_nodes_are_fuzzers():
     tree = create_publication_tree(
         case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
     )
-    for arm, label in zip(tree.children[1:], ["Exploit", "Fix", "Report"]):
+    for arm, label in zip(
+        tree.children[1:], ["Exploit", "Fix", "Report"], strict=False
+    ):
         pipeline = arm.children[0].children[2]  # PublishArtifactBT_<label>
         assert pipeline.name == f"PublishArtifactBT_{label}"
         assert isinstance(

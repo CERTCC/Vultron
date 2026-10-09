@@ -4,9 +4,12 @@ status: active
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
+  - specs/case-management.yaml
+  - specs/rm-behavior.yaml
 related_notes:
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-registry.md
+  - notes/case-joining.md
 ---
 
 # Demo CI: Scenario Coverage Matrix and Minimum PR Validation Set
@@ -31,17 +34,19 @@ event type to a harness constant, therefore fails this check until the table
 follows — see [demo-scenario-registry.md](demo-scenario-registry.md) § "The
 generate-vs-check split".
 
-| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
-| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |
-| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |
-| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   | ✓ |
-| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
-| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
-| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
-| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |
-| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |
+| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case | invite_to_embargo_on_case | accept_invite_to_embargo_on_case | activate_embargo_on_case | remove_embargo_event_from_case |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
+| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |   |
+| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
+| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   | ✓ |   |   |   |   |
+| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
+| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |   |
+| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
+| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |   |
+| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
+| rcv-embargo       | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ | ✓ |
+| rcvv-embargo      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ | ✓ |
 
 **Notes:**
 
@@ -50,7 +55,8 @@ generate-vs-check split".
   layer, not at scenario call sites: `run_direct_path_rm_triage()` calls
   `receiver_engages_case()` for the direct receiver (every multi-actor
   scenario), `run_invite_path_rm_triage()` calls it again for the invited
-  participant (every scenario with an invite path, CM-11-002), and
+  participant once the invite chain has sent the full-case Invite reply (every
+  scenario with an invite path, CM-11-002), and
   `fv_demo.py` calls it via
   `vendor_engages_case()`. It was promoted from a `fvcv-handoff`-only entry to
   the fifth universal type in ISSUE-2266; see
@@ -67,15 +73,18 @@ generate-vs-check split".
   approves a suggested participant. It fires only in scenarios that include the
   ADR-0026 suggest-actor flow: `fvcv-extension`, `fccv-extension`, and `fcvcv`.
 - `reject_invite_actor_to_case` is emitted by `RejectInviteActorToCaseReceivedUseCase`
-  on the CaseActor when an invitee sends `Reject(Invite(actor, case))` — an
-  **invitation-layer** rejection (not an RM-state RI/RC message). It fires only in
-  `fcv-reject` (IDEA-1218): the Vendor receives the case invitation and sends
-  `Reject(Invite(actor, case))` to decline it, which triggers
-  `RejectInviteActorToCaseReceivedUseCase` on the CaseActor. Because the Vendor
-  rejects rather than accepts, `accept_invite_actor_to_case` does NOT appear in
-  this scenario. No other current scenario exercises this ledger entry.
-  **Invariant 15 note**: because the Vendor never participates, no actor advances
-  the VFD state machine and the `VFd` CS state (vf_state=VF, d_state=d) is structurally unreachable.
+  on the CaseActor when an invitee sends `Reject(Invite(actor, stub))` to
+  decline the stub Invite. It fires only in `fcv-reject` (IDEA-1218): the Vendor
+  receives the case invitation and sends `Reject(Invite(actor, stub))`, which
+  triggers `RejectInviteActorToCaseReceivedUseCase` on the CaseActor. Because
+  the Vendor rejects rather than accepts, `accept_invite_actor_to_case` does
+  NOT appear in this scenario. No other current scenario exercises this ledger
+  entry. A stub Reject **is** an RM message (ADR-0114):
+  it closes the Vendor's kept, inert participant record, `R → C` (CM-11-007,
+  RMB-14-004).
+  **Invariant 15 note**: because the Vendor never joins the case, no actor
+  advances the VFD state machine past `V`, and the `VFd` CS state
+  (vf_state=VF, d_state=d) is structurally unreachable.
   However, `check_cs_state_transitions_observed()` in
   `test/ci/invariants/common.py` no longer accepts a `check_fix_ready` parameter
   — the VFd assertion is unconditional as of PR #2152. `test_invariant_15` in
@@ -83,13 +92,10 @@ generate-vs-check split".
   `fcv-reject` CI produces a VFd observation in practice. When copy-pasting
   Invariant 15 from another harness, do not pass `check_fix_ready=False` — that
   parameter no longer exists (DEMOCI-06-001, ISSUE-2121, PR #2152).
-- `add_case_participant` is emitted by `AcceptInviteNode`
-  (`vultron/core/behaviors/case/nodes/accept_invite.py:181`) on the CaseActor
-  received-side when processing Accept(Invite). This event records the internal
-  participant-list bookkeeping rather than a protocol-visible coordination action.
-  It fires in every scenario with invite/accept flows but is intentionally
-  excluded from `_EXPECTED_EVENT_TYPES` lists: it is a `CaseActor`-internal
-  ledger entry, not a coordination event that invariant checks should mandate.
+- `add_case_participant` is no longer committed (#4081): the CASE_MANAGER
+  sends no `Add(CaseParticipant)` after a stub-Invite acceptance, and replicas
+  seat the new member from the `accept_invite_actor_to_case` entry (CM-31-012,
+  ADR-0116). It was never in any `_EXPECTED_EVENT_TYPES` list.
 - `fccv-extension` spec entry DEMOMA-16-010 was added as part of ISSUE-1996;
   the test constant was already correct.
 - `fvv`, `fvcv-extension`, and `fcv` were missing `accept_invite_actor_to_case`
@@ -117,7 +123,7 @@ advance the CVD protocol state and are recorded in the replicated case ledger.
 | `offer_case_participant` | Suggest-actor flow (ADR-0026) |
 | `accept_invite_actor_to_case` | Invitation acceptance |
 | `accept_actor_recommendation` | Recommendation approval (ADR-0026) |
-| `reject_invite_actor_to_case` | Invitation-layer rejection (`Reject(Invite(actor, case))`) |
+| `reject_invite_actor_to_case` | Stub Invite declined (`Reject(Invite(actor, stub))`; `R → C` under ADR-0114) |
 
 ### Dimensions covered outside Invariant 5
 
@@ -131,8 +137,8 @@ advance the CVD protocol state and are recorded in the replicated case ledger.
 
 ### Why the minimum set is sufficient
 
-The minimum set (`fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`) covers every
-`event_type` column and the ownership-transfer path. The additional
+The minimum set (`fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`, `rcv-embargo`, `rcvv-embargo`)
+covers every `event_type` column and the ownership-transfer path. The additional
 dimensions (CVD role variation, multi-vendor fix paths, embargo phases) are
 either:
 
@@ -145,7 +151,11 @@ either:
 The full-suite-only scenarios add regression depth but not breadth relative to
 the minimum set's event-type and protocol-path coverage. (`fcv-reject` is a
 minimum-set member because it cannot be covered by any other scenario:
-`reject_invite_actor_to_case` is unique to the invitation-rejection path.)
+`reject_invite_actor_to_case` is unique to the invitation-rejection path;
+`rcv-embargo` is one for the same reason, as the only source of the embargo
+proposal, acceptance and termination event types; `rcvv-embargo` is one for
+the embargo paths `rcv-embargo` never takes, a second revision cycle, a vendor
+joining under a revised embargo and a teardown caused by CS.P.)
 
 ## Minimum PR Validation Set (DEMOCI-06-002)
 
@@ -164,12 +174,14 @@ canonical order, everywhere".
 | fccv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
 | fccv-handoff | covered by fvcv-handoff | Same invite+accept+ownership-transfer; no additional phases |
 | fcv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
-| fcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, case))` (invitation-layer rejection) |
+| fcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, stub))` (declines the stub Invite) |
 | fcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
 | fv | ✓ (member) | 2-actor baseline; covers all universal event types (DEMOMA-16-001) with no invitation phases |
 | fvcv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
 | fvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
 | fvv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
+| rcv-embargo | ✓ (member) | Adds `invite_to_embargo_on_case` + `accept_invite_to_embargo_on_case` + `activate_embargo_on_case` + `remove_embargo_event_from_case` — the only scenario that proposes, activates and terminates an embargo |
+| rcvv-embargo | ✓ (member) | Same embargo event types as `rcv-embargo`, reached by other paths: a second revision cycle, a late vendor that signs the revised embargo, and a teardown that CS.P causes instead of a deliberate termination |
 
 ### Coverage proof
 
@@ -188,6 +200,10 @@ The minimum set covers every distinct event type:
 | accept_actor_recommendation | fcvcv |
 | accept_case_ownership_transfer | fvcv-handoff |
 | reject_invite_actor_to_case | fcv-reject |
+| invite_to_embargo_on_case | rcv-embargo |
+| accept_invite_to_embargo_on_case | rcv-embargo |
+| activate_embargo_on_case | rcv-embargo |
+| remove_embargo_event_from_case | rcv-embargo |
 
 Every non-member row above — the scenarios whose `Covered by minimum set` cell
 names a covering member rather than `✓ (member)` — produces no event type the
@@ -258,6 +274,7 @@ do not appear in any scenario unless explicitly scripted.
 | D → A (resumed after deferral) | non-linear | `fcvcv` (Var B, planned) |
 | I → C (closed from invalid) | non-linear | not yet exercised by any scenario |
 | V → D (deferred without accepting) | non-linear | not yet exercised by any scenario |
+| R → C (stub Invite rejected) | non-linear | `fcv-reject` (CM-11-007, #4048; the edge is in the table since #4044) |
 
 **Notes:**
 

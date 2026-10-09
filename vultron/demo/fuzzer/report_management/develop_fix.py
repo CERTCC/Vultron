@@ -32,6 +32,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
 from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
@@ -62,4 +64,4 @@ class CreateFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
     vulnerabilities.
     """
 
-    output_keys = {"fix_artifact": str}
+    output_keys: ClassVar[dict[str, type]] = {"fix_artifact": str}

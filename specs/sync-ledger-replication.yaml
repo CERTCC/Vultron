@@ -4,7 +4,6 @@ description: >-
   Requirements for the append-only canonical recorded case ledger, replication transport,
   conflict handling, per-peer state tracking, and retry semantics for distributed case
   state synchronization across Participant Actors.
-version: 1.3.0
 scope:
 - prototype
 - production
@@ -18,16 +17,19 @@ groups:
   - id: SYNC-00-001
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: The AppendOnlyLedger phase MUST establish the local append-only case ledger with hash-chain indexing.
   - id: SYNC-00-005
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Each entry in the AppendOnlyLedger MUST be immutable once committed.
     rationale: Immutability is the foundation of hash-chain integrity; a mutable entry would invalidate all successor
       entries and undermine replay determinism.
   - id: SYNC-00-006
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: Each entry in the AppendOnlyLedger MUST be cryptographically linked to its predecessor via a content hash,
       providing the integrity foundation for all subsequent replication phases.
     rationale: The hash link makes tampering detectable; any modification to an entry breaks the chain from that point
@@ -35,6 +37,7 @@ groups:
   - id: SYNC-00-002
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: >-
       The LedgerFanout phase MUST implement one-way replication from the actor holding the
       CASE_MANAGER role to all Participant Actors via `Announce(CaseLedgerEntry)` messages.
@@ -43,17 +46,20 @@ groups:
   - id: SYNC-00-003
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: The LedgerReconciliation phase MUST extend LedgerFanout with a full synchronisation loop, retry, and
       backoff.
   - id: SYNC-00-007
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: When a participant's replica falls behind, the LedgerReconciliation mechanism MUST detect the gap.
     rationale: Gap detection is the precondition for triggered retry; without it, a lagging replica would remain
       silently diverged.
   - id: SYNC-00-008
     priority: MUST
     kind: architecture
+    verification_debt: '#2569'
     statement: When a participant's replica falls behind, the LedgerReconciliation mechanism MUST retry entry delivery
       until the participant's tail hash converges to the CASE_MANAGER's tail hash.
     rationale: Convergence to the authoritative tail hash is the definition of a synchronised replica; retrying until
@@ -148,18 +154,21 @@ groups:
     kind: protocol
     statement: >-
       Replication MUST originate from the replication leader (the actor holding the
-      CASE_MANAGER role) and be sent to each Participant Actor individually
+      CASE_MANAGER role) and be sent individually to every active participant
+      (CM-10-004).
     verification: >-
       Integration tests in `test/demo/` confirm that replication originates from the
-      actor holding the CASE_MANAGER role and is addressed to each Participant
-      Actor individually.
+      actor holding the CASE_MANAGER role, is addressed to each active participant
+      individually, and is not addressed to an inert participant.
+    adr:
+    - ADR-0114
     stories:
     - story_2022_045
     - story_2022_046
     - story_2022_088
   - id: SYNC-02-004
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: Each `Announce(CaseLedgerEntry)` activity MUST embed the full inline `CaseLedgerEntry` object in its `object` field;
       a URI-only reference MUST NOT be used, because the recipient needs all entry fields (including `prev_log_hash` and `entry_hash`)
       to validate the hash chain without an additional round-trip to the sender's DataLayer
@@ -196,7 +205,7 @@ groups:
     - story_2022_088
   - id: SYNC-03-003
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: 'Replication MUST be idempotent: repeated delivery of the same log entry MUST NOT produce duplicate entries
       in the receiver''s log'
     verification: >-
@@ -209,7 +218,7 @@ groups:
       note: idempotency.md
   - id: SYNC-03-004
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD include the
       hash of its last accepted canonical recorded log entry as a parameter in the activity's
@@ -218,6 +227,31 @@ groups:
       Integration tests in `test/demo/` confirm that messages from Participant Actors
       to the CASE_MANAGER include the last accepted canonical log hash in the
       activity context field.
+  - id: SYNC-03-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Reject(CaseLedgerEntry)` only when the sender is an
+      active participant in the case (CM-10-004). From any other sender it MUST report
+      `REFUSED`, record no replication state for the sender, and replay no entry and no
+      case to it.
+    rationale: >-
+      A rejection with an empty last-accepted hash makes the CASE_MANAGER replay the whole
+      ledger and announce the case, so an unchecked sender obtains embargoed content just by
+      asking. The replay cooldown limits how often, not who. See #3733.
+    verification: >-
+      A test marked `SYNC-03-005`
+      sends the Reject from a non-participant and asserts `REFUSED` with an empty outbox.
+    stories:
+    - story_2022_035
+    - story_2022_045
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: SYNC-03-002
+    adr:
+    - ADR-0115
 - id: SYNC-04
   title: Per-Peer Replication State
   specs:
@@ -249,7 +283,7 @@ groups:
   specs:
   - id: SYNC-05-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: The replication sender SHOULD implement retry with exponential backoff on delivery failure
     verification: >-
       Integration tests in `test/demo/` confirm that the replication sender retries
@@ -416,31 +450,27 @@ groups:
     - missing_story_reference
   - id: SYNC-07-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Integration tests MUST cover the full single-peer replication cycle: leader appends an entry, sends an `Announce`
       activity, and the receiver validates the predecessor hash and appends the entry'
     verification: >-
       Integration tests in `test/demo/` confirm the full single-peer replication
       cycle: leader appends an entry, sends an Announce, and the receiver
       validates the predecessor hash and appends the entry.
-    lint_suppress:
-    - missing_story_reference
   - id: SYNC-07-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Tests MUST cover conflict and idempotency scenarios: mismatched predecessor hash, duplicate delivery, and
       leader retry after rejection'
     verification: >-
       Integration tests in `test/demo/` confirm conflict and idempotency scenarios:
       mismatched predecessor hash is rejected, duplicate delivery produces no
       duplicates, and the leader retries after rejection.
-    lint_suppress:
-    - missing_story_reference
   - id: SYNC-07-004
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     lint_suppress:
-    - must_without_verification
     - missing_story_reference
     statement: >-
       Unit tests MUST cover pending-assertion suppression semantics: add,
@@ -449,8 +479,8 @@ groups:
   - id: SYNC-07-005
     priority: MUST
     kind: protocol
+    verification_debt: '#3612'
     lint_suppress:
-    - must_without_verification
     - missing_story_reference
     statement: >-
       Unit tests MUST cover per-actor pending-assertion store isolation via
@@ -492,7 +522,7 @@ groups:
       duplicate entries, produces the same resulting state as a single-pass replay.
   - id: SYNC-08-004
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: 'Monotonic visibility: participants MUST NOT regress their acknowledged log position'
     verification: >-
       Integration tests in `test/demo/` confirm that participants never acknowledge a
@@ -574,6 +604,7 @@ groups:
   - id: SYNC-10-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The catch-up gate MUST NOT require the actor's acknowledged tip to equal the CASE_MANAGER's
       current ledger tip; lagging behind the leader tip is allowed if the actor's own
@@ -608,6 +639,7 @@ groups:
   - id: SYNC-11-004
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The CASE_MANAGER MUST NOT use the pending-assertion store for its own ledger commits;
       the CASE_MANAGER's DataLayer idempotency check already guards against duplicate commits
@@ -697,6 +729,7 @@ groups:
   - id: SYNC-13-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: Adapter, wire, transport, and message-parsing code MUST NOT create, save, or otherwise persist a
       `CaseLedgerEntry` to the DataLayer.
     rationale: Ingress code delivers the message; it does not write the ledger. Any ingress write would bypass the
@@ -731,6 +764,7 @@ groups:
   - id: SYNC-13-003
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       Message ingress MUST NOT use the canonical ledger/DataLayer store as a scratch or
       lookup cache for routing, semantic classification, or rehydration of an inbound
@@ -828,6 +862,7 @@ groups:
   - id: SYNC-14-007
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The drain path MUST NOT re-apply effects for an entry already present in the local ledger (SYNC-12-003).
     rationale: Re-applying effects for a previously committed entry would cause duplicate state transitions and violate
       the idempotency guarantee established by SYNC-12-003.
@@ -846,6 +881,7 @@ groups:
   - id: SYNC-14-005
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: >-
       The out-of-order holding area MUST NOT be the canonical ledger/DataLayer store; a
       buffered entry MUST NOT be persisted as a CaseLedgerEntry until it is drained (i.e.
@@ -914,6 +950,7 @@ groups:
   - id: SYNC-15-002
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A participant MUST NOT persist a `CaseLedgerEntry` when the per-case genesis hash is unavailable.
     relationships:
     - rel_type: depends_on
@@ -922,6 +959,7 @@ groups:
   - id: SYNC-15-006
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A `CaseLedgerEntry` received when the per-case genesis hash is unavailable MUST NOT be treated as
       committed.
     rationale: Treating a pre-genesis entry as committed would populate the already-stored gate (SYNC-12-003)
@@ -929,6 +967,7 @@ groups:
   - id: SYNC-15-007
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: The domain effects of a `CaseLedgerEntry` received when the per-case genesis hash is unavailable MUST
       NOT be applied (SYNC-12-001).
     rationale: Applying effects before the genesis hash is known means the effects cannot be attributed to a
@@ -964,6 +1003,7 @@ groups:
   - id: SYNC-15-009
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A Reject reporting an unchanged replication position within the cooldown MUST NOT trigger another
       replay.
     rationale: >-
@@ -986,6 +1026,7 @@ groups:
   - id: SYNC-15-011
     priority: MUST_NOT
     kind: protocol
+    verification_debt: '#3612'
     statement: A replay in which zero entries were sent MUST NOT update the recorded position, because no delivery
       was attempted at that position.
     rationale: Recording a position at which nothing was delivered would start a cooldown that suppresses the first
@@ -1088,3 +1129,27 @@ groups:
     - story_2022_012
     - story_2022_045
     - story_2022_088
+  - id: SYNC-15-012
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The CASE_MANAGER MUST NOT enqueue a replay `Announce(CaseLedgerEntry)` for an
+      (entry, peer) pair while an earlier `Announce` of that same entry to that same peer
+      is still pending in its outbox.
+    rationale: >-
+      A `Reject` that arrives after the peer's gap has already drained still reports an
+      advanced position, so SYNC-15-010 replays — and that suffix is usually still in the
+      outbox from the previous replay. Ten such Rejects queued 116 duplicate Announces ahead
+      of the next entry's fan-out to every other peer (#3602). SYNC-15-010 stands; this only
+      stops the same row being queued twice. See ADR-0112.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-003
+    adr:
+    - ADR-0112
+    verification: >-
+      `test/adapters/driven/test_sync_adapter_pending_dedup.py` confirms the sync adapter
+      queues an (entry, peer) Announce once while it is pending and again once it has been
+      popped; `test/core/behaviors/sync/nodes/test_replay.py` confirms a replay through the
+      adapter adds only the entries not already pending and records no position when it
+      adds none.

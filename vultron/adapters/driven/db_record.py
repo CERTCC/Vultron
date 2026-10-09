@@ -17,14 +17,16 @@
 
 """Provides a Record model for document database storage."""
 
-from functools import lru_cache
+from functools import cache, lru_cache
 from typing import Any, get_args
 
 from pydantic import BaseModel, ValidationError
 
+from vultron.core.models._helpers import strip_annotated
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
+from vultron.enums.object_types import VultronObjectType
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType,
     as_TransitiveActivityType,
@@ -41,10 +43,10 @@ def _is_generic_object_ref(annotation: Any) -> bool:
     """True when *annotation* is a reference to the *generic* ``as_Object``.
 
     The generic AS2 object-reference alias ``as_ObjectRef`` expands to
-    ``as_Object | as_Link | str | None`` and its required form
-    ``as_ObjectRequiredRef`` to ``as_Object | as_Link | str`` (no ``None``).
-    Both are matched; a *narrowed* reference (``as_ActorRef`` →
-    ``as_Actor | as_Link | str | None``) is not, because its ``T`` is a
+    ``as_Object | as_Link | NonEmptyString | None`` and its required form
+    ``as_ObjectRequiredRef`` to ``as_Object | as_Link | NonEmptyString`` (no
+    ``None``).  Both are matched; a *narrowed* reference (``as_ActorRef`` →
+    ``as_Actor | as_Link | NonEmptyString | None``) is not, because its ``T`` is a
     subclass of ``as_Object`` rather than ``as_Object`` itself.  This is the
     single property that separates the AS2 Activity object-reference fields
     from narrowed refs, JSON-LD ``context``/``in_reply_to`` (typed ``Any``),
@@ -56,8 +58,14 @@ def _is_generic_object_ref(annotation: Any) -> bool:
     ``target``, ``origin`` and ``instrument`` from dehydration, so a stored
     activity's inline object reads back as a bare ``as_Object`` and semantic
     matching no longer recognises the activity.
+
+    The IRI branch is ``NonEmptyString`` (CS-08-001), an ``Annotated`` wrapper
+    around ``str`` that the union keeps; it is unwrapped before the set
+    comparison, or every reference field would silently stop being dehydrated.
     """
-    args = set(get_args(annotation)) - {CoreObject}
+    args = {strip_annotated(arg) for arg in get_args(annotation)} - {
+        CoreObject
+    }
     return args in (
         {as_Object, as_Link, str},
         {as_Object, as_Link, str, type(None)},
@@ -82,7 +90,7 @@ def _activity_object_ref_properties() -> frozenset[str]:
     )
 
 
-@lru_cache(maxsize=None)
+@cache
 def object_ref_fields(cls: type[BaseModel]) -> frozenset[str]:
     """The generic AS2 object-reference fields *cls* actually declares.
 
@@ -120,10 +128,16 @@ def object_ref_fields(cls: type[BaseModel]) -> frozenset[str]:
 #    if Activities eventually gain independent DataLayer records.  See
 #    notes/datalayer-design.md § "Received Activity Artifacts: Inline
 #    Sub-Field Snapshots Are Intentional".
+#
+# ``VulnerabilityCaseStub`` is kept inline for reason 1 alone, and more
+# strictly: a stub never has a record of its own (an invitee holds no case,
+# and the CASE_MANAGER holds the case the stub stands for), and the stub
+# Invite is recognised by its target's ``type`` (CM-11-013), so a target
+# collapsed to the stub's ID would read back as an unrecognisable Invite.
 _KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
     {e.value for e in as_TransitiveActivityType}
     | {e.value for e in as_IntransitiveActivityType}
-    | {"CaseLedgerEntry"}
+    | {"CaseLedgerEntry", VultronObjectType.VULNERABILITY_CASE_STUB.value}
 )
 
 
@@ -155,6 +169,49 @@ _AS_LIST_REF_FIELDS: frozenset[str] = frozenset(
         "case_participants",  # list[CaseParticipantRef] on VulnerabilityCase
     }
 )
+
+
+# Trailing-underscore Python field names whose wire-facing names differ and
+# must be used in persisted rows (ARCH-23-005).  Only the three identity
+# fields have this property; every other field is either identical to its
+# wire name (snake_case → snake_case) or a camelCase alias that this path
+# MUST NOT apply (ARCH-20-001).
+_PYTHON_TO_WIRE_IDENTITY_KEYS: dict[str, str] = {
+    "id_": "id",
+    "type_": "type",
+    "context_": "@context",
+}
+
+
+def _rekey_wire_identity(data: dict[str, Any]) -> dict[str, Any]:
+    """Rename Python trailing-underscore identity keys to their wire-facing names.
+
+    Renames ``id_`` → ``id``, ``type_`` → ``type``, and ``context_`` →
+    ``@context`` recursively through all dict values and list-of-dict items,
+    per ARCH-23-005.  Only those three keys are renamed; all others pass
+    through unchanged, so no camelCase is introduced (contrast: blanket
+    ``by_alias=True`` would apply the ``alias_generator=to_camel`` and make
+    every field camelCase).
+
+    Applied to the result of :func:`_dehydrate_data` before the dict is
+    stored in :attr:`Record.data_`.  Read-back tolerates both spellings via
+    ``populate_by_name=True`` / ``validate_by_name=True`` on all model roots,
+    so existing rows keyed ``id_``/``type_`` continue to round-trip correctly
+    (AC-3).
+    """
+    result: dict[str, Any] = {}
+    for key, value in data.items():
+        wire_key = _PYTHON_TO_WIRE_IDENTITY_KEYS.get(key, key)
+        if isinstance(value, dict):
+            result[wire_key] = _rekey_wire_identity(value)
+        elif isinstance(value, list):
+            result[wire_key] = [
+                _rekey_wire_identity(item) if isinstance(item, dict) else item
+                for item in value
+            ]
+        else:
+            result[wire_key] = value
+    return result
 
 
 def _dehydrate_data(
@@ -251,7 +308,10 @@ def _retype_inline_ref(obj: "BaseModel", field_name: str, raw: object) -> Any:
     if not isinstance(type_str, str) or type_str.startswith("as_"):
         return None
     try:
-        specific_cls = find_in_vocabulary(type_str)
+        # Both-branch: a stored inline ref may be any persisted type, core
+        # records included, so this read path opts into the core fallback
+        # (VM-06-008).
+        specific_cls = find_in_vocabulary(type_str, include_core=True)
     except KeyError:
         return None
     if isinstance(getattr(obj, field_name, None), specific_cls):
@@ -347,8 +407,12 @@ class Record(StorableRecord):
             # serialized against the base schema and lose its domain fields —
             # breaking read/replay reconstruction (SYNC-13-004).
             # ``obj`` is passed so its ``inline_required_refs`` are honoured.
-            data_=_dehydrate_data(
-                obj.model_dump(mode="json", serialize_as_any=True), obj
+            # _rekey_wire_identity renames id_/type_ to id/type at every nesting
+            # level so stored rows carry wire-facing keys (ARCH-23-005).
+            data_=_rekey_wire_identity(
+                _dehydrate_data(
+                    obj.model_dump(mode="json", serialize_as_any=True), obj
+                )
             ),
         )
         return record
@@ -360,9 +424,11 @@ class Record(StorableRecord):
             BaseModel: The converted object.
         """
         try:
-            cls = find_in_vocabulary(self.type_)
+            # Both-branch: a record holds whatever was stored, including core
+            # records keyed only in CORE_TYPE_MAP (VM-06-008).
+            cls = find_in_vocabulary(self.type_, include_core=True)
         except KeyError:
-            raise ValueError(
+            raise ValueError(  # noqa: B904  # ruff-baseline #3353
                 f"Type '{self.type_}' not found in vocabulary for Record conversion"
             )
         obj = cls.model_validate(self.data_)

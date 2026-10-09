@@ -24,27 +24,25 @@ Reference: specs/architecture.yaml ARCH-15-001 through ARCH-15-003,
            notes/domain-validation.md, GitHub issue #1377.
 """
 
+import logging
 from unittest.mock import MagicMock, patch
 
-import py_trees
 import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
-from vultron.core.behaviors.case.nodes.communication import (
-    CreateAndPersistCaseActivityNode,
-)
 from vultron.core.dispatcher import DirectActivityDispatcher
+from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.events import (
     AddNoteToCaseReceivedEvent,
     MessageSemantics,
 )
-from vultron.core.models.vultron_types import VultronCaseActor, VultronCase
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.errors import UnroutableActivityError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase as as_VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 
 _FACTORY_PATH = (
@@ -65,24 +63,13 @@ CM_PARTICIPANT_ID = f"{CM_CASE_ID}/participants/case-manager-001"
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    from vultron.core.models.pending_assertion import _reset_stores
-
-    py_trees.blackboard.Blackboard.storage.clear()
-    _reset_stores()
-    yield
-    py_trees.blackboard.Blackboard.storage.clear()
-    _reset_stores()
-
-
 @pytest.fixture()
 def datalayer():
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor Co")
+    actor = CaseActor(id_=ACTOR_ID, name="Vendor Co")
     dl.create(actor)
     return dl
 
@@ -103,9 +90,10 @@ class TestCommitCaseLedgerEntryNodeFailFast:
     def test_no_case_id_on_blackboard_returns_failure(self, bridge):
         """No case_id in blackboard → FAILURE, inner tree never built."""
         node = CommitCaseLedgerEntryNode()
-        with patch(_FACTORY_PATH) as mock_factory, patch(
-            _INNER_BRIDGE_PATH
-        ) as mock_bridge:
+        with (
+            patch(_FACTORY_PATH) as mock_factory,
+            patch(_INNER_BRIDGE_PATH) as mock_bridge,
+        ):
             result = bridge.execute_with_setup(
                 tree=node, actor_id=ACTOR_ID, activity=None
             )
@@ -135,47 +123,6 @@ class TestCommitCaseLedgerEntryNodeFailFast:
 
 
 # ---------------------------------------------------------------------------
-# AC-1b: _read_case_obj sets feedback_message; update returns FAILURE on None
-# ---------------------------------------------------------------------------
-
-
-class TestCreateAndPersistCaseActivityNodeFailFast:
-    """ARCH-15-001: update() returns FAILURE when create_case_obj absent."""
-
-    def test_missing_case_obj_returns_failure(self, bridge):
-        """create_case_obj absent from blackboard → FAILURE."""
-        node = CreateAndPersistCaseActivityNode()
-        case_obj = VultronCase(id_=CASE_ID, name="Test Case")
-        bridge.datalayer.create(case_obj)
-        result = bridge.execute_with_setup(
-            tree=node,
-            actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-            # create_case_obj intentionally omitted
-            create_case_addressees=[],
-        )
-        assert result.status == Status.FAILURE
-
-    def test_missing_case_obj_sets_feedback_message(self, bridge, datalayer):
-        """_read_case_obj KeyError sets feedback_message on the node."""
-        node = CreateAndPersistCaseActivityNode()
-        case_obj = VultronCase(id_=CASE_ID, name="Test Case")
-        datalayer.create(case_obj)
-
-        result = bridge.execute_with_setup(
-            tree=node,
-            actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-            # create_case_obj intentionally omitted
-            create_case_addressees=[],
-        )
-        assert result.status == Status.FAILURE
-        # feedback_message should mention the missing key
-        failure_reason = BTBridge.get_failure_reason(node)
-        assert "create_case_obj" in failure_reason
-
-
-# ---------------------------------------------------------------------------
 # AC-1c: _extract_case_id raises UnroutableActivityError instead of None
 # ---------------------------------------------------------------------------
 
@@ -190,7 +137,9 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
         case_id.  _extract_case_id raises UnroutableActivityError; _handle
         catches it, logs at ERROR, and returns without calling the use case.
         dispatch() completes normally (no exception propagates to the caller),
-        which prevents the inbox re-queue loop (ARCH-15-003).
+        which prevents the inbox re-queue loop (ARCH-15-003). It returns a
+        ``REFUSED`` verdict, so the drop is not reported as processed
+        (UCORG-05-012).
         """
         mock_dl = MagicMock()
         use_case_class = MagicMock()
@@ -207,8 +156,39 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
         )
 
         # dispatch() must not raise — unroutable events are dropped at _handle
-        dispatcher.dispatch(event, mock_dl)
+        result = dispatcher.dispatch(event, mock_dl)
         use_case_class.assert_not_called()
+        # ...but no handler ran, so the verdict is not success (UCORG-05-012).
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "unroutable" in result.reason
+
+    @pytest.mark.spec("HP-06-003")
+    def test_unroutable_event_is_logged_at_error_with_context(self, caplog):
+        """The drop is one ERROR record carrying activity id, semantics, actor.
+
+        HP-06-003: an error a handler path reports is logged at ERROR with the
+        context needed to find the activity again.
+        """
+        use_case_class = MagicMock()
+        dispatcher = DirectActivityDispatcher(
+            use_case_map={MessageSemantics.ADD_NOTE_TO_CASE: use_case_class}
+        )
+        event = AddNoteToCaseReceivedEvent(
+            activity_id=ACTIVITY_ID,
+            actor_id=ACTOR_ID,
+            target=as_VulnerabilityCase.model_construct(id_=""),
+        )
+
+        with caplog.at_level(logging.ERROR, logger="vultron.core.dispatcher"):
+            dispatcher.dispatch(event, MagicMock())
+
+        errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert len(errors) == 1, caplog.text
+        message = errors[0].getMessage()
+        assert ACTIVITY_ID in message
+        assert ACTOR_ID in message
+        assert str(MessageSemantics.ADD_NOTE_TO_CASE) in message
 
     def test_extract_case_id_raises_unroutable_directly(self):
         """_extract_case_id raises UnroutableActivityError (not returns None).

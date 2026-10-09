@@ -13,11 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""AC-7 architecture ratchet: audit VF/D/RM/PXA dimension write sites.
+"""AC-7 architecture test: audit VF/D/RM/PXA dimension write sites.
 
 AST-scans ``vultron/core/behaviors/`` for every ``VfDimension``,
 ``DDimension``, ``RmDimension``, and ``PxaDimension`` constructor call and
-asserts the result matches the audited set below.
+asserts the result matches the audited set below.  ``AUDITED_SITES`` is a pinned
+exemption set, not a ratchet (ARCH-18-005): the list *is* the BTND-10-001 audit,
+so it has no empty end state and tracks the code in both directions.
 
 A new unclassified constructor call fails this test immediately, which forces
 an explicit audit decision:
@@ -45,16 +47,16 @@ from test.architecture import _corpus
 #   PROTECTED  — write covered by transition validation.  For the trigger path
 #                ValidateTriggerTransitionsNode runs first, and for the received
 #                path FilterParticipantStatusDimensionsNode does — but neither
-#                is what makes the write-node sites safe, because five call
+#                is what makes the write-node sites safe, because some call
 #                sites reach CreateParticipantStatusNode through *neither*
-#                (develop_fix.py, deploy_fix.py, close_case_effect.py and two
-#                in leave.py).  What protects them is that the write node
+#                (develop_fix.py, deploy_fix.py, and the closure writer
+#                participant/rm_closure.py used by close_case_effect.py and
+#                leave/advance.py).  What protects them is that the write node
 #                validates its own writes against the shared evaluator
 #                (BTND-10-001, BTND-10-003, ADR-0086); the upstream guard is
-#                defence in depth, not the guarantee.  Three of those five
-#                sites force RM.CLOSED and carry a sanctioned `force_rm_state`
-#                override (CM-23-012, resolving #3106) pinned by
-#                test_participant_status_validation.py.
+#                defence in depth, not the guarantee.  No closure write
+#                carries a `force_rm_state` override (RMB-14-005, #4044);
+#                test_rm_closure_no_force.py pins that.
 #   BOOTSTRAP  — initial / authoritative seeding write; no prior state to
 #                violate; outside the scope of transition validation
 #   PREDICATE  — read-only dimension instantiation (guard / is_*() checks),
@@ -65,6 +67,7 @@ from test.architecture import _corpus
 #                Node (received path); the filter adjudicates before writing
 #   REPLICATE  — authoritative ledger-replication write with monotonic ratchet
 # ---------------------------------------------------------------------------
+# permanent: BTND-10-001 (the list is the write-site audit)
 AUDITED_SITES: list[tuple[str, str]] = sorted(
     [
         # PROTECTED — CreateParticipantStatusNode validates its own writes.
@@ -96,11 +99,22 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         # FILTER — CaseStatus per-dimension carry-forward (ISSUE-2256)
         ("status/nodes/cs_dimension_filter.py", "PxaDimension"),
         # SNAPSHOT — EmitCaseStatusUpdateNode: post-mutation CaseStatus snapshot (ISSUE-2175)
-        # Second PxaDimension: AC-1 _promote_pxa() result applied in AppendCaseStatusToCaseNode
-        ("status/nodes/case_status.py", "PxaDimension"),
+        ("case_status_snapshot.py", "PxaDimension"),
+        # AC-1 promote_pxa() result applied in AppendCaseStatusToCaseNode
         ("status/nodes/case_status.py", "PxaDimension"),
         # REPLICATE — participant_status_effect.py: monotonic RM ratchet
         ("sync/nodes/participant_status_effect.py", "RmDimension"),
+        # REPLICATE — rm_verdict_effect.py: the RM state an act-typed ledger
+        # entry records, ratcheted (RSH-05-007, RSH-08-004, #3814)
+        ("sync/nodes/rm_verdict_effect.py", "RmDimension"),
+        # REPLICATE — case_status_effect.py: CaseStatus per-dimension
+        # carry-forward on replay (RSH-05-023/019, #3814)
+        ("sync/nodes/case_status_effect.py", "PxaDimension"),
+        # BOOTSTRAP — ADR-0114 birth write: invitee's first ParticipantStatus
+        # at RM.RECEIVED (no prior state; embed directly in CaseParticipant,
+        # not via CreateParticipantStatusNode). CM-11-006 / #4048.
+        ("case/nodes/invite_inert_participant.py", "RmDimension"),
+        ("case/nodes/invite_inert_participant.py", "VfDimension"),
     ]
 )
 

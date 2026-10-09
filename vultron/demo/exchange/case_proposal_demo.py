@@ -24,7 +24,7 @@ Workflow
 --------
 1. Finder submits a vulnerability report to the vendor inbox.
 2. The vendor processes the report: ``create_receive_report_case_tree``
-   runs, which includes ``ProposeCaseToActorNode`` — this queues
+   runs, which includes ``ProposeReportCaseToActorNode`` — this queues
    ``Create(as_CaseProposal)`` addressed to the case-actor service and
    flushes the vendor's outbox.
 3. The case-actor service receives ``Create(as_CaseProposal)`` and
@@ -51,13 +51,10 @@ CP-05-004, CP-06-001 through CP-06-003.
 
 import logging
 import sys
-from typing import Callable, Optional, Sequence
+from collections.abc import Callable, Sequence
 
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
-from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
+from vultron.demo.helpers.polling import wait_for_initialized_case
+from vultron.demo.utils import (  # BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
     check_server_availability,
@@ -70,6 +67,10 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     verify_object_stored,
 )
 from vultron.wire.as2.factories import rm_submit_report_activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ def demo_case_proposal_round_trip(
     """Exercise the full CaseProposal round-trip (CP-07-003).
 
     Finder submits a report to vendor's inbox.  The vendor's BT tree
-    includes ``ProposeCaseToActorNode``, which queues
+    includes ``ProposeReportCaseToActorNode``, which queues
     ``Create(as_CaseProposal)`` to the case-actor service.  The
     case-actor responds with ``Accept(as_CaseProposal)`` and
     ``Create(VulnerabilityCase)``.
@@ -91,15 +92,16 @@ def demo_case_proposal_round_trip(
         vendor: The vendor actor (receives the report, hosts the
             case-actor service).
     """
+    report = as_VulnerabilityReport(
+        attributed_to=finder.id_,
+        name="CP-07-003 demo report",
+        content=(
+            "A buffer-overflow vulnerability discovered during testing "
+            "of the CaseProposal protocol round-trip demo."
+        ),
+    )
+
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = as_VulnerabilityReport(
-            attributed_to=finder.id_,
-            name="CP-07-003 demo report",
-            content=(
-                "A buffer-overflow vulnerability discovered during testing "
-                "of the CaseProposal protocol round-trip demo."
-            ),
-        )
         offer = rm_submit_report_activity(
             report,
             actor=finder.id_,
@@ -115,7 +117,7 @@ def demo_case_proposal_round_trip(
             verify_object_stored(client, offer.id_)
 
     with demo_step(
-        "Step 2: Verify ProposeCaseToActorNode sent Create(as_CaseProposal)"
+        "Step 2: Verify ProposeReportCaseToActorNode sent Create(as_CaseProposal)"
         " and the case-actor responded"
     ):
         with demo_check(
@@ -130,20 +132,18 @@ def demo_case_proposal_round_trip(
             logger.info("Accept activities found: %d", len(accept_activities))
 
         with demo_check(
-            "VulnerabilityCase exists — case-actor created the case"
+            "VulnerabilityCase for this report exists — case-actor created"
+            " the case"
         ):
-            cases = client.get("/VulnerabilityCases/")
-            assert isinstance(cases, dict) and cases, (
-                "Expected at least one VulnerabilityCase in the DataLayer "
-                "after the CaseProposal round-trip (CP-05-003).  "
-                "The case-actor may not have emitted Create(VulnerabilityCase)."
-            )
-            logger.info("VulnerabilityCase records found: %d", len(cases))
+            # Nothing after this check reads the case, so a timeout cannot
+            # leave a later step on unestablished state: demo_check, not
+            # demo_gate.
+            wait_for_initialized_case(client, report.id_)
 
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence[Callable]] = None,
+    demos: Sequence[Callable] | None = None,
 ) -> None:
     """Run the CaseProposal round-trip demo.
 

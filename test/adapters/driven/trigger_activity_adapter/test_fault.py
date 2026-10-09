@@ -13,6 +13,9 @@
 
 """Unit tests for _FaultMixin.emit_processing_fault() in TriggerActivityAdapter."""
 
+import pytest
+
+from vultron.adapters.outbox_sealed_body import is_sealed, sealed_body_id
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
 )
@@ -64,3 +67,75 @@ class TestEmitProcessingFault:
         )
 
         assert activity_id in dl.outbox_list()
+
+    @pytest.mark.spec("ID-04-004")
+    def test_same_failed_activity_is_faulted_once(self, adapter, dl):
+        kwargs = dict(
+            actor=_ACTOR,
+            failed_activity_id=_FAILED_ACTIVITY,
+            failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+            to=[_SENDER],
+        )
+        first = adapter.emit_processing_fault(**kwargs)
+        second = adapter.emit_processing_fault(**kwargs)
+
+        assert second == first
+        assert dl.outbox_list() == [first]
+
+    @pytest.mark.spec("ID-04-004")
+    def test_a_delivered_fault_is_requeued_under_the_same_id(
+        self, adapter, dl
+    ):
+        kwargs = dict(
+            actor=_ACTOR,
+            failed_activity_id=_FAILED_ACTIVITY,
+            failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+            to=[_SENDER],
+        )
+        first = adapter.emit_processing_fault(**kwargs)
+        assert dl.outbox_pop() is not None  # the drain took it
+
+        adapter.emit_processing_fault(**kwargs)
+        adapter.emit_processing_fault(**kwargs)
+
+        # Delivered and never-queued look alike, so it is queued again under
+        # the same id (the receiver deduplicates) - once, not per redelivery.
+        assert dl.outbox_list() == [first]
+
+    @pytest.mark.spec("ID-04-005")
+    def test_a_fault_stored_but_not_sealed_is_sealed_and_queued(
+        self, adapter, dl
+    ):
+        kwargs = dict(
+            actor=_ACTOR,
+            failed_activity_id=_FAILED_ACTIVITY,
+            failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+            to=[_SENDER],
+        )
+        first = adapter.emit_processing_fault(**kwargs)
+        # Simulate a crash between the create and the seal.
+        dl.outbox_pop()
+        dl.delete("SealedOutboundBody", sealed_body_id(first))
+        assert not is_sealed(dl, first)
+
+        second = adapter.emit_processing_fault(**kwargs)
+
+        assert second == first
+        assert is_sealed(dl, first)
+        assert dl.outbox_list() == [first]
+
+    def test_different_failed_activities_get_different_faults(
+        self, adapter, dl
+    ):
+        ids = {
+            adapter.emit_processing_fault(
+                actor=_ACTOR,
+                failed_activity_id=f"{_FAILED_ACTIVITY}-{n}",
+                failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+                to=[_SENDER],
+            )
+            for n in range(2)
+        }
+
+        assert len(ids) == 2
+        assert set(dl.outbox_list()) == ids

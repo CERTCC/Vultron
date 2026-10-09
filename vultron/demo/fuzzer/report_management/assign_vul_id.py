@@ -32,6 +32,8 @@ References
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysSucceed,
     AlwaysSucceed,
@@ -98,7 +100,7 @@ class IdAssignable(EvaluatorCallOutPoint, ProbablySucceed):
     require human review.
     """
 
-    output_keys = {"id_assignable_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {"id_assignable_verdict": str}
 
 
 class IsIDAssignmentAuthority(OftenSucceed):
@@ -144,7 +146,7 @@ class RequestId(RetrieverCallOutPoint, UsuallySucceed):
     request without human intervention in most cases.
     """
 
-    output_keys = {"assigned_id": str}
+    output_keys: ClassVar[dict[str, type]] = {"assigned_id": str}
 
 
 class AssignId(ComposerCallOutPoint, AlwaysSucceed):
@@ -170,7 +172,7 @@ class AssignId(ComposerCallOutPoint, AlwaysSucceed):
     required once the allocation decision is made.
     """
 
-    output_keys = {"assigned_vul_id": str}
+    output_keys: ClassVar[dict[str, type]] = {"assigned_vul_id": str}
 
 
 class InScope(EvaluatorCallOutPoint, UsuallySucceed):
@@ -198,7 +200,7 @@ class InScope(EvaluatorCallOutPoint, UsuallySucceed):
     judgment.
     """
 
-    output_keys = {"in_scope_verdict": str}
+    output_keys: ClassVar[dict[str, type]] = {"in_scope_verdict": str}
 
 
 class ProductInCNAScope(EvaluatorCallOutPoint, UsuallySucceed):
@@ -223,7 +225,7 @@ class ProductInCNAScope(EvaluatorCallOutPoint, UsuallySucceed):
     (e.g., CVE CNA scope registry); fully automatable via a policy lookup.
     """
 
-    output_keys = {
+    output_keys: ClassVar[dict[str, type]] = {
         "product_in_cna_scope": bool,
         "product_in_cna_scope_rationale": str,
     }
@@ -251,7 +253,7 @@ class IsMostAppropriateCNA(EvaluatorCallOutPoint, UsuallySucceed):
     machine-readable; fully automatable via a CNA hierarchy lookup.
     """
 
-    output_keys = {
+    output_keys: ClassVar[dict[str, type]] = {
         "is_most_appropriate_cna": bool,
         "is_most_appropriate_cna_rationale": str,
     }
@@ -280,7 +282,7 @@ class IsNotMaliciousCode(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     available on the blackboard; fully automatable from report metadata.
     """
 
-    output_keys = {
+    output_keys: ClassVar[dict[str, type]] = {
         "is_not_malicious_code_verdict": bool,
         "is_not_malicious_code_rationale": str,
     }
@@ -308,7 +310,7 @@ class IsNotDependencyUpdate(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     the blackboard; fully automatable from report metadata.
     """
 
-    output_keys = {
+    output_keys: ClassVar[dict[str, type]] = {
         "is_not_dependency_update_verdict": bool,
         "is_not_dependency_update_rationale": str,
     }
@@ -336,7 +338,7 @@ class IsNotEOLStatusAlone(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     available on the blackboard; fully automatable from report metadata.
     """
 
-    output_keys = {
+    output_keys: ClassVar[dict[str, type]] = {
         "is_not_eol_status_alone_verdict": bool,
         "is_not_eol_status_alone_rationale": str,
     }
@@ -363,7 +365,7 @@ class IsNotDeliberatelyEducational(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     the blackboard; fully automatable from report classification metadata.
     """
 
-    output_keys = {
+    output_keys: ClassVar[dict[str, type]] = {
         "is_not_deliberately_educational_verdict": bool,
         "is_not_deliberately_educational_rationale": str,
     }
@@ -391,7 +393,7 @@ class IsPubliclyAvailableProduct(EvaluatorCallOutPoint, UsuallySucceed):
     the blackboard; fully automatable from product registry lookup.
     """
 
-    output_keys = {
+    output_keys: ClassVar[dict[str, type]] = {
         "is_publicly_available_product_verdict": bool,
         "is_publicly_available_product_rationale": str,
     }
@@ -421,7 +423,7 @@ class NoDuplicateCVE(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     can automate most deduplication decisions.
     """
 
-    output_keys = {
+    output_keys: ClassVar[dict[str, type]] = {
         "no_duplicate_cve_verdict": bool,
         "no_duplicate_cve_rationale": str,
     }
@@ -453,7 +455,7 @@ class MeetsEvidenceBar(EvaluatorCallOutPoint, UsuallySucceed):
     as policy rules.
     """
 
-    output_keys = {
+    output_keys: ClassVar[dict[str, type]] = {
         "meets_evidence_bar_verdict": bool,
         "meets_evidence_bar_rationale": str,
     }
@@ -488,7 +490,7 @@ class IsRealVulnerability(EvaluatorCallOutPoint, UsuallySucceed):
         pending structured dataclass replacement in issue #1558.
     """
 
-    output_keys = {
+    output_keys: ClassVar[dict[str, type]] = {
         "is_real_vul": bool,
         "is_real_vul_rationale": str,
     }

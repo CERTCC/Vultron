@@ -31,19 +31,14 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-)
+from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
-    _snapshot_with_context,
-)
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 
-class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
+class EmitAcceptActorRecommendationNode(_EmitSingleActivityBase):
     """Queue AcceptActorRecommendation to the original recommender.
 
     Used after the Case Owner accepts Offer(CaseParticipant) (CM-16-006 step 3).
@@ -72,7 +67,7 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return f
         assert self.trigger_activity_factory is not None
 
@@ -87,8 +82,8 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
                     actor=self.actor_id,
                 )
             )
-            activity_dict = json.loads(activity_blob)
-            snapshot = _snapshot_with_context(activity_dict, self.case_id)
+            # Exact blob as snapshot (VM-08-003): the factory sets context.
+            snapshot = json.loads(activity_blob)
             commit_tree = create_commit_log_entry_tree(
                 case_id=self.case_id,
                 object_id=activity_id,
@@ -102,13 +97,12 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
                 actor_id=self.actor_id,
             )
             if result.status != Status.SUCCESS:
-                raise RuntimeError(
+                raise RuntimeError(  # noqa: TRY301  # ruff-baseline #3353
                     f"ledger commit failed for "
                     f"accept_actor_recommendation/{self.recommended_id}"
                 )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "%s: queued AcceptActorRecommendation to '%s' for case '%s'",
                 self.name,
@@ -116,15 +110,15 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
                 self.case_id,
             )
             return Status.SUCCESS
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"EmitAcceptActorRecommendation failed: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 
-class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
+class EmitRejectActorRecommendationNode(_EmitSingleActivityBase):
     """Queue RejectActorRecommendation to the original recommender.
 
     Used after the Case Owner rejects Offer(CaseParticipant) (CM-16-007 step 3).
@@ -150,7 +144,7 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)
             return f
         assert self.trigger_activity_factory is not None
 
@@ -165,8 +159,8 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
                     actor=self.actor_id,
                 )
             )
-            activity_dict = json.loads(activity_blob)
-            snapshot = _snapshot_with_context(activity_dict, self.case_id)
+            # Exact blob as snapshot (VM-08-003): the factory sets context.
+            snapshot = json.loads(activity_blob)
             commit_tree = create_commit_log_entry_tree(
                 case_id=self.case_id,
                 object_id=activity_id,
@@ -180,13 +174,12 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
                 actor_id=self.actor_id,
             )
             if result.status != Status.SUCCESS:
-                raise RuntimeError(
+                raise RuntimeError(  # noqa: TRY301  # ruff-baseline #3353
                     f"ledger commit failed for "
                     f"reject_actor_recommendation/{self.recommended_id}"
                 )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "%s: queued RejectActorRecommendation to '%s' for case '%s'",
                 self.name,
@@ -194,11 +187,11 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
                 self.case_id,
             )
             return Status.SUCCESS
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
             self.feedback_message = (
                 f"EmitRejectActorRecommendation failed: {e}"
             )
-            self.logger.error(self.feedback_message)
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
             return Status.FAILURE
 
 

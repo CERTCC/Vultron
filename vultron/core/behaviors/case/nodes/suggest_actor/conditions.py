@@ -26,9 +26,17 @@ Node classes:
   AC-6).
 """
 
+import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
+)
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_CASE_REPLY_TYPES,
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
@@ -36,11 +44,15 @@ from vultron.core.models.protocol_pair import (
 
 
 class ActorAlreadyParticipantNode(DataLayerActionWithPorts):
-    """Return SUCCESS if the recommended actor is already a case participant.
+    """Return SUCCESS if the recommended actor is already a joined case participant.
 
     Reads ``VulnerabilityCase.actor_participant_index`` from the DataLayer.
-    Returns SUCCESS when ``recommended_id`` is a key in the index (AC-7b,
-    CM-16-009).
+    Returns SUCCESS when ``recommended_id`` is in the index AND the participant
+    record has ``joined=True`` (AC-7b, CM-16-009).
+
+    An *inert* participant created at invite-send time (``joined=False``,
+    ADR-0114, CM-11-006) is treated as absent so the re-invite flow can proceed
+    (CM-11-015 precedent).
 
     Used as the first arm of the duplicate-detection Selector in
     :func:`~vultron.core.behaviors.case.suggest_actor_tree.create_recommend_actor_to_case_received_tree`.
@@ -66,15 +78,97 @@ class ActorAlreadyParticipantNode(DataLayerActionWithPorts):
         # here, so the graceful ``getattr`` default is intentional (allowlist).
         case_obj = self.datalayer.read_case(self.case_id)
         index = getattr(case_obj, "actor_participant_index", {}) or {}
-        if self.recommended_id in index:
-            self.logger.info(
-                "%s: actor '%s' is already a participant in case '%s'",
+        if self.recommended_id not in index:
+            return Status.FAILURE
+        # An inert record (joined=False) is not a true participant yet;
+        # return FAILURE so the re-invite / fresh-invite path can proceed.
+        participant_id = index[self.recommended_id]
+        participant = self.datalayer.read(participant_id)
+        if isinstance(participant, CaseParticipant) and not participant.joined:
+            self.logger.debug(
+                "%s: actor '%s' has an inert record in case '%s' (joined=False)"
+                " — not yet a participant",
                 self.name,
                 self.recommended_id,
                 self.case_id,
             )
+            return Status.FAILURE
+        self.logger.info(
+            "%s: actor '%s' is already a participant in case '%s'",
+            self.name,
+            self.recommended_id,
+            self.case_id,
+        )
+        return Status.SUCCESS
+
+
+class SuggestedActorIsNotRemovedNode(DataLayerConditionWithPorts):
+    """Guard: the actor a recommendation names is not a removed participant.
+
+    A removed participant is sent no stub Invite (CM-31-013): the Case Owner
+    took it out, and only the Case Owner's ``Add(CaseParticipant)`` brings it
+    back (CM-31-011, ADR-0116).  So a recommendation of it, and the Case
+    Owner's acceptance of one, are refused before the guarded commit, with a
+    reason naming reinstatement.  An actor the case does not list, or one
+    whose record carries no removal fact, passes.
+
+    Read-only, so it runs in ``precondition_guards`` behind the CASE_MANAGER
+    gate (CLP-10-009, RSH-08-003).
+    """
+
+    def __init__(
+        self,
+        recommended_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommended_id = recommended_id
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: the CASE_MANAGER holds its case
+        participant_id = case.actor_participant_index.get(self.recommended_id)
+        record = (
+            self.datalayer.read(participant_id) if participant_id else None
+        )
+        if not (isinstance(record, CaseParticipant) and record.removed):
             return Status.SUCCESS
+        self.feedback_message = (
+            f"actor '{self.recommended_id}' is a removed participant of case"
+            f" '{self.case_id}' and is sent no stub Invite; the Case Owner"
+            " reinstates it with Add(CaseParticipant) — REFUSED (CM-31-013)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
+
+
+def case_manager_admits_suggested_actor_guard(
+    recommended_id: str, case_id: str
+) -> py_trees.composites.Selector:
+    """Precondition guard: when this actor is the CASE_MANAGER, the suggested actor is not removed.
+
+    A read-only composite for the received tree's ``precondition_guards``
+    (CLP-10-009), in the shape of ``case_manager_admits_removal_guard``: a
+    replica skips it as ``SUCCESS`` (RSH-08-003), and the CASE_MANAGER runs
+    :class:`SuggestedActorIsNotRemovedNode`, so a refused recommendation
+    leaves no ledger entry (CM-31-013).
+    """
+    return create_case_manager_gated_tree(
+        name="SuggestedActorNotRemovedIfCaseManager",
+        case_id=case_id,
+        body_name="SuggestedActorNotRemoved",
+        children=[
+            SuggestedActorIsNotRemovedNode(
+                recommended_id=recommended_id, case_id=case_id
+            )
+        ],
+    )
 
 
 class InviteInFlightNode(DataLayerActionWithPorts):

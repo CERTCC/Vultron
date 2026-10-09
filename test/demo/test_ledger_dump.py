@@ -24,8 +24,8 @@ from _pytest.outcomes import Failed
 
 from test.ci.invariants import common
 from vultron.demo.helpers.ledger_dump import (
-    DUMP_MANIFEST_FILENAME,
     _PRERUN_SENTINEL_REASON,
+    DUMP_MANIFEST_FILENAME,
     write_prerun_sentinel,
 )
 
@@ -51,9 +51,9 @@ class TestWritePrerunSentinel:
         manifest_path = write_prerun_sentinel(
             self.DEMO_NAME, output_root=tmp_path
         )
-        assert (
-            manifest_path.is_file()
-        ), f"Expected sentinel manifest at {manifest_path}"
+        assert manifest_path.is_file(), (
+            f"Expected sentinel manifest at {manifest_path}"
+        )
         assert (
             manifest_path == tmp_path / self.DEMO_NAME / DUMP_MANIFEST_FILENAME
         )
@@ -116,4 +116,32 @@ class TestWritePrerunSentinel:
         assert "no case-ledger" in message.lower(), (
             f"Expected failure message to mention missing ledger files; "
             f"got: {message!r}"
+        )
+
+
+class TestUnreplicatedActors:
+    """An actor with no replica is still named in the manifest (#4248)."""
+
+    def test_manifest_lists_unreplicated_actors(self, tmp_path):
+        from vultron.demo.helpers.ledger_dump import (
+            LedgerDumpReport,
+            write_dump_manifest,
+        )
+
+        report = LedgerDumpReport(
+            demo_name="demo-x", unreplicated={"vendor": "route-v"}
+        )
+        path = write_dump_manifest(report, output_root=tmp_path)
+        data = _read_sentinel(path)
+        assert data["unreplicatedActors"] == [
+            {"actorName": "vendor", "routeKey": "route-v"}
+        ]
+        assert data["actors"] == []
+
+    def test_unreplicated_defaults_to_empty(self, tmp_path):
+        from vultron.demo.helpers.ledger_dump import LedgerDumpReport
+
+        assert (
+            LedgerDumpReport(demo_name="x").as_manifest()["unreplicatedActors"]
+            == []
         )

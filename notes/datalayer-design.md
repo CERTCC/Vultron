@@ -9,13 +9,20 @@ description: >
   vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
-  - specs/architecture.yaml
+  - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
+  - specs/embargo-policy.yaml (EP-02-004)
+  - specs/case-proposal.yaml (CP-05-005)
+  - specs/case-management.yaml (CM-11-017)
 related_notes:
   - notes/domain-model-separation.md
   - notes/architecture-hexagonal.md
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
   - notes/testing-pitfalls.md
+  - notes/flaky-tests.md
+  - notes/vocabulary-registry.md
+  - notes/case-bootstrap-trust.md
+  - notes/case-proposal.md
 relevant_packages:
   - vultron/core/ports
   - vultron/adapters/driven
@@ -26,6 +33,10 @@ relevant_packages:
 
 Operating rules summary: `vultron/core/ports/AGENTS.md`.
 Specs: `specs/datalayer.yaml` (DL-01 through DL-04).
+
+`dl.read()` returns core objects, never wire objects (ADR-0034), and core
+must not re-read a stored wire activity to recover its semantics (ADR-0035; see
+"Activity Read-Back" below).
 
 ## DataLayer vs. CasePersistence
 
@@ -143,11 +154,13 @@ Two caveats worth knowing before touching this path:
   `rm_state`/`rmState` on `ParticipantStatus` or `CaseStatus`, because those
   spellings are declared `AliasChoices` on the field and are therefore
   *interpreted*, not dropped. Removing those aliases is #2288/#2289.
-- Persisted rows are still keyed by Python field name (`id_`, `type_`), not the
-  wire-facing names ARCH-23-005 asks for. Re-keying was deliberately **not** done
-  in #2940 — it would mask the `CaseLedgerEntry` alias-injection bug — and is
-  sequenced behind the `WireParsePort` (#2938). See
-  [notes/wire-core-boundary.md](wire-core-boundary.md).
+- Persisted rows now use wire-facing identity keys (`id`, `type`, `@context`).
+  `Record.from_obj()` applies `_rekey_wire_identity()` after `_dehydrate_data()`
+  to rename the three identity keys before storage (#3546, ARCH-23-005).
+  Existing rows keyed `id_`/`type_` continue to round-trip correctly via
+  `populate_by_name=True` / `validate_by_name=True` on model roots.
+  The refusal clause of ARCH-23-005 (computed-field contradiction, #3695) is still
+  tracked separately.
 
 ## Activity Read-Back: Semantic Content vs. Envelope Reconstitution (ADR-0035, DL-06)
 
@@ -213,7 +226,7 @@ domain fact — the ARCH-09-001 core violations):
   str]` (embargo_id → proposal_id) added to `VulnerabilityCase`; populated on
   receive (`InviteToEmbargoOnCaseReceivedUseCase`) and trigger
   (`SvcProposeEmbargoUseCase._handle_result`). All `dl.read(invite_id)` and
-  `list_objects("Invite")` semantic reads in `received/embargo.py`,
+  `list_objects("Invite")` semantic reads in `received/embargo/`,
   `triggers/_helpers.py`, and `dispatcher.py` removed. `Invite` removed from
   DL-05-004 exemptions.
 - ~~*actor/participant*~~: migrated (#1520). `recommendation_recommender_index:
@@ -271,12 +284,17 @@ absent, falls back to `dl.read(...)`, it usually only works because a prior
 delivery happened to store the value; that hidden dependency on delivery order
 is a latent race, not a safety net.
 
+The smell does not apply when the message's copy is not authoritative.
 `_read_invite_roles()` in
-`vultron/core/behaviors/case/nodes/invite_participant.py` (ISSUE-2719) read invite
-roles from the DataLayer rather than from the received activity. A protocol field
-that is *present in the message* must be read from the message; treating the
-DataLayer as a substitute source silently tolerates a message that never carried
-it.
+`vultron/core/behaviors/case/nodes/invite_participant.py` reads the roles of
+a stub Invite from the Invite the CASE_MANAGER recorded when it sent it, never
+from the copy the invitee's `Accept` embeds: the sender wrote that copy, so
+taking roles from it lets any sender choose its own (CM-11-017, #3733).
+A missing recorded Invite is a refusal (CM-11-019), not a cue to fall back to
+the embedded copy.
+A protocol field that is *present in the message* and is the sender's own
+assertion is read from the message; a field that grants standing is read from
+the receiver's record of what it sent.
 
 **How to apply:**
 
@@ -296,7 +314,8 @@ This is the same message-primacy principle as the semantic-content rule in
 message-subject-identity rule in
 [notes/wire-core-boundary.md](wire-core-boundary.md).
 
-*Source: ISSUE-2719 — `_read_invite_roles()` DataLayer fallback.*
+*Source: ISSUE-2719 — `_read_invite_roles()` DataLayer fallback; ISSUE-4071 —
+roles from the recorded Invite.*
 
 ## Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional
 
@@ -313,6 +332,10 @@ This is correct behaviour and must not be changed. The rationale has two parts:
    (e.g., a reconstituted `Offer` in the validate-report path, a
    `CaseLedgerEntry` inside an `Announce` envelope). Collapsing them to a bare
    ID would make rehydration impossible on read-back.
+   A `VulnerabilityCaseStub` is kept inline for this reason alone: a stub never
+   has a record of its own, and the stub Invite is recognised by its target's
+   `type` (CM-11-013, #4045), so collapsing the stub to its ID would make the
+   stored Invite unrecognisable.
 
 2. **Semantic (more important)**: even where independent records exist, the
    snapshot captures state at receipt time — "when you offered me this case, it
@@ -370,8 +393,9 @@ Recommended direction:
 2. Rehydration of wire objects from storage should be confined to the
    wire adapter layer, not shared with core.
 3. Core's interaction with the DataLayer should use core domain type keys
-   (`"VultronCase"`, `"VultronReport"`, etc.) rather than AS2 type
-   names (`"Case"`, `"VulnerabilityReport"`, etc.).
+   (the `CORE_VOCABULARY` class names, e.g. `"VulnerabilityCase"`,
+   `"VulnerabilityReport"`) rather than lookups in the wire vocabulary
+   registry.
 
 This separation allows the wire layer to evolve (or be replaced) without
 breaking DataLayer storage, and allows core to read/write domain objects
@@ -458,3 +482,117 @@ empty one. Declare the executor with `@pytest.mark.executes_as(ACTOR)` —
 test names.
 
 Source: ISSUE-2238
+
+---
+
+## A Default Minted From the Clock Cannot Round-Trip Through a Field That Does Not Store It
+
+(ISSUE-3732, ISSUE-3726, 2026-09-29)
+
+`as_Object.published`/`updated` default to `now_utc()` so that an object this
+process *authors* is stamped (ADR-0103). `as_Actor` derived an actor's
+`inbox`/`outbox` `OrderedCollection` through that default, so a freshly built
+`as_Person` carried two clock stamps that were never anyone's claim. The
+datalayer keeps an actor as `CoreActor`, whose endpoints are URI strings
+(ARCH-12-006, ADR-0034): the stamps were dropped on write, and the wire form
+minted new ones when the URI was coerced back to a collection on read. The
+stored actor therefore read back equal to itself only when write and read
+landed in the same wall-clock second — a full-suite flake that reproduced
+deterministically with a `time.sleep(1.1)` between the two calls, and that
+seven PRs — none touching the actor read path — were blocked on before
+anyone traced it.
+
+The general shape: **a value a wire default mints at construction cannot
+survive a round trip through a core field that does not store it**, and the
+symptom is an equality that depends on timing. Neither "store more" nor
+"re-mint on read" is the fix — the core field is URI-only by design, and a
+re-minted value is by definition not what was stored. The fix is to stop
+minting: an endpoint is an *address*, so `_address_collection()` in
+`vultron/wire/as2/vocab/base/objects/actors.py` builds a derived one with
+`published=None, updated=None`, a collection dict reads an absent stamp as
+`None` in every validation context (so the `to_json()` form, which
+`exclude_none` strips, re-validates equal too), and a collection that *arrives*
+carrying its own times keeps them as received. `ARCH-23-003`'s pin on the endpoint wire form
+had been popping both keys before it could claim "address, type and items —
+nothing else"; it no longer needs to.
+
+Two rules for the next instance:
+
+- **A round-trip equality test must cross a second boundary on purpose.**
+  Pin the clock ahead between write and read with `test/support/clock.py`'s
+  `SteppingClock` (patch `vultron.core.models._helpers.datetime`); never
+  `time.sleep()`. A test that passes only because both calls share a second
+  is not testing the round trip.
+- **Ask which side of the boundary owns a default before adding one.** If a
+  field defaults on the wire branch and the core branch reduces the object to
+  a reference, the default is unstorable and every read will disagree with
+  every write. The committed `docs/reference/examples` are the visible record
+  of the wire form: the endpoint stamps had to be removed from twelve of them,
+  and the key-shape ratchet (`test_vocab_examples_current.py`) is what would
+  have caught the mismatch had it existed when the default was added.
+
+## A Read-Modify-Write of a Shared Record Uses `save_if_unchanged`, Not `save`
+
+(ISSUE-4102, 2026-10-02)
+
+`save()` is an upsert with no guard. A caller that reads a record, changes
+one field and saves the whole record back overwrites any write that landed
+in between, and nobody is told. `PUT /actors/{id}/embargo-policy` was such a
+caller once the policy became a field of the actor profile (EP-01-001): the
+profile is what travels inline on every `Create(CaseProposal)` (CP-01-010),
+so a lost write silently changed the actor default a CASE_MANAGER applies.
+
+`DataLayer.save_if_unchanged(obj, expected)` is the compare-and-set for that
+shape (DL-02-003). It writes only when the stored record still equals `expected` (both
+compared in stored form) and refuses otherwise, returning `False` with
+nothing written. Two windows are closed, and each has its own test in
+`test/adapters/driven/test_sqlite_save_if_unchanged.py`:
+
+- **A write before the call** — caught by comparing the stored record with
+  `expected`.
+- **A write between the call's own read and its write** — a file-backed
+  store opens one connection per `Session`, so a Python-side comparison
+  alone is not enough. The write is one conditional `UPDATE` keyed on the
+  row's stored text as the call read it, so a row changed in between
+  matches nothing.
+
+The caller decides what a refusal means. The embargo-policy PUT changes
+only the policy field, so it re-reads and re-applies its terms, and after a
+bounded number of attempts it refuses with 409 (EP-02-004). A caller whose
+change depends on the fields it read cannot re-apply blindly and should
+surface the conflict at once. No schema change was needed: the stored text
+is the version token.
+
+A compare-and-set guards only the writers that use it. A plain `save()` of
+the same record by another writer still overwrites whatever the guarded
+writer stored, so the protection holds in both directions only while
+**every** read-modify-write of the actor profile goes through
+`save_if_unchanged`. Today the PUT is the only code that rewrites a profile
+(`POST /actors/` uses `create()`, which refuses an existing record); a new
+profile writer MUST use `save_if_unchanged` too, or it reopens the window
+that issue #4102 closed, this time in the other direction.
+
+---
+
+## Renaming a Stored Field
+
+Stored data carries no backwards compatibility. A renamed persisted field gets
+no read alias (`AliasChoices`) and no conversion: the model declares the old key
+in `retired_stored_fields` via `RetiredFieldsRecord`
+(`vultron/core/models/retired_stored_fields.py`), and a row that still carries
+it, in either the field-name or camelCase spelling, fails to load with a
+message naming the old shape and saying the store must be reset (#4128). Every
+retired key the row carries is reported, not only the first (EH-07-001), and a
+retirement table whose replacement the model does not declare, or whose old key
+it still declares, fails at class definition.
+
+The declaration is what makes the refusal legible. `CoreRecord` refuses unknown
+keys (`extra="forbid"`, #4186), so an undeclared rename never loses a field
+silently, but the row fails with a bare "extra inputs are not permitted" plus a
+"field required" for a name the operator never wrote, and nothing says a rename
+happened. The SQLite read path logs the validation reason at
+WARNING when it reads such a row as absent, for core-registered and
+bookkeeping row types alike, so `dl.read()` returning `None` always has a
+logged cause. Because no row survives the rename, every PR that renames a
+stored field carries an operator note saying a file-backed store must be reset
+(`docker compose down -v`); an in-memory store is unaffected.

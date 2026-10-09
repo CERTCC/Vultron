@@ -69,8 +69,14 @@ class SyncActivityPort(Protocol):
         entry: CaseLedgerEntry,
         actor_id: str,
         to: list[str],
-    ) -> None:
+    ) -> bool:
         """Build and queue an ``Announce(CaseLedgerEntry)`` activity.
+
+        Returns ``True`` when a row was queued and ``False`` when an
+        ``Announce`` of *entry* to every recipient in *to* was already pending
+        in the outbox and nothing was queued (SYNC-15-012).  Callers that fan
+        out may ignore the value; a replay counts only ``True`` results as
+        entries sent (SYNC-15-011).
 
         Called when fanning out a committed entry to case participants
         or replaying missing entries to a peer (SYNC-02-002, SYNC-03-002).

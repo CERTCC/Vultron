@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-07-21
+created: 2026-07-21
+updated: 2026-07-21
+revision: 1
 deciders: Allen D. Householder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Buffer Out-of-Order `Announce(CaseLedgerEntry)` Instead of Dropping

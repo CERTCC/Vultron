@@ -23,41 +23,14 @@ while preserving the public API used by the existing test suite.
 
 import logging
 import sys
-from typing import Optional, Tuple
 
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
-
-from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
-    BASE_URL,
-    DataLayerClient,
-    assert_demo_success,
-    case_actor_id_on,
-    check_server_availability,
-    demo_check,
-    demo_gate,
-    demo_step,
-    logfmt,
-    ref_id,
-    reset_datalayer,
-    reset_demo_failures,
-    seed_actor,
-    verify_object_stored,
-    setup_demo_logging,
-)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.ledger_commit import trigger_log_commit  # noqa: F401
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
     dump_case_ledgers,
@@ -75,11 +48,9 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     _poll_until,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
-    wait_for_case_on_container,
     wait_for_case_participants,
-    wait_for_finder_case,
-    wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
+    wait_for_finder_case,
     wait_for_finder_log_entry,
     wait_for_note_in_case,
     wait_for_participant_rm_state,
@@ -94,10 +65,8 @@ from vultron.demo.helpers.seeding import (  # noqa: F401
 )
 from vultron.demo.helpers.sync import (  # noqa: F401
     _extract_ref_id,
-    _get_log_entries_for_case,
-    trigger_log_commit,
-    verify_finder_replica_state,
-    verify_replica_state,
+    run_sync_verification_phase,
+    wait_for_replica_ledger_coverage,
 )
 from vultron.demo.helpers.verification import (  # noqa: F401
     _all_fetchable_participants_rm_closed,
@@ -121,6 +90,32 @@ from vultron.demo.helpers.workflow import (  # noqa: F401
     run_direct_path_rm_triage,
 )
 from vultron.demo.scenario.registry import scenario
+from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
+    BASE_URL,
+    DataLayerClient,
+    assert_demo_success,
+    case_actor_id_on,
+    check_server_availability,
+    demo_check,
+    demo_gate,
+    demo_step,
+    logfmt,
+    ref_id,
+    reset_datalayer,
+    reset_demo_failures,
+    seed_actor,
+    setup_demo_logging,
+    verify_object_stored,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -176,14 +171,22 @@ Use ``--finder-url`` / ``--vendor-url`` (or env vars
 the demo at running containers.
 
 \b
-Workflow:
-  1. Seed both containers (actor records + peer registration).
-  2. Finder submits a vulnerability report to Vendor's inbox.
-  3. Vendor validates the report (trigger: validate-report).
-  4. Vendor engages the case (trigger: engage-case).
-  5. Vendor invites Finder to the case (Finder's inbox).
-  6. Finder accepts the invitation (Vendor's inbox).
-  7. Verify final state on both containers.
+Workflow (six phases; titles match docs/tutorials/fv-demo.md):
+  Setup. Seed both containers (actor records + peer registration).
+  1. Report submission and case activation (M1): Finder submits a report
+     to Vendor's inbox; Vendor's tree proposes a case and the CaseActor
+     creates it, seating Finder as reporter (Finder is never invited);
+     Vendor validates (trigger: validate-report) and engages the case
+     (trigger: engage-case).
+  2. Replica synchronization verification (M2): verify the Finder's case
+     replica and that the ledgers synchronized.
+  3. Notes exchange (M3): Finder and Vendor exchange notes.
+  4. Fix lifecycle (M4-M5): Vendor reports fix ready (VFd; Vendor stops
+     at VFd).
+  5. Publication and embargo teardown (M6): Vendor and Finder report
+     publication; embargo terminates (EM.EXITED).
+  6. Case closure (M7): Vendor and Finder close the case (RM.CLOSED on
+     both replicas).
 """
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
@@ -226,8 +229,8 @@ def finder_submits_report(
     vendor_client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    finder_client: Optional[DataLayerClient] = None,
-) -> Tuple[as_VulnerabilityReport, as_Offer]:
+    finder_client: DataLayerClient | None = None,
+) -> tuple[as_VulnerabilityReport, as_Offer]:
     """Scenario alias for :func:`~vultron.demo.helpers.workflow.reporter_submits_report`.
 
     Maintained for backward compatibility; prefer ``reporter_submits_report``
@@ -336,8 +339,8 @@ def verify_vendor_case_state(
     report_id: str,
     vendor_actor_id: str,
     reporter_actor_id: str,
-    question_note_id: Optional[str] = None,
-    reply_note_id: Optional[str] = None,
+    question_note_id: str | None = None,
+    reply_note_id: str | None = None,
 ) -> as_VulnerabilityCase:
     """Scenario alias for :func:`~vultron.demo.helpers.verification.verify_receiver_case_state`.
 
@@ -595,64 +598,20 @@ def _phase_sync_verification(
     logger.info("Phase 2: Replica synchronization verification")
     logger.info("─" * 80)
 
-    # Synthetic checkpoint entries (demo_verification) are explicitly
-    # excluded from the canonical case ledger per ADR-0019 (CLP-07-004):
-    # only verbatim asserted protocol-significant AS2 activities belong on
-    # the chain. Diagnostic markers belong in Python `logging`. Replication
-    # is verified by comparing replica state directly rather than polling
-    # for a new entry.
-    #
-    # `trigger_log_commit` and `wait_for_finder_log_entry` remain available
-    # in `vultron.demo.helpers.sync` for tests that need to drive a *real*
-    # protocol event and wait for its replica; they are intentionally not
-    # called here — EXCEPT for the replica-state check below, where we must
-    # wait for finder to receive all canonical entries before comparing state.
-    # The vendor's report-acceptance creates canonical ledger entries whose
-    # Announce(CaseLedgerEntry) fan-out is an async BackgroundTask; without
-    # this wait intermediate entries may not have arrived yet (issue #1434).
-    # Checkpoint: ensure the Finder has the VulnerabilityCase (and its genesis
-    # hash) before waiting for ledger coverage.  If the Finder does not hold the
-    # case, ReconstructChainTailNode cannot anchor the chain (CLP-08-005), so
-    # Announce(CaseLedgerEntry) deliveries would be rejected and replayed rather
-    # than accepted, extending the time needed to reach full coverage.  Failing
-    # here fast surfaces the real problem instead of a confusing coverage timeout
-    # (SYNC-15-001, issue #1873).
-    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
-        wait_for_case_on_container(
-            client=finder_client,
-            case_id=case.id_,
-        )
-
-        vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-        if vendor_entries:
-            vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-            vendor_tail_index: int = vendor_tail["log_index"]
-            logger.info(
-                "Waiting for finder to replicate all vendor entries (0…%d)",
-                vendor_tail_index,
-            )
-            with demo_gate("Finder ledger coverage (sync-verification phase)"):
-                wait_for_contiguous_ledger_coverage(
-                    client=finder_client,
-                    case_id=case.id_,
-                    expected_tail_index=vendor_tail_index,
-                )
-
-                logger.info(
-                    "Verifying LedgerFanout replication by comparing vendor ↔ finder replica"
-                    " state (ADR-0019: synthetic entries omitted from canonical ledger)"
-                )
-
-                with demo_check(
-                    "Finder replica state matches authoritative Vendor state"
-                ):
-                    verify_finder_replica_state(
-                        finder_client=finder_client,
-                        vendor_client=vendor_client,
-                        case_id=case.id_,
-                        vendor_actor_id=vendor.id_,
-                        reporter_actor_id=finder.id_,
-                    )
+    # Synthetic checkpoint entries (demo_verification) are excluded from the
+    # canonical case ledger (ADR-0019, CLP-07-004), so replication is verified
+    # by comparing replica state directly rather than polling for a new entry
+    # (issue #1434).
+    run_sync_verification_phase(
+        auth_client=vendor_client,
+        auth_label="Vendor",
+        auth_actor_id=vendor.id_,
+        finder_client=finder_client,
+        finder_actor_id=finder.id_,
+        replicas=[(finder_client, "Finder")],
+        case_id=case.id_,
+        state_checks=[(finder_client, "Finder")],
+    )
 
     with demo_check(
         "Dedicated external CaseActor container holds no case data "
@@ -861,21 +820,17 @@ def _phase_case_closure(
             case_id=case.id_,
             event_type="close_case",
         )
-        vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-        if vendor_entries:
-            vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-            vendor_tail_index: int = vendor_tail["log_index"]
-            logger.info(
-                "Waiting for finder to replicate all vendor entries after closure"
-                " (0…%d)",
-                vendor_tail_index,
-            )
-            with demo_gate("Finder ledger coverage (close phase)"):
-                wait_for_contiguous_ledger_coverage(
-                    client=finder_client,
-                    case_id=case.id_,
-                    expected_tail_index=vendor_tail_index,
-                )
+        # Temporal (EDF-06-006): after close_case the authority's outbox fans out
+        # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
+        # but the ledger dump depends on it. Bounded per replica by
+        # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
+        wait_for_replica_ledger_coverage(
+            auth_client=vendor_client,
+            replicas=[(finder_client, "Finder")],
+            case_id=case.id_,
+            phase_label="close phase",
+            causal=False,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -981,7 +936,7 @@ def run_fv_demo(
         logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("fv") as harness:
-        finder, vendor, vendor_in_vendor, report, offer, case = (
+        finder, vendor, vendor_in_vendor, report, _offer, case = (
             _phase_report_submission(
                 finder_client,
                 vendor_client,

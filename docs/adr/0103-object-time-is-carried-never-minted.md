@@ -1,6 +1,9 @@
 ---
 status: accepted
 date: 2026-09-23
+created: 2026-09-23
+updated: 2026-09-23
+revision: 1
 deciders: Allen D. Householder
 consulted: CERT/CC Vultron protocol team
 informed: CERT/CC Vultron protocol team

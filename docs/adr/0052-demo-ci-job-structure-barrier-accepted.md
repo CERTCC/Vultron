@@ -1,9 +1,14 @@
 ---
 status: accepted-provisional
+status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-08-05
+created: 2026-08-05
+updated: 2026-08-05
+revision: 1
 deciders: Allen D. Householder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Demo CI Job Structure: Accept Barrier + Concurrency Group Over Job Consolidation

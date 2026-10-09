@@ -23,12 +23,11 @@ Covers all acceptance criteria from issue #1954:
 - AC-5: Integration — early-exit, stay-deferred, full-deploy arm, falls-through-to-monitor
 """
 
-from test.core.behaviors.bt_harness import BTTestScenario
-
 import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
     DEPLOY_MITIGATION_DETERMINISTIC,
@@ -46,10 +45,10 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     CheckNoNewDeploymentInfoNode,
     RMinStateDeferred,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -64,8 +63,8 @@ VENDOR_ACTOR_ID = "https://example.org/actors/vendor-mit-001"
 
 
 @pytest.fixture
-def deployer_participant() -> VultronParticipant:
-    return VultronParticipant(
+def deployer_participant() -> CaseParticipant:
+    return CaseParticipant(
         id_="https://example.org/participants/deployer-mit-cp-001",
         attributed_to=DEPLOYER_ACTOR_ID,
         context=CASE_ID,
@@ -76,9 +75,9 @@ def deployer_participant() -> VultronParticipant:
 @pytest.fixture
 def case_with_deployer(
     bt_scenario: BTTestScenario,
-    deployer_participant: VultronParticipant,
-) -> VultronCase:
-    case = VultronCase(
+    deployer_participant: CaseParticipant,
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Mitigation Case",
         case_participants=[deployer_participant.id_],
@@ -103,7 +102,7 @@ def _seed_rm_status(
     bt_scenario.dl.create(status)
 
     case = bt_scenario.dl.read(case_id)
-    if not isinstance(case, VultronCase):
+    if not isinstance(case, VulnerabilityCase):
         return
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id:
@@ -367,7 +366,7 @@ def test_stochastic_bundle_children_are_fuzzer_nodes():
 
 def test_early_exit_when_mitigation_already_deployed(
     bt_scenario: BTTestScenario,
-    case_with_deployer: VultronCase,
+    case_with_deployer: VulnerabilityCase,
 ) -> None:
     """MitigationDeployed factory returns SUCCESS → Fallback succeeds immediately.
 
@@ -376,7 +375,7 @@ def test_early_exit_when_mitigation_already_deployed(
     must not run.
     """
     bundle = DeployMitigationCallOutBundle(
-        mitigation_deployed_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
+        mitigation_deployed_factory=AlwaysSucceed,  # type: ignore[arg-type]
     )
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
@@ -387,7 +386,7 @@ def test_early_exit_when_mitigation_already_deployed(
 
 def test_stay_deferred_short_circuits(
     bt_scenario: BTTestScenario,
-    case_with_deployer: VultronCase,
+    case_with_deployer: VulnerabilityCase,
 ) -> None:
     """Deferred deployer, no new info → _ShouldStayInRmDeferred SUCCESS.
 
@@ -405,7 +404,7 @@ def test_stay_deferred_short_circuits(
 
 def test_stay_deferred_fails_when_new_info_present(
     bt_scenario: BTTestScenario,
-    case_with_deployer: VultronCase,
+    case_with_deployer: VulnerabilityCase,
 ) -> None:
     """Deferred + new deployment info → _ShouldStayInRmDeferred fails.
 
@@ -430,7 +429,7 @@ def test_stay_deferred_fails_when_new_info_present(
 
 def test_deploy_arm_completes_when_mitigation_succeeds(
     bt_scenario: BTTestScenario,
-    case_with_deployer: VultronCase,
+    case_with_deployer: VulnerabilityCase,
 ) -> None:
     """Deployer, RM ACCEPTED, DeployMitigation SUCCEEDS → deploy arm runs fully.
 
@@ -444,9 +443,9 @@ def test_deploy_arm_completes_when_mitigation_succeeds(
     # Pin all three deploy-arm call-outs explicitly so the test is independent
     # of future changes to the DETERMINISTIC defaults.
     bundle = DeployMitigationCallOutBundle(
-        mitigation_available_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
-        prioritize_deployment_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
-        deploy_mitigation_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
+        mitigation_available_factory=AlwaysSucceed,  # type: ignore[arg-type]
+        prioritize_deployment_factory=AlwaysSucceed,  # type: ignore[arg-type]
+        deploy_mitigation_factory=AlwaysSucceed,  # type: ignore[arg-type]
     )
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
@@ -457,7 +456,7 @@ def test_deploy_arm_completes_when_mitigation_succeeds(
 
 def test_deploy_arm_falls_through_to_monitor_when_deploy_mitigation_fails(
     bt_scenario: BTTestScenario,
-    case_with_deployer: VultronCase,
+    case_with_deployer: VulnerabilityCase,
 ) -> None:
     """DETERMINISTIC DeployMitigation=AlwaysSucceed but MitigationAvailable fails.
 
@@ -468,7 +467,7 @@ def test_deploy_arm_falls_through_to_monitor_when_deploy_mitigation_fails(
     _seed_rm_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.ACCEPTED)
 
     bundle = DeployMitigationCallOutBundle(
-        mitigation_available_factory=lambda n: AlwaysFail(n),  # type: ignore[arg-type]
+        mitigation_available_factory=AlwaysFail,  # type: ignore[arg-type]
     )
     tree = create_deploy_mitigation_tree(
         case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
@@ -485,13 +484,13 @@ def test_non_deployer_role_skips_deploy_arm(
 
     The monitor arm (AlwaysSucceed defaults) then rescues the tree.
     """
-    non_deployer = VultronParticipant(
+    non_deployer = CaseParticipant(
         id_="https://example.org/participants/vendor-mit-cp-001",
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.VENDOR],
     )
-    case = VultronCase(
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Mitigation Case",
         case_participants=[non_deployer.id_],

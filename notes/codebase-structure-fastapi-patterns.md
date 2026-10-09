@@ -3,8 +3,9 @@ title: "Codebase Structure: FastAPI and Test Patterns"
 status: active
 description: >
   Router test override pattern, circular import fixes, FastAPI response_model
-  patterns, health check, Docker health check, Black/pyright config, Python 3.14
-  compatibility notes, surrogate-key routing, and logger name conventions.
+  patterns, health check, Docker health check, formatter/pyright pragma
+  interplay, Python 3.14 compatibility notes, surrogate-key routing, and logger
+  name conventions.
 related_specs:
   - specs/prototype-shortcuts.yaml
 related_notes:
@@ -111,6 +112,16 @@ class model.
 **Verification**: Test API serialization completeness, not just database
 storage. Check that all expected fields appear in JSON responses.
 
+**The other case — trigger routes declare `response_model` on purpose.** Every
+route under `/actors/{actor_id}/trigger/` and `/demo/` carries
+`response_model=<TriggerResult subtype>` (TRIG-12-001, ADR-0110). Filtering is
+not a hazard there: each subtype is the verb's exact key set with
+`extra="forbid"`, so there is no subclass field for the filter to drop, and the
+declaration is what puts the body shape into OpenAPI. The exact key set and the
+`null` emission are pinned per registry row by
+`test/adapters/driving/fastapi/test_trigger_routes_contract.py` (TRIG-12-002).
+Do not apply the "remove the annotation" fix above to a trigger route.
+
 See `specs/http-protocol.yaml` HTTP-08-001 (root cause) and HTTP-09-002,
 HTTP-09-003 (AS2 endpoint fix).
 
@@ -168,17 +179,21 @@ The pitfall above is self-contained. The three-layer solution (Docker health
 check, `condition: service_healthy`, and client retry) is the recommended
 pattern for any demo or integration test setup.
 
-### Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
+### The Formatter Can Invalidate Inline Type-Checker Suppressions
 
-**Symptom**: pyright errors reappear on inherited Pydantic fields after Black
-formats the file, even though suppressions were previously added.
+**Symptom**: mypy or pyright errors reappear after `ruff format` runs, even
+though suppressions were previously added; often a second error reports the
+moved `# type: ignore` as unused.
 
 **Cause**: Inline end-of-line `# type: ignore` or `# pyright: ignore`
-suppressions on field assignments are brittle once Black wraps the expression
-across multiple lines — the suppression is now on a different line than the
-field definition.
+suppressions are brittle once the formatter wraps an over-long line: the
+pragma stays at the end of the statement, which is now the closing
+parenthesis, a different line from the expression it suppressed. `ruff format`
+did this at several call sites in the tree-wide reformat of #3352.
 
-**Fix**: Use file-level pyright directives
+**Fix**: Re-run `mypy` and `pyright` after every format pass (the
+`run-linters` order does this). For a wrapped call, move the pragma onto the
+line that carries the flagged argument. Use file-level pyright directives
 (`# pyright: reportGeneralTypeIssues=false` at the top of the file) for
 Pydantic inheritance edge cases where an optional base field is intentionally
 narrowed to required in a subclass. Use this sparingly and only when weakening
@@ -218,14 +233,16 @@ directly.
 The DataLayer uses surrogate keys (short ID segments) for routing alongside
 canonical full-URI IDs. Two invariants MUST be enforced:
 
-### Ambiguous matches are errors, not first-match wins
+### Ambiguous matches are never first-match wins
 
-When `dl.resolve_surrogate_key(key)` finds more than one canonical ID
-matching a short-key tail segment, it MUST raise an error (e.g.,
-`VultronAmbiguousKeyError`), not silently return the first result. Returning
-the first match makes actor/case lookups non-deterministic when multiple
-canonical IDs share the same tail segment — a bug that is extremely hard to
-reproduce in tests.
+When `find_actor_by_short_id()` or `find_case_by_short_id()`
+(`vultron/adapters/driven/datalayer_sqlite/queries.py`) finds more than one
+canonical ID matching a short-key tail segment, it logs a WARNING and returns
+`None` — the route then answers as for a miss — rather than returning the first
+result. Returning the first match makes actor/case lookups non-deterministic
+when multiple canonical IDs share the same tail segment, a bug that is extremely
+hard to reproduce in tests. (The original design called for a dedicated
+ambiguous-key error; what was built treats ambiguity as not-found.)
 
 ### Case-key resolution continues to short-key fallback after non-case hits
 
@@ -237,8 +254,11 @@ failures.
 
 ### Evidence
 
-- `vultron/adapters/driven/datalayer_sqlite.py` — `resolve_surrogate_key()`
-- `vultron/adapters/driven/datalayer.py` — `DataLayer` protocol
+- `vultron/adapters/driven/datalayer_sqlite/queries.py` — `find_actor_by_short_id()`,
+  `find_case_by_short_id()`
+- `vultron/core/ports/datalayer.py` — `DataLayer` protocol
+- `vultron/adapters/driving/fastapi/routers/actors/_routes.py` — case-key fallback
+  to `find_case_by_short_id()`
 
 ### AC-3a Asymmetric Test Pattern
 
@@ -273,17 +293,24 @@ and drives the target app through its own portal on a separate thread. Calling
 default thread-pool executor, off the sending portal's event loop:
 
 ```python
-async def emit(self, activity: dict) -> None:
+async def emit(
+    self, activity_id: str, json_body: str, recipients: list[str]
+) -> None:
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(
         None,
         lambda: self._target_client.post(
             "/inbox",
-            json=activity,
+            content=json_body,
             headers={"Content-Type": "application/json"},
         ),
     )
 ```
+
+The signature is the `ActivityEmitter` port's: the outbox handler hands over the
+activity's *sealed body* as JSON text and the router posts it as-is
+(`content=`, not `json=`), so the harness never re-serialises what the ledger
+recorded (VM-08-003, #2655).
 
 This satisfies ADR-0042 / OX-12-003 (inter-actor delivery via HTTP) while
 keeping the harness deadlock-free. The `run_in_executor` call releases the

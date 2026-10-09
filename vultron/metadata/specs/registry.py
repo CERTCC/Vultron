@@ -81,7 +81,7 @@ class SpecRegistry(BaseModel):
     )
     _graph: nx.DiGraph = PrivateAttr(default_factory=nx.DiGraph)
 
-    def model_post_init(self, __context: object) -> None:
+    def model_post_init(self, context: object, /) -> None:
         for file in self.files:
             for group in file.groups:
                 self._register_group(group)

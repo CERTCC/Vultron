@@ -16,9 +16,10 @@
 """
 Receive-report case-proposal behavior tree composition (ADR-0041).
 
-This module composes the vendor-side workflow that runs when a vendor receives
-a vulnerability report (RM.RECEIVED).  Per ADR-0041 the vendor MUST NOT create
-a ``VulnerabilityCase`` locally; instead it:
+This module composes the receiver-side workflow that runs when an actor
+receives a vulnerability report (RM.RECEIVED) and so becomes the case's
+prospective CASE_OWNER — a Vendor or a Coordinator alike.  Per ADR-0041 the
+receiver MUST NOT create a ``VulnerabilityCase`` locally; instead it:
 
 1. Writes a pending ``VultronReportCaseLink`` marker recording the expected
    CaseActor that will send ``Create(VulnerabilityCase)`` in response.
@@ -32,9 +33,11 @@ the CaseActor — see ``vultron/core/use_cases/received/case/create.py``.
 Structure (ADR-0041):
 
     ReceiveReportCaseBT (Sequence)
+    ├─ IntakeReceivedActivityNode             # Archive the Offer (CLP-10-017)
+    ├─ [received_effects]                     # Keep report/Offer/record, guard
     ├─ CheckAutoCaseCreationEnabledNode       # Gate on auto_create_case policy
     └─ ReceiveReportCaseSelector (Selector)
-       ├─ CheckPendingProposalExistsForReport # Early exit if proposal already sent
+       ├─ CheckProposalAlreadySentForReport # Early exit if proposal already sent
        └─ ReceiveReportProposalFlow (Sequence)
           ├─ EnsureCaseActorHostedNode        # CaseActor record in its own store
           ├─ WritePendingReportCaseLinkNode   # VultronReportCaseLink(case_id=None)
@@ -44,17 +47,24 @@ Per ADR-0041 and specs/case-proposal.yaml CP-04-001, CP-04-002.
 """
 
 import logging
+from collections.abc import Sequence
 
 import py_trees
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
-    CheckPendingProposalExistsForReport,
+    CheckProposalAlreadySentForReport,
     EnsureCaseActorHostedNode,
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
-from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
+from vultron.core.behaviors.replica_emit_exemptions import (
+    REPORT_CASE_PROPOSAL,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +74,12 @@ def create_receive_report_case_tree(
     offer_id: str,
     reporter_actor_id: str,
     actor_config: ActorConfig | None = None,
+    received_effects: Sequence[py_trees.behaviour.Behaviour] = (),
 ) -> py_trees.behaviour.Behaviour:
     """
-    Create the vendor-side behavior tree for report receipt (ADR-0041).
+    Create the receiver-side behavior tree for report receipt (ADR-0041).
 
-    Per ADR-0041, the vendor no longer creates a ``VulnerabilityCase`` at
+    Per ADR-0041, the report receiver no longer creates a ``VulnerabilityCase`` at
     report receipt.  This tree writes a pending ``VultronReportCaseLink``
     and sends ``Create(as_CaseProposal)`` to the CaseActor service.  The
     ``VulnerabilityCase`` replica is seeded when ``Create(VulnerabilityCase)``
@@ -85,6 +96,13 @@ def create_receive_report_case_tree(
         actor_config: Optional actor configuration.  Passed to
                       ``CheckAutoCaseCreationEnabledNode`` for the
                       ``auto_create_case`` policy gate (CM-15-001).
+        received_effects: Effect nodes that keep what the Offer carried (the
+                          report, the Offer, the offer record) and the
+                          addressing guard; they run after intake and ahead
+                          of the policy gate, so a receiver that opts out of
+                          case creation still holds them (CM-15-001,
+                          CM-15-005).  See
+                          :func:`~vultron.core.behaviors.case.nodes.submit_report.submit_report_received_effects`.
 
     Returns:
         Root node of the receive-report proposal behavior tree.
@@ -118,18 +136,21 @@ def create_receive_report_case_tree(
         name="ReceiveReportCaseSelector",
         memory=False,
         children=[
-            CheckPendingProposalExistsForReport(report_id=report_id),
+            CheckProposalAlreadySentForReport(report_id=report_id),
             receive_report_proposal_flow,
         ],
     )
 
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="ReceiveReportCaseBT",
-        memory=False,
-        children=[
+        case_id=None,
+        precondition_guards=[],
+        replica_effects=[
+            *received_effects,
             CheckAutoCaseCreationEnabledNode(actor_config=actor_config),
             case_creation_selector,
         ],
+        replica_emit_exemption=REPORT_CASE_PROPOSAL,
     )
 
     logger.info(
@@ -139,3 +160,19 @@ def create_receive_report_case_tree(
         reporter_actor_id,
     )
     return root
+
+
+def create_keep_offer_without_report_tree(
+    received_effects: Sequence[py_trees.behaviour.Behaviour],
+) -> py_trees.behaviour.Behaviour:
+    """Create the tree for an ``Offer`` that names no report.
+
+    There is no case to propose, so the receiver only archives the Offer
+    (intake) and keeps what it carried (CM-15-001).
+    """
+    return create_receive_activity_tree(
+        name="KeepOfferWithoutReportBT",
+        case_id=None,
+        precondition_guards=[],
+        replica_effects=list(received_effects),
+    )

@@ -20,14 +20,15 @@ Per specs/configuration.yaml CFG-06-001 through CFG-06-005.
 
 import pytest
 
-from vultron.enums.roles import CVDRole
 from vultron.config import (
     RunMode,
     ServerConfig,
+    clear_config_cache,
     config_override,
     get_config,
     reload_config,
 )
+from vultron.enums.roles import CVDRole
 
 
 @pytest.fixture(autouse=True)
@@ -56,9 +57,7 @@ def reset_config(monkeypatch, tmp_path):
     # Clear cache after teardown; guard against FileNotFoundError when
     # VULTRON_CONFIG still points to a missing file set by the test body
     # (monkeypatch reverts env vars only after this fixture's teardown).
-    import vultron.config.app as _cfg_module
-
-    _cfg_module._config_cache = None
+    clear_config_cache()
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +105,47 @@ def test_reload_config_returns_new_instance():
     cfg1 = get_config()
     cfg2 = reload_config()
     assert cfg1 is not cfg2
+    assert get_config() is cfg2
+
+
+# ---------------------------------------------------------------------------
+# CFG-06-003: clear_config_cache() drops the cache without reloading
+# ---------------------------------------------------------------------------
+
+
+def test_clear_config_cache_defers_the_reload(monkeypatch):
+    """Clearing reads nothing; the next ``get_config()`` sees the env then."""
+    cfg1 = get_config()
+    clear_config_cache()
+    # Set after the clear: a clear that reloaded would have missed it.
+    monkeypatch.setenv("VULTRON_SERVER__LOG_LEVEL", "DEBUG")
+    cfg2 = get_config()
+    assert cfg2 is not cfg1
+    assert cfg2.server.log_level == "DEBUG"
+    assert get_config() is cfg2
+
+
+# ---------------------------------------------------------------------------
+# CFG-01-005: get_config() is injectable via FastAPI Depends
+# ---------------------------------------------------------------------------
+
+
+def test_get_config_is_injectable_with_depends():
+    """The cached ``get_config`` still works as a FastAPI dependency."""
+    from fastapi import Depends, FastAPI
+    from fastapi.testclient import TestClient
+
+    from vultron.config import AppConfig
+
+    app = FastAPI()
+
+    @app.get("/config")
+    def _config(cfg: AppConfig = Depends(get_config)) -> dict[str, bool]:
+        return {"cached": cfg is get_config()}
+
+    response = TestClient(app).get("/config")
+    assert response.status_code == 200
+    assert response.json() == {"cached": True}
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +258,7 @@ def test_no_config_file_no_env_uses_defaults():
 
 
 def test_server_config_rejects_invalid_base_url():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         ServerConfig(base_url="not-a-url")
 
 
@@ -228,7 +268,7 @@ def test_server_config_normalises_log_level_to_uppercase():
 
 
 def test_server_config_rejects_invalid_log_level():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         ServerConfig(log_level="VERBOSE")  # type: ignore[arg-type]
 
 
@@ -322,7 +362,7 @@ def test_config_override_restores_on_exception():
     os.environ.pop("VULTRON_SERVER__BASE_URL", None)
     try:
         with config_override(VULTRON_SERVER__BASE_URL="http://exc.test"):
-            raise RuntimeError("deliberate failure")
+            raise RuntimeError("deliberate failure")  # noqa: TRY301  # ruff-baseline #3353
     except RuntimeError:
         pass
     assert "VULTRON_SERVER__BASE_URL" not in os.environ

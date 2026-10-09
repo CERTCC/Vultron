@@ -24,6 +24,7 @@ a second execution wrote to the first actor's participant.  ``stop`` now restore
 the constructor value after every tick, making ``_actor_id`` execution-scoped.
 """
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
@@ -33,7 +34,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import participant_status_rm_state
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
 
 ACTOR_A = "https://example.test/actors/a"
 ACTOR_B = "https://example.test/actors/b"

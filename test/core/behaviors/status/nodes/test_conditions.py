@@ -15,23 +15,23 @@
 
 """Unit tests for status condition nodes (submodule path).
 
-Verifies VerifySenderIsParticipantNode imported directly from the submodule.
+Verifies SenderIsActiveParticipantNode (formerly SenderIsActiveParticipantNode)
+imported from the consolidated sender_entitlement module.
 Per DEMOMA-07-003 step 1.
 """
 
 import pytest
-import py_trees
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.status.nodes.conditions import (
-    VerifySenderIsParticipantNode,
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsActiveParticipantNode,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
@@ -43,11 +43,6 @@ CASE_ID = "https://example.org/cases/case-01"
 PARTICIPANT_ID = "https://example.org/cases/case-01/participants/vendor"
 CM_PARTICIPANT_ID = "https://example.org/cases/case-01/participants/case-actor"
 STATUS_ID = "https://example.org/cases/case-01/statuses/s1"
-
-
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    py_trees.blackboard.Blackboard.storage.clear()
 
 
 @pytest.fixture
@@ -107,9 +102,9 @@ def populated_bridge(populated_dl):
     return BTBridge(datalayer=populated_dl)
 
 
-class TestVerifySenderIsParticipantNode:
+class TestSenderIsActiveParticipantNode:
     def test_known_sender_succeeds(self, populated_bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
@@ -120,7 +115,7 @@ class TestVerifySenderIsParticipantNode:
         assert result.status == Status.SUCCESS
 
     def test_unknown_sender_fails(self, populated_bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=OUTSIDER_ID,
             case_id=CASE_ID,
@@ -131,7 +126,7 @@ class TestVerifySenderIsParticipantNode:
         assert result.status == Status.FAILURE
 
     def test_no_case_id_falls_back_to_status_context(self, populated_bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id=None,
@@ -142,7 +137,7 @@ class TestVerifySenderIsParticipantNode:
         assert result.status == Status.SUCCESS
 
     def test_missing_case_fails(self, bridge):
-        node = VerifySenderIsParticipantNode(
+        node = SenderIsActiveParticipantNode(
             status_id=STATUS_ID,
             sender_actor_id=ACTOR_ID,
             case_id="https://example.org/cases/nonexistent",

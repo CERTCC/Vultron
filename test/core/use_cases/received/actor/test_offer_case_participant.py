@@ -27,15 +27,23 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+    seed_case_owner_participant,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
     OfferCaseParticipantReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
 )
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.offer_case_participant import (
     AcceptOfferCaseParticipantReceivedUseCase,
     OfferCaseParticipantReceivedUseCase,
@@ -62,17 +70,32 @@ CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 CASE_OWNER_ID = "https://example.org/actors/case-owner"
 RECOMMENDER_ID = "https://example.org/actors/finder"
 RECOMMENDED_ID = "https://example.org/actors/vendor-new"
+BYSTANDER_ID = "https://example.org/actors/bystander"
+#: The original ``Offer(Actor)`` the transformed Offer carries as ``origin``.
+RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
+#: The ``Offer(CaseParticipant)`` the CASE_MANAGER recorded and the Case Owner
+#: answers; replies name it by this id.
+OFFER_ID = "https://example.org/activities/offer-case-participant-001"
+
+
+def _case_ref(case_id: str) -> as_VulnerabilityCase:
+    """An inline case as ``target``, as the inbox rehydrates a bare id.
+
+    The CASE_MANAGER's receipt commit refuses a bare-string ``target``, so a
+    test that reaches that commit must send what production sends.
+    """
+    return as_VulnerabilityCase(id_=case_id, name="OfferRoundTripTest")
 
 
 def _seed_dl_for_case_owner() -> tuple[SqliteDataLayer, str]:
-    """DataLayer seeded with a Case Owner actor and a case.
+    """DataLayer seeded as the Case Owner's own store.
 
     The Case Owner is the local actor that receives Offer(CaseParticipant)
-    from the CaseActor.
+    from the CASE_MANAGER, which is somebody else (``CASE_ACTOR_ID``).
     """
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id=CASE_ACTOR_ID,  # the receiving CaseActor's own store
+        actor_id=CASE_OWNER_ID,  # the receiving Case Owner's own store
     )
     owner_actor = as_Actor(id_=CASE_OWNER_ID)
     case = as_VulnerabilityCase(
@@ -80,16 +103,20 @@ def _seed_dl_for_case_owner() -> tuple[SqliteDataLayer, str]:
         name="OfferRoundTripTest",
         attributed_to=CASE_OWNER_ID,
     )
+    seed_case_manager_participant(dl, case, CASE_ACTOR_ID)
     dl.create(owner_actor)  # type: ignore[arg-type]
     dl.create(case)
     return dl, CASE_OWNER_ID
 
 
-def _seed_dl_for_case_actor() -> tuple[SqliteDataLayer, str]:
-    """DataLayer seeded with a CaseActor Service and a case.
+def _seed_dl_for_case_actor(
+    manager_id: str = CASE_ACTOR_ID,
+) -> tuple[SqliteDataLayer, str]:
+    """DataLayer seeded as the CaseActor's own store.
 
     The CaseActor is the local actor that receives Accept/Reject from the
-    Case Owner.
+    Case Owner, and holds ``CVDRole.CASE_MANAGER`` for the case unless
+    *manager_id* names somebody else (BT-17-005).
     """
     dl = SqliteDataLayer(
         "sqlite:///:memory:",
@@ -100,23 +127,60 @@ def _seed_dl_for_case_actor() -> tuple[SqliteDataLayer, str]:
         id_=CASE_ID,
         name="OfferRoundTripTest",
         attributed_to=CASE_OWNER_ID,
+        stub_summary="Security issue — details shared after acceptance",
+        # What OfferActorToCaseReceivedUseCase records when the recommendation
+        # arrives (CM-16-004): the decision handlers read the recommender
+        # from here, and refuse a decision on a recommendation never recorded.
+        recommendation_recommender_index={RECOMMENDATION_ID: RECOMMENDER_ID},
     )
+    seed_case_manager_participant(dl, case, manager_id)
+    seed_case_owner_participant(dl, case, CASE_OWNER_ID)
     dl.create(case_actor)
     dl.create(case)
+    _record_offer(dl)
     return dl, CASE_ACTOR_ID
+
+
+def _record_offer(dl: SqliteDataLayer) -> None:
+    """Store the ``Offer(CaseParticipant)`` the CASE_MANAGER forwarded.
+
+    Accept and Reject act on this record (CM-16-019), as
+    ``offer_actor_to_case()`` leaves it when the recommendation is forwarded.
+    """
+    offer = _build_offer_activity()
+    dl.create(cast(CaseParticipant, offer.object_))
+    dl.create(offer)
+
+
+def _forget_recommendation(dl: SqliteDataLayer) -> None:
+    """Drop the recorded recommender, as a store that never saw the Offer."""
+    from vultron.core.models.case import VulnerabilityCase
+
+    case = dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    case.recommendation_recommender_index = {}
+    dl.save(case)
 
 
 def _build_offer_activity(
     actor: str = CASE_ACTOR_ID,
     to: list[str] | None = None,
+    cc: list[str] | None = None,
+    origin: str | None = RECOMMENDATION_ID,
+    roles: list | None = None,
+    recommended_id: str = RECOMMENDED_ID,
 ):
-    recommended = as_Actor(id_=RECOMMENDED_ID)
+    recommended = as_Actor(id_=recommended_id)
+    extra: dict[str, Any] = {"origin": origin} if origin is not None else {}
     return offer_case_participant_activity(
         recommended,
-        target=CASE_ID,
+        target=_case_ref(CASE_ID),
         actor=actor,
         to=to or [CASE_OWNER_ID],
-        origin="https://example.org/activities/orig-offer-001",
+        cc=cc or [],
+        roles=roles,
+        id_=OFFER_ID,
+        **extra,
     )
 
 
@@ -126,23 +190,78 @@ def _build_offer_activity(
 
 
 class TestOfferCaseParticipantReceivedUseCase:
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
     def _event(self) -> OfferCaseParticipantReceivedEvent:
         activity = _build_offer_activity()
         return cast(OfferCaseParticipantReceivedEvent, extract_event(activity))
 
-    def test_executes_without_error(self):
+    @pytest.mark.spec("HP-01-005")
+    def test_case_owner_receipt_is_applied(self):
+        """The addressee's receipt: the Offer is now the Case Owner's to decide."""
         dl, _ = _seed_dl_for_case_owner()
         event = self._event()
-        # Should not raise
-        OfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        # The Case Owner is not the CASE_MANAGER, so the CM-gated ledger
+        # commit is correctly not done here; the Offer is addressed to it.
+        result = OfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-005")
+    def test_bystander_copy_is_refused(self):
+        """Neither CASE_MANAGER nor addressee: a misaddressed copy is refused."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=BYSTANDER_ID)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, name="OfferRoundTripTest", attributed_to=CASE_OWNER_ID
+        )
+        seed_case_manager_participant(dl, case, CASE_ACTOR_ID)
+        dl.create(case)
+        event = self._event()  # to=[CASE_OWNER_ID]
+
+        result = OfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert BYSTANDER_ID in result.reason
+
+    @pytest.mark.spec("CM-16-004")
+    def test_case_manager_addressee_commits_receipt(self):
+        """The CASE_MANAGER, as addressee, records the Offer: the gate's control.
+
+        A Case Owner that also manages its case receives the
+        ``Offer(CaseParticipant)`` in ``to`` over the ordinary delivery path
+        (ADR-0109 keeps that same-actor delivery; the former self-``cc:`` copy
+        is retired).  Holding the role, it passes the gate and the receipt
+        commit runs.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        activity = _build_offer_activity(to=[CASE_ACTOR_ID])
+        event = cast(
+            OfferCaseParticipantReceivedEvent, extract_event(activity)
+        )
+
+        result = OfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert dl.list_objects("CaseLedgerEntry"), (
+            "the CASE_MANAGER's receipt commit must record the"
+            " Offer(CaseParticipant)"
+        )
 
     def test_never_fabricates_the_local_actor(self, caplog):
         """There is no "no local actor" case to skip for (ADR-0073).
@@ -160,10 +279,17 @@ class TestOfferCaseParticipantReceivedUseCase:
         )
         event = self._event()
         with caplog.at_level(logging.WARNING):
-            OfferCaseParticipantReceivedUseCase(dl, event).execute()
+            result = OfferCaseParticipantReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+        # The store holds no such case (RSH rule 3).
+        assert result.disposition is HandlerDisposition.REFUSED
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
-        assert "unknown" not in messages
+        assert "'unknown'" not in messages
 
     def test_skips_when_missing_case_id(self, caplog):
         dl, _ = _seed_dl_for_case_owner()
@@ -172,8 +298,14 @@ class TestOfferCaseParticipantReceivedUseCase:
         mock_event.target_id = None
         mock_event.activity = None
         with caplog.at_level(logging.WARNING):
-            OfferCaseParticipantReceivedUseCase(dl, mock_event).execute()
+            result = OfferCaseParticipantReceivedUseCase(
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
+        assert result.disposition is HandlerDisposition.REFUSED
 
 
 # ---------------------------------------------------------------------------
@@ -182,17 +314,54 @@ class TestOfferCaseParticipantReceivedUseCase:
 
 
 class TestAcceptOfferCaseParticipantReceivedUseCase:
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
-    def _event(self) -> AcceptOfferCaseParticipantReceivedEvent:
-        offer = _build_offer_activity()
+    def _event(
+        self, origin: str | None = RECOMMENDATION_ID
+    ) -> AcceptOfferCaseParticipantReceivedEvent:
+        offer = _build_offer_activity(origin=origin)
         accept = accept_case_participant_offer_activity(
             offer,
-            target=CASE_ID,
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        return cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
+    def _event_with_stored_offer(
+        self,
+        dl: SqliteDataLayer,
+        origin: str | None = RECOMMENDATION_ID,
+    ) -> AcceptOfferCaseParticipantReceivedEvent:
+        """Build Accept(Offer(CaseParticipant)) and store offer + participant in DL.
+
+        CM-11-019: the use case reads roles from the stored Offer's object_.
+        Dehydration stores object_ as a bare IRI; the IRI is followed at read
+        time via dl.read(). So both the Offer and its CaseParticipant object
+        must be stored in the DL for the roles to be found.
+
+        ``_seed_dl_for_case_actor`` already stores the same offer (via
+        ``_record_offer``); ``dl.save`` overwrites any prior record so both
+        the participant and the offer carry the expected roles.
+        """
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        offer = _build_offer_activity(origin=origin, roles=[CVDRole.VENDOR])
+        # Store the CaseParticipant object so the IRI follow-up in the use
+        # case (AKM-03-001) succeeds and returns the roles.
+        # dl.save() is used instead of dl.create() because _record_offer
+        # (called by _seed_dl_for_case_actor) may have already stored these
+        # records; save() overwrites without raising VultronAlreadyExistsError.
+        participant = offer.object_
+        if isinstance(participant, as_CaseParticipant):
+            dl.save(participant)
+        dl.save(offer)
+        accept = accept_case_participant_offer_activity(
+            offer,
+            target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
         )
@@ -201,11 +370,149 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         )
 
     def test_executes_without_error(self):
+        # CM-11-019: use _event_with_stored_offer so the DL has the offer's
+        # roles and CreateInertInviteeParticipantNode can resolve them.
         dl, _ = _seed_dl_for_case_actor()
-        event = self._event()
-        AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        event = self._event_with_stored_offer(dl)
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("CM-16-006")
+    @pytest.mark.spec("CS-08-001")
+    def test_refuses_a_recommendation_it_never_recorded(self, caplog):
+        """No recorded recommender means no one to notify, so refuse.
+
+        Until #3877 the missing recommender travelled into the BT as ``""``
+        and the ``AcceptActorRecommendation`` went out with a blank ``actor``
+        — this test passed on a bogus activity.  A blank reference is now
+        refused at construction, and the decision is taken at the edge.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        _forget_recommendation(dl)
+        event = self._event()
+        with caplog.at_level(logging.WARNING):
+            result = AcceptOfferCaseParticipantReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "never recorded" in (result.reason or "")
+        assert RECOMMENDATION_ID in (result.reason or "")
+        assert any(
+            "never recorded" in r.message and "refusing" in r.message
+            for r in caplog.records
+        )
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-16-006")
+    @pytest.mark.spec("CS-08-001")
+    def test_refuses_an_offer_that_names_no_recommendation(self):
+        """An inner Offer without ``origin`` names no recommendation at all.
+
+        CM-16-004 puts the original recommender's Offer id in ``origin``; with
+        no ``origin`` there is nothing to look the recommender up by.  Before
+        #3877 the absent id travelled into the BT as ``""``.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        event = self._event(origin=None)
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "no recommendation" in (result.reason or "")
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-16-019")
+    def test_invitee_comes_from_the_recorded_offer_not_the_reply(self):
+        """The Accept's copy of the Offer names someone else; it is ignored.
+
+        The Case Owner answers the recorded Offer by id, but the reply embeds
+        a copy whose CaseParticipant names another actor.
+        The Invite goes to the actor the CASE_MANAGER recorded (CM-16-019).
+        """
+        forged_id = "https://example.org/actors/forged-invitee"
+        dl, _ = _seed_dl_for_case_actor()
+        accept = accept_case_participant_offer_activity(
+            _build_offer_activity(recommended_id=forged_id),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        invites = [
+            obj
+            for obj in (dl.read(a) for a in dl.outbox_list())
+            if str(getattr(obj, "type_", "")) == "Invite"
+        ]
+        assert invites, "the recorded invitee must be invited"
+        invitees = {
+            getattr(getattr(i, "object_", None), "id_", None)
+            or getattr(i, "object_", None)
+            for i in invites
+        }
+        assert invitees == {RECOMMENDED_ID}
+
+    @pytest.mark.spec("CM-16-019")
+    def test_offer_archived_from_a_stranger_is_not_a_record(self):
+        """An Offer a stranger sent, archived by intake, is refused as a record.
+
+        Intake stores every inbound activity, so the id the Case Owner names
+        can resolve to an Offer the CASE_MANAGER never sent; the invitee
+        must come only from one it did.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        dl.save(
+            _build_offer_activity(
+                actor="https://example.org/actors/stranger",
+                recommended_id="https://example.org/actors/forged-invitee",
+            )
+        )
+        accept = accept_case_participant_offer_activity(
+            _build_offer_activity(),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "never recorded" in (result.reason or "")
+        assert dl.outbox_list() == []
 
     def test_never_fabricates_the_local_actor(self, caplog):
         """There is no "no local actor" case to skip for (ADR-0073).
@@ -221,35 +528,56 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         )
         event = self._event()
         with caplog.at_level(logging.WARNING):
-            AcceptOfferCaseParticipantReceivedUseCase(dl, event).execute()
+            AcceptOfferCaseParticipantReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
-        assert "unknown" not in messages
+        assert "'unknown'" not in messages
 
     def test_skips_when_missing_case_id(self, caplog):
         dl, _ = _seed_dl_for_case_actor()
         mock_event = MagicMock()
         mock_event.activity_id = "https://example.org/activities/bad-accept"
         mock_event.target_id = None
+        mock_event.inner_target_id = None
         mock_event.activity = None
         with caplog.at_level(logging.WARNING):
-            AcceptOfferCaseParticipantReceivedUseCase(dl, mock_event).execute()
+            result = AcceptOfferCaseParticipantReceivedUseCase(
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
+        assert result.disposition is HandlerDisposition.REFUSED
 
-    def test_skips_when_missing_invitee_id(self, caplog):
+    @pytest.mark.spec("CM-16-019")
+    def test_refuses_an_offer_it_never_recorded(self, caplog):
+        """A reply naming an Offer this store never recorded has no invitee."""
         dl, _ = _seed_dl_for_case_actor()
         mock_event = MagicMock()
         mock_event.activity_id = "https://example.org/activities/bad-accept-2"
         mock_event.target_id = CASE_ID
         mock_event.activity = MagicMock()
-        # object_ has no attributed_to → invitee_id will be None
         inner_offer = MagicMock()
-        inner_offer.object_ = MagicMock(attributed_to=None)
-        inner_offer.origin = None
+        inner_offer.id_ = "https://example.org/activities/never-recorded"
+        inner_offer.origin = RECOMMENDATION_ID
         mock_event.activity.object_ = inner_offer
         with caplog.at_level(logging.WARNING):
-            AcceptOfferCaseParticipantReceivedUseCase(dl, mock_event).execute()
-        assert any("missing" in r.message.lower() for r in caplog.records)
+            result = AcceptOfferCaseParticipantReceivedUseCase(
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+        assert any("never recorded" in r.message for r in caplog.records)
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert dl.outbox_list() == []
 
     def test_recommender_notified_via_core_state(self):
         """AC-5: recommender notification emitted; recommender read from core state.
@@ -265,7 +593,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
         RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
 
-        dl, actor_id = _seed_dl_for_case_actor()
+        dl, _actor_id = _seed_dl_for_case_actor()
         # Seed the recommender index as OfferActorToCaseReceivedUseCase would.
         case = dl.read(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
@@ -274,10 +602,17 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         )
         dl.save(case)
 
-        event = self._event()
-        AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        # CM-11-019: store the offer with roles so CreateInertInviteeParticipantNode
+        # can resolve them and the use case is APPLIED.
+        event = self._event_with_stored_offer(dl)
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         outbox = dl.outbox_list()
         assert len(outbox) >= 2, (
@@ -302,17 +637,13 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
 
 class TestRejectOfferCaseParticipantReceivedUseCase:
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
-    def _event(self) -> RejectOfferCaseParticipantReceivedEvent:
-        offer = _build_offer_activity()
+    def _event(
+        self, origin: str | None = RECOMMENDATION_ID
+    ) -> RejectOfferCaseParticipantReceivedEvent:
+        offer = _build_offer_activity(origin=origin)
         reject = reject_case_participant_offer_activity(
             offer,
-            target=CASE_ID,
+            target=_case_ref(CASE_ID),
             actor=CASE_OWNER_ID,
             to=[CASE_ACTOR_ID],
         )
@@ -323,9 +654,122 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
     def test_executes_without_error(self):
         dl, _ = _seed_dl_for_case_actor()
         event = self._event()
-        RejectOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        result = RejectOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("CM-16-007")
+    @pytest.mark.spec("CS-08-001")
+    def test_refuses_a_recommendation_it_never_recorded(self, caplog):
+        """The Reject mirror of the Accept case: no recommender, no notification."""
+        dl, _ = _seed_dl_for_case_actor()
+        _forget_recommendation(dl)
+        event = self._event()
+        with caplog.at_level(logging.WARNING):
+            result = RejectOfferCaseParticipantReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "never recorded" in (result.reason or "")
+        assert RECOMMENDATION_ID in (result.reason or "")
+        assert any(
+            "never recorded" in r.message and "refusing" in r.message
+            for r in caplog.records
+        )
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-16-007")
+    @pytest.mark.spec("CS-08-001")
+    def test_refuses_an_offer_that_names_no_recommendation(self):
+        """An inner Offer without ``origin`` names no recommendation at all.
+
+        CM-16-004 puts the original recommender's Offer id in ``origin``; with
+        no ``origin`` there is nothing to look the recommender up by.  Before
+        #3877 the absent id travelled into the BT as ``""``.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        event = self._event(origin=None)
+        result = RejectOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "no recommendation" in (result.reason or "")
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-16-019")
+    def test_refuses_an_offer_it_never_recorded(self):
+        """A Reject naming an Offer this store never recorded has nobody to name.
+
+        ``RejectActorRecommendation`` carries the recommended actor, which is
+        the recorded Offer's; with no record there is nobody to name, and the
+        Reject's own ``object_id`` is not a substitute.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        event = MagicMock()
+        event.activity_id = "https://example.org/activities/reject-no-actor"
+        event.target_id = CASE_ID
+        event.object_id = RECOMMENDED_ID
+        event.receiving_actor_id = CASE_ACTOR_ID
+        event.activity.object_.id_ = (
+            "https://example.org/activities/never-recorded"
+        )
+        event.activity.object_.origin = RECOMMENDATION_ID
+        result = RejectOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "never recorded" in (result.reason or "")
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-16-019")
+    def test_recommended_actor_comes_from_the_recorded_offer(self):
+        """The Reject's copy of the Offer names someone else; it is ignored."""
+        forged_id = "https://example.org/actors/forged-invitee"
+        dl, _ = _seed_dl_for_case_actor()
+        reject = reject_case_participant_offer_activity(
+            _build_offer_activity(recommended_id=forged_id),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            RejectOfferCaseParticipantReceivedEvent, extract_event(reject)
+        )
+
+        result = RejectOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        notices = [
+            str(obj.model_dump())
+            for obj in (dl.read(a) for a in dl.outbox_list())
+            if obj is not None and str(getattr(obj, "type_", "")) == "Reject"
+        ]
+        assert len(notices) == 1, "the recommender must be told once"
+        assert RECOMMENDED_ID in notices[0]
+        assert forged_id not in notices[0]
 
     def test_never_fabricates_the_local_actor(self, caplog):
         """There is no "no local actor" case to skip for (ADR-0073).
@@ -341,10 +785,16 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         )
         event = self._event()
         with caplog.at_level(logging.WARNING):
-            RejectOfferCaseParticipantReceivedUseCase(dl, event).execute()
+            RejectOfferCaseParticipantReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
         messages = " ".join(r.message.lower() for r in caplog.records)
         assert "no local actor" not in messages
-        assert "unknown" not in messages
+        assert "'unknown'" not in messages
 
     def test_skips_when_missing_case_id(self, caplog):
         dl, _ = _seed_dl_for_case_actor()
@@ -353,8 +803,14 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         mock_event.target_id = None
         mock_event.activity = None
         with caplog.at_level(logging.WARNING):
-            RejectOfferCaseParticipantReceivedUseCase(dl, mock_event).execute()
+            result = RejectOfferCaseParticipantReceivedUseCase(
+                dl,
+                mock_event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
+        assert result.disposition is HandlerDisposition.REFUSED
 
     def test_recommender_notified_via_core_state(self):
         """AC-5: recommender notification emitted on reject; recommender from core state.
@@ -367,7 +823,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
 
         RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
 
-        dl, actor_id = _seed_dl_for_case_actor()
+        dl, _actor_id = _seed_dl_for_case_actor()
         case = dl.read(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
         case.recommendation_recommender_index[RECOMMENDATION_ID] = (
@@ -376,9 +832,14 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         dl.save(case)
 
         event = self._event()
-        RejectOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        result = RejectOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
 
         outbox = dl.outbox_list()
         assert len(outbox) >= 1, (
@@ -404,6 +865,7 @@ AC1_CASE_ID = "https://example.org/cases/ac1-roles-threading"
 AC1_CASE_ACTOR_ID = "https://example.org/actors/ac1-case-actor"
 AC1_CASE_OWNER_ID = "https://example.org/actors/ac1-case-owner"
 AC1_INVITEE_ID = "https://example.org/actors/ac1-vendor"
+AC1_RECOMMENDER_ID = "https://example.org/actors/ac1-finder"
 
 
 def _seed_dl_for_ac1() -> SqliteDataLayer:
@@ -423,7 +885,17 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
         id_=AC1_CASE_ID,
         name="AC1RolesThreading",
         attributed_to=AC1_CASE_OWNER_ID,
+        stub_summary="Security issue — details shared after acceptance",
+        # Recorded when the recommendation arrived (CM-16-004); the Accept
+        # handler refuses a decision on a recommendation never recorded.
+        recommendation_recommender_index={
+            RECOMMENDATION_ID: AC1_RECOMMENDER_ID
+        },
     )
+    # The CaseActor holds CASE_MANAGER: both the Accept(Offer) effects and
+    # the Accept(Invite) effects are role-gated (BT-17-001, BT-17-005).
+    seed_case_manager_participant(dl, case, AC1_CASE_ACTOR_ID)
+    seed_case_owner_participant(dl, case, AC1_CASE_OWNER_ID)
     invitee = as_Organization(id_=AC1_INVITEE_ID)
     dl.create(case_actor)
     dl.create(case)
@@ -443,12 +915,6 @@ class TestRolesFromStoredOffer:
     empty in the second execution.
     """
 
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
     def _seed_and_store_offer(
         self, roles: list
     ) -> tuple[SqliteDataLayer, "AcceptOfferCaseParticipantReceivedEvent"]:
@@ -461,12 +927,12 @@ class TestRolesFromStoredOffer:
         adapter = TriggerActivityAdapter(dl)
         # Store the Offer as offer_actor_to_case() does when sending it to Case Owner.
         offer_id, _ = adapter.offer_actor_to_case(
-            recommender_id="https://example.org/actors/ac1-finder",
+            recommender_id=AC1_RECOMMENDER_ID,
             recommended_id=AC1_INVITEE_ID,
             case_id=AC1_CASE_ID,
             actor=AC1_CASE_ACTOR_ID,
             to=[AC1_CASE_OWNER_ID],
-            origin="https://example.org/activities/orig-offer-001",
+            origin=RECOMMENDATION_ID,
             roles=roles,
         )
         # Build Accept(Offer) using the STORED offer (as Case Owner would).
@@ -477,7 +943,7 @@ class TestRolesFromStoredOffer:
 
         accept = accept_case_participant_offer_activity(
             cast(as_Offer, stored_offer),
-            target=AC1_CASE_ID,
+            target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_OWNER_ID,
             to=[AC1_CASE_ACTOR_ID],
         )
@@ -499,7 +965,11 @@ class TestRolesFromStoredOffer:
 
         dl, event = self._seed_and_store_offer(roles=[CVDRole.VENDOR])
         AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         outbox = dl.outbox_list()
@@ -510,9 +980,9 @@ class TestRolesFromStoredOffer:
                 invite_obj = obj
                 break
 
-        assert (
-            invite_obj is not None
-        ), "Invite must be stored in CaseActor outbox"
+        assert invite_obj is not None, (
+            "Invite must be stored in CaseActor outbox"
+        )
         invite_roles = getattr(invite_obj, "roles", None)
         assert invite_roles == [CVDRole.VENDOR.value], (
             f"ISSUE-1745: Invite must carry roles from stored Offer; "
@@ -535,7 +1005,11 @@ class TestRolesFromStoredOffer:
 
         # Step 1: CaseActor receives Accept(Offer(CaseParticipant[VENDOR])) → emits Invite
         AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         # Step 2: find the stored Invite
@@ -546,9 +1020,9 @@ class TestRolesFromStoredOffer:
             if obj is not None and str(getattr(obj, "type_", "")) == "Invite":
                 invite_obj = obj
                 break
-        assert (
-            invite_obj is not None
-        ), "Invite must be present in CaseActor outbox"
+        assert invite_obj is not None, (
+            "Invite must be present in CaseActor outbox"
+        )
 
         # Step 3: invitee accepts the Invite
         py_trees.blackboard.Blackboard.storage.clear()
@@ -566,7 +1040,10 @@ class TestRolesFromStoredOffer:
             AcceptInviteActorToCaseReceivedEvent, extract_event(accept_invite)
         )
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, accept_invite_event, sync_port=MagicMock()
+            dl,
+            accept_invite_event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Step 4: participant must have VENDOR role
@@ -574,9 +1051,9 @@ class TestRolesFromStoredOffer:
         participant_id = reloaded_case.actor_participant_index.get(
             AC1_INVITEE_ID
         )
-        assert (
-            participant_id is not None
-        ), "Invitee must be registered as participant"
+        assert participant_id is not None, (
+            "Invitee must be registered as participant"
+        )
         participant = cast(Any, dl.get(id_=participant_id))
         assert participant is not None
         assert CVDRole.VENDOR in participant.case_roles, (
@@ -591,35 +1068,46 @@ class TestAcceptOfferCaseParticipantRolesThreading:
     AC-1: Full round-trip — Accept(Offer(CaseParticipant[roles])) →
           EmitInviteActorToCaseNode (roles=None, no blackboard key) →
           Invite(roles=None) stored → Accept(Invite) →
-          VultronParticipant.case_roles == [].
+          CaseParticipant.case_roles == [].
 
     AC-2: Confirm that EmitInviteActorToCaseNode with no ``suggested_roles``
           blackboard key passes roles=None to invite_actor_to_case(), verifying
           no silent default substitution (ADR-0032 BT-HELPER-01).
     """
 
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
-    def _build_accept_offer_event(
-        self,
-    ) -> AcceptOfferCaseParticipantReceivedEvent:
-        from vultron.enums.roles import CVDRole
-
-        recommended = as_Actor(id_=AC1_INVITEE_ID)
-        offer = offer_case_participant_activity(
-            recommended,
-            target=AC1_CASE_ID,
+    @staticmethod
+    def _ac1_offer(roles: list | None = None):
+        """The ``Offer(CaseParticipant)`` for the AC1 invitee, by its fixed id."""
+        extra: dict[str, Any] = {"roles": roles} if roles else {}
+        return offer_case_participant_activity(
+            as_Actor(id_=AC1_INVITEE_ID),
+            target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_ACTOR_ID,
             to=[AC1_CASE_OWNER_ID],
-            roles=[CVDRole.VENDOR],
+            id_=OFFER_ID,
+            # CM-16-004: the transformed Offer names the recommendation it
+            # answers; without it the CASE_MANAGER has nobody to notify.
+            origin=RECOMMENDATION_ID,
+            **extra,
         )
+
+    def _build_accept_offer_event(
+        self, dl: SqliteDataLayer
+    ) -> AcceptOfferCaseParticipantReceivedEvent:
+        """Record a VENDOR Offer, then build the Accept that embeds a forged copy.
+
+        The Case Owner's Accept carries a copy of the Offer that adds
+        CASE_OWNER to the roles, but the CASE_MANAGER recorded VENDOR only;
+        the reply's copy is never used (CM-16-019, ISSUE-1745).
+        """
+        from vultron.enums.roles import CVDRole
+
+        recorded = self._ac1_offer(roles=[CVDRole.VENDOR])
+        dl.create(cast(CaseParticipant, recorded.object_))
+        dl.create(recorded)
         accept = accept_case_participant_offer_activity(
-            offer,
-            target=AC1_CASE_ID,
+            self._ac1_offer(roles=[CVDRole.VENDOR, CVDRole.CASE_OWNER]),
+            target=_case_ref(AC1_CASE_ID),
             actor=AC1_CASE_OWNER_ID,
             to=[AC1_CASE_ACTOR_ID],
         )
@@ -627,19 +1115,23 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
         )
 
-    def test_invite_roles_none_when_no_blackboard_key(self):
-        """AC-2: EmitInviteActorToCaseNode passes roles=None to factory.
+    @pytest.mark.spec("CM-16-019")
+    def test_invite_roles_are_the_recorded_offers_not_the_replys(self):
+        """The Invite carries the recorded roles, not the reply's forged ones.
 
-        When Accept(Offer(CaseParticipant)) arrives, ``suggested_roles`` is
-        absent from the blackboard (``create_accept_actor_recommendation_received_tree``
-        does not write it).  ``EmitInviteActorToCaseNode._read_suggested_roles()``
-        returns None, and the stored Invite has roles=None — no silent default
-        substitution (ADR-0032, BT-HELPER-01).
+        The reply's copy of the Offer adds CASE_OWNER; the Invite still names
+        only what the CASE_MANAGER recorded (CM-16-019, ISSUE-1745).
         """
+        from vultron.enums.roles import CVDRole
+
         dl = _seed_dl_for_ac1()
-        event = self._build_accept_offer_event()
+        event = self._build_accept_offer_event(dl)
         AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         outbox = dl.outbox_list()
@@ -650,31 +1142,91 @@ class TestAcceptOfferCaseParticipantRolesThreading:
                 invite_obj = obj
                 break
 
-        assert (
-            invite_obj is not None
-        ), "Invite must be stored in CaseActor outbox"
-        assert getattr(invite_obj, "roles", "sentinel") is None, (
-            "AC-2: EmitInviteActorToCaseNode must pass roles=None when "
-            "suggested_roles is absent from blackboard (no default substitution)"
+        assert invite_obj is not None, (
+            "Invite must be stored in CaseActor outbox"
+        )
+        assert getattr(invite_obj, "roles", None) == [CVDRole.VENDOR.value], (
+            "the Invite must carry the recorded Offer's roles, not the reply's"
         )
 
-    def test_participant_case_roles_empty_after_full_round_trip(self):
-        """AC-1: Full suggest-actor round-trip ends with participant.case_roles==[].
+    @pytest.mark.spec("CM-11-019")
+    def test_participant_case_roles_empty_refused_per_cm11019(self):
+        """CM-11-019: Accept(Offer) with empty roles is REFUSED.
 
-        Roles from Accept(Offer(CaseParticipant[VENDOR])) are NOT threaded into
-        the Invite when ``suggested_roles`` is absent from the blackboard.
-        The resulting participant is created with an empty case_roles list.
+        Store an Offer whose CaseParticipant carries ``case_roles=[]``.
+        ``_require_recorded_offer`` returns ``roles=None``, so
+        ``CreateInertInviteeParticipantNode`` (CM-11-019) returns FAILURE and
+        the overall use-case result is REFUSED.  No inert participant is
+        created.
         """
-        from vultron.core.use_cases.received.actor.invite import (
-            AcceptInviteActorToCaseReceivedUseCase,
-        )
+        from vultron.core.models.case import VulnerabilityCase
 
         dl = _seed_dl_for_ac1()
-        event = self._build_accept_offer_event()
 
-        # Step 1: CaseActor receives Accept(Offer(CaseParticipant)) → emits Invite
+        # Store an Offer with empty roles so _require_recorded_offer returns
+        # roles=None → CreateInertInviteeParticipantNode refuses (CM-11-019).
+        empty_roles_offer = offer_case_participant_activity(
+            as_Actor(id_=AC1_INVITEE_ID),
+            target=_case_ref(AC1_CASE_ID),
+            actor=AC1_CASE_ACTOR_ID,
+            to=[AC1_CASE_OWNER_ID],
+            id_=OFFER_ID,
+            origin=RECOMMENDATION_ID,
+            roles=[],
+        )
+        dl.create(cast(CaseParticipant, empty_roles_offer.object_))
+        dl.create(empty_roles_offer)
+        accept = accept_case_participant_offer_activity(
+            empty_roles_offer,
+            target=_case_ref(AC1_CASE_ID),
+            actor=AC1_CASE_OWNER_ID,
+            to=[AC1_CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED, (
+            f"Expected REFUSED for no-roles Accept(Offer), got {result.disposition}"
+        )
+
+        # No inert participant should have been created.
+        reloaded_case = dl.read(AC1_CASE_ID)
+        assert isinstance(reloaded_case, VulnerabilityCase)
+        assert AC1_INVITEE_ID not in reloaded_case.actor_participant_index, (
+            "CM-11-019: no inert participant must be created for a no-roles "
+            "Accept(Offer(CaseParticipant))"
+        )
+
+    @pytest.mark.spec("CM-16-019")
+    def test_participant_takes_only_the_recorded_roles(self):
+        """Full round trip: the admitted participant holds the recorded roles.
+
+        The reply's forged CASE_OWNER never reaches the Invite, so the invitee
+        is admitted as VENDOR only (CM-16-019).
+        """
+        self._test_participant_case_roles_empty_after_full_round_trip_invite_obj()
+
+    def _test_participant_case_roles_empty_after_full_round_trip_invite_obj(
+        self,
+    ):
+        """Helper: find the Invite stored during step 1 of the round-trip."""
+
+        dl = _seed_dl_for_ac1()
+        event = self._build_accept_offer_event(dl)
         AcceptOfferCaseParticipantReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         # Step 2: find the stored Invite
@@ -685,15 +1237,19 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             if obj is not None and str(getattr(obj, "type_", "")) == "Invite":
                 invite_obj = obj
                 break
-        assert (
-            invite_obj is not None
-        ), "Invite must be present in CaseActor outbox"
+        assert invite_obj is not None, (
+            "Invite must be present in CaseActor outbox"
+        )
 
-        # Step 3: invitee sends Accept(Invite) — BT creates VultronParticipant
+        # Step 3: invitee sends Accept(Invite) — BT creates CaseParticipant
         py_trees.blackboard.Blackboard.storage.clear()
         from vultron.core.models.events.actor import (
             AcceptInviteActorToCaseReceivedEvent,
         )
+        from vultron.core.use_cases.received.actor.invite import (
+            AcceptInviteActorToCaseReceivedUseCase,
+        )
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Invite,
         )
@@ -705,20 +1261,111 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             AcceptInviteActorToCaseReceivedEvent, extract_event(accept_invite)
         )
         AcceptInviteActorToCaseReceivedUseCase(
-            dl, accept_invite_event, sync_port=MagicMock()
+            dl,
+            accept_invite_event,
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        # Step 4: assert participant.case_roles == []
+        # Step 4: assert participant.case_roles == [VENDOR]
         reloaded_case = cast(Any, dl.read(AC1_CASE_ID))
         participant_id = reloaded_case.actor_participant_index.get(
             AC1_INVITEE_ID
         )
-        assert (
-            participant_id is not None
-        ), "Invitee must be registered as participant"
+        assert participant_id is not None, (
+            "Invitee must be registered as participant"
+        )
         participant = cast(Any, dl.get(id_=participant_id))
         assert participant is not None
-        assert participant.case_roles == [], (
-            "AC-1: participant.case_roles must be [] when roles were not "
-            "threaded from CaseParticipant offer (suggested_roles absent)"
+        assert participant.case_roles == [CVDRole.VENDOR], (
+            "participant.case_roles must be the recorded Offer's roles only"
+        )
+
+
+# ---------------------------------------------------------------------------
+# #3752: a receiver that is not the CASE_MANAGER refuses and queues nothing
+# ---------------------------------------------------------------------------
+
+
+class TestOfferCaseParticipantDecisionsAtNonCaseManager:
+    """Accept/Reject(Offer(CaseParticipant)) reach a copy-holder (#3752).
+
+    Both decisions are addressed to the CASE_MANAGER, whose effects (notify the
+    recommender, invite the actor) sit behind a role gate (BT-17-001).  A
+    receiver that is not it — here the CaseActor store when another actor
+    holds the role — queues nothing and refuses (HP-01-005).
+    """
+
+    OTHER_MANAGER_ID = "https://example.org/actors/other-case-manager"
+
+    def _seed(self) -> SqliteDataLayer:
+        from vultron.core.models.case import VulnerabilityCase
+
+        dl, _ = _seed_dl_for_case_actor(manager_id=self.OTHER_MANAGER_ID)
+        case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        case.recommendation_recommender_index[
+            "https://example.org/activities/orig-offer-001"
+        ] = RECOMMENDER_ID
+        dl.save(case)
+        return dl
+
+    @pytest.mark.spec("BT-17-001")
+    @pytest.mark.spec("HP-01-005")
+    def test_accept_at_non_case_manager_is_refused_and_queues_nothing(self):
+        dl = self._seed()
+        accept = accept_case_participant_offer_activity(
+            _build_offer_activity(),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == [], (
+            "a receiver that is not the CASE_MANAGER must neither notify the"
+            " recommender nor invite the actor"
+        )
+
+    @pytest.mark.spec("BT-17-001")
+    @pytest.mark.spec("HP-01-005")
+    def test_reject_at_non_case_manager_is_refused_and_queues_nothing(self):
+        dl = self._seed()
+        reject = reject_case_participant_offer_activity(
+            _build_offer_activity(),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            RejectOfferCaseParticipantReceivedEvent, extract_event(reject)
+        )
+
+        result = RejectOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == [], (
+            "a receiver that is not the CASE_MANAGER must not notify the"
+            " recommender of the rejection"
         )

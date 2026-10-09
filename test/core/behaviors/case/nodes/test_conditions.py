@@ -16,32 +16,32 @@
 """
 Unit tests for case condition nodes.
 
-Covers CheckCaseAlreadyExists and CheckCaseExistsForReport.
+Covers CheckCaseExistsForReport.
 Per specs/idempotency.yaml ID-04-004.
 
-Also covers the construction-time guarantee that VultronCase rejects
+Also covers the construction-time guarantee that VulnerabilityCase rejects
 invalid id_ values (ARCH-10-001), which made the former ValidateCaseObject
 BT node redundant (removed in issue #716).
+
+Note: TestCheckCaseAlreadyExists was removed in issue #4353 because
+CheckCaseAlreadyExists was orphaned by create_create_case_tree's removal.
 """
 
 import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
 
+from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckAutoCaseCreationEnabledNode,
-    CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
 )
-from vultron.config.actor import ActorConfig
-from vultron.core.models.vultron_types import (
-    VultronCase,
-    VultronCaseActor,
-    VultronParticipant,
-    VultronReport,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import VulnerabilityReport
 from vultron.enums.roles import CVDRole
-from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -54,24 +54,26 @@ def actor_id() -> str:
 
 
 @pytest.fixture
-def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronCaseActor:
-    obj = VultronCaseActor(id_=actor_id, name="Vendor Co")
+def actor(bt_scenario: BTTestScenario, actor_id: str) -> CaseActor:
+    obj = CaseActor(id_=actor_id, name="Vendor Co")
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
-def report(bt_scenario: BTTestScenario) -> VultronReport:
-    obj = VultronReport(name="TEST-001", content="Test vulnerability report")
+def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
+    obj = VulnerabilityReport(
+        name="TEST-001", content="Test vulnerability report"
+    )
     bt_scenario.dl.create(obj)
     return obj
 
 
 @pytest.fixture
 def case_obj(
-    bt_scenario: BTTestScenario, report: VultronReport
-) -> VultronCase:
-    case = VultronCase(
+    bt_scenario: BTTestScenario, report: VulnerabilityReport
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.id_],
@@ -83,10 +85,10 @@ def case_obj(
 @pytest.fixture
 def participant(
     bt_scenario: BTTestScenario,
-    case_obj: VultronCase,
+    case_obj: VulnerabilityCase,
     actor_id: str,
-) -> VultronParticipant:
-    p = VultronParticipant(
+) -> CaseParticipant:
+    p = CaseParticipant(
         attributed_to=actor_id,
         context=case_obj.id_,
         case_roles=[CVDRole.VENDOR],
@@ -95,58 +97,6 @@ def participant(
     case_obj.case_participants.append(p.id_)
     bt_scenario.dl.save(case_obj)
     return p
-
-
-# ---------------------------------------------------------------------------
-# CheckCaseAlreadyExists
-# ---------------------------------------------------------------------------
-
-
-class TestCheckCaseAlreadyExists:
-    """ID-04-004: idempotency guard — case with participants → SUCCESS."""
-
-    def test_returns_failure_when_case_missing(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-    ) -> None:
-        result = bt_scenario.run(
-            CheckCaseAlreadyExists(
-                case_id="https://example.org/cases/missing"
-            ),
-            actor_id=actor_id,
-        )
-        assert result.status == Status.FAILURE
-
-    def test_returns_failure_when_case_has_no_participants(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        """Case exists but has no participants → still FAILURE (needs init)."""
-        result = bt_scenario.run(
-            CheckCaseAlreadyExists(case_id=case_obj.id_),
-            actor_id=actor_id,
-        )
-        assert result.status == Status.FAILURE
-
-    def test_returns_success_when_case_has_participants(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-        case_obj: VultronCase,
-        participant: VultronParticipant,
-    ) -> None:
-        """Case with participants → SUCCESS (already initialized)."""
-        result = bt_scenario.run(
-            CheckCaseAlreadyExists(case_id=case_obj.id_),
-            actor_id=actor_id,
-        )
-        assert result.status == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------
@@ -160,9 +110,9 @@ class TestCheckCaseExistsForReport:
     def test_returns_failure_when_no_case_for_report(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
-        report: VultronReport,
+        report: VulnerabilityReport,
     ) -> None:
         result = bt_scenario.run(
             CheckCaseExistsForReport(report_id=report.id_),
@@ -173,10 +123,10 @@ class TestCheckCaseExistsForReport:
     def test_returns_failure_when_case_has_no_participants(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
-        case_obj: VultronCase,
-        report: VultronReport,
+        case_obj: VulnerabilityCase,
+        report: VulnerabilityReport,
     ) -> None:
         """Case linked to report exists but has no participants → FAILURE."""
         result = bt_scenario.run(
@@ -188,11 +138,11 @@ class TestCheckCaseExistsForReport:
     def test_returns_success_when_case_has_participants(
         self,
         bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
+        actor: CaseActor,
         actor_id: str,
-        case_obj: VultronCase,
-        report: VultronReport,
-        participant: VultronParticipant,
+        case_obj: VulnerabilityCase,
+        report: VulnerabilityReport,
+        participant: CaseParticipant,
     ) -> None:
         """Case linked to report with participants → SUCCESS."""
         result = bt_scenario.run(
@@ -203,28 +153,28 @@ class TestCheckCaseExistsForReport:
 
 
 # ---------------------------------------------------------------------------
-# VultronCase construction-time id_ contract (ARCH-10-001)
+# VulnerabilityCase construction-time id_ contract (ARCH-10-001)
 # ---------------------------------------------------------------------------
 
 
 class TestVultronCaseIdContract:
-    """VultronCase rejects invalid id_ at construction time (ARCH-10-001).
+    """VulnerabilityCase rejects invalid id_ at construction time (ARCH-10-001).
 
-    This guarantees that any VultronCase object that exists at runtime already
+    This guarantees that any VulnerabilityCase object that exists at runtime already
     has a valid non-empty id_, making a runtime BT validation node redundant
     (see issue #716).
     """
 
     def test_empty_id_raises_validation_error(self) -> None:
         with pytest.raises(ValidationError):
-            VultronCase(id_="")
+            VulnerabilityCase(id_="")
 
     def test_whitespace_only_id_raises_validation_error(self) -> None:
         with pytest.raises(ValidationError):
-            VultronCase(id_="   ")
+            VulnerabilityCase(id_="   ")
 
     def test_auto_generated_id_is_nonempty(self) -> None:
-        case = VultronCase()
+        case = VulnerabilityCase()
         assert case.id_ and case.id_.strip()
 
 

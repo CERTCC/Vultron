@@ -221,7 +221,7 @@ def load_yaml(
     path: Path,
     *,
     root: Path | None = None,
-    loader: type[yaml.SafeLoader] | type[yaml.CSafeLoader] = yaml.SafeLoader,
+    loader: type[yaml.SafeLoader | yaml.CSafeLoader] = yaml.SafeLoader,
 ) -> object:
     """Parse the YAML file at *path*, attributing any fault to it.
 

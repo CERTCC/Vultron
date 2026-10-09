@@ -9,16 +9,25 @@ Core ports are split by direction.
 **Inbound ports (driving)** — external adapters call into core:
 
 - `UseCase` Protocol (`core/ports/use_case.py`) — primary inbound port.
-- `ActivityDispatcher` Protocol (`core/ports/dispatcher.py`) — routing
-  entry.
+- `ActivityDispatcher` Protocol (`core/ports/dispatcher.py`) — received-side
+  routing entry: `dispatch(event, dl) -> HandlerResult`, routed by
+  `SEMANTIC_REGISTRY`.
+- `TriggerDispatcher` Protocol (`core/ports/trigger_dispatcher.py`) —
+  trigger-side routing entry: one `trigger(request, dl) -> ResultT_co` method,
+  routed by `vultron/trigger_registry/` (ADR-0110). The return type is bound
+  to the request's type, so a router gets the verb's `TriggerResult` subtype
+  with no cast and no per-verb method (UCORG-05-006). Implementation:
+  `core/trigger_dispatcher.py` (`RegistryTriggerDispatcher`). It is the only
+  trigger driving port: `test/architecture/test_trigger_port_single_method.py`
+  fails on a second public method or a per-verb facade under `vultron/core/`.
 
 **Outbound ports (driven)** — core calls outward:
 
 - `DataLayer` (`core/ports/datalayer.py`) — persistence contract.
 - `CasePersistence` / `CaseOutboxPersistence` — narrower persistence
   ports.
-- `ActivityEmitter` (`core/ports/emitter.py`) — outbound activity
-  delivery.
+- `ActivityEmitter` (`core/ports/emitter.py`) — outbound delivery of an
+  activity's *sealed body* (JSON text), relayed unchanged (VM-08-003).
 
 Naming principle: choose domain intent, not transport implementation.
 
@@ -65,7 +74,22 @@ buffering layer.
 ## Port Interface Hygiene
 
 - Port and adapter signatures should use explicit domain types.
-- Do not expose `pydantic.BaseModel` directly as cross-layer API shape.
+- Do not expose wire-layer (`as_*`) or adapter-layer models as cross-layer API
+  shape. A core-owned domain model (`VultronEvent`, `TriggerRequest`,
+  `UseCaseResult`) **is** an explicit domain type and is the right boundary
+  type, even though it is a Pydantic `BaseModel` — the accepted
+  `ActivityDispatcher.dispatch(event, dl)` port is the precedent
+  (ADR-0009, ADR-0110). Reading this rule as "no `BaseModel` anywhere" is what
+  produced a 27-method port that flattened typed requests into `Any` scalars.
+- **A driving port is O(1) in the behaviors behind it.** Routing from a
+  discriminator (semantics, trigger verb) to a use case is data in a registry,
+  not a method per verb. A port whose method count grows with the use-case
+  count hides nothing and is a duplicated declaration, not an abstraction.
+- **Never `Mock(spec=<driving port>)`.** A driving port is a seam for the code
+  *in front of* it (routers, CLI). Tests of that code run the real dispatcher
+  over a real in-memory store; tests of use cases construct them directly.
+  A mock of the driving port asserts only that a method was called, which is
+  the one thing the port's callers do not need verified.
 - Keep port contracts minimal, typed, and semantically named.
 
 ## DataLayer Operating Rules

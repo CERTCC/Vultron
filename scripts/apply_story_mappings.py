@@ -6,8 +6,9 @@ and for each non-no_match spec:
   - Removes the ``- missing_story_reference`` line from ``lint_suppress:``
   - If ``lint_suppress:`` only had that one item, removes the whole block
 
-Text-manipulation approach: same line-by-line state machine as backfill_stories.py.
-No YAML load/dump round-trip — preserves all formatting.
+Text-manipulation approach: items are sliced by the shared
+``vultron.metadata.specs.yaml_items.iter_blocks``. No YAML load/dump
+round-trip — preserves all formatting.
 
 Usage:
     uv run python scripts/apply_story_mappings.py mappings.json [--dry-run]
@@ -18,16 +19,99 @@ import re
 import sys
 from pathlib import Path
 
+from vultron.metadata.specs.yaml_items import iter_blocks
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Matches the start of a spec item: "  - id: SPEC-01-001"
-_ITEM_START_RE = re.compile(r"^(\s+)- id: ([A-Z]{2,8}-\d{2}-\d{3}[a-z]?)\s*$")
 # Matches lint_suppress: line
 _LINT_SUPPRESS_RE = re.compile(r"^(\s+)lint_suppress:\s*$")
 # Matches "- missing_story_reference"
 _MSR_ITEM_RE = re.compile(r"^\s+-\s+missing_story_reference\s*$")
 # Matches any list item under lint_suppress
 _LIST_ITEM_RE = re.compile(r"^\s+-\s+\S")
+
+
+def _build_story_map(spec_mappings: list[dict]) -> dict[str, list[str]]:
+    """Return spec_id -> story_ids for mappings that have a story match."""
+    story_map: dict[str, list[str]] = {}
+    for m in spec_mappings:
+        if not m.get("no_match") and m.get("story_ids"):
+            story_map[m["spec_id"]] = m["story_ids"]
+    return story_map
+
+
+def _collect_suppress_items(
+    item_lines: list[str], j: int
+) -> tuple[list[str], int]:
+    """Collect the lint_suppress list items starting at item_lines[j].
+
+    Returns (suppress_items, next_index).
+    """
+    suppress_items: list[str] = []
+    while j < len(item_lines) and _LIST_ITEM_RE.match(item_lines[j]):
+        suppress_items.append(item_lines[j])
+        j += 1
+    return suppress_items, j
+
+
+def _rewrite_suppress_block(
+    header: str,
+    suppress_items: list[str],
+    field_indent: str,
+    story_ids: list[str],
+) -> list[str] | None:
+    """Replace missing_story_reference in a lint_suppress block with stories.
+
+    Returns the replacement lines, or None if the block has no
+    missing_story_reference item.
+    """
+    if not any(_MSR_ITEM_RE.match(si) for si in suppress_items):
+        return None
+
+    remaining = [si for si in suppress_items if not _MSR_ITEM_RE.match(si)]
+
+    # Insert stories: block (before lint_suppress, or in its place)
+    new_lines = [f"{field_indent}stories:\n"]
+    for story in story_ids:
+        new_lines.append(f"{field_indent}- {story}\n")
+
+    # Keep the remaining lint_suppress items if any
+    if remaining:
+        new_lines.append(header)  # lint_suppress: header
+        new_lines.extend(remaining)
+    return new_lines
+
+
+def _rewrite_item(
+    item_lines: list[str], field_indent: str, story_ids: list[str]
+) -> tuple[list[str], bool]:
+    """Rewrite every lint_suppress block in one spec item.
+
+    Returns (new_item_lines, modified).
+    """
+    new_item: list[str] = []
+    j = 0
+    modified = False
+    while j < len(item_lines):
+        il = item_lines[j]
+        j += 1
+        if not _LINT_SUPPRESS_RE.match(il):
+            new_item.append(il)
+            continue
+
+        suppress_items, j = _collect_suppress_items(item_lines, j)
+        replacement = _rewrite_suppress_block(
+            il, suppress_items, field_indent, story_ids
+        )
+        if replacement is None:
+            # Put back unchanged
+            new_item.append(il)
+            new_item.extend(suppress_items)
+            continue
+
+        new_item.extend(replacement)
+        modified = True
+    return new_item, modified
 
 
 def apply_file_mappings(
@@ -39,12 +123,7 @@ def apply_file_mappings(
 
     Returns (applied_count, skipped_count).
     """
-    # Build lookup: spec_id -> story_ids (empty means no_match)
-    story_map: dict[str, list[str]] = {}
-    for m in spec_mappings:
-        if not m.get("no_match") and m.get("story_ids"):
-            story_map[m["spec_id"]] = m["story_ids"]
-
+    story_map = _build_story_map(spec_mappings)
     if not story_map:
         return 0, len(spec_mappings)
 
@@ -52,95 +131,30 @@ def apply_file_mappings(
     lines = text.splitlines(keepends=True)
 
     result: list[str] = []
-    i = 0
     applied = 0
     skipped = 0
 
-    while i < len(lines):
-        line = lines[i]
-        m = _ITEM_START_RE.match(line)
-        if not m:
-            result.append(line)
-            i += 1
+    for block in iter_blocks(lines):
+        if isinstance(block, str):
+            result.append(block)
             continue
 
-        item_indent = m.group(1)  # e.g. "  "
-        spec_id = m.group(2)
-        field_indent = item_indent + "  "  # 2 more spaces for fields
-
-        # Collect all lines for this spec item
-        item_lines: list[str] = [line]
-        i += 1
-        while i < len(lines):
-            nxt = lines[i]
-            stripped = nxt.rstrip("\n\r")
-            if stripped and not stripped.startswith(
-                " " * (len(item_indent) + 1)
-            ):
-                break
-            item_lines.append(nxt)
-            i += 1
+        field_indent = block.field_indent
+        item_lines = block.lines
 
         # Check if this spec needs story mapping
-        story_ids = story_map.get(spec_id)
+        story_ids = story_map.get(block.spec_id)
         if story_ids is None:
             result.extend(item_lines)
             continue
 
         # Check it doesn't already have stories: (shouldn't, but guard)
-        if any(re.match(r"^\s+stories:", l) for l in item_lines):
+        if any(re.match(r"^\s+stories:", line) for line in item_lines):
             result.extend(item_lines)
             skipped += 1
             continue
 
-        # Find and rewrite the lint_suppress block
-        new_item: list[str] = []
-        j = 0
-        modified = False
-        while j < len(item_lines):
-            il = item_lines[j]
-            lm = _LINT_SUPPRESS_RE.match(il)
-            if not lm:
-                new_item.append(il)
-                j += 1
-                continue
-
-            # Collect the lint_suppress list items
-            suppress_items: list[str] = []
-            j += 1
-            while j < len(item_lines):
-                nxt = item_lines[j]
-                if _LIST_ITEM_RE.match(nxt):
-                    suppress_items.append(nxt)
-                    j += 1
-                else:
-                    break
-
-            # Check if missing_story_reference is in the list
-            has_msr = any(_MSR_ITEM_RE.match(si) for si in suppress_items)
-            if not has_msr:
-                # Put back unchanged
-                new_item.append(il)
-                new_item.extend(suppress_items)
-                continue
-
-            remaining = [
-                si for si in suppress_items if not _MSR_ITEM_RE.match(si)
-            ]
-
-            # Insert stories: block (before lint_suppress, or in its place)
-            stories_lines = [f"{field_indent}stories:\n"]
-            for story in story_ids:
-                stories_lines.append(f"{field_indent}- {story}\n")
-            new_item.extend(stories_lines)
-
-            # Keep the remaining lint_suppress items if any
-            if remaining:
-                new_item.append(il)  # lint_suppress: header
-                new_item.extend(remaining)
-
-            modified = True
-
+        new_item, modified = _rewrite_item(item_lines, field_indent, story_ids)
         if modified:
             result.extend(new_item)
             applied += 1

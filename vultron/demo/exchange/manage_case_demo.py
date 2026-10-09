@@ -53,18 +53,10 @@ When run as a script, this module will:
 
 # Standard library imports
 import logging
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
-# Vultron imports
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.workflow import create_case_via_trigger
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -75,13 +67,11 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     post_to_inbox_and_wait,
     ref_id,
-    verify_object_stored,
     setup_demo_logging,
+    verify_object_stored,
 )
 from vultron.wire.as2.factories import (
-    add_participant_to_case_activity,
     add_report_to_case_activity,
-    create_case_activity,
     rm_close_case_activity,
     rm_close_report_activity,
     rm_defer_case_activity,
@@ -91,7 +81,14 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 
-from vultron.demo.helpers.runner import run_exchange_demos
+# Vultron imports
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +101,7 @@ def setup_report_and_case(
     report_content: str,
     case_name: str,
     case_content: str,
-) -> Tuple[as_VulnerabilityReport, as_VulnerabilityCase]:
+) -> tuple[as_VulnerabilityReport, as_VulnerabilityCase]:
     """
     Shared setup: submit and validate a report, create a case, and add the
     vendor as a participant with the report linked.
@@ -127,35 +124,11 @@ def setup_report_and_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = as_VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name=case_name,
-        content=case_content,
-    )
-    create_case_act = create_case_activity(case, actor=vendor.id_)
-    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
-
-    vendor_participant = as_CaseParticipant(
-        case_roles=[CVDRole.VENDOR],
-        attributed_to=vendor.id_,
-        context=case.id_,
-    )
-    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Create,
+    case = create_case_via_trigger(
+        client, vendor, name=case_name, content=case_content
     )
 
-    create_vendor_participant = as_Create(
-        actor=vendor.id_,
-        object_=vendor_participant,
-        context=case.id_,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_vendor_participant)
-
-    add_vendor_participant = add_participant_to_case_activity(
-        vendor_participant, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_vendor_participant)
-
+    # The trigger-minted case already lists the vendor as participant.
     add_report = add_report_to_case_activity(
         report, actor=vendor.id_, target=case.id_
     )
@@ -168,7 +141,7 @@ def demo_engage_path(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the full happy-path case management workflow:
@@ -184,7 +157,7 @@ def demo_engage_path(
     logger.info("DEMO 1: Engage Path (submit → validate → engage → close)")
     logger.info("=" * 80)
 
-    report = case = None
+    case = None
     with demo_step(
         "Steps 1–2: Submit report, validate, create case with vendor "
         "participant"
@@ -230,7 +203,7 @@ def demo_defer_reengage_path(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the defer-and-re-engage path:
@@ -254,12 +227,12 @@ def demo_defer_reengage_path(
     )
     logger.info("=" * 80)
 
-    report = case = None
+    case = None
     with demo_step(
         "Steps 1–2: Submit report, validate, create case with vendor "
         "participant"
     ):
-        report, case = setup_report_and_case(
+        _report, case = setup_report_and_case(
             client=client,
             finder=finder,
             vendor=vendor,
@@ -307,7 +280,7 @@ def demo_invalidate_path(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    coordinator: Optional[as_Actor] = None,
+    coordinator: as_Actor | None = None,
 ):
     """
     Demonstrates the invalidation path: submit → invalidate → close_report.
@@ -332,7 +305,7 @@ def demo_invalidate_path(
             "usernames.",
             name="Alleged Username Enumeration",
         )
-        logger.info(f"Created report: {logfmt(report)}")
+        logger.info("Created report: %s", logfmt(report))
         offer = rm_submit_report_activity(
             report, actor=finder.id_, to=vendor.id_
         )
@@ -373,7 +346,7 @@ def demo_invalidate_path(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     ("Demo 1: Engage Path", demo_engage_path),
     ("Demo 2: Defer and Re-engage Path", demo_defer_reengage_path),
     ("Demo 3: Invalidate Path", demo_invalidate_path),
@@ -382,7 +355,7 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 
 def main(
     skip_health_check: bool = False,
-    demos: Optional[Sequence] = None,
+    demos: Sequence | None = None,
 ) -> None:
     """Main entry point for the manage case demo demo script."""
     run_exchange_demos(

@@ -40,13 +40,19 @@ References
 """
 
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import py_trees
 
-from vultron.core.behaviors.embargo.nodes import HasActiveEmbargoNode
+from vultron.core.behaviors.call_out.bundles.embargo import (
+    EMBARGO_DETERMINISTIC,
+)
+from vultron.core.behaviors.embargo.nodes import (
+    EmbargoActivityBuilder,
+    HasActiveEmbargoNode,
+)
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.states.embargo_register import TerminationReason
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.embargo import (
@@ -60,7 +66,7 @@ def create_terminate_active_embargo_tree(
     *,
     case_id: str,
     result_out: dict[str, object],
-    activity_builder: Callable[[str], list[str]] | None = None,
+    activity_builder: EmbargoActivityBuilder | None = None,
     call_out: "EmbargoCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the actor-voluntary active embargo termination BT (EMB-14).
@@ -82,7 +88,8 @@ def create_terminate_active_embargo_tree(
         result_out: Mutable dict for BT result propagation; passed to
             :func:`~vultron.core.behaviors.embargo.trigger_tree.terminate_embargo_bt`.
         activity_builder: Optional activity builder for the trigger path.
-            ``None`` uses the cascade path (SendTerminateEmbargoActivityNode).
+            ``None`` uses the cascade path, whose nodes build the
+            ``Remove(EmbargoEvent)`` from the blackboard factory.
             Forwarded to :func:`terminate_embargo_bt`.
         call_out: Bundle of call-out backend factories for this domain.
             Defaults to
@@ -92,10 +99,6 @@ def create_terminate_active_embargo_tree(
     Returns:
         Root node of the terminate-active-embargo behavior tree.
     """
-    from vultron.core.behaviors.call_out.bundles.embargo import (
-        EMBARGO_DETERMINISTIC,
-    )
-
     bundle = call_out if call_out is not None else EMBARGO_DETERMINISTIC
 
     reason_selector = py_trees.composites.Selector(
@@ -134,6 +137,7 @@ def create_terminate_active_embargo_tree(
             terminate_embargo_bt(
                 case_id=case_id,
                 result_out=result_out,
+                reason=TerminationReason.EARLY,
                 activity_builder=activity_builder,
             ),
         ],

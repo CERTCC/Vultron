@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-03-20
+created: 2026-03-20
+updated: 2026-03-20
+revision: 1
 deciders: ahouseholder
 consulted: []
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Unify RM State Tracking into Persisted VultronParticipantStatus Records

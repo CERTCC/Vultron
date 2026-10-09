@@ -26,17 +26,17 @@ from early visibility in the context window.
 # Setup
 uv sync --dev
 
-# Format Python sources (run before every commit)
-uv run black vultron/ test/ && uv run flake8 vultron/ test/
+# Format and lint Python sources (run before every commit)
+uv run ruff check --fix && uv run ruff format
 
 # Full test suite — run exactly once, read the last 5 lines
-uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 
 # Single test file (faster feedback)
 uv run pytest test/test_semantic_activity_patterns.py -v
 
-# All linters
-uv run flake8 vultron/ test/
+# All linters (ruff reads its scope from pyproject.toml)
+uv run ruff check && uv run ruff format --check
 uv run mypy
 ./mdlint.sh                     # markdown only
 
@@ -44,7 +44,7 @@ uv run mypy
 uv run mkdocs serve
 ```
 
-Do not run Black on markdown files — use `markdownlint-cli2` for those.
+`ruff format` skips markdown by config — use `markdownlint-cli2` for those.
 
 ---
 
@@ -103,7 +103,7 @@ file under `vultron/demo/` or `test/demo/` was touched, you **must** run the
 full suite before committing:
 
 ```bash
-uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Skipping this is how PRs end up blocked by 17-minute CI runs.

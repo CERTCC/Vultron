@@ -22,7 +22,9 @@ A task is not done until:
 - All edge cases the implementation touches are handled, not deferred
 - Type annotations and docstrings are current with the new behavior
 - Linters pass clean (no `# type: ignore` or `# noqa` added without justification)
-- Specs, notes, and AGENTS.md are consistent with the new behavior
+- Specs, notes, AGENTS.md, and reader-facing `docs/` pages are consistent
+  with the new behavior — for `docs/`, the PR body's `Docs:` line records
+  which pages were checked and updated (PD-03-008)
 
 A happy-path-only implementation is not done. A behavior with no test is not
 done. A changed interface with a stale type annotation is not done.
@@ -174,6 +176,17 @@ so the fix-now default stands. Silence is *never* consent to defer. (This
 overturns the older "silence → record as deferred and continue" behavior, which
 was the defer-by-default reflex in disguise.)
 
+**DEFER is unavailable to an unsupervised run.** A run with no human in the
+loop (a pipeline such as `pr-ship`, a scheduled or background agent, any session
+where the ask goes unanswered) cannot earn Gate 1, because there is nobody to
+give the approval. It has exactly two moves: **finish the item in the PR**, or
+**hold the PR** (draft, blocked, with the unfinished item stated). "File an issue
+and merge anyway" is not a third move. In the 2026-10-02 audit of 72 unsupervised
+PRs, about fifty small issues were filed as deferrals purely to get a PR merged.
+Filing is for genuinely separate scope (an "also" excursion this PR then closes,
+or a defect in code the PR does not touch), never a way to leave this PR's own
+work undone.
+
 ### Gate 2 — The inversion-ask
 
 You discovered that the work *inverts a premise* (per the inversion test
@@ -193,6 +206,64 @@ self-correcting: a mistaken halt lands in front of a human immediately and
 visibly ("that's not an inversion, proceed"), whereas a silent
 act-on-new-premise would ship an unreviewed foundation-change that surfaces only
 when it breaks something.
+
+## Never Merge on Red
+
+A PR with any failing check is not mergeable, and no label changes that:
+"pre-existing", "unrelated", "flaky" and "passed on rerun" are claims, not
+evidence. In the audit, #4034 merged with three red checks judged pre-existing,
+and #4087 re-ran a failed demo gate, saw it pass, and merged calling it flaky;
+the failure (#4113) was a real fan-out bug.
+
+- **Red `main`** gets one fix PR. Other PRs wait for it or rebase onto it; none
+  merges past it.
+- **Pre-commit hooks are never skipped** (`--no-verify`, `SKIP=`). A hook that
+  fails is fixed, not bypassed; #4033 and #4034 skipped the spec-lint hook. The
+  one documented environmental exception is the devcontainer `actionlint` hang in
+  `notes/devcontainer-tooling.md`.
+- **The one rerun exception:** a check that is *already tracked* as flaky, by an
+  open `flaky-test` issue that holds a reproduction, may be re-run **once**. The
+  PR body or verdict names that issue. A pass on rerun with no such issue is never
+  evidence of flakiness: file the issue with the reproduction first, and the PR
+  stays held until the check is green on its own or the issue's cause is fixed.
+
+## Net Issues: Close More Than You Open
+
+Broadly, a run should close more issues than it opens. This is a **signal, not a
+gate**: a run that steps into a real pothole of tech debt still ships. The point
+is that growth in the backlog is visible and attributable, so it can be read
+instead of guessed at.
+
+Every issue an agent files through `manage_github_issue.sh` carries a reason, as
+an `opened:` label (or `--planned` for planning and user-requested work, which
+carries none):
+
+| Label | Meaning |
+|---|---|
+| `opened:excursion` | Filed so this PR could close it. Nets to zero. |
+| `opened:separate-defect` | A real defect in code the PR does not touch. |
+| `opened:debt` | A known weakness seen but not fixed now. Also issue type `Concern`, and it carries a `Where:` line naming a file, directory, or spec. |
+| `opened:deferred` | This PR's own work, left undone. Forbidden for unsupervised runs; always flagged. |
+
+**The net** is the pre-existing, non-Epic issues closed by merged PRs, minus the
+`separate-defect`, `debt`, and `deferred` issues opened. `excursion` issues are
+excluded from both sides. Closing a duplicate or `wontfix` goes on its own line
+and does not count toward the net.
+
+**Where it shows up.** Every implementation PR body states its own closes/opens
+line (see `pr-body-guide.md`). `work-epic-tasks` and `pr-ship` print the run
+total at the end. `velocity-report` shows net issues per week by reason. No
+threshold flags a run yet: report the numbers until `velocity-report` shows what
+a typical run looks like. The one exception is `opened:deferred`: any nonzero
+count is a process defect and is called out as such.
+
+**Nearby debt is fixed now.** Before opening the PR, list open `opened:debt`
+issues whose `Where:` names a file the diff touches, and fix them in the PR with
+a `- Closes #N` bullet each. Debt whose `Where:` is a spec or subpackage the PR's
+issue also cites is a "might be nearby" case: fix it too, with a one-line reason
+in the PR body. Do not use the issue's Epic as a test of nearness; epics group by
+goal, not by code. This is the fix-now rule applied to debt: the context is
+already loaded.
 
 ## Clarity Over Size, Always
 
@@ -232,7 +303,7 @@ One exceptional category for work genuinely left for later:
 
 | Category | Gate |
 |---|---|
-| **DEFER** | The full deferral-ask (Gate 1): file the record, present a *measured remainder* in plain language, and get **explicit** human approval. On silence, fix it now. No unilateral deferral, no attempt-count justification, no "silence counts as yes." |
+| **DEFER** | The full deferral-ask (Gate 1): file the record, present a *measured remainder* in plain language, and get **explicit** human approval. On silence, fix it now; if it cannot be finished, hold the PR. Unavailable to an unsupervised run. No unilateral deferral, no attempt-count justification, no "silence counts as yes." |
 
 **WARN** (flagged but no required action) does not exist in this project.
 If something is worth noting, it is worth fixing or DEFER-gating. Posting a

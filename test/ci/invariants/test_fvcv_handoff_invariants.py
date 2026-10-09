@@ -15,11 +15,15 @@ FVCV-handoff-specific invariants:
 - Vendor2 is a late joiner — its replica holds the complete log from genesis.
 
 Note on the ownership transfer: the ``Offer(VulnerabilityCase)`` /
-``Accept(Offer(VulnerabilityCase))`` handoff is a direct Vendor1 ↔
-Coordinator exchange (TRIG-11-001/TRIG-11-002) and does not emit a canonical
-CaseActor ledger entry, so it is not observable here.  The demo verifies the
-resulting ``attributed_to`` change on both the Vendor1 and Coordinator
-DataLayers via ``demo_check`` assertions instead.
+``Accept(Offer(VulnerabilityCase))`` handoff routes through the CaseActor
+(ADR-0053, CM-21-005/CM-21-007), which commits
+``offer_case_ownership_transfer`` and ``accept_case_ownership_transfer``
+ledger entries and broadcasts them to every participant.  The acceptance is
+in the expected-event-types list below, and the narrative's causal edges
+place it between the Coordinator's own invitation acceptance and its invite
+of Vendor2.  The demo additionally verifies the resulting ``attributed_to``
+change on both the Vendor1 and Coordinator DataLayers via ``demo_check``
+assertions.
 
 All tests are tagged ``@pytest.mark.case_ledger_invariants``.  They skip
 automatically when ``devlogs/fvcv-handoff/`` is absent.
@@ -103,6 +107,7 @@ globals().update(
         chain_actors=_CHAIN_ACTORS,
         expected_event_types=_FVCV_HANDOFF_EXPECTED_EVENT_TYPES,
         narrative_path="docs/topics/scenarios/fvcv-handoff.md",
+        joined_invitees=2,
     )
 )
 
@@ -149,13 +154,21 @@ def test_fvcv_handoff_vendor2_rm_triage_observed(
 ) -> None:
     """Vendor2 RM triage cycle (VALID then ACCEPTED) is observed in the ledger.
 
-    Per CM-11-002, Vendor2 SHOULD run the standard triage cycle after
-    receiving the full case replica.  Both ``validate_report`` and
-    ``engage_case`` entries must appear at least twice in total — the
-    original receiver (Vendor1) and Vendor2 each contribute one of each.
+    Per CM-11-011 and CM-11-020, Vendor2 joined through an Invite, so it
+    judges the case by accepting the full-case Invite, not by validating the
+    reporter's report.  ``validate_report`` therefore appears once (Vendor1,
+    the original receiver), the full-case Invite acceptance appears once
+    (Vendor2), and ``engage_case`` appears at least twice (one each).
     """
     violations = check_event_type_count(
-        fvcv_handoff_replicas, "validate_report", min_count=2
+        fvcv_handoff_replicas, "validate_report", min_count=1, max_count=1
+    )
+    assert not violations, violations[0] if violations else ""
+
+    violations = check_event_type_count(
+        fvcv_handoff_replicas,
+        "accept_invite_actor_to_full_case",
+        min_count=1,
     )
     assert not violations, violations[0] if violations else ""
 

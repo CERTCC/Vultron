@@ -118,7 +118,8 @@ suspenders for edge cases the runtime guard might miss).
 
 `ActivityPattern` declares `activity_`, `strict`, `to_`, `object_`, `target_` and
 `context_` — and **no `origin_` field**, so `origin` is never consulted for
-dispatch however well it reads. Set the discriminator fields the pattern actually
+dispatch however well it reads (#3438). A field may be a **tuple of types** (any-of):
+`CreateEmbargoEventPattern` admits a case or a report subject that way (VAM-05-001). Set the discriminator fields the pattern actually
 requires. A well-formed example is not necessarily a dispatchable one: an example
 that matches no pattern is silently dropped by a receiver, and the reference page
 rendering it documents a wire form that does not work.
@@ -191,5 +192,8 @@ ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`). The AS2
 namespace does not declare Vultron-specific types (`VulnerabilityCase`,
 `EmbargoEvent`, etc.); using it alone means receivers cannot resolve those type
 names. The Vultron context document imports AS2 internally, so citing only the
-Vultron URI is both correct and sufficient. See VM-10-001, ADR-0069.
+Vultron URI is both correct and sufficient. Domain types are core
+`CoreObject`s (ADR-0099 detail 3), not `as_VultronObject` subclasses: they get
+the same context from `CoreObject`'s `by_alias` serializer, not from delivery
+(#3490). See VM-10-001, ADR-0069.
 *Source: CONCERN-2105*

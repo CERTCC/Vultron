@@ -16,7 +16,7 @@
 
 Covers:
   CBT-05-005  Embedded as_CaseParticipant objects are stored as independent
-              DataLayer records so BT nodes (CheckParticipantExists,
+              DataLayer records so BT nodes (SenderIsActiveParticipantNode,
               AppendParticipantStatusNode) can look them up by UUID.
   CBT-05-006  AddParticipantStatusBT succeeds on the reporter's replica after
               bootstrap (regression for #563 — M4 timeout in two-actor demo).
@@ -27,15 +27,21 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.dimensions import (
+    VfDimension,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.cs import CS_vf
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
     create_case_activity,
@@ -48,9 +54,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-)
-from vultron.core.models.dimensions import (
-    VfDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -73,15 +76,15 @@ _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
 
 def _build_link(
     *,
-    trusted_case_creator_id: str | None = _CREATOR_ID,
+    case_creator_id: str | None = _CREATOR_ID,
     case_id: str | None = None,
-    trusted_case_actor_id: str | None = None,
+    case_manager_id: str | None = None,
 ) -> VultronReportCaseLink:
     return VultronReportCaseLink(
         report_id=_REPORT_ID,
         case_id=case_id,
-        trusted_case_creator_id=trusted_case_creator_id,
-        trusted_case_actor_id=trusted_case_actor_id,
+        case_creator_id=case_creator_id,
+        case_manager_id=case_manager_id,
     )
 
 
@@ -108,6 +111,7 @@ def case_with_two_participants():
         context=_CASE_ID,
     )
     vendor_p = as_CaseParticipant(
+        case_roles=[CVDRole.VENDOR],
         id_=_VENDOR_PARTICIPANT_ID,
         attributed_to=_VENDOR_ID,
         context=_CASE_ID,
@@ -141,7 +145,7 @@ def create_event(make_payload, case_with_two_participants):
 class TestBootstrapParticipantStorage:
     """CBT-05-005 — bootstrap Create stores embedded participants in DataLayer.
 
-    BT nodes ``CheckParticipantExists`` (#561) and ``AppendParticipantStatus``
+    BT nodes ``SenderIsActiveParticipantNode`` (#561) and ``AppendParticipantStatus``
     (#562) look up participants by UUID via ``datalayer.read(participant_id)``.
     After a bootstrap ``Create(as_VulnerabilityCase)`` those participant records
     MUST exist as independent DataLayer entries so the BT nodes can find them.
@@ -156,7 +160,12 @@ class TestBootstrapParticipantStorage:
         link = _build_link()
         dl.save(link)
 
-        CreateCaseReceivedUseCase(dl, create_event).execute()
+        CreateCaseReceivedUseCase(
+            dl,
+            create_event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         stored = dl.read(_PARTICIPANT_ID)
         assert stored is not None, (
@@ -176,7 +185,12 @@ class TestBootstrapParticipantStorage:
         dl.save(link)
 
         with caplog.at_level(logging.DEBUG):
-            CreateCaseReceivedUseCase(dl, create_event).execute()
+            CreateCaseReceivedUseCase(
+                dl,
+                create_event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
 
         stored_records = [
             r
@@ -200,7 +214,12 @@ class TestBootstrapParticipantStorage:
         case, _, _ = case_with_two_participants
         dl.create(case)
 
-        CreateCaseReceivedUseCase(dl, create_event).execute()
+        CreateCaseReceivedUseCase(
+            dl,
+            create_event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         stored = dl.read(_PARTICIPANT_ID)
         assert stored is not None, (
@@ -211,11 +230,14 @@ class TestBootstrapParticipantStorage:
     def test_save_failure_propagates_from_store_embedded_participants(
         self, dl, create_event
     ):
-        """A DataLayer failure in _store_embedded_participants propagates as an
+        """A DataLayer failure in store_embedded_participants propagates as an
         exception rather than being silently swallowed (leaves replica
         consistent — fail loudly instead of leaving participants missing).
+
+        The failing write runs inside a BT node, so the bridge reports it as an
+        internal error and the handler raises it (ADR-0095).
         """
-        import unittest.mock as mock
+        from unittest import mock
 
         link = _build_link()
         dl.save(link)
@@ -231,8 +253,15 @@ class TestBootstrapParticipantStorage:
             return original_save(obj)
 
         with mock.patch.object(dl, "save", side_effect=_patched_save):
-            with pytest.raises(RuntimeError, match="storage failure"):
-                CreateCaseReceivedUseCase(dl, create_event).execute()
+            with pytest.raises(
+                VultronBTInternalError, match="storage failure"
+            ):
+                CreateCaseReceivedUseCase(
+                    dl,
+                    create_event,
+                    wire_render_port=As2WireRenderAdapter(),
+                    sync_port=SyncActivityAdapter(dl),
+                ).execute()
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +276,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
     Regression test for #563: M4 timeout in two-actor demo.
 
     Before the fix (PRs #561, #562):
-    - ``_store_embedded_participants`` did not persist each embedded participant
+    - ``store_embedded_participants`` did not persist each embedded participant
       as an independent DataLayer record, so vendor's ``as_CaseParticipant`` could
       not be found by its UUID after bootstrap.
     - ``AppendParticipantStatusNode`` did ``dl.read(vendor_participant_id)``
@@ -256,7 +285,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
     - Finder's M4 poll returned 404 until timeout.
 
     After the fix:
-    - ``_store_embedded_participants`` stores all embedded participant objects
+    - ``store_embedded_participants`` stores all embedded participant objects
       during bootstrap (CBT-05-005).
     - ``AppendParticipantStatusNode`` finds the participant and appends the
       status successfully.
@@ -281,15 +310,20 @@ class TestM4AddParticipantStatusAfterBootstrap:
         link = _build_link()
         dl.save(link)
 
-        # Step 1: bootstrap — _store_embedded_participants saves vendor's
+        # Step 1: bootstrap — store_embedded_participants saves vendor's
         # as_CaseParticipant as an independent DataLayer record (CBT-05-005).
-        CreateCaseReceivedUseCase(dl, bootstrap_event).execute()
+        CreateCaseReceivedUseCase(
+            dl,
+            bootstrap_event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         # Step 2: confirm vendor participant is independently stored (core fix).
         stored_p = dl.read(_VENDOR_PARTICIPANT_ID)
-        assert (
-            stored_p is not None
-        ), "Vendor as_CaseParticipant must be stored during bootstrap (CBT-05-005)"
+        assert stored_p is not None, (
+            "Vendor as_CaseParticipant must be stored during bootstrap (CBT-05-005)"
+        )
 
         # Step 3: vendor self-reports its VFd status to the case actor.
         # actor=_VENDOR_ID passes VerifySenderIsParticipantNode
@@ -310,13 +344,18 @@ class TestM4AddParticipantStatusAfterBootstrap:
         )
         event = make_payload(activity, receiving_actor_id=_CASE_ACTOR_ID)
 
-        AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         # Step 4: vendor participant now has the VFd status — M4 can observe it.
         updated_p = dl.read(_VENDOR_PARTICIPANT_ID)
-        assert (
-            updated_p is not None
-        ), "Vendor participant must still exist after AddParticipantStatus"
+        assert updated_p is not None, (
+            "Vendor participant must still exist after AddParticipantStatus"
+        )
         updated_p = cast(as_CaseParticipant, updated_p)
         status_ids = [
             getattr(s, "id_", s) for s in updated_p.participant_statuses

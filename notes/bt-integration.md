@@ -7,13 +7,23 @@ description: >
   strategy, subtree map, and anti-patterns to avoid.
 related_specs:
   - specs/behavior-tree-integration.yaml
+  - specs/handler-protocol.yaml
+  - specs/inbox-endpoint.yaml
+  - specs/case-ledger-processing.yaml
+  - specs/embargo-policy.yaml
+  - specs/participant-case-replica.yaml
+  - specs/case-bootstrap-trust.yaml
 related_notes:
   - notes/bt-canonical-reference.md
+  - notes/case-ledger-authority.md
   - notes/bt-pitfalls.md
+  - notes/embargo-lifecycle.md
   - notes/bt-fuzzer-nodes.md
   - notes/protocol-event-cascades.md
   - notes/use-case-behavior-trees.md
   - notes/testing-pitfalls.md
+  - notes/inbox-orchestration.md
+  - notes/participant-embargo-consent.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -212,19 +222,29 @@ to the wrong record (ISSUE-2762):
 
 - **Reusing the resolved receiving actor as a subject.** Satisfies every
   written requirement and inverts the semantics.
-- **A tree factory that accepts a subject argument and only logs it.**
-  `OptionalLookupParticipantNode` falls back to the BT execution actor when
-  `target_actor_id` is falsy, so a dropped subject argument is
-  indistinguishable from one never supplied. The node now logs at WARNING when
-  a subject *was* named and did not resolve, which separates the two.
+- **A tree factory that accepts a subject argument and only logs it.** A
+  lenient lookup that falls back to the BT execution actor when the subject is
+  falsy makes a dropped subject argument indistinguishable from one never
+  supplied. Log at WARNING when a subject *was* named and did not resolve, as
+  `CanAnswerEmbargoInviteNode` does, which separates the two.
 
-Resolve a subject by **addressee membership**, not by position: prefer the
-receiving actor when it is among the recipients (correct in every recipient's
-replica, and canonical by construction per HP-09-001), fall back to a sole
-named recipient, and warn rather than guess when several recipients are named
-and none is this store's actor. See `resolve_invitee_id()` in
-`vultron/core/use_cases/received/embargo.py` and the older
-`_is_primary_submit_report_recipient()` in `received/report.py`. Full rule:
+Read a subject **from the message**, never from the receiving actor. For an
+`Invite(EmbargoEvent)` the invitee is the Invite's *sole* `to:` recipient
+(EP-09-010, ADR-0113): every emitter sends one recipient (a participant to the
+CASE_MANAGER; the CASE_MANAGER to one participant per relayed Invite), so an
+Invite naming several recipients or none is refused as a misrouting, never
+resolved by membership or guessed at. `resolve_invitee_id()`
+(`vultron/core/use_cases/received/embargo/invite.py`) returns the sole recipient in its
+canonical spelling and raises `VultronProtocolViolationError` naming the
+recipient count, which the use case reports as `REFUSED`. A proposal addressed
+to the CASE_MANAGER names the manager as that sole recipient, but the manager
+adjudicates it and is never its invitee, so its own record gets no RSVP
+deadline (CM-28-003, ISSUE-2762).
+Where a message legitimately names several recipients (the report `Offer`),
+test membership with `is_addressed_to()` (`vultron/core/predicates/addressing.py`),
+never a bare `in`: `to:`/`cc:` arrive as the sender wrote them, so a trailing
+slash misses an exact match while the receiver is canonical (#2667); see
+`_not_primary_recipient_reason()` in `received/report.py`. Full rule:
 `vultron/core/AGENTS.md` § "A Message Subject Is Never
 `resolve_receiving_actor_id()`".
 
@@ -235,9 +255,27 @@ and none is this store's actor. See `resolve_invitee_id()` in
 **Prototype approach**: Sequential FIFO message processing per actor.
 
 **Implementation**: BackgroundTasks queues messages; inbox endpoint returns
-202 immediately. BT execution happens in the background via
-`anyio.to_thread.run_sync`, which places synchronous callables onto a
-**thread pool** — not a single thread.
+202 immediately. BT execution happens in the background on a **thread pool**
+— not a single thread, and never on the event loop — by two routes:
+
+- Trigger routes are synchronous `def` endpoints, so Starlette runs them via
+  `anyio.to_thread.run_sync`.
+- The inbox background task (`run_inbox_pipeline`) is an `async def`, which
+  Starlette runs *on the event loop*; it therefore hands the synchronous BT
+  pipeline (`process_payload` and the replay loop) to `asyncio.to_thread`
+  itself, inside the per-actor asyncio lock (IE-06-003).
+
+**Why the inbox hop matters** (#3033, #2898): before the hop, every inbound
+activity stalled the whole container for its BT tick. No HTTP response went
+out, peers' deliveries were not accepted, no co-hosted outbox drain could run
+(the served app did not even start an `OutboxMonitor` until ADR-0112 — its
+root lifespan had drifted from `app_v2`'s), and a trigger route waiting on the BT lock from
+its threadpool thread starved until the client timed out. In the fv demo the
+CaseActor's outbox paid one full BT tick per delivery on the vendor container
+(0.6–5 s each under CI load), and `Create(VulnerabilityCase)` was queued
+behind a ledger fan-out that took 17 s to drain. A stale version of this
+section said the inbox path already ran on the thread pool; it had, before
+the task became a coroutine.
 
 **Critical implication**: Two BT executions can and do run on different
 threads simultaneously. The `py_trees.blackboard.Blackboard.storage` dict
@@ -316,7 +354,121 @@ The `execute()` method MAY contain infrastructure glue only:
 - Check BT status
 - Extract output from the blackboard
 
-Nothing domain-significant lives outside the tree.
+Nothing domain-significant lives outside the tree. In particular, a call from
+`execute()` to a helper function that writes to the DataLayer is **not** glue:
+the write is outside the tree whatever the helper is named, and the mutation
+ratchet (`test/architecture/test_no_dl_mutations_in_execute.py`) resolves such
+calls through the use-case package transitively (CLP-10-020): a write that a
+received `execute()` reaches through any function or method defined under
+`vultron/core/use_cases/` — module helper, `self._method()`, relative or
+re-exported import, any depth — is a violation of the file holding the
+`execute()`. Resolution stops at the package boundary, so a BT node's write is
+never one. Trigger-side bodies get only the direct rule (BT-15-001 governs
+them). Eleven received `execute()` bodies in nine files reached a write this way
+when the rule was widened, most through one shared `_idempotent_create` helper
+and the rest through bespoke ones, invisible to the earlier body-only scan
+because the write sat one call away (ISSUE-3339, ADR-0111). Each was held in the
+exact `KNOWN_VIOLATIONS` set, annotated with the issue that retired it; the set is
+now an empty `frozenset()`, and a new entry needs the issue that owns its removal.
+
+### The Four Received-Side Stages (ADR-0111)
+
+A received-side tree composed via `create_receive_activity_tree` runs four
+stages in a fixed order (CLP-10-006, CLP-10-010):
+
+1. **Intake** — one shared node, `IntakeReceivedActivityNode`
+   (`vultron/core/behaviors/case/nodes/intake.py`), archives the mail: the
+   received activity exactly as received, idempotently, as a
+   `ReceivedActivityRecord` (`vultron/core/models/received_activity_record.py`)
+   whose id the *receiver* derives (`build_id(sender_activity_id)`) and which
+   carries the sender's id for the reverse lookup. Never under the sender's
+   id: the DataLayer is one id-keyed table per actor, so a sender naming its
+   activity after a record we derive (a pending-case-inbox marker, an offer
+   record) would occupy that id ahead of our own write and a read-then-create
+   helper would read the squatter as "already stored". A reader that needs
+   the archived activity goes through `build_id`. It decides nothing,
+   ledgers nothing, and writes nothing else (CLP-10-017). It runs first, so a
+   refusal a moment later still leaves the receiver holding the archive
+   (CLP-10-018). The letter's contents are not core's records: a case, note,
+   status or embargo carried inline is a *message shaped like* that object, and
+   the record core keeps is written by an effect node from the event's copy,
+   after the guards. Intake writing them would let any sender seed a replica
+   ahead of the trust checks — a stored case row *is* the replica (PCR-03-004,
+   CBT-01-005). A stored `VultronActivity` dehydrates `object`/`target` to ids,
+   so the faithful copy is the received evidence ADR-0107 step 5 seals at parse;
+   #3742 persists it beside the archived row, through this node.
+2. **Guards** — read-only precondition checks that return FAILURE to refuse.
+   They write nothing. A refusal goes to the process log and, where the
+   protocol calls for an answer, back to the sender — never to the ledger
+   (CLP-05-002). A tree that owes that answer passes it as `refusal_effects`
+   (CLP-10-022): the factory wraps the guards in a `PreconditionGuardStage`
+   (`case/nodes/refusal_stage.py`) that runs the refusal effects only when a
+   precondition guard fails — not the sender guard, and never on an accepted
+   delivery — inside a CASE_MANAGER gate, and skips them on a redelivery intake
+   found already archived. The stage then fails with the guard's reason, so
+   nothing is committed and the handler still reads `REFUSED`. A refusal effect
+   must be `EmitCapable` and hold no `StateWriteCapable` node; the factory
+   refuses any other, because a refusal changes no state. The redelivery skip
+   keys on intake's archive, not on a record that the effects ran, so a
+   redelivery whose first delivery never reached them is not answered either. Do not hand-build a `Selector[guard, emit]` instead: an
+   emit beside a guard runs ahead of the commit on an accepted delivery. The
+   RSH-06-004 note for a refused backward RM declaration is the first user.
+3. **Commit** — the CASE_MANAGER ledgers the received activity as received, a
+   postmark on the envelope (ADR-0107, CLP-07-011). It never rebuilds the
+   assertion from processed state.
+4. **Effects** — apply the accepted assertion to the local replica and enqueue
+   any cascades. `replica_effects` run on every replica; `manager_effects` run
+   only at the CASE_MANAGER, inside the gate the factory adds (BT-17-008). See
+   `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From
+   the Factory".
+
+Every ledger commit goes through `CommitCaseLedgerEntryNode` inside the tree; a
+received `execute()` never commits one itself (BT-06-006).
+
+Intake is the only path that stores the received activity (CLP-10-019). Do not
+add a per-tree store node or a handler-local store helper; the factory
+(`create_receive_activity_tree`, `vultron/core/behaviors/case/receive_activity_tree.py`)
+already supplies the intake node as the first child of every tree it builds. A
+receive tree that does not compose through the factory runs no intake. #3870
+moved the two that composed `create_case_manager_gated_tree` directly (add-note,
+update-case) and found more that never used the factory; those are held as an
+exact set in `test/architecture/test_receive_side_intake_first.py`
+(`KNOWN_FACTORIES_BYPASSING_INTAKE`), where a receive-side tree is one a
+received use case calls rather than one whose name says "received". The case,
+report and note factories moved with #4288; what remains are the embargo trees
+that synthesise an entry rather than process a received activity, each with its
+reason in the test. Intake archives nothing when the event carries no activity,
+so a semantic-registry entry must set `include_activity=True` (#4288 set it for
+add/remove-case-participant and create-note). A handler that turns a delivery
+away before it can build its tree uses `refuse_after_intake`
+(`use_cases/received/_store_only.py`) so the refusal still leaves the archive.
+Calling the factory is not enough: the ratchet checks that the factory
+*returns* the shared factory's result, because a tree that nests it under a
+hand-built root (as the close-case tree did, a Selector whose first arm guarded
+ahead of intake) runs something before intake. Those are a second exact set,
+`KNOWN_FACTORIES_NESTING_INTAKE`, empty since #3870 lifted the close-case
+tree's intake to its root. A tree that needs a branch ahead of the receipt
+commit wraps the branch: outer factory with `case_id=None` (intake, no commit),
+inner factory per arm that commits. The inner intake finds the archive and
+writes nothing.
+
+The factory commits only when it is given a `case_id`, and CLP-10-013 requires
+the commit exactly when the received `(type, object)` pair is a canonical payload
+signature (`_CANONICAL_PAYLOAD_SIGNATURES`) — otherwise the CASE_MANAGER would
+refuse its own commit. `Update(VulnerabilityCase)` is not one, so
+`create_update_case_received_tree` passes `case_id=None` and the CASE_MANAGER
+publishes the update through its `Announce` broadcast (CM-06-001) as before.
+That is a decision, not a gap: an owner's update is deliberately not a ledgered
+assertion (ADR-0111, #3936).
+
+One canonical signature also passes `case_id=None` (#4304):
+`Announce(VulnerabilityCase)`. Only the CASE_MANAGER sends it and only a
+participant replica receives it, so the commit gate could only skip.
+`Add(CaseParticipant)` was the other until #4081 made it the Case Owner's
+reinstatement request; it now commits, and replicas apply its entry through
+`ApplyReinstateCaseParticipantFromLedgerNode` (RSH-08-004).
+Any other tree whose activity is canonical passes `case_id`, with its refusing nodes
+in `precondition_guards`, so a refused activity leaves no entry.
 
 ### Trigger/Received Parity
 
@@ -335,7 +487,7 @@ leaf nodes executed via `bridge.execute_with_setup()`, not directly in
 # ❌ WRONG — trigger-side inline RM state transition
 def execute(self) -> dict:
     set_status = ParticipantStatus(rm_state=RM.INVALID, ...)
-    _idempotent_create(dl, ..., set_status, ...)
+    dl.create(set_status)
     add_activity_to_outbox(actor_id, activity_id, dl)
     return {"activity": activity_dict}
 ```
@@ -522,23 +674,24 @@ carries its own RM state in `participant_status[].rm_state`, independently
 of other participants.
 
 Per ADR-0015, a `VulnerabilityCase` is created at report receipt
-(RM.RECEIVED). `VultronParticipant` records are created at that time:
+(RM.RECEIVED). `CaseParticipant` records are created at that time:
 reporter at RM.ACCEPTED, receiver at RM.RECEIVED. RM state is tracked
-in `VultronParticipant.participant_status[].rm_state` from the moment
+in `CaseParticipant.participant_status[].rm_state` from the moment
 of case creation.
 
 > **ADR-0015 is superseded by ADR-0041.** In the CASE_MANAGER-authoritative model
-> the vendor tree no longer creates the `VulnerabilityCase` directly.  The vendor
-> stores the report, writes a pending `VultronReportCaseLink`, and sends
-> `Create(as_CaseProposal)` to the CASE_MANAGER; the CASE_MANAGER creates the case,
-> adds participants, and initializes embargo before emitting
-> `Create(VulnerabilityCase)` back to the vendor.  See `notes/case-proposal.md`
+> the report receiver's tree no longer creates the `VulnerabilityCase` directly.
+> The report receiver stores the report, writes a pending `VultronReportCaseLink`,
+> and sends `Create(as_CaseProposal)` to the CASE_MANAGER; the CASE_MANAGER
+> creates the case, adds participants, and initializes embargo before emitting
+> `Create(VulnerabilityCase)` back to the report receiver, which becomes the
+> CASE_OWNER.  See `notes/case-proposal.md`
 > for the corrected flow (CM-22, CP-09).
 
 `ReportStatus` in the flat status layer is a **transient pre-case
 mechanism** that was previously used for reports not yet associated with
 a case (pre-case RM states: RECEIVED, INVALID). Under ADR-0015, the case
-is created at receipt, so `VultronParticipant` records carry RM state
+is created at receipt, so `CaseParticipant` records carry RM state
 from the start. `ReportStatus` is retained for backwards compatibility but
 is no longer the primary RM state carrier.
 

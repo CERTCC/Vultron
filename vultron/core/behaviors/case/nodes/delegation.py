@@ -22,12 +22,14 @@ auto-accepting and explicitly rejecting the delegation.
 See SE-08-003, ADR-0039.
 """
 
+import json
 import logging
 from typing import cast
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     _EmitSingleActivityBase,
@@ -35,13 +37,13 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
 
-class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
+class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
     """Auto-accept a CaseParticipantRole offer on behalf of the local actor (ADR-0039).
 
     When the local actor receives an ``Offer(CaseParticipantRole)`` it MUST
@@ -116,13 +118,11 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
     def _commit_accept_to_ledger(
         self, accept_id: str, payload_snapshot: str
     ) -> bool:
-        import json
-
         assert self.datalayer is not None
         assert self.actor_id is not None
+        # Exact blob as snapshot (VM-08-003): the factory sets ``context`` to
+        # the case URI from the offer it embeds, so nothing is patched here.
         snapshot_dict: dict = json.loads(payload_snapshot)
-        if snapshot_dict.get("context") != self.case_id:
-            snapshot_dict["context"] = self.case_id
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,
             object_id=accept_id,
@@ -150,8 +150,8 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
             return f
         try:
             accept_id, payload_snapshot = self._call_factory()
-        except Exception as exc:
-            self.logger.error(
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: error creating Accept for offer '%s': %s",
                 self.name,
                 self.offer_id,

@@ -5,6 +5,7 @@ description: Design decisions for YAML-backed Pydantic configuration loading in 
 related_specs:
   - specs/case-ledger-processing.yaml
   - specs/configuration.yaml
+  - specs/embargo-policy.yaml
 relevant_packages:
   - fastapi
   - pydantic
@@ -14,6 +15,7 @@ relevant_packages:
   - vultron/core
 related_notes:
   - notes/case-ledger-authority.md
+  - notes/embargo-default-semantics.md
   - notes/testing-pitfalls.md
 ---
 
@@ -59,8 +61,8 @@ CFG-06).
 # vultron/config/app.py
 from __future__ import annotations
 
+import functools
 import logging
-from functools import lru_cache
 from pathlib import Path
 from typing import Literal, Any
 
@@ -71,7 +73,6 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 logger = logging.getLogger(__name__)
 
 LogLevelName = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-
 
 class YamlConfigSource(PydanticBaseSettingsSource):
     """Custom pydantic-settings source that reads from a YAML file."""
@@ -92,7 +93,6 @@ class YamlConfigSource(PydanticBaseSettingsSource):
     def get_fields_value(self, field_name: str, field_info):
         ...  # not called directly; __call__ returns the full dict
 
-
 class ServerConfig(BaseSettings):
     base_url: str = "http://localhost:7999"
     log_level: LogLevelName = "INFO"
@@ -104,12 +104,10 @@ class ServerConfig(BaseSettings):
 
     model_config = {"env_prefix": "VULTRON_SERVER__"}
 
-
 class DatabaseConfig(BaseSettings):
     db_url: str = "sqlite:///vultron.db"
 
     model_config = {"env_prefix": "VULTRON_DATABASE__"}
-
 
 class AppConfig(BaseSettings):
     server: ServerConfig = ServerConfig()
@@ -137,22 +135,20 @@ class AppConfig(BaseSettings):
             YamlConfigSource(settings_cls),
         )
 
-
-_config_cache: AppConfig | None = None
-
-
+@functools.cache
 def get_config() -> AppConfig:
-    global _config_cache
-    if _config_cache is None:
-        _config_cache = AppConfig()
-    return _config_cache
+    return AppConfig()
 
+def clear_config_cache() -> None:
+    get_config.cache_clear()
 
 def reload_config() -> AppConfig:
-    global _config_cache
-    _config_cache = None
+    clear_config_cache()
     return get_config()
 ```
+
+The cache is owned by `functools.cache` rather than a module global that
+`get_config()` rebinds (ruff `PLW0603`, #3985).
 
 > **Note on nested env vars**: `pydantic-settings` with
 > `env_nested_delimiter="__"` maps `VULTRON_SERVER__BASE_URL` to
@@ -224,6 +220,18 @@ actor-policy defaults used by BT nodes and the production adapter:
   `ResolveCaseActorUrlsNode` to return `FAILURE` with a clear error message.
   `None` by default; MUST be supplied via `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
   or the `config.yaml` `actor:` block. See CP-08-001, `notes/case-proposal.md`.
+- `min_rsvp_window` (72 h) and `default_rsvp_window` (7 d): the EP-07-002
+  minimum and the CM-18-002 policy window for an embargo invitation's RSVP
+  deadline. Both are measured from the invite's `published` time and bounded
+  by the embargo's end (EP-07-006); see
+  [notes/embargo-default-semantics.md](embargo-default-semantics.md). Inbound
+  extraction reads them through `_resolve_actor_config()` on both inbox paths
+  (`process_payload(actor_config=...)` and `prepare_for_dispatch()`); when no
+  `ActorConfig` loads, the protocol defaults apply.
+- `protocol_default_embargo_duration` (72 h): the embargo applied at case
+  creation when no proposal and no actor default applies (EP-04-005). A value
+  outside `[72 hours, 5 days]` is refused at load. It never competes under
+  shortest-wins and is not a minimum (EP-04-006, EP-04-007).
 
 ---
 
@@ -238,68 +246,10 @@ actor-policy defaults used by BT nodes and the production adapter:
 | `VULTRON_ACTOR__AUTO_CREATE_CASE` | `actor.auto_create_case` | `true` |
 | `VULTRON_ACTOR__DEFAULT_CASE_ROLES` | `actor.default_case_roles` | `[]` |
 | `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` | `actor.case_actor_service_url` | `None` |
+| `VULTRON_ACTOR__PROTOCOL_DEFAULT_EMBARGO_DURATION` | `actor.protocol_default_embargo_duration` | `PT72H` |
 | `VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS` | `ledger.clock_skew_tolerance_seconds` | `300` |
 | `VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS` | `ledger.future_tolerance_seconds` | `300` |
 | `VULTRON_LEDGER__STALENESS_WINDOW_DAYS` | `ledger.staleness_window_days` | `7` |
-
-### Legacy env var migration
-
-The following env var names were used in the codebase before this design
-was adopted. They MUST be replaced everywhere:
-
-| Old name | New name |
-|----------|----------|
-| `LOG_LEVEL` | `VULTRON_SERVER__LOG_LEVEL` |
-| `VULTRON_BASE_URL` | `VULTRON_SERVER__BASE_URL` |
-| `VULTRON_DB_URL` | `VULTRON_DATABASE__DB_URL` |
-
-`SeedConfig`-specific env vars (`VULTRON_ACTOR_NAME`, `VULTRON_ACTOR_TYPE`,
-`VULTRON_ACTOR_ID`, `VULTRON_SEED_CONFIG`) are unchanged.
-
----
-
-## Call-site Migration
-
-### Before (scattered os.environ.get)
-
-```python
-# vultron/adapters/utils.py
-BASE_URL = os.environ.get("VULTRON_BASE_URL", "https://demo.vultron.local/")
-
-# vultron/adapters/driven/datalayer_sqlite.py
-_DEFAULT_DB_URL = os.environ.get("VULTRON_DB_URL", "sqlite:///vultron.db")
-
-# vultron/adapters/driving/fastapi/app.py
-log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
-```
-
-### After (unified get_config())
-
-```python
-from vultron.config import get_config
-
-# vultron/adapters/utils.py
-BASE_URL = get_config().server.base_url
-
-# vultron/adapters/driven/datalayer_sqlite.py
-_DEFAULT_DB_URL = get_config().database.db_url
-
-# vultron/adapters/driving/fastapi/app.py
-log_level_name = get_config().server.log_level
-```
-
-### FastAPI Depends injection
-
-```python
-from fastapi import Depends
-from vultron.config import AppConfig, get_config
-
-@router.get("/info")
-async def info(config: AppConfig = Depends(get_config)):
-    return {"base_url": config.server.base_url}
-```
-
----
 
 ## Testing Pattern
 
@@ -319,23 +269,23 @@ def test_env_override():
     # env and cache are restored here, regardless of exception
 ```
 
-For tests that only need to reset the cache (no env override), null
-`_config_cache` directly in teardown rather than calling `reload_config()`:
+For tests that only need to reset the cache (no env override), call
+`clear_config_cache()` in teardown rather than `reload_config()`:
 
 ```python
-import vultron.config.app as _cfg_module
+from vultron.config import clear_config_cache
 
 @pytest.fixture(autouse=True)
 def reset_config():
     yield
-    # Null the cache directly — calling reload_config() would re-read the env
+    # Clear without reloading — reload_config() would re-read the env
     # while monkeypatch patches are still active, baking stale values in.
-    _cfg_module._config_cache = None
+    clear_config_cache()
 ```
 
 ### The `reload_config()` ordering footgun (CFG-06-006, CFG-06-007)
 
-`_config_cache` is a module-level singleton.  `reload_config()` clears it and
+The config cache is process-wide.  `reload_config()` clears it and
 immediately calls `get_config()`, which re-reads `os.environ` at that instant.
 `pytest`'s `monkeypatch` undoes env changes in fixture **teardown**, *after* the
 teardown body runs.
@@ -382,20 +332,17 @@ is almost always a config bug.
 ```python
 # test/test_config.py
 import pytest
-import vultron.config.app as _cfg_module  # _config_cache lives in app.py, not __init__
-from vultron.config import get_config, reload_config
-
+from vultron.config import clear_config_cache, get_config, reload_config
 
 @pytest.fixture(autouse=True)
 def reset_config():
     yield
-    # Set the cache to None directly rather than calling reload_config().
+    # Clear the cache rather than calling reload_config().
     # reload_config() fires the cache reset BEFORE pytest's monkeypatch reverts
     # env-var changes, locking in the test's env state for the reload.
-    # Nulling the cache directly lets the NEXT test's get_config() call reload
+    # Clearing lets the NEXT test's get_config() call reload
     # with a clean env provided by the session-level conftest.py.
-    _cfg_module._config_cache = None
-
+    clear_config_cache()
 
 def test_defaults(tmp_path):
     cfg = get_config()
@@ -403,12 +350,10 @@ def test_defaults(tmp_path):
     assert cfg.server.log_level == "INFO"
     assert cfg.database.db_url == "sqlite:///vultron.db"
 
-
 def test_env_override(monkeypatch):
     monkeypatch.setenv("VULTRON_SERVER__BASE_URL", "http://myserver:8080")
     reload_config()
     assert get_config().server.base_url == "http://myserver:8080"
-
 
 def test_yaml_file(tmp_path, monkeypatch):
     cfg_file = tmp_path / "config.yaml"
@@ -416,7 +361,6 @@ def test_yaml_file(tmp_path, monkeypatch):
     monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
     reload_config()
     assert get_config().server.log_level == "DEBUG"
-
 
 def test_env_overrides_yaml(tmp_path, monkeypatch):
     cfg_file = tmp_path / "config.yaml"
@@ -519,12 +463,11 @@ separate `config.yaml` `actor:` section in those deployments.
 ## A Test That Needs `VULTRON_*` Config MUST Set It Itself
 
 The flip side of the teardown-ordering rule above: fixing a leak removes config
-that downstream tests may have been silently borrowing. `test_create_tree.py` and
-`nodes/test_communication.py` both run `ResolveCaseActorUrlsNode` (via
-`CreateCaseActorNode` / `CreateCaseBT`), which returns FAILURE when
-`case_actor_service_url` is None (CP-08-002/003) — yet neither module set it.
-They passed only because another module leaked the value into the process-global
-cache first, and failed in isolation or in a subset run (#1897).
+that downstream tests may have been silently borrowing. `nodes/test_communication.py`
+runs `ResolveCaseActorUrlsNode` (via `CreateCaseActorNode` / `CreateCaseBT`), which
+returns FAILURE when `case_actor_service_url` is None (CP-08-002/003) — yet the
+module did not set it. It passed only because another module leaked the value into
+the process-global cache first, and failed in isolation or in a subset run (#1897).
 
 Each module that depends on a `VULTRON_*` setting needs its own autouse fixture
 setting it, using the `monkeypatch.undo()`-then-`reload_config()` teardown order.

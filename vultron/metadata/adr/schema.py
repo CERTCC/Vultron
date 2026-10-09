@@ -1,6 +1,7 @@
 """Pydantic schema for docs/adr/*.md YAML frontmatter.
 
-Schema requirements: specs/meta-specifications.yaml MS-14 (ADR-0043).
+Schema requirements: specs/meta-specifications.yaml MS-14 (ADR-0043);
+``stakeholder_type`` per specs/diataxis-requirements.yaml DF-11-012.
 
 Mirrors the notes frontmatter package (``vultron.metadata.notes``): a validated
 model plus a loader, enforced by pytest and pre-commit. The ADR ``status`` field
@@ -13,9 +14,10 @@ from __future__ import annotations
 import datetime as _dt
 from enum import StrEnum
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, PositiveInt, field_validator, model_validator
 
 from vultron.metadata.base import NonEmptyStr
+from vultron.metadata.docs.page_schema import WorkingRecordStakeholderTypes
 from vultron.metadata.specs.schema import AdrStatus
 
 # A frontmatter person field (deciders/consulted/informed) may be a bare string
@@ -40,6 +42,14 @@ class AdrFrontmatter(BaseModel):
     ADR (``superseded`` or ``deprecated``) MUST carry a ``superseded_by`` link.
     All other fields are optional but must be non-empty when present.
 
+    ``created`` (immutable), ``updated`` (material edits only) and ``revision``
+    (an integer bumped by each material edit) carry the lifecycle of ADR-0120.
+    All three are required (MS-14-008). ``date`` is the legacy spelling of
+    ``created`` and stays optional. ``status_override`` is a human's reason for
+    a ``status`` that disagrees with the epoch computed from ``updated``; it is
+    what :func:`vultron.metadata.adr.lifecycle.status_epoch_fault` (MS-14-007)
+    reads to let the disagreement stand.
+
     ``partially_superseded_by`` is distinct from ``superseded_by`` and does not
     retire the ADR: it marks one decision inside an otherwise live ADR as
     replaced, so the ADR keeps ``status: accepted`` and stays in the accepted
@@ -49,10 +59,23 @@ class AdrFrontmatter(BaseModel):
     left as an extra key because pydantic drops unknown fields silently, which
     made the marker inert: no index annotation and no check that its target
     resolves.
+
+    ``stakeholder_type`` is declared for the same reason. A decision record is
+    project working record, so it declares ``[project-contributor]`` and no
+    ``level`` (DF-11-012), and the value is checked by the same rule
+    ``docs-frontmatter`` applies. The field is optional here because
+    ``docs-frontmatter`` (:mod:`vultron.metadata.docs.page_frontmatter`) is
+    what requires every page to declare it: a misspelt ``stakeholder_types:``
+    is still dropped by this model, and the ADR then declares nothing, which
+    that check refuses.
     """
 
     status: AdrStatus
     date: _dt.date | None = None
+    created: _dt.date
+    updated: _dt.date
+    revision: PositiveInt
+    status_override: NonEmptyStr | None = None
     deciders: PersonField | None = None
     consulted: PersonField | None = None
     informed: PersonField | None = None
@@ -61,6 +84,7 @@ class AdrFrontmatter(BaseModel):
     supersedes: NonEmptyStr | None = None
     amended: NonEmptyStr | None = None
     lint_suppress: list[AdrLintSuppressCode] | None = None
+    stakeholder_type: WorkingRecordStakeholderTypes | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -93,6 +117,16 @@ class AdrFrontmatter(BaseModel):
         if v is not None and isinstance(v, list) and len(v) == 0:
             raise ValueError("'lint_suppress' must be non-empty if present")
         return v
+
+    @model_validator(mode="after")
+    def updated_not_before_created(self) -> AdrFrontmatter:
+        """Reject ``updated`` earlier than ``created`` (MS-14-008)."""
+        if self.updated < self.created:
+            raise ValueError(
+                f"'updated' ({self.updated}) is before 'created' "
+                f"({self.created})"
+            )
+        return self
 
     @model_validator(mode="after")
     def superseded_by_required_when_retired(self) -> AdrFrontmatter:

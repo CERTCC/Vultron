@@ -22,7 +22,6 @@ ARCH_YAML = {
     "id": "ARCH",
     "title": "Architecture",
     "description": "Cross-cutting fixture",
-    "version": "1.0",
     "scope": ["prototype"],
     "groups": [
         {
@@ -55,7 +54,6 @@ CM_YAML = {
     "id": "CM",
     "title": "Case Management",
     "description": "Topic fixture",
-    "version": "1.0",
     "scope": ["prototype", "production"],
     "groups": [
         {
@@ -183,9 +181,10 @@ class TestSlim:
             }
         ]
 
-    @pytest.mark.spec("SR-07-012")
-    def test_slim_topics_are_minimal(self, registry):
-        data = json.loads(to_llm_json(registry, topic=["ARCH"], slim=True))
+    @pytest.mark.spec("SR-01-003")
+    @pytest.mark.parametrize("slim", [False, True])
+    def test_topics_carry_no_file_version(self, registry, slim):
+        data = json.loads(to_llm_json(registry, topic=["ARCH"], slim=slim))
         assert data["topics"] == [{"id": "ARCH", "title": "Architecture"}]
 
 

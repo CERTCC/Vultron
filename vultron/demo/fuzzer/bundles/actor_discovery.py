@@ -30,15 +30,14 @@ from __future__ import annotations
 
 import py_trees
 
-from vultron.core.behaviors.call_out.bundles.actor_discovery import (  # noqa: F401
+from vultron.core.behaviors.call_out.bundles.actor_discovery import (
     ACTOR_DISCOVERY_DETERMINISTIC,
     ActorDiscoveryCallOutBundle,
 )
+from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
 
 
 def _stochastic_resolve_actor(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
-
     return AlmostAlwaysSucceed(name)
 
 

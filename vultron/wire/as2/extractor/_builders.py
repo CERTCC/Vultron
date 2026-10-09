@@ -8,38 +8,45 @@ convenience wrapper) rather than calling these builders directly.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
-from vultron.core.models.base import VultronObject
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from pydantic import ValidationError
+
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.case_stub import CaseStubReference
 from vultron.core.models.dimensions import (
     DDimension,
     EmDimension,
-    PecDimension,
     PxaDimension,
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType as VOtype
-from vultron.core.models.participant_status import coerce_cvd_roles
+from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.note import VultronNote
+from vultron.core.models.participant_status import (
+    ParticipantStatus,
+    coerce_cvd_roles,
+)
+from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.models.vultron_types import (
-    CaseStatus,
-    EmbargoEvent,
-    ParticipantStatus,
-    VultronActivity,
-    VultronCase,
-    VultronNote,
-    VultronParticipant,
-    VultronReport,
-)
 from vultron.wire.as2.enums import as_ObjectType as AOtype
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
-from vultron.wire.as2.vocab.objects.base import _coerce_pec_or_none
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseStub,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,15 +102,54 @@ def _get_type(field: object) -> str | None:
     return str(t) if t is not None else None
 
 
-def _to_domain_obj(as_obj: object) -> VultronObject | None:
-    """Wrap a bare AS2 object reference as a minimal VultronObject."""
+def ledger_position_from_content(activity: as_Activity) -> LedgerPosition:
+    """Parse the ledger position an activity carries in its ``content``.
+
+    The full-case Invite and its three replies carry the position as the JSON
+    dump of a :class:`LedgerPosition` (VAM-04-011..014; produced only by
+    ``vultron.wire.as2.factories.ledger_position_content``).
+
+    Raises:
+        VultronParseValidationError: when ``content`` is missing, blank or
+            does not parse as a ledger position, naming the activity.
+    """
+    content = getattr(activity, "content", None)
+    if not isinstance(content, str) or not content.strip():
+        raise VultronParseValidationError(
+            f"activity {activity.id_!r} carries no ledger position: its"
+            " `content` is missing or blank (CM-11-011)"
+        )
+    try:
+        return LedgerPosition.model_validate_json(content)
+    except ValidationError as exc:
+        raise VultronParseValidationError(
+            f"activity {activity.id_!r} carries an unparseable ledger"
+            f" position in `content`: {exc.error_count()} error(s) (CM-11-011)"
+        ) from exc
+
+
+def _to_domain_obj(as_obj: object) -> CoreObject | None:
+    """Wrap a bare AS2 object reference as a minimal CoreObject.
+
+    A case stub is promoted to a :class:`CaseStubReference` instead, so the
+    case it names reaches core in a field of its own and no consumer reads the
+    case from the stub's ID (CM-11-003, CM-11-013).
+    """
     if as_obj is None:
         return None
+    if isinstance(as_obj, as_VulnerabilityCaseStub):
+        return CaseStubReference(
+            id_=as_obj.id_,
+            type_=str(as_obj.type_),
+            case_id=as_obj.case_id,
+            published=as_obj.published,
+            updated=as_obj.updated,
+        )
     obj_id = _get_id(as_obj)
     if not obj_id:
         return None
     obj_type = _get_type(as_obj)
-    return VultronObject(
+    return CoreObject(
         id_=obj_id,
         type_=obj_type,
         published=_get_timestamp(as_obj, "published"),
@@ -188,7 +234,7 @@ def _build_report_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     if isinstance(content, str) and content and object_id:
         return {
-            "object_": VultronReport(
+            "object_": VulnerabilityReport(
                 id_=object_id,
                 name=getattr(obj, "name", None),
                 summary=getattr(obj, "summary", None),
@@ -204,10 +250,10 @@ def _build_report_object(obj: object) -> dict[str, Any]:
     return {}
 
 
-def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
+def _participant_ref_to_domain(ref: object) -> str | CaseParticipant | None:
     """Convert a wire-layer participant ref to a core domain object or ID string.
 
-    Returns a ``VultronParticipant`` if ``ref`` has ``case_roles`` (duck-type),
+    Returns a ``CaseParticipant`` if ``ref`` has ``case_roles`` (duck-type),
     a plain string if it is a URI reference, or ``None`` if the ref is
     unusable.  This preserves participant metadata — including role lists —
     across the wire→domain extraction boundary so bootstrap trust logic can
@@ -227,9 +273,9 @@ def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
     if not participant_id:
         return None
 
-    # Core VultronParticipant objects are already in the canonical shape —
+    # Core CaseParticipant objects are already in the canonical shape —
     # return them directly to preserve participant_statuses (including RM state).
-    if isinstance(ref, VultronParticipant):
+    if isinstance(ref, CaseParticipant):
         return ref
 
     to_core = getattr(ref, "to_core", None)
@@ -244,14 +290,14 @@ def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
                 exc_info=True,
             )
         else:
-            if isinstance(converted, VultronParticipant):
+            if isinstance(converted, CaseParticipant):
                 return converted
 
     roles = getattr(ref, "case_roles", [])
     attributed = getattr(ref, "attributed_to", None)
     context_id = _get_id(getattr(ref, "context", None))
     if roles is not None and attributed is not None and context_id:
-        return VultronParticipant(
+        return CaseParticipant(
             id_=participant_id,
             attributed_to=str(attributed),
             context=context_id,
@@ -269,7 +315,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     if object_id:
         raw_participants = getattr(obj, "case_participants", []) or []
-        participants: list[str | VultronParticipant] = []
+        participants: list[str | CaseParticipant] = []
         for ref in raw_participants:
             converted = _participant_ref_to_domain(ref)
             if converted is not None:
@@ -280,7 +326,8 @@ def _build_case_object(obj: object) -> dict[str, Any]:
             if isinstance(raw_index, dict)
             else {}
         )
-        active_embargo = _get_id(getattr(obj, "active_embargo", None))
+        # Carried as received: EM and the active embargo are reads of it.
+        embargo_register = list(getattr(obj, "embargo_register", None) or [])
         raw_statuses = getattr(obj, "case_statuses", []) or []
         case_statuses: list[str | CaseStatus] = []
         for cs in raw_statuses:
@@ -295,7 +342,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 if cs_id:
                     case_statuses.append(cs_id)
         return {
-            "object_": VultronCase(
+            "object_": VulnerabilityCase(
                 id_=object_id,
                 name=getattr(obj, "name", None),
                 summary=getattr(obj, "summary", None),
@@ -306,7 +353,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 updated=_get_timestamp(obj, "updated"),
                 case_participants=participants,
                 actor_participant_index=actor_participant_index,
-                active_embargo=active_embargo,
+                embargo_register=embargo_register,
                 case_statuses=case_statuses if case_statuses else [],
                 # Carried, not recomputed: core would otherwise rederive it
                 # from ``published`` (CLP-08-002), which a received case
@@ -342,13 +389,49 @@ def _build_embargo_event_object(
     return {}
 
 
+def proposed_embargo_from(carrier: object, *, activity_id: str) -> Any:
+    """Return the proposed ``EmbargoEvent`` *carrier* holds, or ``None``.
+
+    *carrier* is an ``Offer(VulnerabilityReport)`` (its ``proposed_embargo``,
+    EP-04-004) or a ``CaseProposal`` (the same field on the Offer it carries in
+    ``in_reply_to``, CP-01-008).  The parser has already expanded an inline
+    ``EmbargoEvent`` dict to the core class, so an ``EmbargoEvent`` is passed
+    through; an ``as_Event``-shaped object is projected the same way an
+    ``Invite(EmbargoEvent)``'s object is.  A bare reference is *not* a
+    proposal: the sender inlines what it introduces (ADR-0107), and a
+    receiver that fetched terms nobody sent would be inventing them — so a
+    string is logged and read as absent (receive side, Postel's maxim).
+    """
+    raw = getattr(carrier, "proposed_embargo", None)
+    if raw is None:
+        offer = getattr(carrier, "in_reply_to", None)
+        raw = getattr(offer, "proposed_embargo", None)
+    if raw is None:
+        return None
+    if isinstance(raw, EmbargoEvent):
+        return raw
+    if isinstance(raw, str):
+        logger.warning(
+            "extract_intent: activity '%s' names its proposed embargo by"
+            " reference (%r) instead of inlining it; read as no proposal"
+            " (EP-04-004, ADR-0107)",
+            activity_id,
+            raw,
+        )
+        return None
+    built = _build_embargo_event_object(
+        raw, getattr(raw, "context", None), None
+    )
+    return built.get("object_")
+
+
 def _build_participant_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     attributed_to = _get_id(getattr(obj, "attributed_to", None))
     participant_context = _get_id(getattr(obj, "context", None))
     if object_id and attributed_to and participant_context:
         return {
-            "object_": VultronParticipant(
+            "object_": CaseParticipant(
                 id_=object_id,
                 name=getattr(obj, "name", None),
                 attributed_to=attributed_to,
@@ -408,7 +491,7 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
         and published is not None
     ):
         return {
-            "object_": VultronCaseLedgerEntry(
+            "object_": CaseLedgerEntry(
                 id_=object_id,
                 case_id=case_id,
                 log_index=log_index,
@@ -539,8 +622,6 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                     published=_get_timestamp(wire_case_status, "published"),
                     updated=_get_timestamp(wire_case_status, "updated"),
                 )
-        raw_pec = getattr(obj, "em_consent_state", None)
-        pec_val = _coerce_pec_or_none(raw_pec)
         return {
             "object_": ParticipantStatus(
                 id_=object_id,
@@ -560,11 +641,6 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                     DDimension(state=_d)
                     if (_d := _coerce_d(getattr(obj, "d_state", None)))
                     is not None
-                    else None
-                ),
-                consent=(
-                    PecDimension(state=pec_val)
-                    if pec_val is not None
                     else None
                 ),
                 cvd_role=coerce_cvd_roles(
@@ -625,13 +701,6 @@ def _build_object_kwargs(
         kw.update(_build_embargo_event_object(obj, context, target))
     elif builder := _OBJ_BUILDERS.get(_obj_type):
         kw.update(builder(obj))
-    else:
-        obj_id = _get_id(obj)
-        if obj_id:
-            kw["object_"] = VultronObject(
-                id_=obj_id,
-                type_=_get_type(obj),
-                published=_get_timestamp(obj, "published"),
-                updated=_get_timestamp(obj, "updated"),
-            )
+    elif (domain_obj := _to_domain_obj(obj)) is not None:
+        kw["object_"] = domain_obj
     return kw

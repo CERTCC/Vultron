@@ -14,9 +14,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
+from collections.abc import Iterable
 from enum import Enum
-from typing import Iterable
 
 
 def _item_tuple(item: Enum) -> tuple[type, str | int]:

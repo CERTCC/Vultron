@@ -16,16 +16,16 @@ Provides outbound messaging behaviors for Vultron.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import logging
-from typing import Any, Callable, cast
+from collections.abc import Callable
+from typing import Any, cast
 
 from vultron.bt.base.bt_node import ActionNode, BtNode
 from vultron.bt.base.factory import action_node
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.behaviors import incoming_message
-from vultron.bt.messaging.states import MessageTypes, MessageTypes as MT
 from vultron.bt.messaging.message import Message
+from vultron.bt.messaging.states import MessageTypes, MessageTypes as MT
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,6 @@ def _emitter_func(
     msg_type: MessageTypes, body: str = "msg_body"
 ) -> Callable[[BtNode], bool]:
     def func(obj: BtNode) -> bool:
-        f"""Emit a message of type {msg_type}."""
-
         action_obj = cast(ActionNode, obj)
         msg = Message(sender=action_obj.bb.name, msg_type=msg_type, body=body)
         emit = action_obj.bb.emit_func
@@ -54,6 +52,8 @@ def _emitter_func(
 
         return True
 
+    # A docstring cannot be an f-string; the node factory reads __doc__.
+    func.__doc__ = f"Emit a message of type {msg_type}."
     return func
 
 

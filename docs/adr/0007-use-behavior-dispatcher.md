@@ -1,12 +1,16 @@
 ---
 status: accepted
 date: 2026-02-05
+created: 2026-02-05
+updated: 2026-02-05
+revision: 1
 deciders:
   - vultron maintainers
 consulted:
   - project stakeholders
 informed:
   - contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Introduce a Behavior Dispatcher Between Inbox Handling and Behavior Execution

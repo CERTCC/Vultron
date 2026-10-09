@@ -32,13 +32,13 @@ import logging
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     _resolve_actor_roles,
 )
+from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.dimensions import VfDimension
 from vultron.core.predicates.roles import has_vendor_role
 

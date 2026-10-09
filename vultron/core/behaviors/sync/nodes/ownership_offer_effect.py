@@ -46,6 +46,13 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.nodes.conditions import (
+    _require_log_entry,
+)
+from vultron.core.models.ownership_transfer_offer_record import (
+    VultronOwnershipTransferOfferRecord,
+)
 
 _OFFER_CASE_OWNERSHIP_TRANSFER_EVENT = "offer_case_ownership_transfer"
 
@@ -86,17 +93,15 @@ class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
         self.activity = self.get_input("activity")
 
     def update(self) -> Status:
-        from vultron.core.behaviors.sync.nodes.conditions import (
-            _require_log_entry,
-        )
-
         entry = _require_log_entry(self.activity, self.name)
         if entry.event_type == _OFFER_CASE_OWNERSHIP_TRANSFER_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
+class ApplyOfferOwnershipTransferFromLedgerNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply an ``offer_case_ownership_transfer`` ledger entry to the local DataLayer.
 
     When a participant receives ``Announce(CaseLedgerEntry)`` for the
@@ -149,10 +154,6 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        from vultron.core.behaviors.sync.nodes.conditions import (
-            _require_log_entry,
-        )
-
         entry = _require_log_entry(self.activity, self.name)
         snapshot = (
             entry.payload_snapshot
@@ -204,9 +205,6 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
     ) -> Status:
         """Build and persist the record; FAILURE only if the write itself fails."""
         assert self.datalayer is not None
-        from vultron.core.models.ownership_transfer_offer_record import (
-            VultronOwnershipTransferOfferRecord,
-        )
 
         try:
             record = VultronOwnershipTransferOfferRecord(
@@ -230,11 +228,11 @@ class ApplyOfferOwnershipTransferFromLedgerNode(DataLayerActionWithPorts):
 
         try:
             self.datalayer.save(record)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             # A well-formed effect that could not be written IS a failed
             # effect: fail so the Selector blocks PersistReceivedLogEntry and
             # the entry is not persisted without it (SYNC-12-001).
-            self.logger.error(
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "%s: could not store VultronOwnershipTransferOfferRecord"
                 " for offer '%s': %s",
                 self.name,

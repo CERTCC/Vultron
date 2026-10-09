@@ -10,6 +10,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
   - specs/event-driven-control-flow.yaml
+  - specs/behavior-tree-integration.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
@@ -31,24 +32,6 @@ Normative requirements: CM-21-005, CM-21-006, CM-21-007.
 
 ---
 
-## The Problem (Pre-ADR-0053)
-
-Before ADR-0053 the ownership-transfer protocol had two routing gaps:
-
-1. **Offer sent directly to transferee** — `EmitOfferCaseOwnershipTransferNode`
-   addressed the Offer to the transferee's inbox, bypassing the CASE_MANAGER.
-   No CaseLedgerEntry was written for the offer-in-flight; participants not
-   involved in the negotiation received no notification.
-
-2. **Accept sent directly to offerer** — `EmitAcceptCaseOwnershipTransferNode`
-   addressed the Accept to the offerer's inbox, bypassing the CASE_MANAGER.
-   `AcceptCaseOwnershipTransferReceivedUseCase` only ran when the Accept was
-   manually self-delivered (the `post_to_inbox_and_wait` workaround in
-   `fvcv_handoff_demo.py`).  No CaseLedgerEntry was written after the role
-   change; the Announce broadcast never fired.
-
----
-
 ## Correct Routing Model (ADR-0053)
 
 Both activities MUST flow through the CASE_MANAGER.
@@ -59,7 +42,7 @@ Both activities MUST flow through the CASE_MANAGER.
 Offering actor calls trigger: offer-case-ownership-transfer
   → SvcOfferCaseOwnershipTransferUseCase._prepare() sets:
       self._actor_id      = case_actor_id      ← CASE_MANAGER sends (CM-24-001)
-      self._attributed_to = offering_actor_id  ← attribution (CM-24-002)
+      self._requesting_actor_id = offering_actor_id  ← attribution (CM-24-002)
   → EmitOfferCaseOwnershipTransferNode
       constructs: Offer(VulnerabilityCase, target=transferee_id)
       actor:      case_actor_id                ← delegated-message contract
@@ -102,19 +85,26 @@ CASE_MANAGER inbox receives Accept
 
 ## Implementation Checklist
 
+Every item below is built (verified against the code 2026-10-02) except the
+retirement of the no-CASE_MANAGER fallback, which #3964 tracks. Keep the list as
+the statement of what each component must preserve, not as open work.
+
 ### SvcOfferCaseOwnershipTransferUseCase._prepare()
 
-- MUST call `_find_case_actor_id()` and set `self._actor_id = case_actor_id`
-  (CM-24-001).
-- MUST set `self._attributed_to = offering_actor_id` (CM-24-002).
-- When no CASE_MANAGER exists: `self._actor_id = offering_actor_id`,
-  `self._attributed_to = None` (CM-24-003).
-- Pass `attributed_to` through to the BT builder (CM-24-004).
+- MUST set `self._actor_id` to the CASE_MANAGER's ID (CM-24-001) and
+  `self._requesting_actor_id` to the offering actor (CM-24-002), through the
+  shared `delegated_authorship()` helper (`core/behaviors/`, CM-24-005).
+- A case always has a CASE_MANAGER holder (CM-24-006); when the resolver finds
+  none the use case fails rather than falling back to the offering actor (the
+  CM-24-003 fallback is retired).
+- Pass `requesting_actor_id` through to the BT builder; the emit node derives
+  `attributed_to` from the helper again (CM-24-004).
 
 ### EmitOfferCaseOwnershipTransferNode
 
-- `_call_factory()` MUST use `actor=self.actor_id` (the CASE_MANAGER's ID) and pass
-  `attributed_to=self.attributed_to` to the factory call. (Renamed from `_emit()` by #2881.)
+- `_call_factory()` MUST take `actor` and `attributed_to` from
+  `delegated_authorship(doing_actor_id=self.actor_id, requesting_actor_id=self.requesting_actor_id)`
+  (the CASE_MANAGER's ID and the offering actor).
 - `to` MUST be `[case_actor_id]` — the Offer routes through the CASE_MANAGER
   (CM-21-005); the CASE_MANAGER processes it and forwards to the transferee.
 - The `target` field of the Offer carries `transferee_id` (as before).
@@ -135,7 +125,8 @@ inside the BT:
 1. Store the Offer object via `create_receive_activity_tree`'s idempotency guard.
 2. Commit a `CaseLedgerEntry` via the guarded-commit node (CASE_MANAGER only).
 3. Forward the Offer to the transferee via `ForwardOfferToTransfereeNode`,
-   wrapped in `create_case_manager_gated_tree` (CASE_MANAGER only, CM-21-005).
+   passed as `manager_effects` so the factory wraps it in the CASE_MANAGER
+   gate (CASE_MANAGER only, CM-21-005, BT-17-008).
 
 **Forwarded-Offer wire format** (CM-21-005):
 
@@ -167,8 +158,8 @@ it sends under its own identity is claiming to speak for another participant, an
 nothing downstream re-checks it (CLP-07-003 validates `payloadSnapshot.actor`,
 not `attributed_to`), so relaying it unchecked would let any participant forge
 the offerer of record. Outside the delegated shape the sender is the offerer,
-which is also the right answer when the case has no CASE_MANAGER (CM-24-003). The
-refusal is logged at WARNING rather than silently swallowed.
+and a case with no CASE_MANAGER holder is a corrupt roster, not a routing mode
+(CM-24-006). The refusal is logged at WARNING rather than silently swallowed.
 
 This all required `_build_activity_snapshot`
 (`vultron/wire/as2/extractor/_builders.py`) to carry `attributed_to` at all — it
@@ -185,14 +176,14 @@ Audit any peer that reads `request.actor_id` where it means "who asked for this"
 
 `create_accept_ownership_transfer_tree()` MUST pass `case_id` to
 `create_receive_activity_tree` and include ONLY `AcceptCaseOwnershipTransferNode`
-in `effect_nodes`:
+in `replica_effects`:
 
 ```python
 tree = create_receive_activity_tree(
     name="AcceptOwnershipTransferBT",
     case_id=case_id,
     precondition_guards=[],
-    effect_nodes=[
+    replica_effects=[
         AcceptCaseOwnershipTransferNode(case_id=case_id, new_owner_id=new_owner_id),
     ],
 )
@@ -200,11 +191,13 @@ tree = create_receive_activity_tree(
 
 `create_receive_activity_tree` already injects `GuardedCommitCaseLedgerEntryBT`
 (with `CheckIsCaseManagerNode`) as the canonical single-writer commit step.
-Adding a second `CommitCaseLedgerEntryNode` to `effect_nodes` is a
+Adding a second `CommitCaseLedgerEntryNode` to the effects is a
 **double-write bug**: the guarded commit fires for CASE_MANAGER at log_index=N;
 the extra unguarded node fires for all actors, including the transferee, also
 at log_index=N but with a different `received_at` and `payload_snapshot` —
-producing an unrecoverable hash-chain fork (ISSUE-2252).
+producing an unrecoverable hash-chain fork (ISSUE-2252). CLP-09-001 requires
+every commit to go through a role-gated composition, and the factory already
+supplies it — the extra node is an unguarded second writer.
 
 ### fvcv_handoff_demo.py
 
@@ -236,7 +229,8 @@ Two preconditions are easy to get wrong here and both fail far from their cause:
 1. **The case must be CASE_MANAGER-owned.** `setup_initialized_case` has the vendor
    mint the case, which leaves it with no `CASE_MANAGER` participant — there is no
    CASE_MANAGER to address and the routing silently degrades to the direct path it is
-   meant to replace (CM-24-003). Use
+   meant to replace (the retired CM-24-003 fallback; under CM-24-006 this is a
+   failure, #3964). Use
    `vultron.demo.helpers.workflow.setup_canonical_case`, which drives
    report → validate → `Create(CaseProposal)` → CASE_MANAGER.
 2. **The transferee must be in the CASE_MANAGER's address book** *and* a participant
@@ -244,12 +238,13 @@ Two preconditions are easy to get wrong here and both fail far from their cause:
    inline object (CLP-07) and `build_activity_payload_snapshot` can only inline
    what the committing actor's store holds, so an unknown transferee produces
    `payloadSnapshot.target must be an inline object` at commit time. Seed the peer
-   with `seed_peer(client, local_actor_id=case_actor_id, ...)`, and add the
-   participant through the CASE_MANAGER-routed Invite/Accept handshake
-   (`case_actor_invites_actor_to_case`) — the standalone
-   `Create(CaseParticipant)` + `AddParticipantToCase` pair delivered to the case
-   owner's inbox only updates the *owner's* replica, so the CASE_MANAGER-side
-   `CVDRole.CASE_OWNER` grant (CM-21-002) finds nothing to grant.
+   with `seed_peer(client, local_actor_id=case_actor_id, ...)`, and seat the
+   participant through its stub Invite
+   (`seat_participant_through_stub_invite`): the Case Owner asks, the
+   CASE_MANAGER invites, and the invitee's `Accept` seats it on the
+   CASE_MANAGER's own replica. `Add(CaseParticipant)` never seats a member
+   (CM-31-011, ADR-0116), and a hand-built Invite skips the CASE_MANAGER's
+   tree, so the `CVDRole.CASE_OWNER` grant (CM-21-002) would find nothing.
 
 ### fccv_handoff_demo.py
 

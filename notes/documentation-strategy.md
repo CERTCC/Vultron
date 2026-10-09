@@ -9,6 +9,7 @@ related_notes:
   - notes/case-state-model.md
   - notes/documentation-sweeps.md
   - notes/message-type-reference.md
+  - notes/rfc-review-rubric.md
   - notes/rfc-spec-authoring.md
   - notes/site-information-architecture.md
   - notes/spec-authoring-rules.md
@@ -16,10 +17,12 @@ related_notes:
 related_specs:
   - specs/diataxis-requirements.yaml
   - specs/docs-build-workflow.yaml
+  - specs/spec-registry.yaml
 relevant_packages:
   - vultron/bt
   - vultron/core
   - vultron/demo
+  - vultron/metadata/docs
   - vultron/wire/as2
 ---
 
@@ -167,7 +170,9 @@ recurring mistake, because all three describe "what an actor does".
 | `docs/reference/behaviors/` | What trees the prototype builds today | Reference | `vultron/core/behaviors/`, rendered at build time |
 
 The `*_bt.md` pages are **historical**: they are the original design and the
-formal behavioral specification, and `index.md` frames them that way. Do not
+formal behavioral specification, and `index.md` frames them that way. They are
+working record, out of the nav and reached through
+`topics/behavior_logic/original_design.md` (#3528). Do not
 update them to track implementation drift — that is what the other two views are
 for. They change only when the *design* changes.
 
@@ -336,16 +341,19 @@ Three mechanics bite here, and each one has cost something:
 All three failures share one shape: the withholding claim and the build output
 were never compared. `uv run docs-withheld`
 (`vultron/metadata/docs/withheld.py`) is that comparison, and DOCBW-03-005 runs
-it in `docs-build-check.yml` after the build. It checks the *outcome* rather
+it after the build in every site-building workflow, through the shared
+`check-site-publication` action. It checks the *outcome* rather
 than the `mkdocs.yml` mechanism, so a mis-anchored pattern or a plugin-emitted
 file fails the gate instead of shipping. Its declaration of what is withheld is
-the interim home for the publication axis; #3555's maturity manifest replaces it.
+the home of the publication axis; no maturity manifest replaces it (ADR-0106).
 
 ## Withholding Has Two Axes, and Only One Was Checked
 
 `docs-withheld` answers "did a withheld artifact produce files in `site/`". The
 opposite question — "does anything *link to* a path the build did not produce" —
 is a separate axis, and it stayed unchecked for one release cycle longer.
+`uv run docs-links` (`vultron/metadata/docs/links.py`, #3634) now checks it after
+every build, in both workflows (DOCBW-03-007).
 
 `docs/ns/` moving into `draft_docs` (#3549) withheld the page, and the What's
 New list went on advertising it as `href="../../ns/"` (#3574). The publication
@@ -403,26 +411,27 @@ of how this one hid, not preferences:
   looks like. It is dead because the target is not built, not because the form
   is wrong. Ask whether the reference resolves and both cases collapse into one
   assertion.
-- **Every built page, not a crawl.** `linkchecker site/index.html` follows links
-  from one entry point, so the pages nothing links to are never inspected: the
-  `includes/` fragments, `reference/codebase/`, `agents/`, `404.html`,
-  `print_page/`. That is not the same set as `not_in_nav` — most `not_in_nav`
-  pages are linked from a page that *is* in the nav, so nav absence and crawl
-  reachability are different properties and only the second one bounds the
-  crawl. Worse, the crawl reports success over what it did reach, so the
+- **Every built page, not a crawl.** `linkchecker site/index.html` (retired in
+  #3634) followed links from one entry point, so the pages nothing links to were
+  never inspected: the `includes/` fragments, `reference/codebase/`, `agents/`,
+  `404.html`, `print_page/`. That is not the same set as `not_in_nav` — most
+  `not_in_nav` pages are linked from a page that *is* in the nav, so nav absence
+  and crawl reachability are different properties and only the second one bounds
+  the crawl. Worse, the crawl reports success over what it did reach, so the
   omission is invisible. A tree walk over `site/**/*.html` has no reachability
-  precondition.
+  precondition, which is what `docs-links` does.
 - **Unconditional, because the two declarations are in different files.** The
   withholding lives in `mkdocs.yml`; the generator that advertises the page
   lives in `vultron/` or `docs/_scripts/`. A `docs/**` path filter is the wrong
   predicate for a defect that neither file has to touch — which is why the one
   gate that *could* have caught this (`linkchecker`, conditioned on
-  `docs_changed`) did not. Be precise about what DOCBW-03-007 therefore reaches:
-  dropping the step-level `docs_changed` condition (DOCBW-04-003) is one of the
-  two docs-scoped filters on this workflow. The other is the workflow's own
-  `paths:` trigger (DOCBW-02-001), which still omits `vultron/**` — so a PR that
-  edits only a generator never runs `docs-build-check.yml`, and the gate first
-  sees it in `deploy_site.yml` after merge. Closing that half is #3070.
+  `docs_changed`) did not. There were two docs-scoped filters on this workflow,
+  and each had to go: DOCBW-03-007 forbids the step-level `docs_changed`
+  condition, whose filter step went with the crawl (#3634), and the
+  workflow's own `paths:` trigger (DOCBW-02-001) omitted `vultron/**` and
+  `specs/**` until #3070 — so a PR that edited only a generator never ran
+  `docs-build-check.yml`, and a gate first saw it in `deploy_site.yml` after
+  merge. A trigger filter is part of every gate behind it.
 
 Deriving rather than mirroring is the complementary half, and it is cheaper
 where it applies. `whats_new.py::_unpublished_spec` reads `draft_docs` and
@@ -431,6 +440,98 @@ MkDocs uses in `set_exclusions`, so its notion of "published" cannot drift from
 the build's. That replaced a hand-maintained tuple under a "keep this in sync
 with mkdocs.yml" comment — and #3574 is what that invitation cost. Prefer
 deriving in any new generator; the gate is what covers the ones that do not.
+
+## Exec-Block Anchors Are Invisible to `--strict`, Too
+
+The child-instance mechanism above hides *targets* as well as links. MkDocs
+collects a page's valid anchors in two places: a treeprocessor that reads `id`
+attributes off the parent's element tree, and a preprocessor that scans the
+page's own Markdown source for raw-HTML `id=`/`<a name=>`. An exec block's output
+reaches the parent as a stashed HTML placeholder, so neither sees inside it.
+`markdown-exec` compensates for **headings only**: its `InsertHeadings`
+treeprocessor (priority 75) splices them into the parent's element tree, where
+MkDocs' anchor treeprocessor (priority 5) collects their ids before
+`RemoveHeadings` (priority 4) takes them out again. So a heading `{#clp-15}`
+printed from an exec block is a valid link target and a `<a id="clp-15-001">`
+beside it is not.
+
+The warning this produces is misleading in a specific way: "the doc
+`reference/specs/protocol.md` does not contain an anchor `#mv-03-002`", about a
+page whose built HTML does contain it. An author reads that as "I got the anchor
+format wrong", tries variants, and settles for the nearest heading — which is how
+every requirement citation in `docs/` came to point at its group rather than its
+requirement (#3243).
+
+Two consequences to keep apart, each with its own gate since #3735:
+
+- **Targets.** `vultron/metadata/docs/anchor_ids.py`, registered under `hooks:`
+  in `mkdocs.yml`, is an `on_page_content` hook that adds every id in each
+  page's rendered HTML to the page's `present_anchor_ids`. It runs as each page
+  renders, and every page renders before any anchor is validated, so
+  exec-emitted ids are linkable in time. Its collection rule is MkDocs' own
+  (`id` on any tag, `name` on `<a>` only), so the hook widens the set without
+  ever disagreeing with the collector it extends. A fabricated anchor still
+  fails, because the id must be in the HTML. Prose may therefore cite a
+  requirement by its own anchor; `scripts/relink_requirement_anchors.py` is
+  the one-shot rewrite that moved the existing group-anchor citations over.
+- **Links.** A hook that fixes targets does nothing for links *printed by* an
+  exec block — those are still never validated (see above), and the
+  DOCBW-03-007 `docs-links` gate checks path resolution only, stripping fragments
+  by design (#3634 AC-1). A generator that emits `#fragment` links needs
+  its own test that each fragment exists on its target page. For the spec
+  pages that is `test_render_for_kind_cross_links_resolve` in
+  `test/metadata/specs/test_docs_render.py`, which renders all four kind pages
+  from the real registry and checks every `_cross_link` "Related" fragment
+  against the ids on its target kind page, failing on zero collected links
+  (DF-09-009).
+
+## The Third Axis Is Time: a URL Once Served Must Keep Answering
+
+The publication and reference axes compare one build with itself. Neither can
+see a URL that an *earlier* build served and this one dropped. Between the
+`publish` branch and `main`, well over a hundred pages had moved, been
+renamed, or been withdrawn, and a publish would have turned every one of those
+URLs into a 404 (#3556). `--strict` saw no problem because nothing in the new
+build linked to the old paths. The only readers still using them were outside the site.
+
+`uv run docs-legacy-urls` (`vultron/metadata/docs/legacy_urls.py`,
+DOCBW-03-008) is the comparison. Three things about it are easy to get wrong:
+
+- **The evidence has to be committed before `publish` advances.** The record of
+  what was served is the `publish` branch itself, so a check that derived it at
+  check time would compare `main` with `main` after the next publish, and
+  pass. `legacy_urls_baseline.txt` holds every `docs/` page any publish has
+  built. It only grows (`--snapshot <ref>` adds a ref's pages and drops none),
+  because a URL that was cited once can be cited forever.
+- **A snapshot records what the ref built, not what it held.** It applies the
+  ref's own `draft_docs` and `exclude_docs`, read from that ref's `mkdocs.yml`.
+  Listing every source file would record `developer/` pages that no publish
+  served, and the next check would fail on URLs nobody could have cited.
+- **The baseline lists built pages, not nav entries.** On `publish` nothing
+  was in `exclude_docs`, so every `_*.md` fragment and `includes/*` file was
+  built as a page of its own and answered with a 200. The issue's first count
+  left these out as not reader-facing, but they were live URLs all the same.
+  "Not in the nav" is a statement about discoverability. It says nothing about
+  whether the URL exists.
+- **Withdrawn is not redirected.** A page retired on purpose is declared in
+  `withheld.py` rather than redirected to whatever page happens to be nearby,
+  because a redirect to an unrelated page tells a reader the content moved when
+  it did not. `docs-withheld` checks that the withdrawn URL really is absent. A
+  page whose content was *folded into* another (`topics/future_work/ontology`
+  into the ontology tombstone), or whose own text named its successor
+  (`howto/em_icalendar`, whose ideas grew into the EM process it linked), is a
+  move, and it redirects.
+
+Confirm a rename by content, not by filename. `howto/general_implementation`
+looked like it had become `howto/process_implementation`. In fact it covered
+message formats, transport, identity, and encryption, which the commit that
+removed it said the ActivityPub mapping had since addressed. So it redirects to
+`howto/activitypub/`.
+
+Both publication-side checks run through one composite action,
+`.github/actions/check-site-publication`, in `docs-build-check.yml` and in
+`deploy_site.yml` before the Pages upload. The action exists so the workflow
+that ships is gated by exactly what the workflow that reviews is gated by.
 
 ## Nav Visibility Is Not a Content Class: Fragments vs. Assembly Units
 
@@ -441,9 +542,11 @@ material — outside `lint-docs` entirely, because the fragments carry the `_`
 prefix that keeps them out of nav. Normative requirements: DF-09-007 through
 DF-09-009. Decision record: ADR-0092.
 
-**This section describes the decided target state, not what `lint-docs` does
-today.** The tooling changes are tracked in #3318; until they land, `lint-docs`
-still drops every `_*.md` fragment.
+This is the state `lint-docs` implements since #3318: its Phase 1 exemption list
+names content classes, its § "Fragments and assembly units" carries the rule
+split below, and an empty target set is a failure. Preserve the split when
+editing the skill — collapsing it in either direction reintroduces one of the
+two failure modes (false positives on every fragment, or no coverage).
 
 The `_` prefix was doing double duty. In `mkdocs.yml` it means "exclude from
 nav"; `lint-docs` read it as "not really a page". The second claim is false for
@@ -466,19 +569,20 @@ expansion in every fragment that uses an acronym renders one expansion per
 fragment on a single published page — twelve for "VFD", ten for "RM", nine for
 "EM", eight each for "CS" and "PEC".
 
-Note the direction this cuts while #3318 is open: extracting a fragment moves its
-prose *out* of `lint-docs`' target set, which drops both `docs/includes/**` and
-`_*.md`. Deduplicating by extraction is still right (DF-10-002), but it trades
-automated coverage for structural non-duplication, so the claims in an extracted
-fragment must be verified by hand at the moment of the move — see
+Extracting a fragment keeps its prose in `lint-docs`' target set — `_*.md` and
+`docs/includes/**` are targets — so deduplicating by extraction (DF-10-002) costs
+no automated coverage. Lint checks prose, not claims, so the claims in an
+extracted fragment are still verified at the moment of the move — see
 [documentation-sweeps.md](documentation-sweeps.md) and DF-10-001.
 
 Two things make this cheap rather than a tooling problem:
 
-- **The assembly unit is already a lint target.** `index.md` is not
-  `_`-prefixed and is in nav, so it is already in scope. Evaluating page-scoped
-  rules against it means reading its include directives in order — not building
-  an include-graph resolver.
+- **Every assembly unit is already a lint target.** No page is `_`-prefixed, so
+  each is in scope — for the Protocol Specification that is every page in
+  `notes/rfc-spec-authoring.md` § "Page Map", including `full.md`, which is
+  out of the nav but still published. Evaluating page-scoped rules against a page
+  means reading its include directives in order — not building an include-graph
+  resolver. A fragment rendered by several pages is assessed on each of them.
 - **There is precedent for suppressing rather than resolving.**
   `.markdownlint-cli2.yaml` disables MD041 ("First line in file should be a top
   level header") with the comment *"Disabled because we use `include-markdown`
@@ -489,13 +593,17 @@ Two things make this cheap rather than a tooling problem:
 ### The include graph is not a tree
 
 A fragment can have several hosts, and hosts can sit in different Diátaxis
-quadrants. `includes/_rm-states-table.md` has four host parents; each `_oq-*.md`
-has two (inline at point of use, plus the open-questions appendix).
-`docs/tutorials/worked_example.md` (tutorial) and
-`docs/topics/measuring_cvd/possible_histories.md` (explanation) are both
-included into the reference specification's annexes. Quadrant selects the voice
-rules, so a fragment's quadrant comes from its hosts and never from its own path
-(DF-09-008).
+quadrants. `includes/_rm-states-table.md` has several host parents, one of them
+the Explanation page `docs/topics/case_lifecycle/a_case_under_vultron.md`. Most
+of the specification's `_oq-*.md` files are included inline at point of use, in
+the open-questions appendix, and on the Explanation page
+`docs/topics/future_work/open_questions.md`. Every Protocol Specification
+section fragment a body or annex page includes also renders on the all-in-one
+`full.md`, so it has two pages at least. `docs/tutorials/worked_example.md`
+(tutorial) and `docs/topics/measuring_cvd/possible_histories.md` (explanation)
+are both included into the reference specification's annexes. Quadrant selects
+the voice rules, so a fragment's quadrant comes from its hosts and never from
+its own path (DF-09-008).
 
 ### Content shape is not a usable exemption criterion
 
@@ -522,7 +630,7 @@ clean signal suppresses the review it replaced (DF-09-009).
 
 Whether a fix is safe to apply in bulk depends on whether it is a deterministic
 substitution or a model rewriting prose, not on how many files are in the target
-set. `markdownlint --fix` and `black` run tree-wide with no threshold because
+set. `markdownlint --fix` and `ruff format` run tree-wide with no threshold because
 their edits are substitutions. An LLM deleting filler "where the sentence
 survives it" or rewriting a sentence for a quadrant's voice carries per-edit
 risk that does not shrink with volume. A file-count guard conflates the two: it
@@ -531,9 +639,10 @@ blocks the safe fixes above the threshold and permits the risky ones below it.
 ### `codespell` is the mechanical floor for spelling
 
 Spelling is the only style rule in this project with off-the-shelf tooling, so
-it is the only one that need not depend on an agent noticing. `codespell` is to
-be configured in `pyproject.toml` with `builtin = "en-GB_to_en-US"` and run as a
-stock pre-commit hook over `docs/` (#3318; nothing is configured yet).
+it is the only one that need not depend on an agent noticing. `codespell` is
+configured in `[tool.codespell]` in `pyproject.toml` with
+`builtin = "en-GB_to_en-US"` and runs as the stock upstream pre-commit hook over
+`docs/*.md` with `--write-changes` in the hook args (#3318).
 
 Note that `builtin` *replaces* `codespell`'s default dictionaries rather than
 adding to them, so a word absent from `en-GB_to_en-US` is not checked at all —
@@ -545,7 +654,8 @@ Its scope cannot be widened. `behaviour` appears in `vultron/` and `test/` as
 across more than two hundred files. `notes/` and `specs/` are outside SG-37's
 scope by the style guide's own scope table.
 
-Three hazards, all silent, all found by measurement rather than anticipated:
+Five hazards, all silent, all found by measurement rather than anticipated. The
+first three were found while planning; the last two while landing #3318:
 
 - **`codespell` has no notion of a code fence.** `docs/howto/wire_capability.md`
   uses `py_trees.behaviour.Behaviour` on ten lines, in fences and inline code
@@ -560,6 +670,17 @@ Three hazards, all silent, all found by measurement rather than anticipated:
 - **`skip` patterns must match the path as `codespell` sees it.** A
   `./`-prefixed pattern silently fails to match when the target is passed as
   `docs/`, more than doubling the finding count with no error.
+- **`skip` sees two path shapes, and a bare directory matches only one.**
+  Patterns are `fnmatch`ed against the full path. Walking `codespell docs/`
+  presents the directory `docs/adr`; the pre-commit hook presents the staged
+  file `docs/adr/0092-x.md`. A bare `docs/adr` matches the first and not the
+  second, so the very first commit under the hook rewrote ADR prose. End each
+  directory pattern in `*` (`docs/adr*`) so both shapes match.
+- **A hyphenated compound is one token.** `codespell`'s word regex includes
+  `-`, so `negative-acknowledgement`, `fault-and-acknowledgement` and any other
+  compound is looked up whole and never matches the dictionary. The hook is the
+  floor, not the ceiling: `lint-docs` still reads for SG-37, and a grep for the
+  bare British stem catches what the tokenizer hides.
 
 The generalizable rule: what makes `--write-changes` safe is not the dictionary
 but an audit that no finding sits inside a code fence, an inline code span, an

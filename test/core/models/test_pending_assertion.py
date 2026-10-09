@@ -24,7 +24,7 @@ Covers:
 Spec: SYNC-07-001 through SYNC-07-005.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -36,11 +36,13 @@ from vultron.core.models.pending_assertion import (
     ProtocolPair,
     _reset_stores,
     get_pending_assertion_store,
+    record_pending_assertion,
 )
 
 CASE_ID = "https://example.org/cases/case-001"
 EVENT_TYPE = "submit_report"
 OBJECT_ID = "https://example.org/activities/act-001"
+SUBJECT_ID = "https://example.org/cases/case-001/embargo_events/e1"
 
 ACTOR_A = "https://example.org/actors/alice"
 ACTOR_B = "https://example.org/actors/bob"
@@ -89,11 +91,11 @@ class TestPendingAssertionDataclass:
         assert entry.status == "pending"
 
     def test_emitted_at_is_recent_utc(self):
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         entry = PendingAssertion(
             case_id=CASE_ID, event_type=EVENT_TYPE, object_id=OBJECT_ID
         )
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
         assert before <= entry.emitted_at <= after
 
     def test_status_can_be_overridden(self):
@@ -195,7 +197,7 @@ class TestTimeout:
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
 
         # Simulate time passing beyond the 60-second window
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:
@@ -207,7 +209,7 @@ class TestTimeout:
     def test_expired_entry_status_becomes_timed_out(self, store_short):
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
 
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:
@@ -223,7 +225,7 @@ class TestTimeout:
         import logging
 
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with caplog.at_level(
             logging.ERROR,
             logger="vultron.core.models.pending_assertion",
@@ -238,7 +240,7 @@ class TestTimeout:
 
     def test_unexpired_entry_still_suppresses(self, store_short):
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
-        future = datetime.now(timezone.utc) + timedelta(seconds=30)
+        future = datetime.now(UTC) + timedelta(seconds=30)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:
@@ -247,7 +249,7 @@ class TestTimeout:
 
     def test_timed_out_entry_allows_subsequent_add(self, store_short):
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:
@@ -291,7 +293,7 @@ class TestExpireTimedOut:
             "engage_case",
             "https://example.org/activities/act-002",
         )
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:
@@ -302,7 +304,7 @@ class TestExpireTimedOut:
     def test_sweep_skips_already_cleared(self, store_short):
         store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
         store_short.clear(CASE_ID, EVENT_TYPE, OBJECT_ID)
-        future = datetime.now(timezone.utc) + timedelta(seconds=61)
+        future = datetime.now(UTC) + timedelta(seconds=61)
         with patch(
             "vultron.core.models.pending_assertion.datetime"
         ) as mock_dt:
@@ -358,3 +360,79 @@ class TestRegistry:
         # Second call with different timeout should NOT override
         s = get_pending_assertion_store(ACTOR_A, timeout_seconds=999.0)
         assert s.timeout_seconds == 30.0
+
+
+# ---------------------------------------------------------------------------
+# pending_for_subject — duplicate check keyed by subject (SYNC-11-002)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("SYNC-11-002")
+class TestPendingForSubject:
+    def test_pending_entry_matches_its_subject(self, store):
+        store.add(CASE_ID, EVENT_TYPE, OBJECT_ID, subject_id=SUBJECT_ID)
+        entry = store.pending_for_subject(CASE_ID, EVENT_TYPE, SUBJECT_ID)
+        assert entry is not None
+        assert entry.object_id == OBJECT_ID
+
+    def test_zero_timeout_never_matches(self, store_zero):
+        store_zero.add(CASE_ID, EVENT_TYPE, OBJECT_ID, subject_id=SUBJECT_ID)
+        assert (
+            store_zero.pending_for_subject(CASE_ID, EVENT_TYPE, SUBJECT_ID)
+            is None
+        )
+
+    def test_expired_entry_times_out_and_no_longer_matches(self, store_short):
+        store_short.add(CASE_ID, EVENT_TYPE, OBJECT_ID, subject_id=SUBJECT_ID)
+        future = datetime.now(UTC) + timedelta(seconds=61)
+        with patch(
+            "vultron.core.models.pending_assertion.datetime"
+        ) as mock_dt:
+            mock_dt.now.return_value = future
+            assert (
+                store_short.pending_for_subject(
+                    CASE_ID, EVENT_TYPE, SUBJECT_ID
+                )
+                is None
+            )
+        key = ProtocolPair(
+            case_id=CASE_ID, request_event_type=EVENT_TYPE, object_id=OBJECT_ID
+        )
+        assert store_short._store[key].status == "timed_out"
+
+    def test_cleared_entry_does_not_match(self, store):
+        store.add(CASE_ID, EVENT_TYPE, OBJECT_ID, subject_id=SUBJECT_ID)
+        store.clear(CASE_ID, EVENT_TYPE, OBJECT_ID)
+        assert (
+            store.pending_for_subject(CASE_ID, EVENT_TYPE, SUBJECT_ID) is None
+        )
+
+    @pytest.mark.parametrize(
+        ("case_id", "event_type", "subject_id"),
+        [
+            ("https://example.org/cases/other", EVENT_TYPE, SUBJECT_ID),
+            (CASE_ID, "other_event", SUBJECT_ID),
+            (CASE_ID, EVENT_TYPE, "https://example.org/other-subject"),
+        ],
+        ids=["other-case", "other-event-type", "other-subject"],
+    )
+    def test_mismatch_does_not_match(
+        self, store, case_id, event_type, subject_id
+    ):
+        store.add(CASE_ID, EVENT_TYPE, OBJECT_ID, subject_id=SUBJECT_ID)
+        assert (
+            store.pending_for_subject(case_id, event_type, subject_id) is None
+        )
+
+
+@pytest.mark.spec("SYNC-11-002")
+def test_record_pending_assertion_records_in_the_actors_store():
+    record_pending_assertion(
+        ACTOR_A, CASE_ID, EVENT_TYPE, OBJECT_ID, subject_id=SUBJECT_ID
+    )
+    store = get_pending_assertion_store(ACTOR_A)
+    assert store.is_suppressed(CASE_ID, EVENT_TYPE, OBJECT_ID)
+    assert (
+        store.pending_for_subject(CASE_ID, EVENT_TYPE, SUBJECT_ID) is not None
+    )
+    assert len(get_pending_assertion_store(ACTOR_B)) == 0

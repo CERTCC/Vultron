@@ -26,20 +26,23 @@ Per specs/inbox-orchestration.yaml IO-02-001 through IO-02-003.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import py_trees
 from py_trees.common import Status
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.blackboard_scope import (
     KeyState,
     restore_keys,
     snapshot_keys,
 )
+from vultron.core.behaviors.bridge import _BT_GLOBAL_LOCK
 from vultron.core.behaviors.inbox.inbox_tree import create_inbox_bt
 from vultron.core.behaviors.inbox.models import (
     DispatchAdapter,
     InboxOutcome,
+    InboxOutcomeStatus,
     IngressPayloadAdapter,
     PendingCaseQueuePort,
 )
@@ -47,15 +50,13 @@ from vultron.core.behaviors.inbox.nodes import (
     ALL_INBOX_KEYS,
     KEY_CONTEXT_ID,
     KEY_DISPATCH,
+    KEY_EVENT,
     KEY_FAILURE_REASON,
     KEY_INGRESS,
     KEY_OUTCOME_STATUS,
     KEY_PAYLOAD,
     KEY_QUEUE,
 )
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +95,9 @@ def _write_inbox_inputs(
     setup_bb.inbox_queue = queue_port
 
 
-def _run_bt_pipeline() -> Status:
+def _run_bt_pipeline(actor_config: ActorConfig | None = None) -> Status:
     """Instantiate the inbox BT, tick to completion, and return the status."""
-    tree = create_inbox_bt()
+    tree = create_inbox_bt(actor_config=actor_config)
     bt = py_trees.trees.BehaviourTree(root=tree)
     bt.setup()
 
@@ -109,8 +110,8 @@ def _run_bt_pipeline() -> Status:
             final_status = bt.root.status
             if final_status in (Status.SUCCESS, Status.FAILURE):
                 break
-    except Exception as exc:
-        logger.exception("process_payload: BT tick raised exception: %s", exc)
+    except Exception:
+        logger.exception("process_payload: BT tick raised exception")
         final_status = Status.FAILURE
     finally:
         bt.shutdown()
@@ -133,11 +134,14 @@ def _read_inbox_outcome() -> InboxOutcome:
     result_bb.register_key(
         KEY_FAILURE_REASON, access=py_trees.common.Access.READ
     )
+    result_bb.register_key(KEY_EVENT, access=py_trees.common.Access.READ)
 
+    # No node wrote a status: the BT failed somewhere that records nothing,
+    # so the payload was not processed (fail closed).
     try:
-        status_str: str = result_bb.inbox_outcome_status
+        status = InboxOutcomeStatus(result_bb.inbox_outcome_status)
     except KeyError:
-        status_str = "rejected"
+        status = InboxOutcomeStatus.REJECTED
 
     try:
         context_id: str | None = result_bb.inbox_context_id
@@ -149,9 +153,16 @@ def _read_inbox_outcome() -> InboxOutcome:
     except KeyError:
         failure_reason = None
 
+    try:
+        activity_id: str | None = result_bb.inbox_event.activity_id
+    except KeyError:
+        # Rejected before extraction: there is no event to name.
+        activity_id = None
+
     return InboxOutcome(
-        status=status_str,  # type: ignore[arg-type]
+        status=status,
         context_id=context_id,
+        activity_id=activity_id,
         failure_reason=failure_reason,
     )
 
@@ -169,6 +180,7 @@ def process_payload(
     ingress_adapter: IngressPayloadAdapter,
     dispatch_adapter: DispatchAdapter,
     queue_port: PendingCaseQueuePort | None = None,
+    actor_config: ActorConfig | None = None,
 ) -> InboxOutcome:
     """Process one inbox payload through the BT pipeline.
 
@@ -188,17 +200,19 @@ def process_payload(
             activities whose case context is not yet locally available
             are queued for later replay instead of being rejected
             (IO-03-002).
+        actor_config: The receiving actor's configuration; its RSVP
+            windows govern inbound embargo invites (EP-07-001, EP-07-002).
+            ``None`` applies the protocol defaults.
 
     Returns:
-        :class:`InboxOutcome` with ``status`` set to one of
-        ``"processed"``, ``"deferred"``, or ``"rejected"``.
+        :class:`InboxOutcome` whose ``status`` is an
+        :class:`InboxOutcomeStatus` member, derived from the handler's
+        ``HandlerResult`` when dispatch ran (UCORG-05-011).
     """
-    # Import the shared BT global lock to serialise BT blackboard access
+    # The shared BT global lock serialises BT blackboard access
     # across concurrent FastAPI BackgroundTasks.  The RLock supports
     # re-entrant acquisition so replay paths calling process_payload
     # recursively do not deadlock.
-    from vultron.core.behaviors.bridge import _BT_GLOBAL_LOCK
-
     with _BT_GLOBAL_LOCK:
         storage = py_trees.blackboard.Blackboard.storage
         saved = _save_inbox_keys(storage)
@@ -207,7 +221,7 @@ def process_payload(
             _write_inbox_inputs(
                 payload, ingress_adapter, dispatch_adapter, queue_port
             )
-            _run_bt_pipeline()
+            _run_bt_pipeline(actor_config)
             outcome = _read_inbox_outcome()
         finally:
             _restore_inbox_keys(storage, saved)

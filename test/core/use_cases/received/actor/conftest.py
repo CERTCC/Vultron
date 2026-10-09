@@ -8,7 +8,7 @@ in isolation, causing TinyDB's record_to_object() to fall back to returning a
 raw Document instead of a deserialized domain object.
 """
 
-# noqa: F401 — imported for vocabulary registration side-effect
+# imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )

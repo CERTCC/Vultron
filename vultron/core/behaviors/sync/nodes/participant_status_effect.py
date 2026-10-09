@@ -42,6 +42,10 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
     read_rm_states,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.nodes.conditions import (
+    _require_log_entry,
+)
 from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
 from vultron.core.models._helpers import (
     _as_id,
@@ -57,7 +61,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
-from vultron.core.states.rm import RM, is_rm_at_least
+from vultron.core.states.rm import RM, is_rm_replay_acceptable
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +84,8 @@ def _ratchet_rm(
         The status to record and the refused RM value, or ``(status_obj, None)``
         when nothing was refused.
     """
-    if local_rm is None:
-        return status_obj, None
     entry_rm = status_obj.rm.state
-    if entry_rm == local_rm or is_rm_at_least(entry_rm, local_rm):
+    if local_rm is None or is_rm_replay_acceptable(local_rm, entry_rm):
         return status_obj, None
     return (
         status_obj.model_copy(
@@ -93,7 +95,9 @@ def _ratchet_rm(
     )
 
 
-class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
+class ApplyParticipantStatusFromLedgerNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
     """Apply an ``add_participant_status_to_participant`` ledger entry locally.
 
     When a non-Case-Actor participant receives
@@ -188,9 +192,6 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        from vultron.core.behaviors.sync.nodes.conditions import (
-            _require_log_entry,
-        )
 
         entry = _require_log_entry(self.activity, self.name)
         snapshot = entry.payload_snapshot
@@ -246,7 +247,7 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
             status_obj = ParticipantStatus.model_validate(
                 project_wire_snapshot_to_core(ParticipantStatus, status_data)
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
             self.logger.warning(
                 "%s: failed to reconstruct ParticipantStatus from"
                 " payload_snapshot for '%s': %s",
@@ -277,7 +278,8 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
         d = status_obj.d.state if status_obj.d is not None else None
         violations = composite_state_violations(rm, vf, d)
         if violations:
-            self.feedback_message = violations[0].message
+            # Report every violation, not the first (EH-07-001).
+            self.feedback_message = "; ".join(v.message for v in violations)
             self.logger.warning(
                 "%s: ledger entry '%s' for participant '%s' describes an"
                 " impossible composite state (rm=%s, vf=%s, d=%s):"
@@ -288,7 +290,7 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
                 rm.name,
                 vf.name if vf is not None else "None",
                 d.name if d is not None else "None",
-                violations[0].message,
+                self.feedback_message,
             )
             return Status.FAILURE
 

@@ -98,6 +98,7 @@ globals().update(
         chain_actors=_CHAIN_ACTORS,
         expected_event_types=_FCCV_HANDOFF_EXPECTED_EVENT_TYPES,
         narrative_path="docs/topics/scenarios/fccv-handoff.md",
+        joined_invitees=2,
     )
 )
 

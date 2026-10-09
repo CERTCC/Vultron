@@ -17,7 +17,7 @@ New code should import directly from ``vultron.enums.object_types``.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.enums.object_types import (  # noqa: F401
+from vultron.enums.object_types import (
     VultronActorType,
     VultronObjectType,
 )

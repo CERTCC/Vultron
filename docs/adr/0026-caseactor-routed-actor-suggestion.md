@@ -1,7 +1,11 @@
 ---
 status: accepted
 date: 2026-07-09
+created: 2026-07-09
+updated: 2026-07-09
+revision: 1
 deciders: [adh, Copilot]
+stakeholder_type: [project-contributor]
 ---
 
 # ADR-0026: CaseActor-Routed Actor Suggestion and Invitation Flow

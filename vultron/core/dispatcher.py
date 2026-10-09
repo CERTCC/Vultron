@@ -24,11 +24,12 @@ The ``get_dispatcher`` factory function is provided for adapter convenience.
 """
 
 import logging
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING, Any
 
-from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.events import MessageSemantics
+from vultron.core.models.replication_state import VultronReplicationState
+from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.errors import (
     UnroutableActivityError,
@@ -45,11 +46,13 @@ logger = logging.getLogger(__name__)
 _JOIN_BACKFILL_GATED_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
         MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
     }
@@ -60,8 +63,8 @@ class DispatcherBase:
     """Base dispatcher implementation.
 
     Looks up the use case class for the event's ``semantic_type`` from the
-    supplied routing table, instantiates it with ``dl``, and calls
-    ``execute(event)``.
+    supplied routing table, instantiates it with ``dl``, calls ``execute()``,
+    and returns the handler's ``HandlerResult`` (UCORG-05-010).
 
     Optional *port_factories* allow driven ports to be injected for specific
     semantic types.  Each factory receives the ``DataLayer`` and returns a
@@ -83,7 +86,9 @@ class DispatcherBase:
         self._use_case_map = use_case_map
         self._port_factories = port_factories or {}
 
-    def dispatch(self, event: "VultronEvent", dl: "DataLayer") -> None:
+    def dispatch(
+        self, event: "VultronEvent", dl: "DataLayer"
+    ) -> HandlerResult:
         logger.info(
             "Dispatching activity of type '%s' with semantics '%s'",
             event.object_type,
@@ -95,26 +100,57 @@ class DispatcherBase:
             event.actor_id,
             event.object_type,
         )
-        self._handle(event, dl)
+        return self._handle(event, dl)
 
-    def _handle(self, event: "VultronEvent", dl: "DataLayer") -> None:
+    def _handle(self, event: "VultronEvent", dl: "DataLayer") -> HandlerResult:
+        """Run the routed use case and return its verdict.
+
+        This is the link that calls ``execute()``, so it is the first hop that
+        must keep the ``HandlerResult`` (UCORG-05-010). An unroutable activity
+        runs no handler; the dispatcher then synthesizes a ``REFUSED`` verdict
+        rather than returning as though one had succeeded (UCORG-05-012). The
+        activity is still dropped, not re-queued (ARCH-15-003).
+
+        Raises:
+            VultronApiHandlerNotFoundError: No use case is registered for the
+                event's semantics (the pipeline records the raise as rejected).
+            TypeError: The use case returned something other than a
+                ``HandlerResult`` — a contract breach, not a verdict.
+        """
         try:
             self._enforce_join_backfill_gate(event, dl)
-        except UnroutableActivityError:
-            logger.error(
+        except UnroutableActivityError as exc:
+            logger.error(  # noqa: TRY400  # ruff-baseline #3353
                 "Activity '%s' is unroutable and will be dropped"
                 " (semantics=%s actor_id=%s): no case_id extractable",
                 event.activity_id,
                 event.semantic_type,
                 event.actor_id,
             )
-            return
+            return HandlerResult.refused(f"unroutable: {exc.reason}")
         use_case_class = self._get_use_case(event.semantic_type)
         extra_kwargs: dict[str, Any] = {}
         port_factory = self._port_factories.get(event.semantic_type)
         if port_factory is not None:
             extra_kwargs = port_factory(dl)
-        use_case_class(dl, event, **extra_kwargs).execute()
+        use_case = use_case_class(dl, event, **extra_kwargs)
+        # HP-06-001: handler entry is logged once, here, with the handler's
+        # class name, so no handler carries its own entry line.
+        logger.debug(
+            "Entering handler %s (activity_id=%s semantics=%s actor_id=%s)",
+            type(use_case).__name__,
+            event.activity_id,
+            event.semantic_type,
+            event.actor_id,
+        )
+        result = use_case.execute()
+        if not isinstance(result, HandlerResult):
+            raise TypeError(
+                f"use case {use_case_class!r} for {event.semantic_type} "
+                f"returned {type(result).__name__}, not HandlerResult"
+                " (UCORG-05-001)"
+            )
+        return result
 
     def _enforce_join_backfill_gate(
         self, event: "VultronEvent", dl: "DataLayer"
@@ -162,10 +198,10 @@ class DispatcherBase:
         self, case_id: str, dl: "DataLayer"
     ) -> tuple[int, bool]:
         case_indices = sorted(
-            int(getattr(obj, "log_index"))
+            index
             for obj in dl.list_objects("CaseLedgerEntry")
             if getattr(obj, "case_id", None) == case_id
-            and isinstance(getattr(obj, "log_index", None), int)
+            and isinstance(index := getattr(obj, "log_index", None), int)
         )
         if not case_indices:
             return -1, False

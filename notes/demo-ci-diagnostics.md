@@ -171,6 +171,7 @@ missing log pattern.
 | 15 | `test_invariant_15_cs_state_transitions_observed` | active | 1 — Sent |
 | 16 | `test_invariant_16_causal_edges_in_ledger_order` | active | 3 — Committed |
 | — | `test_invariant_clp13_no_rejected_invite_entries` | active | 3 — Committed |
+| — | `test_invariant_clp07_unique_payload_snapshot_ids` | active | 3 — Committed |
 | — | `test_invariant_clp14_timestamp_invariants` | active | 3 — Committed |
 | — | `test_invariant_per_actor_replica_no_rm_state_oscillation` | active | 2 — Received |
 | — | `test_invariant_per_actor_replica_rm_closed_termination` | active | 2 — Received |
@@ -178,9 +179,9 @@ missing log pattern.
 | — | `test_invariant_per_actor_replica_cs_state_transitions_observed` | active | 2 — Received |
 
 **The `#` column is a historical label, not an index.** It skips 8 (that
-invariant is scenario-local — see below) and runs out entirely for the last
-six, which are named for the spec clause or the property they check rather
-than taking the next number. Match a pytest failure to a row by **test
+invariant is scenario-local — see below) and runs out entirely for the
+unnumbered rows, which are named for the spec clause or the property they check
+rather than taking the next number. Match a pytest failure to a row by **test
 function name**, never by number or position.
 
 **The four `per_actor_replica_*` rows are the replica-side halves of 6, 7, 9
@@ -245,8 +246,11 @@ identified which layer broke.
   store and never recorded as a ledger entry, so no replica could observe it.
   All five are now active guards. If one goes red, the CASE_MANAGER's terminal
   entry is missing again: check that `CommitCaseActorRMClosedEntryNode` ran on
-  the owner-Leave path and that `CLOSE_CASE` still receives a `WireRenderPort`
-  (without it the node hard-fails).
+  the owner-Leave path and that `CLOSE_CASE` still receives a `WireRenderPort`.
+  Every semantic gets one through `with_received_baseline_ports()` in
+  `make_dispatcher()` (#3930); without it the Leave's own guarded commit raises
+  `VultronWiringError`, while the RM.CLOSED node on its own skips its entry
+  best-effort.
 - **The `per_actor_replica_*` checks are per-replica, not cross-replica.** They
   do not compare replicas against each other. Each runs every non-`case-actor`
   replica **in isolation** (`{actor: entries}`, so `auth_entries()` falls back
@@ -477,8 +481,8 @@ Common causal waits (should be `demo_gate`):
 | Wait | Precondition for |
 |---|---|
 | `wait_for_participant_rm_state` to RM.VALID | `engage-case` trigger (rejects at 422 if RM.VALID not committed) |
-| `wait_for_case_on_container` (replica present) | `wait_for_contiguous_ledger_coverage` (needs genesis hash to anchor chain) |
-| `wait_for_contiguous_ledger_coverage` | any state comparison across replicas |
+| `wait_for_case_on_container` (replica present) | `wait_for_replica_ledger_coverage` (needs genesis hash to anchor chain) |
+| `wait_for_replica_ledger_coverage` (`causal=True`) | any state comparison across replicas — `run_sync_verification_phase` composes both |
 | `wait_for_event_type_in_ledger` (close phase) | reading ledger tail on a complete replica |
 
 Common temporal waits (may stay `demo_check` if they do not gate a
@@ -529,7 +533,8 @@ with demo_check(f"{actor.id_} reached RM.VALID before engage-case"):
     )
 vendor_engages_case(...)  # may 422 if RM.VALID not yet committed
 
-# ❌ Wrong — bare call raises AssertionError directly, bypasses accumulator
+# ❌ Wrong — bare call raises AssertionError directly, bypasses accumulator;
+# and a scenario module must not call the primitive at all (DEMOMA-23-006)
 wait_for_contiguous_ledger_coverage(
     client=finder_client, case_id=case.id_,
     expected_tail_index=vendor_tail_index,
@@ -564,16 +569,23 @@ sender's current tail hash and poll until the replica acknowledges it before
 writing the devlog:
 
 ```python
-vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-if vendor_entries:
-    tail = max(vendor_entries, key=lambda e: e["log_index"])
-    wait_for_finder_log_entry(finder_client, case.id_, tail["entry_hash"])
+wait_for_replica_ledger_coverage(
+    auth_client=vendor_client,
+    replicas=[(finder_client, "Finder")],
+    case_id=case.id_,
+    phase_label="close phase",
+    causal=False,  # temporal: nothing but the dump depends on it (EDF-06-006)
+)
 ```
 
-Apply this poll-until-hash pattern after every phase that introduces a new ledger
-tail before a devlog dump. This is the same pattern used in
-`_phase_sync_verification`, and it ensures dump artifacts are always consistent
-with the replica's committed state.
+Apply this after every phase that introduces a new ledger tail before a devlog
+dump. The helper reads the authority tail, waits for *contiguous* coverage of
+every index up to it on each replica (a tail-hash-only wait misses an
+intermediate entry that arrives after the tail, #1363), and wraps each wait in
+a demo context so a timeout accumulates instead of crashing the run. The same
+helper is the causal gate inside `run_sync_verification_phase`
+(DEMOMA-23-005); a scenario module never calls `_get_log_entries_for_case` or
+`wait_for_contiguous_ledger_coverage` itself (DEMOMA-23-006).
 
 ---
 

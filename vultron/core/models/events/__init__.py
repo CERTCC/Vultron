@@ -13,15 +13,15 @@ Public surface:
 - Case-context resolution helpers used by the inbox deferral/replay path
 """
 
-from typing import Union
-
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptCaseParticipantRoleReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
+    AcceptInviteActorToFullCaseReceivedEvent,
     AcceptOfferCaseParticipantReceivedEvent,
     AnnounceVulnerabilityCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
+    InviteActorToFullCaseReceivedEvent,
     OfferActorToCaseReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
     OfferCaseParticipantReceivedEvent,
@@ -29,21 +29,13 @@ from vultron.core.models.events.actor import (
     RejectCaseOwnershipTransferReceivedEvent,
     RejectCaseParticipantRoleReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
+    RejectInviteActorToFullCaseReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
-)
-from vultron.core.models.events.case_proposal import (
-    AcceptCaseProposalReceivedEvent,
-    CreateCaseProposalReceivedEvent,
-    RejectCaseProposalReceivedEvent,
+    TentativeRejectInviteActorToFullCaseReceivedEvent,
 )
 from vultron.core.models.events.base import (
     MessageSemantics,
     VultronEvent,
-)
-from vultron.core.models.events.case_context import (
-    CASE_BOOTSTRAP_SEMANTICS,
-    is_case_bootstrap,
-    resolve_case_context_id,
 )
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
@@ -53,19 +45,33 @@ from vultron.core.models.events.case import (
     EngageCaseReceivedEvent,
     UpdateCaseReceivedEvent,
 )
+from vultron.core.models.events.case_context import (
+    CASE_BOOTSTRAP_SEMANTICS,
+    is_case_bootstrap,
+    resolve_case_context_id,
+)
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
     CreateCaseParticipantReceivedEvent,
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
+from vultron.core.models.events.case_proposal import (
+    AcceptCaseProposalReceivedEvent,
+    CreateCaseProposalReceivedEvent,
+    RejectCaseProposalReceivedEvent,
+)
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
-    AddEmbargoEventToCaseReceivedEvent,
+    ActivateEmbargoOnCaseReceivedEvent,
     AnnounceEmbargoEventToCaseReceivedEvent,
     CreateEmbargoEventReceivedEvent,
     InviteToEmbargoOnCaseReceivedEvent,
+    RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
+)
+from vultron.core.models.events.fault import (
+    CreateProcessingFaultReceivedEvent,
 )
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
@@ -90,78 +96,90 @@ from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
-from vultron.core.models.events.fault import (
-    CreateProcessingFaultReceivedEvent,
-)
 from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,
     UnresolvableObjectReceivedEvent,
 )
 
-AnyReceivedEvent = Union[
+AnyReceivedEvent = (
     # report
-    CreateReportReceivedEvent,
-    SubmitReportReceivedEvent,
-    ValidateReportReceivedEvent,
-    InvalidateReportReceivedEvent,
-    AckReportReceivedEvent,
-    CloseReportReceivedEvent,
+    CreateReportReceivedEvent
+    | SubmitReportReceivedEvent
+    | ValidateReportReceivedEvent
+    | InvalidateReportReceivedEvent
+    | AckReportReceivedEvent
+    | CloseReportReceivedEvent
+    |
     # case
-    CreateCaseReceivedEvent,
-    UpdateCaseReceivedEvent,
-    EngageCaseReceivedEvent,
-    DeferCaseReceivedEvent,
-    AddReportToCaseReceivedEvent,
-    CloseCaseReceivedEvent,
+    CreateCaseReceivedEvent
+    | UpdateCaseReceivedEvent
+    | EngageCaseReceivedEvent
+    | DeferCaseReceivedEvent
+    | AddReportToCaseReceivedEvent
+    | CloseCaseReceivedEvent
+    |
     # actor
-    OfferActorToCaseReceivedEvent,
-    OfferCaseParticipantReceivedEvent,
-    AcceptOfferCaseParticipantReceivedEvent,
-    RejectOfferCaseParticipantReceivedEvent,
-    OfferCaseParticipantRoleReceivedEvent,
-    AcceptCaseParticipantRoleReceivedEvent,
-    RejectCaseParticipantRoleReceivedEvent,
-    AnnounceVulnerabilityCaseReceivedEvent,
-    OfferCaseOwnershipTransferReceivedEvent,
-    AcceptCaseOwnershipTransferReceivedEvent,
-    RejectCaseOwnershipTransferReceivedEvent,
-    InviteActorToCaseReceivedEvent,
-    AcceptInviteActorToCaseReceivedEvent,
-    RejectInviteActorToCaseReceivedEvent,
+    OfferActorToCaseReceivedEvent
+    | OfferCaseParticipantReceivedEvent
+    | AcceptOfferCaseParticipantReceivedEvent
+    | RejectOfferCaseParticipantReceivedEvent
+    | OfferCaseParticipantRoleReceivedEvent
+    | AcceptCaseParticipantRoleReceivedEvent
+    | RejectCaseParticipantRoleReceivedEvent
+    | AnnounceVulnerabilityCaseReceivedEvent
+    | OfferCaseOwnershipTransferReceivedEvent
+    | AcceptCaseOwnershipTransferReceivedEvent
+    | RejectCaseOwnershipTransferReceivedEvent
+    | InviteActorToCaseReceivedEvent
+    | AcceptInviteActorToCaseReceivedEvent
+    | RejectInviteActorToCaseReceivedEvent
+    | InviteActorToFullCaseReceivedEvent
+    | AcceptInviteActorToFullCaseReceivedEvent
+    | TentativeRejectInviteActorToFullCaseReceivedEvent
+    | RejectInviteActorToFullCaseReceivedEvent
+    |
     # case_proposal
-    CreateCaseProposalReceivedEvent,
-    AcceptCaseProposalReceivedEvent,
-    RejectCaseProposalReceivedEvent,
+    CreateCaseProposalReceivedEvent
+    | AcceptCaseProposalReceivedEvent
+    | RejectCaseProposalReceivedEvent
+    |
     # case_participant
-    CreateCaseParticipantReceivedEvent,
-    AddCaseParticipantToCaseReceivedEvent,
-    RemoveCaseParticipantFromCaseReceivedEvent,
+    CreateCaseParticipantReceivedEvent
+    | AddCaseParticipantToCaseReceivedEvent
+    | RemoveCaseParticipantFromCaseReceivedEvent
+    |
     # embargo
-    CreateEmbargoEventReceivedEvent,
-    AddEmbargoEventToCaseReceivedEvent,
-    RemoveEmbargoEventFromCaseReceivedEvent,
-    AnnounceEmbargoEventToCaseReceivedEvent,
-    InviteToEmbargoOnCaseReceivedEvent,
-    AcceptInviteToEmbargoOnCaseReceivedEvent,
-    RejectInviteToEmbargoOnCaseReceivedEvent,
+    CreateEmbargoEventReceivedEvent
+    | ActivateEmbargoOnCaseReceivedEvent
+    | RejectEmbargoProposalOnCaseReceivedEvent
+    | RemoveEmbargoEventFromCaseReceivedEvent
+    | AnnounceEmbargoEventToCaseReceivedEvent
+    | InviteToEmbargoOnCaseReceivedEvent
+    | AcceptInviteToEmbargoOnCaseReceivedEvent
+    | RejectInviteToEmbargoOnCaseReceivedEvent
+    |
     # note
-    CreateNoteReceivedEvent,
-    AddNoteToCaseReceivedEvent,
-    RemoveNoteFromCaseReceivedEvent,
+    CreateNoteReceivedEvent
+    | AddNoteToCaseReceivedEvent
+    | RemoveNoteFromCaseReceivedEvent
+    |
     # status
-    CreateCaseStatusReceivedEvent,
-    AddCaseStatusToCaseReceivedEvent,
-    CreateParticipantStatusReceivedEvent,
-    AddParticipantStatusToParticipantReceivedEvent,
+    CreateCaseStatusReceivedEvent
+    | AddCaseStatusToCaseReceivedEvent
+    | CreateParticipantStatusReceivedEvent
+    | AddParticipantStatusToParticipantReceivedEvent
+    |
     # sync
-    AnnounceLogEntryReceivedEvent,
-    RejectLogEntryReceivedEvent,
+    AnnounceLogEntryReceivedEvent
+    | RejectLogEntryReceivedEvent
+    |
     # fault
-    CreateProcessingFaultReceivedEvent,
+    CreateProcessingFaultReceivedEvent
+    |
     # unknown
-    UnknownReceivedEvent,
-    UnresolvableObjectReceivedEvent,
-]
+    UnknownReceivedEvent
+    | UnresolvableObjectReceivedEvent
+)
 
 __all__ = [
     "MessageSemantics",
@@ -200,6 +218,10 @@ __all__ = [
     "InviteActorToCaseReceivedEvent",
     "AcceptInviteActorToCaseReceivedEvent",
     "RejectInviteActorToCaseReceivedEvent",
+    "InviteActorToFullCaseReceivedEvent",
+    "AcceptInviteActorToFullCaseReceivedEvent",
+    "TentativeRejectInviteActorToFullCaseReceivedEvent",
+    "RejectInviteActorToFullCaseReceivedEvent",
     # case_proposal
     "CreateCaseProposalReceivedEvent",
     "AcceptCaseProposalReceivedEvent",
@@ -210,7 +232,8 @@ __all__ = [
     "RemoveCaseParticipantFromCaseReceivedEvent",
     # embargo
     "CreateEmbargoEventReceivedEvent",
-    "AddEmbargoEventToCaseReceivedEvent",
+    "ActivateEmbargoOnCaseReceivedEvent",
+    "RejectEmbargoProposalOnCaseReceivedEvent",
     "RemoveEmbargoEventFromCaseReceivedEvent",
     "AnnounceEmbargoEventToCaseReceivedEvent",
     "InviteToEmbargoOnCaseReceivedEvent",

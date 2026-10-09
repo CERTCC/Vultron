@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from _pytest.outcomes import Failed, Skipped
@@ -38,6 +39,7 @@ from test.ci.invariants.common import (
     check_per_actor_replica_participant_status_schema_completeness,
     check_per_actor_replica_rm_closed_termination,
     check_rm_closed_termination,
+    check_unique_payload_snapshot_ids,
     for_each_replica,
 )
 from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
@@ -82,6 +84,37 @@ def _simple_two_entry_chain(actor: str = "case-actor") -> list[dict]:
 # ---------------------------------------------------------------------------
 # Invariant 1: check_hash_chain
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"eventType": "noop"},
+        {"logIndex": -1, "eventType": "noop"},
+        {"logIndex": True, "eventType": "noop"},
+        {"logIndex": 1.9, "eventType": "noop"},
+        {"logIndex": "3", "eventType": "noop"},
+        {"logIndex": [1], "eventType": "noop"},
+    ],
+    ids=["missing", "negative", "bool", "float", "string", "list"],
+)
+def test_log_index_rejects_missing_and_negative(entry):
+    """No sentinel index: an unknown position raises (ISSUE-2764).
+
+    A committed entry always carries ``logIndex >= 0`` (CLP-14-010), so a
+    ``-1`` default would sort and compare as a real — earliest — position.
+    """
+    with pytest.raises(ValueError, match="logIndex"):
+        common.log_index(entry)
+
+
+def test_log_index_message_names_event_type_for_non_integer():
+    with pytest.raises(ValueError, match=r"'noop'.*non-integer"):
+        common.log_index({"logIndex": "x", "eventType": "noop"})
+
+
+def test_log_index_falls_back_to_camel_case_when_snake_case_is_null():
+    assert common.log_index({"log_index": None, "logIndex": 3}) == 3
 
 
 def test_check_hash_chain_detects_broken_link():
@@ -177,6 +210,71 @@ def test_check_event_type_count_returns_violation_when_below_min():
     assert violations
 
 
+def _invite_replicas(count: int) -> dict[str, list[dict]]:
+    """A case-actor log holding *count* distinct ``invite_actor_to_case`` entries."""
+    entries: list[dict] = []
+    prev = GENESIS_HASH
+    for i in range(count):
+        h = _SHA256(f"invite:{i}")
+        entries.append(_entry(i, h, prev, event_type="invite_actor_to_case"))
+        prev = h
+    return {"case-actor": entries}
+
+
+def test_check_event_type_count_returns_violation_when_above_max() -> None:
+    """A count above ``max_count`` is reported as a violation naming both numbers."""
+    violations = check_event_type_count(
+        _invite_replicas(2), "invite_actor_to_case", 1, max_count=1
+    )
+    assert violations
+    assert "at most 1" in violations[0]
+    assert "found 2" in violations[0]
+
+
+@pytest.mark.parametrize("count", [1, 2])
+def test_check_event_type_count_passes_within_bounds(count: int) -> None:
+    violations = check_event_type_count(
+        _invite_replicas(count), "invite_actor_to_case", 1, max_count=2
+    )
+    assert violations == []
+
+
+@pytest.mark.parametrize(
+    ("count", "min_count", "max_count", "violates"),
+    [
+        pytest.param(1, 1, 1, False, id="exact-match"),
+        pytest.param(0, 1, 1, True, id="exact-below"),
+        pytest.param(0, 0, 0, False, id="absence-held"),
+        pytest.param(1, 0, 0, True, id="absence-broken"),
+    ],
+)
+def test_check_event_type_count_exact_bound(
+    count: int, min_count: int, max_count: int, violates: bool
+) -> None:
+    """``min_count == max_count`` pins an exact count, including zero."""
+    violations = check_event_type_count(
+        _invite_replicas(count),
+        "invite_actor_to_case",
+        min_count,
+        max_count=max_count,
+    )
+    assert bool(violations) is violates
+
+
+def test_check_event_type_count_has_no_upper_bound_by_default() -> None:
+    violations = check_event_type_count(
+        _invite_replicas(5), "invite_actor_to_case", 1
+    )
+    assert violations == []
+
+
+def test_check_event_type_count_rejects_max_below_min() -> None:
+    with pytest.raises(ValueError, match="max_count"):
+        check_event_type_count(
+            _invite_replicas(1), "invite_actor_to_case", 2, max_count=1
+        )
+
+
 # ---------------------------------------------------------------------------
 # Invariant 6: check_no_rm_state_oscillation
 # ---------------------------------------------------------------------------
@@ -195,7 +293,6 @@ def test_check_no_rm_state_oscillation_detects_post_closed_transition():
                 "object": {
                     "attributedTo": actor_id,
                     "rmState": "CLOSED",
-                    "emConsentState": "SIGNATORY",
                     "cvdRole": ["FINDER"],
                 }
             },
@@ -209,7 +306,6 @@ def test_check_no_rm_state_oscillation_detects_post_closed_transition():
                 "object": {
                     "attributedTo": actor_id,
                     "rmState": "ACCEPTED",  # post-CLOSED → oscillation
-                    "emConsentState": "SIGNATORY",
                     "cvdRole": ["FINDER"],
                 }
             },
@@ -237,7 +333,6 @@ def test_check_rm_closed_termination_detects_open_participant():
             "object": {
                 "attributedTo": actor_id,
                 "rmState": "ACCEPTED",  # not CLOSED
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["FINDER"],
             }
         },
@@ -294,8 +389,7 @@ def test_check_participant_status_schema_completeness_detects_missing_field():
             "object": {
                 "attributedTo": "https://example.org/actors/x",
                 "rmState": "VALID",
-                # emConsentState intentionally missing
-                "cvdRole": ["FINDER"],
+                # cvdRole intentionally missing
             }
         },
     )
@@ -315,7 +409,6 @@ def test_check_participant_status_schema_completeness_detects_invalid_role():
             "object": {
                 "attributedTo": "https://example.org/actors/x",
                 "rmState": "VALID",
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["NOT_A_REAL_ROLE"],
             }
         },
@@ -445,7 +538,6 @@ def test_check_cs_state_transitions_observed_detects_missing_fix_ready():
             "object": {
                 "attributedTo": actor_id,
                 "rmState": "VALID",
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["FINDER"],
                 "vfState": "vf",  # never VF
                 "caseStatus": {"pxaState": "Pxa"},
@@ -485,7 +577,6 @@ def test_check_cs_state_transitions_observed_no_vf_passes_without_fix_ready():
             "object": {
                 "attributedTo": actor_id,
                 "rmState": "ACCEPTED",
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["COORDINATOR"],
                 "vfState": "vf",  # no vendor → never VF
                 "caseStatus": {"pxaState": "Pxa"},  # P-transition present
@@ -512,7 +603,6 @@ def test_check_cs_state_transitions_observed_no_vfd_still_requires_published():
             "object": {
                 "attributedTo": actor_id,
                 "rmState": "ACCEPTED",
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["COORDINATOR"],
                 "vfState": "vf",
                 "caseStatus": {"pxaState": "pxa"},  # no P yet
@@ -676,6 +766,124 @@ class TestLoadDevlogsManifestHandling:
         assert "no case-ledger" in message.lower()
         assert "The scenario failed before a case existed." in message
 
+    @pytest.mark.spec("DEMOCI-10-014")
+    def test_upstream_abort_is_not_called_a_real_invariant_failure(
+        self, tmp_path, monkeypatch
+    ):
+        """A manifest with no case says the demo aborted, not that an invariant broke.
+
+        When the scenario failed before a case existed, no participant ledger
+        could have been exported and no ledger invariant was exercised.  The
+        harness must still fail (DEMOCI-10-003) but must say which layer
+        failed — a triager reading "real invariant failure" over a delivery
+        flake was the cost recorded on #2898 (ISSUE-3879).
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "fcvcv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fcvcv",
+                    "caseId": None,
+                    "ledgerFileCount": 0,
+                    "targetCount": 0,
+                    "reason": (
+                        "The scenario failed before a case existed, so no "
+                        "participant ledgers could be exported."
+                    ),
+                    "actors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fcvcv")
+        message = excinfo.value.msg or ""
+        assert "real invariant failure" not in message
+        assert "not exercised" in message
+        assert "before a case existed" in message
+
+    @pytest.mark.spec("DEMOCI-10-014")
+    def test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure(
+        self, tmp_path, monkeypatch
+    ):
+        """A manifest that names a case but captured no ledgers keeps the strong wording."""
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "fvv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fvv",
+                    "caseId": CASE_URI,
+                    "ledgerFileCount": 0,
+                    "targetCount": 2,
+                    "reason": None,
+                    "actors": [
+                        {
+                            "actorName": "finder",
+                            "routeKey": "finder",
+                            "captured": False,
+                            "reason": "HTTP 500",
+                        },
+                        {
+                            "actorName": "vendor",
+                            "routeKey": "vendor",
+                            "captured": False,
+                            "reason": "HTTP 500",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fvv")
+        message = excinfo.value.msg or ""
+        assert "real invariant failure" in message
+        assert "not exercised" not in message
+
+    @pytest.mark.spec("DEMOCI-10-014")
+    def test_crashed_dump_is_not_called_an_upstream_abort_or_an_invariant_failure(
+        self, tmp_path, monkeypatch
+    ):
+        """The harness's crashed-dump backstop has the no-case shape but a
+        different meaning.
+
+        ``ScenarioHarness`` writes ``caseId: null`` / ``targetCount: 0`` with
+        ``DUMP_CRASHED_REASON`` when ``dump_case_ledgers`` raised before it
+        could record results — for a run whose case may well have existed.
+        Keying the wording on shape alone would call that "aborted before a
+        case existed" over a reason line that says the dump crashed.
+        """
+        from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
+
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "fcv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fcv",
+                    "caseId": None,
+                    "ledgerFileCount": 0,
+                    "targetCount": 0,
+                    "reason": DUMP_CRASHED_REASON,
+                    "actors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fcv")
+        message = excinfo.value.msg or ""
+        assert "real invariant failure" not in message
+        assert "before a case existed" not in message
+        assert "dump raised" in message
+        assert "not exercised" in message
+        assert DUMP_CRASHED_REASON in message
+
     def test_failure_message_names_each_missing_actor(
         self, tmp_path, monkeypatch
     ):
@@ -752,6 +960,39 @@ class TestLoadDevlogsManifestHandling:
             range(len(entries))
         )
 
+    def test_fails_when_ledger_entry_lacks_log_index(
+        self, tmp_path, monkeypatch, single_actor_replicas
+    ):
+        """An entry with no valid ``logIndex`` fails the load (ISSUE-2764).
+
+        Every such entry is named, across every actor (EH-07-001), rather
+        than being sorted to the front of the log as index ``-1``.
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        (tmp_path / "fvv").mkdir()
+        (tmp_path / "fvv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps({"demoName": "fvv", "ledgerFileCount": 2}),
+            encoding="utf-8",
+        )
+        good = single_actor_replicas["case-actor"]
+        for actor, bad in (
+            ("case-actor", {"eventType": "missing_index"}),
+            ("vendor", {"logIndex": -1, "eventType": "negative_index"}),
+        ):
+            actor_dir = tmp_path / "fvv" / actor
+            actor_dir.mkdir()
+            (actor_dir / "test-case-case-ledger.jsonl").write_text(
+                "".join(json.dumps(e) + "\n" for e in [*good, bad]),
+                encoding="utf-8",
+            )
+
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("fvv")
+
+        msg = excinfo.value.msg or ""
+        assert "'case-actor'" in msg and "missing_index" in msg
+        assert "'vendor'" in msg and "negative_index" in msg
+
     def test_skip_survives_when_no_demo_name_and_no_manifest(
         self, tmp_path, monkeypatch
     ):
@@ -824,6 +1065,50 @@ class TestLoadDevlogsManifestHandling:
             "load_devlogs must filter by manifest caseId to prevent "
             "hash-chain corruption from cross-run accumulation (issue #2273)."
         )
+
+    def test_invalid_log_index_in_filtered_out_case_does_not_fail(
+        self, tmp_path, monkeypatch
+    ):
+        """The logIndex check runs after the manifest ``caseId`` filter.
+
+        A leftover entry from an older local run is dropped before it is
+        judged, so its missing index does not fail the load (ISSUE-2764).
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        actor_dir = tmp_path / "fv" / "case-actor"
+        actor_dir.mkdir(parents=True)
+
+        CASE_A = "https://example.org/cases/case-a"
+        CASE_B = "https://example.org/cases/case-b"
+        stale = {"event_type": "old_event", "caseId": CASE_A}
+        current = {
+            "logIndex": 0,
+            "entryHash": "hb",
+            "prevLogHash": "0",
+            "event_type": "new_event",
+            "caseId": CASE_B,
+        }
+        (actor_dir / "case-a-case-ledger.jsonl").write_text(
+            json.dumps(stale) + "\n", encoding="utf-8"
+        )
+        (actor_dir / "case-b-case-ledger.jsonl").write_text(
+            json.dumps(current) + "\n", encoding="utf-8"
+        )
+        (tmp_path / "fv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "fv",
+                    "caseId": CASE_B,
+                    "ledgerFileCount": 1,
+                    "targetCount": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        replicas = common.load_devlogs("fv")
+
+        assert replicas["case-actor"] == [current]
 
     def test_fails_when_any_scenario_manifest_reports_no_ledgers(
         self, tmp_path, monkeypatch
@@ -949,7 +1234,6 @@ def _status_entry(
             "object": {
                 "attributedTo": actor_id,
                 "rmState": rm_state,
-                "emConsentState": "SIGNATORY",
                 "cvdRole": ["FINDER"],
                 "vfState": vf_state,
                 "caseStatus": {"pxaState": pxa_state},
@@ -979,7 +1263,7 @@ class TestForEachReplica:
     def test_case_actor_is_exempt(self):
         """A defect present only in the case-actor replica yields nothing."""
         bad_entry = _status_entry(0, "ACCEPTED", "VF", "Pxa")
-        bad_entry["payloadSnapshot"]["object"].pop("emConsentState")
+        bad_entry["payloadSnapshot"]["object"].pop("cvdRole")
         replicas = {"case-actor": [bad_entry]}
         assert (
             for_each_replica(
@@ -1151,18 +1435,6 @@ class TestCheckPerActorReplicaParticipantStatusSchemaCompleteness:
         assert violations
         assert "vendor" in violations[0]
 
-    def test_detects_missing_em_consent_state(self):
-        entries = _vendor_entries_valid()
-        entries[0]["payloadSnapshot"]["object"].pop("emConsentState")
-        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
-        violations = (
-            check_per_actor_replica_participant_status_schema_completeness(
-                replicas
-            )
-        )
-        assert violations
-        assert "vendor" in violations[0]
-
     def test_actor_without_status_entries_is_exempt(self):
         h0 = _SHA256("nonstatus:0")
         nonstatus = [_entry(0, h0, GENESIS_HASH, event_type="create_case")]
@@ -1242,8 +1514,6 @@ class TestCheckPerActorReplicaCsStateTransitionsObserved:
 # CLP-14 timestamp invariants (check_clp14_timestamp_invariants)
 # ---------------------------------------------------------------------------
 
-from datetime import datetime, timedelta, timezone  # noqa: E402
-
 
 def _ts_chain_entry(
     log_index: int,
@@ -1261,7 +1531,7 @@ def _ts_chain_entry(
     return entry
 
 
-_T0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+_T0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
 _T1 = _T0 + timedelta(minutes=1)
 _T2 = _T1 + timedelta(minutes=1)
 
@@ -1369,3 +1639,69 @@ class TestCheckClp14TimestampInvariants:
             {"case-actor": []}
         )
         assert not violations
+
+
+# ---------------------------------------------------------------------------
+# CLP-07-002: one entry per activity on every replica
+# ---------------------------------------------------------------------------
+
+_INVITE_ID = "https://example.org/activities/invite-1"
+
+
+def _invite_chain(*payload_ids: str) -> list[dict]:
+    entries: list[dict] = []
+    prev = GENESIS_HASH
+    for i, pid in enumerate(payload_ids):
+        h = _SHA256(f"invite:{i}")
+        entries.append(
+            _entry(
+                i,
+                h,
+                prev,
+                event_type="invite_actor_to_case",
+                payload={"id": pid, "type": "Invite"},
+            )
+        )
+        prev = h
+    return entries
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_flags_the_double_committed_invite():
+    """The retired self-cc: path committed one Invite twice on the manager."""
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID, _INVITE_ID),
+        "vendor": _invite_chain(_INVITE_ID),
+    }
+    violations = check_unique_payload_snapshot_ids(replicas)
+    assert len(violations) == 1
+    assert "'case-actor'" in violations[0]
+    assert _INVITE_ID in violations[0]
+    assert "[0, 1]" in violations[0]
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_flags_a_duplicate_on_a_participant_replica():
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID),
+        "vendor": _invite_chain(_INVITE_ID, _INVITE_ID),
+    }
+    violations = check_unique_payload_snapshot_ids(replicas)
+    assert len(violations) == 1
+    assert "'vendor'" in violations[0]
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_passes_one_entry_per_activity_per_replica():
+    """The same activity on two replicas is replication, not a duplicate."""
+    other = "https://example.org/activities/accept-1"
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID, other),
+        "vendor": _invite_chain(_INVITE_ID, other),
+    }
+    assert check_unique_payload_snapshot_ids(replicas) == []
+
+
+def test_unique_payload_ids_ignores_snapshots_without_an_id():
+    replicas = {"case-actor": [_entry(0, _SHA256("a"), GENESIS_HASH)] * 2}
+    assert check_unique_payload_snapshot_ids(replicas) == []

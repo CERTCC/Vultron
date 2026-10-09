@@ -185,7 +185,7 @@ class TestParticipantStatusSummary:
 
         summary = participant_status_summary(stored)
         assert "n_statuses=1" in summary
-        assert (
-            "rm=None" not in summary
-        ), f"the diagnostic went blank for a genuinely stored core row: {summary}"
+        assert "rm=None" not in summary, (
+            f"the diagnostic went blank for a genuinely stored core row: {summary}"
+        )
         assert "ACCEPTED" in summary

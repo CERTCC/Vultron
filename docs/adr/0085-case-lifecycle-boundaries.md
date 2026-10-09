@@ -1,9 +1,13 @@
 ---
 status: accepted
 date: 2026-09-02
+created: 2026-09-02
+updated: 2026-09-02
+revision: 1
 deciders: Allen D. Householder
 consulted: Claude Opus 4.8
 informed: []
+stakeholder_type: [project-contributor]
 ---
 
 # Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported
@@ -103,7 +107,7 @@ RM dimension of every participant. Owner-close advances exactly two participants
 to `RM.CLOSED`: the Case Owner (the leaver) and the Case Actor (CM-23-002). It
 advances no others. A `Leave` advances only the leaving actor's own RM state,
 regardless of the rung it was on, because a `Leave` is that actor's own
-self-declaratory closure act (ADR-0084). Every remaining ("bystander")
+self-declaratory closure act (ADR-0121). Every remaining ("bystander")
 participant retains its last RM state when the case closes around it; closure
 never force-advances a participant that did not itself leave. Same locked-door
 store: the front door locks, but a book a patron never returned stays wherever
@@ -143,6 +147,8 @@ code is required.
   a closed case cannot yet be reopened in the reference implementation.
 - Bad: the note handler and analogous handlers need a new closed-case guard, and
   `VP-03-013` / the RM-behavior satisfiers must be broadened beyond R\*.
+- Bad: a bystander `Leave(VulnerabilityCase)` is an external append too, so a participant that wants its departure recorded must leave before the Case Owner, and one arriving after close is declined with `as:Reject` and commits nothing (CM-23-013).
+- Neutral: the boundary is not chain finality, because the Case Actor's own housekeeping is not an external append, so `case_fully_closed` is not a log-complete marker; owner-close settles pending Invites first so that nothing follows it in practice (CM-23-002, CM-23-014).
 
 ## Validation
 
@@ -163,8 +169,9 @@ code is required.
 - CONCERN-1918 — rejoin semantics for departed participants (source)
 - CONCERN-1902 — `SvcCloseCaseUseCase` unreachable under auto-create-case (source)
 - ADR-0050 — `Leave(VulnerabilityCase)` is the canonical RM closure mechanism
-- ADR-0084 — Participant Assertion Authority (companion decision)
+- ADR-0121 — participant status authority, carried forward from ADR-0084 (companion decision)
 - CONCERN-3106 — whether case closure should force participant RM state
   (resolved: only the leaver advances; bystanders retain their rung — CM-23-012)
+- CONCERN-3400 — `case_fully_closed` was called the last ledger entry while bystander `Leave`s still landed after it (resolved: CM-23-013, CM-23-014)
 - Deferred: post-join role change (`Update(CaseParticipant)`, #3065) and case
   reopen mechanics (#3066) are tracked as Ideas under Epic #2567.

@@ -41,9 +41,9 @@ from py_trees.common import Status
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
-    CheckPendingProposalExistsForReport,
-    ProposeReportCaseToActorNode,
+    CheckProposalAlreadySentForReport,
     EnsureCaseActorHostedNode,
+    ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
 from vultron.core.behaviors.case.receive_report_case_tree import (
@@ -52,6 +52,24 @@ from vultron.core.behaviors.case.receive_report_case_tree import (
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
+
+
+def _event(offer):
+    """The received event for *offer*, as the inbox hands it to a tree."""
+    from vultron.core.models._helpers import _as_id
+    from vultron.core.models.activity import VultronActivity
+    from vultron.core.models.events import MessageSemantics
+    from vultron.core.models.events.report import SubmitReportReceivedEvent
+
+    actor_id = _as_id(offer.actor)
+    assert actor_id is not None
+    return SubmitReportReceivedEvent(
+        semantic_type=MessageSemantics.SUBMIT_REPORT,
+        activity_id=offer.id_,
+        activity_type="Offer",
+        actor_id=actor_id,
+        activity=VultronActivity(id_=offer.id_, type_="Offer", actor=actor_id),
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -90,41 +108,41 @@ class TestTreeStructure:
         assert tree is not None
         assert tree.name == "ReceiveReportCaseBT"
         assert isinstance(tree, py_trees.composites.Sequence)
-        assert len(tree.children) == 2
+        assert len(tree.children) == 3  # intake, gate, selector
 
     def test_first_child_is_policy_gate(
         self, report, offer, reporter_actor_id
     ):
-        """First child is CheckAutoCaseCreationEnabledNode."""
+        """After intake, the next child is CheckAutoCaseCreationEnabledNode."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        assert isinstance(tree.children[0], CheckAutoCaseCreationEnabledNode)
+        assert isinstance(tree.children[1], CheckAutoCaseCreationEnabledNode)
 
     def test_second_child_is_selector(self, report, offer, reporter_actor_id):
-        """Second child is ReceiveReportCaseSelector (Selector)."""
+        """After the gate comes ReceiveReportCaseSelector (Selector)."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        sel = tree.children[1]
+        sel = tree.children[2]
         assert isinstance(sel, py_trees.composites.Selector)
         assert sel.name == "ReceiveReportCaseSelector"
 
     def test_selector_first_child_is_idempotency_check(
         self, report, offer, reporter_actor_id
     ):
-        """Selector's first child is CheckPendingProposalExistsForReport."""
+        """Selector's first child is CheckProposalAlreadySentForReport."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        sel = tree.children[1]
-        assert isinstance(sel.children[0], CheckPendingProposalExistsForReport)
+        sel = tree.children[2]
+        assert isinstance(sel.children[0], CheckProposalAlreadySentForReport)
 
     def test_selector_second_child_is_flow_sequence(
         self, report, offer, reporter_actor_id
@@ -135,7 +153,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1].children[1]
+        flow = tree.children[2].children[1]
         assert isinstance(flow, py_trees.composites.Sequence)
         assert flow.name == "ReceiveReportProposalFlow"
 
@@ -146,7 +164,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1].children[1]
+        flow = tree.children[2].children[1]
         assert len(flow.children) == 3
 
     def test_flow_first_child_ensures_case_actor_hosted(
@@ -164,7 +182,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1].children[1]
+        flow = tree.children[2].children[1]
         assert isinstance(flow.children[0], EnsureCaseActorHostedNode)
 
     def test_flow_second_child_is_write_link(
@@ -176,7 +194,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1].children[1]
+        flow = tree.children[2].children[1]
         assert isinstance(flow.children[1], WritePendingReportCaseLinkNode)
 
     def test_flow_third_child_is_propose(
@@ -188,7 +206,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1].children[1]
+        flow = tree.children[2].children[1]
         assert isinstance(flow.children[2], ProposeReportCaseToActorNode)
 
     def test_no_create_case_node(self, report, offer, reporter_actor_id):
@@ -207,9 +225,9 @@ class TestTreeStructure:
                 yield from _collect(child)
 
         node_types = [type(n) for n in _collect(tree)]
-        assert (
-            CreateCaseNode not in node_types
-        ), "CreateCaseNode must not appear in the slimmed vendor tree (AC-1)"
+        assert CreateCaseNode not in node_types, (
+            "CreateCaseNode must not appear in the slimmed vendor tree (AC-1)"
+        )
 
     def test_no_embargo_node(self, report, offer, reporter_actor_id):
         """Tree does NOT contain InitializeDefaultEmbargoNode (AC-1)."""
@@ -229,9 +247,9 @@ class TestTreeStructure:
                 yield from _collect(child)
 
         node_types = [type(n) for n in _collect(tree)]
-        assert (
-            InitializeDefaultEmbargoNode not in node_types
-        ), "InitializeDefaultEmbargoNode must not appear in the vendor tree (AC-1)"
+        assert InitializeDefaultEmbargoNode not in node_types, (
+            "InitializeDefaultEmbargoNode must not appear in the vendor tree (AC-1)"
+        )
 
 
 # ============================================================================
@@ -259,7 +277,7 @@ class TestPolicyGate:
             reporter_actor_id=reporter_actor_id,
             actor_config=cfg,
         )
-        gate = tree.children[0]
+        gate = tree.children[1]
         assert isinstance(gate, CheckAutoCaseCreationEnabledNode)
         assert gate.actor_config is cfg
 
@@ -282,14 +300,14 @@ class TestPolicyGate:
             actor_config=ActorConfig(auto_create_case=False),
         )
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.FAILURE
 
         link = datalayer.read(VultronReportCaseLink.build_id(report.id_))
-        assert (
-            link is None
-        ), "No ReportCaseLink should be written when gate disabled"
+        assert link is None, (
+            "No ReportCaseLink should be written when gate disabled"
+        )
 
     def test_enabled_gate_succeeds(
         self,
@@ -310,7 +328,7 @@ class TestPolicyGate:
             actor_config=ActorConfig(auto_create_case=True),
         )
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.SUCCESS
 
@@ -339,7 +357,7 @@ class TestHappyPath:
             reporter_actor_id=reporter_actor_id,
         )
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.SUCCESS
 
@@ -359,19 +377,19 @@ class TestHappyPath:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
 
         link_id = VultronReportCaseLink.build_id(report.id_)
         link = datalayer.read(link_id)
-        assert isinstance(
-            link, VultronReportCaseLink
-        ), "VultronReportCaseLink must exist after tree execution (AC-2)"
+        assert isinstance(link, VultronReportCaseLink), (
+            "VultronReportCaseLink must exist after tree execution (AC-2)"
+        )
         assert link.report_id == report.id_
         assert link.case_id is None, "Link must be pending (case_id=None)"
         assert not link.proposal_rejected
 
-    def test_trusted_case_creator_id_is_the_case_actor_container(
+    def test_case_creator_id_is_the_case_actor_container(
         self,
         datalayer,
         actor,
@@ -380,7 +398,7 @@ class TestHappyPath:
         report,
         bridge,
     ):
-        """Link.trusted_case_creator_id is the CaseActor *container* identity.
+        """Link.case_creator_id is the CaseActor *container* identity.
 
         #1872 AC-5. It used to be ``.../actors/case-actor-{slug}``, derived from
         the report id. That identity was a phantom — the sender computed it and no
@@ -395,16 +413,16 @@ class TestHappyPath:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
 
         link = datalayer.read(VultronReportCaseLink.build_id(report.id_))
         assert isinstance(link, VultronReportCaseLink)
 
-        assert link.trusted_case_creator_id == (
+        assert link.case_creator_id == (
             f"{_CASE_ACTOR_SERVICE_URL}/actors/case-actor"
         ), "the CaseActor identity is the container's, and carries no case"
-        assert "case-actor-" not in (link.trusted_case_creator_id or ""), (
+        assert "case-actor-" not in (link.case_creator_id or ""), (
             "a per-case slug is the retired form; it is unhostable by"
             " construction (#1872)"
         )
@@ -425,13 +443,13 @@ class TestHappyPath:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
 
         outbox = datalayer.clone_for_actor(actor.id_).outbox_list()
-        assert (
-            len(outbox) >= 1
-        ), "At least one outbox item expected (the proposal)"
+        assert len(outbox) >= 1, (
+            "At least one outbox item expected (the proposal)"
+        )
 
     def test_no_vulnerability_case_created(
         self,
@@ -449,13 +467,13 @@ class TestHappyPath:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree, actor_id=actor.id_, activity=offer
+            tree=tree, actor_id=actor.id_, activity=_event(offer)
         )
 
         case = datalayer.find_case_by_report_id(report.id_)
-        assert (
-            case is None
-        ), "Vendor tree must NOT create a VulnerabilityCase (ADR-0041 AC-1)"
+        assert case is None, (
+            "Vendor tree must NOT create a VulnerabilityCase (ADR-0041 AC-1)"
+        )
 
 
 # ============================================================================
@@ -483,7 +501,7 @@ class TestIdempotency:
                 reporter_actor_id=reporter_actor_id,
             )
             result = bridge.execute_with_setup(
-                tree=tree, actor_id=actor.id_, activity=offer
+                tree=tree, actor_id=actor.id_, activity=_event(offer)
             )
             assert result.status == Status.SUCCESS
 
@@ -504,7 +522,7 @@ class TestIdempotency:
                 reporter_actor_id=reporter_actor_id,
             )
             bridge.execute_with_setup(
-                tree=tree, actor_id=actor.id_, activity=offer
+                tree=tree, actor_id=actor.id_, activity=_event(offer)
             )
 
         links = [
@@ -524,14 +542,14 @@ class TestIdempotency:
         report,
         bridge,
     ):
-        """CheckPendingProposalExistsForReport short-circuits; no extra activities queued."""
+        """CheckProposalAlreadySentForReport short-circuits; no extra activities queued."""
         tree1 = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree1, actor_id=actor.id_, activity=offer
+            tree=tree1, actor_id=actor.id_, activity=_event(offer)
         )
 
         count_after_first = len(
@@ -544,15 +562,64 @@ class TestIdempotency:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree2, actor_id=actor.id_, activity=offer
+            tree=tree2, actor_id=actor.id_, activity=_event(offer)
         )
 
         count_after_second = len(
             datalayer.clone_for_actor(actor.id_).outbox_list()
         )
+        assert count_after_second == count_after_first, (
+            "Second run must not enqueue additional outbox items"
+        )
+
+    def test_second_run_after_case_linked_does_not_repropose(
+        self,
+        datalayer,
+        actor,
+        offer,
+        reporter_actor_id,
+        report,
+        bridge,
+    ):
+        """An Offer delivered again after the case is linked proposes nothing.
+
+        Once the CaseActor's Accept has linked the case, the ReportCaseLink is
+        no longer pending; the guard used to fall through on it and the tree
+        proposed the same report a second time under a fresh id, so a retried
+        Offer re-ran the CaseActor's creation-time initialization (#3393).
+        """
+        tree1 = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+        )
+        bridge.execute_with_setup(
+            tree=tree1, actor_id=actor.id_, activity=_event(offer)
+        )
+
+        link_id = VultronReportCaseLink.build_id(report.id_)
+        link = datalayer.read(link_id)
+        assert isinstance(link, VultronReportCaseLink)
+        link.case_id = "https://example.org/cases/linked-001"
+        datalayer.save(link)
+        count_after_link = len(
+            datalayer.clone_for_actor(actor.id_).outbox_list()
+        )
+
+        tree2 = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+        )
+        result = bridge.execute_with_setup(
+            tree=tree2, actor_id=actor.id_, activity=_event(offer)
+        )
+
+        assert result.status == py_trees.common.Status.SUCCESS
         assert (
-            count_after_second == count_after_first
-        ), "Second run must not enqueue additional outbox items"
+            len(datalayer.clone_for_actor(actor.id_).outbox_list())
+            == count_after_link
+        ), "an answered proposal must not be sent again"
 
     def test_retry_after_proposal_rejected_sends_new_proposal(
         self,
@@ -565,7 +632,7 @@ class TestIdempotency:
     ):
         """When proposal_rejected=True, a second tree run enqueues a new proposal.
 
-        The Selector falls through (CheckPendingProposalExistsForReport returns
+        The Selector falls through (CheckProposalAlreadySentForReport returns
         FAILURE because proposal_rejected=True), WritePendingReportCaseLinkNode
         returns SUCCESS (link exists — skips write), and ProposeReportCaseToActorNode
         enqueues another Create(as_CaseProposal).  This is the correct retry
@@ -577,7 +644,7 @@ class TestIdempotency:
             reporter_actor_id=reporter_actor_id,
         )
         bridge.execute_with_setup(
-            tree=tree1, actor_id=actor.id_, activity=offer
+            tree=tree1, actor_id=actor.id_, activity=_event(offer)
         )
 
         link_id = VultronReportCaseLink.build_id(report.id_)
@@ -596,16 +663,16 @@ class TestIdempotency:
             reporter_actor_id=reporter_actor_id,
         )
         result = bridge.execute_with_setup(
-            tree=tree2, actor_id=actor.id_, activity=offer
+            tree=tree2, actor_id=actor.id_, activity=_event(offer)
         )
         assert result.status == Status.SUCCESS
 
         count_after_retry = len(
             datalayer.clone_for_actor(actor.id_).outbox_list()
         )
-        assert (
-            count_after_retry > count_before_retry
-        ), "Re-triggering after proposal_rejected=True must enqueue a new proposal"
+        assert count_after_retry > count_before_retry, (
+            "Re-triggering after proposal_rejected=True must enqueue a new proposal"
+        )
 
 
 # ============================================================================
@@ -677,11 +744,11 @@ class TestConcurrentExecution:
                     reporter_actor_id=reporter_actor_id,
                 )
                 result = bridge.execute_with_setup(
-                    tree=tree, actor_id=actor_id, activity=offer
+                    tree=tree, actor_id=actor_id, activity=_event(offer)
                 )
                 with _lock:
                     results[key] = result.status
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3989
                 with _lock:
                     errors.append(f"{key}: {exc}")
 
@@ -695,9 +762,9 @@ class TestConcurrentExecution:
             t.join(timeout=10)
 
         for i, t in enumerate(threads):
-            assert (
-                not t.is_alive()
-            ), f"Thread {i} timed out — possible deadlock"
+            assert not t.is_alive(), (
+                f"Thread {i} timed out — possible deadlock"
+            )
         assert not errors, f"Thread errors: {errors}"
         return results
 
@@ -730,12 +797,12 @@ class TestConcurrentExecution:
             reporter_actor_id,
             [(report_a, offer_a, "a"), (report_b, offer_b, "b")],
         )
-        assert (
-            results.get("a") == Status.SUCCESS
-        ), f"Thread A status: {results.get('a')}"
-        assert (
-            results.get("b") == Status.SUCCESS
-        ), f"Thread B status: {results.get('b')}"
+        assert results.get("a") == Status.SUCCESS, (
+            f"Thread A status: {results.get('a')}"
+        )
+        assert results.get("b") == Status.SUCCESS, (
+            f"Thread B status: {results.get('b')}"
+        )
 
     def test_two_threads_produce_distinct_links(
         self,
@@ -770,12 +837,12 @@ class TestConcurrentExecution:
         link_a = datalayer.read(VultronReportCaseLink.build_id(report_a.id_))
         link_b = datalayer.read(VultronReportCaseLink.build_id(report_b.id_))
 
-        assert isinstance(
-            link_a, VultronReportCaseLink
-        ), "VultronReportCaseLink for report A must exist"
-        assert isinstance(
-            link_b, VultronReportCaseLink
-        ), "VultronReportCaseLink for report B must exist"
+        assert isinstance(link_a, VultronReportCaseLink), (
+            "VultronReportCaseLink for report A must exist"
+        )
+        assert isinstance(link_b, VultronReportCaseLink), (
+            "VultronReportCaseLink for report B must exist"
+        )
         assert link_a.report_id == report_a.id_
         assert link_b.report_id == report_b.id_
         assert link_a.id_ != link_b.id_, "Links must be distinct records"

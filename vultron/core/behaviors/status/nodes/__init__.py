@@ -33,13 +33,14 @@ Submodules:
   AppendStatusAndSaveParticipantNode)
 - ``rm_validation``: RM transition guard for the append sequence
   (ValidateRMTransitionNode)
-- ``lifecycle``: Public disclosure and auto-close emit lifecycle nodes
-  (_PublicDisclosureSkipConditionNode, PublicDisclosureBranchNode,
-  ThreatTerminationBranchNode, EmitAddCaseStatusToSelfNode, EmitCloseCaseNode)
+- ``lifecycle``: Auto-close emit node and the re-exported P/X/A teardown
+  branch (ThreatTerminationBranchNode, EmitCloseCaseNode)
 - ``rm_anomaly``: RM transition anomaly notification (EmitRMGapNoteNode)
 - ``case_status``: Idempotency guard and append nodes for the
-  AddCaseStatusToCase workflow, plus EmitCaseStatusUpdateNode for direct
-  ledger writes after EM/PXA mutations (RSH-04-002, RSH-04-003)
+  AddCaseStatusToCase workflow.  EmitCaseStatusUpdateNode (direct ledger
+  writes after EM/PXA mutations, RSH-04-002/RSH-04-003) is shared with the
+  embargo trees, so it lives in ``vultron.core.behaviors.case_status_snapshot``
+  (BTND-04-001)
 - ``cs_invariant_diagnostic``: Post-cascade PXA↔EM invariant check
   (PxaEmInvariantDiagnosticNode; CSB-18-002..004, CONCERN-3008)
 - ``cs_invariant_guards``: CS ordering invariant precondition guards
@@ -47,31 +48,6 @@ Submodules:
   CSB-17-005, ISSUE-2524)
 """
 
-from vultron.core.behaviors.status.nodes.case_status import (
-    CASE_STATUS_ALREADY_PRESENT,
-    AppendCaseStatusToCaseNode,
-    CheckCaseStatusIdempotencyNode,
-    EmitCaseStatusUpdateNode,
-)
-from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
-    BB_CASE_STATUS_DIM_FILTER,
-    FilterCsEmDimensionNode,
-    FilterCsPxaDimensionNode,
-    FinalizeCsFilterNode,
-)
-from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
-    CheckCsEphemeralStateNode,
-    CheckCsHistoryPrefixNode,
-)
-from vultron.core.behaviors.status.nodes.conditions import (
-    AllParticipantsRMClosedConditionNode,
-    CloseNotYetEmittedConditionNode,
-    VerifySenderIsParticipantNode,
-)
-from vultron.core.behaviors.status.nodes.dimension_filter import (
-    BB_DIMENSION_FILTER,
-    FilterParticipantStatusDimensionsNode,
-)
 from vultron.core.behaviors.status.nodes.append import (
     AppendStatusAndSaveParticipantNode,
     CheckStatusNotAlreadyAppendedNode,
@@ -79,28 +55,48 @@ from vultron.core.behaviors.status.nodes.append import (
     ResolveAndPersistStatusObjectNode,
     SkipIfIdempotentNode,
 )
-from vultron.core.behaviors.status.nodes.rm_validation import (
-    ValidateRMTransitionNode,
+from vultron.core.behaviors.status.nodes.case_status import (
+    CASE_STATUS_ALREADY_PRESENT,
+    AppendCaseStatusToCaseNode,
+    CheckCaseStatusIdempotencyNode,
 )
-from vultron.core.behaviors.status.nodes.lifecycle import (
-    EmitAddCaseStatusToSelfNode,
-    EmitCloseCaseNode,
-    PublicDisclosureBranchNode,
-    ThreatTerminationBranchNode,
-    _PublicDisclosureSkipConditionNode,
+from vultron.core.behaviors.status.nodes.conditions import (
+    AllParticipantsRMClosedConditionNode,
+    CloseNotYetEmittedConditionNode,
 )
-from vultron.core.behaviors.status.nodes.rm_anomaly import (
-    EmitRMGapNoteNode,
+from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
+    BB_CASE_STATUS_DIM_FILTER,
+    FilterCsEmDimensionNode,
+    FilterCsPxaDimensionNode,
+    FinalizeCsFilterNode,
 )
 from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
     PxaEmInvariantDiagnosticNode,
+)
+from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
+    CheckCsEphemeralStateNode,
+    CheckCsHistoryPrefixNode,
+)
+from vultron.core.behaviors.status.nodes.dimension_filter import (
+    BB_DIMENSION_FILTER,
+    FilterParticipantStatusDimensionsNode,
+)
+from vultron.core.behaviors.status.nodes.lifecycle import (
+    EmitCloseCaseNode,
+    ThreatTerminationBranchNode,
+)
+from vultron.core.behaviors.status.nodes.rm_anomaly import (
+    EmitRMGapNoteNode,
+    rm_gap_note,
+)
+from vultron.core.behaviors.status.nodes.rm_validation import (
+    ValidateRMTransitionNode,
 )
 
 __all__ = [
     # conditions
     "AllParticipantsRMClosedConditionNode",
     "CloseNotYetEmittedConditionNode",
-    "VerifySenderIsParticipantNode",
     # dimension_filter
     "BB_DIMENSION_FILTER",
     "FilterParticipantStatusDimensionsNode",
@@ -113,12 +109,10 @@ __all__ = [
     # rm_validation
     "ValidateRMTransitionNode",
     # lifecycle
-    "_PublicDisclosureSkipConditionNode",
-    "PublicDisclosureBranchNode",
     "ThreatTerminationBranchNode",
-    "EmitAddCaseStatusToSelfNode",
     "EmitCloseCaseNode",
     "EmitRMGapNoteNode",
+    "rm_gap_note",
     # cs_invariant_diagnostic
     "PxaEmInvariantDiagnosticNode",
     # case_status
@@ -129,7 +123,6 @@ __all__ = [
     "FilterCsPxaDimensionNode",
     "FinalizeCsFilterNode",
     "AppendCaseStatusToCaseNode",
-    "EmitCaseStatusUpdateNode",
     # cs_invariant_guards
     "CheckCsEphemeralStateNode",
     "CheckCsHistoryPrefixNode",

@@ -14,162 +14,105 @@
 
 from typing import cast
 
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+import pytest
+
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
-    AddEmbargoEventToCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
+    RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
-    add_embargo_to_case_activity,
+    activate_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
+    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-
-def _make_embargo_case_with_actor(
-    case_id: str,
-    author_id: str,
-    extra_participants: list[str] | None = None,
-    case_manager_actor_id: str | None = None,
-) -> tuple[
-    SqliteDataLayer, VultronCaseActor, as_VulnerabilityCase, as_EmbargoEvent
-]:
-    """Return (dl, case_actor, case, embargo) ready for cascade tests.
-
-    Also creates ``as_CaseParticipant`` objects so actor → participant lookups
-    in the embargo handlers succeed.
-    """
-    from vultron.enums.roles import CVDRole
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_CaseParticipant,
-    )
-
-    case_actor_id = f"{case_id}/actor"
-    # The cascade commits to the canonical ledger, and CommitCaseLedgerEntryNode
-    # is role-gated to the CASE_MANAGER (CLP-09), so the tree must run as — and
-    # therefore in the store of — whoever holds that role here. That is
-    # `case_manager_actor_id` when a test names one, otherwise the case actor.
-    ledger_holder_id = case_manager_actor_id or case_actor_id
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ledger_holder_id)
-
-    case_actor = VultronCaseActor(
-        id_=case_actor_id,
-        name=f"CaseActor for {case_id}",
-        attributed_to=author_id,
-        context=case_id,
-    )
-    dl.create(case_actor)
-
-    case = as_VulnerabilityCase(
-        id_=case_id,
-        name="Embargo Cascade Case",
-        attributed_to=author_id,
-    )
-    p1_id = f"{case_id}/participants/p1"
-    case.actor_participant_index[author_id] = p1_id
-    p1 = as_CaseParticipant(
-        id_=p1_id, context=case_id, attributed_to=author_id
-    )
-    dl.create(p1)
-
-    for pid in extra_participants or []:
-        short = pid.rsplit("/", 1)[-1]
-        pn_id = f"{case_id}/participants/{short}"
-        case.actor_participant_index[pid] = pn_id
-        pn = as_CaseParticipant(id_=pn_id, context=case_id, attributed_to=pid)
-        dl.create(pn)
-
-    dl.create(case)
-    case_manager_participant = as_CaseParticipant(
-        id_=f"{case_id}/participants/case-actor-p",
-        attributed_to=case_manager_actor_id or case_actor_id,
-        context=case_id,
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    dl.create(case_manager_participant)
-    case.case_participants.append(case_manager_participant.id_)
-    case.actor_participant_index[case_manager_actor_id or case_actor_id] = (
-        case_manager_participant.id_
-    )
-    dl.save(case)
-
-    embargo = as_EmbargoEvent(
-        id_=f"{case_id}/embargo_events/e1",
-        content="Cascade test embargo",
-        context=case_id,
-    )
-    dl.create(embargo)
-
-    return dl, case_actor, case, embargo
+from .conftest import grant_case_owner_role, make_embargo_case_with_actor
 
 
 class TestEmbargoLogEntryCascade:
     """CaseLedgerEntry cascade for each embargo received-side handler (AC-3)."""
 
-    def test_add_embargo_event_commits_log_entry(self, make_payload):
-        """AddEmbargoEventToCaseReceivedUseCase commits a CaseLedgerEntry."""
+    @pytest.mark.spec("CLP-10-006", "EP-09-007")
+    @pytest.mark.parametrize(
+        "factory, use_case, event_type",
+        [
+            (
+                activate_embargo_activity,
+                ActivateEmbargoOnCaseReceivedUseCase,
+                "activate_embargo_on_case",
+            ),
+            (
+                reject_embargo_proposal_activity,
+                RejectEmbargoProposalOnCaseReceivedUseCase,
+                "reject_embargo_proposal_on_case",
+            ),
+        ],
+    )
+    def test_owner_decision_commits_log_entry(
+        self, make_payload, factory, use_case, event_type
+    ):
+        """The owner's Accept/Reject(EmbargoEvent) commits one CaseLedgerEntry."""
         author_id = "https://example.org/users/coord"
-        case_id = "https://example.org/cases/em_cas_add"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        case_id = "https://example.org/cases/em_cas_decide"
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
+        grant_case_owner_role(dl, case_id, author_id)
         case_read = cast(VulnerabilityCase, dl.read(case.id_))
         assert case_read is not None
-        case_read.current_status.em.state = EM.PROPOSED
+        propose(case_read, embargo.id_)
         dl.save(case_read)
 
         case_ref = as_VulnerabilityCase(id_=case_id)
-        activity = add_embargo_to_case_activity(
-            embargo, target=case_ref, actor=author_id
-        )
+        activity = factory(embargo, target=case_ref, actor=author_id)
         event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)
-        AddEmbargoEventToCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+        use_case(
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
-            "add_embargo_event_to_case"
-        )
+        assert cast(CaseLedgerEntry, entries[0]).event_type == event_type
 
     def test_remove_embargo_event_commits_log_entry(self, make_payload):
         """RemoveEmbargoEventFromCaseReceivedUseCase commits a CaseLedgerEntry."""
         import py_trees
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em.state = EM.ACTIVE
-        case.proposed_embargoes.append(embargo.id_)
-        object.__setattr__(case, "active_embargo", embargo.id_)
+        activate(case, embargo.id_)
         dl.save(case)
 
         activity = remove_embargo_from_case_activity(
@@ -178,17 +121,20 @@ class TestEmbargoLogEntryCascade:
         event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)
         RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "remove_embargo_event_from_case"
         )
 
@@ -204,18 +150,16 @@ class TestEmbargoLogEntryCascade:
         import py_trees
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
 
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_rem_fail"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
         # EM.NONE: no active embargo — BT will FAIL (IsActiveEmbargoNode)
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em.state = EM.NONE
-        dl.save(case)
+        assert case.em_state == EM.NONE
 
         activity = remove_embargo_from_case_activity(
             embargo, origin=case.id_, actor=author_id
@@ -223,14 +167,17 @@ class TestEmbargoLogEntryCascade:
         event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)
         RemoveEmbargoEventFromCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         # Cascade must fire even on BT FAILURE.
         assert len(entries) == 1
@@ -250,7 +197,7 @@ class TestEmbargoLogEntryCascade:
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_invite"
         invitee_id = "https://example.org/users/vendor"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        dl, _case_actor, _case, embargo = make_embargo_case_with_actor(
             case_id,
             author_id,
             extra_participants=[invitee_id],
@@ -269,15 +216,18 @@ class TestEmbargoLogEntryCascade:
         event = make_payload(proposal, receiving_actor_id=invitee_id)
         sync_port = SyncActivityAdapter(dl)
         InviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # No canonical ledger entry should be committed on the invitee side.
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 0, (
             "Invitee-side receipt must not commit a canonical ledger entry; "
@@ -289,7 +239,7 @@ class TestEmbargoLogEntryCascade:
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_accept"
         vendor_id = "https://example.org/users/vendor"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
             case_id,
             coordinator_id,
             extra_participants=[vendor_id],
@@ -297,13 +247,14 @@ class TestEmbargoLogEntryCascade:
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em.state = EM.PROPOSED
+        propose(case, embargo.id_)
         dl.save(case)
 
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,
-            actor=vendor_id,
+            actor=coordinator_id,
+            to=[vendor_id],
             id_=f"{case_id}/embargo_proposals/1",
         )
         dl.create(proposal)
@@ -316,6 +267,7 @@ class TestEmbargoLogEntryCascade:
             proposal,
             context=case.id_,
             actor=vendor_id,
+            to=[coordinator_id],
         )
         # Per ADR-0022 / CLP-10-005: the guarded commit fires when
         # receiving_actor_id holds CVDRole.CASE_MANAGER.  coordinator_id is
@@ -323,17 +275,20 @@ class TestEmbargoLogEntryCascade:
         event = make_payload(accept, receiving_actor_id=coordinator_id)
         sync_port = SyncActivityAdapter(dl)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "accept_invite_to_embargo_on_case"
         )
 
@@ -342,7 +297,7 @@ class TestEmbargoLogEntryCascade:
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_reject"
         vendor_id = "https://example.org/users/vendor"
-        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+        dl, _case_actor, _case, embargo = make_embargo_case_with_actor(
             case_id,
             coordinator_id,
             extra_participants=[vendor_id],
@@ -352,10 +307,15 @@ class TestEmbargoLogEntryCascade:
         proposal = em_propose_embargo_activity(
             embargo,
             context=case_id,
-            actor=vendor_id,
+            actor=coordinator_id,
+            to=[vendor_id],
             id_=f"{case_id}/embargo_proposals/1",
         )
         dl.create(proposal)
+        # The Reject names an open proposal of the case.
+        case_obj = cast(VulnerabilityCase, dl.read(case_id))
+        propose(case_obj, embargo.id_)
+        dl.save(case_obj)
 
         # The vendor rejects; the CASE_MANAGER receives and commits.  See the
         # accept test above for why the asserter must not be the committer.
@@ -363,22 +323,26 @@ class TestEmbargoLogEntryCascade:
             proposal,
             context=case_id,
             actor=vendor_id,
+            to=[coordinator_id],
         )
         # coordinator_id holds CASE_MANAGER in this fixture, and the ledger
         # commit is gated on that role, so it is the receiving actor.
         event = make_payload(reject, receiving_actor_id=coordinator_id)
         sync_port = SyncActivityAdapter(dl)
         RejectInviteToEmbargoOnCaseReceivedUseCase(
-            dl, event, sync_port=sync_port
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, VultronCaseLedgerEntry)
-            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).event_type == (
             "reject_invite_to_embargo_on_case"
         )

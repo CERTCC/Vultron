@@ -24,22 +24,33 @@ execute() path against a real in-memory DataLayer and asserts:
   3. the documented failure modes the use case is documented to raise.
 """
 
-import pytest
+from datetime import UTC, datetime
 
+import pytest
+from pydantic import ValidationError
+
+from test.support.embargo_register import activate
+from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.report import (
-    VulnerabilityReport as CoreVulnerabilityReport,
-)
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report import (
+    VulnerabilityReport as CoreVulnerabilityReport,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import OfferResult
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.report import (
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
@@ -52,14 +63,18 @@ from vultron.core.use_cases.triggers.requests import (
     SubmitReportTriggerRequest,
     ValidateReportTriggerRequest,
 )
-from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.errors import VultronNotFoundError
+from vultron.enums.roles import CVDRole
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
     FinderParticipant,
+    as_CaseParticipant,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
     as_ParticipantStatus as WireParticipantStatus,
@@ -68,12 +83,8 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -122,11 +133,13 @@ def _make_case_with_embargo(
 ) -> VulnerabilityCase:
     """Build a VulnerabilityCase with finder, vendor, CASE_MANAGER participants,
     an active embargo, and the report linked via vulnerability_reports."""
-    embargo = as_EmbargoEvent(context="urn:placeholder")
+    embargo = as_EmbargoEvent(
+        context="urn:placeholder", end_time=days_from_now_utc(45)
+    )
     dl.create(embargo)
 
     case = VulnerabilityCase(name="Test Case", attributed_to=vendor_id)
-    case.set_embargo(embargo.id_)
+    activate(case, embargo.id_)
     case.vulnerability_reports.append(report_id)
 
     vendor_participant = as_CaseParticipant(
@@ -383,7 +396,7 @@ class TestSvcValidateReportUseCase:
 
     @pytest.mark.spec("TRIG-07-001")
     def test_validate_report_returns_activity_dict(self):
-        """execute() returns result['activity'] as Accept(Offer) dict (AC-3, DL-06-001)."""
+        """execute() returns result.activity as Accept(Offer) dict (AC-3, DL-06-001)."""
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
@@ -394,8 +407,8 @@ class TestSvcValidateReportUseCase:
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        assert result.get("activity") is not None
-        assert result["activity"].get("type") == "Accept"
+        assert result.activity is not None
+        assert activity_of(result).get("type") == "Accept"
 
     def test_validate_report_idempotent_when_already_valid(self):
         """Second execute() on an already-VALID report does not re-transition RM."""
@@ -423,9 +436,9 @@ class TestSvcValidateReportUseCase:
 
         p2 = self.dl.read(vendor_participant_id)
         assert isinstance(p2, CaseParticipant)
-        assert len(p2.participant_statuses) == len(
-            statuses_after_first
-        ), "Second validate re-appended a duplicate RM status entry"
+        assert len(p2.participant_statuses) == len(statuses_after_first), (
+            "Second validate re-appended a duplicate RM status entry"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -486,7 +499,7 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
     @pytest.mark.spec("TRIG-02-001")
     @pytest.mark.spec("TRIG-07-001")
     def test_invalidate_report_returns_activity_dict(self):
-        """execute() returns result['activity'] with type 'TentativeReject' (DL-06-001)."""
+        """execute() returns result.activity with type 'TentativeReject' (DL-06-001)."""
         request = InvalidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
@@ -497,8 +510,8 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        assert result.get("activity") is not None
-        assert result["activity"].get("type") == "TentativeReject"
+        assert result.activity is not None
+        assert activity_of(result).get("type") == "TentativeReject"
 
     @pytest.mark.spec("TRIG-02-001")
     @pytest.mark.spec("TRIG-07-001")
@@ -517,6 +530,30 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
 
+    def test_invalidate_report_raises_when_actor_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = InvalidateReportTriggerRequest(
+            actor_id="urn:uuid:no-such-actor", offer_id=self.offer.id_
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcInvalidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_invalidate_report_raises_when_offer_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = InvalidateReportTriggerRequest(
+            actor_id=self.vendor.id_, offer_id="urn:uuid:no-such-offer"
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcInvalidateReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
 
 class TestSvcRejectReportUseCase(_ReportTriggerBase):
     """execute() path tests for SvcRejectReportUseCase."""
@@ -532,7 +569,7 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
     @pytest.mark.spec("TRIG-02-001")
     @pytest.mark.spec("TRIG-07-001")
     def test_reject_report_returns_activity_dict(self):
-        """execute() returns result['activity'] with type 'Reject' (DL-06-001)."""
+        """execute() returns result.activity with type 'Reject' (DL-06-001)."""
         self._seed_invalid()
         request = RejectReportTriggerRequest(
             actor_id=self.vendor.id_,
@@ -544,8 +581,8 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        assert result.get("activity") is not None
-        assert result["activity"].get("type") == "Reject"
+        assert result.activity is not None
+        assert activity_of(result).get("type") == "Reject"
 
     @pytest.mark.spec("TRIG-02-001")
     @pytest.mark.spec("TRIG-07-001")
@@ -564,6 +601,120 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
         ).execute()
         after = set(self.dl.outbox_list())
         assert len(after - before) >= 1
+
+    @pytest.mark.spec("RMB-14-004")
+    def test_reject_report_from_received_closes_the_report(self):
+        """A hard reject from RECEIVED is the ``R → C`` transition."""
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcRejectReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert activity_of(result).get("type") == "Reject"
+        link = self.dl.read(VultronReportCaseLink.build_id(self.report.id_))
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.rm_state == RM.CLOSED
+
+    @pytest.mark.spec("RMB-14-004")
+    @pytest.mark.spec("VP-02-004")
+    def test_reject_report_from_valid_raises_invalid_transition(self):
+        """VALID has no close edge: no Reject is sent and the error is a 409."""
+        self.dl.save(
+            VultronReportCaseLink(report_id=self.report.id_, rm_state=RM.VALID)
+        )
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        before = set(self.dl.outbox_list())
+        with pytest.raises(VultronInvalidStateTransitionError, match="VALID"):
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+        assert set(self.dl.outbox_list()) == before
+
+    def test_reject_report_raises_when_actor_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        self._seed_invalid()
+        request = RejectReportTriggerRequest(
+            actor_id="urn:uuid:no-such-actor",
+            offer_id=self.offer.id_,
+            note="Reason.",
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_reject_report_raises_when_offer_not_found(self):
+        """Ported from the retired ``TriggerService`` suite (#3833)."""
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id="urn:uuid:no-such-offer",
+            note="Reason.",
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+
+# ---------------------------------------------------------------------------
+# A participant that joined through an Invite never answers the report Offer
+# ---------------------------------------------------------------------------
+
+
+class TestReportTriggersRefuseAnActorNotSentTheOffer(_ReportTriggerBase):
+    """validate/invalidate/reject-report refuse an actor the Offer was not sent to."""
+
+    @pytest.mark.spec("CM-11-020")
+    @pytest.mark.parametrize(
+        ("use_case", "request_cls", "verb"),
+        [
+            (
+                SvcValidateReportUseCase,
+                ValidateReportTriggerRequest,
+                "validate-report",
+            ),
+            (
+                SvcInvalidateReportUseCase,
+                InvalidateReportTriggerRequest,
+                "invalidate-report",
+            ),
+            (
+                SvcRejectReportUseCase,
+                RejectReportTriggerRequest,
+                "reject-report",
+            ),
+        ],
+    )
+    def test_actor_not_sent_the_offer_is_refused_with_a_reason(
+        self, use_case, request_cls, verb
+    ):
+        joiner, _ = _make_actor_dl("Joiner Co")
+        self.dl.create(joiner)
+        before = set(self.dl.outbox_list())
+
+        with pytest.raises(VultronValidationError, match=verb) as excinfo:
+            use_case(
+                self.dl,
+                request_cls(actor_id=joiner.id_, offer_id=self.offer.id_),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+        assert "full-case Invite" in str(excinfo.value)
+        assert set(self.dl.outbox_list()) == before
 
 
 # ---------------------------------------------------------------------------
@@ -607,14 +758,14 @@ class TestSvcSubmitReportUseCase:
         ).execute()
 
         # Confirm the report object ID is readable from the DataLayer
-        offer_dict = result.get("offer") or {}
+        offer_dict = result.offer or {}
         report_obj = offer_dict.get("object") or {}
         report_id = report_obj.get("id")
         assert report_id is not None, "offer['object']['id'] is missing"
         stored = self.dl.read(report_id)
-        assert (
-            stored is not None
-        ), "as_VulnerabilityReport not found in DataLayer"
+        assert stored is not None, (
+            "as_VulnerabilityReport not found in DataLayer"
+        )
         assert isinstance(stored, CoreVulnerabilityReport)
         assert stored.name == "CVE-TEST"
 
@@ -632,7 +783,7 @@ class TestSvcSubmitReportUseCase:
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        offer_dict = result.get("offer") or {}
+        offer_dict = result.offer or {}
         report_id = (offer_dict.get("object") or {}).get("id")
         assert report_id is not None
         link_id = VultronReportCaseLink.build_id(report_id)
@@ -640,7 +791,7 @@ class TestSvcSubmitReportUseCase:
         assert link is not None, "VultronReportCaseLink not found in DataLayer"
         assert isinstance(link, VultronReportCaseLink)
         assert link.report_id == report_id
-        assert link.trusted_case_creator_id == self.vendor.id_
+        assert link.case_creator_id == self.vendor.id_
 
     @pytest.mark.spec("TRIG-07-001")
     def test_submit_report_returns_offer_dict(self):
@@ -657,9 +808,8 @@ class TestSvcSubmitReportUseCase:
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        assert "offer" in result
-        assert result["offer"] is not None
-        assert result["offer"].get("type") == "Offer"
+        assert result.offer is not None
+        assert result.offer.get("type") == "Offer"
 
     # --- AC-2: outbox effect -----------------------------------------------
 
@@ -765,7 +915,97 @@ class TestSvcSubmitReportUseCase:
             self.dl, request, trigger_activity=ta
         ).execute()
         # Both calls return a valid offer
-        assert r1.get("offer") is not None
-        assert r2.get("offer") is not None
-        assert r1["offer"].get("type") == "Offer"
-        assert r2["offer"].get("type") == "Offer"
+        assert r1.offer is not None
+        assert r2.offer is not None
+        assert r1.offer.get("type") == "Offer"
+        assert r2.offer.get("type") == "Offer"
+
+
+# ---------------------------------------------------------------------------
+# SvcSubmitReportUseCase — the Reporter's proposed embargo terms (EP-04-004)
+# ---------------------------------------------------------------------------
+
+
+class TestSubmitReportProposedEmbargo:
+    """``proposed_embargo_end_time`` rides the Offer as ``proposedEmbargo``.
+
+    The Reporter states terms once, on the Offer (ADR-0096); the use case
+    stores the ``EmbargoEvent`` about the *report* (EP-04-009) so the Reporter
+    later recognises its own terms on the case, where the CASE_MANAGER keeps
+    the event's identity when they win (EP-04-004).  #3971.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.finder, self.dl = _make_actor_dl("Finder Co")
+        self.vendor, self.vendor_dl = _make_actor_dl("Vendor Co")
+        yield
+        self.dl.clear_all()
+        self.dl.close()
+        self.vendor_dl.clear_all()
+        self.vendor_dl.close()
+        reset_datalayer(self.finder.id_)
+        reset_datalayer(self.vendor.id_)
+
+    def _submit(self, **extra) -> OfferResult:
+        request = SubmitReportTriggerRequest(
+            actor_id=self.finder.id_,
+            report_name="CVE-TEST",
+            report_content="Vulnerability details",
+            recipient_id=self.vendor.id_,
+            **extra,
+        )
+        return SvcSubmitReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+    @pytest.mark.spec("EP-04-004")
+    @pytest.mark.spec("EP-04-009")
+    def test_the_offer_carries_the_stored_terms_about_the_report(self):
+        from vultron.core.models.embargo_event import EmbargoEvent
+
+        end = days_from_now_utc(10)
+        offer = self._submit(proposed_embargo_end_time=end).offer
+        assert offer is not None
+
+        proposed = offer["proposedEmbargo"]
+        report_id = offer["object"]["id"]
+        assert proposed["type"] == "EmbargoEvent"
+        assert proposed["context"] == report_id
+        stored = self.dl.read(proposed["id"])
+        assert isinstance(stored, EmbargoEvent)
+        assert stored.context == report_id
+        assert stored.end_time == end
+
+    def test_no_terms_means_no_proposed_embargo_on_the_offer(self):
+        offer = self._submit().offer
+        assert offer is not None
+
+        assert "proposedEmbargo" not in offer
+        assert list(self.dl.list_objects("EmbargoEvent")) == []
+
+    @pytest.mark.parametrize(
+        "bad, message",
+        [
+            (
+                datetime(2030, 1, 1),  # noqa: DTZ001 — deliberately naive
+                "must be timezone-aware",
+            ),
+            (
+                datetime(2020, 1, 1, tzinfo=UTC),  # past
+                "must be in the future",
+            ),
+        ],
+        ids=["naive", "past"],
+    )
+    def test_a_naive_or_past_end_is_refused_at_the_request(self, bad, message):
+        with pytest.raises(ValidationError, match=message):
+            SubmitReportTriggerRequest(
+                actor_id=self.finder.id_,
+                report_name="CVE-TEST",
+                report_content="Vulnerability details",
+                recipient_id=self.vendor.id_,
+                proposed_embargo_end_time=bad,
+            )

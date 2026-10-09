@@ -59,6 +59,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vultron.metadata.base import repo_root
+from vultron.metadata.docs.built_site import require_built_site, site_dir
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,18 @@ class WithheldArtifact:
     source_globs: tuple[str, ...]
     reason: str
     gate: str
+
+    def covers(self, site_path: str) -> bool:
+        """Return whether *site_path*, relative to ``site/``, is this artifact's.
+
+        A path is covered when it equals a prefix or sits beneath one, so
+        ``reference/ontology/dfa`` covers ``reference/ontology/dfa/index.html``
+        but not ``reference/ontology/dfa2``.
+        """
+        return any(
+            site_path == prefix or site_path.startswith(f"{prefix}/")
+            for prefix in self.site_prefixes
+        )
 
     def site_globs(self) -> tuple[str, ...]:
         """Return the glob patterns matching every built path this artifact owns.
@@ -119,9 +132,10 @@ WITHHELD_ARTIFACTS: tuple[WithheldArtifact, ...] = (
             "first time, and a namespace URI is a long-lived commitment."
         ),
         gate=(
-            "The declared term set settling. #2943 landed the drift check "
-            "(wire-context --check), but #3487 and #3488 delete the as_* classes "
-            "the terms name, under an ADR-0099 that is accepted-provisional."
+            "The context document served at its versioned path (#3653, "
+            "ADR-0106). The term set has settled (ADR-0099 is accepted; #2943 "
+            "checks drift), so ns/ leaves draft_docs in the change that lands "
+            "#3653, and this declaration goes with it."
         ),
     ),
     WithheldArtifact(
@@ -134,6 +148,10 @@ WITHHELD_ARTIFACTS: tuple[WithheldArtifact, ...] = (
             "reference/ontology/vultron_process",
             "reference/ontology/dfa",
             "reference/ontology/rfc2119",
+            # Protégé how-to fragments the detail pages included; each was
+            # built as a page of its own and is a live URL on the old site.
+            "includes/ontology_tips",
+            "includes/use_protege",
         ),
         source_globs=("ontology/*.ttl",),
         reason=(
@@ -154,11 +172,6 @@ WITHHELD_ARTIFACTS: tuple[WithheldArtifact, ...] = (
         gate="ADR-0077's companion spec being finished and reviewed.",
     ),
 )
-
-
-def site_dir(root: Path | None = None) -> Path:
-    """Return the built site directory."""
-    return (root or repo_root()) / "site"
 
 
 def published_violations(
@@ -182,13 +195,7 @@ def published_violations(
             the site first; an unbuilt site cannot evidence the claim, so it is a
             failure rather than a pass (DF-09-009).
     """
-    base = root or repo_root()
-    built = site_dir(base)
-    if not built.is_dir() or not any(built.iterdir()):
-        raise FileNotFoundError(
-            f"{built} is absent or empty — run 'uv run mkdocs build' first. "
-            "An unbuilt site cannot show that a withheld artifact is unpublished."
-        )
+    built = require_built_site(root, "a withheld artifact is unpublished")
 
     violations: list[tuple[WithheldArtifact, Path]] = []
     for artifact in artifacts:

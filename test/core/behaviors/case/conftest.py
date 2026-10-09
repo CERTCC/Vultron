@@ -13,15 +13,15 @@ that multiple tree test files can reuse them without redefinition.
 
 import pytest
 
-# noqa: F401 — imported for vocabulary registration side-effect
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.models.case_actor import CaseActor
+from vultron.wire.as2.factories import rm_submit_report_activity
+
+# imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
-
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.models.vultron_types import VultronCaseActor
-from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -55,7 +55,7 @@ def reporter_actor_id():
 @pytest.fixture
 def actor(datalayer, actor_id):
     """Create vendor actor in the DataLayer with an outbox."""
-    obj = VultronCaseActor(id_=actor_id, name="Vendor Co")
+    obj = CaseActor(id_=actor_id, name="Vendor Co")
     datalayer.create(obj)
     return obj
 
@@ -63,7 +63,7 @@ def actor(datalayer, actor_id):
 @pytest.fixture
 def reporter_actor(datalayer, reporter_actor_id):
     """Create reporter actor in the DataLayer."""
-    obj = VultronCaseActor(id_=reporter_actor_id, name="Reporter Co")
+    obj = CaseActor(id_=reporter_actor_id, name="Reporter Co")
     datalayer.create(obj)
     return obj
 

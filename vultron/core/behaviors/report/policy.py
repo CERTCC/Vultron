@@ -33,7 +33,8 @@ Extension Points:
 
 import logging
 
-from vultron.core.models.vultron_types import VultronCase, VultronReport
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.report import VulnerabilityReport
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class ValidationPolicy:
     This class defines the interface for pluggable policy implementations.
     """
 
-    def is_credible(self, report: VultronReport) -> bool:
+    def is_credible(self, report: VulnerabilityReport) -> bool:
         """
         Evaluate whether report source is credible.
 
@@ -63,7 +64,7 @@ class ValidationPolicy:
         """
         raise NotImplementedError("Subclasses must implement is_credible()")
 
-    def is_valid(self, report: VultronReport) -> bool:
+    def is_valid(self, report: VulnerabilityReport) -> bool:
         """
         Evaluate whether report content is technically valid.
 
@@ -100,7 +101,7 @@ class AlwaysAcceptPolicy(ValidationPolicy):
     - Reputation-based scoring
     """
 
-    def is_credible(self, report: VultronReport) -> bool:
+    def is_credible(self, report: VulnerabilityReport) -> bool:
         """
         Accept report as credible (always returns True).
 
@@ -113,11 +114,12 @@ class AlwaysAcceptPolicy(ValidationPolicy):
             True (always accepts)
         """
         logger.info(
-            f"Policy: Accepting report {report.id_} as credible (AlwaysAcceptPolicy)"
+            "Policy: Accepting report %s as credible (AlwaysAcceptPolicy)",
+            report.id_,
         )
         return True
 
-    def is_valid(self, report: VultronReport) -> bool:
+    def is_valid(self, report: VulnerabilityReport) -> bool:
         """
         Accept report as valid (always returns True).
 
@@ -130,7 +132,8 @@ class AlwaysAcceptPolicy(ValidationPolicy):
             True (always accepts)
         """
         logger.info(
-            f"Policy: Accepting report {report.id_} as valid (AlwaysAcceptPolicy)"
+            "Policy: Accepting report %s as valid (AlwaysAcceptPolicy)",
+            report.id_,
         )
         return True
 
@@ -147,7 +150,7 @@ class PrioritizationPolicy:
     PROTO-05-001 for the deferral policy on SSVC integration.
     """
 
-    def should_engage(self, case: VultronCase) -> bool:
+    def should_engage(self, case: VulnerabilityCase) -> bool:
         """
         Evaluate whether the case should be engaged (accepted for active work).
 
@@ -170,7 +173,7 @@ class AlwaysPrioritizePolicy(PrioritizationPolicy):
     Future: Replace with SSVC-based evaluation (see PROTO-05-001).
     """
 
-    def should_engage(self, case: VultronCase) -> bool:
+    def should_engage(self, case: VulnerabilityCase) -> bool:
         """
         Always engage the case (returns True).
 
@@ -181,6 +184,6 @@ class AlwaysPrioritizePolicy(PrioritizationPolicy):
             True (always engages)
         """
         logger.info(
-            f"Policy: Engaging case {case.id_} (AlwaysPrioritizePolicy)"
+            "Policy: Engaging case %s (AlwaysPrioritizePolicy)", case.id_
         )
         return True

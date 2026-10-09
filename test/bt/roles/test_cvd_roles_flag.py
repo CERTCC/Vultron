@@ -49,7 +49,7 @@ def test_case_owner_is_distinct():
         CVDRolesFlag.OBSERVER,
     ]
     for role in other_roles:
-        assert CVDRolesFlag.CASE_OWNER != role
+        assert role != CVDRolesFlag.CASE_OWNER
 
 
 def test_bitmask_combination():

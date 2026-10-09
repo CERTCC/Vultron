@@ -212,7 +212,8 @@ body (Phase 8), and reviewers use it as their spec floor.
      --issue-type-id "${TASK_TYPE_ID}" \
      --label "size:<S|M|L>" \
      --parent "${EPIC_NUMBER:-${ISSUE_NUMBER}}" \
-     --milestone "${MILESTONE_NUMBER}")
+     --milestone "${MILESTONE_NUMBER}" \
+     --opened-as separate-defect)
    bash .agents/skills/shared/add-to-project.sh "${NEW_ISSUE}"
    ```
 
@@ -289,9 +290,10 @@ later) are separate decisions. Apply
   (`- Closes #N`, one-line "why"). Filing is not deferring.
 - Genuinely too big to finish now → defer only via Gate 1: file, present a
   **measured remainder** in plain language, and get explicit approval. On
-  silence (unattended), **fix it now** — do not defer, and do not park the
-  rationale in a learning file as a substitute for doing or tracking the work.
-  Only second-order findings are eligible.
+  silence (unattended), **DEFER is unavailable**: finish it in this PR, or hold
+  the PR (draft, blocked, the unfinished item stated). Never file an issue as the
+  way to get the PR merged, and do not park the rationale in a learning file as a
+  substitute for doing the work. Only second-order findings are eligible.
 - Inverts a premise the issue or its specs/ADRs rested on → Gate 2: explain the
   overturned premise, ask if/what to file. On silence (unattended), **halt** —
   leave the PR blocked rather than acting on the new premise unreviewed.
@@ -301,10 +303,10 @@ later) are separate decisions. Apply
 1. Run in order:
 
    ```bash
-   uv run black vultron/ test/
-   uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
-   uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
-   uv run pytest -m integration --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
+   uv run ruff check --fix && uv run ruff format
+   uv run ruff check && uv run mypy && uv run pyright
+   uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
+   uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
    ```
 
    Both suites must pass. The first command covers the unit suite (integration
@@ -322,10 +324,14 @@ later) are separate decisions. Apply
    goes into the PR body. Exit 0 is a floor, not proof of completeness — read
    the `no deterministic signal` and `no Python source in the diff` notes as
    "this part rests on your judgment".
-3. Do not skip or delegate validation.
+3. Do not skip or delegate validation. Never bypass a pre-commit hook
+   (`--no-verify`, `SKIP=`); fix what it reports. The sole exception is the
+   devcontainer `actionlint` hang (`notes/devcontainer-tooling.md`).
 4. Apply branch-ownership and pre-existing-failure rules from
    `completeness-doctrine.md` § "Finding Severity".
-5. If pre-existing is proven: create/update a Bug issue via `manage-github-issue`
+5. If pre-existing is proven, the PR is still held: a failing check blocks the
+   PR whatever its cause (`completeness-doctrine.md` § "Never Merge on Red"). Do
+   not open or merge it past the red. Create/update a Bug issue via `manage-github-issue`
    with evidence (failing command/output, clean-base proof, causality check,
    blocked/unblocked impact), wire structured blockers, add a handoff comment,
    and record the Bug link as a learning file in `plan/incoming/learnings/`.
@@ -345,16 +351,25 @@ Findings use the three-category system from
 - **IMPROVE** — correct but incomplete → fix in this session, document in the
   PR body
 - **DEFER** — genuinely out of scope → requires creating a follow-up GitHub
-  issue immediately; surface to the user for acknowledgment; do not defer
-  unilaterally
+  issue immediately **and** explicit user approval (Gate 1). Unattended, there
+  is no approval: fix it in this PR or hold the PR. Do not defer unilaterally
 
 There is no "ADVISORY" category that can be logged and forgotten. Every
-finding is either fixed here or gated via DEFER.
+finding is either fixed here or gated via DEFER; an unattended run never
+reaches the DEFER outcome.
 
 Because this phase runs before the final commit, `git diff main...HEAD` may
 be empty if changes are unstaged. Stage all changed files first (`git add`),
 then pass `git diff --cached` as the diff source for the review, or do a
 draft commit and use `git diff main...HEAD` normally.
+
+### Nearby debt
+
+Before opening the PR, apply the nearby-debt rule from
+`.claude/skills/shared/completeness-doctrine.md` § "Net Issues: Close More Than
+You Open": list open `opened:debt` issues whose `Where:` names a file in the
+diff and fix them in this PR (`- Closes #N` each). State the closes/opens line in
+the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
 
 ### Phase 8 — Open PR and Finalize
 
@@ -390,6 +405,12 @@ draft commit and use `git diff main...HEAD` normally.
    Commit message: docs: sync docs/ for issue #<N>
    ```
 
+   Then **record the outcome** (PD-03-008): edit the PR body to replace the
+   `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
+   `Docs:` line `check-docs-sync` reported, and push any docs commit. Do this
+   before `archive-history`. The session is not done while the placeholder
+   remains.
+
 4. Post `[ADVISORY]` findings as a PR comment (if any).
 
 5. Invoke `archive-history` — once per bundle member, each entry carrying the
@@ -422,3 +443,5 @@ draft commit and use `git diff main...HEAD` normally.
   tests, its own acceptance criteria. A bundle amortizes context, never rigor.
 - Do not skip validation or the pre-PR code review.
 - Do not commit directly to `main`. All work goes through a PR.
+- The run is not done while the PR body still reads
+  `Docs: pending check-docs-sync` (Phase 8 step 3, PD-03-008).

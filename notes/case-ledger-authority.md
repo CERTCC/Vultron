@@ -6,14 +6,20 @@ related_specs:
   - specs/architecture.yaml
   - specs/case-ledger-processing.yaml
   - specs/case-management.yaml
+  - specs/case-proposal.yaml
   - specs/sync-ledger-replication.yaml
 related_notes:
+  - notes/bt-integration.md
+  - notes/case-proposal.md
+  - notes/demo-interactive-ui.md
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
   - notes/case-state-model.md
   - notes/configuration.md
+  - notes/domain-validation.md
   - notes/ownership-transfer.md
   - notes/sync-ledger-replication.md
+  - notes/wire-artifact-immutability.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/core/models
@@ -304,8 +310,10 @@ Concretely:
 - `Add(ParticipantStatus)` — participant asserts an RM/CS/EM transition
 - `Offer(EmbargoEvent)`, `Accept(EmbargoEvent)`, `Reject(EmbargoEvent)` —
   embargo proposal/response
-- `Invite(VulnerabilityCase)`, `Accept(Invite)`, `Reject(Invite)` — case
-  membership handshake (note: routed through the CASE_MANAGER per PCR-08)
+- `Invite(VulnerabilityCaseStub)` (the stub Invite, CM-11-013),
+  `Invite(VulnerabilityCase)` (the full-case Invite, which names its case by
+  URI), `Accept(Invite)`, `Reject(Invite)` — case membership handshake (note:
+  routed through the CASE_MANAGER per PCR-08)
 - `Announce(VulnerabilityCase)` — case bootstrap broadcast
 - Any other protocol-significant AS2 activity that mutates protocol-visible
   state
@@ -363,6 +371,24 @@ asserter (`vendor` in the example). Replicas receiving the broadcast
 update their state based on the snapshot's asserter, not the envelope's
 actor. Rewriting `payloadSnapshot.actor` to the CASE_MANAGER would erase
 the assertion's provenance and is forbidden by CLP-07-003.
+
+### An Act and Its Consequences Are Separate Entries (Leave Closure, #4091)
+
+CLP-07-002 bars two entries for the *same* state change. A `Leave` is an act, and
+the RM transitions the CASE_MANAGER writes because of it are its consequences, so
+they are different facts and each gets its own entry. The CASE_MANAGER commits a
+`close_case` entry for the received `Leave`, then one participant-status entry per
+RM transition it writes for the leaving actor (`V → D → C` is two entries), in
+that order. Replicas apply the status entries and never derive a closure path
+from their own stored state, so a replica cannot record a step the ledger lacks.
+See `notes/domain-validation.md` for the write-up and CM-23-001.
+
+The status entries are the CASE_MANAGER's own RM writes, so their
+`payloadSnapshot.actor` is the CASE_MANAGER; the leaver's own act stays
+attributed to them in the `close_case` entry (CLP-07-003). A replica applies a
+status entry through the ordinary participant-status effect, which can still
+refuse a step with a WARNING (its monotonic RM ratchet, or a composite-state
+violation, RSH-05-021). Such a replica writes nothing of its own in its place.
 
 ### Commit-Boundary Enforcement
 
@@ -481,65 +507,16 @@ check.
 
 ## Commit Authorization and Coverage (CLP-09, Epic #788 retrospective)
 
-Two gaps surfaced late in Epic #788 that CLP-09 now makes explicit, because
+Three gaps surfaced late in Epic #788 that CLP-09 now makes explicit, because
 the prior framing (BT-10-004's single line, "CASE_MANAGER MUST enforce
 case-level authorization") was not specific enough to prevent them from
 accumulating call site by call site.
 
-### Gap 1: Authorization Was a Convention, Not a Gate
-
-`CommitCaseLedgerEntryNode` (the canonical commit mechanism established by
-PR #1017 / BT-06-006) had no built-in authorization check. An audit found
-that only one of roughly ten call sites guarded the commit, and it did so
-with an ad hoc Python-level identity check (`_is_case_actor_receiver`)
-*outside* the BT, not a role check inside it. The other call sites
-committed unconditionally.
-
-The fix is a reusable guarded-commit composition, following the same
-Selector/Sequence/Success idiom already used elsewhere in this codebase
-(see `notes/bt-integration.md` § "Conditional BT Branches as Selector
-Composites" and § "Guarded Commit: Role-Gated Canonical Writes"):
-
-```text
-Selector
-├─ Sequence
-│  ├─ CheckIsCaseManagerNode   # role check, not identity comparison
-│  └─ CommitCaseLedgerEntryNode
-└─ Success("CommitCaseLedgerEntrySkippedNotCaseManager")
-```
-
-CLP-09-001 requires every commit call site to reach the commit only through
-this kind of guarded composition. CLP-09-002 requires a test that fails if
-any call site bypasses it.
-
-### Gap 2: Commit Coverage Had No Structural Check
-
-`validate_report`, `ack_report`, and `close_case` produced **no** canonical
-ledger entry at all on `main` for an unknown span of time (issue #998).
-Dispatch completeness already has a structural guarantee — DR-02-002 and
-UCORG-02-002 require every `MessageSemantics` value to resolve to a callable
-use case, enforced by a coverage test. Commit completeness had no
-equivalent: a use case could be fully wired for dispatch and still never
-touch the ledger, and nothing would fail until someone manually re-audited
-the tree-by-tree commit sites (which is how #998/#1022 found the gap).
-CLP-09-003 closes this by requiring the same kind of enumerated coverage
-test for commits that already exists for dispatch.
-
-### Gap 3: Dual-Invocation Use Cases Need Per-Invocation Authorization
-
-Some use-case classes are invoked more than once for the same logical
-activity, with different receiving actors. The clearest example is
-`ack_report` in the two/three-actor demo: the same `AckReportReceivedUseCase`
-runs once with the vendor (which holds `CVDRole.CASE_MANAGER`) as receiver, and
-once with the finder as a relay target. Only the CASE_MANAGER's invocation
-should commit.
-
-This is structurally the same bug shape that produced the original
-hash-chain fork in issue #923 — a use case authored or committing on behalf
-of the wrong actor. CLP-09-004 makes the general rule explicit: authorization
-for a commit must be evaluated **per invocation**, against the actor that is
-actually active for that invocation, never assumed from the use-case class
-itself or from a prior invocation having been authorized.
+The three gaps are now recorded in the `rationale` of CLP-09-001 (authorization
+was a convention, not a gate), CLP-09-003 (commit coverage had no structural
+check) and CLP-09-004 (dual-invocation use cases need per-invocation
+authorization). The guarded-commit composition itself is shown at the top of
+`vultron/core/behaviors/case/AGENTS.md`.
 
 ---
 
@@ -604,7 +581,7 @@ done.
 > (issue #2429, ADR-0039); the delegation mechanism was replaced by
 > `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole, target=Actor,
 > context=VulnerabilityCase)`) handled by `OfferCaseParticipantRoleReceivedUseCase`.
-> See SE-08-005.
+> SE-08-005 (retired; text in `plan/retired-specs/SE-08-005.md`) recorded this.
 
 ---
 
@@ -613,9 +590,20 @@ done.
 *Spec: `specs/case-ledger-processing.yaml` CLP-08-001 through CLP-08-006.*
 
 The per-case genesis hash is derived as
-`SHA-256(case_id + "|" + created_at.isoformat() + "|" + case_actor_id)`.
-This anchors each case ledger to its origin identity and timestamp,
+`SHA-256(case_id + "|" + created_at.isoformat() + "|" + owner_actor_id)`,
+where `owner_actor_id` is the case owner, `VulnerabilityCase.attributed_to` at
+creation. This anchors each case ledger to its origin identity and timestamp,
 replacing the former global `GENESIS_HASH = "0" * 64` constant.
+
+The anchor is the owner, not the CaseActor, on every creation path
+(ADR-0117). The CaseActor is the owner's delegated proxy, so a case it creates
+from the owner's `CaseProposal` hashes exactly as one the owner created itself.
+There is one formula: `compute_genesis_hash`, called by the `VulnerabilityCase`
+construction validator when no hash is supplied. A creator sets
+`attributed_to` and passes no hash. A replica keeps the `genesisHash` it
+received; a received case that carries none derives it through the same
+validator from its carried `attributedTo` and `published` (ADR-0103), which
+the owner anchor makes agree with the sender.
 
 ### Current Threat Model
 
@@ -624,7 +612,7 @@ cryptographically random UUID path segment satisfy CLP-08-006. The domain
 prefix is public but irrelevant — an attacker must still brute-force the
 UUID component to predict the genesis hash.
 
-If case metadata (`case_id`, `created_at`, `case_actor_id`) is observable
+If case metadata (`case_id`, `created_at`, `owner_actor_id`) is observable
 by an attacker — which is possible in a federated protocol — the genesis
 hash becomes computable by anyone with that knowledge. This means:
 
@@ -643,7 +631,7 @@ close the targeted DoS vector even when case metadata leaks:
 
 ```python
 genesis_hash = sha256(
-    case_id + "|" + created_at.isoformat() + "|" + case_actor_id
+    case_id + "|" + created_at.isoformat() + "|" + owner_actor_id
     + "|" + secret_nonce
 )
 ```
@@ -666,6 +654,9 @@ genesis_hash = sha256(
 )
 # or: genesis_hash = sha256(case_actor.sign(case_id + created_at))
 ```
+
+Either form moves the anchor from the owner's actor id to a CASE_MANAGER key,
+so adopting it revisits ADR-0117 rather than extending it.
 
 This would:
 
@@ -694,35 +685,36 @@ recognized as a canonical payload signature, which is why `"CoreActor"` was
 added to `_ACTOR_TYPES` in
 `vultron/core/behaviors/sync/nodes/canonical_entry.py`.
 
-**Snapshot construction**: the `payloadSnapshot` is built with
-`_snapshot_with_context(raw, case_id)` to strip any bare-string inline
-object references (`object`, `object_`, `target`) that
-`_validate_canonical_entry` would otherwise reject.
+**Snapshot construction**: the `payloadSnapshot` is `json.loads(activity_blob)`
+— the exact blob the trigger port returned, which is also the body the outbox
+delivers (VM-08-003, #2654). Nothing is stripped or patched in core: the factory
+sets `context` to the case URI, and `_validate_canonical_entry` accepts a bare
+`target` that names the entry's own case (see below).
+
+**This is the only commit for the Invite** (ADR-0109, CM-17-006). Before
+concern #2996 was planned, the emitted Invite also carried the CaseActor's own
+id in `cc:`, so a copy looped back through its inbox and
+`GuardedCommitCaseLedgerEntryBT` committed the same activity a second time when
+the CaseActor was co-hosted with the emitting owner — two canonical entries,
+log indexes 0 and 1, one activity id. ADR-0109 requires the invariant harness
+to assert one entry per `payloadSnapshot.id` (CLP-07-002 verification; #3821
+adds the check).
 
 ---
 
-## `EmitAddCaseParticipantNode` Pattern for `Add(CaseParticipant)` (Issue #1689)
+## Bare `target` Naming the Case in Participant Snapshots (Issue #1689)
 
-After `PersistInviteeParticipantNode` records the new participant in the
-DataLayer, `EmitAddCaseParticipantNode` (in
-`vultron/core/behaviors/case/nodes/accept_invite.py`) fans out
-`Add(CaseParticipant, Case)` to all existing participants and commits a
-canonical `CaseLedgerEntry`.
-
-**Fan-out delivery**: recipients are resolved from
-`case.actor_participant_index.keys()` (HTTP actor URLs), **not** from
-`case.case_participants` (which stores bare UUID participant IDs as strings
-in the DataLayer). Using bare UUIDs as inbox delivery targets causes
-`"Request URL is missing 'http://'"` errors. The actor-participant index
-keys are always proper HTTP URIs.
-
-**Snapshot bare-ref pattern**: factory methods serialize `target=case_id`
-as a bare URI string in the stored activity. `_build_snapshot` must call
-`_snapshot_with_context(raw, case_id)` (which calls `_drop_bare_inline_refs`)
-before passing the snapshot to `create_commit_log_entry_tree`. Skipping this
-step will cause `_validate_canonical_entry` to reject the entry with
-`"bare string found"`. See also
-`notes/plan/incoming/learnings/20260727-snapshot-bare-ref-pattern.md`.
+The factories address a case by its URI, so
+`target` is the bare case URI in `Offer(CaseParticipant)`, `Add(CaseParticipant)`
+(the Case Owner's reinstatement request, CM-31-011) and the recommendation
+replies, and the snapshot is the factory's exact blob.
+`_validate_canonical_entry` therefore accepts a bare-string `target` **only when
+it equals the entry's case URI**, at any depth (an `Accept` embedding an `Offer`
+carries the same target inside); any other bare string in an inline-object slot
+is still refused (CLP-07-006). Core used to strip the bare target before
+committing (`_snapshot_with_context` / `_drop_bare_inline_refs`); that helper is
+gone (#2654) — do not reintroduce a core-side rewrite to satisfy the validator,
+fix the factory.
 
 ---
 
@@ -760,25 +752,30 @@ missing record.
 **Recording it is best-effort, deliberately.** The node warns and returns
 SUCCESS on every path where it cannot produce the entry. CM-23-002 orders this
 entry *before* `case_fully_closed` in a single Sequence, so a FAILURE would skip
-the final entry and its fan-out — and the enclosing Selector would read the
+`case_fully_closed` and its fan-out — and the enclosing Selector would read the
 failed owner arm as "the sender is not the Case Owner" and report SUCCESS down
 the non-owner path, leaving a half-closed case with no diagnostic. Losing one
-transition's visibility beats losing the case's terminal anchor. `_commit_one`
-in `nodes/proposal_ledger.py` makes the same call for the same event type,
-reserving hard failure for the load-bearing genesis entry.
+transition's visibility beats losing the case's write-boundary entry.
+`_commit_one` in `nodes/proposal_ledger.py` makes the same call for the same
+event type, reserving hard failure for the load-bearing genesis entry.
 
 **Why this entry is committed synchronously rather than through the loopback.**
-The standard path for a protocol-significant event is CLP-10-001: emit an
-activity addressed to `case_manager_id` and let HTTP loopback self-delivery
-(OX-12-004) drive the received-side commit. That is unavailable here, because
-loopback delivery runs as an outbox background task and CM-23-002 requires a
-specific *order* — the CASE_MANAGER's own `RM.CLOSED` penultimate,
-`case_fully_closed` last. A background task cannot honour that. The entry is
+The standard path for a *participant's* protocol-significant event is
+CLP-10-001: emit an activity addressed to `case_manager_id` and let the
+CASE_MANAGER's received-side tree commit it on arrival; an event the
+CASE_MANAGER itself originates is committed by its emitting tree (ADR-0109).
+Neither fits here, because delivery runs as an outbox background task and
+CM-23-002 requires a
+specific *order* — the CASE_MANAGER's own `RM.CLOSED` before
+`case_fully_closed`. A background task cannot honour that. (`case_fully_closed`
+marks the ADR-0085 write boundary, not the end of the chain: CM-23-013 refuses a
+bystander `Leave` after it, and CM-23-014 settles pending Invites before it, so
+nothing follows it in practice. CONCERN-3400.) The entry is
 therefore committed inline in the CaseActor's own receive tree, which keeps
 ADR-0021's identity contract intact: the commit runs where
 `receiving_actor_id == case_actor_id`, not by resolving a foreign actor ID, and
-`create_commit_log_entry_tree`'s `DeclineForeignLedgerCommitNode` makes a
-replica decline rather than fork the chain.
+`create_commit_log_entry_tree`'s `DeclineForeignLedgerCommitNode` refuses to
+let a store that is not the ledger's home mint an index (CLP-10-014).
 
 **The generalisation.** When reviewing any write node, ask what a *different*
 actor learns from it. If the answer is "nothing", the node is incomplete no

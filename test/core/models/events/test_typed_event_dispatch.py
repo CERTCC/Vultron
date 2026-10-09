@@ -12,8 +12,8 @@ from vultron.wire.as2.factories import (
     recommend_actor_activity,
 )
 from vultron.wire.as2.factories.report import rm_create_report_activity
-from vultron.wire.as2.vocab.examples._base import gen_report
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.examples._base import gen_report
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 
 _ACTOR_URI = "https://example.org/actors/alice"
@@ -81,8 +81,8 @@ class TestTypedEventDispatch:
     @pytest.mark.spec("CS-10-002")
     def test_event_semantic_type_matches_subclass_literal(self):
         """semantic_type on the returned event matches the subclass's narrowed Literal."""
-        from vultron.core.models.events.report import CreateReportReceivedEvent
         from vultron.core.models.events.base import MessageSemantics
+        from vultron.core.models.events.report import CreateReportReceivedEvent
 
         activity = rm_create_report_activity(gen_report(), actor=_ACTOR_URI)
         event = extract_event(activity)

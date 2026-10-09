@@ -17,6 +17,7 @@ from typing import cast
 
 import pytest
 
+from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -24,11 +25,15 @@ from vultron.adapters.driven.datalayer_sqlite import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.case import (
     EngageCaseTriggerRequest,
     SvcEngageCaseUseCase,
@@ -39,6 +44,7 @@ from vultron.core.use_cases.triggers.report import (
 from vultron.core.use_cases.triggers.requests import (
     ValidateReportTriggerRequest,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -53,9 +59,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
-)
-from vultron.core.models.dimensions import (
-    RmDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -101,9 +104,15 @@ def _build_case(
     # EnsureEmbargoExists ran, and the latch made CheckRMStateValid pass on the
     # fallback arm (ISSUE-2548).  The check is now upstream of every write, so
     # the case replica has to actually carry the embargo.
-    object.__setattr__(
-        case, "active_embargo", f"{case.id_}/embargoes/chain-embargo"
+    # The record itself is held too: a case never names an embargo its own
+    # store cannot read (EMB-18-003).
+    embargo = EmbargoEvent(
+        id_=f"{case.id_}/embargoes/chain-embargo",
+        context=case.id_,
+        end_time=days_from_now_utc(45),
     )
+    dl.create(embargo)
+    activate(case, embargo.id_)
 
     vendor_p = as_CaseParticipant(
         attributed_to=vendor_id,
@@ -269,9 +278,9 @@ class TestValidateEngageChain:
         accepted_idx = next(
             i for i, s in enumerate(rm_history) if s == RM.ACCEPTED
         )
-        assert (
-            accepted_idx > valid_idx
-        ), "RM.ACCEPTED must come after RM.VALID in the participant status history"
+        assert accepted_idx > valid_idx, (
+            "RM.ACCEPTED must come after RM.VALID in the participant status history"
+        )
 
     def test_validate_report_queues_activity_addressed_to_case_actor(
         self, chain_context
@@ -289,9 +298,9 @@ class TestValidateEngageChain:
         ).execute()
         after = set(dl.outbox_list())
         new_ids = after - before
-        assert (
-            new_ids
-        ), "ValidateReport must queue at least one outbox activity"
+        assert new_ids, (
+            "ValidateReport must queue at least one outbox activity"
+        )
 
         activity_id = next(iter(new_ids))
         activity = dl.read(activity_id)
@@ -309,6 +318,6 @@ class TestValidateEngageChain:
             if isinstance(to, list)
             else ([to] if isinstance(to, str) else [])
         )
-        assert (
-            case_actor.id_ in to_ids
-        ), f"PCR-08-001: ValidateReport activity must address CaseActor; to={to_ids!r}"
+        assert case_actor.id_ in to_ids, (
+            f"PCR-08-001: ValidateReport activity must address CaseActor; to={to_ids!r}"
+        )
