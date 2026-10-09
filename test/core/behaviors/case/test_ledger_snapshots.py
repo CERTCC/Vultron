@@ -30,6 +30,7 @@ from vultron.core.behaviors.case.ledger_snapshots import (
     build_add_case_status_snapshot,
     build_add_participant_status_snapshot,
     build_add_report_to_case_snapshot,
+    build_create_case_participant_snapshot,
     build_create_case_snapshot,
 )
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
@@ -357,6 +358,11 @@ class TestSnapshotsCarryPublished:
             ),
             "build_add_case_status_snapshot": build_add_case_status_snapshot(
                 case.case_statuses[0], case, CASE_ACTOR_ID, CASE_ID, port
+            ),
+            "build_create_case_participant_snapshot": (
+                build_create_case_participant_snapshot(
+                    participant, CASE_ACTOR_ID, CASE_ID, port
+                )
             ),
         }
 

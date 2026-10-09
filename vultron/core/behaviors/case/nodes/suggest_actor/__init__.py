@@ -41,7 +41,9 @@ from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
     ActorAlreadyParticipantNode,
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
+    SuggestedActorIsInvitableNode,
     SuggestedActorIsNotRemovedNode,
+    case_manager_admits_accepted_invitee_guard,
     case_manager_admits_suggested_actor_guard,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
@@ -57,6 +59,8 @@ from vultron.core.behaviors.case.nodes.suggest_actor.emit_response import (
 __all__ = [
     "ActorAlreadyParticipantNode",
     "SuggestedActorIsNotRemovedNode",
+    "SuggestedActorIsInvitableNode",
+    "case_manager_admits_accepted_invitee_guard",
     "case_manager_admits_suggested_actor_guard",
     "EmitAcceptActorRecommendationNode",
     "EmitAcceptCaseParticipantOfferNode",

@@ -38,9 +38,15 @@ from vultron.core.behaviors.case.nodes.actor import (
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
 )
+from vultron.core.behaviors.case.nodes.lifecycle import (
+    CommitCaseLedgerEntryNode,
+)
 from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteAwaitingNode,
     ReinviteNotToClosedParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.suggest_actor import (
+    SuggestedActorIsInvitableNode,
 )
 from vultron.core.behaviors.case.suggest_actor_tree import (
     ActorAlreadyParticipantNode,
@@ -530,24 +536,34 @@ class TestAcceptActorRecommendationReceivedTree:
         assert node.case_id == _CASE_ID
 
     @pytest.mark.spec("CM-11-015")
-    def test_closed_invitee_guard_runs_before_either_emit(self):
+    @pytest.mark.spec("CM-16-006")
+    def test_invitable_guard_runs_before_the_commit_and_either_emit(self):
         order = list(self.tree.iterate())
         guard = next(
             i
             for i, n in enumerate(order)
-            if isinstance(n, ReinviteNotToClosedParticipantNode)
+            if isinstance(n, SuggestedActorIsInvitableNode)
         )
         guard_node = order[guard]
-        assert isinstance(guard_node, ReinviteNotToClosedParticipantNode)
-        assert guard_node.invitee_id == _RECOMMENDED
-        for emit_cls in (
-            EmitAcceptActorRecommendationNode,
-            EmitInviteActorToCaseNode,
-        ):
-            emit = next(
-                i for i, n in enumerate(order) if isinstance(n, emit_cls)
+        assert isinstance(guard_node, SuggestedActorIsInvitableNode)
+        assert guard_node.recommended_id == _RECOMMENDED
+        later = [
+            i
+            for i, n in enumerate(order)
+            if isinstance(
+                n,
+                (
+                    CommitCaseLedgerEntryNode,
+                    EmitAcceptActorRecommendationNode,
+                    EmitInviteActorToCaseNode,
+                ),
             )
-            assert guard < emit, f"CM-11-015 guard must precede {emit_cls}"
+        ]
+        assert later, "the tree has a commit and both emits"
+        assert all(guard < i for i in later), (
+            "the closed/joined refusal must precede the receipt commit and"
+            " both emits (CM-11-015, CM-16-006)"
+        )
 
 
 class TestRejectActorRecommendationReceivedTree:

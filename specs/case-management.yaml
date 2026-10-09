@@ -1082,17 +1082,26 @@ groups:
       When the CASE_MANAGER sends a stub Invite
       (`Invite(Actor, VulnerabilityCaseStub)`), it MUST create the invitee's
       `CaseParticipant` in the same step, carrying the roles the Invite names,
-      at RM `RECEIVED`, VF `v` when it holds the VENDOR role, and an `INVITED` consent row for the active embargo when one is active, and MUST commit the creation
-      to the case ledger. The participant is inert (CM-10-004). A replica
-      applying that ledger entry MUST create the same inert participant
-      record.
+      at RM `RECEIVED`, VF `v` when it holds the VENDOR role, and an `INVITED`
+      consent row for the active embargo when one is active. The participant is
+      inert (CM-10-004). The ledger holds the wire messages exchanged and every
+      state change has a message, so sending the Invite commits two entries: the
+      Invite's (`invite_actor_to_case`) and, separately, the CASE_MANAGER's own
+      act of creating the record, `create_case_participant`
+      (`Create(CaseParticipant)`), whose object is the whole record as the
+      CASE_MANAGER stored it, with its statuses and consent rows and their ids
+      and times. A replica applying `create_case_participant` MUST store that
+      record as the entry carries it, MUST NOT derive any part of it, and MUST
+      derive nothing from the Invite's entry (ADR-0114, ADR-0124).
     rationale: >-
       The CASE_MANAGER needs to track every invitee from the moment it is
       invited — whether it has been told and how it answered — including the
       invitees that decline (ADR-0114).
     verification: A test sends a stub Invite and finds the invitee's participant
       at RM `RECEIVED`, VF `v` (vendor) and consent `INVITED` (active embargo),
-      with a ledger entry recording its creation.
+      with its own `create_case_participant` entry carrying the record as stored.
+      A two-replica test finds the replica's record equal to the CASE_MANAGER's
+      in every field, status ids and times included.
     adr:
     - ADR-0114
     stories:
@@ -1107,14 +1116,20 @@ groups:
       CASE_MANAGER MUST move the participant's RM state to `RM.CLOSED`, set VF
       `V` when it holds the VENDOR role, record embargo consent `DECLINED` when
       an embargo is active, and keep the participant record, which stays inert.
-      `TentativeReject(Invite(Actor, VulnerabilityCaseStub))` MUST be refused.
+      The invitee's `Reject` message is its own ledger entry
+      (`reject_invite_actor_to_case`) and is the entry for the `DECLINED` consent
+      row, which a replica applies through the same write; the closing status is
+      the CASE_MANAGER's `add_participant_status_to_participant` entry, which a
+      replica stores. `TentativeReject(Invite(Actor, VulnerabilityCaseStub))`
+      MUST be refused.
     rationale: >-
       A stub reject is a hard no to joining. Keeping the record keeps the
       history that the actor was told and declined, which is what the early
       record exists for. Accepting the stub is not a judgement of the case, so
       there is nothing for a tentative reject to say.
     verification: Tests drive each stub reply and check the participant record,
-      including that `TentativeReject` of a stub Invite is refused.
+      including that `TentativeReject` of a stub Invite is refused. A two-replica
+      test finds each replica's record equal to the CASE_MANAGER's after a reject.
     adr:
     - ADR-0114
     stories:
@@ -1275,8 +1290,10 @@ groups:
       When the CASE_MANAGER re-invites an invitee that has not answered its stub
       Invite, or whose stub Invite expired, the re-invite MUST be a fresh stub
       Invite on the same participant record with a new deadline, and its
-      `inReplyTo` MUST be the id of the invitee's earlier stub Invite. A
-      re-invite to a participant at `RM.CLOSED` MUST be refused (ADR-0085).
+      `inReplyTo` MUST be the id of the invitee's earlier stub Invite. A stub
+      Invite to a participant that has joined or is at `RM.CLOSED` MUST be
+      refused, wherever the CASE_MANAGER would send one, before any ledger entry
+      is committed for it (ADR-0085).
     rationale: >-
       One actor has one participant record per case. `RM.CLOSED` is terminal
       with no rejoin path, and a stub reject is a closure (CM-11-007). Naming
@@ -1285,8 +1302,10 @@ groups:
       earlier one, naming the fresh one.
     verification: >-
       Tests confirm a re-invite reuses the existing record with a new deadline
-      and names the earlier stub in `inReplyTo`, and a re-invite to a
-      participant at `RM.CLOSED` is refused.
+      and names the earlier stub in `inReplyTo`, a re-invite to a participant
+      at `RM.CLOSED` is refused, and the Case Owner's `Accept(Offer(CaseParticipant))`
+      naming a participant that has joined or is at `RM.CLOSED` is refused with
+      no ledger entry committed.
     adr:
     - ADR-0114
     - ADR-0085
@@ -2032,10 +2051,15 @@ groups:
       entry, (3) send `AcceptActorRecommendation` to the original recommender with
       `in_reply_to` set to the ID of the original recommender's `Offer` activity, and
       (4) send the stub Invite (`Invite(Actor, VulnerabilityCaseStub)`, CM-11-013) to
-      the suggested actor per CM-17.
+      the suggested actor per CM-17. It MUST refuse the Accept, with a reported
+      reason and before it commits or sends anything, when the suggested actor
+      has already joined or is at `RM.CLOSED` (CM-11-015).
     verification: Integration tests in `test/demo/` confirm that after the Case Owner accepts a
       participant recommendation, the CASE_MANAGER commits a ledger entry, fans it out, sends
-      `AcceptActorRecommendation`, and sends `Invite` to the suggested actor.
+      `AcceptActorRecommendation`, and sends `Invite` to the suggested actor. Tests marked
+      `CM-16-006` in `test/core/use_cases/received/actor/test_offer_case_participant.py` confirm
+      that an Accept naming an actor that has joined, or is at `RM.CLOSED`, is refused with
+      nothing committed or sent.
     relationships:
     - rel_type: implements
       spec_id: CM-17-001
@@ -5036,16 +5060,29 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT emit `Add(CaseParticipant)`, or commit an `add_case_participant` ledger
-      entry, as a consequence of an invitee accepting the stub Invite. A replica creates the
-      invitee's inert record from the stub Invite's ledger entry (CM-11-006) and marks it joined
-      from the `Accept(Invite)` entry.
+      entry, as a consequence of an invitee accepting the stub Invite. The invitee's `Accept`
+      message is already a ledger entry (`accept_invite_actor_to_case`) and is the entry for the
+      consent row it signs and the `joined` mark: a replica applies those two writes through the
+      same functions the CASE_MANAGER does, with the record's `updated` taken from the Accept's
+      `published` as received, and fails when it holds no record for the invitee. For a participant
+      with the VENDOR role only, VF `Vf` is the CASE_MANAGER's own
+      `add_participant_status_to_participant` entry (CM-11-009), committed after the case is
+      announced to the invitee and the prior ledger backfilled (#2898). A replica seeded with the
+      case MUST NOT move a record it holds backwards when it replays an older entry over the
+      seed: `joined` is only set, and a consent row changes only by a legal move (CM-18-003)
+      (ADR-0114, ADR-0124).
     rationale: >-
-      CM-17-004 does not call for it, the `Accept(Invite)` entry already carries the change, and a
+      CM-17-004 does not call for it, the Accept message is already the entry for its effects, and a
       replica usually refuses the direct message for want of the participant record it names. It also
       records one move twice, and `Add(CaseParticipant)` now means reinstatement only (CM-31-011).
     verification: >-
       A test drives an invitee's stub-Invite acceptance at the CASE_MANAGER and asserts no
-      `Add(CaseParticipant)` is enqueued and no `add_case_participant` entry is committed.
+      `Add(CaseParticipant)` is enqueued and no `add_case_participant` entry is committed. A
+      two-replica test compares the whole participant record, status ids and timestamps
+      included, between the CASE_MANAGER and each replica after the Accept, for a vendor, a
+      non-vendor, and a case with and without an embargo in force; a node test finds a status
+      entry for a vendor only; and a stale Accept replayed over a seed that is ahead changes
+      nothing.
     relationships:
     - rel_type: refines
       spec_id: CM-17-004
