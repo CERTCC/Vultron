@@ -1166,7 +1166,7 @@ groups:
     - documentation
     - tooling
 - id: MS-15
-  title: Spec Statements Must Not Reference Phantom Paths or Phantom Symbols
+  title: Spec Statements and ADR Edits Must Not Reference Phantom Paths or Phantom Symbols
   specs:
   - id: MS-15-001
     priority: MUST_NOT
@@ -1279,6 +1279,82 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MS-15-004
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-006
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A change that edits an ADR MUST NOT add to it a backticked file path,
+      directory path or code symbol that resolves nowhere: a path that does not
+      exist in the repository, or a symbol that appears nowhere in the `vultron/`
+      or `test/` Python sources. Recognized symbol shapes are underscored all-caps
+      constants, CamelCase class names, called names such as `snake_case()`, and
+      members of a CamelCase class or all-caps members after a dot. The rule is
+      scoped to references the change adds to a record it edits: a reference
+      present on the merge base, however stale, and a change that edits no ADR are
+      outside it. The pre-commit check `adr-added-reference-check` MUST enforce it
+      against `HEAD`, and the same check MUST run on every pull request that
+      changes an ADR, against the merge base, so a skipped local hook cannot
+      bypass it.
+    rationale: >-
+      ADR-0127 makes an ADR a historical record: a reference that aged after it
+      was written is an accurate account of the code as it then stood, so a
+      refactor owes the record nothing and no check keyed on code changes may
+      fail on it. A reference newly written into a record is different — it
+      should resolve on the day it is written, and that is a question about the
+      change's own diff. Comparing against the merge base is the shape MS-14-009
+      already uses. The spec-corpus check of MS-15-004 reads only underscored
+      constants, which misses the class and function names that make up the
+      aged references in the corpus, so this check reads more shapes. It
+      resolves textually, preferring a false negative to refusing a legitimate
+      reference, as MS-15-004 does.
+    verification: >-
+      `test/metadata/test_adr_added_refs.py` checks that an added unresolvable
+      reference fails at its position, that one present on the base or one that
+      resolves passes, that a code change alone never fails it, and that each
+      symbol shape the spec-corpus check misses is read;
+      `test/ci/test_adr_lifecycle_workflows.py` checks that the pre-commit hook
+      runs it on ADR files and that the pull-request job runs it against the
+      merge base.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
+      note: extends the phantom-reference guarantee to references an edit adds to an ADR
+    - rel_type: refines
+      spec_id: MS-15-004
+    adr:
+    - ADR-0127
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-007
+    priority: MUST
+    kind: process
+    statement: >-
+      An ADR edit that deliberately adds a reference that does not resolve — a
+      symbol or path the record annotates as removed, or a convention token that
+      was never code — MUST opt the record out in its frontmatter with
+      `lint_suppress: [phantom_symbol_ref]` for a symbol or
+      `lint_suppress: [phantom_path_ref]` for a path. The opt-out covers the
+      whole record: every later edit to it adds references of that kind
+      unchecked.
+    rationale: >-
+      The annotated-removal house style ("that mechanism and that module were
+      deleted in #2940") names a symbol precisely because it is gone, so it can
+      never resolve. The opt-out mirrors MS-15-005 for requirements and keeps the
+      choice visible rather than indistinguishable from a mistyped name.
+    verification: >-
+      `test_inline_removal_annotation_passes_with_the_opt_out` and
+      `test_each_opt_out_covers_only_its_own_kind` in
+      `test/metadata/test_adr_added_refs.py` confirm each opt-out clears its own
+      kind of reference and no other.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-006
+    adr:
+    - ADR-0127
     tags:
     - documentation
     - tooling
