@@ -83,11 +83,13 @@ The embargo lifecycle involves two records and one derived read:
    (`case.em_state`); see § "The Embargo Register and the Derived EM".
 2. **PEC** (`vultron/core/states/participant_embargo_consent.py`) — the
    per-participant, per-embargo consent rows (`CaseParticipant.embargo_consents`),
-   each `INVITED`, `ACCEPTED`, `DECLINED` or `EXPIRED` (ADR-0122). A participant
-   with no row for an embargo is not bound by it, so `ACCEPT`/`DECLINE` are
-   valid directly from no row — consent is not always mediated by an invitation
-   (ADR-0048, CM-18-003). "Signatory" (the active embargo's row is `ACCEPTED`)
-   and "lapsed" are read from the rows, never stored. See
+   one for every embargo register entry, each `UNINVITED`, `INVITED`, `AGREED`,
+   `DECLINED` or `TIMED_OUT` (ADR-0122). A participant whose row for an embargo
+   is `UNINVITED` is not bound by it, so `AGREE`/`DECLINE` are valid directly
+   from `UNINVITED` — consent is not always mediated by an invitation
+   (ADR-0048, CM-18-003). "Signatory" (the active embargo's row is `AGREED`)
+   and "lapsed" (read along the register's `replaces` chain) are read from the
+   rows, never stored. See
    `notes/participant-embargo-consent.md` for the full transition table and
    the direct-assignment pitfall (CM-18-005).
 3. **`VulnerabilityCase.active_embargo`**, `active_embargo_id` and
@@ -321,8 +323,11 @@ through nodes: the received `Accept(Invite)` records consent through
 teardown replay runs `terminate_active_embargo(OBSERVED)`.
 
 **Late-Accept routing (EMB-17)**: when an inbound `Accept(Invite(EmbargoEvent))`
-arrives after the RSVP deadline, `AcceptInviteToEmbargoOnCaseReceivedUseCase`
-first commits a CASE_MANAGER-authored expiry entry (commit→effect,
+answers a closed invitation — its RSVP deadline passed, or its row is already
+`TIMED_OUT` or `DECLINED` (the row drops its deadline when it leaves `INVITED`,
+so the state is what says the invitation closed) —
+`AcceptInviteToEmbargoOnCaseReceivedUseCase` first commits a CASE_MANAGER-authored
+expiry entry when the row still needs `TIME_OUT` (commit→effect,
 `create_invite_expiry_tree`), then routes to one of three branches.
 Each branch commits a synthesised entry so replicas learn the outcome
 (RSH-08-004); all three factories in
@@ -332,8 +337,8 @@ Each branch commits a synthesised entry so replicas learn the outcome
 - **EMB-17-001** (honour — active, matching embargo): `create_honour_late_accept_tree`
   commits an `honour_late_accept_invite_to_embargo_on_case` entry
   (`HONOUR_LATE_ACCEPT_EVENT_TYPE`), then `HonourLateAcceptNode` calls
-  `honour_late_accept()` which applies `EXPIRED → SIGNATORY` directly, or
-  `DECLINED → INVITED → SIGNATORY` via `honour_late_accept()` in
+  `honour_late_accept()` which applies `TIMED_OUT → AGREED` directly, or
+  `DECLINED → INVITED → AGREED` via `honour_late_accept()` in
   `consent.py`.
   Replicas learn the outcome through `ApplyHonourLateAcceptFromLedgerNode`
   in `create_announce_log_entry_tree`.
@@ -345,8 +350,8 @@ Each branch commits a synthesised entry so replicas learn the outcome
   the same PEC `INVITE` and deadline and moves no EM state.
 - **EMB-17-004** (EM `EXITED`/`NONE` — no-op): `create_noop_ledger_entry_tree`
   commits an `invite_to_embargo_on_case_expired_noop` entry; no PEC transition is
-  applied (after a termination nothing is recorded, and an `EXPIRED` row
-  remains `EXPIRED`).
+  applied (after a termination every row is frozen, and a `TIMED_OUT` row
+  remains `TIMED_OUT`).
 
 A non-manager processing a late Accept receives `REFUSED` from the tree gate
 and applies no consent change (HP-01-005, BT-17-001).
@@ -471,14 +476,16 @@ When implementing any code that transitions embargo state:
 4. **PEC cascade is automatic**: `propose_embargo()` changes no consent — a
    proposal binds nobody (ADR-0093, EP-05-002) — and records the proposer's
    consent to the proposed id. `activate_embargo()` records the owner's
-   agreement and settles consent when it replaces the active embargo: a *shorter* replacement
-   carries every signatory over by marking the revision's row `ACCEPTED`, and
-   under *longer* terms the signatories who have not accepted them have lapsed
-   by derivation, with nothing written (MSM-07-005).
+   agreement and settles consent when it replaces the active embargo: a
+   *shorter* replacement carries every signatory over by applying `CARRY_OVER`
+   to the revision's row (a `DECLINED` one included), and under *longer* terms
+   the signatories who have not agreed to them have lapsed by derivation, with
+   nothing written but the owner's own agreement (MSM-07-005).
    `terminate_active_embargo()` terminates the embargo in force, cancels every
    open proposal and writes no consent
    (MSM-07-006); an unanswered invite past its deadline moves its `INVITED` row to
-   `EXPIRED` (`EXPIRE`, CM-28-004). Callers do not need to do this manually.
+   `TIMED_OUT` (`TIME_OUT`, CM-28-004), and only that invitation's row. Callers
+   do not need to do this manually.
 5. **OBSERVED mode** (received-side): pass
    `transition_mode=TransitionMode.OBSERVED` to follow a remote assertion. A
    step the register refuses is logged and skipped, never forced; the PEC
@@ -615,9 +622,9 @@ do about it? The answer, in order:
    to the proposer asks an answered question — and the response call-out could
    let a proposer decline its own proposal, a state the protocol has no name for.
    The manager is not invited either, so the same commit writes the rows no
-   Invite will: the proposer's `ACCEPTED`, and the manager's own when it is a
+   Invite will: the proposer's `AGREED`, and the manager's own when it is a
    participant with a stake beyond the container roles (`CASE_MANAGER`,
-   `COORDINATOR`) — `ACCEPTED` by the embargo-proposal policy call-out, else
+   `COORDINATOR`) — `AGREED` by the embargo-proposal policy call-out, else
    `DECLINED`; an owner-manager's consent stays its decision as owner
    (EP-09-002, EP-09-005, `nodes/manager_consent.py`, #4180). The manager's row
    is written in its own store only; a replica learns it from no entry.
@@ -627,7 +634,7 @@ do about it? The answer, in order:
    the answer (EP-09-003). The invitee is the sole `to` recipient; anything else
    is refused as a misrouting (EP-09-010). A revision Invite to a signatory
    changes nothing that binds it: `INVITE` lands on the revision's own row and
-   the signatory keeps its `ACCEPTED` row for the active embargo (EP-09-004).
+   the signatory keeps its `AGREED` row for the active embargo (EP-09-004).
 5. The owner's answer is consent *and* decision: `Accept` activates
    (`PROPOSED → ACTIVE`, or `REVISE → ACTIVE` with the EP-05-001 carry-over),
    `Reject` clears a first proposal or keeps the prior terms. The owner MAY

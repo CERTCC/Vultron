@@ -331,7 +331,7 @@ class TestEmStateAfterEachPhase:
         args = consent.call_args.args
         assert args[2] == cast.vendor2.actor.id_
         assert args[3] == "urn:embargo:two"
-        assert args[4] is EmbargoConsentState.ACCEPTED
+        assert args[4] is EmbargoConsentState.AGREED
         assert replica_wait.call_args.args[0] is cast.vendor2.client
         assert not _demo_failures
 

@@ -119,8 +119,8 @@ The other participants still receive the Invite and answer it, and only those th
 | What you sent | What to confirm |
 |---|---|
 | `Invite(Event)` | The case `em_state` is `PROPOSED`. |
-| `Accept(Invite(Event))` | Your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) row for the embargo is `ACCEPTED` (you are a signatory), as [§9 Participant Embargo Consent (PEC) State Machine in the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) defines it. |
-| `Accept(Event)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE`, the case names one active embargo, and your consent row for it is `ACCEPTED`. |
+| `Accept(Invite(Event))` | Your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) row for the embargo is `AGREED` (you are a signatory), as [§9 Participant Embargo Consent (PEC) State Machine in the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) defines it. |
+| `Accept(Event)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE`, the case names one active embargo, and your consent row for it is `AGREED`. |
 | `Reject(Event)` with the case as `target`, as Case Owner | The case `em_state` is `NONE` and no participant's consent row changed. |
 | `Announce(Event)` | Every participant's replica carries the same active embargo ID. |
 

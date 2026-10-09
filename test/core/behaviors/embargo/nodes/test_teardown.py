@@ -574,7 +574,7 @@ class TestApplyEmbargoTeardownNode:
             attributed_to="https://example.org/users/finder",
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                    embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
                 )
             ],
         )
@@ -595,7 +595,7 @@ class TestApplyEmbargoTeardownNode:
         updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
         assert updated_p.embargo_consents == participant.embargo_consents
         assert updated_p.consent_for(embargo.id_) is (
-            EmbargoConsentState.ACCEPTED
+            EmbargoConsentState.AGREED
         )
         assert not updated_p.is_signatory(updated_case.active_embargo_id)
 

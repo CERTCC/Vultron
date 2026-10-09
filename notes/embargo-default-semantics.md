@@ -191,7 +191,7 @@ followed by an internal accept, landing the case at `EM.ACTIVE` atomically. The
 intermediate `EM.PROPOSED` state is never persisted or externally observable
 (EP-04-002).
 
-The case owner is seeded as a `SIGNATORY` in the same BT subtree immediately
+The case owner is seeded as a signatory in the same BT subtree immediately
 after the embargo is activated (see "Case Owner Initial Embargo Consent" below).
 
 ---
@@ -312,8 +312,8 @@ between the sender's terms and the actor default registers no revision — there
 nothing contested.
 
 The revision is registered inside `InitializeDefaultEmbargoNode`, *before* the
-case-proposal tree seeds the report receiver and the reporter as SIGNATORY. So a
-contested creation leaves the case at `EM.REVISE` with two SIGNATORY participants
+case-proposal tree seeds the report receiver and the reporter as signatories. So a
+contested creation leaves the case at `EM.REVISE` with two signatory participants
 who never saw the revision. That is correct: CM-14-005 seeds consent to the
 *active* embargo, whose terms are still in force under REVISE, and under ADR-0093
 a proposal changes nobody's consent, so the order of registration and seeding no
@@ -369,7 +369,7 @@ owner's longer default lost, the reporter is. Proposing is consenting
 revision id: on the CASE_MANAGER's creation path the executor is neither party
 (#4152). `creation_revision_parties` (`nodes/embargo_revision.py`) resolves both
 parties from the case owner and the report's author, for the registration and the
-relay alike. Both were just seeded SIGNATORY, so
+relay alike. Both were just seeded as signatories, so
 the relay's PEC `INVITE` is not legal for the invitee and changes no consent
 (EP-09-004). A tie registers nothing and relays nothing. A report naming no
 reporter, a case naming no CASE_OWNER, or a winner who is not an invitation recipient (CM-10-007) raises: the relay is a MUST,
@@ -533,7 +533,7 @@ Consequences for the guard arm:
 "`PROPOSED` is never persisted at creation" is a property of one write, not of
 the order of two. `InitializeCreationEmbargoNode` calls
 `EmbargoLifecycle.initialize_creation_embargo`, which applies `PROPOSE` and
-`ACCEPT` in memory, attaches the embargo and saves the case once; every check
+`ACTIVATE` in memory, attaches the embargo and saves the case once; every check
 (P/X/A, the event's record, both transitions) runs before that save. The
 creation arm used to call `propose_embargo` and then, in a second node,
 `activate_embargo`: a failure between the two saves left the case at
@@ -541,7 +541,7 @@ creation arm used to call `propose_embargo` and then, in a second node,
 active embargo (#4123).
 
 The same holds for everything after the activation. The consent records, the
-owner's `SIGNATORY` seed (CM-14-003) and a contested creation's revision
+owner's signatory seed (CM-14-003) and a contested creation's revision
 (`ACTIVE → REVISE`, EP-04-003) used to be written by the service and by two
 nodes after the case was saved `ACTIVE`; a failure there left the owner
 unseeded or the revision unregistered, and this guard then refused the rerun

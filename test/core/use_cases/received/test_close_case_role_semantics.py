@@ -30,7 +30,12 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
-from test.support.embargo_register import activate, propose, terminate
+from test.support.embargo_register import (
+    activate,
+    propose,
+    terminate,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -630,6 +635,9 @@ class TestPostCloseBoundary:
         """An unanswered Invite is expired at close, not left waiting on its deadline."""
         from datetime import UTC, datetime, timedelta
 
+        from vultron.core.states.embargo_register import (
+            EmbargoRegisterStatus,
+        )
         from vultron.core.states.participant_embargo_consent import (
             EmbargoConsentState,
             PEC_Trigger,
@@ -649,11 +657,14 @@ class TestPostCloseBoundary:
         dl.create(embargo)
         propose(case, embargo.id_)
         dl.save(case)
+        write_consent_rows(dl, case)
         vendor = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(vendor, CaseParticipant)
-        vendor.apply_pec_transition(embargo.id_, PEC_Trigger.INVITE)
-        vendor.invite_rsvp_deadline = datetime.now(tz=UTC) + timedelta(
-            days=365
+        vendor.apply_pec_transition(
+            embargo.id_,
+            PEC_Trigger.INVITE,
+            entry_status=EmbargoRegisterStatus.PROPOSED,
+            rsvp_deadline=datetime.now(tz=UTC) + timedelta(days=365),
         )
         dl.save(vendor)
 
@@ -662,7 +673,7 @@ class TestPostCloseBoundary:
         vendor = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(vendor, CaseParticipant)
         assert (
-            vendor.consent_for(embargo.id_) == EmbargoConsentState.EXPIRED
+            vendor.consent_for(embargo.id_) == EmbargoConsentState.TIMED_OUT
         ), "owner close must expire a pending Invite immediately (CM-23-014)"
         ledger = _case_ledger(dl)
         types = [e.event_type for e in ledger]
@@ -1055,6 +1066,7 @@ def _seed_active_embargo(
         propose(case, revision.id_)
     assert case.em_state == em_state
     dl.save(case)
+    write_consent_rows(dl, case)
 
 
 def _terminate_embargo(dl: SqliteDataLayer) -> None:

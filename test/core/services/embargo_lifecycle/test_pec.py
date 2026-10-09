@@ -20,6 +20,7 @@ from test.support.embargo_register import (
     propose,
     reject,
     terminate,
+    write_consent_rows,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
@@ -75,15 +76,17 @@ def test_record_actor_acceptance_is_idempotent(
     lifecycle = EmbargoLifecycle(persistence=dl)
     embargo_id = "https://example.org/embargoes/e1"
     propose(case, embargo_id)
+    dl.save(case)
+    write_consent_rows(dl, case)
 
     first = lifecycle._record_actor_acceptance(case, owner.id_, embargo_id)
     second = lifecycle._record_actor_acceptance(case, owner.id_, embargo_id)
 
     assert [(c.consent_before, c.consent_after) for c in first] == [
-        (None, ECS.ACCEPTED.value)
+        (ECS.UNINVITED.value, ECS.AGREED.value)
     ]
     assert second == []
-    assert _consents_of(dl, owner_p.id_) == {embargo_id: "ACCEPTED"}
+    assert _consents_of(dl, owner_p.id_) == {embargo_id: "AGREED"}
 
 
 @pytest.mark.spec("MSM-07-003")
@@ -101,17 +104,19 @@ def test_record_actor_acceptance_of_a_proposal_leaves_the_active_row_alone(
     proposed_id = "https://example.org/embargoes/proposed"
     activate(case, active_id)
     propose(case, proposed_id)
-    _seed_consent(dl, owner_p.id_, active_id, ECS.ACCEPTED)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, owner_p.id_, active_id, ECS.AGREED)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
     changes = lifecycle._record_actor_acceptance(case, owner.id_, proposed_id)
 
     assert [(c.embargo_id, c.consent_after) for c in changes] == [
-        (proposed_id, "ACCEPTED")
+        (proposed_id, "AGREED")
     ]
     assert _consents_of(dl, owner_p.id_) == {
-        active_id: "ACCEPTED",
-        proposed_id: "ACCEPTED",
+        active_id: "AGREED",
+        proposed_id: "AGREED",
     }
 
 
@@ -156,11 +161,13 @@ def test_record_actor_acceptance_of_a_rejected_proposal_records_nothing(
 def test_record_actor_rejection_withdrawal_declines_the_active_row(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Rejecting the active embargo is withdrawal: ACCEPTED -> DECLINED."""
+    """Rejecting the active embargo is withdrawal: AGREED -> DECLINED."""
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     embargo_id = "https://example.org/embargoes/active"
-    _seed_consent(dl, owner_p.id_, embargo_id, ECS.ACCEPTED)
+    activate(case, embargo_id)
+    dl.save(case)
+    _seed_consent(dl, owner_p.id_, embargo_id, ECS.AGREED)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
     changes = lifecycle._record_actor_rejection(
@@ -168,7 +175,7 @@ def test_record_actor_rejection_withdrawal_declines_the_active_row(
     )
 
     assert [(c.consent_before, c.consent_after) for c in changes] == [
-        ("ACCEPTED", "DECLINED")
+        ("AGREED", "DECLINED")
     ]
     assert _consent_of(dl, owner_p.id_, embargo_id) == "DECLINED"
 
@@ -183,9 +190,10 @@ def test_record_actor_rejection_of_proposed_terms_keeps_a_signatory(
     active = _make_embargo(dl, case.id_)
     proposed_id = "https://example.org/embargoes/proposed"
     activate(case, active.id_)
+    propose(case, proposed_id)
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, owner_p.id_, proposed_id, ECS.ACCEPTED)
+    _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, owner_p.id_, proposed_id, ECS.AGREED)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
     changes = lifecycle._record_actor_rejection(
@@ -195,7 +203,7 @@ def test_record_actor_rejection_of_proposed_terms_keeps_a_signatory(
     assert [(c.embargo_id, c.consent_after) for c in changes] == [
         (proposed_id, "DECLINED")
     ]
-    assert _consent_of(dl, owner_p.id_, active.id_) == "ACCEPTED"
+    assert _consent_of(dl, owner_p.id_, active.id_) == "AGREED"
     assert _is_signatory(dl, case.id_, owner_p.id_)
 
 
@@ -207,6 +215,8 @@ def test_record_actor_rejection_of_proposed_terms_declines_an_invited_row(
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     proposed_id = "https://example.org/embargoes/p"
+    propose(case, proposed_id)
+    dl.save(case)
     _seed_consent(dl, owner_p.id_, proposed_id, ECS.INVITED)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
@@ -221,18 +231,21 @@ def test_record_actor_rejection_of_proposed_terms_declines_an_invited_row(
 def test_record_actor_rejection_of_a_never_asked_embargo_records_a_decline(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """DECLINE is legal with no row: a Reject before any Invite is an answer."""
+    """DECLINE is legal from UNINVITED: a Reject before any Invite is an answer."""
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     lifecycle = EmbargoLifecycle(persistence=dl)
     embargo_id = "https://example.org/embargoes/p"
+    propose(case, embargo_id)
+    dl.save(case)
+    write_consent_rows(dl, case)
 
     changes = lifecycle._record_actor_rejection(
         case, owner.id_, embargo_id, withdrawal=False
     )
 
     assert [(c.consent_before, c.consent_after) for c in changes] == [
-        (None, "DECLINED")
+        ("UNINVITED", "DECLINED")
     ]
     assert _consent_of(dl, owner_p.id_, embargo_id) == "DECLINED"
 
@@ -242,15 +255,21 @@ def test_record_actor_rejection_of_a_never_asked_embargo_records_a_decline(
 def test_accept_and_reject_after_the_embargo_exited_record_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer], withdrawal: bool
 ) -> None:
-    """Once EM is EXITED an Accept or a Reject binds nothing (ADR-0118)."""
+    """Once EM is EXITED an Accept or a Reject binds nothing (ADR-0118).
+
+    The terminated entry and the proposal cancelled with it are final, so their
+    rows are frozen (ADR-0122).
+    """
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     embargo_id = "https://example.org/embargoes/gone"
     other_id = "https://example.org/embargoes/other"
     activate(case, embargo_id)
+    propose(case, other_id)
     terminate(case)
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, embargo_id, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, owner_p.id_, embargo_id, ECS.AGREED)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
     rejected = lifecycle._record_actor_rejection(
@@ -259,18 +278,23 @@ def test_accept_and_reject_after_the_embargo_exited_record_nothing(
     accepted = lifecycle._record_actor_acceptance(case, owner.id_, other_id)
 
     assert rejected == [] and accepted == []
-    assert _consents_of(dl, owner_p.id_) == {embargo_id: "ACCEPTED"}
+    assert _consents_of(dl, owner_p.id_) == {
+        embargo_id: "AGREED",
+        other_id: "UNINVITED",
+    }
 
 
 @pytest.mark.spec("MSM-07-004", "CM-18-003")
-def test_record_actor_rejection_declines_an_expired_participant(
+def test_record_actor_rejection_declines_a_timed_out_participant(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A late explicit Reject from EXPIRED is an answer: EXPIRED -> DECLINED."""
+    """A late explicit Reject from TIMED_OUT is an answer: TIMED_OUT -> DECLINED."""
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     embargo_id = "https://example.org/embargoes/p"
-    _seed_consent(dl, owner_p.id_, embargo_id, ECS.EXPIRED)
+    propose(case, embargo_id)
+    dl.save(case)
+    _seed_consent(dl, owner_p.id_, embargo_id, ECS.TIMED_OUT)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
     changes = lifecycle._record_actor_rejection(
@@ -278,7 +302,7 @@ def test_record_actor_rejection_declines_an_expired_participant(
     )
 
     assert [(c.consent_before, c.consent_after) for c in changes] == [
-        ("EXPIRED", "DECLINED")
+        ("TIMED_OUT", "DECLINED")
     ]
 
 
@@ -355,6 +379,8 @@ def test_record_actor_acceptance_for_a_declined_actor_records_nothing(
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     embargo_id = "https://example.org/embargoes/e1"
+    propose(case, embargo_id)
+    dl.save(case)
     _seed_consent(dl, owner_p.id_, embargo_id, ECS.DECLINED)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
@@ -365,13 +391,13 @@ def test_record_actor_acceptance_for_a_declined_actor_records_nothing(
 
 
 @pytest.mark.spec("MSM-07-004")
-def test_record_actor_rejection_withdrawal_declines_every_accepted_proposal(
+def test_record_actor_rejection_withdrawal_declines_every_agreed_proposal(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Withdrawal from A declines A and each open revision the actor accepted.
+    """Withdrawal from A declines A and each open revision the actor agreed to.
 
     A refusal of B alone declines B only.  An open proposal the actor never
-    accepted gets no row.
+    agreed to keeps its UNINVITED row.
     """
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
@@ -381,20 +407,22 @@ def test_record_actor_rejection_withdrawal_declines_every_accepted_proposal(
     activate(case, active.id_)
     propose(case, revision.id_, unanswered.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
-    _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, owner_p.id_, revision.id_, ECS.ACCEPTED)
+    _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, owner_p.id_, revision.id_, ECS.AGREED)
     refused = lifecycle._record_actor_rejection(
         case, owner.id_, revision.id_, withdrawal=False
     )
     assert [c.embargo_id for c in refused] == [revision.id_]
     assert _consents_of(dl, owner_p.id_) == {
-        active.id_: "ACCEPTED",
+        active.id_: "AGREED",
         revision.id_: "DECLINED",
+        unanswered.id_: "UNINVITED",
     }
 
-    _seed_consent(dl, owner_p.id_, revision.id_, ECS.ACCEPTED)
+    _seed_consent(dl, owner_p.id_, revision.id_, ECS.AGREED)
     withdrawn = lifecycle._record_actor_rejection(
         case, owner.id_, active.id_, withdrawal=True
     )
@@ -402,6 +430,7 @@ def test_record_actor_rejection_withdrawal_declines_every_accepted_proposal(
     assert _consents_of(dl, owner_p.id_) == {
         active.id_: "DECLINED",
         revision.id_: "DECLINED",
+        unanswered.id_: "UNINVITED",
     }
 
 
@@ -440,14 +469,15 @@ def _is_active(dl: SqliteDataLayer, case_id: str, participant_id: str) -> bool:
 
 
 @pytest.mark.spec("EP-05-001", "CM-10-001")
-def test_shorter_revision_carries_every_accepting_signatory_over(
+def test_shorter_revision_carries_every_agreeing_signatory_over(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Containment: a B ending no later than A carries over A's accepters only.
+    """Containment: a B ending no later than A carries over A's signatories only.
 
-    The owner gains B as its own acceptance; a signatory to A gains an
-    ACCEPTED row for B; a participant that declined B keeps its answer even
-    though it accepted A; one that never accepted A gets nothing.
+    The owner gains B as its own agreement; a signatory to A gains an AGREED
+    row for B by CARRY_OVER — one that declined B included, since agreeing to
+    N days is agreeing to every shorter period (ADR-0122); one that never
+    agreed to A keeps its UNINVITED row for B.
     """
     owner, dl = owner_and_dl
     signer = _make_actor(dl, "Signer")
@@ -464,9 +494,10 @@ def test_shorter_revision_carries_every_accepting_signatory_over(
     activate(case, active.id_)
     propose(case, shorter.id_)
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, signer_p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, decliner_p.id_, active.id_, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, signer_p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, decliner_p.id_, active.id_, ECS.AGREED)
     _seed_consent(dl, decliner_p.id_, shorter.id_, ECS.DECLINED)
     _seed_consent(dl, bystander_p.id_, active.id_, ECS.INVITED)
 
@@ -478,13 +509,13 @@ def test_shorter_revision_carries_every_accepting_signatory_over(
         ends_no_later=True,
     )
 
-    assert set(changed) == {owner_p.id_, signer_p.id_}
-    assert _consent_of(dl, signer_p.id_, shorter.id_) == "ACCEPTED"
-    assert _consent_of(dl, decliner_p.id_, shorter.id_) == "DECLINED"
-    assert _consent_of(dl, bystander_p.id_, shorter.id_) is None
+    assert set(changed) == {owner_p.id_, signer_p.id_, decliner_p.id_}
+    assert _consent_of(dl, signer_p.id_, shorter.id_) == "AGREED"
+    assert _consent_of(dl, decliner_p.id_, shorter.id_) == "AGREED"
+    assert _consent_of(dl, bystander_p.id_, shorter.id_) == "UNINVITED"
     assert _is_signatory(dl, case.id_, owner_p.id_)
     assert _is_signatory(dl, case.id_, signer_p.id_)
-    assert not _is_signatory(dl, case.id_, decliner_p.id_)
+    assert _is_signatory(dl, case.id_, decliner_p.id_)
     assert not _is_signatory(dl, case.id_, bystander_p.id_)
 
 
@@ -513,9 +544,10 @@ def test_longer_revision_writes_only_the_owners_row_and_lapses_by_derivation(
     activate(case, active.id_)
     propose(case, longer.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
     for p in (owner_p, signer_p, early_p):
-        _seed_consent(dl, p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, early_p.id_, longer.id_, ECS.ACCEPTED)
+        _seed_consent(dl, p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, early_p.id_, longer.id_, ECS.AGREED)
 
     changed = _activate(
         dl,
@@ -526,7 +558,10 @@ def test_longer_revision_writes_only_the_owners_row_and_lapses_by_derivation(
     )
 
     assert changed == [owner_p.id_]
-    assert _consents_of(dl, signer_p.id_) == {active.id_: "ACCEPTED"}
+    assert _consents_of(dl, signer_p.id_) == {
+        active.id_: "AGREED",
+        longer.id_: "UNINVITED",
+    }
     assert _has_lapsed(dl, case.id_, signer_p.id_)
     assert not _is_signatory(dl, case.id_, signer_p.id_)
     assert not _is_active(dl, case.id_, signer_p.id_)
@@ -537,10 +572,14 @@ def test_longer_revision_writes_only_the_owners_row_and_lapses_by_derivation(
 
 
 @pytest.mark.spec("EP-05-001", "CM-10-001")
-def test_first_activation_writes_nothing_and_holders_are_signatories(
+def test_first_activation_advances_nobody_and_holders_are_signatories(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """No advance step: ACCEPTED(B) holders are signatories by lookup."""
+    """No advance step: AGREED(B) holders are signatories by lookup.
+
+    The owner's agreement is the activation's one write, and an owner that
+    already agreed is left as it is (ADR-0122).
+    """
     owner, dl = owner_and_dl
     early = _make_actor(dl, "Early")
     late = _make_actor(dl, "Late")
@@ -553,8 +592,9 @@ def test_first_activation_writes_nothing_and_holders_are_signatories(
     proposal = _make_embargo(dl, case.id_)
     propose(case, proposal.id_)
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, proposal.id_, ECS.ACCEPTED)
-    _seed_consent(dl, early_p.id_, proposal.id_, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, owner_p.id_, proposal.id_, ECS.AGREED)
+    _seed_consent(dl, early_p.id_, proposal.id_, ECS.AGREED)
     _seed_consent(dl, late_p.id_, proposal.id_, ECS.INVITED)
     before = {p.id_: _consents_of(dl, p.id_) for p in participants}
 
@@ -617,8 +657,9 @@ def test_first_activation_promotes_an_inert_participant_only_by_its_own_reply(
     """Activation writes nothing for an inert participant (only the owner's row).
 
     Both participants are inert.  The one whose own row for the activated
-    embargo is ACCEPTED (it accepted early) is a signatory by lookup; the one
-    that never replied stays merely INVITED and is not.
+    embargo is AGREED (it agreed early) is a signatory by lookup; the one
+    that never replied stays merely INVITED and is not.  The only row written
+    is the owner's own agreement (ADR-0122).
     """
     owner, dl = owner_and_dl
     replied = _make_actor(dl, "Replied")
@@ -632,7 +673,8 @@ def test_first_activation_promotes_an_inert_participant_only_by_its_own_reply(
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
-    _seed_consent(dl, replied_p.id_, embargo.id_, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, replied_p.id_, embargo.id_, ECS.AGREED)
     _seed_consent(dl, silent_p.id_, embargo.id_, ECS.INVITED)
     _make_inert(dl, replied_p.id_, how)
     _make_inert(dl, silent_p.id_, how)
@@ -677,8 +719,9 @@ def test_longer_revision_lapses_an_inert_signatory_too(
     activate(case, active.id_)
     propose(case, longer.id_)
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, inert_p.id_, active.id_, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, inert_p.id_, active.id_, ECS.AGREED)
     _make_inert(dl, inert_p.id_, how)
 
     _activate(

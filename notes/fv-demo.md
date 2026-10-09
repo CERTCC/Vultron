@@ -14,6 +14,7 @@ related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/event-driven-control-flow.yaml
   - specs/embargo-default-semantics.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/demo-interactive-ui.md
   - notes/case-bootstrap-trust.md
@@ -23,6 +24,7 @@ related_notes:
   - notes/event-driven-control-flow.md
   - notes/embargo-default-semantics.md
   - notes/sync-ledger-replication.md
+  - notes/participant-embargo-consent.md
   - notes/demo-scenario-authoring.md
 relevant_packages:
   - vultron/demo/scenario
@@ -124,8 +126,9 @@ See `specs/multi-actor-demo.yaml` DEMOMA-05-001, DEMOMA-05-002.
    c. Accepts the delegation (sends `Accept(delegation)` back to Vendor).
    d. Runs the case initialization BT:
       - Establishes the default embargo from the Vendor's embargo policy.
-      - Sets both Vendor and Reporter to embargo SIGNATORY state immediately
-        (no invite/accept round-trip — they were present at case creation).
+      - Marks both Vendor and Reporter `AGREED` to the embargo immediately,
+        making them signatories (no invite/accept round-trip — they were
+        present at case creation).
       - Updates EM state to ACTIVE.
 
 4. **Vendor (automatic)**: After the Case Actor accepts, Vendor sends

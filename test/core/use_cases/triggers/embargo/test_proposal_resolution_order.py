@@ -39,7 +39,12 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import activate, propose, reject
+from test.support.embargo_register import (
+    activate,
+    propose,
+    reject,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -243,6 +248,7 @@ def _build_case_with_one_open_proposal(
     dl.create(case)
     for obj in (embargo, proposal, owner_participant, participant):
         dl.create(obj)
+    write_consent_rows(dl, case)
 
     return case, proposal.id_
 

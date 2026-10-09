@@ -56,7 +56,6 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
@@ -80,8 +79,9 @@ class CreateInertInviteeParticipantNode(
     through the active-participant filter (CM-10-004).
 
     The initial status is RM ``RECEIVED``, VF ``vf`` (vendor not yet aware)
-    for VENDOR invitees, and PEC ``INVITED`` when the case carries an active
-    embargo; PEC ``UNBOUND`` otherwise.  These are the exact values the
+    for VENDOR invitees, an ``UNINVITED`` consent row for every embargo
+    register entry, and ``INVITED`` on the row for the active embargo when the
+    case carries one (ADR-0122).  These are the exact values the
     CASE_MANAGER's acceptance of the future stub-Invite reply will start from
     (CM-11-009, CM-11-007).
 
@@ -245,14 +245,16 @@ class CreateInertInviteeParticipantNode(
             joined=False,
         )
 
-        # Apply PEC INVITE if the case has an active embargo (CM-11-006)
-        active_embargo_id = _as_id(case.active_embargo)
-        if active_embargo_id and participant.accepts_pec_trigger(
-            active_embargo_id, PEC_Trigger.INVITE
+        # The record gets an UNINVITED row for every register entry (ADR-0122)
+        # before it is first stored, then INVITE on the embargo in force
+        # (CM-11-006).
+        participant.write_uninvited_rows(case.register_embargo_ids)
+        active_embargo_id = case.active_embargo_id
+        if active_embargo_id and participant.apply_pec_transition_if_legal(
+            active_embargo_id,
+            PEC_Trigger.INVITE,
+            entry_status=case.embargo_register_status(active_embargo_id),
         ):
-            participant.apply_pec_transition(
-                active_embargo_id, PEC_Trigger.INVITE
-            )
             self.logger.info(
                 "%s: set PEC INVITED for invitee '%s' (active embargo '%s',"
                 " CM-11-006)",
@@ -461,12 +463,15 @@ class ApplyInviteRejectToParticipantNode(
         active_embargo_id = (
             case.active_embargo_id if case is not None else None
         )
-        if active_embargo_id and participant.accepts_pec_trigger(
-            active_embargo_id, PEC_Trigger.DECLINE
-        ):
-            participant.apply_pec_transition(
-                active_embargo_id, PEC_Trigger.DECLINE
+        if (
+            case is not None
+            and active_embargo_id
+            and participant.apply_pec_transition_if_legal(
+                active_embargo_id,
+                PEC_Trigger.DECLINE,
+                entry_status=case.embargo_register_status(active_embargo_id),
             )
+        ):
             self.datalayer.save(participant)
             self.logger.info(
                 "%s: applied PEC DECLINED for invitee '%s' (active embargo,"
