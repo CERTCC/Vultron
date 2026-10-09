@@ -107,7 +107,8 @@ BTs execute to completion per handler invocation. No state is preserved
 between handler invocations.
 
 **Rationale**: Matches HTTP request/response model, simpler failure handling,
-clear transaction boundaries (one execution = one commit).
+clear transaction boundaries (one execution commits its act's entry, then one
+entry per further change it makes to the case file, CLP-07-013).
 
 **Rejected alternative**: Async tick-based execution with pause/resume —
 requires BT state persistence between ticks, complex failure recovery.

@@ -428,6 +428,62 @@ groups:
     - ADR-0109
     stories:
     - story_2022_045
+  - id: CLP-07-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Every change the CASE_MANAGER makes to the case file MUST be committed as its own
+      `CaseLedgerEntry`, and a change with no committed entry MUST NOT be made. The act's
+      entry comes first. When the act's own activity states a change, such as
+      `Add(Note, target=Case)` carrying the note or an invitee's `Accept` of the stub
+      Invite marking its own consent and joining, that entry is the change's entry, and
+      applying it writes only what the activity states. Each other change the act causes MUST
+      follow as its own CASE_MANAGER-authored entry, in the order the CASE_MANAGER writes
+      them, whose `payloadSnapshot` is a `Create` of a record the CASE_MANAGER brings into
+      existence or an `Update` of a changed record, carrying the object in full
+      (CLP-07-006). Decisions the CASE_MANAGER takes from local policy or the clock are
+      committed as its own entries before they change the case file.
+    rationale: >-
+      Two replicas at the same ledger position must hold the same case file, and a
+      replica infers nothing: if a change is not in the ledger, it did not happen
+      (ADR-0124). One act can cause several changes, such as a stub Invite and the
+      inert invitee's participant record it creates; recording only the act left
+      replicas to rebuild the record with their own ids and clock times (#4425).
+    verification: >-
+      A rebuild-from-ledger test replays every demo and integration scenario's
+      CASE_MANAGER ledger into an empty store and asserts the result equals the
+      CASE_MANAGER's case file; a test per consequence-producing act asserts one entry
+      per changed object follows the act's entry.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-07-002
+    adr:
+    - ADR-0124
+    stories:
+    - story_2022_045
+  - id: CLP-07-014
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      Case bookkeeping, the records the CASE_MANAGER keeps alongside a case while it
+      works it (such as who recommended whom, offer records and pending markers), is not
+      part of the case file. It MUST NOT be committed to the case ledger, and MUST NOT be
+      read to compute any case-file value, on the CASE_MANAGER or on a replica.
+    rationale: >-
+      The case file is what replicates and what "same ledger position, same case"
+      covers. A field the CASE_MANAGER keeps for its own working, stored on the case
+      object, made replicas at the same position disagree on a value no entry carried
+      (`recommendation_recommender_index`, #4425).
+    verification: >-
+      A test asserts no case bookkeeping field is a field of `VulnerabilityCase`, and the
+      rebuild-from-ledger test compares case files without reading case bookkeeping.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-04-006
+    adr:
+    - ADR-0124
+    stories:
+    - story_2022_045
   - id: CLP-07-003
     priority: MUST
     kind: protocol
@@ -717,7 +773,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: Every protocol-significant use case or BT subtree (per BT-06-001) MUST
-      produce exactly one canonical commit; a coverage test MUST enumerate protocol-significant
+      reach a canonical commit for its act, and one more for each further change it makes
+      to the case file (CLP-07-013); a coverage test MUST enumerate protocol-significant
       entries (e.g., everything reachable from `use_case_map()`) and assert each one
       reaches a commit, rather than relying on manual audit to discover missing commits
     rationale: '`validate_report`, `ack_report`, and `close_case` produced no canonical

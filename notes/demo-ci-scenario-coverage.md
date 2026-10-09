@@ -96,7 +96,9 @@ generate-vs-check split".
 - `add_case_participant` is no longer committed (#4081): the CASE_MANAGER
   sends no `Add(CaseParticipant)` after a stub-Invite acceptance, and replicas
   seat the new member from the `accept_invite_actor_to_case` entry (CM-31-012,
-  ADR-0116). It was never in any `_EXPECTED_EVENT_TYPES` list.
+  ADR-0116). It was never in any `_EXPECTED_EVENT_TYPES` list. #4295 replaces
+  that seating with copied `Create`/`Update(CaseParticipant)` consequence
+  entries (CLP-07-013), which expected-event lists will then name.
 - `fccv-extension` spec entry DEMOMA-16-010 was added as part of ISSUE-1996;
   the test constant was already correct.
 - `fvv`, `fvcv-extension`, and `fcv` were missing `accept_invite_actor_to_case`

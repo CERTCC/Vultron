@@ -80,12 +80,15 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # seated at RM.ACCEPTED as REPORTER and seeded SIGNATORY); the live seating is
 # AddReporterParticipantNode, so the marker moved to the reporter tests in
 # test_case_proposal_received_tree.py that assert exactly that.
+# Lowered to 700 by #4425: CLP-09-003 (reworded to one commit per case-file
+# change) gained its first marker, a strict xfail in
+# test_ledger_fidelity_planned.py, as did the new CLP-07-013 and CLP-07-014.
 # Lower this constant as more @pytest.mark.spec markers are added;
 # never raise it to hide regressions in your own PR. Keep it pinned to the
 # actual count — slack between the two is room for uncovered specs to grow
 # unnoticed, which is the regression this ratchet exists to prevent.
 # ---------------------------------------------------------------------------
-MAX_UNCOVERED_PROTOCOL_SPECS = 702
+MAX_UNCOVERED_PROTOCOL_SPECS = 700
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"

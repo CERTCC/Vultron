@@ -4,7 +4,7 @@ status_override: Set by the epoch lint rollout (#4196); the status predates the 
 date: 2026-10-01
 created: 2026-10-01
 updated: 2026-10-09
-revision: 2
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; CONCERN-2257; ADR-0093, ADR-0108, ADR-0109, ADR-0113,
@@ -28,7 +28,7 @@ CONCERN-2257 found that the deletion cannot reach anyone else:
    That is a permanent roster divergence by construction.
 3. Deleting the record erases the participant's history from the case: the ledger entries it authored now name an actor the roster no longer holds.
 
-The concern also found that the CASE_MANAGER's direct `Add(CaseParticipant)`, emitted to every participant after an invitee accepts the stub Invite, is redundant.
+The concern also found that the CASE_MANAGER's direct `Add(CaseParticipant)`, emitted to every participant after an invitee accepts the stub Invite, is the wrong message.
 CM-17-004 does not call for it.
 The message is redundant as a notice, and the `add_case_participant` entry the CASE_MANAGER committed for it recorded the same move as the entries of the accept itself.
 A replica usually refuses the message anyway, because it holds no copy of the `CaseParticipant` record it names.
@@ -41,7 +41,7 @@ The question: **what does removing a participant change, who may do it, how does
   It must not be modelled as a consent state (ADR-0121: participant status is self-declaratory).
 - Entitlement to case content is already an explicit, computed check (the active participant, CM-10-004, ADR-0114), not roster membership.
 - Only the CASE_MANAGER turns an assertion into case state, and replicas take case state from the ledger (ADR-0108).
-  One move gets one ledger entry, authored by the actor that made the move.
+  Every change gets its own ledger entry, and no change is recorded twice (CLP-07-002, ADR-0124).
 - A participant bound by an embargo stays bound however it stopped receiving case content, and must be able to learn when that obligation ends.
 - Inferred statuses are computed from stored facts, never stored themselves (the precedent is signatory and lapsed consent, CM-18-001).
 
