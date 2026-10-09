@@ -428,16 +428,15 @@ def create_accept_actor_recommendation_received_tree(
         └── AcceptActorRecommendationIfCaseManager (Selector)  — BT-17-001 gate
             ├── SkipIfNotCaseManager
             └── AcceptActorRecommendationEffects (Sequence, memory=False)
-                ├── ReinviteNotToClosedParticipantNode — CM-11-015 refusal
                 ├── EmitAcceptActorRecommendationNode
                 ├── EmitInviteActorToCaseNode
                 └── CreateInertInviteeParticipantNode
 
     Both emits are the CASE_MANAGER's (CM-16-006, PCR-08-007); a receiver
     that is not it does nothing (#3752).  An invitee already at
-    ``RM.CLOSED`` is refused before anything is sent, as in the
-    recommend-actor tree: a closed participant is never re-invited
-    (CM-11-015, ADR-0085).
+    ``RM.CLOSED`` (or joined) is refused by the precondition guard, before the
+    receipt commit and before anything is sent: a closed participant is never
+    re-invited (CM-11-015, ADR-0085).
 
     ``roles`` and ``invitee_id`` must come from the stored
     ``Offer(CaseParticipant)`` in the DataLayer (ISSUE-1745, CM-16-019): the
@@ -481,10 +480,6 @@ def create_accept_actor_recommendation_received_tree(
             )
         ],
         manager_effects=[
-            # CM-11-015: refuse a closed invitee before anything is sent.
-            ReinviteNotToClosedParticipantNode(
-                invitee_id=invitee_id, case_id=case_id
-            ),
             EmitAcceptActorRecommendationNode(
                 recommender_id=recommender_id,
                 recommendation_id=recommendation_id,
