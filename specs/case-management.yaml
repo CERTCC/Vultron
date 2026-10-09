@@ -1867,6 +1867,25 @@ groups:
       `SubmitReportReceivedUseCase.execute()` reaches a store helper.
     adr:
     - ADR-0111
+  - id: CM-15-006
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The `auto_create_case=True` default in `ActorConfig` is a reference
+      implementation choice, not a Vultron protocol requirement. An implementation
+      that sets `auto_create_case=False` and receives a valid report without
+      auto-creating a case SHOULD close that report through `SvcCloseCaseUseCase`
+      when the operator or user later requests closure.
+    rationale: >-
+      CONCERN-1902 observed that `SvcCloseCaseUseCase` is never reached in the
+      reference process because the case is always auto-created at RM.RECEIVED.
+      ADR-0085 resolves this: the auto-create behaviour is an implementation
+      choice made by the reference/demo process. `SvcCloseCaseUseCase` is the
+      tested, supported closure path for the non-auto-create scenario; its unit
+      tests are in `test/core/use_cases/triggers/test_close_case_trigger.py`
+      and `test/core/behaviors/report/test_trigger_report_trees.py`.
+    adr:
+    - ADR-0085
 - id: CM-16
   title: Actor Suggestion Routing (Recommend-Actor Flow)
   specs:

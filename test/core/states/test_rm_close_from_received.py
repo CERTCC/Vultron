@@ -127,6 +127,37 @@ def test_rm_closure_path_from_closable_state_is_one_step(source: RM) -> None:
     assert rm_closure_path(source) == (RM.CLOSED,)
 
 
+@pytest.mark.spec("RMB-14-006")
+@pytest.mark.parametrize("target", list(RM), ids=str)
+def test_rm_closed_is_terminal_no_valid_transitions_out(target: RM) -> None:
+    """RM.CLOSED is terminal: no valid RM transition exists from CLOSED to any state.
+
+    RMB-14-006 forbids any outbound transition from RM.CLOSED.
+    ``is_valid_rm_transition(CLOSED, X)`` MUST return False for every X,
+    including CLOSED itself (same-state is a write-permitted confirmation,
+    not a state-machine edge).
+    """
+    assert not is_valid_rm_transition(RM.CLOSED, target), (
+        f"Expected no valid transition from RM.CLOSED to {target!s}"
+    )
+
+
+@pytest.mark.spec("RMB-14-007")
+def test_rm_deferred_is_resumable_accepted_transition_exists() -> None:
+    """RM.DEFERRED is resumable: DEFERRED → ACCEPTED is a valid RM transition.
+
+    RMB-14-007 SHOULD guidance: a participant that may return to active
+    coordination should prefer RM.DEFERRED (which can resume via
+    DEFERRED → ACCEPTED) over RM.CLOSED (terminal, no transition out).
+    """
+    assert is_valid_rm_transition(RM.DEFERRED, RM.ACCEPTED), (
+        "DEFERRED → ACCEPTED must be a valid RM transition (resumable state)"
+    )
+    assert not is_valid_rm_transition(RM.CLOSED, RM.ACCEPTED), (
+        "CLOSED → ACCEPTED must NOT be valid (RM.CLOSED is terminal)"
+    )
+
+
 @pytest.mark.spec("RMB-15-001")
 @pytest.mark.parametrize(
     ("current", "target", "permitted"),
