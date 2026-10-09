@@ -231,7 +231,6 @@ _RM_FORCE_QUARANTINE: dict[str, int] = {
     # Relocated (not added) from case_proposal_received_tree.py by #3457, which
     # moved AddReporterParticipantNode into the nodes/ subpackage (BTND-07-003).
     "vultron/core/behaviors/case/nodes/proposal_reporter.py": 1,
-    "vultron/core/behaviors/case/nodes/participant/owner.py": 1,
     "vultron/core/behaviors/case/nodes/participant/participant_add.py": 1,
 }
 

@@ -18,15 +18,15 @@
 :func:`embargo_admission_backfill_tree` is a standalone follow-on tree, not a
 received-activity tree: it is given no activity and sends what the ledger
 fan-out withheld once the embargo gate admits a participant.
-``AcceptInviteToEmbargoOnCaseReceivedUseCase`` runs it on its own, and
-``remove_embargo_from_case_tree`` nests it inside its active-teardown branch.
+``AcceptInviteToEmbargoOnCaseReceivedUseCase`` runs it on its own.
+The ``Add(EmbargoEvent)`` and ``Remove(EmbargoEvent)`` trees run the same
+nodes, :func:`embargo_admission_backfill_nodes`, in their ``manager_effects``,
+whose gate they take from the factory.
 It lives outside the received-tree modules for the same reason the expiry
 trees do: BT-17-008 binds received trees, which take their CASE_MANAGER gate
 from ``create_receive_activity_tree``, and this tree has none of its own to
 build (``test/architecture/test_received_tree_case_manager_gate.py``).
 """
-
-from collections.abc import Sequence
 
 import py_trees
 
@@ -42,10 +42,24 @@ from vultron.core.behaviors.sync.nodes.embargo_backfill import (
 )
 
 
+def embargo_admission_backfill_nodes(
+    case_id: str,
+    actor_config: ActorConfig | None = None,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The backfill and the stub re-issue, for a caller that gates them itself.
+
+    See :func:`embargo_admission_backfill_tree`; a received tree passes these
+    as ``manager_effects`` (BT-17-008).
+    """
+    return [
+        BackfillAdmittedParticipantsNode(case_id=case_id),
+        ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
+    ]
+
+
 def embargo_admission_backfill_tree(
     case_id: str,
     actor_config: ActorConfig | None = None,
-    leading: Sequence[py_trees.behaviour.Behaviour] = (),
 ) -> py_trees.behaviour.Behaviour:
     """Backfill what an embargo effect admitted, then re-issue stale stubs.
 
@@ -58,21 +72,15 @@ def embargo_admission_backfill_tree(
     the canonical ledger and the stub Invites live in its store.
     *actor_config* sets the replacements' RSVP window; ``None`` applies the
     ``ActorConfig`` defaults.
-
-    *leading* runs first under the same gate: the CASE_MANAGER's other
-    follow-ups to the EM write, such as the teardown ``Announce`` and the
-    embargo-ending notices to the bound signatories the ledger no longer
-    reaches (EMB-19-001, CM-31-009).
     """
     return create_case_manager_gated_tree(
         name="EmbargoAdmissionBackfill",
         case_id=case_id,
-        children=[
-            *leading,
-            BackfillAdmittedParticipantsNode(case_id=case_id),
-            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
-        ],
+        children=embargo_admission_backfill_nodes(case_id, actor_config),
     )
 
 
-__all__ = ["embargo_admission_backfill_tree"]
+__all__ = [
+    "embargo_admission_backfill_nodes",
+    "embargo_admission_backfill_tree",
+]

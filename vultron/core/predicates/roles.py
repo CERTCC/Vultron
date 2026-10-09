@@ -28,7 +28,7 @@ Import constraints
   ``vultron.core.use_cases``, or ``vultron.core.services``.
 
 Spec references: CSB-15-001, CSB-15-002, CM-25-005, ADR-0057, ADR-0075,
-ADR-0084.
+ADR-0121.
 """
 
 from vultron.core.states.cs import CS_vf
@@ -154,7 +154,7 @@ def is_sole_observer(roles: list[CVDRole]) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Role-gated state invariants (AC-3 / ADR-0084)
+# Role-gated state invariants (AC-3 / ADR-0121)
 # ---------------------------------------------------------------------------
 
 
@@ -171,7 +171,7 @@ def vendor_vf_state_is_valid(roles: list[CVDRole], vf: CS_vf | None) -> bool:
     ``True``.
 
     This is always an error to violate and is enforced at every assertion site
-    (ADR-0084).
+    (ADR-0121).
 
     Args:
         roles: The participant's current role list.

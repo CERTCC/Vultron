@@ -30,8 +30,10 @@ from vultron.core.behaviors.embargo.announce_teardown_tree import (
     invite_to_embargo_on_case_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
+    CaptureActiveEmbargoNode,
     IndexReceivedEmbargoProposalNode,
     SendEmbargoEndingNoticesNode,
+    SetEmbargoActiveNode,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
@@ -93,10 +95,14 @@ def test_add_embargo_backfill_is_the_factory_gate() -> None:
 
     gate = tree.children[-1]
     assert isinstance(gate, CaseManagerGate)
-    assert gate.name == "EmbargoAdmissionBackfill"
-    # The CM-31-009 notices, then the backfill of what the activation
-    # admitted, then the re-issue of stale stub Invites (CM-11-016).
+    assert gate.name == "ActivateEmbargoAndBackfillIfCaseManager"
+    # RSH-08-003 (#3814): the activation write is gated too, so the whole
+    # body is CASE_MANAGER-only: capture the embargo in force, set the new one
+    # active, send the CM-31-009 notices, backfill what the activation
+    # admitted, then re-issue stale stub Invites (CM-11-016).
     assert [type(n) for n in gate.gated_branch.children] == [
+        CaptureActiveEmbargoNode,
+        SetEmbargoActiveNode,
         SendEmbargoEndingNoticesNode,
         BackfillAdmittedParticipantsNode,
         ReissueStubInvitesNode,

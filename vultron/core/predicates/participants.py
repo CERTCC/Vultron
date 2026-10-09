@@ -38,7 +38,7 @@ def vendor_vf_invariant_ok(
     no VF assertion is being made and is always valid.  Non-vendor roles are
     unconstrained by this rule.
 
-    Per ADR-0084, PRM-06-002.
+    Per ADR-0121, PRM-06-002.
     """
     if vf_state is None:
         return True

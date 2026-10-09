@@ -49,18 +49,11 @@ __all__ = [
     "ACK_ECHO",
     "CASE_PROPOSAL",
     "CASE_STATUS",
-    "CLOSE_REPORT_RM_DECLARATION",
-    "DEFER_RM_DECLARATION",
     "EMBARGO_INVITE_ANSWER",
     "EMBARGO_INVITE_REFUSAL",
-    "ENGAGE_RM_DECLARATION",
-    "GENESIS_REJECT_ANNOUNCE",
-    "INVALIDATE_REPORT_RM_DECLARATION",
     "OFFER_ROLE",
     "REPLICA_EMIT_EXEMPTIONS",
     "REPORT_CASE_PROPOSAL",
-    "RSH_STATUS",
-    "VALIDATE_REPORT_RM_DECLARATION",
     "ReplicaEmitExemption",
 ]
 
@@ -129,19 +122,6 @@ CASE_PROPOSAL: Final = ReplicaEmitExemption(
     ),
 )
 
-RSH_STATUS: Final = ReplicaEmitExemption(
-    name="rsh-status",
-    reason=(
-        "Add(ParticipantStatus) emits only as the executing actor: the RM gap"
-        " note is its own note to the sender (RSH-06-004), and the threat"
-        " teardown's terminate request runs in the participant-replica arm"
-        " and asks the CASE_MANAGER (RSH-03-004, EP-09-008)."
-    ),
-    covers=frozenset(
-        {"EmitRMGapNoteNode", "SendTerminateEmbargoActivityNode"}
-    ),
-)
-
 CASE_STATUS: Final = ReplicaEmitExemption(
     name="case-status",
     reason=(
@@ -150,7 +130,10 @@ CASE_STATUS: Final = ReplicaEmitExemption(
         " that awaits the CASE_MANAGER's teardown entry (CSB-18-002,"
         " RSH-03-004), and the threat teardown's terminate request runs in"
         " the participant-replica arm of terminate_embargo_bt and asks the"
-        " CASE_MANAGER (RSH-03-001, RSH-03-004, EP-09-008)."
+        " CASE_MANAGER (RSH-03-001, RSH-03-004, EP-09-008).  Only the"
+        " ``CaseStatus`` append moved under the CASE_MANAGER gate (#3814); the"
+        " diagnostic and the ask stay ungated so a replica still signals a"
+        " threat it detects in a peer's status."
     ),
     covers=frozenset(
         {"PxaEmInvariantDiagnosticNode", "SendTerminateEmbargoActivityNode"}
@@ -195,59 +178,17 @@ REPORT_CASE_PROPOSAL: Final = ReplicaEmitExemption(
     covers=frozenset({"ProposeReportCaseToActorNode"}),
 )
 
-GENESIS_REJECT_ANNOUNCE: Final = ReplicaEmitExemption(
-    name="genesis-reject-announce",
-    reason=(
-        "The genesis pre-seed Announce(VulnerabilityCase) is the ledger"
-        " holder's answer to the rejecting peer, addressed to that peer, and"
-        " runs only behind the tree's in-place CheckIsCaseManagerNode,"
-        " ahead of the entry replay so the peer can anchor its chain"
-        " (SYNC-15-002, ADR-0073). The in-place check masks a failure at the"
-        " CASE_MANAGER as a skip (BTND-07-005); #4324 moves it onto a real"
-        " gate and deletes this exemption."
-    ),
-    covers=frozenset({"AnnounceCaseOnGenesisRejectNode"}),
-)
-
-
-def _rm_declaration_exemption(
-    name: str, activity: str
-) -> ReplicaEmitExemption:
-    """The RSH-06-004 gap-note decision for one activity-typed RM tree."""
-    return ReplicaEmitExemption(
-        name=name,
-        reason=(
-            f"{activity} declares an RM state for its sender; the RM gap note"
-            " is the executing actor's own clarification to that sender,"
-            " posted only when the declaration guard flagged an anomaly"
-            " (RSH-06-004, RSH-06-006), as in the RSH status tree."
-        ),
-        covers=frozenset({"EmitRMGapNoteNode"}),
-    )
-
-
-ENGAGE_RM_DECLARATION: Final = _rm_declaration_exemption(
-    "engage-rm-declaration", "Join(VulnerabilityCase)"
-)
-
-DEFER_RM_DECLARATION: Final = _rm_declaration_exemption(
-    "defer-rm-declaration", "Ignore(VulnerabilityCase)"
-)
-
-VALIDATE_REPORT_RM_DECLARATION: Final = _rm_declaration_exemption(
-    "validate-report-rm-declaration", "Accept(Offer(VulnerabilityReport))"
-)
-
-CLOSE_REPORT_RM_DECLARATION: Final = _rm_declaration_exemption(
-    "close-report-rm-declaration", "Reject(Offer(VulnerabilityReport))"
-)
-
-INVALIDATE_REPORT_RM_DECLARATION: Final = _rm_declaration_exemption(
-    "invalidate-report-rm-declaration",
-    "TentativeReject(Offer(VulnerabilityReport))",
-)
 
 #: Every exemption ``create_receive_activity_tree`` accepts, by name.
+#:
+#: The RM-declaration gap-note exemptions (engage, defer, and the three report
+#: verdicts) and ``rsh-status`` were retired by #3814: once each tree's state
+#: write moved under the CASE_MANAGER gate (RSH-08-003), the whole ordered
+#: effect pipeline — gap note and, for add_participant_status, the adoption
+#: emit and threat teardown — moved with it, so nothing in those trees emits
+#: outside the gate.  ``case-status`` survives: add_case_status gates only its
+#: ``CaseStatus`` append, leaving the CSB-18 diagnostic and the threat-ask
+#: ungated so a replica can still signal a threat it detects in a peer's status.
 REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
     MappingProxyType(
         {
@@ -256,17 +197,10 @@ REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
                 ACK_ECHO,
                 OFFER_ROLE,
                 CASE_PROPOSAL,
-                RSH_STATUS,
                 CASE_STATUS,
                 EMBARGO_INVITE_ANSWER,
                 EMBARGO_INVITE_REFUSAL,
                 REPORT_CASE_PROPOSAL,
-                GENESIS_REJECT_ANNOUNCE,
-                ENGAGE_RM_DECLARATION,
-                DEFER_RM_DECLARATION,
-                VALIDATE_REPORT_RM_DECLARATION,
-                CLOSE_REPORT_RM_DECLARATION,
-                INVALIDATE_REPORT_RM_DECLARATION,
             )
         }
     )

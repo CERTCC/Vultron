@@ -452,6 +452,8 @@ def _phase_coordinator_suggests_vendor2(
         invitee_in_own_container=vendor2_in_vendor2,
         invite_timeout=60.0,
         replica_timeout=60.0,
+        ledger_client=vendor_client,
+        reply_timeout=60.0,
     )
 
     # All 5 participants (Finder + Vendor1 + Coordinator + Vendor2 + CaseActor)

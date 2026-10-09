@@ -106,6 +106,7 @@ globals().update(
         chain_actors=_CHAIN_ACTORS,
         expected_event_types=_RCV_EMBARGO_EXPECTED_EVENT_TYPES,
         narrative_path="docs/topics/scenarios/rcv-embargo.md",
+        joined_invitees=1,
     )
 )
 

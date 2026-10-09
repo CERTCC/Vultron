@@ -22,6 +22,11 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from test.support.embargo_register import activate
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -213,9 +218,12 @@ class TestResetEmbargoConsentWithInlineParticipants:
         case_id = "https://example.org/cases/case_609_inline"
         participant_id = f"{case_id}/participants/p1"
 
+        # RSH-08-003 (#3814): the teardown that resets inline-participant
+        # consent runs only at the CASE_MANAGER, so this store is the
+        # CASE_MANAGER (which exercises the #609 inline path).
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://example.org/users/finder",  # the receiving actor's own store
+            actor_id="https://example.org/users/case-manager",
         )
 
         embargo = as_EmbargoEvent(
@@ -259,10 +267,16 @@ class TestResetEmbargoConsentWithInlineParticipants:
             actor=case_manager_id,
             to=[actor_id],
         )
-        event = make_payload(activity, receiving_actor_id=actor_id)
+        event = make_payload(activity, receiving_actor_id=case_manager_id)
 
         # Must not raise TypeError
-        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
 
         updated = cast(VulnerabilityCase, dl.read(case_id))
         assert updated is not None

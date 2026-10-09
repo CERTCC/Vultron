@@ -884,19 +884,20 @@ class TestAddParticipantStatusTree:
     @pytest.mark.spec("RSH-01-001")
     @pytest.mark.spec("RSH-01-003")
     @pytest.mark.spec("RSH-04-004")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_full_tree_succeeds_for_case_owner_sender(
         self,
         populated_dl,
         make_payload,
     ):
-        """End-to-end: CASE_OWNER sender bypasses StatusAdoptionGate → status
-        appended, CaseStatus committed directly to ledger (RSH-01-001 to RSH-01-003,
-        RSH-04-004).
+        """End-to-end: a CASE_OWNER sender's status is adopted at the
+        CASE_MANAGER → status appended, CaseStatus committed directly to ledger
+        (RSH-01-001 to RSH-01-003, RSH-04-004).
 
-        EmitCaseStatusUpdateNode writes the post-adoption CaseStatus directly
-        to the case without routing through the inbox seam.  Runs with
-        actor_id=ACTOR_ID (not CASE_MANAGER) to skip the guarded ledger-commit
-        subtree.
+        RSH-08-003 (#3814): the adoption pipeline (append → StatusAdoptionGate
+        → EmitCaseStatusUpdateNode) now runs only at the CASE_MANAGER, so the
+        tree executes in the CASE_MANAGER's store; the gospel bypass keys on
+        the *sender's* CASE_OWNER role, which is ACTOR_ID.
         """
         from vultron.core.models.case import VulnerabilityCase as CoreCase
 
@@ -911,7 +912,6 @@ class TestAddParticipantStatusTree:
         event = make_payload(activity)
         bridge = self._bridge_with_factory(populated_dl)
         tree = add_participant_status_tree(request=event, case_id=CASE_ID)
-        # actor_id=ACTOR_ID → not CASE_MANAGER → guarded ledger commit is skipped
         case_before = populated_dl.read(CASE_ID)
         initial_status_count = (
             len(case_before.case_statuses)
@@ -919,7 +919,7 @@ class TestAddParticipantStatusTree:
             else 0
         )
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
+            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
         assert result.status == Status.SUCCESS
 

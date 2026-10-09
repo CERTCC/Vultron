@@ -48,12 +48,7 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.replica_emit_exemptions import (
-    ACK_ECHO,
-    CLOSE_REPORT_RM_DECLARATION,
-    INVALIDATE_REPORT_RM_DECLARATION,
-    VALIDATE_REPORT_RM_DECLARATION,
-)
+from vultron.core.behaviors.replica_emit_exemptions import ACK_ECHO
 from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
 from vultron.core.behaviors.report.nodes.storage import (
     StoreReportNode,
@@ -162,6 +157,17 @@ def create_validate_report_received_tree(
         rm_rule=RMRule.DECLARATION,
     )
 
+    # RSH-08-003: the sender's RM → VALID is canonical participant state only
+    # the CASE_MANAGER writes; ``validate_report`` is committed and replayed
+    # onto the sender's participant (RmVerdict slot), so a replica takes it from
+    # the ledger fan-out, not from the direct Accept (#3814).  With no case
+    # (``case_id`` None) the sender guard refuses the activity before any
+    # effect, so there is nothing to gate.
+    manager_effects = (
+        [validation, rm_gap_note(sender_actor_id, case_id)]
+        if case_id is not None
+        else None
+    )
     root = create_receive_activity_tree(
         name="ValidateReportReceivedBT",
         case_id=case_id,
@@ -173,8 +179,11 @@ def create_validate_report_received_tree(
         precondition_guards=[
             rm_declaration_guard(sender_actor_id, RM.VALID, case_id),
         ],
-        replica_effects=[validation, rm_gap_note(sender_actor_id, case_id)],
-        replica_emit_exemption=VALIDATE_REPORT_RM_DECLARATION,
+        manager_effects=manager_effects,
+        manager_case_id=case_id if manager_effects else None,
+        manager_gate_name=(
+            "ValidateReportEffectsIfCaseManager" if manager_effects else None
+        ),
         refusal_effects=[rm_gap_note(sender_actor_id, case_id)],
     )
     logger.debug(
@@ -415,11 +424,17 @@ def create_close_report_received_tree(
     return create_receive_activity_tree(
         name="CloseReportReceivedBT",
         # A canonical signature: the CASE_MANAGER commits it after the guards,
-        # and replicas replay it (CLP-10-013, RSH-08-004).
+        # and replicas replay it (CLP-10-013, RSH-08-004).  RSH-08-003: the
+        # sender's RM → CLOSED is committed and replayed (RmVerdict slot), so a
+        # replica takes it from the ledger, not from the direct Reject (#3814).
+        # With no case the guards refuse before any effect.
         case_id=case_id,
         precondition_guards=guards,
-        replica_effects=effects,
-        replica_emit_exemption=CLOSE_REPORT_RM_DECLARATION,
+        manager_effects=effects if case_id is not None else None,
+        manager_case_id=case_id if case_id is not None else None,
+        manager_gate_name=(
+            "CloseReportEffectsIfCaseManager" if case_id is not None else None
+        ),
         refusal_effects=refusal,
     )
 
@@ -457,10 +472,18 @@ def create_invalidate_report_received_tree(
     return create_receive_activity_tree(
         name="InvalidateReportReceivedBT",
         # A canonical signature: the CASE_MANAGER commits it after the guards,
-        # and replicas replay it (CLP-10-013, RSH-08-004).
+        # and replicas replay it (CLP-10-013, RSH-08-004).  RSH-08-003: the
+        # sender's RM → INVALID is committed and replayed (RmVerdict slot), so a
+        # replica takes it from the ledger, not from the direct TentativeReject
+        # (#3814).  With no case the guards refuse before any effect.
         case_id=case_id,
         precondition_guards=guards,
-        replica_effects=effects,
-        replica_emit_exemption=INVALIDATE_REPORT_RM_DECLARATION,
+        manager_effects=effects if case_id is not None else None,
+        manager_case_id=case_id if case_id is not None else None,
+        manager_gate_name=(
+            "InvalidateReportEffectsIfCaseManager"
+            if case_id is not None
+            else None
+        ),
         refusal_effects=refusal,
     )

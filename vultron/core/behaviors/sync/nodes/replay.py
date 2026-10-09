@@ -91,18 +91,14 @@ class FindCaseActorNode(DataLayerActionWithPorts):
     *the first arbitrary* ``Service`` in the store when nothing matched, so a
     miss produced a plausible-looking wrong address rather than a failure.
 
-    This node resolves an *address*; it does not decide authority. The genesis
-    pre-seed's authority gate is the separate ``CheckIsCaseManagerNode`` in
-    ``create_reject_log_entry_tree`` (ARCH-24-005).
+    This node resolves an *address*; it does not decide authority. The
+    reject tree's authority gate is the CASE_MANAGER gate the factory wraps
+    around its effects (``create_reject_log_entry_tree``, ARCH-24-005).
 
-    ``case_id`` is an output because ``CheckIsCaseManagerNode`` reads it from the
-    blackboard (CLP-09). Without it the role gate on the genesis pre-seed could
-    not resolve a case, returned FAILURE, and the guard's selector silently took
-    its skip branch — so the announce never fired for *anyone*, case manager or
-    not. This node already derives the value from the rejected entry, so it is
-    the right place to publish it. It also means this node cannot be moved after
-    the pre-seed arm: that arm does not read ``case_actor_id``, but it does need
-    the ``case_id`` published here.
+    ``case_id`` is an output so a later node can read the case the rejected
+    entry names from the blackboard (CLP-09); ``CheckIsCaseManagerNode`` falls
+    back to it when it is built without a case id.  The reject tree's gate is
+    built with one, but the output stays part of the node's contract.
 
     Failing is deliberate, and is not the regression it resembles. A FAILURE here
     stops the sequence, so neither the pre-seed nor the replay runs. The retired
@@ -119,7 +115,7 @@ class FindCaseActorNode(DataLayerActionWithPorts):
         "activity": PortInformation(data_type=object, required=True),
     }
 
-    # See the class docstring: the role gate downstream needs this.
+    # See the class docstring: ``case_id`` is published for later nodes.
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "case_actor_id": PortInformation(data_type=str, required=True),
         "case_id": PortInformation(data_type=str, required=True),

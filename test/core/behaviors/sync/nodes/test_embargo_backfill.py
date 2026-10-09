@@ -185,7 +185,7 @@ def test_genesis_reject_from_an_admitted_peer_seeds_the_case(
         sync_port=sync_port,
         trigger_activity=trigger_activity,
     ).execute_with_setup(
-        tree=create_reject_log_entry_tree(),
+        tree=create_reject_log_entry_tree(CASE_ID),
         actor_id=MANAGER_ID,
         activity=event,
         sync_port=sync_port,

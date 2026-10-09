@@ -47,7 +47,7 @@ definition there.
 
 Spec: EH-07-001, EH-07-002, BTND-10-001, BTND-10-002, BTND-10-003,
 CSB-15-001, CSB-15-002, CSB-16-001, CSB-16-002, CSB-17-001, CSB-18-001,
-PRM-06-002, SM-09-002.  ADR: ADR-0086, ADR-0084.
+PRM-06-002, SM-09-002.  ADR: ADR-0086, ADR-0121.
 """
 
 from collections.abc import Sequence
@@ -156,7 +156,7 @@ def _vf_violations(
         violations.append(
             Violation(
                 f"Vendor-implies-V: a CVDRole.VENDOR participant cannot assert"
-                f" {requested_vf!r} (PRM-06-002, ADR-0084)",
+                f" {requested_vf!r} (PRM-06-002, ADR-0121)",
                 dimensions=("vf",),
             )
         )

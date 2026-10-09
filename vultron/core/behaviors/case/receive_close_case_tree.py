@@ -110,7 +110,8 @@ def create_close_case_received_tree(
             │   │   ├── Sequence(SkipIfNotCaseManager)
             │   │   │   └── Inverter(CheckIsCaseManagerNode)
             │   │   └── CommitCaseLedgerEntryNode       # commits the close_case entry
-            │   └── OwnerOrNonOwnerEffects (Selector)   # Role discriminator
+            │   └── CloseCaseEffectsIfCaseManager (CaseManagerGate)  # RSH-08-003, #3814
+            │       └── OwnerOrNonOwnerEffects (Selector)   # Role discriminator
             │       ├── OwnerLeaveSeq (Sequence)        # Owner path (CM-23-002)
             │       │   ├── SenderIsCaseOwnerNode        # guard: sender IS CASE_OWNER
             │       │   ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
@@ -348,7 +349,17 @@ def create_close_case_received_tree(
                 ),
             ),
         ],
-        effect_nodes=[owner_or_non_owner_effects],
+        # RSH-08-003: the RM-closure effects advance the leaving participant
+        # (and, on an owner Leave, the CaseActor) to ``RM.CLOSED`` and commit
+        # the ``close_case`` / ``case_fully_closed`` entries that drive replica
+        # closure.  Those are canonical case state only the CASE_MANAGER
+        # writes; ``close_case`` and ``case_fully_closed`` are committed and
+        # replayed (CloseCase and ParticipantStatus slots), so a replica cc'd
+        # on the Leave writes nothing and takes the closure from the ledger
+        # fan-out (#3814, CLP-10-001).
+        manager_effects=[owner_or_non_owner_effects],
+        manager_case_id=case_id,
+        manager_gate_name="CloseCaseEffectsIfCaseManager",
     )
 
     # Decline arm: emit an as:Reject; commit nothing (CM-23-011). The Leave is
