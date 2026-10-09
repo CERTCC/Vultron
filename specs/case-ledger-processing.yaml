@@ -473,6 +473,15 @@ groups:
     statement: The CASE_MANAGER commit boundary SHOULD enforce CLP-07-001 through CLP-07-004
       with a runtime guard that rejects non-canonical entries before they enter the
       hash chain, failing fast rather than silently polluting replicated history
+    rationale: >-
+      The guard's canonical set (`_CANONICAL_PAYLOAD_SIGNATURES`) is the list of
+      `(activity_type, object_type)` pairs that are CM-accepted protocol-significant
+      assertions (CLP-07-001). It MUST include every activity a CASE_MANAGER
+      legitimately ledgers; a signature omitted from it turns a valid assertion into
+      a `rejected` disposition. `Offer(CaseParticipantRole)` (ADR-0039) is such an
+      assertion — the CASE_MANAGER records a received role-delegation offer — and was
+      added to the set after #3764 found every role offer reaching a CASE_MANAGER
+      refused as non-canonical.
   - id: CLP-07-006
     priority: MUST
     kind: protocol
@@ -1040,7 +1049,16 @@ groups:
       its replica apply node (`ApplyReinstateCaseParticipantFromLedgerNode`,
       RSH-08-004), so it now commits. The `Reject(Offer)` and `TentativeReject(Offer)` trees
       carry canonical signatures their CASE_MANAGER receivers ledger and replicas
-      replay (`ApplyRmVerdictFromLedgerNode`), so they commit. Original rationale: a rejection validator
+      replay (`ApplyRmVerdictFromLedgerNode`), so they commit. `Offer(CaseParticipantRole)`
+      (ADR-0039) was missing from `_CANONICAL_PAYLOAD_SIGNATURES`, so the role-offer
+      received tree — which passes `case_id` and gates a commit on the CASE_MANAGER —
+      had every commit refused as non-canonical and the handler reported `rejected`
+      (#3764). It is now canonical: the CASE_MANAGER records the role-delegation offer
+      as a CM-accepted assertion (CLP-07-001), with no replica state effect — an offer
+      is a proposal, not the grant, exactly like its sibling `Offer(CaseParticipant)`
+      (CM-16). Whether accepting a role offer should itself mutate a participant''s
+      roles on every replica (an `accept_case_participant_role` replay node) is a
+      separate, unspecified question tracked by #4404. Original rationale: a rejection validator
       (FAILURE-on-mismatch, read-only) belongs before
       the commit; an effects node (writes, enqueues, state mutations) belongs after.
       Mixing the two — placing a rejection validator in an effect stage — creates a window

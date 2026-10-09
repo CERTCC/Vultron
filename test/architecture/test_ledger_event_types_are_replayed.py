@@ -153,12 +153,18 @@ NO_REPLICA_EFFECT: dict[str, str] = {
     MS.REJECT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     "accept_actor_recommendation": _RECOMMENDATION,
     "reject_actor_recommendation": _RECOMMENDATION,
+    MS.OFFER_CASE_PARTICIPANT_ROLE.value: (
+        "the CASE_MANAGER records the role-delegation offer as an assertion"
+        " (ADR-0039, CLP-07-001), but an offer is a proposal, not the grant;"
+        " it moves no case state, like Offer(CaseParticipant) (SE-08-003,"
+        " #3764)"
+    ),
 }
 
 #: Committed event types whose replica effect has no slot yet, and the open
 #: issue that owns it.  Each reason names the issue.  A ratchet whose
 #: terminal value is empty (ARCH-18-005).
-# owner: #4294 #4295 #3764 (one per entry, named first in its reason)
+# owner: #4294 #4295 #4404 (one per entry, named first in its reason)
 KNOWN_UNREPLAYED: dict[str, str] = {
     MS.INVITE_ACTOR_TO_CASE.value: (
         "#4294 / #4295: the stub Invite creates the inert invitee's record"
@@ -169,14 +175,10 @@ KNOWN_UNREPLAYED: dict[str, str] = {
         "#4294 / #4295: closes the inert invitee's record (RM CLOSED, PEC"
         " DECLINED) on the CASE_MANAGER only (CM-11-007, ADR-0124)"
     ),
-    MS.OFFER_CASE_PARTICIPANT_ROLE.value: (
-        "#3764: the CASE_MANAGER's commit of Offer(CaseParticipantRole) is"
-        " refused as non-canonical, so no entry reaches a replica; its"
-        " replay is decided with that fix"
-    ),
     "accept_case_participant_role": (
-        "#3764: the role grant the Accept records is applied by no received"
-        " tree on any node; its replay is decided with the role-offer fix"
+        "#4404: the role grant the Accept records is applied by no received"
+        " tree on any node; whether it should mutate participant roles is"
+        " unspecified (#3764 fixed the offer half, SE-08-003)"
     ),
 }
 
@@ -285,7 +287,7 @@ def test_each_declared_row_carries_a_one_line_reason(table, event_type):
 @pytest.mark.xfail(
     strict=True,
     reason="goal: every committed type with a replica effect is replayed"
-    " (#4294, #4295, #3764); when KNOWN_UNREPLAYED empties this passes and"
+    " (#4294, #4295, #4404); when KNOWN_UNREPLAYED empties this passes and"
     " strict xfail fails the build — delete this test and the empty set",
 )
 def test_goal_no_committed_type_is_left_unreplayed():
