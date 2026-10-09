@@ -22,12 +22,12 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.invite_inert_participant import (
-    ApplyInviteRejectToParticipantNode,
-)
 from vultron.core.behaviors.case.nodes.invite_received import (
     LogInviteReceivedNode,
     RecordInviteTrustAnchorNode,
+)
+from vultron.core.behaviors.case.nodes.invite_reject_participant import (
+    ApplyInviteRejectToParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_participant_replica_gated_tree,

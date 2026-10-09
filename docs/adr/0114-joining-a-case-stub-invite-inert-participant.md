@@ -3,8 +3,8 @@ status: accepted
 status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-10-01
 created: 2026-10-01
-updated: 2026-10-01
-revision: 1
+updated: 2026-10-09
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; CONCERN-4006; ADR-0070 and ADR-0084 (both superseded by ADR-0121), ADR-0093;
@@ -107,8 +107,35 @@ names:
 | Embargo consent | `INVITED` when an embargo is active; otherwise unbound |
 
 This birth is a CASE_MANAGER write through the single participant-status
-writer (ADR-0089) and is committed to the case ledger like any other roster
-change. It is the one place a vendor participant carries `v`.
+writer (ADR-0089). It is the one place a vendor participant carries `v`.
+
+### Every state change emits its own entry
+
+Every state change the CASE_MANAGER makes in a case causes a message to emit:
+if it is not in the replicated ledger, it did not happen. One trigger, or one
+tree, can therefore produce several ledger entries, one for each consequence it
+has. The CASE_MANAGER does the thing, then commits an entry that carries it,
+and the ledger replicates it. A replica stores what an entry carries, as
+received (ADR-0103, CLP-15-007). It infers nothing from another entry: it does
+not build a participant record because it saw an Invite, and it does not mark
+one joined because it saw an Accept (ADR-0124).
+
+For the stub Invite this means:
+
+| What the CASE_MANAGER does | The entry it commits |
+|---|---|
+| Sends the stub Invite | `invite_actor_to_case`: the message to the invitee. A replica applies nothing from it. |
+| Creates the inert record (roles, birth status with its id and times, `joined=False`, the consent rows, the `INVITED` row when an embargo is active) and puts it on the roster | `create_case_participant`, `Create(CaseParticipant)`: the whole record as stored. A replica stores it. |
+| Accepts: signs the consent row, marks the record joined | `update_case_participant`, `Update(CaseParticipant)`: the record as stored. A replica copies `joined`, the consent rows and `updated`. |
+| Accepts, for a participant with the VENDOR role only: advances VF to `Vf` | `add_participant_status_to_participant`: the new status, with its id and times. VF is a vendor-only status, so no other role ever has one. |
+| Rejects: closes the record (RM `CLOSED`, and for a vendor VF `Vf`) | `add_participant_status_to_participant`: the closing status. |
+| Rejects: moves the consent row to `DECLINED` when an embargo is active | `update_case_participant`: the record as stored. |
+| Lets the stub Invite expire | No entry: expiry changes no state (CM-11-014). |
+
+The Accept's changes are made before the case is announced to the invitee, so
+the invitee is active when it is seeded, and their entries are committed after
+the announce and the backfill of the prior ledger, so they reach the invitee in
+chain order and not ahead of its case seed (#2898).
 
 ### Inert and active
 
@@ -362,6 +389,17 @@ outstanding, and rejected.
   a participant the Case Owner removed is inert.
 - `notes/case-joining.md` — what was misunderstood and why, for readers of the
   old model.
+
+## Amendment — 2026-10-09
+
+Corrected in place by instruction of Allen D. Householder (PR #4396, #4384); the decision is unchanged, one assumption in how it was written is not.
+
+Replaced: "This birth is a CASE_MANAGER write through the single participant-status writer (ADR-0089) and is committed to the case ledger like any other roster change."
+The sentence, and the way ADR-0116 relied on it ("replicas already learn of the new member from the `Accept(Invite)` ledger entry"), assumed that one trigger produces one ledger entry: the stub Invite's entry, and later the Accept's, would tell a replica everything.
+It does not.
+Inviting an actor and creating the participant record that tracks it are two state changes, and so are the Accept's consent row, `joined` mark and VF status.
+A replica that infers the record from the Invite builds an object the CASE_MANAGER never declared, with ids and times of its own, and so differs from the CASE_MANAGER at the same ledger position.
+The corrected rule is in "Every state change emits its own entry" above.
 
 ## Ratification — 2026-10-02
 

@@ -151,3 +151,49 @@ def build_add_case_status_snapshot(
         "target": case_dict,
         "context": case_id,
     }
+
+
+def build_create_case_participant_snapshot(
+    participant: CaseParticipant,
+    actor_id: str,
+    case_id: str,
+    wire_render_port: "WireRenderPort",
+) -> dict[str, Any]:
+    """Build the ``create_case_participant`` snapshot (``Create(CaseParticipant)``).
+
+    The object is the whole record the CASE_MANAGER just created, with its
+    statuses and consent rows inline: a replica stores it as received.
+    """
+    participant_dict = wire_render_port.render(participant)
+    participant_dict.setdefault("type", "CaseParticipant")
+    return {
+        "type": "Create",
+        "actor": actor_id,
+        "published": now_utc().isoformat(),
+        "object": participant_dict,
+        "context": case_id,
+    }
+
+
+def build_update_case_participant_snapshot(
+    participant: CaseParticipant,
+    actor_id: str,
+    case_id: str,
+    update_id: str,
+    wire_render_port: "WireRenderPort",
+) -> dict[str, Any]:
+    """Build the ``update_case_participant`` snapshot (``Update(CaseParticipant)``).
+
+    The object is the record as the CASE_MANAGER now holds it; *update_id*
+    names this one change, so two changes to one record are two entries.
+    """
+    participant_dict = wire_render_port.render(participant)
+    participant_dict.setdefault("type", "CaseParticipant")
+    return {
+        "type": "Update",
+        "id": update_id,
+        "actor": actor_id,
+        "published": now_utc().isoformat(),
+        "object": participant_dict,
+        "context": case_id,
+    }

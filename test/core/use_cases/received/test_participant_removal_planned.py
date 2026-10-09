@@ -533,7 +533,7 @@ def test_add_naming_a_participant_that_is_not_removed_is_refused(
 
 @pytest.mark.spec("CM-31-012")
 def test_accept_invite_tree_emits_no_add_case_participant() -> None:
-    """Replicas learn of a new member from the ``Accept(Invite)`` entry."""
+    """Replicas learn of a new member from the entries for each change."""
     from vultron.core.behaviors.case.accept_invite_tree import (
         create_accept_invite_actor_to_case_tree,
     )

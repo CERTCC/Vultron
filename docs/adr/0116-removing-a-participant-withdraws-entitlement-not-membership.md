@@ -3,8 +3,8 @@ status: proposed
 status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
 date: 2026-10-01
 created: 2026-10-01
-updated: 2026-10-01
-revision: 1
+updated: 2026-10-09
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; CONCERN-2257; ADR-0093, ADR-0108, ADR-0109, ADR-0113,
@@ -30,9 +30,8 @@ CONCERN-2257 found that the deletion cannot reach anyone else:
 
 The concern also found that the CASE_MANAGER's direct `Add(CaseParticipant)`, emitted to every participant after an invitee accepts the stub Invite, is redundant.
 CM-17-004 does not call for it.
-Replicas already learn of the new member from the `Accept(Invite)` ledger entry (`ApplyInviteAcceptFromLedgerNode`).
+The message is redundant as a notice, and the `add_case_participant` entry the CASE_MANAGER committed for it recorded the same move as the entries of the accept itself.
 A replica usually refuses the message anyway, because it holds no copy of the `CaseParticipant` record it names.
-The CASE_MANAGER also commits it as a second ledger entry for a move the first entry already recorded.
 
 The question: **what does removing a participant change, who may do it, how does every replica learn it, and what does the removed party still receive?**
 
@@ -142,7 +141,10 @@ An `Add` naming a participant that is not removed, or that never joined, is refu
 Joining requires accepting a stub Invite (ADR-0114), and `Add` must not become a way around that.
 
 The CASE_MANAGER's direct `Add(CaseParticipant)` after an invitee accepts the stub Invite, and its `add_case_participant` ledger entry, are dropped.
-Replicas keep learning of new members from the `Accept(Invite)` entry.
+That entry meant "reinstate", and it stays what `Add(CaseParticipant)` means.
+Replicas learn of a new member from the entries the CASE_MANAGER commits for each change it makes (ADR-0114): `create_case_participant` when the stub Invite creates the inert record, `update_case_participant` when the accept signs the consent row and marks it joined, and `add_participant_status_to_participant` for a vendor's VF.
+The rule behind it is that every state change emits a message, so one trigger can cause several entries: the Invite, the record's creation, and each change the accept makes are separate entries.
+The creation entry is a different entry from the dropped one: it declares the record's creation when the Invite is sent, not a membership move when the invitee answers.
 
 ### Catch-up follows the active check, and a removed participant is not invited
 
@@ -166,6 +168,16 @@ A participant reinstated into a case with an active embargo it has not accepted 
   The manage-participants demo, the message reference, the how-to and the existing tests that pin record deletion all change.
 - Bad, because a non-active participant now receives a class of direct messages that the ledger does not carry, and its replica must apply them, so idempotence between the two channels has to be tested.
 - Neutral, because the full roster and the stub-Invite join flow are unchanged.
+
+## Amendment — 2026-10-09
+
+Corrected in place by instruction of Allen D. Householder (PR #4396, #4384).
+
+Replaced: "Replicas already learn of the new member from the `Accept(Invite)` ledger entry (`ApplyInviteAcceptFromLedgerNode`)" and "Replicas keep learning of new members from the `Accept(Invite)` entry."
+Those sentences took the Accept's entry to carry everything a replica needs, and dropped the CASE_MANAGER's participant entry as redundant on the strength of it.
+The Accept's entry is the invitee's reply; it carries neither the record the CASE_MANAGER created when it sent the Invite nor the changes the accept made to it.
+Every state change the CASE_MANAGER makes emits its own entry (ADR-0114), and a replica stores what the entries carry.
+The removal and reinstatement decision itself is unchanged.
 
 ## Validation
 

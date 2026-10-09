@@ -1,12 +1,15 @@
 #!/usr/bin/env python
-"""Replicas build the inert participant record from the stub Invite's entry.
+"""Replicas store the participant record the CASE_MANAGER's entries carry.
 
-Each actor has its own store (TB-06-007).  The CASE_MANAGER sends the stub
-Invite, records the invitee as an inert participant and commits the Invite as a
-ledger entry (CM-11-006).  A replica that never sees the Invite or the invitee's
-Accept directly learns of the joiner from the ``Announce(CaseLedgerEntry)``
-broadcast alone: it holds the same inert record after the Invite entry, and the
-same joined record after the Accept entry (CM-31-012, RSH-08-004).
+Each actor has its own store (TB-06-007).  Every state change the CASE_MANAGER
+makes emits its own ledger entry (ADR-0114): sending the stub Invite commits the
+Invite and, separately, ``create_case_participant`` for the inert record it
+created; accepting commits ``update_case_participant`` (consent row, ``joined``)
+and, for a vendor, ``add_participant_status_to_participant`` (VF ``Vf``);
+rejecting commits the closing status and the ``DECLINED`` consent row.  A
+replica that never sees the Invite or the reply directly stores what those
+entries carry, as received, and equals the CASE_MANAGER's whole record at the
+same ledger position (CM-11-006, CM-31-012, RSH-08-004).
 """
 
 import json
@@ -22,6 +25,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_vf
@@ -161,7 +165,7 @@ def net() -> LedgerNetwork:
 def test_the_stub_invite_entry_fans_out_and_gives_a_replica_the_inert_record(
     net: LedgerNetwork,
 ) -> None:
-    """The stub Invite's entry reaches another replica, which builds the record.
+    """The creation entry reaches another replica, which stores the record.
 
     Verifies that ``emit_stub_invite``'s commit is fanned out to the case's
     active participants even though it passes no ``sync_port`` of its own.
@@ -251,3 +255,70 @@ def test_replaying_the_whole_stream_leaves_one_record(
         ), verdict.reason
 
     assert _view(net, BYSTANDER) == before
+
+
+def _the_joiner_rejects(net: LedgerNetwork) -> None:
+    joiner_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=JOINER)
+    net.stores[JOINER] = joiner_dl
+    delivered = net.deliver(MANAGER, to=JOINER, type_="Invite")
+    assert delivered, "the CASE_MANAGER sent the joiner no stub Invite"
+    (invite,) = net.queued(MANAGER, to=JOINER, type_="Invite")
+    _, sealed = TriggerActivityAdapter(joiner_dl).reject_case_invite(
+        invite_id=invite.id_, actor=JOINER
+    )
+    verdict = net.receive(MANAGER, json.loads(sealed))
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
+
+
+def _entry_types(net: LedgerNetwork) -> list[str]:
+    entries = [
+        e
+        for e in net.stores[MANAGER].list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry) and e.case_id == net.case_id
+    ]
+    return [
+        str(e.event_type) for e in sorted(entries, key=lambda e: e.log_index)
+    ]
+
+
+@pytest.mark.spec("CM-11-006")
+@pytest.mark.spec("CM-31-012")
+def test_each_change_the_manager_makes_is_its_own_entry() -> None:
+    """Invite, creation, consent and joined, VF: one entry per change."""
+    net = _net(EM.ACTIVE)
+    before = len(_entry_types(net))
+    _the_owner_invites_the_joiner(net)
+    _the_joiner_accepts(net)
+
+    new = _entry_types(net)[before:]
+    assert new[:3] == [
+        "offer_actor_to_case",
+        "invite_actor_to_case",
+        "create_case_participant",
+    ], new
+    assert new[3] == "accept_invite_actor_to_case", new
+    assert new.count("update_case_participant") == 1, new
+    assert new.count("add_participant_status_to_participant") == 1, new
+    assert new.index("update_case_participant") < new.index(
+        "add_participant_status_to_participant"
+    )
+
+
+@pytest.mark.spec("CM-11-007")
+@pytest.mark.parametrize(("roles", "em_state"), SCENARIOS)
+def test_replicas_hold_the_managers_whole_record_after_a_reject(
+    roles: list[CVDRole], em_state: EM
+) -> None:
+    """The reject's closing status and DECLINED row reach every replica whole."""
+    net = _net(em_state)
+    _the_owner_invites_the_joiner(net, roles)
+    _the_joiner_rejects(net)
+
+    manager = _record(net, MANAGER)
+    assert manager.rm_closed
+    for replica in (OWNER, BYSTANDER):
+        _deliver_announcements(net, replica)
+        assert _view(net, replica) == _view(net, MANAGER), replica
+    if em_state is EM.ACTIVE:
+        rows = {c.embargo_id: c.state for c in manager.embargo_consents}
+        assert rows == {net.initial_embargo_id: EmbargoConsentState.DECLINED}

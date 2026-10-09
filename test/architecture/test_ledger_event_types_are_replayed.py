@@ -66,6 +66,9 @@ from test.architecture._ledger_commit_inventory import (
     received_commit_semantics,
 )
 from vultron.core.models.events.base import MessageSemantics as MS
+from vultron.core.models.participant_event_types import (
+    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+)
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_EVENT_TYPE,
     HONOUR_LATE_ACCEPT_EVENT_TYPE,
@@ -83,8 +86,8 @@ REPLAYED: dict[str, dict[str, Any]] = {
     event_type: {"actor": MANAGER, "object": _EMBARGO}
     for event_type in (
         MS.ACCEPT_CASE_OWNERSHIP_TRANSFER.value,
-        MS.ACCEPT_INVITE_ACTOR_TO_CASE.value,
-        MS.INVITE_ACTOR_TO_CASE.value,
+        MS.CREATE_CASE_PARTICIPANT.value,
+        UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
         MS.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value,
         MS.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
         MS.REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
@@ -126,6 +129,13 @@ _RECOMMENDATION = (
     " lead to arrives with accept_invite_actor_to_case"
 )
 
+_STUB_REPLY = (
+    "the stub Invite and its reply are messages; each state change they cause"
+    " is its own entry (create_case_participant, update_case_participant,"
+    " add_participant_status_to_participant), which a replica stores as received"
+    " (ADR-0114)"
+)
+
 #: Committed event types that change no state a replica holds.  A pinned
 #: exemption set (ARCH-18-005): each row is a decision, not awaiting a fix.
 # permanent: RSH-08-004 (the recorded no-replica-effect declarations)
@@ -148,6 +158,9 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " the CaseActor's add_participant_status_to_participant entry"
         " (CM-23-002, CM-23-005)"
     ),
+    MS.INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
+    MS.ACCEPT_INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
+    MS.REJECT_INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
     MS.OFFER_ACTOR_TO_CASE.value: _RECOMMENDATION,
     MS.OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     MS.ACCEPT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
@@ -167,10 +180,6 @@ NO_REPLICA_EFFECT: dict[str, str] = {
 #: terminal value is empty (ARCH-18-005).
 # owner: #4294 #4295 #4404 (one per entry, named first in its reason)
 KNOWN_UNREPLAYED: dict[str, str] = {
-    MS.REJECT_INVITE_ACTOR_TO_CASE.value: (
-        "#4294 / #4295: closes the inert invitee's record (RM CLOSED, PEC"
-        " DECLINED) on the CASE_MANAGER only (CM-11-007, ADR-0124)"
-    ),
     "accept_case_participant_role": (
         "#4404: the role grant the Accept records is applied by no received"
         " tree on any node; whether it should mutate participant roles is"

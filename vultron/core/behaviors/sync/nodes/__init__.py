@@ -70,12 +70,12 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsAcceptEmbargoInviteEventNode,
     IsAddNoteEventNode,
     IsCloseCaseEventNode,
+    IsCreateCaseParticipantEventNode,
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
     IsEmbargoReinviteEventNode,
     IsHonourLateAcceptEventNode,
-    IsInviteAcceptEventNode,
     IsInviteExpiryEventNode,
     IsInviteExpiryNoopEventNode,
     IsOwnershipTransferEventNode,
@@ -83,8 +83,8 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsRejectEmbargoInviteEventNode,
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
-    IsStubInviteEventNode,
     IsSubmitReportEventNode,
+    IsUpdateCaseParticipantEventNode,
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
@@ -95,9 +95,6 @@ from vultron.core.behaviors.sync.nodes.fanout import (
 )
 from vultron.core.behaviors.sync.nodes.genesis_announce import (
     AnnounceCaseOnGenesisRejectNode,
-)
-from vultron.core.behaviors.sync.nodes.invite_accept_effect import (
-    ApplyInviteAcceptFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.ledger_authority import (
     DeclineForeignLedgerCommitNode,
@@ -115,6 +112,10 @@ from vultron.core.behaviors.sync.nodes.ownership_effects import (
 from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
     ApplyOfferOwnershipTransferFromLedgerNode,
     IsOfferOwnershipTransferEventNode,
+)
+from vultron.core.behaviors.sync.nodes.participant_record_effect import (
+    ApplyCreateCaseParticipantFromLedgerNode,
+    ApplyUpdateCaseParticipantFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
     ApplyReinstateCaseParticipantFromLedgerNode,
@@ -148,9 +149,6 @@ from vultron.core.behaviors.sync.nodes.rm_verdict_effect import (
     ApplyRmVerdictFromLedgerNode,
     IsRmVerdictEventNode,
 )
-from vultron.core.behaviors.sync.nodes.stub_invite_effect import (
-    ApplyStubInviteFromLedgerNode,
-)
 
 __all__ = [
     # conditions
@@ -160,8 +158,8 @@ __all__ = [
     "IsParticipantStatusEventNode",
     "IsAddNoteEventNode",
     "IsRemoveNoteEventNode",
-    "IsInviteAcceptEventNode",
-    "IsStubInviteEventNode",
+    "IsCreateCaseParticipantEventNode",
+    "IsUpdateCaseParticipantEventNode",
     "IsCloseCaseEventNode",
     "IsSubmitReportEventNode",
     "IsOwnershipTransferEventNode",
@@ -177,8 +175,8 @@ __all__ = [
     # effects
     "ApplyNoteFromLedgerNode",
     "ApplyRemoveNoteFromLedgerNode",
-    "ApplyInviteAcceptFromLedgerNode",
-    "ApplyStubInviteFromLedgerNode",
+    "ApplyCreateCaseParticipantFromLedgerNode",
+    "ApplyUpdateCaseParticipantFromLedgerNode",
     # participant_status_effect
     "ApplyParticipantStatusFromLedgerNode",
     "EmitImpossibleStateFaultNode",

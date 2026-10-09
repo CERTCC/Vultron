@@ -177,7 +177,8 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyEmbargoRejectionFromLedgerNode",
             "ApplyEmbargoTeardownNode",
             "ApplyHonourLateAcceptFromLedgerNode",
-            "ApplyInviteAcceptFromLedgerNode",
+            "ApplyCreateCaseParticipantFromLedgerNode",
+            "ApplyUpdateCaseParticipantFromLedgerNode",
             "ApplyInviteExpiryFromLedgerNode",
             "ApplyInviteExpiryNoopFromLedgerNode",
             "ApplyNoteFromLedgerNode",
@@ -189,7 +190,6 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyRemoveCaseParticipantFromLedgerNode",
             "ApplyRemoveNoteFromLedgerNode",
             "ApplyRmVerdictFromLedgerNode",
-            "ApplyStubInviteFromLedgerNode",
         )
     },
     (

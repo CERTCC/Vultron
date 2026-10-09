@@ -77,7 +77,7 @@ flowchart TB
    The CASE_MANAGER sends `Invite(Actor)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-008).
 2. Wait for the invitee's reply, addressed to the CASE_MANAGER.
 3. If the reply is `Accept(Invite(Actor))`, the CASE_MANAGER makes the actor an active participant — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
-   A replica creates the inert record from the stub Invite's ledger entry and marks it joined from the `Accept(Invite(Actor))` entry; nothing else is sent to seat it.
+   The CASE_MANAGER ledgers the record's creation when it sends the Invite and each change the accept makes as its own entry; a replica stores what those entries carry, and nothing else is sent to seat it.
 4. If the reply is `Reject(Invite(Actor))`, stop.
    The actor never becomes active, and nothing further is owed.
    The CASE_MANAGER keeps its inert participant record at RM `CLOSED`.

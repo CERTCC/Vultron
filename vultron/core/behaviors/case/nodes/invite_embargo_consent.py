@@ -31,8 +31,9 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.participants.inert_invitee import embargo_in_force_id
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
             self._set_output("active_embargo_id", None)
             return Status.FAILURE
 
-        active_embargo_id = embargo_in_force_id(case)
+        active_embargo_id = _as_id(case.active_embargo)
         if active_embargo_id:
             self._set_output("active_embargo_id", active_embargo_id)
             return Status.SUCCESS
@@ -94,7 +95,7 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
         return Status.FAILURE
 
 
-class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts):
+class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts, StateWriteCapable):
     """Sign embargo consent on the participant and record the event."""
 
     def __init__(self, invitee_id: str, name: str | None = None) -> None:

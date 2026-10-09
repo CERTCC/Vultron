@@ -31,6 +31,10 @@ from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.participant_event_types import (
+    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+)
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_EVENT_TYPE,
     HONOUR_LATE_ACCEPT_EVENT_TYPE,
@@ -46,8 +50,6 @@ _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
 _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
 _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 _REMOVE_NOTE_FROM_CASE_EVENT = "remove_note_from_case"
-_ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
-_INVITE_ACTOR_TO_CASE_EVENT = MessageSemantics.INVITE_ACTOR_TO_CASE.value
 _CLOSE_CASE_EVENT = "close_case"
 _ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
 _ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT = "accept_case_ownership_transfer"
@@ -193,41 +195,31 @@ class IsRemoveNoteEventNode(_SingleEventTypeNode):
     matched_event_type = _REMOVE_NOTE_FROM_CASE_EVENT
 
 
-class IsInviteAcceptEventNode(_SingleEventTypeNode):
-    """Precondition: return SUCCESS when this log entry IS an accept-invite event.
+class IsCreateCaseParticipantEventNode(_SingleEventTypeNode):
+    """Precondition: SUCCESS when this log entry IS a ``create_case_participant``.
 
-    Used as the precondition in the ``InviteAcceptEffects`` Selector's inner
-    Sequence in ``AnnounceLogEntryReceivedBT``::
+    Precondition of the ``CreateCaseParticipant`` slot, in the same
+    ``Selector(Seq(Is, Apply), Inverter(Is))`` shape as the other slots.  The
+    CASE_MANAGER commits it when it creates a participant record, for instance
+    the inert record of a stub Invite's invitee (CM-11-006).
 
-        Selector(InviteAcceptEffects)
-          Sequence
-            IsInviteAcceptEventNode   ← SUCCESS iff event_type matches
-            ApplyInviteAcceptFromLedgerNode
-          Inverter(IsInviteAcceptEventNode)  ← SUCCESS iff wrong event type
-
-    The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
-    ApplyInviteAcceptFromLedgerNode fails, both branches of the Selector fail
-    and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
-
-    Per BTND-08-001, BTND-08-002, SYNC-02-002, DEMOMA-07-003, SYNC-12-001.
+    Per BTND-08-001, BTND-08-002, CM-11-006, SYNC-12-001, RSH-08-004.
     """
 
-    matched_event_type = _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT
+    matched_event_type = CREATE_CASE_PARTICIPANT_EVENT_TYPE
 
 
-class IsStubInviteEventNode(_SingleEventTypeNode):
-    """Precondition: return SUCCESS when this log entry IS a stub Invite.
+class IsUpdateCaseParticipantEventNode(_SingleEventTypeNode):
+    """Precondition: SUCCESS when this log entry IS an ``update_case_participant``.
 
-    Used as the precondition in the ``StubInviteEffects`` Selector's inner
-    Sequence in ``AnnounceLogEntryReceivedBT``, in the same
-    ``Selector(Seq(Is, Apply), Inverter(Is))`` shape as the other slots.  A
-    replacement stub shares the event type with the first (CM-11-015).
+    Precondition of the ``UpdateCaseParticipant`` slot.  The CASE_MANAGER
+    commits one for each change to a record's ``joined`` mark or consent rows,
+    for instance when an invitee accepts the stub Invite (CM-31-012).
 
-    Per BTND-08-001, BTND-08-002, CM-11-006, CM-31-012, SYNC-12-001.
+    Per BTND-08-001, BTND-08-002, CM-31-012, SYNC-12-001, RSH-08-004.
     """
 
-    matched_event_type = _INVITE_ACTOR_TO_CASE_EVENT
+    matched_event_type = UPDATE_CASE_PARTICIPANT_EVENT_TYPE
 
 
 class IsCloseCaseEventNode(_SingleEventTypeNode):

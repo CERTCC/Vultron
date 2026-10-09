@@ -29,7 +29,6 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import activate
-from test.support.stub_invite import STUB_PUBLISHED, store_stub_invite
 from vultron.core.behaviors.case.nodes import invite_inert_participant
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
@@ -41,7 +40,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.participants.inert_invitee import derived_status_id
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -60,11 +58,9 @@ def scenario() -> BTTestScenario:
     s = BTTestScenario(actor_id=MANAGER_ID)
     s.seed(
         CaseActor(id_=MANAGER_ID, name="Vendor Co"),
-        VulnerabilityCase(id_=CASE_ID, name="Test Case"),
-    )
-    # The record is born from the stub Invite that names it (CM-11-006).
-    store_stub_invite(
-        s.dl, case_id=CASE_ID, issuer_id=MANAGER_ID, invitee_id=INVITEE_ID
+        VulnerabilityCase(
+            id_=CASE_ID, name="Test Case", attributed_to=MANAGER_ID
+        ),
     )
     return s
 
@@ -154,42 +150,6 @@ class TestSeating:
             participant.consent_for(embargo.id_) == EmbargoConsentState.INVITED
         )
         assert not participant.is_signatory(embargo.id_)
-
-    @pytest.mark.spec("CM-11-006")
-    def test_ids_and_times_derive_from_the_stub_invite(
-        self, scenario: BTTestScenario
-    ) -> None:
-        """No clock and no random id: the Invite names the record's origin."""
-        invite_id = f"{CASE_ID}/invitations/stub-{INVITEE_ID[-6:]}"
-
-        scenario.assert_success(_run(scenario, ["VENDOR"]))
-
-        participant = _participant(scenario)
-        status = participant.participant_statuses[0]
-        assert status.id_ == derived_status_id(
-            invite_id, INVITEE_ID, "invited"
-        )
-        for stamp in (
-            participant.published,
-            participant.updated,
-            status.published,
-            status.updated,
-        ):
-            assert stamp == STUB_PUBLISHED
-
-    @pytest.mark.spec("CM-11-006")
-    def test_no_recorded_stub_invite_fails_and_writes_nothing(self) -> None:
-        bare = BTTestScenario(actor_id=MANAGER_ID)
-        bare.seed(
-            CaseActor(id_=MANAGER_ID, name="Vendor Co"),
-            VulnerabilityCase(id_=CASE_ID, name="Test Case"),
-        )
-
-        result = _run(bare, ["VENDOR"])
-
-        assert result.status == Status.FAILURE
-        assert "stub Invite" in (result.feedback_message or "")
-        bare.assert_object_absent(PARTICIPANT_ID)
 
     def test_no_embargo_gives_no_consent_row(
         self, scenario: BTTestScenario

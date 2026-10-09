@@ -36,15 +36,19 @@ Tree structure::
             ├── AdvanceInviteeVFToVendorAwareNode    — record VF Vf for VENDOR (CM-11-009)
             ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
             ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
+            ├── CommitInviteeAcceptEntriesNode       — ledger the Accept's changes (ADR-0114)
             ├── EmitInviteActorToFullCaseNode        — full-case Invite, ledger tail (CM-11-010)
             └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
 Admitting the invitee, announcing the case to it and backfilling the ledger
-are the CASE_MANAGER's (PCR-08-009); every other participant learns of the
-new member from the stub Invite's entry (``ApplyStubInviteFromLedgerNode``
-creates the inert record) and the ``Accept(Invite)`` entry's fan-out (its
-replica marks the record joined through ``ApplyInviteAcceptFromLedgerNode``).
-No ``Add(CaseParticipant)`` follows and no ``add_case_participant`` entry is
+are the CASE_MANAGER's (PCR-08-009).  Every other participant learns of the
+new member from entries the CASE_MANAGER commits for each change it makes
+(ADR-0114): ``create_case_participant`` when the stub Invite created the inert
+record, and, committed by ``CommitInviteeAcceptEntriesNode``, one
+``update_case_participant`` carrying the record with the consent row it signed
+and ``joined``, and one ``add_participant_status_to_participant`` for a
+vendor's VF.  A replica stores what each entry carries and infers nothing.  No
+``Add(CaseParticipant)`` follows and no ``add_case_participant`` entry is
 committed: that message now means reinstatement only (CM-31-012, ADR-0116).
 The same handler runs on any actor that holds a copy of the Accept, so the
 effects sit behind a role gate and a receiver that is not the case's
@@ -78,6 +82,7 @@ from vultron.core.behaviors.case.nodes.invite_participant import (
 )
 from vultron.core.behaviors.case.nodes.invite_participant_persist import (
     ActivateInviteeParticipantNode,
+    CommitInviteeAcceptEntriesNode,
 )
 from vultron.core.behaviors.case.nodes.invite_revision_relay import (
     RelayOpenProposalsToJoinerNode,
@@ -165,6 +170,8 @@ def create_accept_invite_actor_to_case_tree(
                 ├── ActivateInviteeParticipantNode       — mark the inert record joined
                 ├── EmitAnnounceCaseToInviteeNode        — queue Announce to invitee
                 ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
+                ├── CommitInviteeAcceptEntriesNode       — ledger the Accept's changes (ADR-0114)
+            ├── CommitInviteeAcceptEntriesNode       — ledger the Accept's changes (ADR-0114)
                 ├── EmitInviteActorToFullCaseNode        — full-case Invite with the ledger tail (CM-11-010)
                 └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
@@ -176,8 +183,8 @@ def create_accept_invite_actor_to_case_tree(
     committing node placed earlier hands the late joiner a ledger entry before
     its case seed (SYNC-15 pre-genesis reject and replay, #2898).  The
     stub-Invite acceptance commits no ``add_case_participant`` entry
-    (CM-31-012): replicas seat the inert record from the stub Invite's entry and
-    mark it joined from the ``Accept(Invite)`` entry.
+    (CM-31-012): the changes the Accept causes are ledgered as their own entries
+    (ADR-0114).
 
     The idempotency guard ``CheckInviteeNotAlreadyParticipantNode`` uses
     :class:`~vultron.core.behaviors.idempotency.SilentIdempotencyGuardMixin`
@@ -242,6 +249,13 @@ def create_accept_invite_actor_to_case_tree(
                 case_id=case_id, invitee_id=invitee_id
             ),
             BackfillCanonicalLedgerToInviteeNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            # ADR-0114: the changes the Accept made (consent signed, joined,
+            # a vendor's VF) emit their own entries.  They are committed here,
+            # after the announce and the backfill, so that they reach the
+            # invitee in chain order and not before its case seed (#2898).
+            CommitInviteeAcceptEntriesNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
             # CM-17-004 step (4): the full-case Invite, queued after

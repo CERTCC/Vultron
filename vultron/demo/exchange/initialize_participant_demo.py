@@ -25,8 +25,8 @@ This demo script showcases the participant initialization process:
 2. Invite the Coordinator: the vendor, as Case Owner, asks the CaseActor to
    invite the coordinator, and the CaseActor sends the stub Invite
 3. Coordinator Joins: the coordinator accepts, the CaseActor creates its
-   CoordinatorParticipant, and the vendor's replica seats it from the
-   ``Accept(Invite)`` ledger entry
+   CoordinatorParticipant, and the vendor's replica stores the record from
+   the ledger entries the CaseActor commits for it
 
 A participant is only ever initialized this way (ADR-0114):
 ``Add(CaseParticipant)`` is the Case Owner's request to reinstate a removed
@@ -125,8 +125,8 @@ def demo_initialize_participant(
     1. Show initial case participant list
     2. The vendor asks the CaseActor to invite the coordinator, and the
        coordinator accepts; the CaseActor creates its participant record
-    3. Verify the vendor's replica seats the coordinator from the
-       ``Accept(Invite)`` ledger entry alone (CM-31-012)
+    3. Verify the vendor's replica holds the coordinator from the ledger
+       entries alone (CM-31-012)
     4. Verify final participant count
 
     This follows the workflow in:
@@ -163,8 +163,9 @@ def demo_initialize_participant(
         "Step 2: Vendor's replica seats the coordinator from the ledger"
     ):
         # No Add(CaseParticipant) follows the acceptance (CM-31-012): the
-        # vendor's replica learns of the new member from the stub Invite's
-        # entry and the Accept(Invite) entry the CaseActor fans out to it.
+        # vendor's replica stores the new member's record from the
+        # create_case_participant and update_case_participant entries the
+        # CaseActor fans out to it (ADR-0114).
         with demo_gate("Coordinator is a participant on the vendor's replica"):
             wait_for_case_participants(
                 vendor_client=client,

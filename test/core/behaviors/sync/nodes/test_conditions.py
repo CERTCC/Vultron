@@ -14,19 +14,23 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import (
     CheckLedgerFreshnessNode,
     IsAddNoteEventNode,
-    IsInviteAcceptEventNode,
+    IsCreateCaseParticipantEventNode,
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
+    IsUpdateCaseParticipantEventNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT,
     _ADD_NOTE_TO_CASE_EVENT,
     _ADD_PARTICIPANT_STATUS_EVENT,
     _REMOVE_EMBARGO_EVENT,
     _REMOVE_NOTE_FROM_CASE_EVENT,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.participant_event_types import (
+    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+)
 
 
 @pytest.mark.parametrize(
@@ -36,7 +40,8 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
         (IsParticipantStatusEventNode, _ADD_PARTICIPANT_STATUS_EVENT),
         (IsAddNoteEventNode, _ADD_NOTE_TO_CASE_EVENT),
         (IsRemoveNoteEventNode, _REMOVE_NOTE_FROM_CASE_EVENT),
-        (IsInviteAcceptEventNode, _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT),
+        (IsCreateCaseParticipantEventNode, CREATE_CASE_PARTICIPANT_EVENT_TYPE),
+        (IsUpdateCaseParticipantEventNode, UPDATE_CASE_PARTICIPANT_EVENT_TYPE),
     ],
 )
 class TestPositiveLedgerEntryConditionNodes:

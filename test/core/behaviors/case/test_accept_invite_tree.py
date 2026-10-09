@@ -18,9 +18,6 @@
 AC-4: The invitee MUST be a signatory (AGREED row for the active embargo) after signing embargo consent.
 """
 
-from datetime import UTC, datetime
-from types import SimpleNamespace
-
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -365,17 +362,6 @@ def test_accept_with_an_inert_record_reuses_it(
     assert stored.id_ == participant.id_
 
 
-_ACCEPT_PUBLISHED = datetime(2026, 10, 9, 13, 0, 0, tzinfo=UTC)
-
-
-def _received_accept() -> SimpleNamespace:
-    """The received Accept as the node sees it: its id and carried time."""
-    return SimpleNamespace(
-        activity_id="https://example.org/activities/accept-1",
-        activity=SimpleNamespace(published=_ACCEPT_PUBLISHED),
-    )
-
-
 @pytest.mark.spec("CM-11-001")
 def test_activating_the_inert_record_marks_it_joined_and_keeps_rm(
     bt_scenario: BTTestScenario,
@@ -392,7 +378,6 @@ def test_activating_the_inert_record_marks_it_joined_and_keeps_rm(
         node,
         actor_id=bt_scenario.actor_id,
         new_invite_participant=participant,
-        activity=_received_accept(),
     )
 
     assert result.status == Status.SUCCESS
@@ -400,8 +385,6 @@ def test_activating_the_inert_record_marks_it_joined_and_keeps_rm(
     assert isinstance(stored, CaseParticipant)
     assert stored.joined is True
     assert stored.participant_status == rm_before
-    # The time is the Accept's claimed one, never the local clock (ADR-0103).
-    assert stored.updated == _ACCEPT_PUBLISHED
 
 
 @pytest.mark.spec("CM-11-001")
@@ -421,7 +404,6 @@ def test_activating_a_joined_record_changes_nothing(
         node,
         actor_id=bt_scenario.actor_id,
         new_invite_participant=participant,
-        activity=_received_accept(),
     )
 
     assert result.status == Status.SUCCESS

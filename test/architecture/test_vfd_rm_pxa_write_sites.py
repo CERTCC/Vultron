@@ -35,7 +35,6 @@ Closes #2081 AC-7, #1903.
 """
 
 import ast
-import os
 from collections import Counter
 
 from test.architecture import _corpus
@@ -112,48 +111,35 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         # carry-forward on replay (RSH-05-023/019, #3814)
         ("sync/nodes/case_status_effect.py", "PxaDimension"),
         # BOOTSTRAP — ADR-0114 birth write: invitee's first ParticipantStatus
-        # at RM.RECEIVED (no prior state; embedded directly in CaseParticipant,
-        # not via CreateParticipantStatusNode), VF ``v`` for a VENDOR only.  The
-        # one builder the CASE_MANAGER and every replica call, so it lives
-        # outside ``behaviors/`` (CM-11-006 / #4048 / #4384).
-        ("../participants/inert_invitee.py", "RmDimension"),
-        ("../participants/inert_invitee.py", "VfDimension"),
-        # BOOTSTRAP — the Accept-time advance in the same module: the
-        # vendor-aware status copies the latest status and moves VF only, for a
-        # VENDOR still at ``vf``; the CASE_MANAGER and a replica both call it,
-        # with the status id and times derived from the Accept (CM-11-009).
-        ("../participants/inert_invitee.py", "VfDimension"),
+        # at RM.RECEIVED (no prior state; embed directly in CaseParticipant,
+        # not via CreateParticipantStatusNode). CM-11-006 / #4048.
+        ("case/nodes/invite_inert_participant.py", "RmDimension"),
+        ("case/nodes/invite_inert_participant.py", "VfDimension"),
     ]
 )
 
 _TARGET_NAMES = {"VfDimension", "DDimension", "RmDimension", "PxaDimension"}
 _BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
-#: A dimension is also built outside ``behaviors/``: the inert invitee's birth
-#: status lives in ``core/participants`` so the CASE_MANAGER and a replica share
-#: one builder.  Its paths are reported relative to ``behaviors/`` (``../``).
-_SCAN_ROOTS = (
-    _BEHAVIORS_ROOT,
-    _corpus.REPO_ROOT / "vultron" / "core" / "participants",
-)
 
 
 def _collect_sites() -> list[tuple[str, str]]:
     """Return sorted (rel_path, constructor_name) pairs from an AST scan."""
     found: list[tuple[str, str]] = []
-    for root in _SCAN_ROOTS:
-        for path, tree in _corpus.files_mentioning(*_TARGET_NAMES, under=root):
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                func = node.func
-                name: str | None = None
-                if isinstance(func, ast.Name):
-                    name = func.id
-                elif isinstance(func, ast.Attribute):
-                    name = func.attr
-                if name in _TARGET_NAMES:
-                    rel = os.path.relpath(path, _BEHAVIORS_ROOT)
-                    found.append((rel.replace("\\", "/"), name))
+    for path, tree in _corpus.files_mentioning(
+        *_TARGET_NAMES, under=_BEHAVIORS_ROOT
+    ):
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name: str | None = None
+            if isinstance(func, ast.Name):
+                name = func.id
+            elif isinstance(func, ast.Attribute):
+                name = func.attr
+            if name in _TARGET_NAMES:
+                rel = str(path.relative_to(_BEHAVIORS_ROOT)).replace("\\", "/")
+                found.append((rel, name))
     return sorted(found)
 
 

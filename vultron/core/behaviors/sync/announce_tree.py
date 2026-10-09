@@ -34,7 +34,7 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 from vultron.core.behaviors.sync.nodes import (
     ApplyCaseStatusFromLedgerNode,
-    ApplyInviteAcceptFromLedgerNode,
+    ApplyCreateCaseParticipantFromLedgerNode,
     ApplyNoteFromLedgerNode,
     ApplyOfferOwnershipTransferFromLedgerNode,
     ApplyOfferReportFromLedgerNode,
@@ -44,7 +44,7 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
     ApplyRmVerdictFromLedgerNode,
-    ApplyStubInviteFromLedgerNode,
+    ApplyUpdateCaseParticipantFromLedgerNode,
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
@@ -52,12 +52,12 @@ from vultron.core.behaviors.sync.nodes import (
     IsAddCaseStatusEventNode,
     IsAddNoteEventNode,
     IsCloseCaseEventNode,
+    IsCreateCaseParticipantEventNode,
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
     IsEmbargoReinviteEventNode,
     IsHonourLateAcceptEventNode,
-    IsInviteAcceptEventNode,
     IsInviteExpiryEventNode,
     IsInviteExpiryNoopEventNode,
     IsOfferOwnershipTransferEventNode,
@@ -69,8 +69,8 @@ from vultron.core.behaviors.sync.nodes import (
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
     IsRmVerdictEventNode,
-    IsStubInviteEventNode,
     IsSubmitReportEventNode,
+    IsUpdateCaseParticipantEventNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
@@ -264,17 +264,18 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 IsRemoveNoteEventNode,
                 ApplyRemoveNoteFromLedgerNode,
             ),
-            # The stub Invite creates the invitee's inert record (CM-11-006);
-            # the Accept entry below marks it joined.
+            # The CASE_MANAGER ledgers each change to a participant record as
+            # its own entry (ADR-0114): the replica stores what the entry
+            # carries and infers nothing from the Invite or the Accept.
             _event_effect_slot(
-                "StubInvite",
-                IsStubInviteEventNode,
-                ApplyStubInviteFromLedgerNode,
+                "CreateCaseParticipant",
+                IsCreateCaseParticipantEventNode,
+                ApplyCreateCaseParticipantFromLedgerNode,
             ),
             _event_effect_slot(
-                "InviteAccept",
-                IsInviteAcceptEventNode,
-                ApplyInviteAcceptFromLedgerNode,
+                "UpdateCaseParticipant",
+                IsUpdateCaseParticipantEventNode,
+                ApplyUpdateCaseParticipantFromLedgerNode,
             ),
             # The Case Owner's removal of a participant (CM-31-007).
             _event_effect_slot(

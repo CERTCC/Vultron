@@ -205,7 +205,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0111 Intake Is the First Stage of a Received-Side Tree: Record What Arrived Before Judging It](0111-intake-is-the-first-received-side-stage.md)
 - [ADR-0112 Per-Recipient Ordered Outbox Delivery: One Drain per Actor, One In-Flight Row per Recipient](0112-per-recipient-ordered-outbox-delivery.md)
 - [ADR-0113 Embargo Negotiation Relays Through the CASE_MANAGER; the Ledger Carries State but Never Asks](0113-embargo-revision-negotiation-relays-through-the-case-manager.md)
-- [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md)
+- [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md) *(revision 2)*
 - [ADR-0117 The Per-Case Genesis Hash Is Anchored to the Case Owner, Not the CaseActor](0117-genesis-hash-is-anchored-to-the-case-owner.md)
 - [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0120 ADR Lifecycle: Three Epochs and Tiered Edits](0120-adr-lifecycle-epochs-and-edit-tiers.md) *(provisional)*
@@ -218,7 +218,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md)
 - [ADR-0107 A Case Ledger Entry Is a Postmark on the Received Envelope; References Resolve by Dereference](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
 - [ADR-0115 Received Handlers Check the Sender's Entitlement, Declared Once per Use Case and Composed by the Receive-Tree Factory](0115-received-handlers-check-sender-entitlement.md)
-- [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md)
+- [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 2)*
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md)
 - [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 3)*
 - [ADR-0124 The Case Is a Projection of Its Ledger: One Replay Function for the CASE_MANAGER and Every Replica](0124-case-is-a-projection-of-its-ledger.md)
