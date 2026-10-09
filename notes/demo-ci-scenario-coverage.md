@@ -9,6 +9,7 @@ related_specs:
 related_notes:
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-registry.md
+  - notes/demo-ci-invariants.md
   - notes/case-joining.md
 ---
 
@@ -245,6 +246,25 @@ rule (DEMOCI-11-008), which is why the exemption is keyed on this heading.
 - PR #3464 (ISSUE-3450) made the matrix a generated projection of the scenario
   registry, so the entries are no longer hand-maintained here or in the
   workflow (ADR-0098).
+
+## DEMOCI-07-003 Coverage Analysis (2026-10-09)
+
+DEMOCI-07-003 required a follow-up coverage analysis once `rcv-embargo` and
+`rcvv-embargo` were in the minimum PR set, to confirm whether DEMOCI-06-002
+requires amendment.
+
+**Result: no change needed.**
+
+Both `rcv-embargo` and `rcvv-embargo` are members of the minimum PR set
+(`"full_suite_only": false` in `.github/demo-scenarios.json`).
+Together they exercise the embargo protocol event types
+(`invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case`,
+`remove_embargo_event_from_case`) that were absent from all prior
+minimum-set members.
+DEMOCI-06-002 and DEMOCI-06-003 already name both embargo scenarios — no
+amendment was required.
+The coverage matrix in this file already reflects the embargo event types
+as a result of the scenario implementations (ISSUE-2073, ISSUE-2074).
 
 ## RM State-Transition Path Coverage
 

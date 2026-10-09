@@ -3128,11 +3128,11 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The rcv-embargo scenario MUST be added to the CI demo-integration matrix
-      in `.github/workflows/demo-integration.yml` with `DEMO=rcv-embargo` and
-      `full_suite_only: false` (runs on every PR). The CI devlogs directory for
-      the run MUST use the scenario-role naming convention: `reporter`,
-      `coordinator`, `vendor`, `case-actor`.
+      The rcv-embargo scenario MUST have an entry in
+      `.github/demo-scenarios.json` (DEMOCI-06-007) with `"demo":
+      "rcv-embargo"` and `"full_suite_only": false` (runs on every PR).
+      The CI devlogs directory for the run MUST use the scenario-role naming
+      convention: `reporter`, `coordinator`, `vendor`, `case-actor`.
     rationale: >-
       CI coverage of the embargo lifecycle from day one avoids the deferred-add
       pattern that required a later DEMOCI-06 amendment for earlier scenarios.
@@ -3447,11 +3447,11 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The rcvv-embargo scenario MUST be added to the CI demo-integration matrix
-      in `.github/workflows/demo-integration.yml` with `DEMO=rcvv-embargo` and
-      `full_suite_only: false` (runs on every PR). The CI devlogs directory for
-      the run MUST use the scenario-role naming convention: `reporter`,
-      `coordinator`, `vendor`, `vendor2`, `case-actor`.
+      The rcvv-embargo scenario MUST have an entry in
+      `.github/demo-scenarios.json` (DEMOCI-06-007) with `"demo":
+      "rcvv-embargo"` and `"full_suite_only": false` (runs on every PR).
+      The CI devlogs directory for the run MUST use the scenario-role naming
+      convention: `reporter`, `coordinator`, `vendor`, `vendor2`, `case-actor`.
     rationale: >-
       CI coverage from day one, consistent with the decision recorded in issue
       #1222 planning: default to add-now/remove-later rather than deferred adds.
