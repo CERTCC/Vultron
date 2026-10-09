@@ -6,8 +6,9 @@ updated: 2026-10-09
 revision: 1
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; ADR-0083, ADR-0115; specs/message-semantics-mapping.yaml MSM;
-  specs/semantic-extraction.yaml SE-07; notes/message-type-reference.md
+  Claude Opus 5.5; ADR-0083, ADR-0115; specs/message-semantics-mapping.yaml MSM
+  (including MSM-06); specs/semantic-extraction.yaml SE-07;
+  notes/message-type-reference.md
 informed: []
 stakeholder_type: [project-contributor]
 ---
@@ -16,23 +17,25 @@ stakeholder_type: [project-contributor]
 
 ## Context and Problem Statement
 
-A builder of a Vultron-compatible system needs to go from something that happened in a CVD case to the wire activity that conveys it: "a fix is ready" to `Add(CaseStatus)` with `vfd_state=VFd`.
+A builder of a Vultron-compatible system needs to go from something that happened in a CVD case to the wire activity that conveys it: "a fix is ready" to `Add(ParticipantStatus)` with `vf_state=VF`.
 The documentation has no page that reads in that direction.
 The [Message Types](../reference/messages/index.md) pages open with a table keyed by protocol shorthand, the [Protocol Quick Reference](../reference/quick_reference.md) lists the formal message set without wire forms, and the how-to guides carry no wire examples.
 
 The facts such a table needs are scattered, and some are written twice.
 `vultron/metadata/msm/_mapping.py` restates per wire activity a shorthand and a mapping status that the MSM spec also states, and the two have disagreed: `_mapping.py` tags `Create(Event)` and `Announce(Event)` as expansions of `EP`, where MSM-02-001 maps `EP` to `Invite(Event)` alone.
-Meanwhile the code already owns several of the facts: the wire pattern on each `SemanticEntry`, the sender rule each received use case declares as `sender_entitlement` (ADR-0115), and the past-tense `phrase` (SE-07).
+Meanwhile the code already owns several of the facts: the wire pattern on each `SemanticEntry`, the sender rule each received use case declares as `sender_entitlement` (ADR-0115), and the active-voice `phrase` template (SE-07-001).
 
 A wire activity and the situation a sender conveys with it are not one-to-one.
-Six situations — vendor awareness, fix ready, fix deployed, public awareness, exploit public, attacks observed — share `Add(CaseStatus)`, told apart by a field value.
+Three situations — vendor awareness, fix ready, fix deployed — share `Add(ParticipantStatus)`, told apart by `vf_state` and `d_state`.
+Three more — public awareness, exploit public, attacks observed — share `Add(CaseStatus)`, told apart by `pxa_state`.
 This ADR calls each such situation an **occasion** (defined in the [Glossary](../reference/glossary.md)): one semantics has one or more occasions.
 
 Where does the message vocabulary documentation come from, and how is it kept consistent with the code that sends and receives the messages?
 
 ## Decision Drivers
 
-- The table's primary framing is the CVD occasion and its wire form; the formal protocol is linked, not leading (ADR-0083).
+- The table's primary framing is the CVD occasion and its wire form; the formal protocol is linked, not leading.
+  ADR-0083 establishes that the two message sets answer different questions, so neither can key the other.
 - Every fact has one owner; nothing a generator can derive is typed by hand.
 - The table, the per-message reference sections, and the examples on workflow pages must not be able to disagree.
 - Completeness is checkable: every wire activity appears, every occasion has a details section, every section is reachable.
@@ -51,17 +54,18 @@ Chosen option: "Occasions on `SemanticEntry`, projected into a committed, genera
 
 ### The code is the source
 
-`SemanticEntry` gains `occasions: tuple[Occasion, ...]`, with at least one per entry, checked at construction.
-An `Occasion` is a frozen value object holding what only a human can supply: the "when" text, an optional distinguishing field value, a stable anchor ID, a short description, the example function to render, an optional how-to link, an optional protocol shorthand, and optional notes.
+`SemanticEntry` gains `occasions: tuple[Occasion, ...]`, with at least one per entry except the `UNKNOWN` dispatcher fallback (MSM-06-002), checked at construction.
+It also gains the `page` that `RowSpec.page` in `_mapping.py` holds today.
+An `Occasion` is a frozen value object holding what only a human can supply: the "when" text, an optional distinguisher (a field value, or a named state context such as the EM state that separates `EP` from `EV` on one `Invite(Event)`), a stable anchor ID, a short description, the example function to render, an optional how-to link, an optional protocol shorthand, and optional notes.
 
-Facts that already have an owner stay there:
+Facts that already have an owner stay there, and the one derivable fact is derived:
 
 | Fact | Owner |
 |---|---|
 | Wire summary, such as `Accept(Invite(Event)[context=VulnerabilityCase])` | the entry's `ActivityPattern` |
 | Who may send it | the received use case's `sender_entitlement`; an exempt use case is shown as unchecked |
-| Page, and so table group | the `SemanticEntry` |
-| Mapping status (collapse, expansion) | derived: several occasions on one entry is a collapse, one shorthand on several entries is an expansion |
+| Page, and so table group | the `SemanticEntry`'s new `page` field |
+| Mapping status (MSM-06-003) | derived: one occasion with one shorthand on one entry is direct, several occasions on one entry is a collapse, one shorthand on several entries is an expansion, and no shorthand is none; an `evolved` mechanism (MSM-05) cannot be counted, so its occasion declares it |
 
 ### The artifacts are projections
 
@@ -69,6 +73,7 @@ One generator assembles the registry into a YAML file and a set of `include-mark
 Both are committed and gated by a pre-commit `--check` hook that regenerates them and fails on any difference.
 No one edits them by hand; a change to their text is a change to the code that owns it.
 `_mapping.py` becomes the Pydantic loader and validator of the YAML.
+This replaces the build-time rendering that MSM-06-001 requires with generation checked at commit time, so implementing this ADR revises MSM-06-001; the spec stays as written until then.
 The YAML carries a `format_version` from the start, but it is not a published interface; publishing it belongs to protocol versioning (#2959).
 
 ### The pages include the projections
@@ -95,7 +100,7 @@ Fragments rather than `markdown_exec` blocks, because MkDocs does not rewrite a 
 ## Validation
 
 - The `--check` hook fails when the committed YAML or fragments differ from a fresh generation.
-- A test fails when a non-exempt `MessageSemantics` has no occasion, an occasion's distinguishing value is not a value of its field's enum, an anchor ID is not unique, or an occasion's example does not dispatch to its own entry.
+- A test fails when a non-exempt `MessageSemantics` has no occasion, a field-valued distinguisher is not a value of its field's enum, an anchor ID is not unique, or an occasion's example does not dispatch to its own entry.
 - A test fails when an occasion section on a message page is referenced by no table row, or a row's anchor resolves to no section.
 
 ## Pros and Cons of the Options

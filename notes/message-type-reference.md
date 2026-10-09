@@ -328,9 +328,10 @@ instead of resolving it.
 A builder's question runs the other way from the mapping tables: not "what wire
 form does `CF` take?" but "a fix is ready — what do I send?" ADR-0128 answers it
 with one table keyed by **occasion**: a situation in a case that a sender conveys
-with a wire activity, sometimes narrowed by a distinguishing field value (glossary,
-Messaging and Protocol). One semantic type has one or more occasions —
-`Add(CaseStatus)` has six — so the table has one row per (occasion, wire activity)
+with a wire activity, sometimes narrowed by a distinguishing field value or state
+context (glossary, Messaging and Protocol). One semantic type has one or more
+occasions —
+`Add(CaseStatus)` has three — so the table has one row per (occasion, wire activity)
 pair: When… | Send | Sent by | Distinguished by | Details. The formal shorthand is
 only the Details link text; the formal protocol is linked, not leading.
 
@@ -341,13 +342,15 @@ Where each fact will live, so nothing derivable is typed by hand:
 | when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes | `SemanticEntry.occasions` |
 | wire summary | the entry's `ActivityPattern`, rendered as today |
 | sent by | the received use case's `sender_entitlement` (ADR-0115) |
-| `MappingStatus`, discriminator | derived from the occasions, no longer entered in `_mapping.py` |
+| page | a new `SemanticEntry.page` field, moved from `RowSpec.page` |
+| `MappingStatus`, discriminator | derived from the occasions (`evolved` declared on its occasion), no longer entered in `_mapping.py` |
 | "Seen in" | the include directives on workflow pages |
 
 The YAML file and the `include-markdown` fragments (the whole table, a slice per
 page, one per occasion) are generated, committed, and gated by a `--check` hook;
-`_mapping.py` becomes their loader and validator. Until that lands, the pages render
-as described below.
+`_mapping.py` becomes their loader and validator. That replaces MSM-06-001's
+build-time rendering, so the implementation revises MSM-06-001. Until it lands, the
+pages render as described below.
 
 ## Examples are rendered at build time
 
