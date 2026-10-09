@@ -1080,7 +1080,7 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
   }
 
   // Consequence nodes in other vendor lanes (not the replying vendor).
-  // (This fork drops the obsolete `!== 'DECLINED'` filter — see CLAUDE.md §9.)
+  // (This fork drops the obsolete `!== 'DECLINED'` filter — see AGENTS.md §9.)
   const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
 
   otherVendors.forEach(otherVendor => {
@@ -1198,7 +1198,7 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
   }
 
   // Consequence nodes in other vendor lanes (not the closing vendor).
-  // (This fork drops the obsolete `!== 'DECLINED'` filter — see CLAUDE.md §9.)
+  // (This fork drops the obsolete `!== 'DECLINED'` filter — see AGENTS.md §9.)
   const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
 
   otherVendors.forEach(otherVendor => {

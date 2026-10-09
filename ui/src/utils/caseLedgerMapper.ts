@@ -16,7 +16,7 @@
  * This is the "validating function": the Multi-Vendor (Validated) demo's protocol
  * truth (`protocol_states.json` via `../protocol`) judges the events in the log.
  *
- * Key realities of the current ledger this mapper is built around (see ui/CLAUDE.md
+ * Key realities of the current ledger this mapper is built around (see ui/AGENTS.md
  * — note §5–6 there describe the OLD format and are historical):
  *   - The log records STATE SNAPSHOTS, not transitions. We diff each snapshot
  *     against the participant's previous shadow value to recover the trigger(s).
@@ -324,7 +324,7 @@ function consequenceLanes(
 /**
  * Build a decision node in `decisionLaneId`'s lane plus paler consequence nodes
  * (same x, `causedBy = decision.id`) in every other active lane. This reproduces
- * the Validated demo's decision/consequence visual grammar (ui/CLAUDE.md §2) and,
+ * the Validated demo's decision/consequence visual grammar (ui/AGENTS.md §2) and,
  * because we now know the originating entry, every event is a proper cluster — so
  * the arrows the old replay mapper never drew now render.
  */
@@ -521,7 +521,7 @@ const TRIGGER_LABEL: Record<string, string> = {
  * `normalizeLedger`). Walks entries once, in order; emits one node-cluster per
  * meaningful entry and increments the visual column ONLY when a cluster is
  * emitted — so seed-only / no-op entries leave no x-gap (this is the bug the old
- * mapper had: an early `return` that skipped the increment, ui/CLAUDE.md §5 #2).
+ * mapper had: an early `return` that skipped the increment, ui/AGENTS.md §5 #2).
  */
 export function buildTimelineFromCaseLedger(entries: CaseLedgerEntry[]): DemoState {
   const participants = new Map<string, ParticipantState>()
@@ -834,7 +834,7 @@ function handleCreateCase(
  *   - `submit_report` (legacy): `actor` = the finder directly.
  * Either way the node belongs in the FINDER lane. This is a demo-kind node (no
  * machine slot of its own — the finder's private RM traversal to ACCEPTED is
- * seeded at case creation, CLAUDE.md §9), so it emits a "Submit Report" decision
+ * seeded at case creation, AGENTS.md §9), so it emits a "Submit Report" decision
  * node without touching the shadow. The entry may arrive after case creation, so
  * the finder lane and its ACCEPTED seed already exist; ensureParticipant is
  * defensive.
@@ -917,7 +917,7 @@ function handleOfferActorToCase(
 /**
  * An invitation to join the case.
  *
- * Two payload shapes appear in practice (CLAUDE.md §6 quirk #8, now updated):
+ * Two payload shapes appear in practice (AGENTS.md §6 quirk #8, now updated):
  *   - EMPTY (`actor` absent) — the older two-actor/fvv logs, and a leading
  *     placeholder entry that precedes the populated one in the 2026-07 coordinator
  *     scenarios. Carries no attribution, so it's log-only; the join is shown by the
@@ -1082,7 +1082,7 @@ function handleRejectInvite(
  * grammar, so the handoff — previously invisible (these verbs hit the `default`
  * branch and were dropped) — reads as one coordinated moment across two lanes.
  *
- * This is a deliberate demo OVERLAY (ui/CLAUDE.md §9): ownership transfer is a
+ * This is a deliberate demo OVERLAY (ui/AGENTS.md §9): ownership transfer is a
  * procedural act — it moves the CASE_OWNER role + the case's `attributedTo`, but is
  * NOT an RM/EM/VFD/PXA machine transition — so it touches NO shadow machine state and
  * is judged against no artifact. (It also does not migrate a lane's role LABEL; the
@@ -1258,7 +1258,7 @@ function handleNote(
   const content = (obj?.content ?? '').trim()
   const snippet = content.length > 90 ? content.slice(0, 87) + '…' : content
 
-  // The ledger lacks inReplyTo linkage (CLAUDE.md §6 gap #4), so classify by a
+  // The ledger lacks inReplyTo linkage (AGENTS.md §6 gap #4), so classify by a
   // heuristic: the first unanswered note is a question; the next note from a
   // DIFFERENT actor while a question is pending is its answer.
   const explicitReply = obj?.inReplyTo != null
@@ -1678,7 +1678,7 @@ function handleCloseCase(
   // it MUST NOT be judged via isLegalTransition('rm', …, 'close') nor "fixed" by adding
   // an edge to the artifact — the RM machine is shared by every role, so doing so would
   // make it falsely accept an un-disposed report `close` for a vendor too, masking a
-  // real violation. See ui/CLAUDE.md §9 (declarative-vs-procedural boundary). The
+  // real violation. See ui/AGENTS.md §9 (declarative-vs-procedural boundary). The
   // CM-23-012 citation here is the anti-drift tripwire if the rule ever changes.
   let rmNote: string | undefined
   // (closerLane is never 'unknown' — the resolution above falls back to 'caseactor'.)

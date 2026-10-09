@@ -5,7 +5,7 @@
  * moves the CASE_OWNER role between participants and updates the case's `attributedTo`
  * (specs CM-21-001..010, triggers TRIG-11-001/002, routed via the Case Actor per
  * ADR-0053). It has NO representation in `protocol_states.json` (rm/em/vfd/pxa only),
- * so — per ui/CLAUDE.md §9's declarative-vs-procedural boundary — this is a deliberate
+ * so — per ui/AGENTS.md §9's declarative-vs-procedural boundary — this is a deliberate
  * demo OVERLAY, mirroring those specs rather than deferring to the artifact. It touches
  * NO machine state (rm/em/vfd/pxa); it only moves the demo's `caseOwnerId` pointer.
  *

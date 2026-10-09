@@ -27,6 +27,7 @@ the data.
    `devlogs/<scenario>/` directory (e.g. `devlogs/fvv/finder/…-case-ledger.jsonl`).
 
 2. **Start the UI:**
+
    ```bash
    cd ui
    npm run dev
@@ -48,7 +49,7 @@ inferred-multistep flagging.
 
 ## Pipeline
 
-```
+```text
 DemoSelector
   └─ Log Replay → App-logreplay.tsx
                      │
@@ -90,7 +91,7 @@ are recorded in the event log without changing machine state.
 > The exhaustive, up-to-date handler list — including scenario coverage,
 > attribution quirks, and the 2026-08 vocabulary shift (`offer_case_manager_role`
 > → `create_case`, `submit_report` → `add_report_to_case`, etc.) — lives in
-> [CLAUDE.md](CLAUDE.md) §5–6. Consult it before changing the mapper.
+> [AGENTS.md](AGENTS.md) §5–6. Consult it before changing the mapper.
 
 ## Supported Log Fields
 

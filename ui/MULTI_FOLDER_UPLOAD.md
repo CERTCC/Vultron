@@ -4,7 +4,7 @@
 
 When running the container-based demos, log files are generated in **separate subfolders**:
 
-```
+```text
 devlogs/fv/
 ├── finder/
 │   └── urn_uuid_...-case-ledger.jsonl
@@ -120,6 +120,7 @@ ln -s $(pwd)/devlogs/fv/case-actor/*.jsonl /tmp/vultron-logs-symlinked/
 ### Option 3: Future Enhancement - Auto-Load Button
 
 We could add a "Load Two-Actor Demo" button that:
+
 - Automatically fetches logs from a known URL path
 - Requires dev server to serve the `devlogs/` folder
 - Would look something like:
@@ -137,13 +138,14 @@ const handleLoadDemoLogs = async () => {
 ```
 
 This would require:
+
 1. Vite config to serve `devlogs/` folder
 2. Way to discover the case ID (maybe a manifest file)
 3. Button in the UI
 
 ## User Experience Flow
 
-```
+```text
 ┌─────────────────────────────────────────┐
 │  Log Replay Demo - No Files Loaded      │
 │                                          │

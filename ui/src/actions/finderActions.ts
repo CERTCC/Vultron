@@ -382,7 +382,7 @@ export function handleFinderAddNote(state: DemoState): DemoState {
 
   // Add consequence nodes to all active vendors.
   // (This fork drops the obsolete `!== 'DECLINED'` filter — DECLINED is not a
-  // real RM state and is never written; see CLAUDE.md §9.)
+  // real RM state and is never written; see AGENTS.md §9.)
   const activeVendors = getActiveVendors(newState)
 
   activeVendors.forEach(vendor => {
@@ -575,7 +575,7 @@ export function handleFinderCloseCase(state: DemoState): DemoState {
   timestampOffset++
 
   // Consequence nodes in all vendor lanes.
-  // (This fork drops the obsolete `!== 'DECLINED'` filter — see CLAUDE.md §9.)
+  // (This fork drops the obsolete `!== 'DECLINED'` filter — see AGENTS.md §9.)
   const activeVendors = getActiveVendors(newState)
 
   activeVendors.forEach(vendor => {

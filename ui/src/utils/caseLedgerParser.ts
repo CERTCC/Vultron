@@ -3,7 +3,7 @@
  *
  * This is the current log-replay pipeline. It replaced an older pipeline
  * (`jsonlParser.ts` + `logEventMapper.ts`) that parsed the pre-refactor format;
- * those files have been deleted (git history preserves them). See ui/CLAUDE.md
+ * those files have been deleted (git history preserves them). See ui/AGENTS.md
  * §5–6 for the format history.
  *
  * The ledger is a single shared, hash-chained log: each container-based demo run
@@ -22,7 +22,7 @@
  *
  * **2026-08 vocabulary shift.** A merge from `main` changed the case-LIFECYCLE
  * verbs while leaving the per-participant / note / embargo / invite verbs intact
- * (see ui/CLAUDE.md §5–6). The mapping from the OLD vocabulary the earlier
+ * (see ui/AGENTS.md §5–6). The mapping from the OLD vocabulary the earlier
  * fixtures used:
  *   - `offer_case_manager_role` → **`create_case`** — case bootstrap; same
  *     `actorParticipantIndex` roster + `caseStatuses[0]` EM/PXA, `actor` = the

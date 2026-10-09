@@ -31,6 +31,7 @@ jumps surface via the `remove_embargo` handler instead, as at logIndex 5.)
 
 In the Log Replay demo, click the **⚠️ Violation Sample** button (Diagnostic
 group) — it imports `violations-case-ledger.jsonl` directly. (The **▶ FV — Finder
+
 + Vendor** button loads the happy-path sample; **▶ FVV — Finder + 2 Vendors**
 loads the 3-party sample; the scenario buttons are data-driven from the
 `SAMPLE_SCENARIOS` catalog in `App-logreplay.tsx`.) You can also **Select Log

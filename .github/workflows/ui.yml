@@ -1,0 +1,75 @@
+# Lint and build the ui/ visualization demo (React 19 + TypeScript + Vite).
+# Separate from python-app.yml: distinct toolchain (Node/npm), path-filtered to
+# ui/** so Python-only changes do not spin up a Node runner. Closes the AC-4
+# decision for the demo-UI landing (PR #3754).
+
+name: UI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - ui/**
+      - .github/workflows/ui.yml
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - ui/**
+      - .github/workflows/ui.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel any in-progress run for the same ref; mirrors python-app.yml.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui:
+    name: UI lint & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+
+  # File (or close) a CI-failure issue on push to main, per CISEC-05.
+  # Copied from python-app.yml's notify job with a ui-specific workflow-label.
+  notify:
+    name: Notify CI failure
+    runs-on: ubuntu-latest
+    needs: [ui]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Notify CI failure
+        if: contains(needs.*.result, 'failure')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-ui
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: "!contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')"
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-ui
+          token: ${{ secrets.GITHUB_TOKEN }}

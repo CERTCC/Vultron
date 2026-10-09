@@ -81,9 +81,9 @@ def test_exported_embargo_viability_shape() -> None:
     """Guard the cross-machine embargo-viability section the UI relies on."""
     payload = build_payload()
 
-    assert (
-        "embargo_viability" in payload
-    ), "missing 'embargo_viability' section"
+    assert "embargo_viability" in payload, (
+        "missing 'embargo_viability' section"
+    )
     section = payload["embargo_viability"]
     assert set(section) >= {"patterns"}
     assert section["patterns"], "embargo_viability has no patterns"
@@ -97,9 +97,9 @@ def test_exported_embargo_viability_shape() -> None:
         assert len(pattern) == 6, f"CS pattern must be 6 chars: {pattern!r}"
         assert set(pattern) <= cs_char, f"bad char in CS pattern: {pattern!r}"
         assert entry["flags"], f"pattern {pattern!r} has no flags"
-        assert (
-            set(entry["flags"]) <= known_flags
-        ), f"unknown viability flag(s) in {pattern!r}: {entry['flags']}"
+        assert set(entry["flags"]) <= known_flags, (
+            f"unknown viability flag(s) in {pattern!r}: {entry['flags']}"
+        )
 
 
 def test_committed_file_is_valid_json() -> None:

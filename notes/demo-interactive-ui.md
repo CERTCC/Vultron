@@ -103,9 +103,11 @@ As of 2026-09-08 (tip `4398ed7be`, forked from `main` at `ff4b39cbc`,
     `caseLedgerMapper.ts`) — loads case-ledger JSONL by file upload or from
     bundled samples (`ui/src/sample-logs/`) and renders it with the same
     swimlane components (`ActorPanel`, `AnimatedNode`, `Swimlanes`).
-- **`vultron/scripts/export_states.py`** → `data/json/protocol_states.json`
-  (deterministic export of the RM/EM/VFD/PXA machines from their
-  `create_*_machine()` factories) plus `test/test_demo_states_export.py`
+- **`vultron/metadata/demo_scenarios/export_states.py`** →
+  `ui/src/data/protocol_states.json` (deterministic export of the
+  RM/EM/VFD/PXA machines — RM and PXA read from their `create_*_machine()`
+  factories; VFD and EM reconstructed where the core no longer exposes a
+  standalone machine) plus `test/metadata/demo_scenarios/test_export_states.py`
   as a drift test, so the UI does not hard-code which transitions exist.
 - **No network code**: no `fetch`, `EventSource`, or `WebSocket`. Live mode
   is the missing piece.

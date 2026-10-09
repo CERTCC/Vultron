@@ -21,23 +21,27 @@ the protocol allows". Instead they read the JSON this script produces, so the
 demo automatically tracks any change to the authoritative state machines in
 :mod:`vultron.core.states`.
 
-Three of the four machines are read uniformly through their public
-``create_*_machine()`` factories in :mod:`vultron.core.states`, so this script
-never needs to know how each enum serializes:
+Two of the four machines are read uniformly through their public
+``create_*_machine()`` factories in :mod:`vultron.core.states`, so for these
+this script never needs to know how each enum serializes:
 
 - **RM**  — Report Management (per-participant)
-- **EM**  — Embargo Management (case-level)
 - **PXA** — Public / eXploit / Attacks (case-level)
 
-The fourth, **VFD** (Vendor Fix Development; the per-participant
-``vfd``→``VFD`` ladder), no longer exists as a single machine in
-:mod:`vultron.core.states`: it was split into the orthogonal ``CS_vf`` and
-``CS_d`` sub-machines. The demo UI still consumes one combined ``vfd`` machine,
-so :func:`create_vfd_machine` below projects the two authoritative sub-machines
-back onto that ladder. See its docstring for the demo-scoped composition rule.
+The other two no longer exist as standalone machines in
+:mod:`vultron.core.states`, so the exporter reconstructs each one the demo UI
+needs (see each function's docstring for the demo-scoped detail):
 
-Output is written to ``data/json/protocol_states.json`` at the repository root
-(following the SSVC ``data/json/`` precedent). The output is **deterministic**
+- **VFD** (Vendor Fix Development; the ``vfd``→``VFD`` ladder) was split into
+  the orthogonal ``CS_vf`` and ``CS_d`` sub-machines; :func:`create_vfd_machine`
+  projects those two authoritative sub-machines back onto the ladder.
+- **EM** (Embargo Management; case-level) was moved off a transition machine by
+  ADR-0122 — EM is now derived from the embargo register — so
+  :func:`create_em_machine` encodes the case-level EM machine as a *temporary*
+  stand-in until epic #4283 exposes it declaratively (tracked in #4427).
+
+Output is written to ``ui/src/data/protocol_states.json``, co-located with its
+only consumer (``ui/src/protocol.ts``). The output is **deterministic**
 — no timestamps, stable ordering — so a CI drift test can assert the committed
 file matches a fresh export.
 
@@ -58,6 +62,8 @@ from typing import Any
 
 from transitions import Machine
 
+from vultron.core.case_states.patterns.embargo import _EMBARGO_VIABILITY
+from vultron.core.scoring.embargo import EmbargoViability
 from vultron.core.states.cs import (
     CS_d,
     CS_vf,
@@ -65,16 +71,14 @@ from vultron.core.states.cs import (
     _vf_transitions,
     create_pxa_machine,
 )
-from vultron.core.states.em import create_em_machine
+from vultron.core.states.em import EM
 from vultron.core.states.rm import create_rm_machine
-from vultron.core.case_states.patterns.embargo import _EMBARGO_VIABILITY
-from vultron.core.scoring.embargo import EmbargoViability
 
-# Where the artifact lives, relative to the repo root.
+# Where the artifact lives, co-located with its only consumer under ``ui/``.
 # __file__ = <repo>/vultron/metadata/demo_scenarios/export_states.py
 #   parents[0] = demo_scenarios, [1] = metadata, [2] = vultron, [3] = <repo root>
 REPO_ROOT = Path(__file__).resolve().parents[3]
-OUTPUT_PATH = REPO_ROOT / "data" / "json" / "protocol_states.json"
+OUTPUT_PATH = REPO_ROOT / "ui" / "src" / "data" / "protocol_states.json"
 
 
 def _vfd_token(vf: CS_vf, d: CS_d) -> str:
@@ -102,8 +106,8 @@ def create_vfd_machine() -> Machine:
     demo-scoped convenience — :mod:`vultron.core` deliberately no longer
     represents a combined VFD machine.
     """
-    d_initial = list(CS_d)[0]
-    vf_initial = list(CS_vf)[0]
+    d_initial = next(iter(CS_d))
+    vf_initial = next(iter(CS_vf))
     vf_terminal = list(CS_vf)[-1]
 
     # vf advances with d pinned at its initial value, then d advances with vf
@@ -137,6 +141,87 @@ def create_vfd_machine() -> Machine:
     )
 
 
+def create_em_machine() -> Machine:
+    """Build the case-level EM machine the demo consumes.
+
+    TEMPORARY (2026-10) — tracked in #4427, blocked on epic #4283. ADR-0122
+    moved Embargo Management off a standalone transition machine: a case's EM
+    state is now *derived* from its embargo register
+    (:func:`vultron.core.states.embargo_register.derive_em`), and
+    :mod:`vultron.core.states.em` no longer exposes ``create_em_machine``.
+
+    The case-level EM machine itself is NOT going away — per the maintainer it
+    remains the authoritative top-level view that the register derivation must
+    stay consistent with. But until epic #4283 settles and exposes that
+    case-level machine declaratively, there is no transition table to read, so
+    the transitions are encoded here as a demo-scoped stand-in. The five states
+    are still read from the :class:`EM` enum; only the ``propose``/``accept``/
+    ``reject``/``terminate`` transition table below is hand-held. Switch this
+    back to reading the authoritative machine once #4283 provides an accessor
+    (see #4427); the drift test guards the committed artifact meanwhile.
+    """
+    states = [e.value for e in EM]  # NONE, PROPOSED, ACTIVE, REVISE, EXITED
+    transitions = [
+        {
+            "trigger": "propose",
+            "source": EM.NONE.value,
+            "dest": EM.PROPOSED.value,
+        },
+        {
+            "trigger": "propose",
+            "source": EM.PROPOSED.value,
+            "dest": EM.PROPOSED.value,
+        },
+        {
+            "trigger": "propose",
+            "source": EM.ACTIVE.value,
+            "dest": EM.REVISE.value,
+        },
+        {
+            "trigger": "propose",
+            "source": EM.REVISE.value,
+            "dest": EM.REVISE.value,
+        },
+        {
+            "trigger": "reject",
+            "source": EM.PROPOSED.value,
+            "dest": EM.NONE.value,
+        },
+        {
+            "trigger": "reject",
+            "source": EM.REVISE.value,
+            "dest": EM.ACTIVE.value,
+        },
+        {
+            "trigger": "accept",
+            "source": EM.PROPOSED.value,
+            "dest": EM.ACTIVE.value,
+        },
+        {
+            "trigger": "accept",
+            "source": EM.REVISE.value,
+            "dest": EM.ACTIVE.value,
+        },
+        {
+            "trigger": "terminate",
+            "source": EM.ACTIVE.value,
+            "dest": EM.EXITED.value,
+        },
+        {
+            "trigger": "terminate",
+            "source": EM.REVISE.value,
+            "dest": EM.EXITED.value,
+        },
+    ]
+    return Machine(
+        states=states,
+        transitions=transitions,
+        initial=EM.NONE.value,
+        auto_transitions=False,
+        name="Demo EM machine (temporary stand-in; see #4427 / #4283)",
+    )
+
+
 # Fixed, ordered list of machines so the exported JSON is deterministic.
 _MACHINES = (
     ("rm", create_rm_machine),
@@ -165,7 +250,7 @@ def _machine_to_dict(machine: Machine) -> dict[str, Any]:
     states = [_state_name(s) for s in machine.states]
 
     transitions: list[dict[str, str]] = []
-    for trigger_name in machine.events.keys():
+    for trigger_name in machine.events:
         for trans in machine.get_transitions(trigger=trigger_name):
             transitions.append(
                 {
@@ -239,8 +324,8 @@ def build_payload() -> dict[str, Any]:
     payload: dict[str, Any] = {
         "_README": (
             "Generated by `uv run export-demo-states` "
-            "(vultron/scripts/export_states.py). Do not edit by hand; "
-            "re-run the exporter and commit the result instead."
+            "(vultron/metadata/demo_scenarios/export_states.py). Do not edit by "
+            "hand; re-run the exporter and commit the result instead."
         )
     }
     for key, factory in _MACHINES:
@@ -255,7 +340,7 @@ def _serialize(payload: dict[str, Any]) -> str:
 
 
 def main() -> None:
-    """Write the export to ``data/json/protocol_states.json``."""
+    """Write the export to ``ui/src/data/protocol_states.json``."""
     payload = build_payload()
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(_serialize(payload), encoding="utf-8")

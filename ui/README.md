@@ -7,7 +7,7 @@ horizontal **swimlane**; time flows left→right; protocol events appear as
 abstract CVD state machines legible.
 
 > For the detailed architecture and working norms of this subproject, see
-> [CLAUDE.md](CLAUDE.md). This README is the quick-start overview.
+> [AGENTS.md](AGENTS.md). This README is the quick-start overview.
 
 ## Prerequisites
 
@@ -16,11 +16,13 @@ abstract CVD state machines legible.
 ## Getting Started
 
 1. **Install dependencies:**
+
    ```bash
    npm install
    ```
 
 2. **Run the development server:**
+
    ```bash
    npm run dev
    ```
@@ -128,6 +130,7 @@ Case Actor lanes; inviting a vendor adds a lane).
 - [src/protocol.ts](src/protocol.ts) — typed wrapper over the protocol artifact
 
 <a id="source-of-truth"></a>
+
 ### Source of truth
 
 Both modes defer the protocol's states and transitions to a committed artifact,
@@ -141,5 +144,5 @@ The demo imports the JSON directly, so `npm run dev` never needs Python.
 
 ## Reference
 
-- [ui/CLAUDE.md](CLAUDE.md) — full subproject architecture and conventions
+- [ui/AGENTS.md](AGENTS.md) — full subproject architecture and conventions
 - [State machine definitions](../vultron/core/states/)

@@ -18,7 +18,7 @@
  *     machine state decides availability.
  *   - 'demo' — the action has no protocol-machine meaning at all (notes/Q&A,
  *     vendor invitations, publication acknowledgement). These are outside the
- *     scope of `protocol_states.json` (see ui/CLAUDE.md §6 / §9) and keep their
+ *     scope of `protocol_states.json` (see ui/AGENTS.md §6 / §9) and keep their
  *     existing demo-owned logic.
  *
  * NOTE on states absent from the artifact: the ORIGINAL multi-vendor demo
@@ -26,7 +26,7 @@
  * real RM state in `protocol_states.json` and is intentionally not represented
  * here. In practice it was never written anywhere (invited vendors enter at
  * RM.RECEIVED and there is no decline action/handler), so the Validated fork
- * has REMOVED it entirely (see ui/CLAUDE.md §9). A vendor "declining" a report
+ * has REMOVED it entirely (see ui/AGENTS.md §9). A vendor "declining" a report
  * is, at the protocol level, `invalidate` (→INVALID→CLOSED) or `defer`
  * (→DEFERRED→CLOSED). If the original ever revives a real decline flow, model
  * it as one of those triggers rather than reintroducing a pseudo-state.
@@ -77,7 +77,7 @@ export const ACTION_PROTOCOL_MAP: Record<string, ActionProtocolMapping> = {
   'finder-close-case': { kind: 'transition', machine: 'rm', trigger: 'close' },
 
   // ---- Finder: demo-only --------------------------------------------------
-  'finder-add-note': { kind: 'demo', note: 'Q&A note; no machine slot (see CLAUDE.md §6).' },
+  'finder-add-note': { kind: 'demo', note: 'Q&A note; no machine slot (see AGENTS.md §6).' },
   'finder-notify-published': { kind: 'demo', note: 'Acknowledgement of publication; not a machine transition.' },
   'finder-invite-vendor': {
     kind: 'demo',
@@ -129,7 +129,7 @@ export const ACTION_PROTOCOL_MAP: Record<string, ActionProtocolMapping> = {
   },
 
   // ---- External actors: PXA ----------------------------------------------
-  // Real-world events outside any participant's control (CLAUDE.md §3 / filters).
+  // Real-world events outside any participant's control (AGENTS.md §3 / filters).
   'trigger-exploit': { kind: 'transition', machine: 'pxa', trigger: 'exploit_made_public' },
   'trigger-attacks': { kind: 'transition', machine: 'pxa', trigger: 'attacks_are_observed' },
 }

@@ -14,14 +14,14 @@ import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
 // Committed sample ledgers the "Load …" buttons import at build time via `?raw`.
 // These live under `ui/src/sample-logs/` — COMMITTED fixtures that ship with the
 // app — deliberately separate from the repo-root `devlogs/`, which is a gitignored
-// runtime-output dir the container demo writes to (see ui/CLAUDE.md §7). Keeping
+// runtime-output dir the container demo writes to (see ui/AGENTS.md §7). Keeping
 // them in-tree means a fresh clone builds without needing devlogs/, and no reliance
 // on Vite's `server.fs.allow` reaching outside ui/.
 //
 // All ledgers below were regenerated 2026-08 on the NEW case-ledger vocabulary
 // (create_case / add_report_to_case / add_case_status_to_case / case_fully_closed
 // / engage_case / add_case_participant / reject_invite / accept_actor_recommendation
-// — see ui/CLAUDE.md §5–6). Filenames are per-run UUIDs; when regenerating, copy
+// — see ui/AGENTS.md §5–6). Filenames are per-run UUIDs; when regenerating, copy
 // the newest case-actor copy from devlogs/<scenario>/ and update the path here.
 //
 // fv: the happy-path sample (Finder + Vendor; formerly "two-actor"). One shared
@@ -38,7 +38,7 @@ import fvvLedgerRaw from './sample-logs/fvv/urn_uuid_ae1cd883-a581-4ff8-854d-504
 // Coordinator container scenarios (F/V/C notation: Finder/Vendor/Coordinator, with
 // -extension vs -handoff variants). Each is the case-actor (authoritative) copy.
 // The -handoff logs replay but the case-ownership TRANSFER is not yet depicted
-// (deferred — see ui/CLAUDE.md §5), so the CASE_OWNER migration shows only as role
+// (deferred — see ui/AGENTS.md §5), so the CASE_OWNER migration shows only as role
 // changes we don't yet render.
 import fcvLedgerRaw from './sample-logs/fcv/urn_uuid_cb1999cc-a443-4814-9a1e-c547eb4f97e9-case-ledger.jsonl?raw'
 import fvcvExtLedgerRaw from './sample-logs/fvcv-extension/urn_uuid_d7d50e80-fc30-4868-a30c-264bf50682aa-case-ledger.jsonl?raw'

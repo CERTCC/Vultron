@@ -1,7 +1,7 @@
 /**
  * Functions to determine which actions are available for each participant.
  *
- * VALIDATED FORK (see ui/CLAUDE.md §9, Step 5): machine-state gating (RM / EM /
+ * VALIDATED FORK (see ui/AGENTS.md §9, Step 5): machine-state gating (RM / EM /
  * VFD / PXA) is derived from the committed protocol artifact via
  * `isLegalTransition(...)` rather than hardcoded state-name comparisons. The
  * pattern throughout is:
@@ -23,7 +23,7 @@
  * actually written anywhere (no decline action/handler exists — invited vendors
  * enter directly at RM.RECEIVED), so its guards were inert. A vendor "declining"
  * a report is, at the protocol level, either `invalidate` (→INVALID→CLOSED) or
- * `defer` (→DEFERRED→CLOSED) — both already represented. See ui/CLAUDE.md §9.
+ * `defer` (→DEFERRED→CLOSED) — both already represented. See ui/AGENTS.md §9.
  */
 
 import type { DemoState, Action } from '../types'
@@ -223,7 +223,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // NOTE: the original demo had a `rmState === 'DECLINED'` guard here for
   // declined invitations. This fork drops it — DECLINED is not a real RM state
   // (protocol_states.json) and was never written (no decline action exists;
-  // invited vendors enter at RM.RECEIVED). See the file header / CLAUDE.md §9.
+  // invited vendors enter at RM.RECEIVED). See the file header / AGENTS.md §9.
 
   // Per Vultron protocol (working_with_others.md lines 107-115):
   // If vendor joined a case with an existing embargo, they must accept/reject embargo FIRST
@@ -422,7 +422,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // artifact doesn't sanction. The `VFDP..` states in potential_actions.py are where
   // CLOSE_CASE is a *suggested* action for analysis/scoring; that advisory table is
   // NOT the legality authority and must not gate the option — see this thread /
-  // ui/CLAUDE.md.) The source-specific label below is cosmetic only.
+  // ui/AGENTS.md.) The source-specific label below is cosmetic only.
   if (isLegalTransition('rm', vendor.rmState, 'close')) {
     const label =
       vendor.rmState === 'INVALID' ? 'Close Invalid Report'
@@ -439,7 +439,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // ---- Case-ownership transfer (demo overlay) ----------------------------------
   // Ownership transfer is PROCEDURAL, not a state machine — it moves the CASE_OWNER
   // role + case.attributedTo (CM-21-001..010, TRIG-11-001/002, ADR-0053), with NO
-  // entry in protocol_states.json. So this is a deliberate overlay (ui/CLAUDE.md §9),
+  // entry in protocol_states.json. So this is a deliberate overlay (ui/AGENTS.md §9),
   // not an isLegalTransition gate.
   //
   // CONVENTION (not enforced protocol): we only offer this to the CURRENT owner. The
