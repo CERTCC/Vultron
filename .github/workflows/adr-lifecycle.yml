@@ -5,6 +5,9 @@
 # can fail only the pull request that made the edit. The clock alone never
 # fails a merge-blocking check; drift on ADRs a pull request did not touch is
 # reported by adr-status-drift.yml.
+#
+# The same job refuses an unresolvable path or code symbol that the pull
+# request adds to an ADR it edits (MS-15-006), against the same merge base.
 
 name: ADR Lifecycle
 
@@ -47,3 +50,18 @@ jobs:
             exit 0
           fi
           PYTHONPATH='' uv run python -m vultron.metadata.adr.lifecycle --base "$base" "${adrs[@]}"
+      # MS-15-006: a reference this pull request writes into an ADR resolves.
+      # Only references the edit adds are judged, never the record's existing
+      # text, so a code change cannot fail it (ADR-0127).
+      - name: Check the references this pull request adds to ADRs
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          base=$(git merge-base "origin/$BASE_REF" HEAD)
+          mapfile -t adrs < <(git diff --name-only --diff-filter=AMR "$base" HEAD -- 'docs/adr/*.md')
+          if [ "${#adrs[@]}" -eq 0 ]; then
+            echo "No ADR changed."
+            exit 0
+          fi
+          PYTHONPATH='' uv run python -m vultron.metadata.adr.added_refs --base "$base" "${adrs[@]}"

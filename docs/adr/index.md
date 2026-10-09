@@ -66,6 +66,8 @@ Do not add another such citation. An ADR citing a numbered detail of another ADR
 **An aged code reference in an ADR body is not a defect.**
 Per [ADR-0127](0127-decision-records-leave-routine-agent-context.md), the existing stale paths and symbols across the corpus are not a backlog and no scrub is owed: a reference in a record's context or validation prose is an accurate account of the code as it then stood.
 Enforcement is forward-only — a reference newly written into an ADR should resolve on the day it is written.
+The `adr-added-reference-check` pre-commit hook and its pull-request twin fail a backticked path or code symbol that an edit adds and that resolves nowhere, and never judge a reference already on the merge base (MS-15-006).
+A record that deliberately names a removed symbol opts out with `lint_suppress: [phantom_symbol_ref]`, or `[phantom_path_ref]` for a path (MS-15-007).
 
 **How to edit an ADR**: follow the edit tiers in [ADR-0120](0120-adr-lifecycle-epochs-and-edit-tiers.md), which key off how long ago the ADR was last materially changed.
 Editorial fixes and appended annotations are allowed at any time and change neither `updated` nor `revision`.

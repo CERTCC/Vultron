@@ -14,7 +14,7 @@ import datetime as _dt
 import os
 import re
 import sys
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -821,34 +821,42 @@ class _SourceScan:
         self.spec_id_citations: list[tuple[str, str]] = []
         self.symbols: set[str] = set()
 
-        for scan_root in (repo_root / "vultron", repo_root / "test"):
-            if not scan_root.is_dir():
+        for rel_str, text in iter_python_sources(repo_root):
+            if not path_is_under(rel_str, _SYMBOL_CORPUS_EXCLUDED_PATHS):
+                self.symbols.update(_SOURCE_SYMBOL_RE.findall(text))
+
+            if any(
+                rel_str.startswith(d + "/") for d in _PHANTOM_ID_ALLOWLIST_DIRS
+            ):
                 continue
-            for py_file in sorted(scan_root.rglob("*.py")):
-                try:
-                    rel = py_file.relative_to(repo_root)
-                except ValueError:
-                    continue
-                rel_str = str(rel).replace("\\", "/")
-                text = py_file.read_text(encoding="utf-8", errors="replace")
+            seen_in_file: set[str] = set()
+            for match in _SPEC_ID_RE.finditer(text):
+                sid = match.group(0)
+                if sid not in seen_in_file:
+                    seen_in_file.add(sid)
+                    self.spec_id_citations.append((rel_str, sid))
 
-                if not any(
-                    rel_str == p or rel_str.startswith(p + "/")
-                    for p in _SYMBOL_CORPUS_EXCLUDED_PATHS
-                ):
-                    self.symbols.update(_SOURCE_SYMBOL_RE.findall(text))
 
-                if any(
-                    rel_str.startswith(d + "/")
-                    for d in _PHANTOM_ID_ALLOWLIST_DIRS
-                ):
-                    continue
-                seen_in_file: set[str] = set()
-                for match in _SPEC_ID_RE.finditer(text):
-                    sid = match.group(0)
-                    if sid not in seen_in_file:
-                        seen_in_file.add(sid)
-                        self.spec_id_citations.append((rel_str, sid))
+def iter_python_sources(repo_root: Path) -> Iterator[tuple[str, str]]:
+    """Yield ``(relative_path, text)`` for every Python file under ``vultron/`` and ``test/``.
+
+    The tree the phantom-reference checks resolve code symbols against —
+    :class:`_SourceScan` here, and the decision-record check in
+    :mod:`vultron.metadata.adr.added_refs` (MS-15-006). Paths are POSIX,
+    relative to ``repo_root``, and visited in sorted order; a missing tree is
+    skipped.
+    """
+    for scan_root in (repo_root / "vultron", repo_root / "test"):
+        if not scan_root.is_dir():
+            continue
+        for py_file in sorted(scan_root.rglob("*.py")):
+            rel = py_file.relative_to(repo_root).as_posix()
+            yield rel, py_file.read_text(encoding="utf-8", errors="replace")
+
+
+def path_is_under(rel_path: str, prefixes: Iterable[str]) -> bool:
+    """True when ``rel_path`` is one of ``prefixes`` or lies below one of them."""
+    return any(rel_path == p or rel_path.startswith(p + "/") for p in prefixes)
 
 
 def _check_phantom_spec_id_citations(
