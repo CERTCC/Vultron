@@ -231,6 +231,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)*
 - [ADR-0127 Decision Records Leave Routine Agent Context; Specs and Notes Carry the Current State](0127-decision-records-leave-routine-agent-context.md)
 - [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
+- [ADR-0129 A Sender Rule States Every Position on Both Sides, and Is the Source of "Sent By"](0129-a-sender-rule-states-every-position-on-both-sides-and-is-the-source-of-sent-by.md)
 
 ## Rejected ADRs
 

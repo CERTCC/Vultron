@@ -24,6 +24,7 @@ related_notes:
   - notes/status-dimension-objects.md
   - notes/sync-ledger-replication.md
   - notes/participant-embargo-consent.md
+  - notes/case-communication-model.md
 ---
 
 # Message Type Reference: Formal Shorthands, AS2 Wire Forms, and the Mapping Between Them
@@ -333,8 +334,9 @@ with a wire activity, sometimes narrowed by a distinguishing field value or stat
 context (glossary, Messaging and Protocol). One semantic type has one or more
 occasions —
 `Add(CaseStatus)` has three — so the table has one row per (occasion, wire activity)
-pair: When… | Send | Sent by | Distinguished by | Details. The formal shorthand is
-only the Details link text; the formal protocol is linked, not leading.
+pair: When… | Send | Send to | Sent by | Distinguished by | Details. The formal
+shorthand is only the Details link text; the formal protocol is linked, not
+leading.
 
 Where each fact will live, so nothing derivable is typed by hand:
 
@@ -342,7 +344,8 @@ Where each fact will live, so nothing derivable is typed by hand:
 |---|---|
 | when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes | `SemanticEntry.occasions` |
 | wire summary | the entry's `ActivityPattern`, rendered as today |
-| sent by | the received use case's `sender_entitlement` (ADR-0115) |
+| send to (addressee) | `SemanticEntry.occasions` (ADR-0129) |
+| sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
 | page | a new `SemanticEntry.page` field, moved from `RowSpec.page` |
 | `MappingStatus`, discriminator | derived from the occasions (`evolved` declared on its occasion), no longer entered in `_mapping.py` |
 | "Seen in" | the include directives on workflow pages |
@@ -361,7 +364,8 @@ another implementation must satisfy, and it cannot drift. It is often broader
 than the convention: any active participant may send `Add(ParticipantStatus)`
 with `vf_state` `VF`, though a vendor is the one with a fix. An occasion may add
 a "usually" note, typed as `CVDRole` values, so the row reads "an active
-participant (usually: vendor)" (MSM-08-005). The wording per kind:
+participant (usually: vendor)" (MSM-08-005). The wording per kind, which
+moves onto the kind itself (MSM-08-010) so no table like this one is kept by hand:
 
 | `SenderEntitlementKind` | "Sent by" |
 |---|---|
@@ -369,24 +373,65 @@ participant (usually: vendor)" (MSM-08-005). The wording per kind:
 | `CASE_OWNER` | the case owner |
 | `ACTIVE_PARTICIPANT` | an active participant |
 | `INVITEE` | the invitee |
-| `NAMED_ACTOR` | the actor the request was addressed to |
+| `NAMED_ACTOR` (the addressee kind) | the addressee of the *request*, e.g. "the addressee of the case proposal" |
+| author (planned, #4433) | the author of the *object*, e.g. "the note's author" |
 | `EXECUTING_ACTOR` | the receiving actor itself |
 | `SenderExemption` | not yet checked |
 
-Two cautions. About half the received use cases are exempt today, so the
-column fills in only as the exemptions close; do not paper over that with
-hand-written values. And a kind names the entitlement at the CASE_MANAGER, where
-the assertion is adjudicated. For the embargo messages only, a replica other than
-the CASE_MANAGER accepts the message only from the CASE_MANAGER (PCR-03-001),
-whatever the kind says (`sender_entitlement.py` module docstring).
+About half the received use cases are exempt today, so the column fills in
+only as the exemptions close; do not paper over that with hand-written values.
 
-**Exchange positions are not roles.** "The receiver of a report" or "the
-invitee" holds that position only relative to one exchange; the same
-coordinator receives one report and sends the next, and a report precedes any
-case, so there is no participant record to hold the role. `CVDRole` values are
-durable facts persisted on `CaseParticipant.roles`. So positions stay in the
-occasion's description for now; whether they become a named, closed vocabulary
-is a separate question (#4433), not a `CVDRole` extension by default.
+### Planning decisions (#4433): positions and the shape of a sender rule
+
+ADR-0129 settles where positions within one exchange live, and what a declared
+sender rule must say for "Sent by" to be derived for every occasion.
+
+**Positions are entitlement kinds, not roles and not a second list.** "The
+invitee" or "the addressee of a case proposal" holds that position only
+relative to one exchange; the same coordinator receives one report and sends
+the next, and a report precedes any case, so there is no participant record to
+hold it. `CVDRole` values are durable facts persisted on
+`CaseParticipant.roles`, so no position joins `CVDRole` (HP-01-009). A separate
+exchange-position enum was rejected: no occasion was found whose rule is broad
+but whose usual sender is a position, because once a case exists the report
+receiver holds `CASE_OWNER`. So the "usually" note stays `CVDRole`-only, and a
+position a new rule needs (the author of a note) becomes a kind. A position
+that is the addressee of a request, such as the ownership-transfer transferee,
+is the addressee kind below, not a new kind.
+
+**One addressee kind, worded from the exchange.** The actor a request was
+addressed to is one kind whatever the request, other than an Invite, so one
+guard serves the case proposal answers, the ownership-transfer answers and any
+later addressee rule. Its wording takes the request from the answered
+activity's object type, so the cell is identified without a kind per request
+type (MSM-08-010). The invitee stays its own kind: it is checked against the
+`to` of the Invite the receiver recorded, not against an addressee the receiver
+wrote on its own record, and "invitee" is already the protocol's term
+(EP-09-010, CM-11-017). The addressee kind is today's `NAMED_ACTOR` as the
+case-proposal answers use it; the sync check that a ledger `Reject` comes from
+the local CaseActor, which also declares `NAMED_ACTOR`, is the CASE_MANAGER
+standing and moves to that kind.
+
+**A declaration is the full rule, per addressee side.** Today some declarations
+are a floor and the rest lives in the tree: `Remove(Note)` declares "an active
+participant", while CM-30-001 entitles the note's author or the Case Owner, and
+the embargo `Invite(Event)` declares one kind while `SenderMayAssertEmbargoNode`
+checks two sides through its `manager_arm`. A declaration becomes a value
+composed of kinds: "any of" several, stated per addressee (the CASE_MANAGER, a
+participant, or an actor outside any case before a case exists). The factory
+builds the guard from it alone (HP-01-008).
+
+**Each occasion names its addressee; "Sent by" and "Send to" are derived.** One
+wire activity can carry occasions with different senders. A participant
+proposing an embargo sends `Invite(Event)` with `target` the case `to` the
+CASE_MANAGER; the CASE_MANAGER asking a participant about a proposal, on the
+Case Owner's behalf, sends `Invite(Event)` with `context` the case `to` that
+participant. Both match one registry entry and one use case. The occasion's
+addressee picks the side of the rule that gives its sender, and renders as the
+row's "Send to" (MSM-08-009). The replica side of a rule is not a separate
+concern for this table: the table serves emitters, and the CASE_MANAGER appears
+as a sender only on its own occasions (such as ledger announcements, the Invites
+it sends, and `Offer(CaseParticipant)`).
 
 **One grammar for "When…".** Every occasion's "when" is the sender's situation,
 from the sender's side — for mechanics and a `Create` that precedes an `Add` too:
