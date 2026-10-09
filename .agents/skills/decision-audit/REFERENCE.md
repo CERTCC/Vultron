@@ -181,7 +181,7 @@ decision, so the interview does not start from confirmation bias.
 |---|---|
 | **(a) still correct** | Status/confidence tidy only; record so it doesn't resurface. |
 | **(b) imprecisely stated** | Correct the prose (e.g. pin the layer); amend misleading dependents. |
-| **(c) stale / superseded** | `status: superseded` + `superseded_by:` field, move to `docs/adr/archived/`, update dependents, write replacement decision if needed. |
+| **(c) stale / superseded** | `status: superseded` + `superseded_by:` field, retired ADR added to the successor's `supersedes:` list (`partially_*` pair when one decision is replaced; MS-14-011), move to `docs/adr/archived/`, update dependents, write replacement decision if needed. |
 | **(d) wrong from start** | Correct or retire the ADR; fix every dependent that inherited the premise; strongly consider a Concern if the correct decision isn't yet clear. |
 
 Default disposition for (b)/(c) and settled (d): **fix now** in a docs-only PR.

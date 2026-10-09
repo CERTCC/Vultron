@@ -622,6 +622,18 @@ def _make_adr_dir(tmp_path, adr_numbers=None):
     return adr_dir
 
 
+def _write_successor_stub(adr_dir, num, supersedes):
+    """Write an accepted ADR that records the ADR it supersedes (MS-14-011).
+
+    A supersession link must be recorded on both ADRs, so a fixture retiring
+    an ADR also needs the successor-side ``supersedes`` entry.
+    """
+    (adr_dir / f"{num}-stub.md").write_text(
+        f"---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\n"
+        f"revision: 1\nsupersedes: {supersedes}\n---\n# ADR-{num}\n"
+    )
+
+
 def test_lint_adr_ref_missing_emits_warn(tmp_path, capsys):
     """A rationale referencing ADR-0099 that has no file emits a [WARN]."""
     data = _minimal_spec(extra={"rationale": "Derived from ADR-0099."})
@@ -832,7 +844,8 @@ def test_lint_adr_invalid_status_is_hard_error(tmp_path, capsys):
 def test_lint_adr_superseded_status_ok(tmp_path):
     """A superseded ADR with a resolvable superseded_by target is valid."""
     write_yaml(tmp_path, _minimal_spec())
-    adr_dir = _make_adr_dir(tmp_path, ["0100"])  # replacement exists
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_successor_stub(adr_dir, "0100", supersedes="0099-stub.md")
     (adr_dir / "0099-stub.md").write_text(
         "---\nstatus: superseded\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\nsuperseded_by: 0100-stub.md\n---\n# x\n"
     )
@@ -843,7 +856,8 @@ def test_lint_adr_superseded_status_ok(tmp_path):
 def test_lint_adr_superseded_inline_form_ok(tmp_path):
     """The inline 'superseded by <link>' MADR form is accepted and resolved."""
     write_yaml(tmp_path, _minimal_spec())
-    adr_dir = _make_adr_dir(tmp_path, ["0100"])
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_successor_stub(adr_dir, "0100", supersedes="0099-stub.md")
     (adr_dir / "0099-stub.md").write_text(
         "---\nstatus: superseded by 0100-stub.md\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n---\n# x\n"
     )
@@ -932,9 +946,7 @@ def test_lint_structured_adr_ref_resolves_to_archived(tmp_path):
     (archived / "0099-stub.md").write_text(
         "---\nstatus: deprecated\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\nsuperseded_by: 0100-stub.md\n---\n# x\n"
     )
-    (adr_dir / "0100-stub.md").write_text(
-        "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n---\n# x\n"
-    )
+    _write_successor_stub(adr_dir, "0100", supersedes="ADR-0099")
     result = lint(tmp_path, adr_dir=adr_dir)
     assert result == 0
 

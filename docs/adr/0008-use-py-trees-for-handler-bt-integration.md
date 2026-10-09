@@ -11,6 +11,7 @@ consulted:
 informed:
   - contributors
 stakeholder_type: [project-contributor]
+partially_supersedes: 0003-build-custom-python-bt-engine.md
 ---
 
 # Use py_trees for Behavior Tree Execution in Handler Integration
