@@ -1096,6 +1096,8 @@ groups:
       Before #3470 neither record was fully pruned, and a rejected proposal stayed in
       both. A participant's Reject (consent, not a decision) changes no entry. This
       requirement covers every record of open proposals on every replica.
+      The record is not a way to answer the embargo in force: that goes through the
+      Invite the participant received (EP-09-012).
     verification: >-
       A unit test asserts that accepting a proposal, rejecting a proposal, and
       tearing down an embargo each leave no corresponding entry in the open-proposal
@@ -1607,5 +1609,89 @@ groups:
     adr:
     - ADR-0113
     - ADR-0114
+    stories:
+    - story_2022_014
+
+  - id: EP-09-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The accept and reject embargo triggers MUST let a participant answer the embargo
+      in force when the caller names the `Invite(EmbargoEvent)` to answer and the
+      participant's consent row for that Invite's embargo is `INVITED` or `TIMED_OUT`
+      (CM-18-001). The trigger MUST resolve the named Invite from the participant's own
+      record of the Invite it received, not from the record of open proposals, and MUST
+      raise a not-found error when the participant holds no such Invite or its row is in
+      any other state. When the caller names no Invite, the trigger MUST select among
+      the open proposals only (EP-08-002) and MUST NOT fall back to the embargo in
+      force.
+    rationale: >-
+      Activation takes a proposal out of the record of open proposals (EP-08-003), so a
+      participant relayed the proposal (EP-09-011) that had not answered when it was
+      activated, or whose reply deadline has since passed (EMB-17), can no longer name
+      it there. The receive side already honours the answer (MSM-07-003, EMB-17-002). A
+      no-name call never falls back to the embargo in force, because answering an
+      embargo is an intentional act.
+    note: >-
+      Answering the embargo in force goes through the relayed `Invite(EmbargoEvent)`
+      (ADR-0122), not the full-case Invite, whose replies move only the RM state
+      (CM-11-011). A joiner whose `INVITED` row for the embargo in force comes from the
+      stub Invite (CM-11-006) holds no `Invite(EmbargoEvent)` to name; accepting the
+      stub makes it `AGREED` (CM-11-001), so it needs no trigger. Withdrawing from the
+      embargo in force from an `AGREED` row is not an answer and has its own trigger
+      (EP-09-013).
+    verification: >-
+      Trigger tests under `test/core/use_cases/triggers/embargo/` answer the embargo in
+      force by Invite id with an `INVITED` row and with a `TIMED_OUT` row (accept and
+      reject), and assert the not-found error for an `AGREED` row, a `DECLINED` row,
+      and an unknown Invite id. A no-name call when no proposal is open raises the
+      not-found error even though the participant holds an `INVITED` row and the
+      received Invite for the embargo in force, so a fallback would fail the test.
+    relationships:
+    - rel_type: constrains
+      spec_id: EP-08-002
+    - rel_type: depends_on
+      spec_id: MSM-07-003
+    - rel_type: depends_on
+      spec_id: EMB-17-002
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_014
+
+  - id: EP-09-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant whose consent row for the embargo in force is `ACCEPTED` MUST be
+      able to withdraw from that embargo by a trigger that sends `Leave(EmbargoEvent)`
+      naming the embargo in force to the CASE_MANAGER (MSM-07-010, PCR-08). The trigger
+      needs no Invite: it MUST resolve the embargo from the case's active embargo, and
+      MUST refuse with a reported reason when no embargo is in force, when the
+      participant's row for it is not `ACCEPTED`, or when the participant is the case
+      owner. Neither the accept nor the reject embargo trigger MUST withdraw from the
+      embargo in force.
+    rationale: >-
+      VP-13-017 lets a participant end its own compliance at any time, and VP-13-008
+      asks that it say so. A signatory made by seeding (CM-14-005) or by joining
+      (CM-11-001) holds no `Invite(EmbargoEvent)` for the embargo in force, but every
+      participant holds the embargo itself. Keeping withdrawal out of the reject trigger
+      means a no-name reject still refuses an open proposal (EP-08-002) and never
+      withdraws a signatory.
+    verification: >-
+      Trigger tests under `test/core/use_cases/triggers/embargo/` withdraw a signatory
+      with an `ACCEPTED` row on the embargo in force, including one seeded with no
+      Invite, and assert the Leave names the active embargo and is addressed to the
+      CASE_MANAGER; they assert the refusal with no embargo in force, with an `INVITED`
+      row, and for the case owner, and that a no-name reject with a revision open
+      refuses the revision and leaves the row for the embargo in force `ACCEPTED`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MSM-07-010
+    - rel_type: refines
+      spec_id: VP-13-017
+    adr:
+    - ADR-0093
+    - ADR-0122
     stories:
     - story_2022_014

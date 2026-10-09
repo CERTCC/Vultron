@@ -1034,6 +1034,16 @@ groups:
       `MessageSemantics` (ADR-0049), `Add(Note, VulnerabilityCase)` is the
       pragmatic substitute. The note makes the anomaly visible at the protocol
       level, not just in local logs.
+    verification: >
+      When an RM anomaly (forward gap or backward regression) is detected on the
+      production `add_participant_status_tree` path (case context available), an
+      `Add(Note, VulnerabilityCase)` addressed to the sender is queued: once per
+      received activity for an accepted-with-anomaly declaration (replica-effects
+      stage) and once for a wholly-refused backward regression (refusal-effects
+      stage, CLP-10-022). Both paths are asserted — the accepted path via the
+      parametrised shared-RM-table tests (covering every declared RM state) and the
+      refusal path via dedicated wholly-refused backward regression tests that confirm
+      the note is queued even though nothing is committed to the ledger.
     note: >
       Implemented by `EmitRMGapNoteNode`: in the `replica_effects` of
       `add_participant_status_tree` for an accepted declaration, and in its

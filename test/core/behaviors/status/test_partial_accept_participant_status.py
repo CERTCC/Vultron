@@ -1185,6 +1185,7 @@ class TestSharedRMAcceptanceRule:
     @pytest.mark.spec("RSH-06-001")
     @pytest.mark.spec("RSH-06-002")
     @pytest.mark.spec("RSH-06-003")
+    @pytest.mark.spec("RSH-06-004")
     @pytest.mark.spec("RSH-06-006")
     @pytest.mark.parametrize("case", all_cases())
     def test_status_path_applies_the_shared_rule(

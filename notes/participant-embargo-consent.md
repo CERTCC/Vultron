@@ -198,7 +198,7 @@ differs from the one it agreed to.**
 | Revision B proposed (`ACTIVE → REVISE`, or a counter `REVISE → REVISE`) | every participant gets an `UNINVITED` row for B; the proposer's becomes `AGREED`; nothing else |
 | A participant — the owner included — accepts the Invite to B while REVISE | its row for B becomes `AGREED` (`UNINVITED`/`INVITED`/`TIMED_OUT` → `AGREED`); its row for A is untouched |
 | A participant — the owner included — rejects the Invite to B while REVISE | its row for B becomes `DECLINED`; its row for A is untouched — refusing B is not withdrawing from A |
-| Any participant rejects the *active* embargo | withdrawal: its row for A becomes `DECLINED`, and so does every open proposal's row it had agreed to |
+| A non-owner sends `Leave(EmbargoEvent)` for the *active* embargo (MSM-07-010; planned, #4388) | withdrawal: its row for A becomes `DECLINED`, and so does every open proposal's row it had agreed to. Today a Reject of the active embargo does this |
 | Owner rejects B for the case (`Reject(EmbargoEvent)`, EJ, `REVISE → ACTIVE` under A) | nothing — the owner is choosing to keep A, not declining it |
 | Owner activates B (`Accept(EmbargoEvent)`), and B ends **no later than** A | the owner's row for B becomes `AGREED`, and `CARRY_OVER` makes B's row `AGREED` for every participant whose row for A is `AGREED` — a `DECLINED` row for B included |
 | Owner activates B, and B ends **later than** A | the owner's row for B becomes `AGREED`; nothing else is written — a signatory without an `AGREED` row for B has lapsed by derivation |
@@ -367,7 +367,8 @@ Rules that keep the rows and the content gate in agreement:
   termination every entry is — an Accept or Reject of it writes no row (ADR-0118,
   ADR-0122).
 - **Withdrawal leaves the revisions too.** A `DECLINE` that names the active
-  embargo also declines every open proposal's row the actor had agreed to (every
+  embargo (today a Reject of it; `Leave(EmbargoEvent)` once MSM-07-010 lands)
+  also declines every open proposal's row the actor had accepted (every
   open proposal is a revision of the one active embargo, ADR-0113). When *no*
   embargo is in force a Reject of a proposal declines that proposal's row only —
   it withdraws from nothing.
@@ -692,6 +693,39 @@ are addressed to the participant directly, not fanned out from the ledger, so
 the pause cannot deadlock the participant out of accepting.
 
 ---
+
+## Answering the Embargo in Force (EP-09-012)
+
+**Status**: Planned — tracked by #4373 and #4388. Today the triggers resolve
+open proposals only, and withdrawal is a Reject of the active embargo.
+
+Activation takes a proposal out of `pending_embargo_proposal_index` (EP-08-003),
+so the accept and reject triggers cannot reach the embargo in force through it.
+A participant whose row for that embargo is still `INVITED` or `TIMED_OUT` can
+still answer it: the receive side marks the row of whatever embargo the
+`Accept(Invite(EmbargoEvent))` names, active or not (MSM-07-003, EMB-17-002).
+
+- The answer goes through the relayed `Invite(EmbargoEvent)`, never the
+  full-case Invite. Replies to the full-case Invite move only the RM state
+  (CM-11-011) and carry no embargo consent.
+- A joiner that accepts the stub Invite is already `AGREED` for the active
+  embargo (CM-11-001). A joiner's `INVITED` row from the stub Invite
+  (CM-11-006) has no `Invite(EmbargoEvent)` behind it, so only a participant
+  that never answered a relayed `Invite(EmbargoEvent)` (EP-09-011) needs this.
+- The caller names the Invite. With no name the trigger picks among open
+  proposals only (EP-08-002) and never falls back to the embargo in force,
+  because answering an embargo is an intentional act and a fallback could
+  consent to terms the caller did not mean.
+- Do not re-add the active embargo to the open-proposal index to make the
+  trigger find it; that breaks EP-08-003 and EP-08-002's selection.
+- Withdrawing is not answering. A signatory leaves the embargo in force by
+  sending `Leave(EmbargoEvent)` through its own trigger (EP-09-013, #4388,
+  MSM-07-010), which needs no Invite, so the reporter and a joiner can use it.
+  The reject trigger never withdraws, and a Reject of the active embargo from
+  an `AGREED` row is refused (MSM-07-004). ADR-0122 records why `Leave` was
+  chosen over `Reject(Invite)`, `Undo(Accept)` and `Reject(EmbargoEvent)`.
+
+*Spec: EP-09-012, EP-09-013, EP-08-003, MSM-07-003, MSM-07-010. Decision: ADR-0122.*
 
 ## Implications for DR-06 (Accept Embargo Handler)
 
