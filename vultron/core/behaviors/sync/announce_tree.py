@@ -33,6 +33,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsNamedActorNode,
 )
 from vultron.core.behaviors.sync.nodes import (
+    ApplyCaseParticipantRoleGrantFromLedgerNode,
     ApplyCaseStatusFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
     ApplyNoteFromLedgerNode,
@@ -47,6 +48,7 @@ from vultron.core.behaviors.sync.nodes import (
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
+    IsAcceptCaseParticipantRoleEventNode,
     IsAcceptEmbargoInviteEventNode,
     IsAddCaseStatusEventNode,
     IsAddNoteEventNode,
@@ -298,6 +300,13 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 "OfferOwnershipTransfer",
                 IsOfferOwnershipTransferEventNode,
                 ApplyOfferOwnershipTransferFromLedgerNode,
+            ),
+            # Accepting a delegated role grants it to the target participant
+            # (CM-02-016, ADR-0039); the offer half carries no grant (#3764).
+            _event_effect_slot(
+                "RoleGrant",
+                IsAcceptCaseParticipantRoleEventNode,
+                ApplyCaseParticipantRoleGrantFromLedgerNode,
             ),
             *_embargo_relay_effect_slots(),
         ],

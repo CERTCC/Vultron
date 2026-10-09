@@ -28,7 +28,9 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.delegation import (
     AutoAcceptCaseParticipantRoleNode,
     EmitRejectCaseParticipantRoleNode,
+    GrantCaseParticipantRoleNode,
 )
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -216,3 +218,48 @@ class TestEmitRejectCaseParticipantRoleNode:
         )
 
         assert result.status == Status.FAILURE
+
+
+class TestGrantCaseParticipantRoleNode:
+    """The CASE_MANAGER grants the role on its own copy at commit (CM-02-016)."""
+
+    def _seed_target(self, dl, roles=(CVDRole.VENDOR,)):
+        case = dl.read(CASE_ID)
+        participant = CaseParticipant(
+            id_=f"{CASE_ID}/participants/target",
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            case_roles=list(roles),
+        )
+        case.add_participant(participant)
+        dl.create(participant)
+        dl.save(case)
+        return case
+
+    @pytest.mark.spec("CM-02-016")
+    def test_grants_role_on_own_copy(self, bridge, dl):
+        case = self._seed_target(dl)
+        node = GrantCaseParticipantRoleNode(
+            case_id=CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=ACTOR_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        granted = dl.read(case.actor_participant_index[ACTOR_ID])
+        assert granted.has_role(CVDRole.CASE_MANAGER)  # newly granted
+        assert granted.has_role(CVDRole.VENDOR)  # pre-existing role kept
+
+    @pytest.mark.spec("CM-02-016")
+    def test_missing_participant_is_non_fatal(self, bridge, dl):
+        """No participant for the target: SUCCESS, nothing written."""
+        node = GrantCaseParticipantRoleNode(
+            case_id=CASE_ID,
+            role=CVDRole.CASE_MANAGER,
+            target_actor_id=ACTOR_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        assert ACTOR_ID not in dl.read(CASE_ID).actor_participant_index
