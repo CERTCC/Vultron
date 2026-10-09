@@ -173,7 +173,7 @@ Bringing in a vendor or a coordinator is a separate flow.
 | [CP-05-002](../../../reference/specs/protocol.md#cp-05-002) | The service MUST evaluate the proposal and either accept or reject it |
 | [CP-05-003](../../../reference/specs/protocol.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
 | [CP-05-004](../../../reference/specs/protocol.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal inline |
-| [CP-05-005](../../../reference/specs/project.md#cp-05-005) | A failed `Create` MUST be retried without resending the `Accept` |
+| [CP-05-005](../../../reference/specs/protocol.md#cp-05-005) | A failed `Create` MUST be retried without resending the `Accept` |
 | [CP-05-006](../../../reference/specs/protocol.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case |
 | [CP-05-008](../../../reference/specs/protocol.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case |
 | [CP-05-007](../../../reference/specs/protocol.md#cp-05-007) | A proposer MUST treat an unanswered proposal as expired at its deadline |

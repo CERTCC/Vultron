@@ -570,7 +570,7 @@ groups:
     - missing_story_reference
   - id: MSM-05-002
     priority: MUST
-    kind: project
+    kind: protocol
     statement: 'Acknowledgement of replicated case-ledger state MUST be cumulative and implicit via hash-chain continuity. A
       receiver whose `prev_log_hash` matches its local tail MUST NOT emit an acknowledgement, and MUST emit
       `Reject(CaseLedgerEntry)` on a mismatch, whereupon the CASE_MANAGER replays all entries after the last accepted hash.'
@@ -585,6 +585,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003
+    lint_suppress:
+    - missing_story_reference
   - id: MSM-05-005
     priority: MUST
     kind: protocol
@@ -714,7 +716,7 @@ groups:
   specs:
   - id: MSM-07-001
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       The Participant Embargo Consent (PEC) state machine MUST NOT be assigned any
       formal shorthand in the 28-shorthand protocol message set; all PEC transitions
@@ -735,9 +737,11 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
+    lint_suppress:
+    - missing_story_reference
   - id: MSM-07-002
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       The wire activity INVITE_TO_EMBARGO_ON_CASE (EP wire form:
       Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to the
@@ -761,9 +765,11 @@ groups:
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: MSM-02-001
+    lint_suppress:
+    - missing_story_reference
   - id: MSM-07-003
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (EA wire form:
       Accept(Invite(Event)[context=VulnerabilityCase])) is always the sending actor's own
@@ -801,9 +807,11 @@ groups:
     adr:
     - ADR-0093
     - ADR-0122
+    lint_suppress:
+    - missing_story_reference
   - id: MSM-07-004
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (ER wire form:
       Reject(Invite(Event)[context=VulnerabilityCase])) is always the sending actor's own
@@ -847,9 +855,11 @@ groups:
     adr:
     - ADR-0093
     - ADR-0122
+    lint_suppress:
+    - missing_story_reference
   - id: MSM-07-005
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       When the case owner's Accept(Event)[target=VulnerabilityCase] (MSM-07-008) replaces
       active embargo A with revision B (the register activates B and supersedes A, so the
@@ -901,9 +911,11 @@ groups:
     adr:
     - ADR-0093
     - ADR-0122
+    lint_suppress:
+    - missing_story_reference
   - id: MSM-07-006
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       When an ET / REMOVE_EMBARGO_EVENT_FROM_CASE wire activity terminates the embargo
       register's ACTIVE entry (cancelling every open proposal in the same step, so the derived
@@ -932,9 +944,11 @@ groups:
     adr:
     - ADR-0118
     - ADR-0122
+    lint_suppress:
+    - missing_story_reference
   - id: MSM-07-007
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       The timer-based pocket-veto transition — INVITED to TIMED_OUT on the row of the
       invitation whose deadline passed — MUST be enforced lazily with no outbound wire message emitted for the consent
@@ -961,6 +975,8 @@ groups:
       spec_id: CM-28-005
     adr:
     - ADR-0093
+    lint_suppress:
+    - missing_story_reference
   - id: MSM-07-008
     priority: MUST
     kind: project

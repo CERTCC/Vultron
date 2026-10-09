@@ -295,3 +295,151 @@ def test_specs_dir_without_a_value_is_a_usage_error(tmp_path, capsys):
     rc = relabel.main([str(mapping_path), "--specs-dir"])
     assert rc == 2
     assert "--specs-dir" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# The object form: a relabel *to* protocol, where the suppression comes back
+# with the kind instead of leaving with it, or a story replaces it (#4312).
+# ---------------------------------------------------------------------------
+
+_PROJECT_ITEMS = _HEADER + (
+    "  - id: TST-01-001\n"
+    "    priority: MUST\n"
+    "    kind: project\n"
+    "    statement: TST-01-001 MUST do the thing\n"
+    "    lint_suppress:\n"
+    "    - testable_without_steps\n"
+    "  - id: TST-01-002\n"
+    "    priority: MUST\n"
+    "    kind: project\n"
+    "    statement: TST-01-002 MUST do the thing\n"
+    "\n"
+    "  - id: TST-01-003\n"
+    "    priority: MUST_NOT\n"
+    "    kind: project\n"
+    "    statement: TST-01-003 MUST NOT do the thing\n"
+)
+
+
+def test_revert_to_protocol_adds_suppression_or_stories(tmp_path, capsys):
+    """Each item gets exactly the one field its instruction names."""
+    rc, out = _run(
+        tmp_path,
+        {
+            "TST-01-001": {"kind": "protocol", "suppress": True},
+            "TST-01-002": {
+                "kind": "protocol",
+                "stories": ["story_2022_045", "story_2022_088"],
+            },
+            "TST-01-003": {"kind": "protocol"},
+        },
+        text=_PROJECT_ITEMS,
+    )
+    assert rc == 0
+    assert out == _HEADER + (
+        "  - id: TST-01-001\n"
+        "    priority: MUST\n"
+        "    kind: protocol\n"
+        "    statement: TST-01-001 MUST do the thing\n"
+        "    lint_suppress:\n"
+        "    - testable_without_steps\n"
+        "    - missing_story_reference\n"
+        "  - id: TST-01-002\n"
+        "    priority: MUST\n"
+        "    kind: protocol\n"
+        "    statement: TST-01-002 MUST do the thing\n"
+        "    stories:\n"
+        "    - story_2022_045\n"
+        "    - story_2022_088\n"
+        "\n"
+        "  - id: TST-01-003\n"
+        "    priority: MUST_NOT\n"
+        "    kind: protocol\n"
+        "    statement: TST-01-003 MUST NOT do the thing\n"
+    )
+    assert (
+        "1 missing_story_reference suppression(s) added; "
+        "1 stories: list(s) added" in capsys.readouterr().out
+    )
+
+
+def test_stories_strip_an_existing_suppression(tmp_path):
+    """A story is what SR-11-003 asks for, so the suppression leaves with it."""
+    text = _HEADER + (
+        "  - id: TST-01-001\n"
+        "    priority: MUST\n"
+        "    kind: project\n"
+        "    statement: TST-01-001 MUST do the thing\n"
+        "    lint_suppress: [missing_story_reference]\n"
+    )
+    rc, out = _run(
+        tmp_path,
+        {"TST-01-001": {"kind": "protocol", "stories": ["story_2022_045"]}},
+        text=text,
+    )
+    assert rc == 0
+    assert "lint_suppress" not in out
+    assert out.endswith("    stories:\n    - story_2022_045\n")
+
+
+def test_suppressing_an_already_suppressed_item_is_reported(tmp_path, capsys):
+    text = _HEADER + (
+        "  - id: TST-01-001\n"
+        "    priority: MUST\n"
+        "    kind: project\n"
+        "    statement: TST-01-001 MUST do the thing\n"
+        "    lint_suppress: [missing_story_reference]\n"
+    )
+    rc, out = _run(
+        tmp_path,
+        {"TST-01-001": {"kind": "protocol", "suppress": True}},
+        text=text,
+    )
+    assert rc == 0
+    assert out.count("missing_story_reference") == 1
+    assert "already carried missing_story_reference (1)" in (
+        capsys.readouterr().out
+    )
+
+
+def test_stories_on_an_item_that_has_them_raises(tmp_path):
+    text = _HEADER + (
+        "  - id: TST-01-001\n"
+        "    priority: MUST\n"
+        "    kind: project\n"
+        "    statement: TST-01-001 MUST do the thing\n"
+        "    stories:\n"
+        "    - story_2022_001\n"
+    )
+    with pytest.raises(ValueError, match="already has a stories: field"):
+        _run(
+            tmp_path,
+            {
+                "TST-01-001": {
+                    "kind": "protocol",
+                    "stories": ["story_2022_045"],
+                }
+            },
+            text=text,
+        )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"kind": "protocol", "stories": ["story_2022_045"], "suppress": True},
+        {"kind": "protocol", "story": ["story_2022_045"]},
+        {"kind": 3},
+        {"kind": "protocol", "stories": "story_2022_045"},
+        {"kind": "protocol", "stories": [""]},
+        {"kind": "protocol", "suppress": "yes"},
+        ["protocol"],
+    ],
+)
+def test_malformed_instruction_is_a_usage_error_and_changes_nothing(
+    tmp_path, capsys, value
+):
+    rc, out = _run(tmp_path, {"TST-01-001": value}, text=_PROJECT_ITEMS)
+    assert rc == 2
+    assert "invalid mapping: TST-01-001" in capsys.readouterr().err
+    assert out == _PROJECT_ITEMS

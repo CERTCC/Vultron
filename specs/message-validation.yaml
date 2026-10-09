@@ -138,7 +138,7 @@ groups:
     - missing_story_reference
   - id: MV-03-002
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       A receiver MUST treat a required field that is present but blank as absent,
       and MUST report it with the same error as an omitted field. A blank value is
@@ -166,6 +166,8 @@ groups:
       spec_id: MV-03-001
     adr:
     - ADR-0090
+    lint_suppress:
+    - missing_story_reference
 - id: MV-04
   title: Object Type Validation
   specs:
@@ -229,12 +231,14 @@ groups:
     - story_2022_030
   - id: MV-05-002
     priority: MUST
-    kind: project
+    kind: protocol
     statement: The system MUST treat ActivityStreams object IDs as opaque URIs
     verification: >-
       Inspection of `vultron/core/` confirms that no code parses or deconstructs
       object IDs beyond URI validation; IDs are stored and compared as opaque
       strings.
+    stories:
+    - story_2022_030
 - id: MV-09
   title: Outbound Activity Object Integrity
   specs:

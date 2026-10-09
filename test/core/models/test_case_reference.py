@@ -36,6 +36,7 @@ class TestCaseReferenceBasics:
         ref = CaseReference(url=_URL)
         assert ref.type_ == "CaseReference"
 
+    @pytest.mark.spec("CM-05-005")
     def test_url_required(self):
         with pytest.raises(ValidationError):
             CaseReference()  # pyright: ignore[reportCallIssue]

@@ -56,12 +56,22 @@ _SPEC_DIR = _corpus.REPO_ROOT / "specs"
 # four protocol MUST_NOTs #3601 adjudicates ahead of #2717 (AC-9), and
 # MSM-05-006, whose suppression silences the live SR-11-004 advisory.
 #
+#
+# Raised once, from 107 to 141, by #4312. The maintainer ruled in #3943 that
+# MS-12-006 scans the ``statement`` only: a ``test/`` path in a
+# ``verification:`` clause is what MS-10-003 obliges, not a sign the rule is
+# ``project``. #4312 returned 71 specs #3600 had relabeled on that basis to
+# ``kind: protocol``; 36 mapped to an existing user story, and the 34 left
+# story-less that SR-11 would flag (33 MUST, 1 MAY) got their suppression back.
+# A MUST_NOT trips neither SR-11 check, so CSB-18-001 got none. #3601 and #2717 own the
+# burn-down: each story mapped there removes one.
+#
 # Lower this as suppressions are removed; never raise it. Adding a suppression
 # fails this ratchet unless another is removed — the usual fix for SR-11-003
 # firing on a new entry is a corrected ``kind:``, not a suppression
 # (``specs/AGENTS.md``).
 # ---------------------------------------------------------------------------
-MAX_MISSING_STORY_SUPPRESSIONS = 107
+MAX_MISSING_STORY_SUPPRESSIONS = 141
 
 # ---------------------------------------------------------------------------
 # Specs carrying ``lint_suppress: [protocol_kind_with_code_reference]`` —

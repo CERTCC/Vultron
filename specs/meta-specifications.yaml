@@ -698,8 +698,9 @@ groups:
       The test is the TCP analogy: if the sentence could appear in an RFC for the protocol and an
       implementer in any language would have to honour it to interoperate, it is `protocol`.
       Behaviour that only changes how one implementation is built is not. Labelling internal
-      mechanisms `protocol` inflates the compliance surface; the roughly ninety relabels
-      made in #3944 are reverted by #3943 under this reading.
+      mechanisms `protocol` inflates the compliance surface, and labelling RFC content
+      `project` because its verification names a test hides it from implementers; #4312
+      returned the RFC-content specs #3944 had relabeled that way to `protocol`.
     tags:
     - documentation
   - id: MS-12-004

@@ -74,7 +74,7 @@ This is negative acknowledgment with gap-fill replay — structurally closer to
 TCP cumulative ACK/SACK than to per-message positive acknowledgment. A matching
 hash proves receipt of the *entire* log prefix, not only one message.
 
-Status: **evolved** — see [MSM-05-002](../specs/project.md#msm-05-002).
+Status: **evolved** — see [MSM-05-002](../specs/protocol.md#msm-05-002).
 
 #### Liveness
 

@@ -12,6 +12,8 @@ import pytest
 
 from vultron.metadata.specs.yaml_items import (
     SpecItem,
+    add_lint_suppression,
+    append_list_field,
     iter_blocks,
     remove_lint_suppression,
 )
@@ -176,3 +178,71 @@ def test_remove_lint_suppression_reports_an_absent_code():
     lines, removed = remove_lint_suppression(_item(_SUPPRESSED), "other")
     assert not removed
     assert "".join(lines) == _SUPPRESSED
+
+
+_PLAIN = "- id: TST-01-001\n  statement: x\n  steps:\n  - order: 1\n\n"
+
+
+def test_append_list_field_goes_after_the_last_field():
+    """Trailing blank lines stay after the new list, with the next item."""
+    lines = append_list_field(_item(_PLAIN), "stories", ["s1", "s2"])
+    assert "".join(lines) == (
+        "- id: TST-01-001\n  statement: x\n  steps:\n  - order: 1\n"
+        "  stories:\n  - s1\n  - s2\n\n"
+    )
+
+
+def test_append_list_field_refuses_an_existing_field():
+    with pytest.raises(ValueError, match="already has a steps: field"):
+        append_list_field(_item(_PLAIN), "steps", ["x"])
+
+
+def test_append_list_field_refuses_no_values():
+    with pytest.raises(ValueError, match="no values"):
+        append_list_field(_item(_PLAIN), "stories", [])
+
+
+def test_append_list_field_ignores_a_nested_key_of_the_same_name():
+    text = "- id: TST-01-001\n  steps:\n  - stories: nested\n"
+    lines = append_list_field(_item(text), "stories", ["s1"])
+    assert "".join(lines) == text + "  stories:\n  - s1\n"
+
+
+def test_add_lint_suppression_creates_a_block_when_absent():
+    lines, added = add_lint_suppression(_item(_PLAIN), "x_code")
+    assert added
+    assert "".join(lines) == (
+        "- id: TST-01-001\n  statement: x\n  steps:\n  - order: 1\n"
+        "  lint_suppress:\n  - x_code\n\n"
+    )
+
+
+def test_add_lint_suppression_appends_to_a_block_list():
+    lines, added = add_lint_suppression(_item(_SUPPRESSED), "x_code")
+    assert added
+    assert "".join(lines) == _SUPPRESSED.replace(
+        "  - must_without_verification\n",
+        "  - must_without_verification\n  - x_code\n",
+    )
+
+
+def test_add_lint_suppression_appends_to_a_flow_list_keeping_its_comment():
+    text = (
+        "- id: TST-01-001\n  lint_suppress: [a_code]  # note\n  statement: x\n"
+    )
+    lines, added = add_lint_suppression(_item(text), "x_code")
+    assert added
+    assert "".join(lines) == text.replace("[a_code]", "[a_code, x_code]")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        _SUPPRESSED,
+        "- id: TST-01-001\n  lint_suppress: ['phantom_path_ref']\n",
+    ],
+)
+def test_add_lint_suppression_reports_a_present_code(text):
+    lines, added = add_lint_suppression(_item(text), "phantom_path_ref")
+    assert not added
+    assert "".join(lines) == text

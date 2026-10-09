@@ -47,20 +47,26 @@ groups:
     - story_2022_059
   - id: RF-02-002
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       Accept responses MUST include `object` field referencing accepted activity or object
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       constructing an `Accept` response without an `object` field raises a Pydantic validation error at construction
       time.
+    stories:
+    - story_2022_048
+    - story_2022_054
   - id: RF-02-003
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       Accepting an Offer of an object MUST reference the Offer activity in the `object` field
       of the Accept response
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       `Accept` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
+    stories:
+    - story_2022_048
+    - story_2022_054
   - id: RF-02-004
     priority: MUST
     kind: project
@@ -106,12 +112,15 @@ groups:
     statement: Reject responses SHOULD include reason in `content` field
   - id: RF-03-003
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       Rejecting an Offer of an object MUST reference the Offer activity in the `object` field
       of the Reject response
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       `Reject` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
+    stories:
+    - story_2022_048
+    - story_2022_054
   - id: RF-03-004
     priority: MUST
     kind: project
@@ -142,12 +151,14 @@ groups:
     statement: TentativeReject responses SHOULD include reason in `content` field
   - id: RF-04-003
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       Tentatively Rejecting an Offer of an object MUST reference the Offer activity in the
       `object` field of the TentativeReject response
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       `TentativeReject` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
+    stories:
+    - story_2022_014
   - id: RF-04-004
     priority: MUST
     kind: project
@@ -250,7 +261,7 @@ groups:
   specs:
   - id: RF-09-001
     priority: MUST
-    kind: project
+    kind: protocol
     statement: Response generation MUST be idempotent
     verification: Integration tests in `test/demo/` confirm that processing the same inbound activity twice produces the
       same response without additional state changes, and `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py`
@@ -258,3 +269,5 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ID-02-001
+    lint_suppress:
+    - missing_story_reference

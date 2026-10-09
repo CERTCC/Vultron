@@ -162,3 +162,87 @@ def remove_lint_suppression(
         out.append(line)
         j += 1
     return out, removed
+
+
+def _field_re(item: SpecItem, key: str) -> re.Pattern[str]:
+    """Match *key* as one of *item*'s own fields, not a nested mapping key."""
+    return re.compile(rf"^{re.escape(item.field_indent)}{re.escape(key)}:")
+
+
+def _end_of_fields(lines: Sequence[str]) -> int:
+    """Index just past the item's last content line.
+
+    Trailing blank and comment lines stay after a field appended here, so a
+    comment that introduces the next item keeps its place.
+    """
+    end = len(lines)
+    while end > 1:
+        body = lines[end - 1].strip()
+        if body and not body.startswith("#"):
+            break
+        end -= 1
+    return end
+
+
+def append_list_field(
+    item: SpecItem, key: str, values: Sequence[str]
+) -> list[str]:
+    """Return *item*'s lines with a block-style ``key:`` list appended.
+
+    The list goes after the item's last field, at the item's field indent.
+    Raises ``ValueError`` when *item* already has *key* (merging two lists is
+    a judgment this helper does not make) or when *values* is empty.
+    """
+    if not values:
+        raise ValueError(f"{item.spec_id}: no values to write under {key}:")
+    pattern = _field_re(item, key)
+    if any(pattern.match(line) for line in item.lines):
+        raise ValueError(f"{item.spec_id} already has a {key}: field")
+    end = _end_of_fields(item.lines)
+    added = [f"{item.field_indent}{key}:\n"] + [
+        f"{item.field_indent}- {value}\n" for value in values
+    ]
+    return list(item.lines[:end]) + added + list(item.lines[end:])
+
+
+def add_lint_suppression(item: SpecItem, code: str) -> tuple[list[str], bool]:
+    """Return *item*'s lines with *code* added to its ``lint_suppress:``.
+
+    The inverse of :func:`remove_lint_suppression`: appends to an existing
+    block or flow list, or adds a block list after the item's last field when
+    the item has none. The flag is ``False`` when *code* was already present,
+    in which case the lines come back unchanged.
+    """
+    lines = list(item.lines)
+    for j, line in enumerate(lines):
+        fm = _LINT_SUPPRESS_FLOW_RE.match(line)
+        if fm and fm.group(1) == item.field_indent:
+            codes = [c.strip() for c in fm.group(2).split(",") if c.strip()]
+            if code in (c.strip("'\"") for c in codes):
+                return lines, False
+            lines[j] = (
+                f"{item.field_indent}lint_suppress: "
+                f"[{', '.join([*codes, code])}]{fm.group(3) or ''}\n"
+            )
+            return lines, True
+        bm = _LINT_SUPPRESS_BLOCK_RE.match(line)
+        if bm and bm.group(1) == item.field_indent:
+            k = j + 1
+            last_entry = j
+            while k < len(lines):
+                if _COMMENT_RE.match(lines[k]):
+                    k += 1
+                    continue
+                im = _LIST_ITEM_RE.match(lines[k])
+                if im is None:
+                    break
+                if im.group(1) == code:
+                    return lines, False
+                last_entry = k
+                k += 1
+            # A new entry copies the indent of the entries already there.
+            sibling = lines[last_entry] if last_entry != j else line
+            indent = sibling[: len(sibling) - len(sibling.lstrip())]
+            lines.insert(last_entry + 1, f"{indent}- {code}\n")
+            return lines, True
+    return append_list_field(item, "lint_suppress", [code]), True

@@ -21,6 +21,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx2 as httpx
+import pytest
 
 from vultron.adapters.driven.http_delivery import (
     DEFAULT_BACKOFF_MULTIPLIER,
@@ -161,6 +162,7 @@ class TestDeliveryRetry:
         assert call_count == 3
         assert mock_sleep.call_count == 2
 
+    @pytest.mark.spec("SYNC-05-001")
     def test_exponential_backoff_delay_sequence(self):
         import pytest
 

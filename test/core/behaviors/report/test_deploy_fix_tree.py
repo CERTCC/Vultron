@@ -780,6 +780,7 @@ def test_stay_deferred_short_circuits(
     assert bt_scenario.dl.outbox_list() == []
 
 
+@pytest.mark.spec("CSB-11-002")
 @pytest.mark.spec("BT-03-004")
 def test_full_deploy_arm_completes_and_emits_cd(
     bt_scenario: BTTestScenario,
