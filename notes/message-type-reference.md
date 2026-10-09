@@ -385,7 +385,7 @@ coordinator receives one report and sends the next, and a report precedes any
 case, so there is no participant record to hold the role. `CVDRole` values are
 durable facts persisted on `CaseParticipant.roles`. So positions stay in the
 occasion's description for now; whether they become a named, closed vocabulary
-is a separate question, not a `CVDRole` extension by default.
+is a separate question (#4433), not a `CVDRole` extension by default.
 
 **One grammar for "When…".** Every occasion's "when" is the sender's situation,
 from the sender's side — for mechanics and a `Create` that precedes an `Add` too:
