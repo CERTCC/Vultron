@@ -67,7 +67,7 @@ The previous owner keeps any other roles it held and stays a participant in the 
 The CASE_MANAGER then records the completed transfer in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).
 The new owner's own copy of the case is updated by that same entry; nothing is delivered to it separately.
 
-A refusal is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/project.md#cm-21-010)), and ownership stays where it was.
+A refusal is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)), and ownership stays where it was.
 What the CASE_MANAGER does after a refusal is not yet specified.
 Today it only logs the refusal: no ledger entry records it, and the participant who made the offer is not told.
 Whether a refusal should be recorded, how the offerer learns of it, and whether the case can be offered again are tracked in [#3748](https://github.com/CERTCC/Vultron/issues/3748).

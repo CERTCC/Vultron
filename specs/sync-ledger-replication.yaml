@@ -205,7 +205,7 @@ groups:
     - story_2022_088
   - id: SYNC-03-003
     priority: MUST_NOT
-    kind: project
+    kind: protocol
     statement: 'Replication MUST be idempotent: repeated delivery of the same log entry MUST NOT produce duplicate entries
       in the receiver''s log'
     verification: >-
@@ -216,9 +216,12 @@ groups:
     - rel_type: implements
       spec_id: ID-02-001
       note: idempotency.md
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-03-004
     priority: SHOULD
-    kind: project
+    kind: protocol
     statement: >-
       When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD include the
       hash of its last accepted canonical recorded log entry as a parameter in the activity's
@@ -227,6 +230,9 @@ groups:
       Integration tests in `test/demo/` confirm that messages from Participant Actors
       to the CASE_MANAGER include the last accepted canonical log hash in the
       activity context field.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-03-005
     priority: MUST
     kind: protocol
@@ -283,11 +289,13 @@ groups:
   specs:
   - id: SYNC-05-001
     priority: SHOULD
-    kind: project
+    kind: protocol
     statement: The replication sender SHOULD implement retry with exponential backoff on delivery failure
     verification: >-
       Integration tests in `test/demo/` confirm that the replication sender retries
       failed deliveries with exponential backoff between attempts.
+    stories:
+    - story_2022_088
   - id: SYNC-05-002
     priority: SHOULD
     kind: protocol
@@ -522,11 +530,14 @@ groups:
       duplicate entries, produces the same resulting state as a single-pass replay.
   - id: SYNC-08-004
     priority: MUST_NOT
-    kind: project
+    kind: protocol
     statement: 'Monotonic visibility: participants MUST NOT regress their acknowledged log position'
     verification: >-
       Integration tests in `test/demo/` confirm that participants never acknowledge a
       log position lower than one previously acknowledged.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: SYNC-08-005
     priority: MUST
     kind: protocol
@@ -1131,7 +1142,7 @@ groups:
     - story_2022_088
   - id: SYNC-15-012
     priority: MUST_NOT
-    kind: project
+    kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT enqueue a replay `Announce(CaseLedgerEntry)` for an
       (entry, peer) pair while an earlier `Announce` of that same entry to that same peer
@@ -1153,3 +1164,6 @@ groups:
       popped; `test/core/behaviors/sync/nodes/test_replay.py` confirms a replay through the
       adapter adds only the entries not already pending and records no position when it
       adds none.
+    stories:
+    - story_2022_045
+    - story_2022_088
