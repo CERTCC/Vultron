@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-Collect development velocity metrics from GitHub Issues (CERTCC/Vultron).
+Collect development velocity metrics from GitHub (CERTCC/Vultron).
 
 Fetches all issues created on or after START_DATE, buckets them by week and
 month, and emits a JSON document with raw counts suitable for downstream
-analysis and visualization.
+analysis and visualization.  Unless ``--no-pipeline-cost`` is given, it also
+fetches merged PRs and GitHub Actions runs and adds a ``pipeline_cost``
+section: per-PR CI runs, merges from main, local suite runs, and
+open-to-merge time, plus weekly failed CI runs on main (PAD-18-007).
 
 Usage:
     python scripts/velocity.py
@@ -12,6 +15,7 @@ Usage:
     python scripts/velocity.py --output -          # stdout
     python scripts/velocity.py --start 2026-05-01  # override start date
     python scripts/velocity.py --repo OWNER/NAME   # override repo
+    python scripts/velocity.py --no-pipeline-cost  # issues only
 """
 
 import argparse
@@ -47,18 +51,32 @@ OPENED_REASONS = ("excursion", "separate-defect", "debt", "deferred")
 NET_OPENED_REASONS = ("separate-defect", "debt", "deferred")
 
 
-# Pattern to identify a commit headline that merges the main branch in.
-# The quotes around 'main' already prevent false matches on branch names
-# like 'maintenance', so no word-boundary assertion is needed.
-_MERGE_FROM_MAIN_RE = re.compile(
-    r"^Merge (branch 'main'|remote-tracking branch 'origin/main')",
-    re.IGNORECASE,
-)
+# A merge from main is a merge commit (two or more parents) whose headline
+# names the main branch.  Agents write these headlines by hand as often as git
+# does ("Merge origin/main into ...", "merge: sync with main"), so the headline
+# test is a word match, not a fixed git template.  The word boundary keeps
+# branch names such as "maintenance" out.
+_MAIN_REF_RE = re.compile(r"\b(?:origin/)?main\b", re.IGNORECASE)
 
 # Fixed format written by pr-execute (PAD-18-006).
 _SUITE_RUNS_RE = re.compile(r"Suite runs:\s+(\d+)\s+full,\s+(\d+)\s+targeted")
 
-# GraphQL query to fetch merged PRs with their commits and comments.
+# Workflow-run conclusions.  A "CI run" in this script is one CI iteration:
+# the set of workflow runs GitHub started for one head commit.  Superseded
+# (cancelled) and skipped runs say nothing about the commit, so a commit whose
+# runs were all cancelled or skipped is not an iteration.
+_FAILED_CONCLUSIONS = frozenset({"failure", "timed_out", "startup_failure"})
+_IGNORED_CONCLUSIONS = frozenset({"cancelled", "skipped"})
+
+# The REST workflow-runs endpoint returns at most this many results for any
+# filtered query, whatever the page number.  Windows are split until each
+# fits under it.
+_REST_RESULT_CAP = 1000
+_RUNS_PER_PAGE = 100
+
+# GraphQL query to fetch merged PRs with their commits, comments, and reviews.
+# Ordered by UPDATED_AT so paging can stop at the window start: a PR's
+# mergedAt never follows its updatedAt.
 PR_GRAPHQL_QUERY = """
 query($owner: String!, $name: String!, $cursor: String) {
   repository(owner: $owner, name: $name) {
@@ -66,25 +84,28 @@ query($owner: String!, $name: String!, $cursor: String) {
       first: 50,
       after: $cursor,
       states: [MERGED],
-      orderBy: {field: CREATED_AT, direction: DESC}
+      orderBy: {field: UPDATED_AT, direction: DESC}
     ) {
       pageInfo { hasNextPage endCursor }
       nodes {
         number
         createdAt
+        updatedAt
         mergedAt
         headRefName
         commits(first: 250) {
           nodes {
             commit {
               messageHeadline
+              parents { totalCount }
             }
           }
         }
         comments(first: 100) {
-          nodes {
-            body
-          }
+          nodes { body createdAt }
+        }
+        reviews(first: 100) {
+          nodes { body createdAt }
         }
       }
     }
@@ -155,12 +176,16 @@ def _graphql_paginate(
     page_extractor: Callable[[dict], dict],
     label: str = "items",
     timeout: int = 30,
+    stop_after: Callable[[list[dict]], bool] | None = None,
 ) -> list[dict]:
     """Paginate a GitHub GraphQL query and return all nodes.
 
     ``page_extractor`` receives the ``data`` dict from the GraphQL response
     and must return a dict with ``nodes`` (list) and ``pageInfo`` (object with
     ``hasNextPage`` and ``endCursor``).
+
+    ``stop_after``, when given, is called with each page's nodes; paging
+    stops after the first page for which it returns ``True``.
     """
     url = "https://api.github.com/graphql"
     headers = {"Authorization": f"bearer {token}"}
@@ -191,6 +216,8 @@ def _graphql_paginate(
 
             if not page["pageInfo"]["hasNextPage"]:
                 break
+            if stop_after is not None and stop_after(page["nodes"]):
+                break
             cursor = page["pageInfo"]["endCursor"]
 
     print(f"  fetched {len(nodes)} {label} total    ", file=sys.stderr)
@@ -214,15 +241,23 @@ def fetch_merged_prs(
 ) -> list[dict]:
     """Fetch merged PRs with mergedAt >= since (YYYY-MM-DD).
 
-    Returns PR dicts with ``number``, ``createdAt``, ``mergedAt``,
-    ``headRefName``, ``commits.nodes``, and ``comments.nodes``.
+    Returns PR dicts with ``number``, ``createdAt``, ``updatedAt``,
+    ``mergedAt``, ``headRefName``, ``commits.nodes``, ``comments.nodes``, and
+    ``reviews.nodes``.
 
-    All merged PRs are fetched and filtered client-side; no server-side date
-    predicate is available for ``mergedAt`` in the GitHub GraphQL API.  This
-    is acceptable for a project where the total number of merged PRs is in
-    the hundreds, not tens of thousands.
+    GraphQL has no server-side ``mergedAt`` filter, so PRs are paged
+    newest-updated first and filtered here.  Because a PR's ``mergedAt`` is
+    never later than its ``updatedAt``, paging stops after the first page
+    whose oldest ``updatedAt`` predates the window.
     """
     since_date = date.fromisoformat(since)
+
+    def _page_predates_window(nodes: list[dict]) -> bool:
+        if not nodes:
+            return True
+        oldest = iso_to_date(nodes[-1].get("updatedAt"))
+        return oldest is not None and oldest < since_date
+
     all_prs = _graphql_paginate(
         PR_GRAPHQL_QUERY,
         {"owner": owner, "name": name},
@@ -230,6 +265,7 @@ def fetch_merged_prs(
         lambda data: data["repository"]["pullRequests"],
         label="PRs",
         timeout=60,
+        stop_after=_page_predates_window,
     )
     return [
         pr
@@ -239,6 +275,62 @@ def fetch_merged_prs(
     ]
 
 
+def _iso_z(dt: datetime) -> str:
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _fetch_runs_in_window(
+    client: httpx.Client,
+    url: str,
+    base_params: dict[str, str | int],
+    lo: datetime,
+    hi: datetime,
+) -> list[dict]:
+    """Fetch every run created in ``[lo, hi]``, splitting past the REST cap.
+
+    The endpoint stops returning results after ``_REST_RESULT_CAP`` for any
+    filtered query, so a window whose ``total_count`` exceeds the cap is
+    halved and each half fetched on its own.
+    """
+    params: dict[str, str | int] = {
+        **base_params,
+        "created": f"{_iso_z(lo)}..{_iso_z(hi)}",
+        "per_page": _RUNS_PER_PAGE,
+        "page": 1,
+    }
+    resp = client.get(url, params=params)
+    resp.raise_for_status()
+    body = resp.json()
+    total = int(body.get("total_count", 0))
+
+    if total > _REST_RESULT_CAP:
+        if hi - lo <= timedelta(seconds=1):
+            raise RuntimeError(
+                f"{total} workflow runs created in one second at {_iso_z(lo)};"
+                f" cannot split below the {_REST_RESULT_CAP}-result cap"
+            )
+        mid = lo + (hi - lo) / 2
+        mid = mid.replace(microsecond=0)
+        return _fetch_runs_in_window(
+            client, url, base_params, lo, mid
+        ) + _fetch_runs_in_window(
+            client, url, base_params, mid + timedelta(seconds=1), hi
+        )
+
+    runs: list[dict] = list(body.get("workflow_runs", []))
+    page_num = 1
+    while len(runs) < total:
+        page_num += 1
+        params["page"] = page_num
+        resp = client.get(url, params=params)
+        resp.raise_for_status()
+        batch = resp.json().get("workflow_runs", [])
+        if not batch:
+            break
+        runs.extend(batch)
+    return runs
+
+
 def fetch_workflow_runs(
     owner: str,
     name: str,
@@ -246,14 +338,15 @@ def fetch_workflow_runs(
     token: str,
     event: str = "pull_request",
     branch: str | None = None,
+    until: datetime | None = None,
 ) -> list[dict]:
-    """Fetch completed GitHub Actions workflow runs since ``since``.
+    """Fetch completed GitHub Actions workflow runs created since ``since``.
 
-    Returns a list of run dicts (each with at least ``head_branch``,
-    ``conclusion``, and ``created_at``) for runs whose ``created_at`` falls
-    on or after ``since`` (YYYY-MM-DD).  The REST API returns runs
-    newest-first; pagination stops when the oldest run on the current page
-    predates the window.
+    Returns run dicts (each with at least ``id``, ``head_branch``,
+    ``head_sha``, ``conclusion``, ``created_at``, and ``pull_requests``) for
+    runs created from ``since`` (YYYY-MM-DD, UTC midnight) up to ``until``
+    (default: now).  The window is split as needed to stay under the
+    endpoint's ``_REST_RESULT_CAP``; runs are de-duplicated by ``id``.
     """
     url = f"https://api.github.com/repos/{owner}/{name}/actions/runs"
     headers = {
@@ -261,47 +354,24 @@ def fetch_workflow_runs(
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    since_date = date.fromisoformat(since)
-    params: dict[str, str | int] = {
+    base_params: dict[str, str | int] = {
         "event": event,
-        "per_page": 100,
         "status": "completed",
     }
     if branch:
-        params["branch"] = branch
+        base_params["branch"] = branch
 
-    runs: list[dict] = []
-    page_num = 1
+    lo = datetime.combine(date.fromisoformat(since), datetime.min.time(), UTC)
+    hi = (until or datetime.now(UTC)).replace(microsecond=0)
     tag = f"{event}/{branch or 'all'}"
 
     with httpx.Client(headers=headers, timeout=30) as client:
-        while True:
-            params["page"] = page_num
-            resp = client.get(url, params=params)
-            resp.raise_for_status()
-            body = resp.json()
+        fetched = _fetch_runs_in_window(client, url, base_params, lo, hi)
 
-            batch: list[dict] = body.get("workflow_runs", [])
-            if not batch:
-                break
-
-            for run in batch:
-                run_date = iso_to_date(run.get("created_at"))
-                if run_date and run_date >= since_date:
-                    runs.append(run)
-
-            print(
-                f"  fetched {len(runs)} workflow runs ({tag})...",
-                file=sys.stderr,
-                end="\r",
-            )
-
-            # Runs arrive newest-first; stop once the page's oldest predates window.
-            oldest = iso_to_date(batch[-1].get("created_at"))
-            if (oldest and oldest < since_date) or len(batch) < 100:
-                break
-            page_num += 1
-
+    by_id: dict[object, dict] = {}
+    for run in fetched:
+        by_id.setdefault(run.get("id"), run)
+    runs = list(by_id.values())
     print(
         f"  fetched {len(runs)} workflow runs ({tag}) total    ",
         file=sys.stderr,
@@ -530,29 +600,57 @@ def parse_suite_runs_line(body: str) -> tuple[int, int] | None:
     return None
 
 
-def _is_merge_from_main(headline: str) -> bool:
-    """Return True if a commit headline indicates a merge from the main branch."""
-    return bool(_MERGE_FROM_MAIN_RE.match(headline))
+def _is_merge_from_main(commit: dict) -> bool:
+    """Return True if a GraphQL commit node is a merge of the main branch.
+
+    A merge from main has two or more parents and a headline naming main.
+    """
+    parents = (commit.get("parents") or {}).get("totalCount", 0)
+    headline = commit.get("messageHeadline") or ""
+    return parents >= 2 and bool(_MAIN_REF_RE.search(headline))
 
 
 def _count_merges_from_main(commits: list[dict]) -> int:
-    """Count commits whose headline indicates a merge from the main branch."""
+    """Count a PR's commits that merge the main branch in."""
     return sum(
-        1
-        for c in commits
-        if _is_merge_from_main(
-            (c.get("commit") or {}).get("messageHeadline", "")
-        )
+        1 for c in commits if _is_merge_from_main(c.get("commit") or {})
     )
 
 
 def _extract_suite_runs(pr: dict) -> tuple[int, int] | None:
-    """Search a PR's comments for the Suite runs line; return counts or None."""
-    for comment in (pr.get("comments") or {}).get("nodes", []):
-        result = parse_suite_runs_line(comment.get("body", ""))
+    """Return the suite-run counts from the PR's latest summary, or None.
+
+    pr-execute posts its summary as a PR review (``gh pr review --comment``),
+    so both reviews and issue comments are searched.  The line records the
+    PR's cumulative cost (PAD-18-006), so the most recent one wins.
+    """
+    posts = [
+        *((pr.get("reviews") or {}).get("nodes") or []),
+        *((pr.get("comments") or {}).get("nodes") or []),
+    ]
+    posts.sort(key=lambda p: p.get("createdAt") or "")
+    for post in reversed(posts):
+        result = parse_suite_runs_line(post.get("body") or "")
         if result is not None:
             return result
     return None
+
+
+def _ci_iteration_counts(runs: list[dict]) -> tuple[int, int]:
+    """Return ``(ci_runs, failed_ci_runs)`` for a set of workflow runs.
+
+    One CI run is one head commit with at least one workflow run that was not
+    cancelled or skipped; it failed when any of its runs concluded in
+    ``_FAILED_CONCLUSIONS``.
+    """
+    conclusions: dict[str, set[str]] = defaultdict(set)
+    for run in runs:
+        sha = run.get("head_sha") or ""
+        if sha:
+            conclusions[sha].add(run.get("conclusion") or "")
+    iterations = [c for c in conclusions.values() if c - _IGNORED_CONCLUSIONS]
+    failed = sum(1 for c in iterations if c & _FAILED_CONCLUSIONS)
+    return len(iterations), failed
 
 
 def build_pr_pipeline_record(
@@ -564,9 +662,10 @@ def build_pr_pipeline_record(
 
     Args:
         pr: GraphQL PR dict with ``createdAt``, ``mergedAt``, ``number``,
-            ``headRefName``, ``commits.nodes``, and ``comments.nodes``.
-        ci_runs: total completed CI workflow runs triggered for this PR's branch.
-        failed_ci_runs: subset of ``ci_runs`` whose conclusion was ``failure``.
+            ``headRefName``, ``commits.nodes``, ``comments.nodes``, and
+            ``reviews.nodes``.
+        ci_runs: CI iterations (see ``_ci_iteration_counts``) for this PR.
+        failed_ci_runs: subset of ``ci_runs`` that failed.
 
     Returns a flat dict suitable for per-PR output and weekly aggregation.
     """
@@ -603,22 +702,40 @@ def build_pr_pipeline_record(
     }
 
 
-def _index_runs_by_branch(
-    runs: list[dict],
-) -> dict[str, tuple[int, int]]:
-    """Build a branch → (total_runs, failed_runs) index from workflow run dicts."""
-    by_branch: dict[str, list[dict]] = defaultdict(list)
-    for run in runs:
-        b = run.get("head_branch", "")
-        if b:
-            by_branch[b].append(run)
-    return {
-        branch: (
-            len(run_list),
-            sum(1 for r in run_list if r.get("conclusion") == "failure"),
+class _RunIndex:
+    """Workflow runs indexed for matching against merged PRs.
+
+    A run that names its PRs (``pull_requests``) is matched by PR number.
+    A run that names none is matched by head branch, but only when it was
+    created while the PR was open, so a reused branch name does not pull in
+    another PR's runs.
+    """
+
+    def __init__(self, runs: list[dict]) -> None:
+        self.by_number: dict[int, list[dict]] = defaultdict(list)
+        self.by_branch: dict[str, list[dict]] = defaultdict(list)
+        for run in runs:
+            numbers = [
+                p["number"]
+                for p in run.get("pull_requests") or []
+                if p.get("number") is not None
+            ]
+            if numbers:
+                for n in numbers:
+                    self.by_number[n].append(run)
+            elif run.get("head_branch"):
+                self.by_branch[run["head_branch"]].append(run)
+
+    def runs_for(self, pr: dict) -> list[dict]:
+        matched = list(self.by_number.get(pr.get("number") or -1, []))
+        opened = pr.get("createdAt") or ""
+        merged = pr.get("mergedAt") or ""
+        matched.extend(
+            r
+            for r in self.by_branch.get(pr.get("headRefName") or "", [])
+            if opened <= (r.get("created_at") or "") <= merged
         )
-        for branch, run_list in by_branch.items()
-    }
+        return matched
 
 
 # Numeric fields included in weekly median + total aggregates.
@@ -638,8 +755,9 @@ def _pr_weekly_aggregates(
     For each week, reports ``pr_count``, plus ``median_<field>`` and
     ``total_<field>`` for each numeric field.  Suite-run totals are included
     only for PRs that carried the ``Suite runs:`` line; absent values
-    (``None``) are excluded from aggregates.  All values are ``None`` for
-    weeks with no merged PRs.
+    (``None``) are excluded from aggregates, and a week where no PR carried
+    the line reports ``None``, not zero.  All values are ``None`` for weeks
+    with no merged PRs.
     """
     week_set = set(all_weeks)
     by_week: dict[str, list[dict]] = defaultdict(list)
@@ -680,23 +798,41 @@ def _weekly_main_failures(
 ) -> list[dict]:
     """Count failed CI runs on the main branch per week.
 
-    ``main_runs`` is a list of workflow-run dicts from the REST API
-    (``created_at`` key, snake_case).
+    ``main_runs`` is a list of workflow-run dicts from the REST API.  As for
+    PRs, a CI run is one head commit: a commit on main counts once, in the
+    week of its first failed workflow run, however many of its workflows
+    failed.
     """
     week_set = set(all_weeks)
-    counts: dict[str, int] = defaultdict(int)
+    first_failure: dict[str, date] = {}
     for run in main_runs:
-        if run.get("conclusion") == "failure":
-            ts = run.get("created_at") or run.get("createdAt")
-            d = iso_to_date(ts)
-            if d:
-                w = week_key(d)
-                if w in week_set:
-                    counts[w] += 1
+        if run.get("conclusion") not in _FAILED_CONCLUSIONS:
+            continue
+        d = iso_to_date(run.get("created_at"))
+        sha = run.get("head_sha") or ""
+        if d is None or not sha:
+            continue
+        if sha not in first_failure or d < first_failure[sha]:
+            first_failure[sha] = d
+    counts: dict[str, int] = defaultdict(int)
+    for d in first_failure.values():
+        w = week_key(d)
+        if w in week_set:
+            counts[w] += 1
     return [
         {"week": w, "failed_ci_runs_on_main": counts.get(w, 0)}
         for w in all_weeks
     ]
+
+
+def pr_runs_window_start(prs: list[dict], start: date) -> date:
+    """Return the date from which PR workflow runs must be fetched.
+
+    A PR merged inside the window may have been opened before it; its runs
+    from before ``start`` still count toward its cost.
+    """
+    opened = [d for pr in prs if (d := iso_to_date(pr.get("createdAt")))]
+    return min([start, *opened])
 
 
 def build_pr_pipeline_metrics(
@@ -710,7 +846,7 @@ def build_pr_pipeline_metrics(
     Args:
         prs: merged PR dicts from ``fetch_merged_prs``.
         pr_workflow_runs: completed ``pull_request`` workflow run dicts from
-            ``fetch_workflow_runs``.
+            ``fetch_workflow_runs``, fetched from ``pr_runs_window_start``.
         main_workflow_runs: completed ``push`` workflow run dicts on ``main``
             from ``fetch_workflow_runs``.
         start: window start date.
@@ -721,12 +857,11 @@ def build_pr_pipeline_metrics(
     today = datetime.now(UTC).date()
     all_weeks, _ = _period_keys(start, today)
 
-    runs_by_branch = _index_runs_by_branch(pr_workflow_runs)
+    index = _RunIndex(pr_workflow_runs)
 
     pr_records = []
     for pr in prs:
-        branch = pr.get("headRefName", "")
-        ci_total, ci_failed = runs_by_branch.get(branch, (0, 0))
+        ci_total, ci_failed = _ci_iteration_counts(index.runs_for(pr))
         pr_records.append(build_pr_pipeline_record(pr, ci_total, ci_failed))
 
     return {
@@ -777,6 +912,31 @@ def build_metrics(issues: list[dict], start: date) -> dict:
     }
 
 
+def collect_pipeline_cost(
+    owner: str, name: str, start: date, token: str
+) -> dict:
+    """Fetch merged PRs and workflow runs, then build the pipeline-cost section."""
+    print(
+        f"Fetching merged PRs from {owner}/{name} since {start}...",
+        file=sys.stderr,
+    )
+    merged_prs = fetch_merged_prs(owner, name, start.isoformat(), token)
+
+    runs_since = pr_runs_window_start(merged_prs, start)
+    print(f"Fetching PR workflow runs since {runs_since}...", file=sys.stderr)
+    pr_runs = fetch_workflow_runs(
+        owner, name, runs_since.isoformat(), token, event="pull_request"
+    )
+
+    print("Fetching main-branch workflow runs...", file=sys.stderr)
+    main_runs = fetch_workflow_runs(
+        owner, name, start.isoformat(), token, event="push", branch="main"
+    )
+
+    print("Computing pipeline cost metrics...", file=sys.stderr)
+    return build_pr_pipeline_metrics(merged_prs, pr_runs, main_runs, start)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -794,6 +954,14 @@ def main() -> None:
         default=f"{REPO_OWNER}/{REPO_NAME}",
         help="GitHub repo as OWNER/NAME",
     )
+    parser.add_argument(
+        "--no-pipeline-cost",
+        action="store_true",
+        help=(
+            "Skip the per-PR pipeline-cost section (needs a token with "
+            "Actions read access); the output then has no pipeline_cost key."
+        ),
+    )
     args = parser.parse_args()
 
     owner, name = args.repo.split("/", 1)
@@ -809,26 +977,10 @@ def main() -> None:
     print("Computing issue metrics...", file=sys.stderr)
     metrics = build_metrics(issues, start)
 
-    print(
-        f"Fetching merged PRs from {owner}/{name} since {start}...",
-        file=sys.stderr,
-    )
-    merged_prs = fetch_merged_prs(owner, name, args.start, token)
-
-    print("Fetching PR workflow runs...", file=sys.stderr)
-    pr_runs = fetch_workflow_runs(
-        owner, name, args.start, token, event="pull_request"
-    )
-
-    print("Fetching main-branch workflow runs...", file=sys.stderr)
-    main_runs = fetch_workflow_runs(
-        owner, name, args.start, token, event="push", branch="main"
-    )
-
-    print("Computing pipeline cost metrics...", file=sys.stderr)
-    metrics["pipeline_cost"] = build_pr_pipeline_metrics(
-        merged_prs, pr_runs, main_runs, start
-    )
+    if not args.no_pipeline_cost:
+        metrics["pipeline_cost"] = collect_pipeline_cost(
+            owner, name, start, token
+        )
 
     output = json.dumps(metrics, indent=2)
 
