@@ -82,9 +82,12 @@ record should resolve on the day it is written, which is a question about the
 pull request's own diff rather than about the corpus. A merge-blocking check
 keyed on code changes is rejected — it would reinstate the refactor obligation
 the first bullet above removes. Note that the phantom-symbol half of the
-spec-corpus check (MS-15-004) matches only backticked all-caps identifiers with
-an underscore, so it does not see a stale class name or function name; a check
-extended to ADR bodies has to widen that shape to be worth anything.
+spec-corpus check (MS-15-004) resolves only what `_SPEC_SYMBOL_RE` in
+`vultron/metadata/specs/lint.py` matches, which is where to read the live shape.
+When #4412 was scoped that was backticked all-caps identifiers with an
+underscore, which saw neither a stale class name nor a function name — so a
+check extended to record bodies has to widen the shape to be worth anything,
+and #4412 is where it widens.
 
 Source: ADR-0127 (`docs/adr/0127-decision-records-leave-routine-agent-context.md`)
 and concern #4389. This replaces the ISSUE-1777 guidance (2026-07-31) that
@@ -437,6 +440,18 @@ therefore report this section's own table and pressure someone into deleting the
 guidance to get the hook green. If you are editing the counter-examples, that is
 why they survive; the exemption is recorded in `EXEMPT_CONSUMERS` in the same
 module.
+
+### ADR bodies are out of scope, and stay that way
+
+MS-16 names specs, notes files, AGENTS.md and mirrored `docs/` tables. It does
+not name ADR bodies, and ADR-0127 decided it should not — concern #4389 had
+asked whether it should. A body is read as history, so a dated measurement in
+one stays correct as of its date however far the corpus moves; extending MS-16
+there would re-describe accurate historical prose as debt and invite the scrub
+ADR-0127 rejects. That is the same carve-out the `## Change history` exemption
+above makes, for the same reason. The one thing a body does owe is the
+forward-only reference check, which carries its own requirement rather than
+widening MS-16.
 
 ---
 

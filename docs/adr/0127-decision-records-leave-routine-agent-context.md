@@ -155,6 +155,15 @@ Two must be satisfied before the loading change lands, and both are tracked as i
 - Nothing in `specs/` or `notes/` may resolve its meaning by pointing into a body. The known violation is the set of citations naming numbered details of `docs/adr/0099-one-object-model-as2-is-a-serialization.md`, spread across both trees; those details are defined nowhere but that body. Converting them means reflowing the ten details into a requirement group, which the record's own table mapping details to tests makes transcription rather than fresh authoring.
 - A decision whose content lives nowhere but a body needs a home. Measured on 2026-10-09, 15 live records had neither a structured `adr:` edge from any requirement nor a prose mention anywhere in `specs/` or `notes/`. Most of those have a requirement group that covers the decision without pointing back, so the fix is the pointer; a few need the decision written down.
 
+### The drift rule is not extended to record bodies
+
+Concern #4389 asked whether MS-16-001 and MS-16-002 — which forbid a spec, a notes file or `AGENTS.md` from stating a fact that drifts independently of its source — should name record bodies as well.
+They should not, and this decision is the reason.
+A dated measurement belongs in a body precisely because a body is read as history: the counts in the Context section above are stated as of 2026-10-09 and stay correct as of that date however far the corpus moves, which is the property MS-16 protects elsewhere by forbidding the sentence outright.
+Naming bodies in MS-16 would re-describe accurate historical prose as debt, which is the scrub rejected above.
+`notes/specs-vs-adrs.md` already carries the same carve-out for a `## Change history` section, on the same reasoning.
+The forward-only check is the one obligation a body does take on, and it will carry its own requirement rather than widen MS-16's scope.
+
 ### Relationship to other decisions
 
 - `docs/adr/0120-adr-lifecycle-epochs-and-edit-tiers.md` supplies the editing mechanics this decision assumes: epochs, edit tiers, and the frozen Decision Outcome and Considered Options sections.
