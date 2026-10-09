@@ -95,18 +95,33 @@ def _propose(net: _Network, suffix: str, days: int) -> str:
     return revision.id_
 
 
-def _owner_answers(net: _Network) -> None:
-    """The owner gets its relayed Invite, answers, and the answer arrives."""
-    net.deliver(MANAGER, to=OWNER, type_="Invite")
-    answers = net.queued(OWNER, to=MANAGER, type_="Accept")
-    assert answers, "the owner did not answer its relayed Invite"
-    delivered = net.deliver(OWNER, to=MANAGER, type_="Accept")
-    assert delivered, "the owner's answer was already delivered"
-    for type_, verdict in delivered:
+def _owner_decides(
+    net: _Network, embargo_id: str, *, accept: bool = True
+) -> Any:
+    """The owner gets its relayed Invite and decides the proposal (ADR-0122).
+
+    A revision is the owner's to answer (EP-09-006), so its replica holds
+    the Invite; the owner then sends its decision for the case —
+    ``Accept`` or ``Reject`` of the embargo itself — to the CASE_MANAGER.
+    """
+    for _type, verdict in net.deliver(MANAGER, to=OWNER, type_="Invite"):
         assert verdict.disposition is HandlerDisposition.APPLIED, (
-            type_,
-            verdict.reason,
+            verdict.reason
         )
+    adapter = TriggerActivityAdapter(net.stores[OWNER])
+    build = (
+        adapter.activate_embargo if accept else adapter.reject_embargo_proposal
+    )
+    _, sealed = build(
+        embargo_id=embargo_id, case_id=net.case_id, actor=OWNER, to=[MANAGER]
+    )
+    return net.receive(MANAGER, json.loads(sealed))
+
+
+def _owner_answers(net: _Network, embargo_id: str) -> None:
+    """The owner activates *embargo_id*; the CASE_MANAGER applies it."""
+    verdict = _owner_decides(net, embargo_id)
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
 
 
 def _replay_to_bystander(net: _Network) -> None:
@@ -136,7 +151,7 @@ def test_a_replica_follows_a_revision_from_proposal_to_activation():
         assert case.active_embargo_id == net.initial_embargo_id, actor_id
         assert case.proposed_embargo_ids == [revision_id], actor_id
 
-    _owner_answers(net)
+    _owner_answers(net, revision_id)
     _replay_to_bystander(net)
 
     for actor_id in (MANAGER, BYSTANDER):
@@ -160,9 +175,9 @@ def test_a_ledger_only_replica_resolves_two_successive_revisions():
     net = _Network("https://example.org/cases/relay-replay-twice")
 
     first = _propose(net, "first", 30)
-    _owner_answers(net)
+    _owner_answers(net, first)
     second = _propose(net, "second", 20)
-    _owner_answers(net)
+    _owner_answers(net, second)
     _replay_to_bystander(net)
 
     manager, replica = net.case(MANAGER), net.case(BYSTANDER)
@@ -227,19 +242,15 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
 @pytest.mark.spec("EP-08-003")
 @pytest.mark.spec("TB-06-007")
 def test_the_owners_rejection_returns_every_store_to_the_prior_terms():
-    """ACTIVE → REVISE → ACTIVE on the prior embargo when the owner rejects."""
-    net = _Network("https://example.org/cases/relay-replay-owner-reject")
-    _propose(net, "refused", 90)
-    net.deliver(MANAGER, to=OWNER, type_="Invite")
-    (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
+    """ACTIVE → REVISE → ACTIVE on the prior embargo when the owner rejects.
 
-    _, sealed = TriggerActivityAdapter(net.stores[OWNER]).reject_embargo(
-        proposal_id=invite.id_,
-        case_id=net.case_id,
-        actor=OWNER,
-        to=[MANAGER],
-    )
-    verdict = net.receive(MANAGER, json.loads(sealed))
+    The owner's ``Reject(EmbargoEvent, target=Case)`` decides the revision
+    and writes no consent (ADR-0122).
+    """
+    net = _Network("https://example.org/cases/relay-replay-owner-reject")
+    refused = _propose(net, "refused", 90)
+
+    verdict = _owner_decides(net, refused, accept=False)
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     _replay_to_bystander(net)
 
@@ -248,6 +259,9 @@ def test_the_owners_rejection_returns_every_store_to_the_prior_terms():
         assert case.current_status.em.state == EM.ACTIVE, actor_id
         assert case.active_embargo_id == net.initial_embargo_id, actor_id
         assert case.proposed_embargo_ids == [], actor_id
+        owner = _participant(net, actor_id, OWNER)
+        assert owner.consent_for(refused) != EmbargoConsentState.DECLINED
+        assert owner.is_signatory(net.initial_embargo_id), actor_id
 
 
 def _set_pxa(net: _Network, actor_id: str) -> None:
@@ -380,20 +394,20 @@ def test_a_bare_uri_invite_with_pxa_set_gets_an_er_naming_the_invite():
 
 @pytest.mark.spec("EMB-02-002")
 @pytest.mark.spec("TB-06-007")
-def test_a_case_manager_with_pxa_set_rejects_an_owners_acceptance():
+def test_a_case_manager_with_pxa_set_rejects_a_participants_acceptance():
     """A public case at the CASE_MANAGER answers an Accept with ER."""
     net = _Network("https://example.org/cases/relay-replay-pxa-accept")
     _propose(net, "public-accept", 90)
-    net.deliver(MANAGER, to=OWNER, type_="Invite")
-    (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
     _set_pxa(net, MANAGER)
 
-    ((_, verdict),) = net.deliver(OWNER, to=MANAGER, type_="Accept")
+    ((_, verdict),) = net.deliver(BYSTANDER, to=MANAGER, type_="Accept")
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert verdict.reason is not None and "EMB-02-002" in verdict.reason
-    (reject,) = net.queued(MANAGER, to=OWNER, type_="Reject")
-    assert reject.to == [OWNER]
+    (reject,) = net.queued(MANAGER, to=BYSTANDER, type_="Reject")
+    assert reject.to == [BYSTANDER]
     sealed = read_sealed_body_dict(net.stores[MANAGER], reject.id_)
     assert sealed is not None
     assert sealed["object"]["id"] == invite.id_
@@ -453,17 +467,17 @@ def test_an_invite_answered_before_pxa_is_not_contradicted_on_redelivery():
     """An Invite accepted before the case went public gets no later ER."""
     net = _Network("https://example.org/cases/relay-replay-pxa-late")
     _propose(net, "late", 90)
-    (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
+    (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
     body = read_sealed_body_dict(net.stores[MANAGER], invite.id_)
     assert body is not None
-    net.deliver(MANAGER, to=OWNER, type_="Invite")
-    assert net.queued(OWNER, to=MANAGER, type_="Accept")
-    _set_pxa(net, OWNER)
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
+    assert net.queued(BYSTANDER, to=MANAGER, type_="Accept")
+    _set_pxa(net, BYSTANDER)
 
-    verdict = net.receive(OWNER, body)
+    verdict = net.receive(BYSTANDER, body)
 
     assert verdict.disposition is HandlerDisposition.SKIPPED
-    assert net.queued(OWNER, to=MANAGER, type_="Reject") == []
+    assert net.queued(BYSTANDER, to=MANAGER, type_="Reject") == []
 
 
 @pytest.mark.spec("EMB-01-002")
@@ -859,10 +873,10 @@ def test_a_redelivered_accept_with_pxa_set_is_answered_once():
     """The Accept-side refusal answers a repeated Accept once (EMB-02-002)."""
     net = _Network("https://example.org/cases/relay-replay-pxa-accept-again")
     _propose(net, "public-accept-again", 90)
-    net.deliver(MANAGER, to=OWNER, type_="Invite")
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
     _set_pxa(net, MANAGER)
-    (accept,) = net.queued(OWNER, to=MANAGER, type_="Accept")
-    body = read_sealed_body_dict(net.stores[OWNER], accept.id_)
+    (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
     assert body is not None
 
     first = net.receive(MANAGER, body)
@@ -870,7 +884,7 @@ def test_a_redelivered_accept_with_pxa_set_is_answered_once():
 
     assert first.disposition is HandlerDisposition.REFUSED
     assert again.disposition is HandlerDisposition.SKIPPED
-    assert len(net.queued(MANAGER, to=OWNER, type_="Reject")) == 1
+    assert len(net.queued(MANAGER, to=BYSTANDER, type_="Reject")) == 1
 
 
 def _refused_invite(net: _Network, suffix: str) -> dict[str, Any]:
@@ -985,10 +999,10 @@ def test_an_accept_of_an_invite_the_receiver_does_not_hold_sends_no_er():
     """An Accept naming an Invite this store never saw cannot be answered with ER."""
     net = _Network("https://example.org/cases/relay-replay-pxa-accept-unheld")
     _propose(net, "accept-unheld", 90)
-    net.deliver(MANAGER, to=OWNER, type_="Invite")
+    net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
     _set_pxa(net, MANAGER)
-    (accept,) = net.queued(OWNER, to=MANAGER, type_="Accept")
-    body = read_sealed_body_dict(net.stores[OWNER], accept.id_)
+    (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
+    body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
     assert body is not None
     body["object"]["id"] = f"{net.case_id}/embargo_proposals/never-sent"
 
@@ -997,4 +1011,4 @@ def test_an_accept_of_an_invite_the_receiver_does_not_hold_sends_no_er():
     result = net.receive(MANAGER, body)
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert net.queued(MANAGER, to=OWNER, type_="Reject") == []
+    assert net.queued(MANAGER, to=BYSTANDER, type_="Reject") == []

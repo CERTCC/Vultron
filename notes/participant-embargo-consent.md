@@ -196,11 +196,11 @@ differs from the one it agreed to.**
 | Event | Effect on the rows |
 |---|---|
 | Revision B proposed (`ACTIVE → REVISE`, or a counter `REVISE → REVISE`) | every participant gets an `UNINVITED` row for B; the proposer's becomes `AGREED`; nothing else |
-| Non-owner accepts B while REVISE | its row for B becomes `AGREED` (`UNINVITED`/`INVITED`/`TIMED_OUT` → `AGREED`); its row for A is untouched |
-| Non-owner rejects B while REVISE | its row for B becomes `DECLINED`; its row for A is untouched — refusing B is not withdrawing from A |
+| A participant — the owner included — accepts the Invite to B while REVISE | its row for B becomes `AGREED` (`UNINVITED`/`INVITED`/`TIMED_OUT` → `AGREED`); its row for A is untouched |
+| A participant — the owner included — rejects the Invite to B while REVISE | its row for B becomes `DECLINED`; its row for A is untouched — refusing B is not withdrawing from A |
 | Any participant rejects the *active* embargo | withdrawal: its row for A becomes `DECLINED`, and so does every open proposal's row it had agreed to |
-| Owner rejects B (EJ, `REVISE → ACTIVE` under A) | nothing — the owner is choosing to keep A, not declining it |
-| Owner activates B, and B ends **no later than** A | the owner's row for B becomes `AGREED`, and `CARRY_OVER` makes B's row `AGREED` for every participant whose row for A is `AGREED` — a `DECLINED` row for B included |
+| Owner rejects B for the case (`Reject(EmbargoEvent)`, EJ, `REVISE → ACTIVE` under A) | nothing — the owner is choosing to keep A, not declining it |
+| Owner activates B (`Accept(EmbargoEvent)`), and B ends **no later than** A | the owner's row for B becomes `AGREED`, and `CARRY_OVER` makes B's row `AGREED` for every participant whose row for A is `AGREED` — a `DECLINED` row for B included |
 | Owner activates B, and B ends **later than** A | the owner's row for B becomes `AGREED`; nothing else is written — a signatory without an `AGREED` row for B has lapsed by derivation |
 | Owner activates B (either arm); a participant already holds `AGREED` for B | nothing — it is B's signatory by lookup (its proposer, an early acceptor); an owner row already `AGREED` is left as it is |
 | Owner tries to activate B, but its own row for B is `DECLINED` | refused: `AGREE` refuses `DECLINED`, so the owner is invited again first |
@@ -210,8 +210,10 @@ The asymmetry is the same containment argument that makes shortest-wins safe
 (EP-04-003): agreeing to N days is agreeing to every shorter period, so a shorter
 revision asks nothing new of an existing signatory and their agreement is carried
 over, while a longer one asks for more than they promised. Only the case owner's
-accept or reject changes the embargo on the case (MSM-07-003/004); the other
-participants' answers arrive first and inform that decision.
+decision changes the embargo on the case, and it has activities of its own —
+`Accept`/`Reject(EmbargoEvent, target=Case)` (MSM-07-008/009, ADR-0122). Every
+`Accept`/`Reject` of an Invite, the owner's included, is the sender's consent
+(MSM-07-003/004); those answers arrive first and inform the decision.
 
 The owner's own agreement and the containment carry-over are the only activation
 writes left (`_consent_at_activation`, `_carry_signatories_over`). Lapse, advance
@@ -693,35 +695,36 @@ the pause cannot deadlock the participant out of accepting.
 
 ## Implications for DR-06 (Accept Embargo Handler)
 
-The `AcceptEmbargoReceivedUseCase` MUST:
+The owner's decision and each participant's consent are different messages
+(ADR-0122), so no handler branches on the sender to know what a message means:
 
-1. Determine if the sending actor is the case owner
-   (`VulnerabilityCase.attributed_to == actor_id`)
-2. If case owner: transition shared `CaseStatus.em_state → ACTIVE`
-3. For all accepting actors (owner or non-owner): mark their consent row for the
-   accepted embargo `AGREED`
-4. Idempotent: if the row is already `AGREED`, succeed silently (HTTP 2xx)
-5. When the owner's accept replaces the active embargo with a revision that ends
-   no later: carry every signatory over by applying `CARRY_OVER` to the revision's
-   row for each. A *longer* replacement writes only the owner's row — signatories
-   without an `AGREED` row for the revision have lapsed by derivation. A proposal changes nobody's consent
-   to the embargo in force.
+1. `AcceptInviteToEmbargoOnCaseReceivedUseCase` (`Accept(Invite(EmbargoEvent))`)
+   marks the sender's consent row for the accepted embargo `AGREED`, whoever the
+   sender is, and moves no register entry.
+2. `ActivateEmbargoOnCaseReceivedUseCase` (`Accept(EmbargoEvent, target=Case)`,
+   the case owner only) activates the proposal — EM derives `ACTIVE` — and marks
+   the owner's row `AGREED` unless it already is; an owner whose row is
+   `DECLINED` is refused.
+3. Idempotent: if the row is already `AGREED`, succeed silently (HTTP 2xx).
+4. When the owner's activation replaces the active embargo with a revision that
+   ends no later: carry every signatory over by applying `CARRY_OVER` to the
+   revision's row for each. A *longer* replacement writes only the owner's row —
+   signatories without an `AGREED` row for the revision have lapsed by
+   derivation. A proposal changes nobody's consent to the embargo in force.
 
 ### Trigger-Side Ownership Gate (BUG-26042101, 2026-04-22)
 
 The same owner-vs-participant split applies to **trigger-side** embargo
-responses, not just receive-side handlers:
+responses, where it picks the activity, not its meaning:
 
-- **Case owner** (`case.attributed_to == actor_id`): drives shared EM
-  transitions (`EM.ACTIVE`, `EM.EXITED`, etc.)
-- **Non-owner participant**: mutates only their own consent state in
-  `CaseParticipant`; does NOT advance shared EM
+- **Case owner**: `accept-embargo` and `reject-embargo` send its decision for
+  the case, `Accept`/`Reject(EmbargoEvent, target=Case)`, which drive shared EM
+  (`EM.ACTIVE`, or back to the prior terms).
+- **Non-owner participant**: they send `Accept`/`Reject(Invite(EmbargoEvent))`,
+  which mutate only their own consent row; they do NOT advance shared EM.
 
-**Fallback for legacy cases**: When `case.attributed_to is None` (older
-single-actor fixtures, seed data created before the attribution field was
-introduced), treat the triggering actor as the case owner. Without this
-fallback, existing single-actor embargo triggers silently stop advancing
-the shared EM state.
+A case that names no owner (`attributed_to is None`) has no owner decision to
+send: `is_case_owner()` answers `False`, so every trigger sends consent.
 
 **Idempotent PEC transitions**: Participant-only accept/reject updates SHOULD
 NOT re-run the PEC machine when the row is already in the target state

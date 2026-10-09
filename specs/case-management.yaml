@@ -122,7 +122,7 @@ groups:
       and `VulnerabilityCase.attributed_to` MUST be set to that actor's ID on every creation path,
       including when the CASE_MANAGER creates the case (CP-09-001).
     rationale: >-
-      `attributed_to` is the case's owner field: ownership checks read it (CM-13-001) and ownership
+      `attributed_to` is the case's owner field: ownership checks read it (MSM-07-008) and ownership
       transfer rewrites it alongside the `CASE_OWNER` role (CM-21-002). Who *created* the case is
       carried by the `actor` of `Create(VulnerabilityCase)`, not by `attributed_to`.
     verification: Integration tests in `test/demo/` confirm that the report-receiving actor is recorded as
@@ -499,20 +499,6 @@ groups:
     stories:
     - story_2022_023
     - story_2022_027
-  - id: CM-04-009
-    priority: MUST
-    kind: project
-    statement: >-
-      A handler processing an EM state transition accept event MUST update at most one of
-      CaseStatus.em_state or a participant's consent row per accept event, except when
-      the accepting actor simultaneously satisfies both the case-owner and non-owner conditions
-      (see CM-13-001 through CM-13-003 for the full decision logic).
-    rationale: >-
-      Updating both fields unconditionally would conflate the shared embargo state with a
-      participant's individual consent state, corrupting the EM state machine.
-    verification: Integration tests in `test/demo/` confirm that a single embargo-accept event
-      updates either `CaseStatus.em_state` or a participant's consent row but never
-      both unconditionally.
 - id: CM-05
   title: Object Model Relationships
   specs:
@@ -1533,53 +1519,6 @@ groups:
 - id: CM-13
   title: Embargo Acceptance Ownership
   specs:
-  - id: CM-13-001
-    priority: MUST
-    kind: protocol
-    statement: When processing an `Accept(Invite(EmbargoEvent))` or embargo-accept trigger, the handler MUST determine whether
-      the accepting actor is the case owner (`VulnerabilityCase.attributed_to == actor_id`) and apply the correct state transitions
-      accordingly
-    rationale: The case owner's acceptance is the authoritative signal for advancing the shared EM state. Non-owner participants
-      update only their own consent state.
-    verification: Integration tests in `test/demo/` confirm that the embargo-accept handler
-      checks `VulnerabilityCase.attributed_to == actor_id` before applying state transitions.
-    stories:
-    - story_2022_048
-    - story_2022_023
-  - id: CM-13-002
-    priority: MUST
-    kind: protocol
-    statement: If the accepting actor is the case owner, the handler MUST transition the shared `CaseStatus.em_state` to `ACTIVE`
-    verification: Integration tests in `test/demo/` confirm that an embargo-accept from the case
-      owner advances `CaseStatus.em_state` to `ACTIVE`.
-    stories:
-    - story_2022_014
-    - story_2022_023
-  - id: CM-13-003
-    priority: MUST
-    kind: protocol
-    statement: If the accepting actor is NOT the case owner, the handler MUST update only that participant's own consent
-      row for the accepted embargo to `AGREED`; it MUST NOT advance the shared EM state
-    rationale: Non-owner participants do not hold a pocket veto; their individual acceptance does not constitute case-level
-      embargo activation
-    verification: Integration tests in `test/demo/` confirm that an embargo-accept from a
-      non-owner participant updates only that participant's consent row for the accepted
-      embargo to `AGREED` without touching `CaseStatus.em_state`.
-    stories:
-    - story_2022_023
-    - story_2022_027
-  - id: CM-13-004
-    priority: MUST
-    kind: protocol
-    statement: If `VulnerabilityCase.attributed_to` is `None` (legacy or single-actor case), the handler MUST treat the triggering
-      actor as the case owner for the purposes of EM state transitions
-    rationale: Backward compatibility with cases created before the `attributed_to` field was introduced; prevents single-actor
-      embargo triggers from silently failing
-    verification: A unit test confirms that when `VulnerabilityCase.attributed_to` is `None`,
-      the embargo-accept handler treats the triggering actor as the case owner for EM state
-      transitions.
-    lint_suppress:
-    - missing_story_reference
   - id: CM-13-005
     priority: MUST
     kind: protocol
@@ -3188,7 +3127,7 @@ groups:
       ADR-0041 supersedes ADR-0015.  The CASE_MANAGER is the case's authoritative
       creator, which AS2 records as the `actor` of `Create(VulnerabilityCase)`
       (ADR-0023); `attributed_to` records the case owner, which ownership checks
-      read and ownership transfer rewrites (CM-13-001, CM-21-002).
+      read and ownership transfer rewrites (MSM-07-008, CM-21-002).
     verification: Integration tests in `test/demo/` confirm that the `VulnerabilityCase` created
       by the CASE_MANAGER has `attributed_to` equal to the proposing actor's ID and that the
       emitted `Create(VulnerabilityCase)` has the CASE_MANAGER as `actor`.

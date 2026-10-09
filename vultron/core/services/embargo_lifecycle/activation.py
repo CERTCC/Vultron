@@ -13,8 +13,8 @@
 
 """Active-embargo register operations: activate and terminate.
 
-Both change the register's ``ACTIVE`` entry directly rather than answering an
-invite — activation is a replica's sync of an announced activation (the
+Both change the register's ``ACTIVE`` entry rather than a consent row —
+activation is the case owner's ``Accept(EmbargoEvent, target=Case)`` (the
 creation-time accept is ``initialize_creation_embargo`` in ``creation.py``,
 one write per EP-04-002), termination is the ``ET`` teardown that
 terminates the embargo in force and cancels every open proposal
@@ -125,25 +125,27 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         actor_id: str | None = None,
         transition_mode: TransitionMode = TransitionMode.STRICT,
     ) -> EmbargoLifecycleResult:
-        """Activate an embargo on a case, driving EM state to ACTIVE.
+        """Apply the case owner's activation of a proposed embargo.
 
-        Activates *embargo_id*'s register entry and supersedes
-        any ``ACTIVE`` one in the same step, so EM derives ``ACTIVE``.  In
-        ``STRICT`` mode the entry must be an open proposal.  In ``OBSERVED``
-        mode a replica that never saw the proposal records it first, and a
-        step the register refuses is skipped (EP-09-007).
+        ``Accept(EmbargoEvent, target=Case)`` (ADR-0122): ``ACTIVATE``
+        *embargo_id*'s register entry and ``SUPERSEDE`` any ``ACTIVE`` one in
+        the same step, so EM derives ``ACTIVE``.  In ``STRICT`` mode the entry
+        must be an open proposal and P/X/A must be clear (EMB-02-002).  In
+        ``OBSERVED`` mode a replica that never saw the proposal records it
+        first, and a step the register refuses is skipped (EP-09-007).
 
-        When this replaces an active embargo A with *embargo_id* (B), the
-        case owner's acceptance of B is recorded (activation is the owner's
-        decision, so the owner is never lapsed by it) and every participant's
-        consent rows are settled against B (EP-05-001, MSM-07-005) exactly as
-        the owner's ``accept_embargo_invite`` does:
-        a shorter-or-equal B carries every signatory over, and under a longer B
-        the signatories who have not accepted it have lapsed by derivation
-        (CM-18-001).  Whoever holds an ``AGREED`` row for B — its proposer,
-        for one — is a signatory by lookup, with nothing to advance.  The
-        carry-over runs in both modes, so a replica syncing an announced
-        activation keeps its consent rows in step with the CASE_MANAGER.
+        The consent effect (EP-05-001, MSM-07-005) runs in both modes, so a
+        replica syncing an announced activation keeps its consent rows in
+        step with the CASE_MANAGER: the owner's row for *embargo_id* becomes
+        ``AGREED`` unless it already is (activation is the owner's decision,
+        so the owner is never lapsed by it), and when this replaces an active
+        embargo A with a B that ends no later, every signatory of A is
+        carried over to B by ``CARRY_OVER``; under a longer B the signatories
+        who have not agreed to it have lapsed by derivation (CM-18-001).
+        Whoever holds an ``AGREED`` row for B — its proposer, for one — is a
+        signatory by lookup, with nothing to advance.  An owner whose row for
+        *embargo_id* is ``DECLINED`` cannot activate it, in either mode: it is
+        invited again first.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
@@ -162,7 +164,9 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             VultronValidationError: If either embargo record is not an
                 ``EmbargoEvent``.
             VultronInvalidStateTransitionError: In ``STRICT`` mode, if
-                *embargo_id* is not an open proposal of the case.
+                *embargo_id* is not an open proposal of the case or P/X/A is
+                set; in either mode, if the owner's row for it is
+                ``DECLINED``.
         """
         case = self._read_case(case_id)
 
@@ -174,10 +178,13 @@ class _ActivationOperationsMixin(_PecActivationMixin):
             previous_embargo_id=previous_embargo_id,
             activated_embargo_id=embargo_id,
         )
+        if transition_mode == TransitionMode.STRICT:
+            self._assert_pxa_embargo_eligible(
+                case.current_status.pxa.state, case_id, "activate embargo"
+            )
+        self._assert_owner_may_activate(case, embargo_id)
 
-        if not self._owner_may_activate(
-            case, embargo_id, transition_mode=transition_mode
-        ) or not self._activate_entry(
+        if not self._activate_entry(
             case,
             embargo_id,
             transition_mode=transition_mode,
@@ -187,10 +194,6 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         self._persistence.save(case)
         em_after = case.em_state
 
-        # The embargo in force changed: the same consent effect as the owner
-        # path of accept_embargo_invite (EP-05-001; on a replacement the
-        # owner's acceptance of B is recorded first, so the owner is never
-        # lapsed by its own activation).
         participant_changes = self._consent_at_activation(
             case,
             embargo_id=embargo_id,

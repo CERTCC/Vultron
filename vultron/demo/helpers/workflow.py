@@ -35,12 +35,14 @@ from vultron.demo.helpers.polling import (
     _poll_until,
     case_actor_participant_id_in,
     find_case_actor_participant_id,
+    find_case_invite_for_actor,
     find_ownership_transfer_offer_for_actor,
     resolve_case_actor_store_id,
     wait_for_initialized_case,
     wait_for_participant_rm_state,
     wait_for_report_submission_stored,
 )
+from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.verification import _fetch_participant
 from vultron.demo.utils import (
     DataLayerClient,
@@ -50,6 +52,7 @@ from vultron.demo.utils import (
     demo_step,
     get_offer_from_datalayer,
     log_case_state,
+    logfmt,
     post_to_inbox_and_wait,
     ref_id,
     seed_case_actor,
@@ -58,9 +61,11 @@ from vultron.demo.utils import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
+    activate_embargo_activity,
     add_report_to_case_activity,
     offer_case_ownership_transfer_activity,
     parse_submit_report_offer,
+    reject_embargo_proposal_activity,
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
@@ -1084,6 +1089,76 @@ def await_forwarded_ownership_transfer_offer(
     )
 
 
+def find_case_manager_actor_id(
+    client: DataLayerClient, vendor_id: str, case_id: str
+) -> str | None:
+    """Return the CASE_MANAGER actor ID by reading the case participant roster (ADR-0088).
+
+    Authority is the ``CVDRole.CASE_MANAGER`` role — hosting location is not
+    consulted (ARCH-24-004, CM-02-013).
+    """
+    try:
+        case_data = client.get(client.dl_path(case_id, actor_id=vendor_id))
+        case_obj = as_VulnerabilityCase(**case_data)
+    except Exception:  # noqa: BLE001  # ruff-baseline #3326
+        return None
+
+    for p_ref in case_obj.case_participants:
+        pid = ref_id(p_ref) or str(p_ref)
+        if not pid:
+            continue
+        try:
+            p_data = client.get(client.dl_path(pid, actor_id=vendor_id))
+            p = as_CaseParticipant(**p_data)
+            if CVDRole.CASE_MANAGER in p.case_roles:
+                attr = p.attributed_to
+                return (
+                    attr
+                    if isinstance(attr, str)
+                    else getattr(attr, "id_", None)
+                )
+        except Exception:  # noqa: BLE001, S112  # ruff-baseline #3326
+            continue
+    return None
+
+
+def case_manager_invites_actor(
+    client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    vendor: as_Actor,
+    coordinator: as_Actor,
+    invite_actor_id: str,
+) -> str:
+    """Have *vendor* trigger the stub Invite of *coordinator*; return its id.
+
+    The CASE_MANAGER sends and records the Invite (CM-17-007, ADR-0109), so
+    the coordinator answers that Invite and not one the demo builds: a reply
+    to an Invite the CASE_MANAGER has no record of is refused (CM-11-017).
+    The trigger also records the inert participant at invite-send time
+    (ADR-0114, CM-11-006).
+    """
+    # Seed stub_summary on the CASE_MANAGER's DataLayer copy: the invite BT
+    # reads the case from the CASE_MANAGER's store and the BT-created case
+    # has none (CM-17-010, MV-10-001, #4165).
+    ActorSession(
+        client=client, actor=get_actor_by_id(client, invite_actor_id)
+    ).with_case(case).quiet().set_stub_summary(
+        "Vulnerability report — details shared after acceptance."
+    )
+    ActorSession(client=client, actor=vendor).with_case(
+        case
+    ).quiet().invite_actor_to_case(
+        invitee_id=str(coordinator.id_), roles=[CVDRole.COORDINATOR]
+    )
+    invite_id = find_case_invite_for_actor(
+        client=client.model_copy(update={"actor_id": coordinator.id_}),
+        case_id=case.id_,
+        invitee_id=str(coordinator.id_),
+    )
+    logger.info("CASE_MANAGER Invite for coordinator: %s", invite_id)
+    return invite_id
+
+
 def setup_two_participant_case(
     client: DataLayerClient,
     finder: as_Actor,
@@ -1128,3 +1203,78 @@ def setup_two_participant_case(
         "✓ Setup: Case initialized with vendor and coordinator participants"
     )
     return case
+
+
+def _send_owner_embargo_decision(
+    client: DataLayerClient,
+    owner: as_Actor,
+    case_manager_id: str,
+    case: as_VulnerabilityCase,
+    embargo: as_EmbargoEvent,
+    *,
+    accept: bool,
+    summary: str,
+) -> None:
+    """Send the case owner's decision on a proposal to the CASE_MANAGER.
+
+    The owner decides for the case with ``Accept`` or ``Reject`` of the
+    ``EmbargoEvent`` itself, the case as ``target`` (ADR-0122) — never of
+    the Invite that proposed it, which is only the owner's own consent.
+    """
+    build = (
+        activate_embargo_activity
+        if accept
+        else reject_embargo_proposal_activity
+    )
+    decision = build(
+        embargo,
+        actor=owner.id_,
+        target=case.id_,
+        context=case.id_,
+        to=[case_manager_id],
+        summary=summary,
+    )
+    logger.info(
+        "Sending the owner's %s: %s",
+        "activation" if accept else "rejection",
+        logfmt(decision),
+    )
+    post_to_inbox_and_wait(client, case_manager_id, decision)
+
+
+def owner_activates_embargo(
+    client: DataLayerClient,
+    owner: as_Actor,
+    case_manager_id: str,
+    case: as_VulnerabilityCase,
+    embargo: as_EmbargoEvent,
+) -> None:
+    """The case owner activates a proposed embargo (EA / EC, ADR-0122)."""
+    _send_owner_embargo_decision(
+        client,
+        owner,
+        case_manager_id,
+        case,
+        embargo,
+        accept=True,
+        summary=f"Activating the proposed embargo for {case.name}.",
+    )
+
+
+def owner_rejects_embargo_proposal(
+    client: DataLayerClient,
+    owner: as_Actor,
+    case_manager_id: str,
+    case: as_VulnerabilityCase,
+    embargo: as_EmbargoEvent,
+) -> None:
+    """The case owner rejects a proposed embargo (ER / EJ, ADR-0122)."""
+    _send_owner_embargo_decision(
+        client,
+        owner,
+        case_manager_id,
+        case,
+        embargo,
+        accept=False,
+        summary=f"Rejecting the proposed embargo for {case.name}.",
+    )

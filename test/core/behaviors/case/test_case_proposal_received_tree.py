@@ -1302,7 +1302,7 @@ def _proposed_case_with_open_revision(
 
 
 @pytest.mark.spec("CP-09-001")
-@pytest.mark.spec("CM-13-001")
+@pytest.mark.spec("MSM-07-008")
 @pytest.mark.spec("CM-02-008")
 class TestOwnerChecksOnACaseTheCaseActorCreated:
     """Every check that reads ``attributed_to`` treats the CASE_OWNER as owner.
@@ -1330,12 +1330,14 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
 
         assert result.status.name == expected
 
-    def test_owner_accepting_a_revision_activates_it(self, make_payload):
-        """answers.py accept, and pec.py's owner-acceptance at activation."""
+    def test_owner_activating_a_revision_records_the_owners_agreement(
+        self, make_payload
+    ):
+        """activation.py, and pec_activation.py's owner agreement (ADR-0122)."""
         from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 
         dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
-        EmbargoLifecycle(persistence=dl).accept_embargo_invite(
+        EmbargoLifecycle(persistence=dl).activate_embargo(
             case_id=case.id_, embargo_id=revision_id, actor_id=_VENDOR_URI
         )
 
@@ -1364,54 +1366,66 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         assert stored.current_status.em.state == EM.REVISE
 
     @pytest.mark.parametrize(
-        ("rejecter", "em_after"),
-        [(_VENDOR_URI, EM.ACTIVE), (_CASE_ACTOR_URI, EM.REVISE)],
+        ("decliner", "expected"),
+        [(_VENDOR_URI, "FAILURE"), (_CASE_ACTOR_URI, "SUCCESS")],
     )
-    def test_only_the_owners_reject_decides_a_revision(
-        self, make_payload, rejecter, em_after
+    def test_only_the_owners_decline_blocks_its_activation(
+        self, make_payload, decliner, expected
     ):
-        """answers.py reject, and pec.py's owner-EJ consent rule."""
-        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-
-        dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
-        result = EmbargoLifecycle(persistence=dl).reject_embargo_invite(
-            case_id=case.id_, embargo_id=revision_id, actor_id=rejecter
+        """owner_decision.py reads the owner's row, not the case actor's."""
+        from test.core.behaviors.bt_harness import BTTestScenario
+        from vultron.core.behaviors.embargo.nodes import (
+            OwnerMayActivateEmbargoNode,
+        )
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.participant_embargo_consent import (
+            PEC_Trigger,
         )
 
+        dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
         stored = dl.read(case.id_)
         assert isinstance(stored, VulnerabilityCase)
-        assert stored.current_status.em.state == em_after
-        if rejecter == _VENDOR_URI:
-            # The owner keeping the prior terms changes nobody's consent (EJ).
-            assert result.participant_changes == []
-
-    @pytest.mark.parametrize(
-        ("rejecter", "pruned"),
-        [(_VENDOR_URI, True), (_CASE_ACTOR_URI, False)],
-    )
-    def test_reject_prune_authorization(self, make_payload, rejecter, pruned):
-        """Only the owner's Reject decides, and so forgets, the proposal."""
-        from test.core.behaviors.bt_harness import BTTestScenario
-        from vultron.core.behaviors.embargo.nodes.reject_proposed import (
-            DecideRejectedEmbargoProposalNode,
+        record = dl.read(stored.actor_participant_index[decliner])
+        assert isinstance(record, CaseParticipant)
+        record.apply_pec_transition(
+            revision_id,
+            PEC_Trigger.DECLINE,
+            entry_status=stored.embargo_register_status(revision_id),
         )
-
-        dl, case, revision_id = _proposed_case_with_open_revision(make_payload)
-        assert revision_id in case.proposed_embargo_ids
+        dl.save(record)
         scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
 
         result = scenario.run(
-            DecideRejectedEmbargoProposalNode(
-                case_id=case.id_,
-                embargo_id=revision_id,
-                rejecting_actor_id=rejecter,
+            OwnerMayActivateEmbargoNode(
+                case_id=case.id_, embargo_id=revision_id
             )
         )
 
-        assert result.status.name == "SUCCESS"
-        stored = dl.read(case.id_)
-        assert isinstance(stored, VulnerabilityCase)
-        assert (revision_id not in stored.proposed_embargo_ids) is pruned
+        assert result.status.name == expected
+
+    @pytest.mark.parametrize(
+        ("sender", "expected"),
+        [(_VENDOR_URI, "SUCCESS"), (_CASE_ACTOR_URI, "FAILURE")],
+    )
+    def test_only_the_owner_may_decide_a_revision(
+        self, make_payload, sender, expected
+    ):
+        """The owner-decision trees' sender guard admits the CASE_OWNER only."""
+        from test.core.behaviors.bt_harness import BTTestScenario
+        from vultron.core.behaviors.sender_entitlement import (
+            SenderIsCaseOwnerNode,
+        )
+
+        dl, case, _revision_id = _proposed_case_with_open_revision(
+            make_payload
+        )
+        scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
+
+        result = scenario.run(
+            SenderIsCaseOwnerNode(sender_actor_id=sender, case_id=case.id_)
+        )
+
+        assert result.status.name == expected
 
 
 @pytest.mark.spec("CP-09-007")

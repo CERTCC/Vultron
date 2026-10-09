@@ -15,12 +15,13 @@
 
 """Ledger effect nodes for the embargo revision relay (EP-09-007, ADR-0113).
 
-The CASE_MANAGER commits four kinds of entry while it relays an embargo
+The CASE_MANAGER commits three kinds of entry while it relays an embargo
 negotiation: the proposal it received, each ``Invite(EmbargoEvent)`` it relays
-to a participant, each participant's ``Accept`` or ``Reject`` of its Invite,
-and the case owner's decision (which is an ``Accept`` or ``Reject`` by the
-owner).  A fifth, the re-invite of a late accepter whose embargo went stale
-(EMB-17-003), has an event type of its own.  A participant replica writes none
+to a participant, and each participant's ``Accept`` or ``Reject`` of its
+Invite — the case owner's included, which is the owner's consent (ADR-0122).
+The re-invite of a late accepter whose embargo went stale (EMB-17-003) has an
+event type of its own, and so has the owner's decision on a proposal
+(``activation_effect.py``).  A participant replica writes none
 of that state when the activity reaches it directly (EP-09-003, RSH-08-003); it
 reconstructs the state from the ``Announce(CaseLedgerEntry)`` broadcast through
 these nodes (RSH-08-004, ADR-0108).
@@ -49,9 +50,6 @@ from vultron.core.behaviors.embargo.nodes.proposal import (
     ALREADY_DECLINED_PREFIX,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
-)
-from vultron.core.behaviors.embargo.nodes.reject_proposed import (
-    DecideRejectedEmbargoProposalNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay import invite_rsvp_deadline
 from vultron.core.behaviors.embargo.proposal_index import (
@@ -391,11 +389,11 @@ class ApplyEmbargoReinviteFromLedgerNode(_EmbargoRelayEffectNode):
 
 
 class ApplyEmbargoAcceptanceFromLedgerNode(_EmbargoRelayEffectNode):
-    """Replay an ``Accept`` of an embargo Invite (MSM-07-003, MSM-07-005).
+    """Replay an ``Accept`` of an embargo Invite (MSM-07-003).
 
     Delegates to :class:`RecordParticipantAcceptanceNode` for the accepting
-    actor: a participant's Accept records its consent; the case owner's Accept
-    activates the embargo, with the EP-05-001 consent cascade.
+    actor: the Accept records the sender's consent, the case owner's
+    included, and moves no register entry (ADR-0122).
     """
 
     def update(self) -> Status:
@@ -427,12 +425,11 @@ class ApplyEmbargoRejectionFromLedgerNode(_EmbargoRelayEffectNode):
     """Replay a ``Reject`` of an embargo Invite (MSM-07-004).
 
     Delegates to :class:`RecordParticipantRejectionNode` for the rejecting
-    actor, then to :class:`DecideRejectedEmbargoProposalNode` in ``OBSERVED``
-    mode, which — only when the rejecting actor is the case owner — forgets
-    the open proposal and returns EM to the prior terms (EP-08-003).  A
-    rejection this replica already holds is replayed as a no-op: the record
-    node reports the repeat, and a repeat is not a fault.  So is a Reject of
-    an embargo this replica no longer holds as active or open.
+    actor: the Reject records the sender's consent, the case owner's
+    included, and moves no register entry (ADR-0122).  A rejection this
+    replica already holds is replayed as a no-op: the record node reports
+    the repeat, and a repeat is not a fault.  So is a Reject of an embargo
+    this replica no longer holds as active or open.
     """
 
     def update(self) -> Status:
@@ -475,18 +472,12 @@ class ApplyEmbargoRejectionFromLedgerNode(_EmbargoRelayEffectNode):
                 rejecting_actor_id=rejecting_actor_id,
             )
         )
-        if status is not Status.SUCCESS and not (
+        if status is not Status.SUCCESS and (
             self.feedback_message or ""
         ).startswith(ALREADY_DECLINED_PREFIX):
-            return status
-        return self._delegate(
-            DecideRejectedEmbargoProposalNode(
-                case_id=case.id_,
-                embargo_id=embargo_id,
-                rejecting_actor_id=rejecting_actor_id,
-                transition_mode=TransitionMode.OBSERVED,
-            )
-        )
+            # A repeat of a rejection already replayed is not a fault.
+            return Status.SUCCESS
+        return status
 
 
 __all__ = [

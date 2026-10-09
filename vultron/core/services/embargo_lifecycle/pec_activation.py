@@ -28,10 +28,12 @@ import logging
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.services.embargo_lifecycle.pec import _PecEffectsMixin
+from vultron.core.services.embargo_lifecycle.pec import (
+    _PecEffectsMixin,
+    owner_declined_embargo,
+)
 from vultron.core.services.embargo_lifecycle.results import (
     ParticipantConsentChange,
-    TransitionMode,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -44,48 +46,6 @@ logger = logging.getLogger(__name__)
 
 class _PecActivationMixin(_PecEffectsMixin):
     """Consent bookkeeping run when an embargo becomes the one in force."""
-
-    def _owner_may_activate(
-        self,
-        case: VulnerabilityCase,
-        embargo_id: str,
-        *,
-        transition_mode: TransitionMode,
-    ) -> bool:
-        """Refuse an activation by an owner whose row for the embargo is ``DECLINED``.
-
-        Activating an embargo is the owner agreeing to it, and ``AGREE``
-        refuses ``DECLINED`` (ADR-0122): an owner that declined these terms
-        is invited again before it can put them in force.  Call it before
-        anything is written.  A replica that has not recorded the proposal
-        yet holds no row for it, so there is nothing to check.
-
-        Returns:
-            ``True`` when the activation may go ahead; ``False`` only in
-            ``OBSERVED`` mode, after a WARNING, for a refused one.
-
-        Raises:
-            VultronInvalidStateTransitionError: In ``STRICT`` mode, when the
-                owner's row for *embargo_id* is ``DECLINED``.
-        """
-        owner_id = _as_id(case.attributed_to)
-        resolved = self._find_participant(case, owner_id) if owner_id else None
-        if (
-            resolved is None
-            or case.embargo_register_entry(embargo_id) is None
-            or resolved[1].consent_for(embargo_id)
-            != EmbargoConsentState.DECLINED
-        ):
-            return True
-        message = (
-            f"Case owner '{owner_id}' declined embargo '{embargo_id}' on case"
-            f" '{case.id_}', so it cannot activate it until it is invited"
-            " again (ADR-0122)."
-        )
-        if transition_mode == TransitionMode.STRICT:
-            raise VultronInvalidStateTransitionError(message)
-        logger.warning("OBSERVED mode: %s Case left unchanged.", message)
-        return False
 
     def _carry_signatories_over(
         self,
@@ -127,6 +87,28 @@ class _PecActivationMixin(_PecEffectsMixin):
             )
         return changes
 
+    def _assert_owner_may_activate(
+        self, case: VulnerabilityCase, embargo_id: str
+    ) -> None:
+        """Refuse an activation the case owner has declined (ADR-0122).
+
+        Activation records the owner's ``AGREE``, which ``DECLINED`` refuses
+        (CM-18-003): an owner that declined the proposal as a participant is
+        invited again before it can activate it.  Called before anything is
+        written, in either mode, so replay refuses what the CASE_MANAGER
+        would have refused.
+
+        Raises:
+            VultronInvalidStateTransitionError: If the owner's row for
+                *embargo_id* is ``DECLINED``.
+        """
+        if owner_declined_embargo(self._persistence, case, embargo_id):
+            raise VultronInvalidStateTransitionError(
+                f"Case owner '{_as_id(case.attributed_to)}' declined embargo"
+                f" '{embargo_id}' on case '{_as_id(case)}': it is invited"
+                " again before it can activate it (CM-18-003)."
+            )
+
     def _consent_at_activation(
         self,
         case: VulnerabilityCase,
@@ -137,13 +119,12 @@ class _PecActivationMixin(_PecEffectsMixin):
     ) -> list[ParticipantConsentChange]:
         """The consent rows written once *embargo_id* is the embargo in force.
 
-        The one consent effect of an activation, shared by the owner path of
-        ``accept_embargo_invite`` and by ``activate_embargo`` so the two
-        cannot drift.  *ends_no_later* is ``None`` for a first activation
-        (``PROPOSED → ACTIVE``, nothing replaced) and otherwise
-        :meth:`_revision_ends_no_later`'s answer for the embargo replaced,
-        taken before the case was mutated; *previous_embargo_id* is that
-        embargo.
+        The consent effect of the case owner's
+        ``Accept(EmbargoEvent, target=Case)`` (ADR-0122).  *ends_no_later* is
+        ``None`` for a first activation (``PROPOSED → ACTIVE``, nothing
+        replaced) and otherwise :meth:`_revision_ends_no_later`'s answer for
+        the embargo replaced, taken before the case was mutated;
+        *previous_embargo_id* is that embargo.
 
         - The owner's row for the activated embargo is ``AGREED``: an
           activation is the owner agreeing to the terms, so the owner is

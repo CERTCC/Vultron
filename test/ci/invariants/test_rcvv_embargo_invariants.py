@@ -9,12 +9,13 @@ Actor set: ``reporter``, ``coordinator``, ``vendor``, ``vendor2``,
 
 RCVV-embargo-specific invariants (DEMOMA-21-007):
 
-- the ledger records, in order, the embargo proposal, the owner's acceptance,
-  the revision proposal and the owner's acceptance of the revision, under the
+- the ledger records, in order, the embargo proposal, the owner's activation,
+  the revision proposal and the owner's activation of the revision, under the
   event types the CASE_MANAGER's commit path emits.  The strings are imported
   from that code, never hand-listed here, so the check cannot drift from what
   the manager writes.  A proposal and a revision proposal share one event type,
-  as do all acceptances, so the order is checked on the entries of each type.
+  as do both of the owner's activations, so the order is checked on the
+  entries of each type.
 - the embargo is torn down exactly once, by the CS.P collapse (DEMOMA-21-004).
 - ``invite_actor_to_case`` appears exactly twice (the two vendors; the Reporter
   is seated when the case is created and is never invited).
@@ -42,6 +43,7 @@ from test.ci.invariants.common import (
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 from vultron.core.behaviors.embargo.nodes import (
+    EMBARGO_ACTIVATION_EVENT_TYPE,
     EMBARGO_INVITE_EVENT_TYPE,
     EMBARGO_TEARDOWN_EVENT_TYPE,
 )
@@ -50,6 +52,7 @@ from vultron.core.models.events.base import MessageSemantics
 _DEMO_NAME = "rcvv-embargo"
 
 _ACCEPT_EVENT_TYPE = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
+_ACTIVATE_EVENT_TYPE = EMBARGO_ACTIVATION_EVENT_TYPE
 
 #: Expected protocol eventTypes in a complete RCVV-embargo run.
 _RCVV_EMBARGO_EXPECTED_EVENT_TYPES = [
@@ -75,6 +78,7 @@ _RCVV_EMBARGO_EXPECTED_EVENT_TYPES = [
         "accept_invite_to_embargo_on_case",
         id="accept_invite_to_embargo_on_case",
     ),
+    pytest.param("activate_embargo_on_case", id="activate_embargo_on_case"),
     pytest.param(
         "remove_embargo_event_from_case", id="remove_embargo_event_from_case"
     ),
@@ -118,6 +122,7 @@ def test_rcvv_embargo_event_type_literals_match_the_commit_path() -> None:
     assert {
         EMBARGO_INVITE_EVENT_TYPE,
         _ACCEPT_EVENT_TYPE,
+        _ACTIVATE_EVENT_TYPE,
         EMBARGO_TEARDOWN_EVENT_TYPE,
     } <= listed
 
@@ -126,16 +131,16 @@ def test_rcvv_embargo_event_type_literals_match_the_commit_path() -> None:
 def test_rcvv_embargo_proposal_then_revision_then_teardown_in_order(
     rcvv_embargo_replicas: dict[str, list[dict]],
 ) -> None:
-    """Proposal, its acceptance, the revision, its acceptance, then teardown.
+    """Proposal, its activation, the revision, its activation, then teardown.
 
     A proposal and a revision proposal are both committed as the embargo
-    Invite, and the participants' and the owner's answers share one acceptance
-    type, so the order is read off the entries of each type: an Invite precedes
-    the first acceptance, a later Invite (the revision) follows it, a later
-    acceptance (of the revision) follows that, and the teardown comes last.
-    The committed entries do not name the answering participant, so whose
-    acceptance is not read here; the owner's own is asserted by the scenario
-    (DEMOMA-21-002, DEMOMA-21-012).
+    Invite, so the order is read off the entries of each type: an Invite
+    precedes the owner's first activation, a later Invite (the revision)
+    follows it, a later activation (of the revision) follows that, and the
+    teardown comes last.  The owner's activation has its own type,
+    ``Accept(EmbargoEvent, target=Case)`` (ADR-0122), so this is the owner's
+    decision, not a participant's consent; the participants' consent is
+    asserted by the scenario (DEMOMA-21-002, DEMOMA-21-012).
 
     Spec: DEMOMA-21-007.
     """
@@ -147,13 +152,13 @@ def test_rcvv_embargo_proposal_then_revision_then_teardown_in_order(
         return sorted(log_index(e) for e in auth if event_type(e) == kind)
 
     invites = indices(EMBARGO_INVITE_EVENT_TYPE)
-    accepts = indices(_ACCEPT_EVENT_TYPE)
+    accepts = indices(_ACTIVATE_EVENT_TYPE)
     teardowns = indices(EMBARGO_TEARDOWN_EVENT_TYPE)
     missing = [
         kind
         for kind, found in (
             (EMBARGO_INVITE_EVENT_TYPE, invites),
-            (_ACCEPT_EVENT_TYPE, accepts),
+            (_ACTIVATE_EVENT_TYPE, accepts),
             (EMBARGO_TEARDOWN_EVENT_TYPE, teardowns),
         )
         if not found
@@ -164,21 +169,21 @@ def test_rcvv_embargo_proposal_then_revision_then_teardown_in_order(
     if not invites[0] < accepts[0]:
         violations.append(
             f"first proposal {invites[0]} does not precede the first"
-            f" acceptance {accepts[0]}"
+            f" activation {accepts[0]}"
         )
     if not accepts[0] < invites[-1]:
         violations.append(
-            f"no revision proposal after the first acceptance {accepts[0]}"
+            f"no revision proposal after the first activation {accepts[0]}"
             f" (last proposal at {invites[-1]})"
         )
     if not invites[-1] < accepts[-1]:
         violations.append(
             f"the revision proposal {invites[-1]} is not followed by an"
-            f" acceptance (last acceptance at {accepts[-1]})"
+            f" activation (last activation at {accepts[-1]})"
         )
     if not accepts[-1] < teardowns[0]:
         violations.append(
-            f"teardown {teardowns[0]} does not follow the last acceptance"
+            f"teardown {teardowns[0]} does not follow the last activation"
             f" {accepts[-1]}"
         )
     assert not violations, "\n".join(violations)

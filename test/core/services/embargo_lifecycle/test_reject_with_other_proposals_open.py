@@ -13,7 +13,8 @@
 """``reject_embargo_invite`` when the owner decides one of several proposals.
 
 Several proposals may be open at once, each decided on its own (EP-08-001).
-The owner's Reject of one forgets that one (EP-08-003); EM leaves
+The owner's ``reject_embargo_proposal`` of one rejects that one (EP-08-003,
+ADR-0122); EM leaves
 ``PROPOSED``/``REVISE`` only when no proposal is left awaiting an answer.
 """
 
@@ -34,7 +35,10 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState as ECS,
 )
-from vultron.errors import VultronInvalidStateTransitionError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
@@ -73,7 +77,7 @@ def test_owner_rejecting_one_of_two_open_proposals_keeps_the_em_state(
     owner, dl = owner_and_dl
     case, r1, r2, active_id = _case_with_two_open(dl, owner.id_, em_state)
 
-    result = EmbargoLifecycle(persistence=dl).reject_embargo_invite(
+    result = EmbargoLifecycle(persistence=dl).reject_embargo_proposal(
         case_id=case.id_, embargo_id=r1, actor_id=owner.id_
     )
 
@@ -92,11 +96,11 @@ def test_owner_rejecting_the_last_open_revision_returns_to_active(
     owner, dl = owner_and_dl
     case, r1, r2, active_id = _case_with_two_open(dl, owner.id_, EM.REVISE)
     lifecycle = EmbargoLifecycle(persistence=dl)
-    lifecycle.reject_embargo_invite(
+    lifecycle.reject_embargo_proposal(
         case_id=case.id_, embargo_id=r1, actor_id=owner.id_
     )
 
-    result = lifecycle.reject_embargo_invite(
+    result = lifecycle.reject_embargo_proposal(
         case_id=case.id_, embargo_id=r2, actor_id=owner.id_
     )
 
@@ -123,7 +127,7 @@ def test_owner_rejecting_one_of_two_revisions_with_pxa_set_is_allowed(
     write_consent_rows(dl, case)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
-    result = lifecycle.reject_embargo_invite(
+    result = lifecycle.reject_embargo_proposal(
         case_id=case.id_, embargo_id=r1, actor_id=owner.id_
     )
 
@@ -132,32 +136,59 @@ def test_owner_rejecting_one_of_two_revisions_with_pxa_set_is_allowed(
     assert updated.proposed_embargo_ids == [r2]
     assert updated.active_embargo_id == active_id
     with pytest.raises(VultronInvalidStateTransitionError):
-        lifecycle.reject_embargo_invite(
+        lifecycle.reject_embargo_proposal(
             case_id=case.id_, embargo_id=r2, actor_id=owner.id_
         )
 
 
 @pytest.mark.spec("MSM-07-004")
-def test_record_consent_false_leaves_the_rejecting_participant_alone(
+def test_the_owners_rejection_writes_no_consent(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """The received tree records consent once, then decides (#3915)."""
+    """``Reject(EmbargoEvent, target=Case)`` decides; it changes no row (ADR-0122).
+
+    Neither the owner's nor any invitee's row moves: refusing terms as a
+    participant is a separate ``Reject(Invite(EmbargoEvent))``.
+    """
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
-    case, _ = _make_case(dl, owner.id_, extra_participant_ids=[finder.id_])
+    case, (owner_p, _finder_p) = _make_case(
+        dl, owner.id_, extra_participant_ids=[finder.id_]
+    )
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
     write_consent_rows(dl, case)
     finder_pid = case.actor_participant_index[finder.id_]
     _seed_consent(dl, finder_pid, embargo.id_, ECS.INVITED)
+    _seed_consent(dl, owner_p.id_, embargo.id_, ECS.INVITED)
 
-    result = EmbargoLifecycle(persistence=dl).reject_embargo_invite(
+    result = EmbargoLifecycle(persistence=dl).reject_embargo_proposal(
         case_id=case.id_,
         embargo_id=embargo.id_,
-        actor_id=finder.id_,
-        record_consent=False,
+        actor_id=owner.id_,
     )
 
+    assert result.em_after == EM.NONE
     assert result.participant_changes == []
     assert _consents_of(dl, finder_pid) == {embargo.id_: "INVITED"}
+    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "INVITED"}
+
+
+def test_strict_rejection_of_a_non_open_proposal_raises_and_writes_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The embargo in force is no proposal: STRICT refuses before any write."""
+    owner, dl = owner_and_dl
+    case, r1, r2, active_id = _case_with_two_open(dl, owner.id_, EM.REVISE)
+    assert active_id is not None
+
+    with pytest.raises(VultronValidationError, match="not an open proposal"):
+        EmbargoLifecycle(persistence=dl).reject_embargo_proposal(
+            case_id=case.id_, embargo_id=active_id, actor_id=owner.id_
+        )
+
+    untouched = cast(VulnerabilityCase, dl.read(case.id_))
+    assert untouched.em_state == EM.REVISE
+    assert untouched.proposed_embargo_ids == [r1, r2]
+    assert untouched.active_embargo_id == active_id

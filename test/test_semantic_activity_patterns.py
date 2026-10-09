@@ -967,3 +967,30 @@ def test_accept_case_participant_role_not_confused_with_other_accepts():
         MessageSemantics.UNKNOWN,
         MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
     }, f"Accept(Offer(CaseParticipantRole)) misrouted as {result}"
+
+
+# ---------------------------------------------------------------------------
+# The case owner's decision on an embargo proposal (ADR-0122, #4292): Accept
+# or Reject of the EmbargoEvent itself is told apart from the same verb on
+# the Invite that proposed it, which is each sender's own consent.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("example", "expected"),
+    [
+        ("activate_embargo", MessageSemantics.ACTIVATE_EMBARGO_ON_CASE),
+        (
+            "reject_embargo_proposal",
+            MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
+        ),
+        ("accept_embargo", MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE),
+        ("reject_embargo", MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE),
+    ],
+)
+def test_owner_embargo_decisions_are_distinct_from_invite_answers(
+    example: str, expected: MessageSemantics
+) -> None:
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    assert find_matching_semantics(getattr(examples, example)()) == expected

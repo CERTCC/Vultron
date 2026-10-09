@@ -12,10 +12,13 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Replay of ``add_embargo_event_to_case`` on a participant replica (#3814 AC-4).
+"""Replay of the case owner's embargo decisions on a participant replica.
 
-The activation counterpart of the teardown replay: the register activates
-the embargo, so EM derives ACTIVE, through ``EmbargoLifecycle`` (EMB-18-001).
+``activate_embargo_on_case`` (the owner's ``Accept(EmbargoEvent,
+target=Case)``) and ``reject_embargo_proposal_on_case`` (its ``Reject``) are
+replayed through ``EmbargoLifecycle`` in ``OBSERVED`` mode (EMB-18-001,
+ADR-0122): the register activates or rejects the embargo and EM derives from
+it.
 """
 
 from datetime import timedelta
@@ -34,12 +37,17 @@ from test.core.behaviors.sync.nodes.conftest import (
 from test.support.embargo_register import activate, propose
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoActivationFromLedgerNode,
+    ApplyEmbargoProposalRejectionFromLedgerNode,
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 
 MANAGER = "https://example.org/actors/case-manager"
 EMBARGO_ID = f"{CASE_ID}/embargo_events/e1"
@@ -55,7 +63,9 @@ def _embargo_snapshot() -> dict[str, Any]:
     }
 
 
-def _seed(datalayer, em: EM) -> VulnerabilityCase:
+def _seed(
+    datalayer, em: EM, *, owner_participant: bool = False
+) -> VulnerabilityCase:
     """A replica whose register has the entry's embargo open as a proposal.
 
     ``REVISE`` adds an earlier embargo in force, which the activation
@@ -74,19 +84,33 @@ def _seed(datalayer, em: EM) -> VulnerabilityCase:
         activate(case, PRIOR_EMBARGO_ID)
     propose(case, EMBARGO_ID)
     assert case.em_state == em
+    if owner_participant:
+        participant = CaseParticipant(
+            id_=f"{CASE_ID}/participants/owner",
+            attributed_to=OWNER_ACTOR_ID,
+            context=CASE_ID,
+        )
+        # Attached first, so it takes a row per register entry (ADR-0122).
+        case.add_participant(participant)
+        datalayer.save(participant)
     datalayer.save(case)
     return case
 
 
-def _apply(bridge, embargo: Any):
+def _apply(bridge, embargo: Any, *, accept: bool = True):
+    """Replay the owner's Accept (or Reject) of *embargo* on the replica."""
     entry = _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
-            object_id="https://example.org/activities/add-embargo",
-            event_type="add_embargo_event_to_case",
+            object_id="https://example.org/activities/owner-decision",
+            event_type=(
+                "activate_embargo_on_case"
+                if accept
+                else "reject_embargo_proposal_on_case"
+            ),
             payload_snapshot={
-                "type": "Add",
+                "type": "Accept" if accept else "Reject",
                 "actor": OWNER_ACTOR_ID,
                 "context": CASE_ID,
                 "object": embargo,
@@ -95,8 +119,13 @@ def _apply(bridge, embargo: Any):
             prev_log_hash="0" * 64,
         )
     )
+    node = (
+        ApplyEmbargoActivationFromLedgerNode(name="ApplyActivation")
+        if accept
+        else ApplyEmbargoProposalRejectionFromLedgerNode(name="ApplyRejection")
+    )
     return bridge.execute_with_setup(
-        tree=ApplyEmbargoActivationFromLedgerNode(name="ApplyActivation"),
+        tree=node,
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(entry, actor_id=MANAGER),
     )
@@ -149,3 +178,74 @@ def test_an_embargo_the_replica_cannot_reconstruct_fails(bridge, datalayer):
 
     assert _apply(bridge, EMBARGO_ID).status == Status.FAILURE
     assert _case(datalayer).current_status.em.state == EM.PROPOSED
+
+
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("MSM-07-005")
+def test_the_activation_records_the_owners_agreement_on_the_replica(
+    bridge, datalayer
+):
+    """Activating is the owner's agreement (ADR-0122), replayed too."""
+    _seed(datalayer, EM.PROPOSED, owner_participant=True)
+
+    assert _apply(bridge, _embargo_snapshot()).status == Status.SUCCESS
+
+    owner = datalayer.read(f"{CASE_ID}/participants/owner")
+    assert isinstance(owner, CaseParticipant)
+    assert owner.consent_for(EMBARGO_ID) == EmbargoConsentState.AGREED
+
+
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("EP-08-001")
+@pytest.mark.parametrize(
+    "em_before, em_after", [(EM.PROPOSED, EM.NONE), (EM.REVISE, EM.ACTIVE)]
+)
+def test_the_rejection_entry_rejects_the_proposal_on_the_replica(
+    bridge, datalayer, em_before, em_after
+):
+    _seed(datalayer, em_before, owner_participant=True)
+
+    result = _apply(bridge, _embargo_snapshot(), accept=False)
+
+    assert result.status == Status.SUCCESS
+    case = _case(datalayer)
+    assert case.em_state == em_after
+    assert case.proposed_embargo_ids == []
+    # The owner's decision writes no consent (ADR-0122).
+    owner = datalayer.read(f"{CASE_ID}/participants/owner")
+    assert isinstance(owner, CaseParticipant)
+    assert owner.consent_for(EMBARGO_ID) is EmbargoConsentState.UNINVITED
+
+
+@pytest.mark.spec("SYNC-12-003")
+def test_a_redelivered_rejection_is_a_no_op(bridge, datalayer):
+    _seed(datalayer, EM.PROPOSED)
+    assert _apply(bridge, _embargo_snapshot(), accept=False).status == (
+        Status.SUCCESS
+    )
+    before = _case(datalayer).model_dump()
+
+    assert _apply(bridge, _embargo_snapshot(), accept=False).status == (
+        Status.SUCCESS
+    )
+    assert _case(datalayer).model_dump() == before
+
+
+@pytest.mark.spec("SYNC-12-001")
+def test_a_replica_without_the_case_skips_the_rejection(bridge, datalayer):
+    assert _apply(bridge, _embargo_snapshot(), accept=False).status == (
+        Status.SUCCESS
+    )
+    assert datalayer.read(EMBARGO_ID) is None
+
+
+@pytest.mark.spec("SYNC-12-001")
+@pytest.mark.spec("EMB-18-003")
+def test_a_rejection_naming_an_unreconstructable_embargo_fails(
+    bridge, datalayer
+):
+    """A bare id the replica does not hold blocks persisting the entry."""
+    _seed(datalayer, EM.PROPOSED)
+
+    assert _apply(bridge, EMBARGO_ID, accept=False).status == Status.FAILURE
+    assert _case(datalayer).em_state == EM.PROPOSED

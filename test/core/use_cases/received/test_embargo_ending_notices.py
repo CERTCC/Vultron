@@ -96,13 +96,12 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
-    add_embargo_to_case_activity,
+    activate_embargo_activity,
     add_participant_to_case_activity,
     announce_embargo_activity,
     announce_log_entry_activity,
-    em_accept_embargo_activity,
     em_propose_embargo_activity,
-    em_reject_embargo_activity,
+    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
     remove_participant_from_case_activity,
 )
@@ -362,9 +361,15 @@ def test_owner_ej_after_disclosure_sends_et_crediting_the_owner() -> None:
     )
     manager.dl.create(invite)
 
+    # The owner's rejection of the proposal for the case is its own activity
+    # (ADR-0122); after disclosure it ends the embargo (EMB-04-002).
     result = manager.route(
-        em_reject_embargo_activity(
-            invite, context=CASE_ID, actor=OWNER, to=[MANAGER]
+        reject_embargo_proposal_activity(
+            revision,
+            target=CASE_ID,
+            context=CASE_ID,
+            actor=OWNER,
+            to=[MANAGER],
         )
     )
 
@@ -470,16 +475,9 @@ def test_termination_on_or_after_the_agreed_end_is_expiry_and_sends_nothing() ->
 # ---------------------------------------------------------------------------
 
 
-def _activate_by_add(manager: _Manager, revision: Any) -> None:
-    result = manager.route(
-        add_embargo_to_case_activity(
-            revision, target=CASE_ID, actor=OWNER, to=[MANAGER]
-        )
-    )
-    assert result.disposition is HandlerDisposition.APPLIED
-
-
-def _activate_by_owner_accept(manager: _Manager, revision: Any) -> None:
+def _activate_by_owner_decision(manager: _Manager, revision: Any) -> None:
+    # The owner's Accept(EmbargoEvent, target=Case) is the one activation
+    # path (ADR-0122); the revision must be an open proposal first.
     invite = em_propose_embargo_activity(
         revision,
         context=CASE_ID,
@@ -489,16 +487,19 @@ def _activate_by_owner_accept(manager: _Manager, revision: Any) -> None:
     )
     manager.dl.create(invite)
     result = manager.route(
-        em_accept_embargo_activity(
-            invite, context=CASE_ID, actor=OWNER, to=[MANAGER]
+        activate_embargo_activity(
+            revision,
+            target=CASE_ID,
+            context=CASE_ID,
+            actor=OWNER,
+            to=[MANAGER],
         )
     )
     assert result.disposition is HandlerDisposition.APPLIED
 
 
 _ACTIVATIONS = [
-    pytest.param(_activate_by_add, id="add-embargo-event"),
-    pytest.param(_activate_by_owner_accept, id="owner-accepts-revision"),
+    pytest.param(_activate_by_owner_decision, id="owner-activates-embargo"),
 ]
 
 

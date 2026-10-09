@@ -680,7 +680,7 @@ groups:
       `attributed_to` to its own actor ID.
     rationale: >-
       `VulnerabilityCase.attributed_to` records the case owner (CM-02-008), and
-      ownership checks and ownership transfer read and write it as such (CM-13-001,
+      ownership checks and ownership transfer read and write it as such (MSM-07-008,
       CM-21-002). AS2's "I created this" is carried by the `actor` of `Create(X)`
       (ADR-0023), not by the created object's `attributedTo`, so the CASE_MANAGER
       creating the case and the report receiver owning it are both recorded without

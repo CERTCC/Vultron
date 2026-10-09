@@ -274,9 +274,16 @@ groups:
       A Participant MUST NOT process EA to transition EM to Active when the case
       is already public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or
       attacks have been observed (q^cs ∈ ·····A). The Participant MUST instead
-      emit ER to signal the embargo is not viable.
+      emit ER to signal the embargo is not viable. Where the case's EM is moved
+      only by the case owner's `Accept(EmbargoEvent, target=Case)` (MSM-07-008),
+      the CASE_MANAGER refuses that activation with `REFUSED` before committing
+      it, and sends no ER for it.
     rationale: >-
       VP-06-001 prohibits accepting embargoes once public disclosure has occurred.
+      In the CASE_MANAGER topology an ER is a `Reject(Invite(EmbargoEvent))`,
+      which records its sender's own consent (MSM-07-004, ADR-0122); sent by the
+      CASE_MANAGER in answer to the owner's activation it would record the
+      manager's refusal, not the owner's, so the activation is refused instead.
       VP-13-004 adds that EM SHOULD NOT proceed from Proposed to Active when RM
       is Invalid or Closed, but the public/exploit/attack constraint is absolute.
     testable: true
@@ -621,7 +628,8 @@ groups:
       A Participant in EM Revise (q^em ∈ R) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EC MUST transition their EM state back to Active
       (q^em R → A) with the revised terms. "Emit EK" is discharged by the
-      CASE_MANAGER's commit of `Add(EmbargoEvent, target=Case)`, fanned out as
+      CASE_MANAGER's commit of the case owner's
+      `Accept(EmbargoEvent, target=Case)`, fanned out as
       `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       EC signals that a revision proposal has been accepted. The embargo returns
@@ -629,7 +637,8 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
       with CS matching ...pxa transitions EM back to ACTIVE with revised terms, and that the
-      CASE_MANAGER's commit of `Add(EmbargoEvent, target=Case)` and its announcement
+      CASE_MANAGER's commit of the case owner's
+      `Accept(EmbargoEvent, target=Case)` and its announcement
       discharge EK with no EK message queued.
     testable: true
     preconditions:
@@ -645,7 +654,7 @@ groups:
     - order: 2
       actor: receiver
       action: >-
-        CASE_MANAGER commits `Add(EmbargoEvent, target=Case)` and announces the ledger entry
+        CASE_MANAGER commits the case owner's `Accept(EmbargoEvent, target=Case)` and announces the ledger entry
         (discharges EK)
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
@@ -1680,11 +1689,18 @@ groups:
     statement: >-
       When the decision resolves to reject, the seam MUST delegate to the
       flow-appropriate existing rejection mechanism rather than duplicating the
-      transition: reject_embargo_trigger_bt (Flow A, emitting ER and returning
-      the shared EM to NONE per EMB-06) or reject_invite_to_embargo_tree
-      (Flow B, recording that participant's consent per MSM-07-004: DECLINE
-      when the Reject names the active embargo or the participant is not yet
-      a signatory; a signatory refusing proposed terms keeps its state). The
+      transition: reject_embargo_trigger_bt (Flow A, emitting ER; when the
+      deciding actor is the case owner the trigger sends the owner's
+      Reject(EmbargoEvent, target=Case), which returns the shared EM to NONE per
+      EMB-06 and MSM-07-009) or, for Flow B, the invitee's Reject of the Invite
+      (recording that participant's consent per MSM-07-004: DECLINE of the
+      rejected embargo's row, a withdrawal when it names the active embargo; a
+      signatory refusing proposed terms keeps its row for the embargo in force).
+      The case owner's decision for the case is a separate activity,
+      Reject(EmbargoEvent, target=Case) (MSM-07-009); an owner MAY still send a
+      Reject(Invite(EmbargoEvent)), which records only its own consent like any
+      sender's (MSM-07-004). In this prototype the owner's auto-answer to a
+      Flow B Invite is its decision for the case, not a Reject of the Invite. The
       seam MUST also honor the mandatory rejection required by EMB-01-002 when
       CS is public/exploit/attacks, independent of any adjudication outcome.
     rationale: >-
@@ -2225,8 +2241,8 @@ groups:
     statement: >-
       Every change to a case's embargo register, and so to the EM state derived
       from it (ADR-0122), MUST be made through EmbargoLifecycle (its public
-      operations such as propose_embargo(), accept_embargo_invite(),
-      reject_embargo_invite(), and terminate_active_embargo(), each of which
+      operations such as propose_embargo(), activate_embargo(),
+      reject_embargo_proposal(), and terminate_active_embargo(), each of which
       applies one register step). BT nodes and helper functions MUST NOT apply
       a register step to the case themselves, or assign
       case.current_status.em, and then call dl.save(case) as a substitute for
@@ -2264,8 +2280,8 @@ groups:
     statement: >-
       A path that activates an embargo register entry MUST already hold that
       `EmbargoEvent`'s record in the same store. The
-      `EmbargoLifecycle` activation writers (`accept_embargo_invite()`,
-      `activate_embargo()`, `initialize_creation_embargo()`) MUST read the
+      `EmbargoLifecycle` activation writers (`activate_embargo()`,
+      `initialize_creation_embargo()`) MUST read the
       record of the embargo being activated, as well as the one it replaces
       (EP-05-001), and MUST fail
       closed on an unreadable one before changing the register. An unreadable replaced embargo is a broken invariant,

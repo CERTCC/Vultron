@@ -528,16 +528,6 @@ groups:
     stories:
     - story_2022_014
     - story_2022_010
-  - id: VAM-05-002
-    priority: MUST
-    kind: protocol
-    statement: '`ADD_EMBARGO_EVENT_TO_CASE` MUST be represented as `Add(Event)[target=VulnerabilityCase]`'
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `AddEmbargoEventToCasePattern` uses `TAtype.ADD`, `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`;
-      integration tests in `test/demo/test_manage_embargo_demo.py` exercise this flow.
-    stories:
-    - story_2022_010
-    - story_2022_014
   - id: VAM-05-003
     priority: MUST
     kind: protocol
@@ -610,6 +600,50 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-004
       note: EJ shorthand (revision rejected) → same wire form as ER
+    stories:
+    - story_2022_014
+  - id: VAM-05-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `ACTIVATE_EMBARGO_ON_CASE` MUST be represented as
+      `Accept(Event)[target=VulnerabilityCase]`, whose object is the proposed `EmbargoEvent`
+      itself, carried inline, and not the `Invite` that proposed it (ADR-0122).
+    rationale: >-
+      The case owner's activation is a decision about the embargo for the case, so it accepts
+      the embargo; an `Accept` of the `Invite` is each sender's own consent (VAM-05-006).
+      Giving the two different objects keeps them apart on the wire.
+    verification: A unit test in `test/test_semantic_activity_patterns.py` confirms that
+      `Accept(EmbargoEvent, target=VulnerabilityCase)` maps to `ACTIVATE_EMBARGO_ON_CASE` and no
+      other semantics, and inspection of `_instances.py` confirms `ActivateEmbargoOnCasePattern`
+      uses `TAtype.ACCEPT`, `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-07-008
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: VAM-05-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `REJECT_EMBARGO_PROPOSAL_ON_CASE` MUST be represented as
+      `Reject(Event)[target=VulnerabilityCase]`, whose object is the proposed `EmbargoEvent`
+      itself, carried inline, and not the `Invite` that proposed it (ADR-0122).
+    rationale: >-
+      The case owner's rejection is a decision about the embargo for the case; a `Reject` of
+      the `Invite` is each sender's own consent (VAM-05-007).
+    verification: A unit test in `test/test_semantic_activity_patterns.py` confirms that
+      `Reject(EmbargoEvent, target=VulnerabilityCase)` maps to
+      `REJECT_EMBARGO_PROPOSAL_ON_CASE` and no other semantics, and inspection of
+      `_instances.py` confirms `RejectEmbargoProposalOnCasePattern` uses `TAtype.REJECT`,
+      `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-07-009
+    adr:
+    - ADR-0122
     stories:
     - story_2022_014
 - id: VAM-06

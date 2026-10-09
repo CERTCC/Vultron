@@ -36,6 +36,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.expiry_tree import (
     create_reinvite_stale_accepter_tree,
 )
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
 from vultron.core.behaviors.embargo.nodes.relay import invite_rsvp_deadline
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -62,6 +63,7 @@ from .test_embargo_relay_replay import (
     OWNER,
     _Network,
     _owner_answers,
+    _owner_decides,
     _propose,
     _replay_to_bystander,
 )
@@ -140,7 +142,8 @@ def test_a_late_reject_is_refused_uncommitted_and_the_replica_keeps_up():
     net = _Network("https://example.org/cases/answer-late-reject")
     first = _propose(net, "decided", 90)
     net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
-    assert _reject(net, OWNER).disposition is HandlerDisposition.APPLIED
+    rejected = _owner_decides(net, first, accept=False)
+    assert rejected.disposition is HandlerDisposition.APPLIED, rejected.reason
 
     late = _reject(net, BYSTANDER)
 
@@ -159,10 +162,11 @@ def test_a_late_reject_is_refused_uncommitted_and_the_replica_keeps_up():
 @pytest.mark.spec("EP-08-003")
 def test_the_owner_rejecting_one_of_two_revisions_keeps_the_other_open():
     net = _Network("https://example.org/cases/answer-two-open")
-    _propose(net, "r1", 90)
+    first = _propose(net, "r1", 90)
     second = _propose(net, "r2", 120)
 
-    assert _reject(net, OWNER).disposition is HandlerDisposition.APPLIED
+    rejected = _owner_decides(net, first, accept=False)
+    assert rejected.disposition is HandlerDisposition.APPLIED, rejected.reason
     _replay_to_bystander(net)
 
     for actor_id in (MANAGER, BYSTANDER):
@@ -175,9 +179,13 @@ def test_the_owner_rejecting_one_of_two_revisions_keeps_the_other_open():
 @pytest.mark.spec("EMB-04-002")
 @pytest.mark.spec("TB-06-007")
 def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
-    """EJ with P/X/A set terminates (ET) in every store, not ACTIVE again."""
+    """EJ with P/X/A set terminates (ET) in every store, not ACTIVE again.
+
+    The owner's ``Reject(EmbargoEvent, target=Case)`` of the last open
+    revision (ADR-0122, EMB-04-002).
+    """
     net = _Network("https://example.org/cases/answer-after-disclosure")
-    _propose(net, "late", 90)
+    revision = _propose(net, "late", 90)
     _deliver_all(net, BYSTANDER)
     net.deliver(MANAGER, to=OWNER, type_="Invite")
     for actor_id in (MANAGER, OWNER, BYSTANDER):
@@ -187,9 +195,10 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
             update={"state": CS_pxa.Pxa}
         )
         dl.save(case)
-    invite = net.queued(MANAGER, to=OWNER, type_="Invite")[0]
-    _, sealed = TriggerActivityAdapter(net.stores[OWNER]).reject_embargo(
-        proposal_id=invite.id_, case_id=net.case_id, actor=OWNER, to=[MANAGER]
+    _, sealed = TriggerActivityAdapter(
+        net.stores[OWNER]
+    ).reject_embargo_proposal(
+        embargo_id=revision, case_id=net.case_id, actor=OWNER, to=[MANAGER]
     )
 
     verdict = net.receive(MANAGER, json.loads(sealed))
@@ -202,6 +211,7 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
         assert case.current_status.em.state == EM.EXITED, actor_id
         assert case.active_embargo_id is None, actor_id
         assert case.proposed_embargo_ids == [], actor_id
+    assert EMBARGO_TEARDOWN_EVENT_TYPE in _event_types(net, BYSTANDER)
 
 
 @pytest.mark.spec("BT-17-001")
@@ -217,19 +227,20 @@ def test_a_participant_handed_an_answer_refuses_it_and_writes_nothing(answer):
     revision = _propose(net, "misrouted", 90)
     _replay_to_bystander(net)
     net.deliver(MANAGER, to=OWNER, type_="Invite")
-    if answer == "Accept":
-        (activity,) = net.queued(OWNER, to=MANAGER, type_="Accept")
-        body = read_sealed_body_dict(net.stores[OWNER], activity.id_)
-    else:
-        invite = net.queued(MANAGER, to=OWNER, type_="Invite")[0]
-        _, sealed = TriggerActivityAdapter(net.stores[OWNER]).reject_embargo(
-            proposal_id=invite.id_,
-            case_id=net.case_id,
-            actor=OWNER,
-            to=[MANAGER],
-        )
-        body = json.loads(sealed)
-    assert body is not None
+    invite = net.queued(MANAGER, to=OWNER, type_="Invite")[0]
+    adapter = TriggerActivityAdapter(net.stores[OWNER])
+    build = (
+        adapter.accept_embargo
+        if answer == "Accept"
+        else (adapter.reject_embargo)
+    )
+    _, sealed = build(
+        proposal_id=invite.id_,
+        case_id=net.case_id,
+        actor=OWNER,
+        to=[MANAGER],
+    )
+    body = json.loads(sealed)
 
     verdict = net.receive(BYSTANDER, body)
 
@@ -478,7 +489,7 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
     The replica replays both entries from the ledger broadcast without
     re-evaluating the deadline (RSH-08-004, ADR-0118).
 
-    OWNER answers first so that ``active_embargo_id == embargo_id`` when
+    OWNER activates the revision first so that ``active_embargo_id == embargo_id`` when
     BYSTANDER's late Accept arrives — that is the condition that routes to the
     honour branch rather than re-invite (EMB-17-002).
     """
@@ -495,11 +506,11 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
     body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
     assert body is not None
 
-    # OWNER answers: EM REVISE → ACTIVE, active_embargo = revision.
+    # OWNER activates: EM REVISE → ACTIVE, active_embargo = revision.
     # Now active_embargo_id == embargo_id (both are the revision), so the
     # CASE_MANAGER takes the honour branch when the late Accept arrives
     # (EMB-17-001), not the re-invite branch (EMB-17-002).
-    _owner_answers(net)
+    _owner_answers(net, revision_id)
 
     # Seed BYSTANDER as INVITED with a passed deadline on MANAGER's store so
     # the expiry tree fires (NEEDS_APPLY=True → expiry entry committed).

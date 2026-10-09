@@ -35,12 +35,14 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
-    AddEmbargoEventToCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
+    RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
-    add_embargo_to_case_activity,
+    activate_embargo_activity,
+    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -80,11 +82,16 @@ class TestMalformedEmbargoMessagesAreRefused:
         "embargo_id, case_id",
         [(None, "https://example.org/cases/c1"), ("e1", None)],
     )
-    def test_add_missing_ids(self, embargo_id, case_id):
+    @pytest.mark.parametrize(
+        "use_case",
+        [
+            ActivateEmbargoOnCaseReceivedUseCase,
+            RejectEmbargoProposalOnCaseReceivedUseCase,
+        ],
+    )
+    def test_owner_decision_missing_ids(self, embargo_id, case_id, use_case):
         request = _request(embargo_id=embargo_id, case_id=case_id)
-        result = AddEmbargoEventToCaseReceivedUseCase(
-            _make_dl(), request
-        ).execute()
+        result = use_case(_make_dl(), request).execute()
         _assert_refused(result, "missing")
 
     @pytest.mark.spec("HP-01-003")
@@ -136,13 +143,30 @@ class TestMalformedEmbargoMessagesAreRefused:
 
 class TestEmbargoMessagesForUnknownCaseAreRefused:
     @pytest.mark.spec("HP-01-003")
-    def test_add_to_unknown_case(self, make_payload):
+    @pytest.mark.parametrize(
+        "factory, use_case, tree",
+        [
+            (
+                activate_embargo_activity,
+                ActivateEmbargoOnCaseReceivedUseCase,
+                "ActivateEmbargoOnCaseBT",
+            ),
+            (
+                reject_embargo_proposal_activity,
+                RejectEmbargoProposalOnCaseReceivedUseCase,
+                "RejectEmbargoProposalOnCaseBT",
+            ),
+        ],
+    )
+    def test_owner_decision_on_unknown_case(
+        self, make_payload, factory, use_case, tree
+    ):
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/nope/embargo_events/e1",
             context="https://example.org/cases/nope",
             end_time=days_from_now_utc(45),
         )
-        activity = add_embargo_to_case_activity(
+        activity = factory(
             embargo,
             target=as_VulnerabilityCase(id_="https://example.org/cases/nope"),
             actor=_VENDOR,
@@ -150,11 +174,9 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
         )
         event = make_payload(activity, receiving_actor_id=_COORD)
 
-        result = AddEmbargoEventToCaseReceivedUseCase(
-            _make_dl(), event
-        ).execute()
+        result = use_case(_make_dl(), event).execute()
 
-        _assert_refused(result, "AddEmbargoToCaseBT")
+        _assert_refused(result, tree)
 
     @pytest.mark.spec("HP-01-003")
     def test_accept_for_unknown_case(self):

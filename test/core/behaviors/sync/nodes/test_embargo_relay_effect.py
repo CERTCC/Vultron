@@ -637,18 +637,21 @@ class TestApplyEmbargoAnswers:
 
     @pytest.mark.spec("MSM-07-003")
     @pytest.mark.spec("EP-09-007")
-    def test_owner_accept_activates_the_revision(
+    def test_owner_accept_of_an_invite_records_only_its_consent(
         self, bridge, datalayer, revising_case
     ):
+        """The owner's Accept(Invite) is its consent, not its decision (ADR-0122)."""
         _replay_proposal(bridge)
 
         result = _replay_answer(bridge, "Accept", OWNER_ACTOR_ID)
 
         assert result.status == Status.SUCCESS
         case = _case(datalayer)
-        assert case.current_status.em.state == EM.ACTIVE
-        assert case.active_embargo_id == REVISION_ID
-        assert REVISION_ID not in case.proposed_embargo_ids
+        assert case.current_status.em.state == EM.REVISE
+        assert case.active_embargo_id == ACTIVE_EMBARGO_ID
+        assert case.proposed_embargo_ids == [REVISION_ID]
+        record = _record(datalayer, OWNER_ACTOR_ID)
+        assert record.consent_for(REVISION_ID) is EmbargoConsentState.AGREED
 
     @pytest.mark.spec("MSM-07-004")
     def test_participant_reject_keeps_the_proposal_open(
@@ -661,26 +664,27 @@ class TestApplyEmbargoAnswers:
         assert result.status == Status.SUCCESS
         assert _case(datalayer).proposed_embargo_ids == [REVISION_ID]
 
-    @pytest.mark.spec("EP-08-003")
     @pytest.mark.spec("MSM-07-004")
-    def test_owner_reject_returns_to_the_prior_terms(
+    def test_owner_reject_of_an_invite_declines_only_its_row(
         self, bridge, datalayer, revising_case
     ):
-        """EJ: ``REVISE → ACTIVE`` on A, B forgotten, nobody's consent moved."""
+        """The owner's Reject(Invite) refuses the terms for itself (ADR-0122).
+
+        The revision stays open — rejecting it for the case is
+        ``Reject(EmbargoEvent, target=Case)`` — and the owner stays a
+        signatory of the embargo in force.
+        """
         _replay_proposal(bridge)
-        assert _case(datalayer).current_status.em.state == EM.REVISE
 
         result = _replay_answer(bridge, "Reject", OWNER_ACTOR_ID)
 
         assert result.status == Status.SUCCESS
         case = _case(datalayer)
-        assert case.current_status.em.state == EM.ACTIVE
-        assert case.active_embargo_id == ACTIVE_EMBARGO_ID
-        assert case.proposed_embargo_ids == []
-        assert REVISION_ID not in case.pending_embargo_proposal_index
-        assert _record(datalayer, OWNER_ACTOR_ID).is_signatory(
-            ACTIVE_EMBARGO_ID
-        )
+        assert case.current_status.em.state == EM.REVISE
+        assert case.proposed_embargo_ids == [REVISION_ID]
+        record = _record(datalayer, OWNER_ACTOR_ID)
+        assert record.consent_for(REVISION_ID) is EmbargoConsentState.DECLINED
+        assert record.is_signatory(ACTIVE_EMBARGO_ID)
 
     @pytest.mark.spec("SYNC-12-003")
     def test_a_repeated_rejection_replays_as_a_no_op(
@@ -744,6 +748,8 @@ def test_announce_tree_carries_a_slot_per_relay_event_type():
         "EmbargoAcceptance",
         "EmbargoRejection",
         "EmbargoAbandonment",
+        "EmbargoActivation",
+        "EmbargoProposalRejection",
     ):
         assert any(label in name for name in names), label
 

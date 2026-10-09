@@ -44,6 +44,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event, use_case_map
 from vultron.wire.as2.parser import parse_activity
 
@@ -51,7 +52,8 @@ from .conftest import make_embargo_case_with_actor
 
 MANAGER = "https://example.org/users/coord"
 PROPOSER = "https://example.org/users/vendor"
-#: The case owner: its answer decides a proposal (EP-09-005).
+#: The case owner: its Accept/Reject of the embargo decides a proposal
+#: (EP-09-005, ADR-0122).
 OWNER = "https://example.org/users/vendor-a"
 #: A participant that is neither the proposer nor the owner.
 BYSTANDER = "https://example.org/users/vendor-b"
@@ -104,6 +106,14 @@ class LedgerNetwork:
                     }
                 )
             )
+        # The owner holds CASE_OWNER on the roster, which the guard on its
+        # decision for the case reads (HP-01-006, ADR-0122).
+        owner_participant = cast(
+            CaseParticipant,
+            manager_dl.read(case_read.actor_participant_index[owner]),
+        )
+        owner_participant.add_role(CVDRole.CASE_OWNER)
+        manager_dl.save(owner_participant)
         self.initial_embargo_id = embargo.id_
         self.stores: dict[str, SqliteDataLayer] = {MANAGER: manager_dl}
         replicated = [

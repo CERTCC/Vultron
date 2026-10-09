@@ -377,12 +377,12 @@ class TestActivateEmbargoActivity:
         )
 
 
-class TestAddEmbargoToCaseActivity:
+class TestRejectEmbargoProposalActivity:
     from vultron.wire.as2.vocab.activities.embargo import (
-        _AddEmbargoToCaseActivity,
+        _RejectEmbargoProposalActivity,
     )
 
-    cls = _AddEmbargoToCaseActivity
+    cls = _RejectEmbargoProposalActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)

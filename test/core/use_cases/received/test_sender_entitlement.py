@@ -102,10 +102,11 @@ from vultron.core.use_cases.received.case_proposal import (
 )
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
-    AddEmbargoEventToCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
     AnnounceEmbargoEventToCaseReceivedUseCase,
     CreateEmbargoEventReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
+    RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
@@ -120,7 +121,7 @@ from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     accept_case_participant_offer_activity,
-    add_embargo_to_case_activity,
+    activate_embargo_activity,
     add_report_to_case_activity,
     announce_embargo_activity,
     em_accept_embargo_activity,
@@ -128,6 +129,7 @@ from vultron.wire.as2.factories import (
     em_reject_embargo_activity,
     offer_case_ownership_transfer_activity,
     reject_case_participant_offer_activity,
+    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -1091,10 +1093,7 @@ def test_embargo_reject_from_a_non_invitee_is_refused(
     )
 
     result = RejectInviteToEmbargoOnCaseReceivedUseCase(
-        cm_store,
-        event,
-        trigger_activity=TriggerActivityAdapter(cm_store),
-        **_embargo_ports(cm_store),
+        cm_store, event, **_embargo_ports(cm_store)
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -1144,13 +1143,24 @@ def test_embargo_create_from_a_non_owner_is_refused(
 
 @pytest.mark.spec("EP-09-005")
 @pytest.mark.spec("HP-01-006")
-def test_embargo_add_from_a_non_owner_is_refused(
-    cm_store, owned_case, make_payload
+@pytest.mark.parametrize(
+    "factory, use_case",
+    [
+        (activate_embargo_activity, ActivateEmbargoOnCaseReceivedUseCase),
+        (
+            reject_embargo_proposal_activity,
+            RejectEmbargoProposalOnCaseReceivedUseCase,
+        ),
+    ],
+    ids=["activate", "reject-proposal"],
+)
+def test_owner_embargo_decision_from_a_non_owner_is_refused(
+    cm_store, owned_case, make_payload, factory, use_case
 ):
-    """A participant that is not the Case Owner cannot activate an embargo."""
+    """Only the Case Owner decides a proposal for the case (ADR-0122)."""
     embargo = _embargo_case(cm_store, owned_case, em_state=EM.PROPOSED)
     event = make_payload(
-        add_embargo_to_case_activity(
+        factory(
             embargo,
             target=as_VulnerabilityCase(id_=owned_case.id_),
             actor=_BYSTANDER_ID,
@@ -1159,9 +1169,7 @@ def test_embargo_add_from_a_non_owner_is_refused(
         receiving_actor_id=_CASE_MANAGER_ID,
     )
 
-    result = AddEmbargoEventToCaseReceivedUseCase(
-        cm_store, event, **_embargo_ports(cm_store)
-    ).execute()
+    result = use_case(cm_store, event, **_embargo_ports(cm_store)).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "Case Owner" in (result.reason or "")
@@ -1172,6 +1180,7 @@ def test_embargo_add_from_a_non_owner_is_refused(
         embargo_id=embargo.id_,
         active=False,
     )
+    assert cm_store.list_objects("CaseLedgerEntry") == []
 
 
 @pytest.mark.spec("EP-09-005")

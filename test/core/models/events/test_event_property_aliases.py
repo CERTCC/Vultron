@@ -40,9 +40,10 @@ from vultron.core.models.events.case_participant import (
 )
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
-    AddEmbargoEventToCaseReceivedEvent,
+    ActivateEmbargoOnCaseReceivedEvent,
     AnnounceEmbargoEventToCaseReceivedEvent,
     CreateEmbargoEventReceivedEvent,
+    RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
@@ -291,8 +292,19 @@ _CASES = [
         [("embargo_id", "object_id"), ("embargo", "object_")],
     ),
     (
-        AddEmbargoEventToCaseReceivedEvent,
-        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
+        ActivateEmbargoOnCaseReceivedEvent,
+        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+        {"object_": _embargo, "target": _case},
+        [
+            ("embargo_id", "object_id"),
+            ("embargo", "object_"),
+            ("case_id", "target_id"),
+            ("case", "target"),
+        ],
+    ),
+    (
+        RejectEmbargoProposalOnCaseReceivedEvent,
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
         {"object_": _embargo, "target": _case},
         [
             ("embargo_id", "object_id"),

@@ -1360,9 +1360,11 @@ groups:
     kind: protocol
     statement: >-
       The case owner MAY accept or reject an open revision at any time, without waiting for
-      any other participant to answer the revision Invite. The owner's `Accept` activates the
-      revision and the owner's `Reject` keeps the prior terms (MSM-07-003, MSM-07-004); either
-      is committed as a ledger entry and decides the embargo.
+      any other participant to answer the revision Invite. The owner's
+      `Accept(EmbargoEvent, target=Case)` activates the revision and the owner's
+      `Reject(EmbargoEvent, target=Case)` keeps the prior terms (MSM-07-008, MSM-07-009);
+      either is committed as a ledger entry and decides the embargo. The owner's `Accept` or
+      `Reject` of the revision Invite is only its own consent (MSM-07-003, MSM-07-004).
     rationale: >-
       Only the case owner's answer changes the embargo on the case; the other participants'
       answers inform that decision, they do not make it (ADR-0093). The Invites are not a
@@ -1379,15 +1381,11 @@ groups:
       the proposal ends no later than the owner's own policy duration from now, and never
       while an embargo is `ACTIVE` or `REVISE` (#4179).
     verification: >-
-      A unit test in `test/core/services/embargo_lifecycle/` asserts the owner's accept of a
-      revision from `REVISE` activates it with no other participant having answered.
-    relationships:
-    - rel_type: refines
-      spec_id: MSM-07-003
-    - rel_type: refines
-      spec_id: MSM-07-004
+      A unit test in `test/core/services/embargo_lifecycle/` asserts the owner's activation of
+      a revision from `REVISE` activates it with no other participant having answered.
     adr:
     - ADR-0113
+    - ADR-0122
     stories:
     - story_2022_014
   - id: EP-09-006

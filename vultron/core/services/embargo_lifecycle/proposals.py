@@ -18,9 +18,9 @@ A proposal (first or revision) adds a ``PROPOSED`` entry to the case's
 embargo register and records the proposer's own consent to the terms it
 proposed; it changes nobody else's consent (EP-05-002).  Once the case is
 public, exploited or attacked while no embargo is in force, the proposals are
-cancelled rather than answered (EMB-16-001, ADR-0122).  The answers to
-a proposal — ``accept_embargo_invite`` and ``reject_embargo_invite`` — live
-in ``answers.py``.
+cancelled rather than answered (EMB-16-001, ADR-0122).  Each participant's
+answer to a proposal and the case owner's decision on it live in
+``answers.py``, ``consent.py`` and ``activation.py``.
 """
 
 import logging

@@ -38,16 +38,15 @@ from vultron.wire.as2.factories._context import case_target_ref
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
-    _AddEmbargoToCaseActivity,
     _AnnounceEmbargoActivity,
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
+    _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Add,
     as_Announce,
     as_Invite,
     as_Reject,
@@ -249,36 +248,32 @@ def em_reject_embargo_activity(
 def activate_embargo_activity(
     embargo: as_EmbargoEvent,
     target: as_VulnerabilityCaseRef | None = None,
-    in_reply_to: _EmProposeEmbargoActivity | str | None = None,
     **kwargs,
-) -> as_Add:
-    """Build an Add(as_EmbargoEvent) — activates the embargo on the case.
+) -> as_Accept:
+    """Build an Accept(as_EmbargoEvent, target=VulnerabilityCase).
 
-    Corresponds to the EA/EC message at the case level.  Use this when
-    the case owner is activating an embargo in response to a previous
-    :func:`em_propose_embargo_activity`.
+    The case owner's activation of a proposed embargo (ADR-0122): the
+    receiver activates the embargo's register entry, superseding any entry
+    in force, and records the owner's agreement.  Distinct from
+    :func:`em_accept_embargo_activity`, the sender's own consent to an
+    Invite.  Only the case owner sends it.
 
     Args:
-        embargo: The ``as_EmbargoEvent`` being activated.
-        target: The ``VulnerabilityCase`` (or its URI) for which the
-            embargo is activated.
-        in_reply_to: The ``_EmProposeEmbargoActivity`` (or its URI)
-            that proposed this embargo.
+        embargo: The ``as_EmbargoEvent`` being activated, carried inline.
+        target: The ``VulnerabilityCase`` (or its URI) the embargo was
+            proposed for.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+            (e.g. ``actor``, ``to``, ``context``).
 
     Returns:
-        An ``as_Add`` whose ``object_`` is the embargo event.
+        An ``as_Accept`` whose ``object_`` is the embargo event.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
         return _ActivateEmbargoActivity(
-            object_=embargo,
-            target=case_target_ref(target),
-            in_reply_to=in_reply_to,
-            **kwargs,
+            object_=embargo, target=case_target_ref(target), **kwargs
         )
     except ValidationError as exc:
         logger.warning("activate_embargo_activity: invalid arguments: %s", exc)
@@ -287,40 +282,41 @@ def activate_embargo_activity(
         ) from exc
 
 
-def add_embargo_to_case_activity(
+def reject_embargo_proposal_activity(
     embargo: as_EmbargoEvent,
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
-) -> as_Add:
-    """Build an Add(as_EmbargoEvent, target=VulnerabilityCase).
+) -> as_Reject:
+    """Build a Reject(as_EmbargoEvent, target=VulnerabilityCase).
 
-    Use when the case owner is adding an embargo without a prior
-    proposal.  When activating in response to a prior proposal, prefer
-    :func:`activate_embargo_activity` which carries ``in_reply_to``.
+    The case owner's rejection of a proposed embargo (ADR-0122): the
+    receiver rejects the embargo's register entry and writes no consent.
+    Distinct from :func:`em_reject_embargo_activity`, the sender's own
+    refusal of an Invite.  Only the case owner sends it.
 
     Args:
-        embargo: The ``as_EmbargoEvent`` to add.
-        target: The ``VulnerabilityCase`` (or its URI) to which the
-            embargo is being added.
+        embargo: The ``as_EmbargoEvent`` being rejected, carried inline.
+        target: The ``VulnerabilityCase`` (or its URI) the embargo was
+            proposed for.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
+            (e.g. ``actor``, ``to``, ``context``).
 
     Returns:
-        An ``as_Add`` whose ``object_`` is the embargo event.
+        An ``as_Reject`` whose ``object_`` is the embargo event.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return _AddEmbargoToCaseActivity(
+        return _RejectEmbargoProposalActivity(
             object_=embargo, target=case_target_ref(target), **kwargs
         )
     except ValidationError as exc:
         logger.warning(
-            "add_embargo_to_case_activity: invalid arguments: %s", exc
+            "reject_embargo_proposal_activity: invalid arguments: %s", exc
         )
         raise VultronActivityConstructionError(
-            "add_embargo_to_case_activity: invalid arguments"
+            "reject_embargo_proposal_activity: invalid arguments"
         ) from exc
 
 

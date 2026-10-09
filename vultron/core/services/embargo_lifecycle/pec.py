@@ -30,6 +30,7 @@ import logging
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle.activation_arm import (
     _ActivationArmMixin,
 )
@@ -43,6 +44,36 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
+
+
+def owner_declined_embargo(
+    persistence: CasePersistence,
+    case: VulnerabilityCase,
+    embargo_id: str,
+) -> bool:
+    """True when the case owner's consent row for *embargo_id* is ``DECLINED``.
+
+    Activation records the owner's ``AGREE``, which ``DECLINED`` refuses
+    (CM-18-003), so an owner that declined the proposal as a participant is
+    invited again before it can activate it (ADR-0122).  A case with no owner,
+    or an owner with no participant record in *persistence*, has no declined
+    row, so the activation is not refused on this ground; nor has an owner
+    whose case does not hold the embargo yet (a replica that has not
+    recorded the proposal), since it holds no row for it.  Shared by the
+    received-side guard (``OwnerMayActivateEmbargoNode``) and the lifecycle's
+    STRICT enforcement (``_assert_owner_may_activate``) so the two cannot drift.
+    """
+    owner_id = _as_id(case.attributed_to)
+    if owner_id is None or case.embargo_register_entry(embargo_id) is None:
+        return False
+    participant_id = case.actor_participant_index.get(owner_id)
+    if not participant_id:
+        return False
+    participant = persistence.read(participant_id)
+    return (
+        isinstance(participant, CaseParticipant)
+        and participant.consent_for(embargo_id) == EmbargoConsentState.DECLINED
+    )
 
 
 def _consent_change(
@@ -157,15 +188,27 @@ class _PecEffectsMixin(_ActivationArmMixin):
 
         Idempotent (CM-13-005): an ``AGREED`` row changes nothing and reports
         nothing.  A ``DECLINED`` row records nothing: ``AGREE`` is not legal
-        from it, and agreeing here would let the content gate (CM-10-004)
-        admit an actor that has declined; it is invited again first.  A row
-        whose embargo is in a final register status — superseded, rejected,
-        cancelled or terminated — is frozen and records nothing either.
+        from it (CM-18-003), and agreeing here would let the content gate
+        (CM-10-004) admit an actor that has declined; it is invited again
+        first.  A row whose embargo is in a final register status —
+        superseded, rejected, cancelled or terminated — is frozen and records
+        nothing either, and nothing is recorded for an embargo the register
+        does not hold: a row for an embargo the case never saw would be a row
+        with no entry (ADR-0122).
         """
         resolved = self._participant_for_actor(case, actor_id, "acceptance")
         if resolved is None:
             return []
         participant_id, participant = resolved
+        if case.embargo_register_entry(embargo_id) is None:
+            logger.info(
+                "Embargo '%s' is not in the register of case '%s'; actor"
+                " '%s' agreement records nothing (ADR-0122)",
+                embargo_id,
+                _as_id(case),
+                actor_id,
+            )
+            return []
         changes = self._apply_where_legal(
             case, participant_id, participant, embargo_id, PEC_Trigger.AGREE
         )
@@ -274,28 +317,15 @@ class _PecEffectsMixin(_ActivationArmMixin):
         """The whole MSM-07-004 consent effect of *actor_id* rejecting *embargo_id*.
 
         *is_active* is :meth:`_assert_rejectable`'s classification, taken by
-        the caller before any write (and before the owner's decision prunes
-        the proposal): the Reject withdraws from the active embargo or refuses
-        proposed terms.  The owner's EJ — the owner refusing a proposed
-        revision while an embargo is in force — changes nobody's record, the
-        owner's included: the owner is keeping the prior terms, not declining
-        them.  Every other Reject is recorded by
-        :meth:`_record_actor_rejection`; with *no* embargo in force a Reject of
-        one proposal declines that proposal's row only, since it is not a
-        withdrawal from anything (CM-18-001).  Shared by ``reject_embargo_invite``
-        and ``record_embargo_rejection`` so the two sides cannot drift.
+        the caller before any write: the Reject withdraws from the active
+        embargo or refuses proposed terms.  A ``Reject(Invite(EmbargoEvent))``
+        is always the sender's own consent, the case owner's included
+        (ADR-0122): the owner's decision for the case is a separate
+        ``Reject(EmbargoEvent, target=Case)`` that writes no consent.  With
+        *no* embargo in force a Reject of one proposal declines that
+        proposal's row only, since it is not a withdrawal from anything
+        (CM-18-001).
         """
-        nothing_in_force = case.active_embargo_id is None
-        is_owner = _as_id(case.attributed_to) == actor_id
-        if is_owner and not is_active and not nothing_in_force:
-            logger.info(
-                "Owner '%s' rejected proposed revision '%s' on case '%s';"
-                " no consent record changes (EJ)",
-                actor_id,
-                embargo_id,
-                _as_id(case),
-            )
-            return []
         return self._record_actor_rejection(
             case,
             actor_id,

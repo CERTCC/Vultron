@@ -1682,7 +1682,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/accept-embargo": {
       "post": {
-        "description": "Triggers the accept-embargo behavior for the given actor. Accepts the current (or specified) embargo proposal by emitting an EmAcceptEmbargoActivity activity. Activates the embargo on the case (EM state \u2192 ACTIVE). Returns the resulting activity in the response body (TRIG-04-001).",
+        "description": "Triggers the accept-embargo behavior for the given actor. A participant accepts the current (or specified) embargo proposal with Accept(Invite(EmbargoEvent)), which records its own consent and moves no EM state. The case owner's accept is its decision for the case, Accept(EmbargoEvent, target=Case), which activates the embargo (EM state \u2192 ACTIVE). Returns the resulting activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_accept_embargo",
         "parameters": [
           {
@@ -2530,7 +2530,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/reject-embargo": {
       "post": {
-        "description": "Triggers the reject-embargo behavior for the given actor. Rejects the current (or specified) embargo proposal by emitting an EmRejectEmbargoActivity activity. EM state transitions: PROPOSED \u2192 NONE or REVISE \u2192 ACTIVE. Returns the resulting activity in the response body (TRIG-04-001).",
+        "description": "Triggers the reject-embargo behavior for the given actor. A participant rejects the current (or specified) embargo proposal with Reject(Invite(EmbargoEvent)), which records its own refusal and moves no EM state. The case owner's reject is its decision for the case, Reject(EmbargoEvent, target=Case), which rejects the proposal (EM state PROPOSED \u2192 NONE or REVISE \u2192 ACTIVE). Returns the resulting activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_reject_embargo",
         "parameters": [
           {

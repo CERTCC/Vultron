@@ -404,10 +404,10 @@ def test_activate_embargo_first_activation_writes_only_the_owners_agreement(
 ) -> None:
     """PROPOSED -> ACTIVE replaces nothing; the owner's agreement is the one write.
 
-    Activating is the owner agreeing to the terms (ADR-0122).  Holders of
-    AGREED(B) (the proposer, an early agreer) are signatories by lookup with
-    no advance step; a merely INVITED participant is not, and has not lapsed
-    either.
+    The activation is the case owner's decision, so its row for B becomes
+    AGREED (ADR-0122).  Holders of AGREED(B) (the proposer, an early agreer)
+    are signatories by lookup with no advance step; a merely INVITED
+    participant is not, and has not lapsed either.
     """
     owner, dl = owner_and_dl
     proposer = _make_actor(dl, "Proposer")
@@ -434,6 +434,7 @@ def test_activate_embargo_first_activation_writes_only_the_owners_agreement(
         for c in result.participant_changes
     ] == [(owner_p.id_, "UNINVITED", "AGREED")]
     assert _consents_of(dl, owner_p.id_) == {embargo.id_: "AGREED"}
+    assert _is_signatory(dl, case.id_, owner_p.id_)
     assert _consents_of(dl, proposer_p.id_) == {embargo.id_: "AGREED"}
     assert _consents_of(dl, invitee_p.id_) == {embargo.id_: "INVITED"}
     assert _is_signatory(dl, case.id_, proposer_p.id_)
@@ -621,13 +622,17 @@ def test_activation_of_a_non_embargo_record_writes_nothing(
 
 
 @pytest.mark.spec("CM-18-003")
+@pytest.mark.parametrize(
+    "mode", [TransitionMode.STRICT, TransitionMode.OBSERVED], ids=str
+)
 def test_activate_embargo_is_refused_when_the_owner_declined_it(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    owner_and_dl: tuple[as_Service, SqliteDataLayer], mode: TransitionMode
 ) -> None:
     """The activation is the owner's agreement, which a DECLINED row refuses.
 
-    STRICT raises; OBSERVED leaves the case and the owner's row as they were
-    (ADR-0122).
+    The owner is invited again before it activates (ADR-0122).  Refused in
+    both modes and before any write, so a replica replaying such an entry
+    refuses it as the CASE_MANAGER would have.
     """
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
@@ -636,24 +641,20 @@ def test_activate_embargo_is_refused_when_the_owner_declined_it(
     dl.save(case)
     write_consent_rows(dl, case)
     _seed_consent(dl, owner_p.id_, embargo.id_, ECS.DECLINED)
-    lifecycle = EmbargoLifecycle(persistence=dl)
 
-    with pytest.raises(VultronInvalidStateTransitionError):
-        lifecycle.activate_embargo(
-            case_id=case.id_, embargo_id=embargo.id_, actor_id=owner.id_
+    with pytest.raises(VultronInvalidStateTransitionError, match="declined"):
+        EmbargoLifecycle(persistence=dl).activate_embargo(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+            transition_mode=mode,
         )
-    observed = lifecycle.activate_embargo(
-        case_id=case.id_,
-        embargo_id=embargo.id_,
-        actor_id=owner.id_,
-        transition_mode=TransitionMode.OBSERVED,
-    )
 
-    assert observed.case_embargo_changed is False
     untouched = cast(VulnerabilityCase, dl.read(case.id_))
     assert untouched.em_state == EM.PROPOSED
+    assert untouched.active_embargo_id is None
     assert untouched.proposed_embargo_ids == [embargo.id_]
-    assert _consent_of(dl, owner_p.id_, embargo.id_) == "DECLINED"
+    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "DECLINED"}
 
 
 @pytest.mark.spec("CM-18-001", "EP-09-007")

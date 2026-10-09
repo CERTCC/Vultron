@@ -146,6 +146,26 @@ def seed_case_participant(
     return participant
 
 
+def grant_case_owner_role(
+    dl: SqliteDataLayer, case_id: str, actor_id: str
+) -> CaseParticipant:
+    """Add ``CVDRole.CASE_OWNER`` to *actor_id*'s existing participant record.
+
+    The owner's decision on an embargo (ADR-0122) is guarded by the role on
+    the roster (HP-01-006); :func:`make_embargo_case_with_actor` seeds its
+    author without it.
+    """
+    case = dl.read_case(case_id)
+    assert case is not None, case_id
+    participant_id = case.actor_participant_index[actor_id]
+    participant = dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    if CVDRole.CASE_OWNER not in participant.case_roles:
+        participant.case_roles = [*participant.case_roles, CVDRole.CASE_OWNER]
+        dl.save(participant)
+    return participant
+
+
 def seed_store_owner_as_case_manager(
     dl: SqliteDataLayer, case: as_VulnerabilityCase
 ) -> CaseParticipant:

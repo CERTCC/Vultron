@@ -346,5 +346,5 @@ An implementation may instead leave the choice to the Case Owner or apply its ow
 
 ## Doing It on the Wire
 
-- [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) shows how an embargo is proposed, accepted and activated, including adding one outright when a published policy already applies.
+- [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) shows how an embargo is proposed, accepted and activated, including activating settled terms at once when a published policy already applies.
 - [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) shows how the longer proposal is put forward as a revision and accepted or rejected.

@@ -18,6 +18,7 @@ import pytest
 from test.support.embargo_register import (
     activate,
     propose,
+    reject,
     terminate,
     write_consent_rows,
 )
@@ -117,6 +118,42 @@ def test_record_actor_acceptance_of_a_proposal_leaves_the_active_row_alone(
         active_id: "AGREED",
         proposed_id: "AGREED",
     }
+
+
+@pytest.mark.spec("MSM-07-003")
+def test_record_actor_acceptance_of_an_embargo_not_in_the_register_records_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A row needs a register entry: an unknown embargo's Accept binds nothing."""
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    changes = lifecycle._record_actor_acceptance(
+        case, owner.id_, "https://example.org/embargoes/unknown"
+    )
+
+    assert changes == []
+    assert _consents_of(dl, owner_p.id_) == {}
+
+
+@pytest.mark.spec("MSM-07-003")
+def test_record_actor_acceptance_of_a_rejected_proposal_records_nothing(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Rows for an entry in a final register status accept no trigger (ADR-0122)."""
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    rejected_id = "https://example.org/embargoes/rejected"
+    propose(case, rejected_id)
+    reject(case, rejected_id)
+    _seed_consent(dl, owner_p.id_, rejected_id, ECS.INVITED)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    changes = lifecycle._record_actor_acceptance(case, owner.id_, rejected_id)
+
+    assert changes == []
+    assert _consents_of(dl, owner_p.id_) == {rejected_id: "INVITED"}
 
 
 @pytest.mark.spec("MSM-07-004")
@@ -617,7 +654,7 @@ def _make_inert(dl: SqliteDataLayer, participant_id: str, how: str) -> None:
 def test_first_activation_promotes_an_inert_participant_only_by_its_own_reply(
     owner_and_dl: tuple[as_Service, SqliteDataLayer], how: str
 ) -> None:
-    """Activation writes nothing for an inert participant.
+    """Activation writes nothing for an inert participant (only the owner's row).
 
     Both participants are inert.  The one whose own row for the activated
     embargo is AGREED (it agreed early) is a signatory by lookup; the one
@@ -632,7 +669,7 @@ def test_first_activation_promotes_an_inert_participant_only_by_its_own_reply(
         owner.id_,
         extra_participant_ids=[replied.id_, silent.id_],
     )
-    _, replied_p, silent_p = participants
+    owner_p, replied_p, silent_p = participants
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
@@ -650,7 +687,8 @@ def test_first_activation_promotes_an_inert_participant_only_by_its_own_reply(
         ends_no_later=None,
     )
 
-    assert changed == [participants[0].id_]
+    # The activation is the owner's agreement (ADR-0122); nobody else moves.
+    assert changed == [owner_p.id_]
     assert _is_signatory(dl, case.id_, replied_p.id_)
     assert not _is_signatory(dl, case.id_, silent_p.id_)
     assert _consent_of(dl, silent_p.id_, embargo.id_) == "INVITED"

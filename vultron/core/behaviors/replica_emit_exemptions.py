@@ -147,9 +147,14 @@ EMBARGO_INVITE_ANSWER: Final = ReplicaEmitExemption(
         " Reject runs in the participant-replica arm, only when the executing"
         " actor is the Invite's sole addressee, and is that actor's own"
         " answer addressed to the CASE_MANAGER (EP-09-003, EP-09-010,"
-        " PCR-08)."
+        " PCR-08).  When the addressee is the case owner its answer is its"
+        " decision for the case, Accept/Reject(EmbargoEvent, target=Case)"
+        " (SendOwnerEmbargoDecisionNode, ADR-0122), likewise addressed to the"
+        " CASE_MANAGER."
     ),
-    covers=frozenset({"SendEmbargoInviteAnswerNode"}),
+    covers=frozenset(
+        {"SendEmbargoInviteAnswerNode", "SendOwnerEmbargoDecisionNode"}
+    ),
 )
 
 EMBARGO_INVITE_REFUSAL: Final = ReplicaEmitExemption(
