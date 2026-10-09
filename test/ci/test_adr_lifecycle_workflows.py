@@ -11,12 +11,15 @@ The clock alone never fails a merge-blocking check (ARCH-18-004):
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from test.ci._workflows import WORKFLOWS_DIR, load_workflow, triggers
+from vultron.metadata.base import repo_root
 
 _EDIT = WORKFLOWS_DIR / "adr-lifecycle.yml"
 _DRIFT = WORKFLOWS_DIR / "adr-status-drift.yml"
@@ -81,3 +84,34 @@ def test_drift_report_runs_at_least_hourly():
     minute, hour, *_ = entry["cron"].split()
     assert minute.isdigit()
     assert hour == "*"
+
+
+_ADDED_REFS = "vultron.metadata.adr.added_refs"
+
+
+@pytest.mark.spec("MS-15-006")
+def test_added_reference_check_runs_on_pull_requests_against_the_merge_base():
+    step = _step_running(_EDIT, _ADDED_REFS)
+    assert "git merge-base" in step["run"]
+    assert '--base "$base"' in step["run"]
+    assert "docs/adr/*.md" in step["run"]
+    assert not step.get("continue-on-error", False)
+    # Neither check's failure hides the other's faults.
+    assert step["run"].count("|| rc=1") == 2
+
+
+@pytest.mark.spec("MS-15-006")
+def test_added_reference_check_runs_as_a_pre_commit_hook_on_adrs():
+    config = yaml.safe_load(
+        (repo_root() / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    )
+    hooks = {
+        hook["id"]: hook
+        for repo in config["repos"]
+        for hook in repo.get("hooks", [])
+    }
+    hook = hooks["adr-added-reference-check"]
+    assert hook["entry"] == f"uv run python -m {_ADDED_REFS}"
+    assert hook.get("pass_filenames", True) is True
+    assert re.search(hook["files"], "docs/adr/0127-x.md")
+    assert re.search(hook["exclude"], "docs/adr/index.md")

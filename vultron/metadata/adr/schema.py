@@ -37,12 +37,16 @@ SUPERSESSION_FIELDS: tuple[str, ...] = tuple(
 
 
 class AdrLintSuppressCode(StrEnum):
-    """Named ADR lint warnings suppressible via ``lint_suppress`` (MS-14-002).
+    """Named ADR lint checks suppressible via ``lint_suppress`` (MS-14-002, MS-15-007).
 
     Mirrors the spec-level ``LintWarningCode`` mechanism (SR-02-011).
     """
 
     STATUS_PROSE_CONTRADICTION = "status_prose_contradiction"
+    #: The record deliberately adds a path or code symbol that does not
+    #: resolve, such as one it annotates as removed (MS-15-007).
+    PHANTOM_PATH_REF = "phantom_path_ref"
+    PHANTOM_SYMBOL_REF = "phantom_symbol_ref"
 
 
 class AdrFrontmatter(BaseModel):

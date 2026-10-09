@@ -296,8 +296,9 @@ the replaced text; a change of chosen option is a new ADR that supersedes the
 old one, whose original text is restored. Never rewrite an accepted ADR under its
 own number.
 
-**What is checked (MS-14-007, MS-14-009, MS-14-010).** Three fields are required on
-every ADR (MS-14-008); `date` is the older spelling of `created` and may stay.
+**What is checked (MS-14-007, MS-14-009, MS-14-010, MS-15-006).** Three fields
+are required on every ADR (MS-14-008); `date` is the older spelling of `created`
+and may stay.
 Epochs are counted in whole days (3 and 10) because `updated` is a date.
 
 - `spec-lint` fails an ADR whose `status` differs from its epoch, unless the ADR
@@ -310,6 +311,15 @@ Epochs are counted in whole days (3 and 10) because `updated` is a date.
   epoch-3 ADR unless the edit adds a heading naming "Amendment" and a
   `YYYY-MM-DD` date. It also fails a bump of `updated` on an ADR that was past
   epoch 1, unless `status_override:` is present.
+- The `adr-added-reference-check` pre-commit hook (MS-15-006) also compares an
+  edited ADR with `HEAD`, and fails a backticked path or code symbol the edit
+  *adds* that resolves nowhere — class names, called names and class members
+  included, not only underscored constants. A reference already on the base
+  never fails, so no refactor can trip it (ADR-0127). A record that annotates a
+  removed name opts out with `lint_suppress: [phantom_symbol_ref]` or
+  `[phantom_path_ref]` (MS-15-007).
+- Both hooks also run in the `ADR Lifecycle` pull-request workflow against the
+  merge base, so skipping a local hook does not bypass them.
 - `spec-lint` prints an `[INFO]` line for an ADR in epoch 1 or 2 that a spec
   requirement cites in `adr:` and verifies with an existing `test/` file: the
   hardened signal that a human may promote it early. It checks that the file
