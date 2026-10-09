@@ -33,7 +33,7 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, PROPOSER, LedgerNetwork
+from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
 JOINER = "https://example.org/users/vendor-new"
 
@@ -69,7 +69,9 @@ def _view(net: LedgerNetwork, holder: str) -> dict[str, Any]:
 _SETTLED_BY_THE_ACCEPT = ("id", "joined", "roles", "rm", "roster")
 
 
-def _the_owner_invites_the_joiner(net: LedgerNetwork) -> None:
+def _the_owner_invites_the_joiner(
+    net: LedgerNetwork, roles: list[CVDRole] | None = None
+) -> None:
     """The owner's Offer(Actor, Case) makes the CASE_MANAGER send the stub."""
     owner_dl = net.stores[OWNER]
     for store in (net.stores[MANAGER], owner_dl):
@@ -90,7 +92,7 @@ def _the_owner_invites_the_joiner(net: LedgerNetwork) -> None:
             actor_id=OWNER,
             case_id=net.case_id,
             invitee_id=JOINER,
-            roles=[CVDRole.VENDOR],
+            roles=roles or [CVDRole.VENDOR],
         ),
         trigger_activity=TriggerActivityAdapter(owner_dl),
         sync_port=SyncActivityAdapter(owner_dl),
@@ -193,8 +195,7 @@ def test_a_third_participant_learns_of_the_joiner_and_matches_the_manager(
                 replica,
                 key,
             )
-        roster = net.case(replica).actor_participant_index
-        assert list(roster).count(JOINER) == 1, replica
+        assert _view(net, replica)["id"] == _view(net, MANAGER)["id"], replica
 
 
 @pytest.mark.spec("CM-31-012")
@@ -209,10 +210,40 @@ def test_replaying_the_whole_stream_leaves_one_record(
     before = _view(net, BYSTANDER)
     assert before["joined"] is True
 
+    status_ids = [s.id_ for s in _record(net, BYSTANDER).participant_statuses]
     for activity in net.queued(MANAGER, to=BYSTANDER, type_="Announce"):
         body = read_sealed_body_dict(net.stores[MANAGER], activity.id_)
         assert body is not None
-        net.receive(BYSTANDER, body)
+        verdict = net.receive(BYSTANDER, body)
+        assert verdict.disposition in (
+            HandlerDisposition.APPLIED,
+            HandlerDisposition.SKIPPED,
+        ), verdict.reason
 
     assert _view(net, BYSTANDER) == before
-    assert PROPOSER in net.case(BYSTANDER).actor_participant_index
+    # The record was left alone, not rebuilt (a rebuild mints new status ids).
+    assert [
+        s.id_ for s in _record(net, BYSTANDER).participant_statuses
+    ] == status_ids
+
+
+@pytest.mark.spec("CM-11-006")
+@pytest.mark.spec("CM-11-009")
+@pytest.mark.parametrize(
+    "roles",
+    [[CVDRole.COORDINATOR], [CVDRole.FINDER, CVDRole.OBSERVER]],
+)
+def test_a_non_vendor_joiner_has_no_vf_on_the_manager_or_a_replica(
+    net: LedgerNetwork, roles: list[CVDRole]
+) -> None:
+    """VF is a vendor-only status: no VF is written for any other role."""
+    _the_owner_invites_the_joiner(net, roles)
+    _deliver_announcements(net, BYSTANDER)
+    _the_joiner_accepts(net)
+    _deliver_announcements(net, BYSTANDER)
+
+    for holder in (MANAGER, BYSTANDER):
+        record = _record(net, holder)
+        assert record.joined is True, holder
+        assert record.case_roles == roles, holder
+        assert all(s.vf is None for s in record.participant_statuses), holder

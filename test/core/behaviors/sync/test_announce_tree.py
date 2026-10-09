@@ -977,18 +977,19 @@ class TestAnnounceLogEntryAppliesInviteAccept:
         assert (
             self._announce(bridge, case_actor, invite).status == Status.SUCCESS
         )
-        # Replay the same Invite entry: stored already, one record remains.
+        first = datalayer.read(CASE_ID)
+        record_id = first.actor_participant_index[INVITEE_ACTOR_ID]
+        before = datalayer.read(record_id).model_dump(mode="json")
+
+        # Replay the same Invite entry: the record is left exactly as it was
+        # (same id, same status ids, same timestamps), not rebuilt.
         assert (
             self._announce(bridge, case_actor, invite).status == Status.SUCCESS
         )
 
         updated = datalayer.read(CASE_ID)
-        assert (
-            list(updated.actor_participant_index.keys()).count(
-                INVITEE_ACTOR_ID
-            )
-            == 1
-        )
+        assert updated.actor_participant_index == first.actor_participant_index
+        assert datalayer.read(record_id).model_dump(mode="json") == before
 
     def test_invite_accept_not_applied_for_other_event_types(
         self, bridge, datalayer, case_actor, case_obj

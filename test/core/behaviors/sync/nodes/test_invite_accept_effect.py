@@ -21,6 +21,9 @@ from vultron.core.behaviors.sync.nodes.invite_accept_effect import (
 )
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants.inert_invitee import (
+    build_inert_invitee_participant,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -129,3 +132,25 @@ def test_accept_applied_twice_leaves_one_joined_record(
 def test_apply_invite_accept_skips_missing_case(bridge, case_actor):
     """Node returns SUCCESS when the case is not in the local DataLayer."""
     assert _apply(bridge, case_actor).status == Status.SUCCESS
+
+
+@pytest.mark.spec("CM-11-009")
+def test_accept_writes_no_vf_for_a_non_vendor(
+    bridge, datalayer, case_actor, case_with_actor
+):
+    """VF is vendor-only; the Accept entry never adds a status of any kind."""
+    record = build_inert_invitee_participant(
+        case_with_actor, INVITEE_ACTOR_ID, [CVDRole.COORDINATOR]
+    )
+    datalayer.create(record)
+    case = datalayer.read(CASE_ID)
+    case.add_participant(record)
+    datalayer.save(case)
+    before = len(record.participant_statuses)
+
+    assert _apply(bridge, case_actor).status == Status.SUCCESS
+
+    after = datalayer.read(record.id_)
+    assert after.joined is True
+    assert len(after.participant_statuses) == before
+    assert all(s.vf is None for s in after.participant_statuses)

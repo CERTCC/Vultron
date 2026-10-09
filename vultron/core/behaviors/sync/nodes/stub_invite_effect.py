@@ -87,16 +87,11 @@ class ApplyStubInviteFromLedgerNode(_LedgerEffectNode):
 
         try:
             roles = validate_roles(snapshot.get("roles") or [])
-            participant = build_inert_invitee_participant(
-                case, invitee_id, roles
-            )
         except (TypeError, ValueError, KeyError) as exc:
-            self.feedback_message = (
-                f"stub Invite entry for '{invitee_id}' in case '{case_id}'"
-                f" names no valid roles: {exc} (CM-11-019)"
-            )
-            self.logger.exception("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+            return self._refuse_roles(invitee_id, case_id, exc)
+        if not roles:
+            return self._refuse_roles(invitee_id, case_id, "no roles named")
+        participant = build_inert_invitee_participant(case, invitee_id, roles)
 
         if self.datalayer.read(participant.id_) is None:
             self.datalayer.create(participant)
@@ -110,3 +105,14 @@ class ApplyStubInviteFromLedgerNode(_LedgerEffectNode):
             case_id,
         )
         return Status.SUCCESS
+
+    def _refuse_roles(
+        self, invitee_id: str, case_id: str, why: object
+    ) -> Status:
+        """Fail with a reason: the entry names no usable roles (CM-11-019)."""
+        self.feedback_message = (
+            f"stub Invite entry for '{invitee_id}' in case '{case_id}'"
+            f" names no valid roles: {why} (CM-11-019)"
+        )
+        self.logger.error("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE

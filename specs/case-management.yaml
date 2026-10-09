@@ -1981,7 +1981,10 @@ groups:
       has already joined or is at `RM.CLOSED` (CM-11-015).
     verification: Integration tests in `test/demo/` confirm that after the Case Owner accepts a
       participant recommendation, the CASE_MANAGER commits a ledger entry, fans it out, sends
-      `AcceptActorRecommendation`, and sends `Invite` to the suggested actor.
+      `AcceptActorRecommendation`, and sends `Invite` to the suggested actor. Tests marked
+      `CM-16-006` in `test/core/use_cases/received/actor/test_offer_case_participant.py` confirm
+      that an Accept naming an actor that has joined, or is at `RM.CLOSED`, is refused with
+      nothing committed or sent.
     relationships:
     - rel_type: implements
       spec_id: CM-17-001

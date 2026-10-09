@@ -8,6 +8,7 @@ ledger entry with the CASE_MANAGER's own builder (CM-11-006, CM-31-012).
 import pytest
 from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
     OWNER_ACTOR_ID,
@@ -16,15 +17,15 @@ from test.core.behaviors.sync.nodes.conftest import (
     _to_persistable_entry,
 )
 from test.support.embargo_register import activate
+from vultron.core.behaviors.case.nodes.invite_inert_participant import (
+    CreateInertInviteeParticipantNode,
+)
 from vultron.core.behaviors.sync.nodes.stub_invite_effect import (
     ApplyStubInviteFromLedgerNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.participants.inert_invitee import (
-    build_inert_invitee_participant,
-)
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -128,32 +129,89 @@ def test_active_embargo_gives_the_invited_consent_row(
     assert record.consent_for(EMBARGO_ID) == EmbargoConsentState.INVITED
 
 
+def _content(record):
+    """What two stores at one ledger position must agree on (no clock, no uuid)."""
+    return {
+        "id": record.id_,
+        "attributed_to": record.attributed_to,
+        "joined": record.joined,
+        "roles": list(record.case_roles),
+        "consents": {c.embargo_id: c.state for c in record.embargo_consents},
+        "statuses": [
+            (s.rm.state, s.vf.state if s.vf else None, list(s.cvd_role))
+            for s in record.participant_statuses
+        ],
+    }
+
+
 @pytest.mark.spec("CM-11-006")
-def test_replica_record_equals_the_case_manager_builders(
-    bridge, datalayer, case_actor
+@pytest.mark.parametrize(
+    "roles",
+    [["vendor"], ["coordinator"], ["vendor", "coordinator"], ["finder"]],
+)
+def test_replica_record_equals_the_one_the_case_manager_creates(
+    bridge, datalayer, case_actor, roles
 ):
-    """The replica makes no choice of its own: same builder, same record."""
+    """The replica makes no choice of its own: same content as the manager's.
+
+    The CASE_MANAGER side runs its own ``CreateInertInviteeParticipantNode`` on
+    a copy of the case; the replica applies the entry.  The two records agree on
+    everything except the clock and the minted ids.
+    """
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     activate(case, EMBARGO_ID)
     datalayer.save(case)
-    expected = build_inert_invitee_participant(
-        case, INVITEE_ACTOR_ID, [CVDRole.VENDOR]
+    manager = BTTestScenario(actor_id=MANAGER_ID).seed(
+        case.model_copy(deep=True)
+    )
+    manager.assert_success(
+        manager.run(
+            CreateInertInviteeParticipantNode(
+                invitee_id=INVITEE_ACTOR_ID, case_id=CASE_ID, roles=roles
+            )
+        )
+    )
+    manager_case = manager.dl.read(CASE_ID)
+    assert isinstance(manager_case, VulnerabilityCase)
+    manager_record = manager.dl.read(
+        manager_case.actor_participant_index[INVITEE_ACTOR_ID]
     )
 
-    _apply(bridge, case_actor, _stub_invite_entry(["vendor"]))
+    _apply(bridge, case_actor, _stub_invite_entry(roles))
 
     _, record = _held(datalayer)
-    assert record.id_ == expected.id_
-    assert record.joined == expected.joined
-    assert record.case_roles == expected.case_roles
-    assert record.consent_for(EMBARGO_ID) == expected.consent_for(EMBARGO_ID)
-    assert [
-        (s.rm.state, s.vf.state if s.vf else None)
-        for s in record.participant_statuses
-    ] == [
-        (s.rm.state, s.vf.state if s.vf else None)
-        for s in expected.participant_statuses
-    ]
+    assert _content(record) == _content(manager_record)
+    assert record.consent_for(EMBARGO_ID) == EmbargoConsentState.INVITED
+
+
+@pytest.mark.spec("CM-11-006")
+@pytest.mark.parametrize(
+    "roles", [["coordinator"], ["finder"], ["reporter"], ["observer"]]
+)
+def test_a_non_vendor_record_carries_no_vf_in_any_status(
+    bridge, datalayer, case_actor, case_obj, roles
+):
+    """VF is vendor-only: no status of a non-vendor replica record has one."""
+    result = _apply(bridge, case_actor, _stub_invite_entry(roles))
+
+    assert result.status == Status.SUCCESS
+    _, record = _held(datalayer)
+    assert all(s.vf is None for s in record.participant_statuses)
+
+
+@pytest.mark.spec("CM-11-006")
+def test_a_vendor_among_other_roles_gets_vf_v(
+    bridge, datalayer, case_actor, case_obj
+):
+    result = _apply(
+        bridge, case_actor, _stub_invite_entry(["coordinator", "vendor"])
+    )
+
+    assert result.status == Status.SUCCESS
+    _, record = _held(datalayer)
+    vf = record.participant_statuses[-1].vf
+    assert vf is not None
+    assert vf.state == CS_vf.vf
 
 
 @pytest.mark.spec("CM-31-012")
@@ -172,7 +230,7 @@ def test_the_same_entry_twice_leaves_one_record(
 
 
 @pytest.mark.spec("CM-11-015")
-def test_a_replacement_stub_changes_a_record_already_held(
+def test_a_replacement_stub_leaves_a_record_already_held_alone(
     bridge, datalayer, case_actor, case_obj
 ):
     """The CASE_MANAGER reuses the same record, so the replica leaves it be."""

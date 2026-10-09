@@ -43,11 +43,12 @@ Admitting the invitee, announcing the case to it and backfilling the ledger
 are the CASE_MANAGER's (PCR-08-009); every other participant learns of the
 new member from the stub Invite's entry (``ApplyStubInviteFromLedgerNode``
 creates the inert record) and the ``Accept(Invite)`` entry's fan-out (its
-replica marks the record joined through ``ApplyInviteAcceptFromLedgerNode``).  No ``Add(CaseParticipant)``
-follows and no ``add_case_participant`` entry is committed: that message now
-means reinstatement only (CM-31-012, ADR-0116).  The same handler runs on any actor
-that holds a copy of the Accept, so the effects sit behind a role gate and
-a receiver that is not the case's CASE_MANAGER does nothing (#3752).
+replica marks the record joined through ``ApplyInviteAcceptFromLedgerNode``).
+No ``Add(CaseParticipant)`` follows and no ``add_case_participant`` entry is
+committed: that message now means reinstatement only (CM-31-012, ADR-0116).
+The same handler runs on any actor that holds a copy of the Accept, so the
+effects sit behind a role gate and a receiver that is not the case's
+CASE_MANAGER does nothing (#3752).
 
 Specs: PCR-08-009/PCR-08-010 (who records, identity constraint),
 CM-10-001/CM-10-003 (embargo consent), MV-10-003/MV-10-005 (announce after
@@ -175,7 +176,8 @@ def create_accept_invite_actor_to_case_tree(
     committing node placed earlier hands the late joiner a ledger entry before
     its case seed (SYNC-15 pre-genesis reject and replay, #2898).  The
     stub-Invite acceptance commits no ``add_case_participant`` entry
-    (CM-31-012): replicas add the member from the ``Accept(Invite)`` entry.
+    (CM-31-012): replicas seat the inert record from the stub Invite's entry and
+    mark it joined from the ``Accept(Invite)`` entry.
 
     The idempotency guard ``CheckInviteeNotAlreadyParticipantNode`` uses
     :class:`~vultron.core.behaviors.idempotency.SilentIdempotencyGuardMixin`

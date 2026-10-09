@@ -163,8 +163,8 @@ def demo_initialize_participant(
         "Step 2: Vendor's replica seats the coordinator from the ledger"
     ):
         # No Add(CaseParticipant) follows the acceptance (CM-31-012): the
-        # vendor's replica learns of the new member from the Accept(Invite)
-        # entry the CaseActor fans out to it.
+        # vendor's replica learns of the new member from the stub Invite's
+        # entry and the Accept(Invite) entry the CaseActor fans out to it.
         with demo_gate("Coordinator is a participant on the vendor's replica"):
             wait_for_case_participants(
                 vendor_client=client,

@@ -23,8 +23,9 @@ the stub-Invite workflow:
   (when an embargo is in force).  Sets ``joined=False`` so the participant is
   inert and does not receive case content until it accepts (CM-11-006).
   Nothing is sent to the other participants: the record is the
-  CASE_MANAGER's, and replicas learn of the member from the ``Accept(Invite)``
-  entry once it joins (CM-31-012).
+  CASE_MANAGER's, and each replica builds the same record, with the same
+  builder, from the stub Invite's ledger entry and marks it joined from the
+  ``Accept(Invite)`` entry (CM-31-012).
 
 - :class:`AdvanceInviteeVFToVendorAwareNode` — after ``Accept`` or ``Reject``
   of the stub Invite, records vendor awareness (VF ``Vf``) on a VENDOR

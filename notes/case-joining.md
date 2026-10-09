@@ -154,12 +154,14 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
 - **Re-invite.** Same record, fresh stub Invite, new deadline, with `inReplyTo`
   set to the earlier stub so the invitee has one live stub. Refused for a
   participant at `CLOSED` — terminal, no rejoin (CM-11-015, ADR-0085) — and for
-  one that has already joined. The owner's trigger refuses it before anything
-  is queued, and the CASE_MANAGER's recommend-actor tree refuses an Offer that
-  arrives anyway. The Case Owner's `Accept(Offer(CaseParticipant))` is refused
-  the same way for a joined or `CLOSED` actor, before the receipt commit
-  (`SuggestedActorIsInvitableNode`, CM-16-006), so no second Invite entry
-  reaches the ledger for a record that cannot take one. The re-invite arm
+  one that has already joined. For `CLOSED` the owner's trigger refuses it
+  before anything is queued, and the CASE_MANAGER's recommend-actor tree
+  refuses an Offer that arrives anyway. For a joined actor the recommend-actor
+  tree sends no Invite (the already-participant arm answers instead). The
+  Case Owner's `Accept(Offer(CaseParticipant))` is refused for a joined or
+  `CLOSED` actor, before the receipt commit (`SuggestedActorIsInvitableNode`,
+  CM-16-006), so no second Invite entry reaches the ledger for a record that
+  cannot take one. The re-invite arm
   sits ahead of the duplicate arms, because an inert record is on the roster and
   its stub is "in flight" until the invitee answers.
 - **Embargo changes during the invitation window.** The CASE_MANAGER re-issues
@@ -208,7 +210,7 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 - **`Add(CaseParticipant)` only reinstates.** It is refused for a participant
   that is not removed or never joined. The CASE_MANAGER no longer emits `Add`
   after a stub-Invite acceptance; replicas learn of a new member from the
-  `Accept(Invite)` entry (CM-31-012).
+  stub Invite's entry and the `Accept(Invite)` entry (CM-31-012).
 - **Where the fact and the check live (#4079).** The fact is
   `CaseParticipant.removal_activity`: the id of the `Remove` activity, or
   `None` (`removed` reads it). The one check is
@@ -280,9 +282,15 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   `ApplyInviteAcceptFromLedgerNode` fails with a reason rather than build one,
   because the chain is complete and in order (SYNC-14, SYNC-15). A stub that is
   later rejected, and an expiry, leave the replica's record at RM `RECEIVED`:
-  the reject entry is not replayed yet (#4294, #4295). In the accept-invite tree the full-case
-  Invite is now the first effect that commits after the join, so it carries
-  the #2898 ordering: after the case announce and the backfill.
+  the reject entry is not replayed yet (#4294, #4295). In the accept-invite
+  tree the full-case Invite is now the first effect that commits after the
+  join, so it carries the #2898 ordering: after the case announce and the
+  backfill. VF is a vendor-only status: the record carries `v` (and, at the
+  Accept, `Vf`) only when its roles include `VENDOR`, and no status of any
+  other invitee has a VF. Not yet replayed, so a replica is not identical to
+  the CASE_MANAGER after the Accept: the vendor's `Vf`, the consent row's move
+  to `ACCEPTED`, and the status id and timestamps that each store mints for
+  itself (#4294, #4295).
 - **Where the embargo-ending notices live (#4083).** The recipients are
   `embargo_ending_notice_recipients` (joined, `SIGNATORY` to the ending
   embargo, removed or RM `CLOSED`). The decision is `embargo_ending_notice`:
