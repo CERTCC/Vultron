@@ -1517,6 +1517,7 @@ class TestADR0041ReporterParticipant:
     @pytest.mark.spec("CM-14-012")
     def test_reporter_participant_rm_accepted(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.states.rm import RM
         from vultron.enums.roles import CVDRole
 
@@ -1542,7 +1543,8 @@ class TestADR0041ReporterParticipant:
         assert rm_state == RM.ACCEPTED, (
             f"Reporter must be at RM.ACCEPTED, got {rm_state}"
         )
-        assert CVDRole.REPORTER in getattr(participant, "case_roles", []), (
+        assert isinstance(participant, CaseParticipant)
+        assert CVDRole.REPORTER in participant.case_roles, (
             "Reporter must carry the REPORTER role (CM-14-012)"
         )
 

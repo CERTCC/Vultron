@@ -56,6 +56,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
@@ -89,9 +90,9 @@ class CreateInertInviteeParticipantNode(
     The record is built and attached through the shared
     ``_create_and_attach_participant`` helper (BTND-05-003); this node
     supplies only the seating policy (roles, birth status, consent row).
-    The helper's rule that an existing record wins also covers an invitee
-    that already has an inert record: it is kept, not reset (the re-invite
-    keeps the same record, CM-11-015).
+    An invitee that already has a record is decided before anything is
+    built (:meth:`_existing_record_outcome`): a re-invite keeps the same
+    record (CM-11-015), so the node never resets or re-seats it.
     """
 
     def __init__(
@@ -167,6 +168,59 @@ class CreateInertInviteeParticipantNode(
             cvd_role=roles,
         )
 
+    def _existing_record_outcome(
+        self, case: VulnerabilityCase
+    ) -> Status | None:
+        """Decide the outcome when the invitee already has a record.
+
+        Runs before the role check, so a re-run without roles still succeeds
+        on a record that is already there.  Returns ``None`` when the invitee
+        has no record and must be seated.
+
+        - Joined: never re-seated (SUCCESS).
+        - At ``RM.CLOSED``: terminal, no rejoin — refused (FAILURE,
+          CM-11-015, ADR-0085).
+        - Inert, not closed: the re-invite keeps the same record (CM-11-015),
+          so the record is left unchanged (SUCCESS).
+        """
+        assert self.datalayer is not None
+        existing_id = case.actor_participant_index.get(self.invitee_id)
+        if existing_id is None:
+            return None
+        existing = self.datalayer.read(existing_id)
+        if not isinstance(existing, CaseParticipant):
+            return None
+        if existing.joined:
+            self.logger.info(
+                "%s: invitee '%s' already joined case '%s' — skip inert creation",
+                self.name,
+                self.invitee_id,
+                self.case_id,
+            )
+            return Status.SUCCESS
+        if existing.rm_closed:
+            self.feedback_message = (
+                f"{self.name}: invitee '{self.invitee_id}' is at RM.CLOSED in"
+                f" case '{self.case_id}' — no rejoin (CM-11-015)"
+            )
+            self.logger.warning(
+                "%s: invitee '%s' is at RM.CLOSED in case '%s' — refusing"
+                " to re-seat (CM-11-015)",
+                self.name,
+                self.invitee_id,
+                self.case_id,
+            )
+            return Status.FAILURE
+        self.logger.info(
+            "%s: invitee '%s' already has inert record '%s' in case '%s'"
+            " — kept unchanged (CM-11-015)",
+            self.name,
+            self.invitee_id,
+            existing_id,
+            self.case_id,
+        )
+        return Status.SUCCESS
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -176,20 +230,8 @@ class CreateInertInviteeParticipantNode(
         if failure is not None:
             return failure
 
-        # A joined participant is never re-seated: skip before the role
-        # check, so a re-run without roles still succeeds.  Any other existing
-        # record is kept by the helper below ("existing record wins").
-        existing_id = case.actor_participant_index.get(self.invitee_id)
-        if existing_id is not None:
-            existing = self.datalayer.read(existing_id)
-            if isinstance(existing, CaseParticipant) and existing.joined:
-                self.logger.info(
-                    "%s: invitee '%s' already joined case '%s' — skip inert creation",
-                    self.name,
-                    self.invitee_id,
-                    self.case_id,
-                )
-                return Status.SUCCESS
+        if (done := self._existing_record_outcome(case)) is not None:
+            return done
 
         roles = self._resolve_roles()
         if not roles:

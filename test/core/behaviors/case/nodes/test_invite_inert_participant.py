@@ -80,8 +80,10 @@ def _participant(scenario: BTTestScenario) -> CaseParticipant:
     return cast(CaseParticipant, scenario.dl.read(PARTICIPANT_ID))
 
 
-def _seed_existing(scenario: BTTestScenario, *, joined: bool) -> None:
-    """Seat a pre-existing record for the invitee at RM ``ACCEPTED``."""
+def _seed_existing(
+    scenario: BTTestScenario, *, joined: bool, rm: RM = RM.ACCEPTED
+) -> None:
+    """Seat a pre-existing record for the invitee at *rm*."""
     existing = CaseParticipant(
         id_=PARTICIPANT_ID,
         attributed_to=INVITEE_ID,
@@ -91,7 +93,7 @@ def _seed_existing(scenario: BTTestScenario, *, joined: bool) -> None:
             ParticipantStatus(
                 context=CASE_ID,
                 attributed_to=INVITEE_ID,
-                rm=RmDimension(state=RM.ACCEPTED),
+                rm=RmDimension(state=rm),
                 cvd_role=[CVDRole.FINDER],
             )
         ],
@@ -207,15 +209,21 @@ class TestIdempotency:
         assert participant.case_roles == [CVDRole.FINDER]
         assert participant.participant_statuses[-1].rm.state == RM.ACCEPTED
 
-    def test_existing_inert_record_wins(
+    @pytest.mark.spec("CM-11-015")
+    def test_existing_inert_record_is_kept(
         self, scenario: BTTestScenario
     ) -> None:
-        """An existing inert record is kept, not reset (case-joining re-invite).
+        """An existing inert record is kept, not reset (same record, CM-11-015).
 
-        The helper's "existing record wins" rule: the node seats nothing new
-        and does not raise on the duplicate id.
+        The node seats nothing new, writes no consent row, and does not
+        raise on the duplicate id.
         """
         _seed_existing(scenario, joined=False)
+        embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(45))
+        scenario.dl.create(embargo)
+        case = _case(scenario)
+        activate(case, embargo.id_)
+        scenario.dl.save(case)
 
         scenario.assert_success(_run(scenario, ["VENDOR"]))
 
@@ -226,3 +234,17 @@ class TestIdempotency:
         assert participant.participant_statuses[0].rm.state == RM.ACCEPTED
         case = _case(scenario)
         assert case.actor_participant_index[INVITEE_ID] == PARTICIPANT_ID
+        assert participant.embargo_consents == []
+
+    @pytest.mark.spec("CM-11-015")
+    def test_closed_record_is_refused(self, scenario: BTTestScenario) -> None:
+        """A record at RM.CLOSED is terminal: no rejoin, nothing re-seated."""
+        _seed_existing(scenario, joined=False, rm=RM.CLOSED)
+
+        result = _run(scenario, ["VENDOR"])
+
+        assert result.status == Status.FAILURE
+        assert "CM-11-015" in (result.feedback_message or "")
+        participant = _participant(scenario)
+        assert participant.rm_closed
+        assert participant.case_roles == [CVDRole.FINDER]
