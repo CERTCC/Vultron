@@ -255,7 +255,7 @@ def trigger_add_report_to_case(
         "for a deployer at RM Accepted, Deferred or Closed). The "
         "target must already be a participant holding the asserted role: a "
         "non-participant target is refused and no participant is created "
-        "(PRM-06-006, ADR-0084). Writes a "
+        "(PRM-06-006, ADR-0121). Writes a "
         "ParticipantStatus for the target and queues an "
         "Add(ParticipantStatus, target=CaseParticipant) activity to the Case "
         'Manager. Fix readiness (``vf_state="VF"``, f→F) is refused: it is '

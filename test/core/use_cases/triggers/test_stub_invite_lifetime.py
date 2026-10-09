@@ -15,8 +15,8 @@
 CM-11-014 (a deadline; expiry closes the Invite and writes no participant
 state), CM-11-015 (re-invite on the same record), CM-11-016 (re-issue when the
 active embargo changes) and ASK-03-008 (expiry is stale: a late reply is honoured).  The
-planned-behaviour tests for the same requirements are in
-``test_case_joining_planned.py``.
+trigger-side tests for the same requirements are in
+``test_case_joining_trigger.py``.
 """
 
 from datetime import datetime, timedelta
@@ -24,7 +24,7 @@ from typing import Any
 
 import pytest
 
-from test.core.use_cases.received.actor.test_case_joining_planned import (
+from test.core.use_cases.received.actor.test_case_joining_replies import (
     route_received,
 )
 from test.core.use_cases.received.conftest import (
@@ -33,7 +33,7 @@ from test.core.use_cases.received.conftest import (
 from test.core.use_cases.triggers.embargo.conftest import (
     _build_active_embargo_case,
 )
-from test.core.use_cases.triggers.test_case_joining_planned import (
+from test.core.use_cases.triggers.test_case_joining_trigger import (
     _case_with_invitee_record,
     _hold_case_owner,
     _invites_to,

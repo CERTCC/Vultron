@@ -46,7 +46,7 @@ Set `d_state` from `d` to `D`.
 That is Fix Deployed (CD).
 
 Send only your own status.
-Participant status is self-declaratory, so a participant asserting another participant's state is a protocol violation outside the narrow externally-evidenced exceptions (ADR-0084).
+Participant status is self-declaratory, so a participant asserting another participant's state is a protocol violation outside the narrow externally-evidenced exceptions (PRM-06-001, ADR-0121).
 
 ---
 

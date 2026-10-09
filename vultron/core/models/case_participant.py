@@ -98,9 +98,9 @@ class CaseParticipant(CoreObject):
     # (CM-10-004, ADR-0114).  One input to the case-level active check
     # (``VulnerabilityCase.is_active_participant``), never the answer itself.
     # Replicated with the record so every replica derives the same answer.
-    # Defaults to True because every record created today is created at one of
-    # those two moments — case initialization or the Accept of the Invite; the
-    # record created at Invite time (#4048) sets False explicitly.
+    # Defaults to True because a record seated by case initialization has
+    # joined; the record the stub Invite creates (CM-11-006) sets False
+    # explicitly, and the Accept of that Invite flips it to True.
     joined: bool = True
     # The removal fact (CM-31-001, ADR-0116): the id of the ``Remove`` activity
     # that took this participant out of active participation, or ``None`` when

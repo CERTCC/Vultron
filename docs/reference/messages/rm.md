@@ -72,6 +72,7 @@ print(json2md(submit_report()))
 - **Protocol role:** The Participant has designated the report as invalid.
 - **Triggering transition:** Received → Invalid (R → I).
 - **Wire activity:** `TentativeReject(Offer(VulnerabilityReport))`.
+  A participant that joined through an Invite sends `TentativeReject(Invite(Actor, target=VulnerabilityCase))` instead, answering the full-case Invite ([VAM-04-013](../specs/protocol.md#vam-04-013)).
 - **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
   [Transitions](../formal_protocol/transitions.md).
@@ -87,6 +88,8 @@ print(json2md(invalidate_report()))
 - **Protocol role:** The Participant has designated the report as valid.
 - **Triggering transition:** Received or Invalid → Valid ({R,I} → V).
 - **Wire activity:** `Accept(Offer(VulnerabilityReport))`.
+  A participant that joined through an Invite sends `Accept(Invite(Actor, target=VulnerabilityCase))` instead, answering the full-case Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)).
+  It never validates the original report Offer ([CM-11-020](../specs/protocol.md#cm-11-020)).
 - **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
   [Transitions](../formal_protocol/transitions.md).
@@ -138,7 +141,10 @@ rather than a retraction of the earlier deferral.
 - **Protocol role:** The Participant has closed the report.
 - **Triggering transition:** Received, Invalid, Deferred, or Accepted → Closed
   ({R,I,D,A} → C).
-- **Wire activity:** `Reject(Offer(VulnerabilityReport))`. This activity also
+- **Wire activity:** `Reject(Offer(VulnerabilityReport))`.
+  A participant that joined through an Invite closes with `Reject(Invite(Actor, target=VulnerabilityCase))` ([VAM-04-014](../specs/protocol.md#vam-04-014)),
+  and an invitee that declines its stub Invite sends `Reject(Invite(Actor, target=VulnerabilityCaseStub))` ([CM-11-007](../specs/protocol.md#cm-11-007)).
+  The `Reject(Offer(VulnerabilityReport))` activity also
   appears as an ordinary refusal in the fault-and-acknowledgment mapping
   (MSM-05-003).
 - **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).

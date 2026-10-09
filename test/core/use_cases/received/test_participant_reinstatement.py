@@ -35,9 +35,10 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
-from test.core.use_cases.received.actor.test_case_joining_planned import (
+from test.core.use_cases.received.actor.test_case_joining_replies import (
     route_received,
 )
+from test.core.use_cases.received.conftest import seed_inert_invitee
 from test.core.use_cases.received.test_participant_removal_planned import (
     CASE_ID,
     EMBARGO_ID,
@@ -638,6 +639,9 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
         id_=f"{CASE_ID}/invitations/newbie",
     )
     case.dl.create(stub_invite)
+    manager_case = case.read_case()
+    seed_inert_invitee(case.dl, manager_case, NEWBIE)
+    case.dl.save(manager_case)
     replica = _replica(case, OTHER)
 
     result = case.route(
