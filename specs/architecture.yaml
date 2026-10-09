@@ -879,8 +879,9 @@ groups:
       itself, whether by calling `model_dump(by_alias=True)` on a core-branch instance or by
       rewriting dumped keys into wire spellings. The `alias_generator` a core object inherits
       from `CoreObject` (ARCH-12-003) is the mechanism behind the port, not a licence for core to
-      dump directly. Dumping an already-wire-shaped object that core holds (an `as_*` wire
-      vocabulary instance) is unaffected by this requirement; the activity a received handler
+      dump directly. Dumping an already-wire-shaped object that core holds (an instance of an
+      `as_Base` wire vocabulary class with no core counterpart, such as `as_Link`; a domain
+      type's `as_*` name is its core class) is unaffected by this requirement; the activity a received handler
       holds is not one, since the extractor rebuilds it as a core-branch `VultronActivity`.
     rationale: >-
       A single rendering seam keeps the decision of what goes on the wire (which object, with
@@ -1005,7 +1006,10 @@ groups:
       serialises a `CoreObject` as its own AS2 form and raises for a bare `CoreRecord`.
       A route that passes `AS2JSONResponse` an already-dumped dict bypasses that gate,
       so inspection confirms each such dict in `vultron/adapters/driving/` is the dump
-      of a `CoreObject` or `as_Base` instance.
+      of a `CoreObject` or `as_Base` instance. A route that returns a plain dict without
+      `AS2JSONResponse` (the `get_object` fallback in `routers/datalayer.py`, the demo
+      ledger routes) serves `application/json`, not an AS2 document, and is outside
+      this requirement.
     relationships:
     - rel_type: refines
       spec_id: ARCH-20-001

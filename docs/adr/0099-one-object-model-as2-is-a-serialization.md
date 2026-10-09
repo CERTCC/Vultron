@@ -763,7 +763,7 @@ being absorbed as a failed union branch.
 **Annotated 2026-10-09 (#4390).**
 The two paragraphs above, and detail 2's "#3578 owns their rewrite", describe the state before the migration landed.
 The rewrite has since been done and the annotations removed, across PR #3468 (the ARCH-22 allow-list), PR #3676 (#3578: ARCH-12, ARCH-20 and ARCH-21 reconciled) and PR #3783 (#3491: the remaining annotated requirements).
-ARCH-01-003, ARCH-03-001, ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-20-001, ARCH-20-002, ARCH-20-003, ARCH-21-002, ARCH-22-001, ARCH-22-003 and ARCH-23-006 now state the one-object-model direction.
+Of the thirteen, together with the ARCH-12-003 and ARCH-20-001 that detail 2 names, ARCH-01-003, ARCH-03-001, ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-20-001, ARCH-20-002, ARCH-20-003, ARCH-21-002, ARCH-22-001, ARCH-22-003 and ARCH-23-006 now state the one-object-model direction.
 ARCH-12-005 and ARCH-23-001 are retired: there is no translation to place and no pair to register.
 ARCH-12-010 keeps only the `CORE_TYPE_MAP` registration duty for bare `CoreRecord` types, which is not an ADR-0099 direction.
 The ARCH-23-006 prerequisite named above is met: `VultronValidationError` is a `ValueError`, held by `test_core_guard_inside_wire_union_fails_the_branch`.
