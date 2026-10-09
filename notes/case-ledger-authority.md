@@ -270,8 +270,9 @@ by construction only if the replica decides nothing, so:
   for a changed one, each carrying the object in full. Sending a stub Invite is
   the Invite's entry plus a `Create(CaseParticipant)` for the inert invitee.
 - **An act whose activity states the change is that change's entry.**
-  `Add(Note, target=Case)` carrying the note is applied by copying it; no
-  second entry records it again (CLP-07-002).
+  `Add(Note, target=Case)` carrying the note is applied by copying it, and an
+  invitee's `Accept` of the stub Invite is the entry for its own consent row and
+  `joined` mark (CM-31-012). No second entry records either again (CLP-07-002).
 - **A replica copies.** Applying an entry mints no id, reads no clock, reads no
   policy or state outside the case, and runs no lifecycle logic (CM-23-016).
   Lifecycle and policy code runs on the CASE_MANAGER, before the commit, and
@@ -279,14 +280,16 @@ by construction only if the replica decides nothing, so:
 - **Case file vs. case bookkeeping (CLP-07-014).** The recommendation index,
   offer records and pending markers are the CASE_MANAGER's working records. They
   are not ledgered, not replicated, and never read to compute a case-file value.
-- **No allow-list.** A write with no entry is a defect. `KNOWN_UNREPLAYED` in
-  `test/architecture/test_ledger_event_types_are_replayed.py` lists the ones
-  still open; each row names the issue that removes it.
+- **No allow-list.** A write with no entry is a defect, not an exception.
+  `NO_REPLICA_EFFECT` in `test/architecture/test_ledger_event_types_are_replayed.py`
+  records committed types that change nothing a replica holds; it is not a
+  place to park an unreplayed write.
 
 **Pitfall: "one act, one entry".** CLP-09-003 once said a use case produces
 "exactly one canonical commit", and ADR-0116 dropped the invitee's participant
 entry as redundant. Both left the second change an act causes with nowhere to be
-recorded, and replicas rebuilt it with their own ids and times (#4425).
+recorded, and replicas rebuilt it with their own ids and times (#4425; the
+stub-Invite record was fixed by #4396).
 
 ---
 

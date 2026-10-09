@@ -23,7 +23,7 @@ The case ledger is how those copies are kept in step with the CASE_MANAGER's cas
 Tracing participant embargo consent for Concern #4284, and the inert invitee's record for Concern #4425, showed that the CASE_MANAGER's case and its replicas are not kept in step by one rule:
 
 - One committed entry often stands for several changes.
-  Sending a stub Invite creates the invitee's participant record, its consent rows and its roster entry, but only the Invite is committed.
+  Sending a stub Invite created the invitee's participant record, its consent rows and its roster entry, but only the Invite was committed (#4396 has since given the record its own `create_case_participant` entry).
 - Some changes have no entry at all: the create-case trigger, a note attached from a received `Create(Note)`, the CASE_MANAGER's own policy-based embargo consent, and commits that log a failure and carry on.
 - Replicas fill the gaps by working the changes out again.
   They mint their own ids, stamp their own clock times, run embargo lifecycle code, and walk the RM transition table from their own stored state.
@@ -68,10 +68,12 @@ Each entry's payload is an AS2 activity (CLP-07-011).
 
 An act and the changes it causes are different facts (CLP-07-002).
 The act's entry comes first: the message as received, or the message the CASE_MANAGER sent.
-When the act's own activity states a change to an object it carries, such as `Add(Note, target=Case)` with the note inline, the act's entry is that change's entry, and no second entry records it again.
+When the act's own activity states a change, the act's entry is that change's entry, and no second entry records it again.
+Examples are `Add(Note, target=Case)` with the note inline, and an invitee's `Accept` of the stub Invite, which is the entry for its own consent row and `joined` mark.
+Applying such an entry writes only what the activity states, with any time taken from the entry.
 Each other change the act causes follows as its own CASE_MANAGER-authored entry, in the order the CASE_MANAGER writes them, and carries the changed object in full (CLP-07-006):
 
-- a record the CASE_MANAGER brings into existence is `Create(Object)`, such as the inert invitee's `Create(CaseParticipant)` after a stub Invite;
+- a record the CASE_MANAGER brings into existence is `Create(Object)`, such as the inert invitee's `Create(CaseParticipant)` (`create_case_participant`) after a stub Invite;
 - a changed record is `Update(Object)`, such as the old and new owners' `Update(CaseParticipant)` after an ownership transfer, or a status entry for each RM step a Leave causes (CM-23-001).
 
 The CASE_MANAGER's records of clock-driven acts, such as an expired invitation (CM-28-009), and its decisions from local policy, such as agreeing to a proposal by its own embargo policy, are entries too: attributed to the CASE_MANAGER and committed like any other message.

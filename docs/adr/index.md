@@ -223,7 +223,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md)
 - [ADR-0107 A Case Ledger Entry Is a Postmark on the Received Envelope; References Resolve by Dereference](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
 - [ADR-0115 Received Handlers Check the Sender's Entitlement, Declared Once per Use Case and Composed by the Receive-Tree Factory](0115-received-handlers-check-sender-entitlement.md)
-- [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 2)*
+- [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 3)*
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md)
 - [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 4)*
 - [ADR-0124 The Case Is a Projection of Its Ledger: Every Change Is an Entry, and Replicas Copy](0124-case-is-a-projection-of-its-ledger.md) *(revision 2)*

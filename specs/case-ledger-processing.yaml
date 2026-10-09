@@ -434,8 +434,10 @@ groups:
     statement: >-
       Every change the CASE_MANAGER makes to the case file MUST be committed as its own
       `CaseLedgerEntry`, and a change with no committed entry MUST NOT be made. The act's
-      entry comes first. When the act's own activity states a change to an object it
-      carries, that entry is the change's entry. Each other change the act causes MUST
+      entry comes first. When the act's own activity states a change, such as
+      `Add(Note, target=Case)` carrying the note or an invitee's `Accept` of the stub
+      Invite marking its own consent and joining, that entry is the change's entry, and
+      applying it writes only what the activity states. Each other change the act causes MUST
       follow as its own CASE_MANAGER-authored entry, in the order the CASE_MANAGER writes
       them, whose `payloadSnapshot` is a `Create` of a record the CASE_MANAGER brings into
       existence or an `Update` of a changed record, carrying the object in full

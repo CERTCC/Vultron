@@ -24,13 +24,11 @@ import inspect
 import pytest
 
 from test.architecture._ledger_commit_inventory import _COMMIT_BUILDERS
-from test.architecture.test_ledger_event_types_are_replayed import (
-    KNOWN_UNREPLAYED,
-)
 from vultron.core.behaviors.case import create_case_trigger_tree
-from vultron.core.behaviors.sync.nodes import invite_accept_effect
+from vultron.core.behaviors.sync.nodes.rm_verdict_effect import (
+    ApplyRmVerdictFromLedgerNode,
+)
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.events.base import MessageSemantics as MS
 
 
 @pytest.mark.spec("CLP-07-013")
@@ -44,22 +42,13 @@ def test_create_case_trigger_commits_entries():
     assert any(builder in source for builder in _COMMIT_BUILDERS)
 
 
-@pytest.mark.spec("CM-11-006")
-@pytest.mark.xfail(
-    strict=True,
-    reason="CM-11-006: the inert invitee's record has no entry of its own, so replicas cannot copy it. #4295.",
-)
-def test_stub_invite_record_is_replayed_from_its_own_entry():
-    assert MS.INVITE_ACTOR_TO_CASE.value not in KNOWN_UNREPLAYED
-
-
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.xfail(
     strict=True,
-    reason="CM-23-016: the stub-Invite accept replay builds its own CaseParticipant. #4295.",
+    reason="CM-23-016: RM verdict replay mints its own status id and fills VF, D and roles from local state. #4295.",
 )
-def test_replica_does_not_build_the_invitee_record_itself():
-    assert "CaseParticipant(" not in inspect.getsource(invite_accept_effect)
+def test_rm_verdict_replay_copies_the_status_id():
+    assert '"id"' in inspect.getsource(ApplyRmVerdictFromLedgerNode)
 
 
 @pytest.mark.spec("CLP-07-014")
