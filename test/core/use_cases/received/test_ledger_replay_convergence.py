@@ -55,6 +55,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -109,6 +110,16 @@ def _ledger(net: LedgerNetwork, actor_id: str) -> list[str]:
         if getattr(e, "case_id", None) == net.case_id
     ]
     return [e.event_type for e in sorted(entries, key=lambda e: e.log_index)]
+
+
+def _register(
+    net: LedgerNetwork, actor_id: str
+) -> list[tuple[str | None, EmbargoRegisterStatus]]:
+    """Each embargo register entry *actor_id*'s case holds, as (id, status)."""
+    return [
+        (_as_id(entry.embargo), entry.status)
+        for entry in net.case(actor_id).embargo_register
+    ]
 
 
 def _embargo(net: LedgerNetwork) -> as_EmbargoEvent:
@@ -226,6 +237,16 @@ def test_a_replica_follows_the_owners_rejection_of_a_proposal():
     assert _ledger(net, BYSTANDER) == _ledger(net, MANAGER)
 
 
+def _set_pxa_everywhere(net: LedgerNetwork, pxa: CS_pxa) -> None:
+    """Record CS at *pxa* in every store, as the ledger already had it."""
+    for dl in net.stores.values():
+        case = cast(VulnerabilityCase, dl.read(net.case_id))
+        case.current_status.pxa = case.current_status.pxa.model_copy(
+            update={"state": pxa}
+        )
+        dl.save(case)
+
+
 def _propose_revision_everywhere(
     net: LedgerNetwork, *, days: int
 ) -> as_EmbargoEvent:
@@ -269,6 +290,50 @@ def test_a_replica_carries_signatories_over_to_a_shorter_activated_revision():
         assert _consent(net, actor_id, BYSTANDER, revision.id_) == (
             EmbargoConsentState.AGREED
         ), actor_id
+
+
+@pytest.mark.spec("EMB-04-002")
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("EP-08-004")
+def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure():
+    """Reject of the last revision with P set: both registers end the same.
+
+    The CASE_MANAGER terminates instead of returning to the prior terms
+    (EMB-04-002), cancelling the revision in the termination step
+    (EP-08-004).  The replica replays the reject entry and then the
+    termination entry, and must reach the same register — the revision
+    CANCELLED, not REJECTED (ADR-0124).
+    """
+    net = _owned(
+        LedgerNetwork("https://example.org/cases/replay-reject-disclosed")
+    )
+    revision = _propose_revision_everywhere(net, days=120)
+    _set_pxa_everywhere(net, CS_pxa.Pxa)
+
+    _send(
+        net,
+        reject_embargo_proposal_activity(
+            revision, target=net.case_id, actor=OWNER, to=[MANAGER]
+        ),
+    )
+
+    # The reject entry first, then the termination it forced (EMB-04-002).
+    assert _replay(net, BYSTANDER)[:2] == [
+        "reject_embargo_proposal_on_case",
+        "remove_embargo_event_from_case",
+    ]
+    for actor_id in (MANAGER, BYSTANDER):
+        case = net.case(actor_id)
+        assert case.em_state == EM.EXITED, actor_id
+        assert case.embargo_register_status(revision.id_) is (
+            EmbargoRegisterStatus.CANCELLED
+        ), actor_id
+        assert case.embargo_register_status(net.initial_embargo_id) is (
+            EmbargoRegisterStatus.TERMINATED
+        ), actor_id
+    assert _register(net, BYSTANDER) == _register(net, MANAGER)
+    assert _ledger(net, BYSTANDER) == _ledger(net, MANAGER)
 
 
 @pytest.mark.spec("RSH-08-004")

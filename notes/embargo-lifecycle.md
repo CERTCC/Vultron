@@ -303,7 +303,11 @@ enforces EMB-01-002, EMB-02-002, and EMB-04-002 via
   `accept_embargo_invite()` is never blocked
 - `reject_embargo_proposal()` — raises when it would return a `REVISE` case to
   the prior terms with P/X/A set (caller MUST use `terminate_active_embargo()`
-  instead, EMB-04-002)
+  instead, EMB-04-002). This one is not skipped in `OBSERVED` mode: the replay
+  changes nothing, because the CASE_MANAGER answered that Reject with ET and
+  the termination entry that follows cancels the revision. The CASE_MANAGER
+  and every replica end with it `CANCELLED`, and none returns to the prior
+  terms (ADR-0124, #4364).
 
 `activate_embargo()` also refuses, in either mode, an owner whose row for the
 proposal is `DECLINED`: activation records the owner's `AGREE`, which
@@ -375,7 +379,8 @@ The owner's `Reject(EmbargoEvent, target=Case)` is decided by
 `DecideRejectedEmbargoProposalNode`, `STRICT` on the CASE_MANAGER and
 `OBSERVED` on replay (the `EmbargoProposalRejection` slot):
 `reject_embargo_proposal` returns EM `REVISE → ACTIVE` (or `PROPOSED → NONE`)
-and rejects the proposal; the owner's `Accept(EmbargoEvent, target=Case)` is
+and rejects the proposal, except for the last revision with P/X/A set, which
+it leaves to the ET that follows (EMB-04-002); the owner's `Accept(EmbargoEvent, target=Case)` is
 replayed by the `EmbargoActivation` slot (ADR-0122). EMB-01-002 and
 EMB-02-002 are enforced as explicit pre-flight guards in
 `InviteToEmbargoOnCaseReceivedUseCase.execute()` and
