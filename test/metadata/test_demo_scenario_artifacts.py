@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Ratchets over the artifacts generated from the demo scenario registry.
 
-Three things are checked here, and they fail for different reasons on purpose:
+Four things are checked here, and they fail for different reasons on purpose:
 
 * **The committed artifacts are current** (``test_committed_artifacts_are_in_sync``).
   This duplicates the ``demo-scenarios-sync`` pre-commit hook deliberately: a
@@ -25,8 +25,14 @@ Three things are checked here, and they fail for different reasons on purpose:
 * **The CI matrix projection stays narrow** (``test_matrix_carries_only_...``).
   Entries are splatted into ``matrix: include:``, so every extra key becomes a
   matrix variable in every step of two jobs (DEMOCI-11-004).
+* **The specs that enumerate scenarios agree with the registry and harnesses**
+  (``test_democi_06_*``, ``test_per_scenario_demoma_16_*``).  Prose is the one
+  input no generator rewrites, so it drifts silently unless checked
+  (DEMOCI-11-007, DEMOMA-16-008).
 
-Requirements: ``specs/demo-ci.yaml`` DEMOCI-11-004, DEMOCI-11-005.
+Requirements: ``specs/demo-ci.yaml`` DEMOCI-06-002, DEMOCI-06-003,
+DEMOCI-11-004, DEMOCI-11-005, DEMOCI-11-007; ``specs/multi-actor-demo.yaml``
+DEMOMA-16-008.
 """
 
 from __future__ import annotations
@@ -300,18 +306,21 @@ def test_democi_06_002_names_exactly_the_pr_set_event_types() -> None:
     is ratcheted against.  A misspelled type is therefore not recognised, but
     then the correctly spelled one is missing, and that is reported.
     """
+    scenarios = discover_scenarios()
     harnesses = {
-        spec.name: harness_event_types(spec, _REPO_ROOT)
-        for spec in discover_scenarios()
+        spec.name: harness_event_types(spec, _REPO_ROOT) for spec in scenarios
     }
     known = {t for types in harnesses.values() if types for t in types}
     statement = (
         load_registry(_REPO_ROOT / "specs").get("DEMOCI-06-002").statement
     )
     named = set(re.findall(r"`([^`]+)`", statement)) & known
-    pr_set = [spec.name for spec in discover_scenarios() if spec.in_pr_set]
     covered = set().union(
-        *(additional_event_types(harnesses[name] or ()) for name in pr_set)
+        *(
+            additional_event_types(harnesses[spec.name] or ())
+            for spec in scenarios
+            if spec.in_pr_set
+        )
     )
     assert named == covered, (
         "DEMOCI-06-002 must name exactly the non-universal event types the "
