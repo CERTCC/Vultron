@@ -529,6 +529,26 @@ class TestAcceptActorRecommendationReceivedTree:
         assert node.invitee_id == _RECOMMENDED
         assert node.case_id == _CASE_ID
 
+    @pytest.mark.spec("CM-11-015")
+    def test_closed_invitee_guard_runs_before_either_emit(self):
+        order = list(self.tree.iterate())
+        guard = next(
+            i
+            for i, n in enumerate(order)
+            if isinstance(n, ReinviteNotToClosedParticipantNode)
+        )
+        guard_node = order[guard]
+        assert isinstance(guard_node, ReinviteNotToClosedParticipantNode)
+        assert guard_node.invitee_id == _RECOMMENDED
+        for emit_cls in (
+            EmitAcceptActorRecommendationNode,
+            EmitInviteActorToCaseNode,
+        ):
+            emit = next(
+                i for i, n in enumerate(order) if isinstance(n, emit_cls)
+            )
+            assert guard < emit, f"CM-11-015 guard must precede {emit_cls}"
+
 
 class TestRejectActorRecommendationReceivedTree:
     """Structural tests for create_reject_actor_recommendation_received_tree."""

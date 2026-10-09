@@ -220,7 +220,6 @@ class TestDuplicateReportHandling:
         """
         import logging
 
-        from vultron.core.models.case_actor import CaseActor
         from vultron.core.use_cases.received import report as report_use_cases
 
         monkeypatch.setattr(
@@ -239,8 +238,6 @@ class TestDuplicateReportHandling:
         )
         # Simulate inbox pre-storage of the nested objects.
         dl.save(report)
-        # CreateCaseParticipantNode reads the vendor actor from DataLayer.
-        dl.save(CaseActor(id_="https://example.org/actors/vendor"))
 
         with caplog.at_level(logging.WARNING):
             SubmitReportReceivedUseCase(

@@ -39,8 +39,9 @@ one package, but a blackboard key is process-global:
   they have no ``input_ports()`` to inspect (e.g. ``ValidateTriggerTransitionsNode``
   sits inside the walked participant package but is not a Ports node).
 
-Used by the ``participant_case`` (#2907) and ``log_entry`` / ``replay_entry``
-contract tests. Supports BTND-03-009.
+Used by the ``log_entry`` / ``replay_entry`` contract tests (the
+``participant_case`` contract of #2907 retired with its nodes in #4367).
+Supports BTND-03-009.
 """
 
 from __future__ import annotations
