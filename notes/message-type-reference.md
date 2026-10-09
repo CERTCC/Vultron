@@ -99,8 +99,8 @@ nothing else (MSM-02-001). `Create(Event)` mints embargo terms, the same kind of
 as `Create(VulnerabilityReport)` before `Offer`, and `Announce(Event)` tells
 participants which terms are in force; neither proposes anything, so neither carries
 a shorthand. Tagging them `EP` because they sit near a proposal in the process is the
-mis-classification to avoid. `_mapping.py`, `em.md` and `messages/index.md` still
-make it until #4419 lands.
+mis-classification to avoid; `_mapping.py`, `em.md` and `messages/index.md` made it
+until #4419.
 
 **Why `GI` expands at all, which nothing recorded before #3456.** `GI` was a
 *placeholder*, and it is defined negatively: messages that no formal state machine

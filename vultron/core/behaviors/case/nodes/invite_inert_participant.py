@@ -22,20 +22,25 @@ the stub-Invite workflow:
   the invitee at RM ``RECEIVED``, VF ``vf`` (VENDOR), and PEC ``INVITED``
   (when an embargo is in force).  Sets ``joined=False`` so the participant is
   inert and does not receive case content until it accepts (CM-11-006).
-  Nothing is sent to the other participants: the record is the
-  CASE_MANAGER's, and replicas learn of the member from the ``Accept(Invite)``
-  entry once it joins (CM-31-012).
+  Creating the record is the CASE_MANAGER's own act, with no wire message of
+  its own, so it commits its own ``create_case_participant`` entry carrying the
+  record as stored; replicas store it as received (ADR-0114, CM-31-012).  The
+  status a later node adds (VF ``Vf``, an RM closure) has its own entry; the
+  invitee's Accept and Reject messages are the entries for their consent and
+  ``joined`` effects.
 
 - :class:`AdvanceInviteeVFToVendorAwareNode` — after ``Accept`` or ``Reject``
   of the stub Invite, records vendor awareness (VF ``Vf``) on a VENDOR
   invitee's participant record (CM-11-009).  A no-op for non-VENDOR roles.
 
-- :class:`ApplyInviteRejectToParticipantNode` — on ``Reject``, moves the
-  inert participant to RM ``CLOSED``, sets VF ``Vf`` (VENDOR), and applies
-  PEC ``DECLINED`` when an active embargo is in force (CM-11-007, CM-11-009).
+- :class:`~vultron.core.behaviors.case.nodes.invite_reject_participant.ApplyInviteRejectToParticipantNode`
+  — on ``Reject``, moves the inert participant to RM ``CLOSED``, sets VF ``Vf``
+  (VENDOR), and applies PEC ``DECLINED`` when an active embargo is in force
+  (CM-11-007, CM-11-009); lives in its own module (BTND-07-004).
 """
 
 import logging
+from typing import cast
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
@@ -50,6 +55,9 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
+from vultron.core.behaviors.case.participant_ledger import (
+    commit_case_participant_created,
+)
 from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -60,6 +68,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.states.rm import RM
@@ -277,6 +286,28 @@ class CreateInertInviteeParticipantNode(
             return Status.FAILURE
         self.datalayer.save(updated_case)
 
+        # Creating the record is the CASE_MANAGER's own act, with no wire
+        # message of its own, so it has its own entry (ADR-0114): the record as
+        # stored, ids and times as minted here.
+        stored = self.datalayer.read(participant_id)
+        if not isinstance(stored, CaseParticipant):
+            self.feedback_message = (
+                f"{self.name}: record '{participant_id}' not stored"
+            )
+            return Status.FAILURE
+        try:
+            commit_case_participant_created(
+                datalayer=cast(CaseOutboxPersistence, self.datalayer),
+                actor_id=cast(str, self.actor_id),
+                case_id=self.case_id,
+                participant=stored,
+                wire_render_port=self._require_wire_render_port(),
+            )
+        except RuntimeError as exc:
+            self.feedback_message = f"{self.name}: {exc}"
+            self.logger.exception("%s", self.feedback_message)
+            return Status.FAILURE
+
         self.logger.info(
             "%s: seated inert participant '%s' for invitee '%s' in case '%s'"
             " (RM.RECEIVED, joined=False, CM-11-006)",
@@ -302,6 +333,14 @@ class AdvanceInviteeVFToVendorAwareNode(
     (BTND-10-001).
     """
 
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "invitee_vf_status_id": PortInformation(data_type=str, required=False),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"invitee_vf_status_id": "/invitee_vf_status_id"}
+
     def __init__(
         self, case_id: str, invitee_id: str, name: str | None = None
     ) -> None:
@@ -321,6 +360,9 @@ class AdvanceInviteeVFToVendorAwareNode(
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
+        # Always written, so a value left by an earlier execution is not read
+        # as this Accept's (the blackboard is process-global).
+        self._set_output("invitee_vf_status_id", "")
 
         participant_id = (
             f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}"
@@ -342,6 +384,26 @@ class AdvanceInviteeVFToVendorAwareNode(
             )
             return Status.SUCCESS
 
+        # A vendor already aware (a resumed Accept) is left as it is: a second
+        # Vf status would be a second state change to ledger.
+        latest = (
+            participant.participant_statuses[-1]
+            if participant.participant_statuses
+            else None
+        )
+        if (
+            latest is not None
+            and latest.vf is not None
+            and latest.vf.state is not CS_vf.vf
+        ):
+            self.logger.debug(
+                "%s: invitee '%s' is already vendor-aware — VF advance is a"
+                " no-op",
+                self.name,
+                self.invitee_id,
+            )
+            return Status.SUCCESS
+
         # Run as the receiving actor (case manager), not the invitee —
         # _store_for_actor resolves the DL from the actor_id and the invitee
         # has no store here (the CASE_MANAGER's own store).
@@ -356,142 +418,23 @@ class AdvanceInviteeVFToVendorAwareNode(
                 self.name,
                 self.invitee_id,
             )
-        else:
-            self.logger.info(
-                "%s: advanced VF to Vf for VENDOR invitee '%s' (CM-11-009)",
-                self.name,
-                self.invitee_id,
-            )
-        return result.status
-
-
-class ApplyInviteRejectToParticipantNode(
-    DataLayerActionWithPorts, StateWriteCapable
-):
-    """Close the invitee's inert record and mark vendor-aware on Reject.
-
-    CM-11-007: ``Reject(Invite(stub))`` moves the inert participant record
-    from RM ``RECEIVED`` to RM ``CLOSED`` and leaves it in place as history.
-    CM-11-009: also advances VF to ``Vf`` for VENDOR invitees.
-    PEC: applies ``DECLINED`` when the case has an active embargo.
-
-    Uses :class:`~vultron.core.behaviors.case.nodes.participant.status.CreateParticipantStatusNode`
-    via an inner BTBridge for the RM transition.
-    """
-
-    def __init__(
-        self, case_id: str, invitee_id: str, name: str | None = None
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.invitee_id = invitee_id
-
-    def _make_close_node(
-        self, is_vendor: bool
-    ) -> "CreateParticipantStatusNode":
-        """Return a close node that sets VF only for VENDOR invitees (CM-11-009)."""
-        return CreateParticipantStatusNode(
-            actor_id=self.invitee_id,
-            rm_state=RM.CLOSED,
-            vf_state=CS_vf.Vf if is_vendor else None,
-            d_state=None,
-            pxa_state=None,
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        # Verify that the participant exists before attempting transitions
-        participant_id = (
-            f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}"
-        )
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            self.feedback_message = (
-                f"no invited participant record for '{self.invitee_id}'"
-                f" in case '{self.case_id}'"
-                f" — Reject refused (CM-11-018)"
-            )
-            self.logger.warning(
-                "%s: no invited participant record for invitee '%s'"
-                " in case '%s' — refusing Reject(Invite) (CM-11-018)",
-                self.name,
-                self.invitee_id,
-                self.case_id,
-            )
-            return Status.FAILURE
-
-        # CM-11-009: advance VF to Vf only for VENDOR invitees.  For other
-        # roles the VF dimension is absent and the transition would violate
-        # the VF role gate, so pass vf_state=None for non-VENDOR participants.
-        is_vendor = CVDRole.VENDOR in participant.roles
-        close_node = self._make_close_node(is_vendor)
-
-        # RM RECEIVED → CLOSED (+ VF Vf for VENDOR) via the status writer.
-        # Run as the receiving actor (case manager), not the invitee —
-        # _store_for_actor resolves the DL from actor_id, and the invitee
-        # has no store here (the CASE_MANAGER's own store).
-        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
-            close_node,
-            actor_id=self.actor_id,
-            case_id=self.case_id,
-        )
-        if result.status != Status.SUCCESS:
-            self.logger.error(
-                "%s: failed to close participant '%s' (CM-11-007)",
-                self.name,
-                participant_id,
-            )
             return result.status
-
-        # Re-read the participant to apply PEC DECLINED (the status write
-        # may have saved a new version)
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            self.logger.error(
-                "%s: participant '%s' vanished after RM close write",
-                self.name,
-                participant_id,
+        # The new status is a state change; CommitInviteeAcceptEntriesNode
+        # ledgers it after the announce and the backfill (ADR-0114, #2898).
+        stored = self.datalayer.read(participant_id)
+        if isinstance(stored, CaseParticipant) and stored.participant_statuses:
+            self._set_output(
+                "invitee_vf_status_id", stored.participant_statuses[-1].id_
             )
-            return Status.FAILURE
-
-        # Apply PEC DECLINE when an embargo is in force
-        case = self.datalayer.read_case(self.case_id)
-        active_embargo_id = (
-            case.active_embargo_id if case is not None else None
-        )
-        if (
-            case is not None
-            and active_embargo_id
-            and participant.apply_pec_transition_if_legal(
-                active_embargo_id,
-                PEC_Trigger.DECLINE,
-                entry_status=case.embargo_register_status(active_embargo_id),
-            )
-        ):
-            self.datalayer.save(participant)
-            self.logger.info(
-                "%s: applied PEC DECLINED for invitee '%s' (active embargo,"
-                " CM-11-007)",
-                self.name,
-                self.invitee_id,
-            )
-
         self.logger.info(
-            "%s: reject-invite effects applied for invitee '%s' in case '%s'"
-            " (RM.CLOSED, CM-11-007)",
+            "%s: advanced VF to Vf for VENDOR invitee '%s' (CM-11-009)",
             self.name,
             self.invitee_id,
-            self.case_id,
         )
         return Status.SUCCESS
 
 
 __all__ = [
     "AdvanceInviteeVFToVendorAwareNode",
-    "ApplyInviteRejectToParticipantNode",
     "CreateInertInviteeParticipantNode",
 ]

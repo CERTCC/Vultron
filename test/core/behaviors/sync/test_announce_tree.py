@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Integration tests for AnnounceLogEntryReceivedBT."""
 
+from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -15,7 +16,11 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.ledger_snapshots import (
+    build_create_case_participant_snapshot,
+)
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
@@ -26,8 +31,13 @@ from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.participant_event_types import (
+    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+)
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -36,6 +46,7 @@ from vultron.core.models.rsvp_deadline import (
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -874,116 +885,330 @@ class TestAnnounceLogEntryAppliesParticipantStatus:
 
 
 INVITEE_ACTOR_ID = "https://example.org/actors/vendor2"
+INVITEE_RECORD_ID = f"{CASE_ID}/participants/vendor2"
+_CREATED_AT = datetime(2026, 10, 9, 12, 0, 0, tzinfo=UTC)
+_REPLIED_AT = datetime(2026, 10, 9, 13, 0, 0, tzinfo=UTC)
 
 
-def _make_accept_invite_entry(
-    log_index: int, prev_hash: str = _ZERO_HASH
+def _invitee_record() -> CaseParticipant:
+    """The inert record as the CASE_MANAGER stored it, ids and times fixed."""
+    status = ParticipantStatus(
+        id_=f"{CASE_ID}/statuses/birth",
+        context=CASE_ID,
+        attributed_to=INVITEE_ACTOR_ID,
+        rm=RmDimension(state=RM.RECEIVED),
+        vf=VfDimension(state=CS_vf.vf),
+        cvd_role=[CVDRole.VENDOR],
+        published=_CREATED_AT,
+        updated=_CREATED_AT,
+    )
+    record = CaseParticipant(
+        id_=INVITEE_RECORD_ID,
+        attributed_to=INVITEE_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.VENDOR],
+        participant_statuses=[status],
+        joined=False,
+        published=_CREATED_AT,
+        updated=_CREATED_AT,
+    )
+    record.embargo_consents = [
+        EmbargoConsent(
+            embargo_id=ACTIVE_EMBARGO_ID, state=EmbargoConsentState.INVITED
+        )
+    ]
+    return record
+
+
+def _create_entry(
+    record: CaseParticipant, log_index: int, prev_hash: str
 ) -> CaseLedgerEntry:
-    """Create a ledger entry with event_type='accept_invite_actor_to_case'."""
+    """The CASE_MANAGER's ``create_case_participant`` entry carrying *record*."""
+    snapshot = build_create_case_participant_snapshot(
+        record,
+        "https://example.org/actors/manager",
+        CASE_ID,
+        As2WireRenderAdapter(),
+    )
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
-            object_id=f"https://example.org/activities/accept-invite-{log_index}",
-            event_type="accept_invite_actor_to_case",
-            payload_snapshot={
-                "type": "Accept",
-                "actor": INVITEE_ACTOR_ID,
-                "object": {
-                    "type": "Invite",
-                    "id": "https://example.org/invites/1",
-                },
-                "context": CASE_ID,
-            },
+            object_id=record.id_,
+            event_type=CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+            payload_snapshot=snapshot,
             prev_log_hash=prev_hash,
         )
     )
 
 
-class TestAnnounceLogEntryAppliesInviteAccept:
-    """Participant receiving accept_invite_actor_to_case ledger entry adds invitee."""
+def _reply_entry(
+    event_type: str,
+    activity_type: str,
+    log_index: int,
+    prev_hash: str,
+    published: datetime | None = _REPLIED_AT,
+) -> CaseLedgerEntry:
+    """The entry for the invitee's own reply message: its actor, the stub
+    Invite it answers, and its ``published``, verbatim."""
+    snapshot: dict[str, object] = {
+        "type": activity_type,
+        "id": f"urn:uuid:reply-{log_index}",
+        "actor": INVITEE_ACTOR_ID,
+        "object": {
+            "type": "Invite",
+            "id": "https://example.org/invites/1",
+            "target": {"type": "VulnerabilityCaseStub", "caseId": CASE_ID},
+        },
+        "context": CASE_ID,
+    }
+    if published is not None:
+        snapshot["published"] = published.isoformat()
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"urn:uuid:reply-{log_index}",
+            event_type=event_type,
+            payload_snapshot=snapshot,
+            prev_log_hash=prev_hash,
+        )
+    )
 
-    @pytest.mark.spec("SYNC-12-001")
-    @pytest.mark.spec("SYNC-02-001")
-    def test_participant_adds_invitee_on_accept_invite_entry(
-        self, bridge, datalayer, case_actor, case_obj
-    ):
-        """BT adds new participant to case replica when entry is accept_invite_actor_to_case.
 
-        Existing participants (e.g. Finder) must learn about new invitees
-        exclusively via Announce(as_CaseLedgerEntry) fan-out (SYNC-02-002).
-        """
-        entry = _make_accept_invite_entry(0, case_obj.genesis_hash)
-        event = _make_event(entry, actor_id=case_actor.id_)
+def _accept_entry(log_index: int, prev_hash: str) -> CaseLedgerEntry:
+    return _reply_entry(
+        "accept_invite_actor_to_case", "Accept", log_index, prev_hash
+    )
 
-        result = bridge.execute_with_setup(
+
+def _reject_entry(log_index: int, prev_hash: str) -> CaseLedgerEntry:
+    return _reply_entry(
+        "reject_invite_actor_to_case", "Reject", log_index, prev_hash
+    )
+
+
+class TestAnnounceLogEntryAppliesStubPath:
+    """A replica applies the stub path's entries: the CASE_MANAGER's creation
+    entry stores the record, and the invitee's own Accept and Reject messages
+    are the entries for their effects (ADR-0114)."""
+
+    def _announce(self, bridge, case_actor, entry):
+        return bridge.execute_with_setup(
             tree=create_announce_log_entry_tree(),
             actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
+            activity=_make_event(entry, actor_id=case_actor.id_),
             sync_port=MagicMock(spec=SyncActivityPort),
         )
 
-        assert result.status == Status.SUCCESS
-        updated = datalayer.read(CASE_ID)
-        assert updated is not None
-        assert INVITEE_ACTOR_ID in updated.actor_participant_index
+    def _held(self, datalayer) -> CaseParticipant:
+        case = datalayer.read(CASE_ID)
+        record = datalayer.read(case.actor_participant_index[INVITEE_ACTOR_ID])
+        assert isinstance(record, CaseParticipant)
+        return record
+
+    def _embargoed_case(self, datalayer, case_obj):
+        activate(case_obj, ACTIVE_EMBARGO_ID)
+        datalayer.save(case_obj)
+
+    def _seat(
+        self, bridge, datalayer, case_actor, case_obj
+    ) -> CaseLedgerEntry:
+        create = _create_entry(_invitee_record(), 0, case_obj.genesis_hash)
+        assert self._announce(bridge, case_actor, create).status == (
+            Status.SUCCESS
+        )
+        return create
+
+    @pytest.mark.spec("CM-11-006")
+    @pytest.mark.spec("SYNC-12-001")
+    def test_create_entry_stores_the_record_exactly_as_carried(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        sent = _invitee_record()
+        entry = _create_entry(sent, 0, case_obj.genesis_hash)
+
+        assert (
+            self._announce(bridge, case_actor, entry).status == Status.SUCCESS
+        )
+
+        held = self._held(datalayer)
+        assert held.model_dump(mode="json") == sent.model_dump(mode="json")
+        case = datalayer.read(CASE_ID)
+        assert INVITEE_RECORD_ID in {str(p) for p in case.case_participants}
+
+    @pytest.mark.spec("CM-31-012")
+    def test_the_accept_entry_signs_consent_and_marks_joined(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        self._embargoed_case(datalayer, case_obj)
+        create = self._seat(bridge, datalayer, case_actor, case_obj)
+        accept = _accept_entry(1, create.entry_hash)
+
+        assert (
+            self._announce(bridge, case_actor, accept).status == Status.SUCCESS
+        )
+
+        held = self._held(datalayer)
+        assert held.joined is True
+        assert held.consent_for(ACTIVE_EMBARGO_ID) == (
+            EmbargoConsentState.AGREED
+        )
+        # The time is the Accept's own, as received; no clock is read.
+        assert held.updated == _REPLIED_AT
+        # VF is vendor-only and is not the Accept's to write: its status is
+        # its own entry.
+        assert [s.vf.state for s in held.participant_statuses if s.vf] == [
+            CS_vf.vf
+        ]
+
+    @pytest.mark.spec("CM-11-007")
+    def test_the_reject_entry_declines_the_embargo_in_force(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        self._embargoed_case(datalayer, case_obj)
+        create = self._seat(bridge, datalayer, case_actor, case_obj)
+        reject = _reject_entry(1, create.entry_hash)
+
+        assert (
+            self._announce(bridge, case_actor, reject).status == Status.SUCCESS
+        )
+
+        held = self._held(datalayer)
+        assert held.consent_for(ACTIVE_EMBARGO_ID) == (
+            EmbargoConsentState.DECLINED
+        )
+        assert held.joined is False
+        assert held.updated == _REPLIED_AT
+
+    @pytest.mark.spec("CM-31-012")
+    @pytest.mark.parametrize(
+        "make", [_accept_entry, _reject_entry], ids=["accept", "reject"]
+    )
+    def test_a_reply_entry_with_no_record_fails_and_stores_nothing(
+        self, bridge, datalayer, case_actor, case_obj, make
+    ):
+        """No record held: a broken invariant, so the entry is refused."""
+        entry = make(0, case_obj.genesis_hash)
+
+        result = self._announce(bridge, case_actor, entry)
+
+        assert result.status == Status.FAILURE
+        assert INVITEE_ACTOR_ID not in (
+            datalayer.read(CASE_ID).actor_participant_index
+        )
+        assert datalayer.read(entry.id_) is None
+
+    @pytest.mark.spec("CLP-15-006")
+    def test_an_accept_entry_without_published_fails_and_changes_nothing(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """A time the entry does not carry is never replaced by the clock."""
+        self._embargoed_case(datalayer, case_obj)
+        create = self._seat(bridge, datalayer, case_actor, case_obj)
+        before = self._held(datalayer).model_dump(mode="json")
+        accept = _reply_entry(
+            "accept_invite_actor_to_case",
+            "Accept",
+            1,
+            create.entry_hash,
+            published=None,
+        )
+
+        result = self._announce(bridge, case_actor, accept)
+
+        assert result.status == Status.FAILURE
+        assert self._held(datalayer).model_dump(mode="json") == before
 
     @pytest.mark.spec("SYNC-12-003")
-    def test_invite_accept_add_is_idempotent(
+    def test_the_same_entries_applied_again_leave_one_identical_record(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """Already-stored accept-invite entry exits early; pre-applied invitee unchanged."""
-        # Pre-apply the effect (invitee already registered) to reflect first run.
-        invitee_participant = CaseParticipant(
-            id_=f"{CASE_ID}/participants/vendor2",
-            attributed_to=INVITEE_ACTOR_ID,
-            context=CASE_ID,
-        )
-        datalayer.create(invitee_participant)
-        case_obj.add_participant(invitee_participant)
-        datalayer.save(case_obj)
-        entry = _make_accept_invite_entry(0, case_obj.genesis_hash)
-        # Pre-store entry so second run takes the already-stored path.
-        datalayer.save(entry)
-        event = _make_event(entry, actor_id=case_actor.id_)
-
-        result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
-        )
-
-        assert result.status == Status.SUCCESS
-        updated = datalayer.read(CASE_ID)
-        assert updated is not None
+        self._embargoed_case(datalayer, case_obj)
+        create = self._seat(bridge, datalayer, case_actor, case_obj)
+        accept = _accept_entry(1, create.entry_hash)
         assert (
-            list(updated.actor_participant_index.keys()).count(
-                INVITEE_ACTOR_ID
-            )
-            == 1
+            self._announce(bridge, case_actor, accept).status == Status.SUCCESS
         )
+        once = self._held(datalayer).model_dump(mode="json")
 
-    def test_invite_accept_not_applied_for_other_event_types(
+        # A replay of the stream: the entries are stored, so each exits early
+        # (CheckLedgerEntryAlreadyStored); applying them again is the same.
+        for entry in (create, accept):
+            assert self._announce(bridge, case_actor, entry).status == (
+                Status.SUCCESS
+            )
+
+        case = datalayer.read(CASE_ID)
+        assert list(case.actor_participant_index).count(INVITEE_ACTOR_ID) == 1
+        assert self._held(datalayer).model_dump(mode="json") == once
+
+    @pytest.mark.spec("SYNC-12-003")
+    def test_create_entry_for_a_record_already_held_changes_nothing(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """InviteAcceptEffects Selector short-circuits for unrelated event types."""
+        held = _invitee_record()
+        held.joined = True
+        datalayer.create(held)
+        case_obj.add_participant(held)
+        datalayer.save(case_obj)
+        before = held.model_dump(mode="json")
+        entry = _create_entry(_invitee_record(), 0, case_obj.genesis_hash)
+
+        assert (
+            self._announce(bridge, case_actor, entry).status == Status.SUCCESS
+        )
+
+        assert self._held(datalayer).model_dump(mode="json") == before
+
+    @pytest.mark.spec("SYNC-15-002")
+    @pytest.mark.spec("CM-31-012")
+    def test_a_stale_accept_replayed_over_a_seed_that_is_ahead_changes_nothing(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """A late joiner is seeded, then replays the ledger from genesis.
+
+        The seed already holds the record joined and the consent AGREED and a
+        row for a later embargo; applying the old Accept must not move it
+        backwards.
+        """
+        self._embargoed_case(datalayer, case_obj)
+        ahead = _invitee_record()
+        ahead.joined = True
+        later = f"{CASE_ID}/embargo_events/later"
+        ahead.embargo_consents = [
+            EmbargoConsent(
+                embargo_id=ACTIVE_EMBARGO_ID, state=EmbargoConsentState.AGREED
+            ),
+            EmbargoConsent(embargo_id=later, state=EmbargoConsentState.AGREED),
+        ]
+        ahead.updated = datetime(2026, 10, 9, 15, 0, 0, tzinfo=UTC)
+        datalayer.create(ahead)
+        case_obj = datalayer.read(CASE_ID)
+        case_obj.add_participant(ahead)
+        datalayer.save(case_obj)
+        before = ahead.model_dump(mode="json")
+        stale = _accept_entry(0, case_obj.genesis_hash)
+
+        assert (
+            self._announce(bridge, case_actor, stale).status == Status.SUCCESS
+        )
+
+        assert self._held(datalayer).model_dump(mode="json") == before
+
+    def test_the_stub_path_slots_do_not_apply_to_other_event_types(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
         entry = _make_entry(
             0, case_obj.genesis_hash
         )  # event_type="test_event"
-        event = _make_event(entry, actor_id=case_actor.id_)
 
-        result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
+        assert (
+            self._announce(bridge, case_actor, entry).status == Status.SUCCESS
         )
-
-        assert result.status == Status.SUCCESS
-        updated = datalayer.read(CASE_ID)
-        assert updated is not None
-        assert INVITEE_ACTOR_ID not in updated.actor_participant_index
+        assert INVITEE_ACTOR_ID not in (
+            datalayer.read(CASE_ID).actor_participant_index
+        )
 
 
 def _find_node_by_name(
@@ -1082,8 +1307,8 @@ class TestEffectsFailureBlocksPersist:
     def test_apply_invite_accept_failure_blocks_persist(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """PersistReceivedLogEntry must NOT run when ApplyInviteAcceptFromLedger returns FAILURE."""
-        entry = _make_accept_invite_entry(0, case_obj.genesis_hash)
+        """PersistReceivedLogEntry must NOT run when the Accept apply FAILS."""
+        entry = _accept_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
         tree = create_announce_log_entry_tree()

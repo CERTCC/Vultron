@@ -68,6 +68,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
     RecordRecommendationRecommenderNode,
+    case_manager_admits_accepted_invitee_guard,
     case_manager_admits_suggested_actor_guard,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -422,21 +423,20 @@ def create_accept_actor_recommendation_received_tree(
     Tree structure::
 
         AcceptActorRecommendationBT (Sequence, memory=False)
-        ├── SuggestedActorNotRemovedIfCaseManager — CM-31-013 guard
+        ├── AcceptedInviteeAdmittedIfCaseManager — CM-31-013 + CM-16-006 guards
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── AcceptActorRecommendationIfCaseManager (Selector)  — BT-17-001 gate
             ├── SkipIfNotCaseManager
             └── AcceptActorRecommendationEffects (Sequence, memory=False)
-                ├── ReinviteNotToClosedParticipantNode — CM-11-015 refusal
                 ├── EmitAcceptActorRecommendationNode
                 ├── EmitInviteActorToCaseNode
                 └── CreateInertInviteeParticipantNode
 
     Both emits are the CASE_MANAGER's (CM-16-006, PCR-08-007); a receiver
     that is not it does nothing (#3752).  An invitee already at
-    ``RM.CLOSED`` is refused before anything is sent, as in the
-    recommend-actor tree: a closed participant is never re-invited
-    (CM-11-015, ADR-0085).
+    ``RM.CLOSED`` (or joined) is refused by the precondition guard, before the
+    receipt commit and before anything is sent: a closed participant is never
+    re-invited (CM-11-015, ADR-0085).
 
     ``roles`` and ``invitee_id`` must come from the stored
     ``Offer(CaseParticipant)`` in the DataLayer (ISSUE-1745, CM-16-019): the
@@ -448,6 +448,9 @@ def create_accept_actor_recommendation_received_tree(
     other sender before the case ledger is written or anything is sent.  An
     acceptance naming an actor removed since the Offer was made is refused
     the same way: a removed participant is sent no stub Invite (CM-31-013).
+    So is one naming an actor that has since joined or is at ``RM.CLOSED``:
+    it is sent no further stub Invite, so no second Invite entry reaches the
+    ledger for it (CM-11-015, CM-16-006).
 
     Args:
         recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
@@ -472,15 +475,11 @@ def create_accept_actor_recommendation_received_tree(
             sender_actor_id=sender_id, case_id=case_id
         ),
         precondition_guards=[
-            case_manager_admits_suggested_actor_guard(
+            case_manager_admits_accepted_invitee_guard(
                 recommended_id=invitee_id, case_id=case_id
             )
         ],
         manager_effects=[
-            # CM-11-015: refuse a closed invitee before anything is sent.
-            ReinviteNotToClosedParticipantNode(
-                invitee_id=invitee_id, case_id=case_id
-            ),
             EmitAcceptActorRecommendationNode(
                 recommender_id=recommender_id,
                 recommendation_id=recommendation_id,

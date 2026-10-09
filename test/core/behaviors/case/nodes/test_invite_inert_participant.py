@@ -58,7 +58,9 @@ def scenario() -> BTTestScenario:
     s = BTTestScenario(actor_id=MANAGER_ID)
     s.seed(
         CaseActor(id_=MANAGER_ID, name="Vendor Co"),
-        VulnerabilityCase(id_=CASE_ID, name="Test Case"),
+        VulnerabilityCase(
+            id_=CASE_ID, name="Test Case", attributed_to=MANAGER_ID
+        ),
     )
     return s
 

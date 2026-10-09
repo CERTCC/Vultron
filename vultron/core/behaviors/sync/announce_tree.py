@@ -35,7 +35,9 @@ from vultron.core.behaviors.sender_entitlement import (
 from vultron.core.behaviors.sync.nodes import (
     ApplyCaseParticipantRoleGrantFromLedgerNode,
     ApplyCaseStatusFromLedgerNode,
+    ApplyCreateCaseParticipantFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
+    ApplyInviteRejectFromLedgerNode,
     ApplyNoteFromLedgerNode,
     ApplyOfferOwnershipTransferFromLedgerNode,
     ApplyOfferReportFromLedgerNode,
@@ -53,6 +55,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsAddCaseStatusEventNode,
     IsAddNoteEventNode,
     IsCloseCaseEventNode,
+    IsCreateCaseParticipantEventNode,
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
@@ -61,6 +64,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsInviteAcceptEventNode,
     IsInviteExpiryEventNode,
     IsInviteExpiryNoopEventNode,
+    IsInviteRejectEventNode,
     IsOfferOwnershipTransferEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
@@ -264,10 +268,23 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 IsRemoveNoteEventNode,
                 ApplyRemoveNoteFromLedgerNode,
             ),
+            # The ledger holds the wire messages exchanged (ADR-0114): creating
+            # the record is the CASE_MANAGER's own act and has its own entry; the
+            # invitee's Accept and Reject are the entries for their own effects.
+            _event_effect_slot(
+                "CreateCaseParticipant",
+                IsCreateCaseParticipantEventNode,
+                ApplyCreateCaseParticipantFromLedgerNode,
+            ),
             _event_effect_slot(
                 "InviteAccept",
                 IsInviteAcceptEventNode,
                 ApplyInviteAcceptFromLedgerNode,
+            ),
+            _event_effect_slot(
+                "InviteReject",
+                IsInviteRejectEventNode,
+                ApplyInviteRejectFromLedgerNode,
             ),
             # The Case Owner's removal of a participant (CM-31-007).
             _event_effect_slot(
