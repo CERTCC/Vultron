@@ -13,14 +13,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Every change the Accept makes to the invitee's record emits an entry (ADR-0114).
+"""The entries on the CASE_MANAGER's side of the stub path (ADR-0114).
 
-The CASE_MANAGER signs the consent row, marks the record joined and, for a
-vendor, advances VF to ``Vf``; ``CommitInviteeAcceptEntriesNode`` then ledgers
-them as ``update_case_participant`` and ``add_participant_status_to_participant``,
-from the records as stored.  VF is a vendor-only status: no entry carries one
-for any other role (CM-11-006, CM-11-009, CM-31-012).
+The ledger holds the wire messages exchanged: the invitee's Accept is already
+the entry for the consent row it signs and its ``joined`` mark, so those two
+writes commit nothing of their own (they take the Accept's ``published`` as the
+record's time).  Creating the record is the CASE_MANAGER's own act, with its own
+``create_case_participant`` entry.  The vendor's VF status is a CASE_MANAGER
+-written object, so ``CommitInviteeAcceptEntriesNode`` ledgers it as an
+``add_participant_status_to_participant`` entry.  VF is a vendor-only status: no
+entry carries one for any other role (CM-11-006, CM-11-009, CM-31-012).
 """
+
+from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import py_trees
 import pytest
@@ -50,6 +56,11 @@ MANAGER_ID = "https://example.org/actors/manager"
 INVITEE_ID = "https://example.org/actors/invitee"
 CASE_ID = "https://example.org/cases/accept-entries"
 EMBARGO_ID = f"{CASE_ID}/embargo_events/active"
+ACCEPT_PUBLISHED = datetime(2099, 10, 9, 13, 0, 0, tzinfo=UTC)
+ACCEPT = SimpleNamespace(
+    activity_id="https://example.org/activities/accept-1",
+    activity=SimpleNamespace(published=ACCEPT_PUBLISHED),
+)
 
 ROLES = [
     pytest.param([CVDRole.VENDOR], id="vendor"),
@@ -123,6 +134,7 @@ def _accept(s: BTTestScenario, embargo: bool = True) -> Status:
         case_id=CASE_ID,
         new_invite_participant=record,
         active_embargo_id=EMBARGO_ID,
+        activity=ACCEPT,
     ).status
 
 
@@ -151,29 +163,27 @@ def test_creating_the_record_emits_its_own_entry_carrying_it(roles):
 @pytest.mark.spec("CM-11-009")
 @pytest.mark.parametrize("roles", ROLES)
 @pytest.mark.parametrize("embargo", [True, False])
-def test_the_accept_emits_one_update_and_a_status_only_for_a_vendor(
-    roles, embargo
-):
+def test_the_accept_commits_only_a_vendors_status_entry(roles, embargo):
+    """Consent and ``joined`` are the Accept's entry; only VF is a new entry."""
     s = _scenario(roles, embargo)
     before = len(_entries(s))
 
     assert _accept(s, embargo) == Status.SUCCESS
 
     new = [e.event_type for e in _entries(s)[before:]]
-    expected = ["update_case_participant"]
-    if CVDRole.VENDOR in roles:
-        expected.append("add_participant_status_to_participant")
-    assert new == expected
+    assert new == (
+        ["add_participant_status_to_participant"]
+        if CVDRole.VENDOR in roles
+        else []
+    )
     record = _record(s)
     assert record.joined is True
+    # The record's time is the Accept's ``published``, never the local clock.
+    assert record.updated == ACCEPT_PUBLISHED
     vfs = [x.vf.state for x in record.participant_statuses if x.vf]
     assert vfs == ([CS_vf.vf, CS_vf.Vf] if CVDRole.VENDOR in roles else [])
-    update = _entries(s)[before]
-    assert update.payload_snapshot["object"]["joined"] is True
     if embargo:
         assert record.is_signatory(EMBARGO_ID)
-    else:
-        assert record.embargo_consents == []
 
 
 @pytest.mark.spec("CM-31-012")

@@ -33,7 +33,6 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_event_types import (
     CREATE_CASE_PARTICIPANT_EVENT_TYPE,
-    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
 )
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_EVENT_TYPE,
@@ -48,6 +47,8 @@ from vultron.errors import VultronWiringError
 
 _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
 _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
+_ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
+_REJECT_INVITE_ACTOR_TO_CASE_EVENT = "reject_invite_actor_to_case"
 _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 _REMOVE_NOTE_FROM_CASE_EVENT = "remove_note_from_case"
 _CLOSE_CASE_EVENT = "close_case"
@@ -209,17 +210,30 @@ class IsCreateCaseParticipantEventNode(_SingleEventTypeNode):
     matched_event_type = CREATE_CASE_PARTICIPANT_EVENT_TYPE
 
 
-class IsUpdateCaseParticipantEventNode(_SingleEventTypeNode):
-    """Precondition: SUCCESS when this log entry IS an ``update_case_participant``.
+class IsInviteAcceptEventNode(_SingleEventTypeNode):
+    """Precondition: SUCCESS when this log entry IS the invitee's stub Accept.
 
-    Precondition of the ``UpdateCaseParticipant`` slot.  The CASE_MANAGER
-    commits one for each change to a record's ``joined`` mark or consent rows,
-    for instance when an invitee accepts the stub Invite (CM-31-012).
+    Precondition of the ``InviteAccept`` slot: the entry is the invitee's
+    ``Accept(Invite(stub))`` message itself, which is the entry for the consent
+    it signs and its ``joined`` mark (ADR-0114, CM-31-012).
 
-    Per BTND-08-001, BTND-08-002, CM-31-012, SYNC-12-001, RSH-08-004.
+    Per BTND-08-001, BTND-08-002, SYNC-12-001, RSH-08-004.
     """
 
-    matched_event_type = UPDATE_CASE_PARTICIPANT_EVENT_TYPE
+    matched_event_type = _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT
+
+
+class IsInviteRejectEventNode(_SingleEventTypeNode):
+    """Precondition: SUCCESS when this log entry IS the invitee's stub Reject.
+
+    Precondition of the ``InviteReject`` slot: the entry is the invitee's
+    ``Reject(Invite(stub))`` message itself, which is the entry for the consent
+    ``DECLINED`` (ADR-0114, CM-11-007).
+
+    Per BTND-08-001, BTND-08-002, SYNC-12-001, RSH-08-004.
+    """
+
+    matched_event_type = _REJECT_INVITE_ACTOR_TO_CASE_EVENT
 
 
 class IsCloseCaseEventNode(_SingleEventTypeNode):

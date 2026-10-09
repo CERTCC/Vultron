@@ -97,11 +97,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # state — the offer is a proposal, not the grant (CLP-07-005, #3764).
     ("Offer", "CaseParticipantRole"),
     ("Add", "CaseParticipant"),
-    # CASE_MANAGER-authored records of its own changes to a participant record
-    # (ADR-0114): the inert record it creates for a stub Invite's invitee, and
-    # each later change to its ``joined`` mark or consent rows.
+    # CASE_MANAGER-authored record of the inert participant record it creates
+    # for a stub Invite's invitee (ADR-0114).
     ("Create", "CaseParticipant"),
-    ("Update", "CaseParticipant"),
     # The Case Owner's removal request, committed as received (CM-31-005,
     # ADR-0116).  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
     ("Remove", "CaseParticipant"),
@@ -135,7 +133,6 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Reject", "Offer"),
         ("Add", "CaseParticipant"),
         ("Create", "CaseParticipant"),
-        ("Update", "CaseParticipant"),
         # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
         # ADR-0118)
         (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),

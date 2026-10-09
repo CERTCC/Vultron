@@ -63,9 +63,6 @@ from test.architecture._ledger_commit_inventory import (
     received_commit_semantics,
 )
 from vultron.core.models.events.base import MessageSemantics as MS
-from vultron.core.models.participant_event_types import (
-    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
-)
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_EVENT_TYPE,
     HONOUR_LATE_ACCEPT_EVENT_TYPE,
@@ -85,7 +82,8 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.ACCEPT_CASE_OWNERSHIP_TRANSFER.value,
         "accept_case_participant_role",
         MS.CREATE_CASE_PARTICIPANT.value,
-        UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+        MS.ACCEPT_INVITE_ACTOR_TO_CASE.value,
+        MS.REJECT_INVITE_ACTOR_TO_CASE.value,
         MS.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value,
         MS.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
         MS.REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
@@ -128,10 +126,9 @@ _RECOMMENDATION = (
 )
 
 _STUB_REPLY = (
-    "the stub Invite and its reply are messages; each state change they cause"
-    " is its own entry (create_case_participant, update_case_participant,"
-    " add_participant_status_to_participant), which a replica stores as received"
-    " (ADR-0114)"
+    "the stub Invite is a message to the invitee; the record it leads to has"
+    " its own entry (create_case_participant), and the invitee's Accept and"
+    " Reject are the entries for their own effects (ADR-0114)"
 )
 
 #: Committed event types that change no state a replica holds.  A pinned
@@ -157,8 +154,6 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " (CM-23-002, CM-23-005)"
     ),
     MS.INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
-    MS.ACCEPT_INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
-    MS.REJECT_INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
     MS.OFFER_ACTOR_TO_CASE.value: _RECOMMENDATION,
     MS.OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     MS.ACCEPT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,

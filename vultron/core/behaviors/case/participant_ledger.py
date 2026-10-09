@@ -21,7 +21,6 @@ one entry for one change, from the very object the CASE_MANAGER holds, so the
 ids and times in the entry are the ones in its store.
 
 - :func:`commit_case_participant_created` -- ``create_case_participant``
-- :func:`commit_case_participant_updated` -- ``update_case_participant``
 - :func:`commit_participant_status_added` -- the existing
   ``add_participant_status_to_participant``
 
@@ -36,14 +35,11 @@ from typing import TYPE_CHECKING
 from vultron.core.behaviors.case.ledger_snapshots import (
     build_add_participant_status_snapshot,
     build_create_case_participant_snapshot,
-    build_update_case_participant_snapshot,
 )
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
-from vultron.core.models._helpers import _new_urn
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_event_types import (
     CREATE_CASE_PARTICIPANT_EVENT_TYPE,
-    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -71,29 +67,6 @@ def commit_case_participant_created(
         activity_id=participant.id_,
         activity_blob=json.dumps(snapshot),
         event_type=CREATE_CASE_PARTICIPANT_EVENT_TYPE,
-    )
-
-
-def commit_case_participant_updated(
-    *,
-    datalayer: CaseOutboxPersistence,
-    actor_id: str,
-    case_id: str,
-    participant: CaseParticipant,
-    wire_render_port: "WireRenderPort",
-) -> None:
-    """Commit ``Update(CaseParticipant)`` for one change to the record."""
-    update_id = _new_urn()
-    snapshot = build_update_case_participant_snapshot(
-        participant, actor_id, case_id, update_id, wire_render_port
-    )
-    commit_emitted_activity(
-        datalayer=datalayer,
-        actor_id=actor_id,
-        case_id=case_id,
-        activity_id=update_id,
-        activity_blob=json.dumps(snapshot),
-        event_type=UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
     )
 
 

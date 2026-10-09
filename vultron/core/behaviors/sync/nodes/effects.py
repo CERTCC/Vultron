@@ -22,7 +22,9 @@ below. Effect classes live in their own modules (BTND-07-004):
   :class:`~vultron.core.behaviors.sync.nodes.note_effect.ApplyNoteFromLedgerNode`
 - :mod:`~vultron.core.behaviors.sync.nodes.participant_record_effect` —
   :class:`~vultron.core.behaviors.sync.nodes.participant_record_effect.ApplyCreateCaseParticipantFromLedgerNode`
-  and :class:`~vultron.core.behaviors.sync.nodes.participant_record_effect.ApplyUpdateCaseParticipantFromLedgerNode`
+- :mod:`~vultron.core.behaviors.sync.nodes.stub_reply_effect` —
+  :class:`~vultron.core.behaviors.sync.nodes.stub_reply_effect.ApplyInviteAcceptFromLedgerNode`
+  and :class:`~vultron.core.behaviors.sync.nodes.stub_reply_effect.ApplyInviteRejectFromLedgerNode`
 - :mod:`~vultron.core.behaviors.case.nodes.close_case_effect` —
   :class:`~vultron.core.behaviors.case.nodes.close_case_effect.ApplyCloseCaseFromLedgerNode`
   (in ``case.nodes``: it composes the participant-status writer, and no module

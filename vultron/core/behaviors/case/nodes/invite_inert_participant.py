@@ -22,11 +22,12 @@ the stub-Invite workflow:
   the invitee at RM ``RECEIVED``, VF ``vf`` (VENDOR), and PEC ``INVITED``
   (when an embargo is in force).  Sets ``joined=False`` so the participant is
   inert and does not receive case content until it accepts (CM-11-006).
-  Creating the record is a state change, so it commits its own
-  ``create_case_participant`` entry carrying the record as stored; replicas
-  store it as received (ADR-0114, CM-31-012).  The status a later node adds
-  (VF ``Vf``, an RM closure) and each consent or ``joined`` change are
-  ledgered the same way.
+  Creating the record is the CASE_MANAGER's own act, with no wire message of
+  its own, so it commits its own ``create_case_participant`` entry carrying the
+  record as stored; replicas store it as received (ADR-0114, CM-31-012).  The
+  status a later node adds (VF ``Vf``, an RM closure) has its own entry; the
+  invitee's Accept and Reject messages are the entries for their consent and
+  ``joined`` effects.
 
 - :class:`AdvanceInviteeVFToVendorAwareNode` — after ``Accept`` or ``Reject``
   of the stub Invite, records vendor awareness (VF ``Vf``) on a VENDOR
@@ -285,8 +286,9 @@ class CreateInertInviteeParticipantNode(
             return Status.FAILURE
         self.datalayer.save(updated_case)
 
-        # Creating the record is a state change, so it emits its own entry
-        # (ADR-0114): the record as stored, ids and times as minted here.
+        # Creating the record is the CASE_MANAGER's own act, with no wire
+        # message of its own, so it has its own entry (ADR-0114): the record as
+        # stored, ids and times as minted here.
         stored = self.datalayer.read(participant_id)
         if not isinstance(stored, CaseParticipant):
             self.feedback_message = (

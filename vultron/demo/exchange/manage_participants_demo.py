@@ -197,8 +197,9 @@ def demo_manage_participants_accept(
     ):
         # The stub Invite is the only way in (ADR-0114): the CASE_MANAGER
         # creates the coordinator's inert record when it sends the Invite and
-        # ledgers it, and again each change the accept makes; every replica
-        # stores what those entries carry (CM-31-012, ADR-0114).
+        # ledgers it; the coordinator's Accept(Invite) is the entry for its
+        # consent and joined mark; every replica applies those entries
+        # (CM-31-012, ADR-0114).
         # Add(CaseParticipant) does not seat a member.
         coordinator_participant = seat_participant_through_stub_invite(
             client,

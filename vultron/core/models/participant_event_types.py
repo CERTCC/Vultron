@@ -11,25 +11,21 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Ledger event types for the CASE_MANAGER's own changes to a participant record.
+"""Ledger event type for the CASE_MANAGER's creation of a participant record.
 
-Every state change the CASE_MANAGER makes emits a message (ADR-0114, ADR-0124).
-Sending a stub Invite changes the case in two ways, and each is its own
-entry: the Invite (a message to the invitee) and the creation of the inert
-participant record that tracks the invitee.  Accepting the Invite changes the
-record again, and each change is again its own entry.
+The ledger holds the wire messages exchanged (ADR-0114).  Most changes to a
+participant record are the effect of a message that already has its entry: the
+invitee's ``Accept(Invite(stub))`` is the entry for the consent it signs and
+the ``joined`` mark, and its ``Reject(Invite(stub))`` the entry for ``DECLINED``.
+Creating the inert record is the CASE_MANAGER's own act, with no wire message
+of its own, so it is the one new entry on the stub path:
 
 - :data:`CREATE_CASE_PARTICIPANT_EVENT_TYPE` -- ``Create(CaseParticipant)``:
   the CASE_MANAGER created the record.  The entry carries the whole record
-  (roles, statuses with their ids and times, ``joined``, consent rows).
-- :data:`UPDATE_CASE_PARTICIPANT_EVENT_TYPE` -- ``Update(CaseParticipant)``:
-  the CASE_MANAGER changed the record's ``joined`` mark or its consent rows.
-  The entry carries the record as the CASE_MANAGER now holds it.
+  (roles, statuses with their ids and times, ``joined``, consent rows), and a
+  replica stores it as received (ADR-0103, CLP-15-007).
 - a new ``ParticipantStatus`` (a vendor's VF, an RM closure) is the existing
   ``add_participant_status_to_participant`` entry.
-
-A replica stores what the entry carries, as received (ADR-0103, CLP-15-007),
-and derives nothing.
 """
 
 from vultron.core.models.events.base import MessageSemantics
@@ -39,10 +35,6 @@ CREATE_CASE_PARTICIPANT_EVENT_TYPE = (
     MessageSemantics.CREATE_CASE_PARTICIPANT.value
 )
 
-#: ``Update(CaseParticipant)`` -- the CASE_MANAGER changed ``joined`` or consent.
-UPDATE_CASE_PARTICIPANT_EVENT_TYPE = "update_case_participant"
-
 __all__ = [
     "CREATE_CASE_PARTICIPANT_EVENT_TYPE",
-    "UPDATE_CASE_PARTICIPANT_EVENT_TYPE",
 ]

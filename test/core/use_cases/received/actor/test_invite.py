@@ -1209,21 +1209,18 @@ class TestInviteActorUseCases:
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
         # Entry 2 (accept_invite): committed before invitee is registered —
-        #   fan-out does NOT include the invitee.
+        #   fan-out does NOT include the invitee.  It is the invitee's own
+        #   Accept message, which is the entry for its consent and `joined`.
         # Backfill: runs BEFORE any further commit (CM-17-004 step 3 precedes
         #   any further fan-out to the invitee), so its target is the receipt
         #   entry (2) and it sends entries 0, 1, 2 in log order.
-        # Then the entries for the changes the Accept made (ADR-0114), the
-        #   first entries committed after the invitee is persisted AND after
-        #   the backfill, so the invitee receives them as the next entries in
-        #   chain order, not ahead of genesis (#2898): 3 is the
-        #   update_case_participant (consent row signed, joined) and 4 the
-        #   vendor's VF status.
-        # Entry 5 (invite_actor_to_full_case): the full-case Invite, last.  No
+        # Then the vendor's VF status (3), the CASE_MANAGER's own
+        #   add_participant_status_to_participant entry, committed after the
+        #   backfill so the invitee receives it in chain order, not ahead of
+        #   genesis (#2898), and last the full-case Invite (4).  No
         #   add_case_participant entry is committed (CM-31-012).
-        assert announced_log_indices == [0, 1, 2, 3, 4, 5]
+        assert announced_log_indices == [0, 1, 2, 3, 4]
         assert [e.event_type for e in announced_entries[3:]] == [
-            "update_case_participant",
             "add_participant_status_to_participant",
             "invite_actor_to_full_case",
         ]
@@ -1650,15 +1647,13 @@ class TestInviteActorUseCases:
         ]
         # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
         # the new accept_invite entry (2) to all participants via sync_port,
-        # then the entries for the changes the Accept made follow: the
-        # update_case_participant (3) and the vendor's VF status (4).
+        # then the vendor's VF status (3) follows.
         # This holds even when trigger_activity (announce port) is missing.
         assert [entry.log_index for entry in announced_entries] == [
             0,
             1,
             2,
             3,
-            4,
         ]
 
         state_id = VultronReplicationState(

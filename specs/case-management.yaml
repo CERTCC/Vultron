@@ -1084,9 +1084,10 @@ groups:
       `CaseParticipant` in the same step, carrying the roles the Invite names,
       at RM `RECEIVED`, VF `v` when it holds the VENDOR role, and an `INVITED`
       consent row for the active embargo when one is active. The participant is
-      inert (CM-10-004). Every state change the CASE_MANAGER makes emits its own
-      ledger entry, so sending the Invite commits two entries: the Invite's
-      (`invite_actor_to_case`) and, separately, `create_case_participant`
+      inert (CM-10-004). The ledger holds the wire messages exchanged and every
+      state change has a message, so sending the Invite commits two entries: the
+      Invite's (`invite_actor_to_case`) and, separately, the CASE_MANAGER's own
+      act of creating the record, `create_case_participant`
       (`Create(CaseParticipant)`), whose object is the whole record as the
       CASE_MANAGER stored it, with its statuses and consent rows and their ids
       and times. A replica applying `create_case_participant` MUST store that
@@ -1115,10 +1116,11 @@ groups:
       CASE_MANAGER MUST move the participant's RM state to `RM.CLOSED`, set VF
       `V` when it holds the VENDOR role, record embargo consent `DECLINED` when
       an embargo is active, and keep the participant record, which stays inert.
-      Each change is its own ledger entry: the closing status
-      (`add_participant_status_to_participant`) and, when an embargo is active,
-      the `DECLINED` consent row (`update_case_participant`); a replica stores
-      what they carry. `TentativeReject(Invite(Actor, VulnerabilityCaseStub))`
+      The invitee's `Reject` message is its own ledger entry
+      (`reject_invite_actor_to_case`) and is the entry for the `DECLINED` consent
+      row, which a replica applies through the same write; the closing status is
+      the CASE_MANAGER's `add_participant_status_to_participant` entry, which a
+      replica stores. `TentativeReject(Invite(Actor, VulnerabilityCaseStub))`
       MUST be refused.
     rationale: >-
       A stub reject is a hard no to joining. Keeping the record keeps the
@@ -5058,17 +5060,19 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT emit `Add(CaseParticipant)`, or commit an `add_case_participant` ledger
-      entry, as a consequence of an invitee accepting the stub Invite. Each change the accept makes
-      is its own ledger entry instead: `update_case_participant` (`Update(CaseParticipant)`, the
-      record as stored, with the consent row it signed and `joined`) and, for a participant with the
-      VENDOR role only, `add_participant_status_to_participant` for VF `Vf` (CM-11-009). The
-      CASE_MANAGER commits them after it has announced the case to the invitee and backfilled the
-      prior ledger (#2898). A replica stores what each entry carries, as received, and derives
-      nothing from the `Accept(Invite)` entry (ADR-0114, ADR-0124). A replica seeded with the
+      entry, as a consequence of an invitee accepting the stub Invite. The invitee's `Accept`
+      message is already a ledger entry (`accept_invite_actor_to_case`) and is the entry for the
+      consent row it signs and the `joined` mark: a replica applies those two writes through the
+      same functions the CASE_MANAGER does, with the record's `updated` taken from the Accept's
+      `published` as received, and fails when it holds no record for the invitee. For a participant
+      with the VENDOR role only, VF `Vf` is the CASE_MANAGER's own
+      `add_participant_status_to_participant` entry (CM-11-009), committed after the case is
+      announced to the invitee and the prior ledger backfilled (#2898). A replica seeded with the
       case MUST NOT move a record it holds backwards when it replays an older entry over the
-      seed: `joined` is only set, and a consent row is replaced only by a legal move (CM-18-003).
+      seed: `joined` is only set, and a consent row changes only by a legal move (CM-18-003)
+      (ADR-0114, ADR-0124).
     rationale: >-
-      CM-17-004 does not call for it, the accept's changes are already their own entries, and a
+      CM-17-004 does not call for it, the Accept message is already the entry for its effects, and a
       replica usually refuses the direct message for want of the participant record it names. It also
       records one move twice, and `Add(CaseParticipant)` now means reinstatement only (CM-31-011).
     verification: >-
@@ -5076,8 +5080,9 @@ groups:
       `Add(CaseParticipant)` is enqueued and no `add_case_participant` entry is committed. A
       two-replica test compares the whole participant record, status ids and timestamps
       included, between the CASE_MANAGER and each replica after the Accept, for a vendor, a
-      non-vendor, and a case with and without an embargo in force; and a node test finds one
-      `update_case_participant` and, for a vendor only, one status entry.
+      non-vendor, and a case with and without an embargo in force; a node test finds a status
+      entry for a vendor only; and a stale Accept replayed over a seed that is ahead changes
+      nothing.
     relationships:
     - rel_type: refines
       spec_id: CM-17-004

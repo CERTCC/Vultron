@@ -164,7 +164,7 @@ def demo_initialize_participant(
     ):
         # No Add(CaseParticipant) follows the acceptance (CM-31-012): the
         # vendor's replica stores the new member's record from the
-        # create_case_participant and update_case_participant entries the
+        # create_case_participant entry and the Accept(Invite) entry the
         # CaseActor fans out to it (ADR-0114).
         with demo_gate("Coordinator is a participant on the vendor's replica"):
             wait_for_case_participants(

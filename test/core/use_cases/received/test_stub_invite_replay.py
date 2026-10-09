@@ -1,12 +1,11 @@
 #!/usr/bin/env python
-"""Replicas store the participant record the CASE_MANAGER's entries carry.
+"""Replicas store the participant record the ledger's entries carry.
 
-Each actor has its own store (TB-06-007).  Every state change the CASE_MANAGER
-makes emits its own ledger entry (ADR-0114): sending the stub Invite commits the
-Invite and, separately, ``create_case_participant`` for the inert record it
-created; accepting commits ``update_case_participant`` (consent row, ``joined``)
-and, for a vendor, ``add_participant_status_to_participant`` (VF ``Vf``);
-rejecting commits the closing status and the ``DECLINED`` consent row.  A
+Each actor has its own store (TB-06-007).  The ledger holds the wire messages
+exchanged (ADR-0114): sending the stub Invite commits the Invite and, separately,
+``create_case_participant`` for the inert record the CASE_MANAGER created; the invitee's own ``Accept`` and ``Reject`` messages are the entries for
+their effects (consent, ``joined``, ``DECLINED``), and a vendor's VF ``Vf`` and the
+reject's closing status are ``add_participant_status_to_participant`` entries.  A
 replica that never sees the Invite or the reply directly stores what those
 entries carry, as received, and equals the CASE_MANAGER's whole record at the
 same ledger position (CM-11-006, CM-31-012, RSH-08-004).
@@ -283,25 +282,28 @@ def _entry_types(net: LedgerNetwork) -> list[str]:
 
 @pytest.mark.spec("CM-11-006")
 @pytest.mark.spec("CM-31-012")
-def test_each_change_the_manager_makes_is_its_own_entry() -> None:
-    """Invite, creation, consent and joined, VF: one entry per change."""
+def test_the_ledger_holds_the_messages_and_the_one_creation_entry() -> None:
+    """The Invite, the CASE_MANAGER's creation, the Accept, and a vendor's VF.
+
+    The ledger holds the wire messages exchanged: the invitee's Accept is the
+    entry for its consent and ``joined``, so no entry of the CASE_MANAGER's own
+    repeats it.  Creating the record is the CASE_MANAGER's act and has its own
+    entry; the vendor's VF status is its own object and entry.
+    """
     net = _net(EM.ACTIVE)
     before = len(_entry_types(net))
     _the_owner_invites_the_joiner(net)
     _the_joiner_accepts(net)
 
     new = _entry_types(net)[before:]
-    assert new[:3] == [
+    assert new[:4] == [
         "offer_actor_to_case",
         "invite_actor_to_case",
         "create_case_participant",
+        "accept_invite_actor_to_case",
     ], new
-    assert new[3] == "accept_invite_actor_to_case", new
-    assert new.count("update_case_participant") == 1, new
-    assert new.count("add_participant_status_to_participant") == 1, new
-    assert new.index("update_case_participant") < new.index(
-        "add_participant_status_to_participant"
-    )
+    assert new[4:5] == ["add_participant_status_to_participant"], new
+    assert "update_case_participant" not in new
 
 
 @pytest.mark.spec("CM-11-007")

@@ -36,6 +36,8 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyCaseParticipantRoleGrantFromLedgerNode,
     ApplyCaseStatusFromLedgerNode,
     ApplyCreateCaseParticipantFromLedgerNode,
+    ApplyInviteAcceptFromLedgerNode,
+    ApplyInviteRejectFromLedgerNode,
     ApplyNoteFromLedgerNode,
     ApplyOfferOwnershipTransferFromLedgerNode,
     ApplyOfferReportFromLedgerNode,
@@ -45,7 +47,6 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
     ApplyRmVerdictFromLedgerNode,
-    ApplyUpdateCaseParticipantFromLedgerNode,
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
@@ -60,8 +61,10 @@ from vultron.core.behaviors.sync.nodes import (
     IsEmbargoProposalEventNode,
     IsEmbargoReinviteEventNode,
     IsHonourLateAcceptEventNode,
+    IsInviteAcceptEventNode,
     IsInviteExpiryEventNode,
     IsInviteExpiryNoopEventNode,
+    IsInviteRejectEventNode,
     IsOfferOwnershipTransferEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
@@ -72,7 +75,6 @@ from vultron.core.behaviors.sync.nodes import (
     IsRemoveNoteEventNode,
     IsRmVerdictEventNode,
     IsSubmitReportEventNode,
-    IsUpdateCaseParticipantEventNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
@@ -266,18 +268,23 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 IsRemoveNoteEventNode,
                 ApplyRemoveNoteFromLedgerNode,
             ),
-            # The CASE_MANAGER ledgers each change to a participant record as
-            # its own entry (ADR-0114): the replica stores what the entry
-            # carries and infers nothing from the Invite or the Accept.
+            # The ledger holds the wire messages exchanged (ADR-0114): creating
+            # the record is the CASE_MANAGER's own act and has its own entry; the
+            # invitee's Accept and Reject are the entries for their own effects.
             _event_effect_slot(
                 "CreateCaseParticipant",
                 IsCreateCaseParticipantEventNode,
                 ApplyCreateCaseParticipantFromLedgerNode,
             ),
             _event_effect_slot(
-                "UpdateCaseParticipant",
-                IsUpdateCaseParticipantEventNode,
-                ApplyUpdateCaseParticipantFromLedgerNode,
+                "InviteAccept",
+                IsInviteAcceptEventNode,
+                ApplyInviteAcceptFromLedgerNode,
+            ),
+            _event_effect_slot(
+                "InviteReject",
+                IsInviteRejectEventNode,
+                ApplyInviteRejectFromLedgerNode,
             ),
             # The Case Owner's removal of a participant (CM-31-007).
             _event_effect_slot(

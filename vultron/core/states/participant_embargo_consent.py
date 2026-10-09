@@ -117,19 +117,6 @@ def consent_trigger_is_legal(
     return current in _TRANSITIONS[trigger]
 
 
-def consent_move_is_legal(
-    current: EmbargoConsentState, target: EmbargoConsentState
-) -> bool:
-    """True when some trigger moves a row from *current* to *target* (CM-18-003).
-
-    A replica uses it to apply a row an entry carries only when it moves the
-    held row forward, so a stale entry replayed over a seed that is already
-    ahead leaves the row alone (the consent counterpart of the RM ratchet,
-    RSH-05-007).
-    """
-    return any(moves.get(current) == target for moves in _TRANSITIONS.values())
-
-
 def consent_after(
     current: EmbargoConsentState, trigger: PEC_Trigger
 ) -> EmbargoConsentState:

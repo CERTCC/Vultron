@@ -76,15 +76,16 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsEmbargoProposalEventNode,
     IsEmbargoReinviteEventNode,
     IsHonourLateAcceptEventNode,
+    IsInviteAcceptEventNode,
     IsInviteExpiryEventNode,
     IsInviteExpiryNoopEventNode,
+    IsInviteRejectEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
     IsRejectEmbargoInviteEventNode,
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
     IsSubmitReportEventNode,
-    IsUpdateCaseParticipantEventNode,
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
@@ -115,7 +116,6 @@ from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
 )
 from vultron.core.behaviors.sync.nodes.participant_record_effect import (
     ApplyCreateCaseParticipantFromLedgerNode,
-    ApplyUpdateCaseParticipantFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
     ApplyReinstateCaseParticipantFromLedgerNode,
@@ -153,6 +153,10 @@ from vultron.core.behaviors.sync.nodes.role_grant_effect import (
     ApplyCaseParticipantRoleGrantFromLedgerNode,
     IsAcceptCaseParticipantRoleEventNode,
 )
+from vultron.core.behaviors.sync.nodes.stub_reply_effect import (
+    ApplyInviteAcceptFromLedgerNode,
+    ApplyInviteRejectFromLedgerNode,
+)
 
 __all__ = [
     # conditions
@@ -163,7 +167,8 @@ __all__ = [
     "IsAddNoteEventNode",
     "IsRemoveNoteEventNode",
     "IsCreateCaseParticipantEventNode",
-    "IsUpdateCaseParticipantEventNode",
+    "IsInviteAcceptEventNode",
+    "IsInviteRejectEventNode",
     "IsCloseCaseEventNode",
     "IsSubmitReportEventNode",
     "IsOwnershipTransferEventNode",
@@ -181,7 +186,8 @@ __all__ = [
     "ApplyCaseParticipantRoleGrantFromLedgerNode",
     "ApplyRemoveNoteFromLedgerNode",
     "ApplyCreateCaseParticipantFromLedgerNode",
-    "ApplyUpdateCaseParticipantFromLedgerNode",
+    "ApplyInviteAcceptFromLedgerNode",
+    "ApplyInviteRejectFromLedgerNode",
     # participant_status_effect
     "ApplyParticipantStatusFromLedgerNode",
     "EmitImpossibleStateFaultNode",

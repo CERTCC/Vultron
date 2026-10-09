@@ -142,8 +142,8 @@ Joining requires accepting a stub Invite (ADR-0114), and `Add` must not become a
 
 The CASE_MANAGER's direct `Add(CaseParticipant)` after an invitee accepts the stub Invite, and its `add_case_participant` ledger entry, are dropped.
 That entry meant "reinstate", and it stays what `Add(CaseParticipant)` means.
-Replicas learn of a new member from the entries the CASE_MANAGER commits for each change it makes (ADR-0114): `create_case_participant` when the stub Invite creates the inert record, `update_case_participant` when the accept signs the consent row and marks it joined, and `add_participant_status_to_participant` for a vendor's VF.
-The rule behind it is that every state change emits a message, so one trigger can cause several entries: the Invite, the record's creation, and each change the accept makes are separate entries.
+Replicas learn of a new member from the ledger's entries (ADR-0114): the CASE_MANAGER's `create_case_participant` when the stub Invite creates the inert record, then the invitee's own `Accept(Invite)` message, which is the entry for its consent and `joined` mark, and `add_participant_status_to_participant` for a vendor's VF.
+The rule behind it is that the ledger holds the wire messages exchanged and every state change has a message, so one trigger can yield several entries.
 The creation entry is a different entry from the dropped one: it declares the record's creation when the Invite is sent, not a membership move when the invitee answers.
 
 ### Catch-up follows the active check, and a removed participant is not invited
@@ -176,7 +176,7 @@ Corrected in place by instruction of Allen D. Householder (PR #4396, #4384).
 Replaced: "Replicas already learn of the new member from the `Accept(Invite)` ledger entry (`ApplyInviteAcceptFromLedgerNode`)" and "Replicas keep learning of new members from the `Accept(Invite)` entry."
 Those sentences took the Accept's entry to carry everything a replica needs, and dropped the CASE_MANAGER's participant entry as redundant on the strength of it.
 The Accept's entry is the invitee's reply; it carries neither the record the CASE_MANAGER created when it sent the Invite nor the changes the accept made to it.
-Every state change the CASE_MANAGER makes emits its own entry (ADR-0114), and a replica stores what the entries carry.
+The ledger holds the wire messages exchanged and every state change has a message (ADR-0114), and a replica applies each entry's effects.
 The removal and reinstatement decision itself is unchanged.
 
 ## Validation

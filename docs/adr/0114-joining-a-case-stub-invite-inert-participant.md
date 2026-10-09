@@ -109,33 +109,36 @@ names:
 This birth is a CASE_MANAGER write through the single participant-status
 writer (ADR-0089). It is the one place a vendor participant carries `v`.
 
-### Every state change emits its own entry
+### The ledger holds the wire messages; every state change has a message
 
-Every state change the CASE_MANAGER makes in a case causes a message to emit:
-if it is not in the replicated ledger, it did not happen. One trigger, or one
-tree, can therefore produce several ledger entries, one for each consequence it
-has. The CASE_MANAGER does the thing, then commits an entry that carries it,
-and the ledger replicates it. A replica stores what an entry carries, as
-received (ADR-0103, CLP-15-007). It infers nothing from another entry: it does
-not build a participant record because it saw an Invite, and it does not mark
-one joined because it saw an Accept (ADR-0124).
+Every state change the CASE_MANAGER makes in a case is carried by a message in
+the replicated ledger: if it is not in the ledger, it did not happen. The ledger
+holds the wire messages exchanged, so a change that already travels as a
+message needs no entry of its own, and one trigger can still produce several
+entries, one for each message or act it involves. A replica applies the effects
+of each entry through the same functions the CASE_MANAGER uses, and stores what
+the entry carries, as received (ADR-0103, CLP-15-007). It infers nothing from
+another entry: it does not build a participant record because it saw an Invite,
+and it computes no id or time (ADR-0124).
 
-For the stub Invite this means:
+For the stub Invite:
 
-| What the CASE_MANAGER does | The entry it commits |
-|---|---|
-| Sends the stub Invite | `invite_actor_to_case`: the message to the invitee. A replica applies nothing from it. |
-| Creates the inert record (roles, birth status with its id and times, `joined=False`, the consent rows, the `INVITED` row when an embargo is active) and puts it on the roster | `create_case_participant`, `Create(CaseParticipant)`: the whole record as stored. A replica stores it. |
-| Accepts: signs the consent row, marks the record joined | `update_case_participant`, `Update(CaseParticipant)`: the record as stored. A replica copies `joined`, the consent rows and `updated`. |
-| Accepts, for a participant with the VENDOR role only: advances VF to `Vf` | `add_participant_status_to_participant`: the new status, with its id and times. VF is a vendor-only status, so no other role ever has one. |
-| Rejects: closes the record (RM `CLOSED`, and for a vendor VF `Vf`) | `add_participant_status_to_participant`: the closing status. |
-| Rejects: moves the consent row to `DECLINED` when an embargo is active | `update_case_participant`: the record as stored. |
-| Lets the stub Invite expire | No entry: expiry changes no state (CM-11-014). |
+| What happens | The entry | A replica |
+|---|---|---|
+| The CASE_MANAGER sends the stub Invite | `invite_actor_to_case`: the message to the invitee | applies nothing from it |
+| The CASE_MANAGER creates the inert record (roles, birth status with its id and times, `joined=False`, the consent rows, `INVITED` when an embargo is active) and puts it on the roster | `create_case_participant`, `Create(CaseParticipant)`: the CASE_MANAGER's own act, the one entry the stub path adds; the whole record as stored | stores the record |
+| The invitee sends `Accept(Invite(stub))`: consent signed to the embargo in force, record marked joined | `accept_invite_actor_to_case`: the invitee's Accept message itself (its actor, the stub Invite, its `published`) | applies the same consent and `joined` writes the CASE_MANAGER applies, with `updated` = the Accept's `published`; fails if it holds no record |
+| For a participant with the VENDOR role only: VF advances to `Vf` | `add_participant_status_to_participant`: the status the CASE_MANAGER wrote, with its id and times (VF is a vendor-only status) | stores the status |
+| The invitee sends `Reject(Invite(stub))`: consent `DECLINED` when an embargo is active | `reject_invite_actor_to_case`: the invitee's Reject message itself | applies the same consent write |
+| The record closes (RM `CLOSED`, and for a vendor VF `Vf`) | `add_participant_status_to_participant`: the closing status | stores the status |
+| The stub Invite expires | none: expiry changes no state (CM-11-014) | nothing |
 
-The Accept's changes are made before the case is announced to the invitee, so
-the invitee is active when it is seeded, and their entries are committed after
-the announce and the backfill of the prior ledger, so they reach the invitee in
-chain order and not ahead of its case seed (#2898).
+The Accept's VF status is committed after the case is announced to the invitee
+and the prior ledger is backfilled, so it reaches the invitee in chain order and
+not ahead of its case seed (#2898). A replica seeded with the case replays the
+ledger from genesis over a seed that may already be ahead, so each effect moves
+forward only: `joined` is only set and a consent row changes only by a legal
+move (CM-18-003).
 
 ### Inert and active
 
@@ -397,9 +400,9 @@ Corrected in place by instruction of Allen D. Householder (PR #4396, #4384); the
 Replaced: "This birth is a CASE_MANAGER write through the single participant-status writer (ADR-0089) and is committed to the case ledger like any other roster change."
 The sentence, and the way ADR-0116 relied on it ("replicas already learn of the new member from the `Accept(Invite)` ledger entry"), assumed that one trigger produces one ledger entry: the stub Invite's entry, and later the Accept's, would tell a replica everything.
 It does not.
-Inviting an actor and creating the participant record that tracks it are two state changes, and so are the Accept's consent row, `joined` mark and VF status.
+Inviting an actor and creating the participant record that tracks it are two state changes, and the creation has no wire message of its own.
 A replica that infers the record from the Invite builds an object the CASE_MANAGER never declared, with ids and times of its own, and so differs from the CASE_MANAGER at the same ledger position.
-The corrected rule is in "Every state change emits its own entry" above.
+The corrected rule is in "The ledger holds the wire messages; every state change has a message" above: the one new entry is the CASE_MANAGER's own `create_case_participant`; the invitee's Accept and Reject are the entries for their own effects.
 
 ## Ratification — 2026-10-02
 

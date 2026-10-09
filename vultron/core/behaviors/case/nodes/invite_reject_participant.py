@@ -17,9 +17,11 @@
 
 Split from :mod:`~vultron.core.behaviors.case.nodes.invite_inert_participant`
 to keep each leaf module under the BTND-07-004 line limit.  The Reject closes
-the invitee's inert record; each state change it makes -- the closing status
-(RM ``CLOSED``, a vendor's VF ``Vf``) and the ``DECLINED`` consent row -- emits
-its own ledger entry, so a replica stores what the entries carry.
+the invitee's inert record.  The invitee's Reject message is already the ledger
+entry for the ``DECLINED`` consent row, which a replica applies through the
+same function (:func:`~vultron.core.participants.stub_reply.apply_stub_reject`);
+the closing status (RM ``CLOSED``, a vendor's VF ``Vf``) is a
+CASE_MANAGER-written object, so it has its own entry.
 """
 
 import logging
@@ -32,16 +34,20 @@ from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.case.participant_ledger import (
-    commit_case_participant_updated,
     commit_participant_status_added,
 )
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants.stub_reply import (
+    apply_stub_reject,
+    reply_published,
+)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.cs import CS_vf
-from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -98,6 +104,19 @@ class ApplyInviteRejectToParticipantNode(
         self.case_id = case_id
         self.invitee_id = invitee_id
 
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
     def _make_close_node(
         self, is_vendor: bool
     ) -> "CreateParticipantStatusNode":
@@ -115,6 +134,13 @@ class ApplyInviteRejectToParticipantNode(
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
+
+        try:
+            published = reply_published(self.activity)
+        except ValueError as exc:
+            self.feedback_message = f"{self.name}: {exc} (CLP-15-006)"
+            self.logger.exception("%s", self.feedback_message)
+            return Status.FAILURE
 
         # Verify that the participant exists before attempting transitions
         participant_id = (
@@ -171,7 +197,7 @@ class ApplyInviteRejectToParticipantNode(
             return Status.FAILURE
 
         # The closing status (RM CLOSED, a vendor's Vf) is a state change, so
-        # it emits its own entry.
+        # it has its own entry.
         if (
             failure := _commit_latest_status(
                 self,
@@ -182,21 +208,13 @@ class ApplyInviteRejectToParticipantNode(
         ) is not None:
             return failure
 
-        # Apply PEC DECLINE when an embargo is in force
+        # The consent write is the Reject's own effect: the same function a
+        # replica runs from the Reject's entry, with the Reject's ``published``
+        # as the record's time (ADR-0114).
         case = self.datalayer.read_case(self.case_id)
-        active_embargo_id = (
-            case.active_embargo_id if case is not None else None
-        )
-        if (
-            case is not None
-            and active_embargo_id
-            and participant.apply_pec_transition_if_legal(
-                active_embargo_id,
-                PEC_Trigger.DECLINE,
-                entry_status=case.embargo_register_status(active_embargo_id),
-            )
+        if case is not None and apply_stub_reject(
+            case, participant, published
         ):
-            participant.updated = now_utc()
             self.datalayer.save(participant)
             self.logger.info(
                 "%s: applied PEC DECLINED for invitee '%s' (active embargo,"
@@ -204,19 +222,6 @@ class ApplyInviteRejectToParticipantNode(
                 self.name,
                 self.invitee_id,
             )
-            # The consent change is a state change, so it emits its own entry.
-            try:
-                commit_case_participant_updated(
-                    datalayer=cast(CaseOutboxPersistence, self.datalayer),
-                    actor_id=self.actor_id,
-                    case_id=self.case_id,
-                    participant=participant,
-                    wire_render_port=self._require_wire_render_port(),
-                )
-            except RuntimeError as exc:
-                self.feedback_message = f"{self.name}: {exc}"
-                self.logger.exception("%s", self.feedback_message)
-                return Status.FAILURE
 
         self.logger.info(
             "%s: reject-invite effects applied for invitee '%s' in case '%s'"

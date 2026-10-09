@@ -36,20 +36,22 @@ Tree structure::
             ├── AdvanceInviteeVFToVendorAwareNode    — record VF Vf for VENDOR (CM-11-009)
             ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
             ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
-            ├── CommitInviteeAcceptEntriesNode       — ledger the Accept's changes (ADR-0114)
+            ├── CommitInviteeAcceptEntriesNode       — ledger the vendor's VF status (ADR-0114)
             ├── EmitInviteActorToFullCaseNode        — full-case Invite, ledger tail (CM-11-010)
             └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
 Admitting the invitee, announcing the case to it and backfilling the ledger
-are the CASE_MANAGER's (PCR-08-009).  Every other participant learns of the
-new member from entries the CASE_MANAGER commits for each change it makes
-(ADR-0114): ``create_case_participant`` when the stub Invite created the inert
-record, and, committed by ``CommitInviteeAcceptEntriesNode``, one
-``update_case_participant`` carrying the record with the consent row it signed
-and ``joined``, and one ``add_participant_status_to_participant`` for a
-vendor's VF.  A replica stores what each entry carries and infers nothing.  No
-``Add(CaseParticipant)`` follows and no ``add_case_participant`` entry is
-committed: that message now means reinstatement only (CM-31-012, ADR-0116).
+are the CASE_MANAGER's (PCR-08-009).  The ledger holds the wire messages
+exchanged (ADR-0114): the invitee's ``Accept(Invite)`` is already the entry for
+the consent row it signs and its ``joined`` mark, and a replica applies those
+through the same functions (``vultron.core.participants.stub_reply``).  The
+record's creation is the CASE_MANAGER's own act and has its own
+``create_case_participant`` entry, committed when the stub Invite was sent.  The
+vendor's VF status is a CASE_MANAGER-written object with its own id and times, so
+``CommitInviteeAcceptEntriesNode`` commits it as an
+``add_participant_status_to_participant`` entry.  No ``Add(CaseParticipant)``
+follows and no ``add_case_participant`` entry is committed: that message now
+means reinstatement only (CM-31-012, ADR-0116).
 The same handler runs on any actor that holds a copy of the Accept, so the
 effects sit behind a role gate and a receiver that is not the case's
 CASE_MANAGER does nothing (#3752).
@@ -170,8 +172,7 @@ def create_accept_invite_actor_to_case_tree(
                 ├── ActivateInviteeParticipantNode       — mark the inert record joined
                 ├── EmitAnnounceCaseToInviteeNode        — queue Announce to invitee
                 ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
-                ├── CommitInviteeAcceptEntriesNode       — ledger the Accept's changes (ADR-0114)
-            ├── CommitInviteeAcceptEntriesNode       — ledger the Accept's changes (ADR-0114)
+                ├── CommitInviteeAcceptEntriesNode       — ledger the vendor's VF status (ADR-0114)
                 ├── EmitInviteActorToFullCaseNode        — full-case Invite with the ledger tail (CM-11-010)
                 └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
@@ -183,8 +184,7 @@ def create_accept_invite_actor_to_case_tree(
     committing node placed earlier hands the late joiner a ledger entry before
     its case seed (SYNC-15 pre-genesis reject and replay, #2898).  The
     stub-Invite acceptance commits no ``add_case_participant`` entry
-    (CM-31-012): the changes the Accept causes are ledgered as their own entries
-    (ADR-0114).
+    (CM-31-012): the Accept's own entry carries its effects (ADR-0114).
 
     The idempotency guard ``CheckInviteeNotAlreadyParticipantNode`` uses
     :class:`~vultron.core.behaviors.idempotency.SilentIdempotencyGuardMixin`

@@ -32,7 +32,6 @@ from vultron.core.behaviors.case.ledger_snapshots import (
     build_add_report_to_case_snapshot,
     build_create_case_participant_snapshot,
     build_create_case_snapshot,
-    build_update_case_participant_snapshot,
 )
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _CANONICAL_PAYLOAD_SIGNATURES,
@@ -363,15 +362,6 @@ class TestSnapshotsCarryPublished:
             "build_create_case_participant_snapshot": (
                 build_create_case_participant_snapshot(
                     participant, CASE_ACTOR_ID, CASE_ID, port
-                )
-            ),
-            "build_update_case_participant_snapshot": (
-                build_update_case_participant_snapshot(
-                    participant,
-                    CASE_ACTOR_ID,
-                    CASE_ID,
-                    "urn:uuid:update-1",
-                    port,
                 )
             ),
         }

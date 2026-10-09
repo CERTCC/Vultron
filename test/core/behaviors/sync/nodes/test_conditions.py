@@ -15,10 +15,11 @@ from vultron.core.behaviors.sync.nodes import (
     CheckLedgerFreshnessNode,
     IsAddNoteEventNode,
     IsCreateCaseParticipantEventNode,
+    IsInviteAcceptEventNode,
+    IsInviteRejectEventNode,
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
-    IsUpdateCaseParticipantEventNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _ADD_NOTE_TO_CASE_EVENT,
@@ -29,7 +30,6 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.participant_event_types import (
     CREATE_CASE_PARTICIPANT_EVENT_TYPE,
-    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
 )
 
 
@@ -41,7 +41,8 @@ from vultron.core.models.participant_event_types import (
         (IsAddNoteEventNode, _ADD_NOTE_TO_CASE_EVENT),
         (IsRemoveNoteEventNode, _REMOVE_NOTE_FROM_CASE_EVENT),
         (IsCreateCaseParticipantEventNode, CREATE_CASE_PARTICIPANT_EVENT_TYPE),
-        (IsUpdateCaseParticipantEventNode, UPDATE_CASE_PARTICIPANT_EVENT_TYPE),
+        (IsInviteAcceptEventNode, "accept_invite_actor_to_case"),
+        (IsInviteRejectEventNode, "reject_invite_actor_to_case"),
     ],
 )
 class TestPositiveLedgerEntryConditionNodes:

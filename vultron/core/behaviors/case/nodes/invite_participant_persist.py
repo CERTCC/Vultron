@@ -30,7 +30,6 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.case.participant_ledger import (
-    commit_case_participant_updated,
     commit_participant_status_added,
 )
 from vultron.core.behaviors.helpers import (
@@ -38,8 +37,8 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants.stub_reply import mark_joined, reply_published
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 
@@ -65,17 +64,14 @@ class ActivateInviteeParticipantNode(
         "new_invite_participant": PortInformation(
             data_type=object, required=True
         ),
-    }
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "invitee_joined_now": PortInformation(data_type=bool, required=False),
+        "activity": PortInformation(data_type=object, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             "new_invite_participant": "/new_invite_participant",
-            "invitee_joined_now": "/invitee_joined_now",
+            "activity": "/activity",
         }
 
     def initialise(self) -> None:
@@ -84,6 +80,7 @@ class ActivateInviteeParticipantNode(
             self._participant_bb = self.get_input("new_invite_participant")
         except (NoDataAvailable, NotImplementedError):
             self._participant_bb = None
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -98,12 +95,16 @@ class ActivateInviteeParticipantNode(
                 self.invitee_id,
             )
             return Status.FAILURE
-        self._set_output("invitee_joined_now", False)
-        if not participant.joined:
-            participant.joined = True
-            participant.updated = now_utc()
+        try:
+            published = reply_published(self.activity)
+        except ValueError as exc:
+            self.feedback_message = f"{self.name}: {exc} (CLP-15-006)"
+            self.logger.exception("%s", self.feedback_message)
+            return Status.FAILURE
+        # The same write a replica makes from the Accept's own entry; the
+        # record's time is the Accept's ``published``, never the local clock.
+        if mark_joined(participant, published):
             self.datalayer.save(participant)
-            self._set_output("invitee_joined_now", True)
             self.logger.info(
                 "%s: promoted inert participant '%s' to joined=True"
                 " (ADR-0114, CM-11-006)",
@@ -114,21 +115,16 @@ class ActivateInviteeParticipantNode(
 
 
 class CommitInviteeAcceptEntriesNode(DataLayerActionWithPorts):
-    """Ledger the changes the Accept made to the invitee's record (ADR-0114).
+    """Ledger the status the Accept made on the invitee's record (ADR-0114).
 
-    Every state change the CASE_MANAGER makes emits an entry.  The Accept's
-    changes are made first (the consent row signed, ``joined`` set, a vendor's
-    VF advanced) so the invitee is active when the case is announced to it, and
-    they are ledgered here, after the announce and the backfill of the prior
-    ledger: a ledger entry committed earlier would fan out to the invitee
-    before its case seed (#2898).  Two entries, from the record as stored:
-
-    - ``update_case_participant`` -- the record with its consent row and
-      ``joined`` mark, committed only when this Accept joined the invitee;
-    - ``add_participant_status_to_participant`` -- the vendor-aware status, only
-      when this Accept appended one.
-
-    A resumed Accept that changed nothing commits nothing.
+    The ledger holds the wire messages exchanged: the invitee's Accept is the
+    entry for its consent and its ``joined`` mark.  The vendor-aware status
+    (VF ``Vf``, VENDOR role only) is a CASE_MANAGER-written object with its own
+    id and times, so it has its own ``add_participant_status_to_participant``
+    entry.  It is committed here, after the case announce and the backfill of
+    the prior ledger, so it reaches the invitee in chain order and not before
+    its case seed (#2898).  A resumed Accept that appended no status commits
+    nothing.
     """
 
     def __init__(
@@ -140,23 +136,15 @@ class CommitInviteeAcceptEntriesNode(DataLayerActionWithPorts):
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
-        "invitee_joined_now": PortInformation(data_type=bool, required=False),
         "invitee_vf_status_id": PortInformation(data_type=str, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "invitee_joined_now": "/invitee_joined_now",
-            "invitee_vf_status_id": "/invitee_vf_status_id",
-        }
+        return {"invitee_vf_status_id": "/invitee_vf_status_id"}
 
     def initialise(self) -> None:
         super().initialise()
-        try:
-            self._joined_now = bool(self.get_input("invitee_joined_now"))
-        except (NoDataAvailable, NotImplementedError, KeyError):
-            self._joined_now = False
         try:
             self._status_id = self.get_input("invitee_vf_status_id")
         except (NoDataAvailable, NotImplementedError, KeyError):
@@ -166,7 +154,7 @@ class CommitInviteeAcceptEntriesNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None and self.actor_id is not None
-        if not self._joined_now and not self._status_id:
+        if not self._status_id:
             return Status.SUCCESS
         case, failure = self._require_case(self.case_id)
         if failure is not None:
@@ -180,34 +168,25 @@ class CommitInviteeAcceptEntriesNode(DataLayerActionWithPorts):
                 f"{self.name}: no record for '{self.invitee_id}' to ledger"
             )
             return Status.FAILURE
-        port = self._require_wire_render_port()
-        outbox = cast(CaseOutboxPersistence, self.datalayer)
+        status = next(
+            (
+                x
+                for x in record.participant_statuses
+                if x.id_ == self._status_id
+            ),
+            None,
+        )
+        if status is None:
+            return Status.SUCCESS
         try:
-            if self._joined_now:
-                commit_case_participant_updated(
-                    datalayer=outbox,
-                    actor_id=self.actor_id,
-                    case_id=self.case_id,
-                    participant=record,
-                    wire_render_port=port,
-                )
-            status = next(
-                (
-                    s
-                    for s in record.participant_statuses
-                    if s.id_ == self._status_id
-                ),
-                None,
+            commit_participant_status_added(
+                datalayer=cast(CaseOutboxPersistence, self.datalayer),
+                actor_id=self.actor_id,
+                case_id=self.case_id,
+                participant=record,
+                status=status,
+                wire_render_port=self._require_wire_render_port(),
             )
-            if status is not None:
-                commit_participant_status_added(
-                    datalayer=outbox,
-                    actor_id=self.actor_id,
-                    case_id=self.case_id,
-                    participant=record,
-                    status=status,
-                    wire_render_port=port,
-                )
         except RuntimeError as exc:
             self.feedback_message = f"{self.name}: {exc}"
             self.logger.exception("%s", self.feedback_message)

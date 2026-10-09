@@ -210,7 +210,7 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 - **`Add(CaseParticipant)` only reinstates.** It is refused for a participant
   that is not removed or never joined. The CASE_MANAGER no longer emits `Add`
   after a stub-Invite acceptance; replicas learn of a new member from the
-  entries the CASE_MANAGER commits for each change it makes (CM-31-012).
+  the ledger's entries for the messages exchanged (CM-31-012).
 - **Where the fact and the check live (#4079).** The fact is
   `CaseParticipant.removal_activity`: the id of the `Remove` activity, or
   `None` (`removed` reads it). The one check is
@@ -272,33 +272,35 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 - **No `Add` after a stub-Invite acceptance (#4081).** Neither the
   accept-invite tree nor the recommend-actor trees emit `Add(CaseParticipant)`
   or commit `add_case_participant`; `EmitAddCaseParticipantNode` is deleted.
-  Every state change the CASE_MANAGER makes emits its own entry (ADR-0114), so
-  one trigger can produce several, and a replica stores what each carries, as
-  received (ADR-0103, CLP-15-007). It derives nothing.
-- **One entry per change on the stub Invite path (#4384).**
+  The ledger holds the wire messages exchanged (ADR-0114), so a change that
+  already travels as a message needs no entry of its own, and a replica applies
+  each entry's effects through the functions the CASE_MANAGER uses, storing what
+  the entry carries, as received (ADR-0103, CLP-15-007). It derives nothing.
+- **Entries on the stub Invite path (#4384).**
 
-  | Change by the CASE_MANAGER | Entry | A replica |
+  | What happens | Entry | A replica |
   |---|---|---|
-  | sends the stub Invite | `invite_actor_to_case` | applies nothing |
-  | creates the inert record and puts it on the roster | `create_case_participant` | stores the record carried, and seats it |
-  | accepts: signs the consent row, marks joined | `update_case_participant` | copies `joined`, the consent rows and `updated`; fails if it holds no record |
-  | accepts: VF to `Vf` (VENDOR role only) | `add_participant_status_to_participant` | stores the status carried |
-  | rejects: RM `CLOSED` (and `Vf` for a vendor) | `add_participant_status_to_participant` | stores the status carried |
-  | rejects: consent `DECLINED` | `update_case_participant` | copies the consent rows and `updated` |
+  | the CASE_MANAGER sends the stub Invite | `invite_actor_to_case` | applies nothing |
+  | the CASE_MANAGER creates the inert record and puts it on the roster | `create_case_participant` (the one new entry) | stores the record carried |
+  | the invitee sends `Accept(Invite(stub))`: consent signed, joined | `accept_invite_actor_to_case`, the Accept itself | applies the same writes, `updated` = the Accept's `published`; fails if it holds no record |
+  | VF to `Vf` (VENDOR role only) | `add_participant_status_to_participant` | stores the status |
+  | the invitee sends `Reject(Invite(stub))`: consent `DECLINED` | `reject_invite_actor_to_case`, the Reject itself | applies the same write |
+  | the record closes (RM `CLOSED`, vendor `Vf`) | `add_participant_status_to_participant` | stores the status |
   | expiry | none | nothing changed (CM-11-014) |
 
-  The entries are built from the very objects the CASE_MANAGER stored, so ids
-  and times match: `commit_case_participant_created`, `..._updated` and
-  `commit_participant_status_added` in `case/participant_ledger.py` render the
-  stored record. A record born at the Invite is one entry carrying the record,
-  its birth status and its consent rows, as `Create(VulnerabilityCase)` carries
-  a case. The Accept's entries are committed by `CommitInviteeAcceptEntriesNode`
-  after the announce and the backfill, so they reach the invitee in chain order
-  and not before its case seed (#2898), then the full-case Invite follows. VF is
-  a vendor-only status: no other role's record, status or entry carries one. The
-  two-replica test compares the whole record of the CASE_MANAGER and each
-  replica after the Invite, the Accept and the Reject, for a vendor, a
-  non-vendor, and a case with and without an embargo in force. Not entries
+  The shared writes are in `core/participants/stub_reply.py`; the replica nodes
+  are `ApplyInviteAcceptFromLedgerNode` and `ApplyInviteRejectFromLedgerNode`
+  (`sync/nodes/stub_reply_effect.py`). The entries are built from the very
+  objects the CASE_MANAGER stored (`case/participant_ledger.py`), so ids and
+  times match. The Accept's VF status is committed by
+  `CommitInviteeAcceptEntriesNode` after the announce and the backfill, so it
+  reaches the invitee in chain order and not before its case seed (#2898), then
+  the full-case Invite follows. A replica seeded with the case replays the ledger
+  from genesis over a seed that may be ahead, so each write moves forward only.
+  VF is a vendor-only status: no other role's record, status or entry carries
+  one. The two-replica test compares the whole record of the CASE_MANAGER and
+  each replica after the Invite, the Accept and the Reject, for a vendor, a
+  non-vendor, and a case with and without an embargo in force. Not an entry
   today: `case.recommendation_recommender_index` set on the `Offer(Actor, Case)`
   path, whose receipt entry carries the same fact but no replica applies it
   (#4295).

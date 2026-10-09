@@ -636,8 +636,8 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
     The invitee's stub-Invite acceptance commits no ``add_case_participant``
     entry and enqueues no ``Add(CaseParticipant)``; the existing
     participant's replica stores the new member's record from the
-    ``create_case_participant`` entry and its joined mark from the
-    ``update_case_participant`` entry, as the CASE_MANAGER holds them.
+    ``create_case_participant`` entry and its joined mark from the invitee's
+    own ``Accept(Invite)`` entry, as the CASE_MANAGER holds them.
     """
     case.dl.create(as_Organization(id_=NEWBIE))
     stub_invite = rm_invite_to_case_activity(
