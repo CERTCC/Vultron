@@ -107,7 +107,7 @@ a conflicting or draft PR — resolving conflicts is exactly what the pipeline i
 for. `pr-execute` Phase 5 (CI Loop) syncs and resolves; `pr-verify` Phase 2 gates the
 verdict. A conflicted PR at this point is a normal input, not an error. Neither
 is a PR that is merely behind its base: the pipeline merges the base only on
-conflict or file overlap (PAD-18-004).
+conflict, GitHub's `BEHIND`, or file overlap (PAD-18-004).
 
 If the PR is a draft carrying the `needs-rebase` label, note that `create-pr`
 opened it that way because it could not freshen the branch, and that execute will
@@ -256,7 +256,7 @@ the pipeline runs:
 | Phase | Check | Role |
 |---|---|---|
 | `pr-triage` Phase 12 | Read merge state, emit a FAIL finding | Early warning; recorded in `pr_metadata` |
-| `pr-execute` Phase 5 (CI Loop) | Merge the base **only** when GitHub reports `CONFLICTING` or `targeted-tests --overlap` finds shared files (PAD-18-004); resolve conflicts; gate with the targeted set from the post-merge diff | The only phase that **fixes** conflicts. Runs after all other mutation so execute's own fixes are included, and before the local gate so the targeted set is derived from the merged tree |
+| `pr-execute` Phase 5 (CI Loop) | Merge the base **only** when GitHub reports `CONFLICTING` or `BEHIND`, or `targeted-tests --overlap` finds shared files (PAD-18-004); resolve conflicts; gate with the targeted set from the post-merge diff | The only phase that **fixes** conflicts. Runs after all other mutation so execute's own fixes are included, and before the local gate so the targeted set is derived from the merged tree |
 | `pr-verify` Phase 2 | Live re-check as a hard gate | The **authoritative** answer. Blocks `READY-TO-MERGE` on `CONFLICTING`, `DIRTY`, or GitHub's `BEHIND` — never on its own base-tip comparison (PAD-18-005) |
 
 Execute resolves rather than verify because verify is a read-only reporter by

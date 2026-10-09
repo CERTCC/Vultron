@@ -10,7 +10,7 @@
 **Overall verdict**: ✅ READY-TO-MERGE / ❌ GAPS-FOUND / 🔀 CONFLICTS-FOUND / ⏳ PENDING-CI / ⏳ PENDING-MERGE-CHECK
 **CI status**: ✅ passing / ❌ failing / ⏳ pending
 **Merge state**: ✅ MERGEABLE (CLEAN) / 🔀 CONFLICTING (DIRTY) / ⚠️ BEHIND / 📝 DRAFT / ⏳ UNKNOWN — base `<base_ref>`
-**Base sync in execute**: ✅ merged @ `def5678` (<conflicting / overlap>; <N> conflicts resolved) / ✅ not needed — conflict-free, no overlap / ❌ required but not performed
+**Base sync in execute**: ✅ merged @ `def5678` (<conflicting / behind / overlap>; <N> conflicts resolved) / ✅ not needed — conflict-free, not behind, no overlap / ❌ required but not performed
 **Integrity check**: ✅ all <N> findings accounted for / ❌ INCOMPLETE-EXECUTE (<M> of <N> results found)
 **Docs line**: ✅ current — `<Docs: line>` / ❌ STALE-DOCS-LINE — <which commit or page it misses>
 
@@ -68,7 +68,7 @@ this PR. Please decide whether to fold them in before merge:
 | ⚠️ UNVERIFIED-CI-FAILING | CI still failing after execute's push; fix may be correct but cannot be confirmed |
 | 🔀 MERGE-CONFLICT | `mergeable: CONFLICTING`, `mergeStateStatus: DIRTY`, or conflict markers found at HEAD |
 | ⏳ MERGE-STATE-UNKNOWN | GitHub had not computed mergeability after polling |
-| ⚠️ BRANCH-BEHIND | `mergeStateStatus: BEHIND` — base advanced and the repo requires up-to-date branches |
+| ⚠️ BRANCH-BEHIND | `mergeStateStatus: BEHIND` — base advanced and a ruleset requires up-to-date branches; re-run `/pr-execute`, which merges the base to clear it (PAD-18-004) |
 | ⚠️ UNSYNCED-EXECUTE | `execute.merge_state` missing, `conflict_free` not `true`, or `merge_required: true` with no `sync_commit_ref` — execute never established the PR was conflict-free. Not raised for a branch that is merely behind its base (PAD-18-005) |
 | 📝 PR-IS-DRAFT | PR is still a draft (check for a lingering `needs-rebase` label) |
 | 📄 STALE-DOCS-LINE | PR body's `Docs:` line is missing, still the placeholder, does not cover a fix commit that changed described behavior, or names a page the diff does not change (Phase 3b) |

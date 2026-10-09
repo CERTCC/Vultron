@@ -22,9 +22,10 @@ the branch is conflict-free against its base, the local gate passes, and all CI
 checks have completed successfully (or the 4-iteration cap is reached).
 
 After a PR's first push, CI is the full-suite authority (ADR-0126). Execute
-therefore merges the base only when the PR conflicts or the base touched the
-PR's files (PAD-18-004), and gates each push with the linters plus the
-targeted test set for the branch diff, not the full suite (PAD-18-002).
+therefore merges the base only when the PR conflicts, GitHub reports it
+`BEHIND`, or the base touched the PR's files (PAD-18-004), and gates each
+push with the linters plus the targeted test set for the branch diff, not the
+full suite (PAD-18-002).
 
 **One exception to "no new discovery"**: the CI loop (Phase 5) re-reads CI state
 and merge state from live sources rather than trusting triage's snapshots. CI
@@ -247,27 +248,30 @@ Record `commit_ref` for each CI finding addressed.
 #### Step 2 — Sync with base, only when needed
 
 Merge the base into the branch **only** when GitHub reports the PR
-`CONFLICTING` or the base changed files this PR also changes (PAD-18-004).
-Being behind the base is not by itself a reason to merge: CI tests the PR
-merged into its base on every push. Run both checks first:
+`CONFLICTING` or `BEHIND`, or the base changed files this PR also changes
+(PAD-18-004). Being behind the base is not by itself a reason to merge: CI
+tests the PR merged into its base on every push, so a branch GitHub does not
+report `BEHIND` is left alone. Run both checks first:
 
 ```bash
-git fetch origin <base_ref>
+git fetch origin <base_ref> || { echo "fetch failed — stop and report"; false; }
 bash .agents/skills/shared/merge-state.sh <number>; ms=$?; echo "merge-state exit: $ms"
 PYTHONPATH= uv run targeted-tests --base origin/<base_ref> --overlap; ov=$?; echo "overlap exit: $ov"
 ```
 
+If the fetch fails, stop and report: `targeted-tests` does not fetch, so a
+stale `origin/<base_ref>` gives a stale overlap answer and a stale test set.
 `targeted-tests --overlap` lists the paths the base changed since the merge
-base that this branch also changes, counting uncommitted work. It does not
-fetch, so the `git fetch` must come first.
+base that this branch also changes, counting uncommitted work.
 
-Treat a `merge_state_status` of `DIRTY` in `merge-state.sh`'s JSON as
-`CONFLICTING`, whatever its exit code. Then take the first row that matches:
+Read `merge_state_status` from `merge-state.sh`'s JSON. Treat `DIRTY` as
+`CONFLICTING`, whatever the exit code. Then take the first row that matches:
 
 | `merge-state.sh` | `--overlap` | Action |
 |---|---|---|
 | any | `2` | Setup error (unknown base ref) — stop and report |
 | `1` (`CONFLICTING`) | `0` or `1` | Merge — record `merge_reason: "conflicting"` |
+| `0`, `merge_state_status: BEHIND` | `0` or `1` | Merge — record `merge_reason: "behind"` (and any listed paths) |
 | `0` or `2` | `1` (paths listed) | Merge — record `merge_reason: "overlap"` and the listed paths |
 | `0` or `2` | `0` (none) | **Do not merge.** Go to Step 3 |
 
@@ -279,11 +283,12 @@ force a merge: a conflict needs a file both sides changed, so the overlap check
 already sees it whatever GitHub answered. The live mergeability gate is
 `pr-verify`'s, not this step's.
 
-A `mergeStateStatus` of `BEHIND` is not a merge trigger either. GitHub reports
-it only when a ruleset requires up-to-date branches, which ADR-0126 found this
-repository does not set; record triage's `BEHIND` finding as `outcome: skipped`
-with that reason, and let `pr-verify` block on it (PAD-18-005) until a human
-decides.
+`BEHIND` is a merge trigger because it is the one state in which GitHub itself
+refuses the merge until the branch contains the base. GitHub reports it only
+when a ruleset requires up-to-date branches, which ADR-0126 found this
+repository does not set; seeing it means that changed. Merging clears it, so
+record triage's `BEHIND` finding as `outcome: fixed` with the merge commit as
+`commit_ref`, and `pr-verify` re-reads the live state (PAD-18-005).
 
 When a merge is called for:
 
@@ -332,9 +337,17 @@ The gate is the linters plus the **targeted test set** for the branch diff
 branch as it stands now, after any Step 2 merge, so a merge's overlapping and
 conflicted files are covered by the same derivation:
 
+Run the linters first, as their own command, and stop on a non-zero
+`lint exit:` — a lint failure must not be masked by the test-set step's status:
+
 ```bash
-uv run ruff check && uv run ruff format --check && uv run mypy && uv run pyright
-git fetch origin <base_ref>
+uv run ruff check && uv run ruff format --check && uv run mypy && uv run pyright; rc=$?; echo "lint exit: $rc"; (exit $rc)
+```
+
+Then derive the set:
+
+```bash
+git fetch origin <base_ref> || { echo "fetch failed — stop and report"; false; }
 PYTHONPATH= uv run targeted-tests --base origin/<base_ref> > /tmp/targeted-tests.txt; rc=$?; cat /tmp/targeted-tests.txt; echo "exit: $rc"; (exit $rc)
 ```
 
@@ -401,8 +414,10 @@ A branch already tracking the PR head (including a fork remote from
 and gets that as its upstream — never to a branch named after the local
 checkout, which would leave the PR head unmoved (#3893).
 
-If git demands a force-push, stop — something rewrote history and that needs
-a human.
+Never force-push (PAD-11-002). If git rejects the push as non-fast-forward,
+fetch and inspect the remote head: another push may have landed on the PR
+branch, or someone rewrote its history. Either way, stop and report — that
+needs a human.
 
 #### Step 5 — Wait for CI
 
@@ -418,9 +433,11 @@ bash .agents/skills/shared/wait-for-ci.sh <number>
 
 **On CI green**:
 
-1. Run `merge-state.sh <number>`. If it now reports `CONFLICTING`, return to
-   Step 2 — a push can race a base-branch merge. A base that merely moved
-   ahead is not a reason to return; only `CONFLICTING` is.
+1. Re-run Step 2's two checks (`git fetch`, `merge-state.sh <number>`,
+   `targeted-tests --overlap`). If any of them now calls for a merge
+   (`CONFLICTING`, `BEHIND`, or overlap), return to Step 2 — a push can race a
+   base-branch merge. A base that merely moved ahead, with none of the three,
+   is not a reason to return.
 
 2. If the PR is a draft with a `needs-rebase` label, undraft it:
 
@@ -446,7 +463,8 @@ Record `final_ci_status: "failing"`. List the unresolved CI failures. Run
 2. Render the execute summary comment (format in [REFERENCE.md](REFERENCE.md)
    § "Execute Comment Format"). It carries the `Suite runs: <N> full, <M>
    targeted` line, derived per [REFERENCE.md](REFERENCE.md) § "`suite_runs`
-   Fields and the Suite runs count" — the full count starts at one for `create-pr`'s first-push run.
+   Fields and the Suite runs count". The full count includes `create-pr`'s
+   first-push run only when that run happened.
 3. Post comment: `gh pr review <number> --comment --body "<summary>"`
 4. Record `execute_comment_url` in the artifact; re-write the file with the URL.
 5. Print artifact path and outcome summary to stdout.

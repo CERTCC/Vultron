@@ -632,12 +632,14 @@ groups:
           a normal push and MUST NOT force-push the branch. CI re-runs
           automatically on the updated head.
         rationale: >-
-          A merge only adds commits, so a normal push always succeeds. A push
-          that git rejects as non-fast-forward means someone rewrote the
-          remote branch, which is a reason to stop, not to force.
+          A merge only adds commits, so a normal push succeeds unless the
+          remote branch moved. A push that git rejects as non-fast-forward
+          means another push landed or someone rewrote the remote branch;
+          either is a reason to fetch and inspect, never to force.
         verification: >-
           Inspection: `pr-execute` Phase 5 Step 4 pushes without `--force`
-          and stops when git demands a force-push.
+          and, when git rejects the push as non-fast-forward, stops and
+          reports instead of forcing.
       - id: PAD-11-003
         priority: MUST
         kind: process
@@ -1239,11 +1241,11 @@ groups:
         kind: process
         statement: >-
           After a Pull Request's first push, an agent MUST merge the base
-          branch into it only when GitHub reports the PR `CONFLICTING`, or when
-          files the base changed since the merge base overlap files the PR
-          changes. After such a merge it MUST run the targeted set of
-          PAD-18-002, derived from the post-merge branch diff, which then
-          covers the overlapping and conflicted files.
+          branch into it only when GitHub reports the PR `CONFLICTING` or
+          `BEHIND`, or when files the base changed since the merge base overlap
+          files the PR changes. After such a merge it MUST run the targeted set
+          of PAD-18-002, derived from the post-merge branch diff, which then
+          covers the PR's own changes to the overlapping and conflicted files.
         rationale: >-
           CI already tests the merge of the PR into its base as of each push,
           and no repository rule requires branches to be up to date. Merging
@@ -1252,19 +1254,21 @@ groups:
           risk, a semantic conflict between files neither side shares, is
           caught by CI on `main` after the merge; closing it entirely is a
           merge queue's job (#1863). Keying the gate on the post-merge diff
-          lets one derivation serve both cases.
+          lets one derivation serve both cases. `BEHIND` is a trigger because
+          it is the one state in which GitHub itself refuses the merge until
+          the branch contains the base; no ruleset produces it today.
         verification: >-
           Inspection: `pr-execute` Phase 5 Step 2 and `work-epic-tasks`
-          consult the overlap check before merging the base, and skip the
-          merge when it reports no overlap and GitHub does not report
-          `CONFLICTING`.
+          consult the overlap check and GitHub's merge state before merging
+          the base, merge on `CONFLICTING`, `BEHIND`, or overlap, and skip the
+          merge when none of the three holds.
         relationships:
         - rel_type: extends
           spec_id: PAD-11-001
           note: >-
             PAD-11-001 says how a conflicted PR is synced (merge, never
             rebase); this adds when a pushed PR is synced at all (on
-            conflict or file overlap only).
+            conflict, GitHub's `BEHIND`, or file overlap only).
       - id: PAD-18-005
         adr:
         - ADR-0126
@@ -1296,9 +1300,12 @@ groups:
         statement: >-
           `pr-execute`'s summary comment MUST record the local suite runs the
           Pull Request has cost in a fixed line,
-          `Suite runs: <N> full, <M> targeted`. The count MUST include the
-          first-push run of PAD-18-001, which `create-pr` made before any
-          execute artifact existed, as one full run.
+          `Suite runs: <N> full, <M> targeted`. The count MUST include only
+          runs that happened: the first-push run of PAD-18-001, which
+          `create-pr` made before any execute artifact existed, counts as one
+          full run when `create-pr` ran the suites, and a Pull Request that
+          `create-pr` gated by the linters alone starts the full count at
+          zero.
         rationale: >-
           Local suite runs are the one pipeline cost GitHub does not record.
           The execute artifact is gitignored and deleted by `pr-verify`, so
@@ -1306,11 +1313,15 @@ groups:
           run has to be counted explicitly because it happens in a different
           skill before the comment exists; leaving it out would understate
           every Pull Request by the single most expensive run in the
-          pipeline, which is the figure PAD-18-007 needs.
+          pipeline, which is the figure PAD-18-007 needs. Counting it for a
+          docs-only Pull Request that ran no suite would overstate the cost
+          the same way.
         verification: >-
           Inspection: the execute comment format in
           `.agents/skills/pr-execute/REFERENCE.md` specifies the line, and
-          its documented derivation starts the full count at one.
+          its documented derivation starts the full count at one when
+          `create-pr` ran the suites before the first push and at zero when
+          it did not.
       - id: PAD-18-007
         priority: SHOULD
         kind: process

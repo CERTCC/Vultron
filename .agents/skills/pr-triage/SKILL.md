@@ -239,11 +239,10 @@ Also emit findings for these `merge_state_status` values even when
 `mergeable` is `MERGEABLE`:
 
 - `BEHIND` — base has advanced and a ruleset requires branches be up to date:
-  **IMPROVE**, `fix-now`, and say in the description that it needs a human.
-  This repository sets no such ruleset (ADR-0126), and execute merges the base
-  only on `CONFLICTING` or file overlap (PAD-18-004), so execute records it
-  `skipped` rather than merging to clear it; `pr-verify` still blocks on it
-  (PAD-18-005).
+  **IMPROVE**, `fix-now` (execute's sync merges the base to clear it,
+  PAD-18-004). This repository sets no such ruleset today (ADR-0126), so say
+  in the description that the premise changed; `pr-verify` still blocks on a
+  live `BEHIND` (PAD-18-005).
 - `DIRTY` — treat exactly like `CONFLICTING` above, even if `mergeable`
   disagrees; the two fields are computed separately and `DIRTY` is the stronger
   signal

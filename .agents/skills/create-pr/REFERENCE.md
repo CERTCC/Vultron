@@ -2,8 +2,9 @@
 
 ## Conflict PR template
 
-Use when Phase 2 rebase aborts with unresolvable conflicts. Push the un-rebased
-branch as-is, then open a draft PR with this body template:
+Use when the Phase 2 freshen (cherry-pick onto `origin/main`) aborts with
+unresolvable conflicts. After Phase 3 passes, push the un-freshened branch
+as-is, then open a draft PR with this body template:
 
 ```bash
 gh pr create --repo CERTCC/Vultron \
@@ -13,7 +14,7 @@ gh pr create --repo CERTCC/Vultron \
   --body "<!-- needs-rebase -->
 > ⚠️ **This PR requires manual conflict resolution before it can be merged.**
 >
-> The \`create-pr\` skill attempted an automatic rebase on \`origin/main\`
+> The \`create-pr\` skill tried to freshen this branch onto \`origin/main\`
 > but encountered conflicts it could not resolve:
 >
 > **Conflicting files:**

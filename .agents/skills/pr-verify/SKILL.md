@@ -71,7 +71,7 @@ comment.
    similar): a branch behind its base that neither conflicts nor overlaps is
    conflict-free, and execute was right not to merge (PAD-18-005). Whether
    being behind blocks the merge is GitHub's call, read in Phase 2 as
-   `BEHIND`.
+   `BEHIND`, which execute clears by merging.
 
 ### Phase 2 — Merge State Gate
 
@@ -96,8 +96,9 @@ cannot be ready to merge no matter what those checks find.
    - `DIRTY` → flag `MERGE-CONFLICT` even if `mergeable` says `MERGEABLE`
    - `BEHIND` → flag `BRANCH-BEHIND`; blocks `READY-TO-MERGE`. GitHub reports
      it only when a ruleset requires up-to-date branches, which this
-     repository does not set (ADR-0126); seeing it means that premise changed,
-     so name it in the comment as needing a human decision.
+     repository does not set (ADR-0126). `pr-execute` merges the base when it
+     sees `BEHIND` (PAD-18-004), so a live `BEHIND` here means the base moved
+     again after execute's last check: re-run `/pr-execute`, which clears it.
    - `DRAFT` → flag `PR-IS-DRAFT`; blocks `READY-TO-MERGE`. Report whether the
      `needs-rebase` label is still attached.
    - `BLOCKED` → note it in the comment (missing required review, etc.). This

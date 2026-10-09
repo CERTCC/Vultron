@@ -393,9 +393,9 @@ the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
    issue_number: <N>        # the first bundle member
    ```
 
-   `create-pr` performs the rebase on `origin/main`, validates, pushes, and
-   returns the PR URL. Use the returned URL in the `archive-history` call
-   below.
+   `create-pr` freshens the branch onto `origin/main` (cherry-pick),
+   validates, pushes, and returns the PR URL. Use the returned URL in the
+   `archive-history` call below.
 
 3. Invoke `check-docs-sync` while CI runs in the cloud. Apply any small docs
    updates inline and commit them before finalizing:

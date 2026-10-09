@@ -185,10 +185,11 @@ entry vs. both.
 
 1. `run-linters` — ruff (lint + format), mypy and pyright must all pass.
    Supersedes `format-code`, so run it alone — no separate `format-code` step.
-2. `run-tests` — **before a PR's first push only**, once, in `create-pr`: unit
-   and integration suites; read the `exit:` line (PAD-18-001, PAD-18-008). After
-   the first push, a fix commit is gated by the linters plus the targeted set
-   from `targeted-tests`, which escalates to `-m ""` itself (PAD-18-002/003).
+2. `run-tests` — **before a PR's first push only**, once per tree state, in
+   `create-pr`: unit and integration suites; read the `exit:` line
+   (PAD-18-001, PAD-18-008). After the first push, a fix commit is gated by the
+   linters plus the targeted set from `targeted-tests`, which escalates to
+   `-m ""` itself (PAD-18-002/003).
 3. `build-docs` if `docs/` modified; `check-docs-sync` runs regardless (PD-03-008)
 4. `commit` skill — include Co-authored-by trailer
 

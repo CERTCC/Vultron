@@ -216,7 +216,7 @@ by GitHub, so check both.
 |---|---|---|
 | `CLEAN` | Mergeable, checks green | none |
 | `UNSTABLE` | Mergeable, but a non-required check is failing/pending | none — Phase 11 owns CI |
-| `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0126) | **IMPROVE** (needs a human; execute does not merge for it, PAD-18-004) |
+| `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0126) | **IMPROVE** (`fix-now`: execute merges the base to clear it, PAD-18-004) |
 | `DIRTY` | Conflicts — authoritative even if `mergeable` says otherwise | **FAIL** |
 | `BLOCKED` | Missing required review or failing required check | **IMPROVE** (note the cause; not fixable by execute) |
 | `DRAFT` | PR is a draft and cannot merge | **IMPROVE** |

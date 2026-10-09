@@ -205,10 +205,10 @@ cannot see a claim that was never pushed; #3714 widens it to every prefix.
 ```text
 Pushed PR (pr-execute Phase 5 Step 2, and work-epic-tasks after each merge):
   1. git fetch origin <base>
-     merge-state.sh <pr>                       → CONFLICTING?
+     merge-state.sh <pr>                       → CONFLICTING or BEHIND?
      targeted-tests --base origin/<base> --overlap → shared files?
-     ├── neither → do nothing; being behind the base is fine (PAD-18-004)
-     └── either  → sync-with-main.sh <base>  (merge, never rebase: PAD-11-001)
+     ├── none → do nothing; being behind the base is fine (PAD-18-004)
+     └── any  → sync-with-main.sh <base>  (merge, never rebase: PAD-11-001)
            ├── merges, or conflicts resolved
            │     → targeted gate on the post-merge diff
            │     → git push (never --force: PAD-11-002); CI re-runs
@@ -220,10 +220,10 @@ Pushed PR (pr-execute Phase 5 Step 2, and work-epic-tasks after each merge):
 ```
 
 The overlap check is the proactive detection: the base is merged only when it
-touched a file the PR also changes, or GitHub reports a conflict. A semantic
-conflict between files neither side shares is not detected before merge; CI on
-`main` catches it afterwards, and a merge queue (#1863) is the escalation if
-that proves frequent (ADR-0126). Before the first push, `create-pr` still
+touched a file the PR also changes, or GitHub reports a conflict or `BEHIND`.
+A semantic conflict between files neither side shares is not detected before
+merge; CI on `main` catches it afterwards, and a merge queue (#1863) is the
+escalation if that proves frequent (ADR-0126). Before the first push, `create-pr` still
 freshens by cherry-picking onto a fresh base (`freshen-branch.sh`): nothing is
 published yet, so there is nothing to rewrite.
 

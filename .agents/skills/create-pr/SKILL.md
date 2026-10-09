@@ -207,7 +207,7 @@ bash .agents/skills/shared/freshen-branch.sh
 | Code | Meaning | Action |
 |------|---------|--------|
 | `0`  | Branch freshened (or already current) | Proceed to Phase 3 |
-| `1`  | Cherry-pick conflict | Open draft PR with `needs-rebase` label (see Phase 4) |
+| `1`  | Cherry-pick conflict | Run Phase 3, then open a draft PR with `needs-rebase` label (see Phase 4) |
 | `2`  | Unexpected error | Stop and investigate |
 
 ---
@@ -270,9 +270,12 @@ URL — token included — as the branch's remote in `.git/config` (#3893).
 
 ### Draft-with-conflict path (unresolvable conflicts)
 
-If Phase 2 exited with code `1` (cherry-pick conflict): push the un-freshened
-branch as-is with the same `git push -u origin HEAD`, then open a draft PR with
-`needs-rebase` label per [REFERENCE.md](REFERENCE.md) § "Conflict PR template".
+If Phase 2 exited with code `1` (cherry-pick conflict): run Phase 3 on the
+un-freshened branch first — the first-push gate applies to this push too
+(PAD-18-001), and no other skill runs the suites before it (PAD-18-008). Then
+push the branch as-is with the same `git push -u origin HEAD`, and open a draft
+PR with `needs-rebase` label per [REFERENCE.md](REFERENCE.md) § "Conflict PR
+template".
 
 ---
 

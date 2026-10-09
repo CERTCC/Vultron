@@ -166,8 +166,8 @@ Stop and surface to the user if:
 - A merge conflict whose correct resolution is genuinely unclear (see
   § "Conflict Resolution Rules") — abort the merge, do not guess
 - `merge-state.sh` still reports `CONFLICTING` after a resolution was pushed
-- `git push` is rejected as non-fast-forward after a merge, implying someone
-  rewrote the remote branch
+- `git push` is rejected as non-fast-forward, meaning another push landed on
+  the PR branch or someone rewrote it — never force-push to get past it
 
 Report the state with linked Bug issue evidence, structured blockers, and
 explicit blocked/unblocked status.
@@ -179,10 +179,12 @@ explicit blocked/unblocked status.
 ### When sync runs, and why it runs late
 
 The base is merged in Phase 5 (CI loop, Step 2) **only** when GitHub reports the
-PR `CONFLICTING` or `targeted-tests --overlap` finds files both the base and the
-PR changed since the merge base (PAD-18-004). Otherwise the branch is left
-behind its base: CI already tests the PR merged into its base on every push,
-and no repository rule requires up-to-date branches (ADR-0126).
+PR `CONFLICTING` or `BEHIND`, or `targeted-tests --overlap` finds files both the
+base and the PR changed since the merge base (PAD-18-004). Otherwise the branch
+is left behind its base: CI already tests the PR merged into its base on every
+push, and no repository rule requires up-to-date branches (ADR-0126). `BEHIND`
+appears only if a ruleset starts requiring them; merging is then the only way
+GitHub will accept the PR.
 
 The check runs after all fixes, before the local gate. Three reasons:
 
@@ -192,10 +194,13 @@ The check runs after all fixes, before the local gate. Three reasons:
 2. **The base branch moves during the run.** Triage's merge state is stale by the
    time execute finishes; another PR can land mid-pipeline.
 3. **The gate must be derived from the merged tree.** When a merge happens, the
-   targeted set is derived from the post-merge branch diff, which then covers
-   the overlapping and conflicted files. A semantic conflict between files
-   neither side shares is not caught here; CI on `main` catches it after merge,
-   and closing that gap is a merge queue's job (#1863).
+   targeted set is derived from the post-merge branch diff: the PR's own
+   changes, including its edits to the overlapping files and any
+   conflict-resolution edits. Tests for what the base alone changed in those
+   files are not selected; CI on the push runs them against the merged tree.
+   A semantic conflict between files neither side shares is not caught here
+   either; CI on `main` catches it after merge, and closing that gap is a
+   merge queue's job (#1863).
 
 ### Merge, do not rewrite
 
@@ -310,14 +315,14 @@ File: `.claude/pr-{number}-execute.json`
   "integration_tests_run": true,
   "final_ci_status": "passing",  // "passing" | "failing" | "timeout"
   "suite_runs": {
-    "full": 2,          // includes create-pr's first-push run
+    "full": 2,          // includes create-pr's first-push run, when it ran
     "targeted": 1
   },
   "merge_state": {
     "base_ref": "main",
     "conflict_free": true,
     "merge_required": true,
-    "merge_reason": "overlap",  // "conflicting" | "overlap" | null
+    "merge_reason": "overlap",  // "conflicting" | "behind" | "overlap" | null
     "overlap_paths": ["vultron/core/models/case/case.py", "uv.lock"],
     "sync_commit_ref": "def5678",
     "conflicts_resolved": ["vultron/core/models/case/case.py", "uv.lock"],
@@ -398,8 +403,8 @@ diverge (indicating execute was interrupted before completion).
 |---|---|
 | `base_ref` | Branch checked against — copied from `pr_metadata.base_ref`, not assumed to be `main` |
 | `conflict_free` | `true` if, at the end of Phase 5, the branch has no unresolved conflict with the base: no merge was required, or the required merge completed with no markers left |
-| `merge_required` | `true` if Phase 5 Step 2 called for a merge in any iteration (PAD-18-004); `false` if every check found neither `CONFLICTING` nor overlap |
-| `merge_reason` | `"conflicting"`, `"overlap"`, or `null` when `merge_required` is `false` |
+| `merge_required` | `true` if Phase 5 Step 2 called for a merge in any iteration (PAD-18-004); `false` if every check found none of `CONFLICTING`, `BEHIND`, or overlap |
+| `merge_reason` | `"conflicting"`, `"behind"`, `"overlap"`, or `null` when `merge_required` is `false` |
 | `overlap_paths` | Paths `targeted-tests --overlap` listed; `[]` when none |
 | `sync_commit_ref` | Merge commit SHA, or `null` when no merge was required. When a required merge finds the branch already contains the base (`sync-with-main.sh` exit `0` with nothing merged), record `HEAD`'s SHA: the merge was satisfied |
 | `conflicts_resolved` | Paths that had conflict markers; `[]` for a clean merge or no merge |
@@ -412,7 +417,7 @@ diverge (indicating execute was interrupted before completion).
 `sync_commit_ref` as `UNSYNCED-EXECUTE` — an execute run that never established
 the PR was conflict-free cannot produce a READY-TO-MERGE verdict. Containing the
 base tip is **not** required (PAD-18-005): a branch that is behind but neither
-conflicts nor overlaps is conflict-free.
+conflicts, overlaps, nor is reported `BEHIND` by GitHub is conflict-free.
 
 `integration_tests_run` is `true` when any gate run in Phase 5 was the full
 suite (`pytest -m ""`), which includes the integration-marked tests.
@@ -421,7 +426,7 @@ suite (`pytest -m ""`), which includes the integration-marked tests.
 
 | Field | Meaning |
 |---|---|
-| `full` | Full-suite local runs this PR has cost, **starting at one** for `create-pr`'s first-push run (PAD-18-001, PAD-18-006) |
+| `full` | Full-suite local runs this PR has cost, including `create-pr`'s first-push run **only when it ran** (PAD-18-001, PAD-18-006) |
 | `targeted` | Targeted-set gate runs this PR has cost |
 
 Derivation, so the count is cumulative across every execute run on the PR:
@@ -429,9 +434,13 @@ Derivation, so the count is cumulative across every execute run on the PR:
 1. Find the most recent `Suite runs: <N> full, <M> targeted` line in an earlier
    execute comment on this PR (PR reviews and comments; take the latest).
 2. If there is one, start from its `N` and `M` — it already counts the
-   first-push run. If there is none, start from `full = 1, targeted = 0`: the
-   one is `create-pr`'s first-push run, which happened before any execute
-   artifact existed.
+   first-push run, if any. If there is none, count only the runs that
+   happened: start from `full = 1, targeted = 0` when `create-pr` ran the full
+   suites before the first push (an implementation PR that changes Python, on
+   the happy path), and from `full = 0, targeted = 0` when it ran none — a
+   docs-only PR gated by the linters alone (PAD-18-001). Decide from the PR
+   body's `## Verification` section and the changed files: a PR whose diff
+   changes no Python ran no first-push suite.
 3. Add each Phase 5 Step 3 gate run of this execute run: one to `full` per
    full-suite run, one to `targeted` per targeted run.
 
@@ -466,7 +475,7 @@ commits.
 **Halted (inversion, awaiting you)**: <H>
 **Tests run**: targeted set / full suite (`-m ""`)
 **CI status**: ✅ passing / ❌ failing / ⏳ timed out
-**Base sync**: ✅ merged `<base_ref>` @ `def5678` (<conflicting / overlap>) — <N> conflicts resolved / ✅ not needed — no conflict, no overlap / ❌ conflicts unresolved
+**Base sync**: ✅ merged `<base_ref>` @ `def5678` (<conflicting / behind / overlap>) — <N> conflicts resolved / ✅ not needed — no conflict, not behind, no overlap / ❌ conflicts unresolved
 **Docs line**: `<docs_refresh.docs_line>` — <N> pages updated by execute
 
 Suite runs: <suite_runs.full> full, <suite_runs.targeted> targeted

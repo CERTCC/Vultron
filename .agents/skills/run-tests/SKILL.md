@@ -44,8 +44,9 @@ starting workers costs more than it saves.
 
 ## Pre-PR Validation (create-pr only)
 
-The full local gate runs **exactly once**, before a Pull Request's first push,
-in `create-pr` Phase 3 (PAD-18-001, PAD-18-008). A skill that hands off to
+The full local gate runs **exactly once per tree state**, before a Pull
+Request's first push, in `create-pr` Phase 3 (PAD-18-001, PAD-18-008): it is
+re-run only after a fix changes the tree. A skill that hands off to
 `create-pr` runs the linters and does not run these suites itself; it may run
 the specific test files it is writing or changing while it works. The gate is
 both suites:
@@ -59,7 +60,8 @@ The first command covers the unit suite (integration tests excluded by
 `addopts = "-m 'not integration'"`). The second explicitly runs the
 integration suite. Both must pass; a branch that only breaks integration
 tests must not reach a non-draft PR. A PR that changes no Python is gated by
-the linters alone.
+the linters alone, and its `Suite runs:` full count starts at zero
+(PAD-18-006).
 
 ## After the First Push (targeted gate)
 
@@ -68,7 +70,7 @@ fix commit is gated by the linters plus the **targeted set** for the branch
 diff (PAD-18-002), not by the full suite:
 
 ```bash
-git fetch origin <base>
+git fetch origin <base> || { echo "fetch failed — stop and report"; false; }
 gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
 [ "$rc" -eq 0 ] && { eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; }; echo "exit: $rc"; (exit $rc)
 ```
