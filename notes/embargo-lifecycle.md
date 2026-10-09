@@ -540,7 +540,8 @@ Two rules follow for any new proposal-selection code:
 - **A Reject names the active embargo or an open proposal — nothing else.**
   `reject_embargo_invite` and `record_embargo_rejection` classify the named
   embargo before the owner's decision changes its entry: the active one is consent
-  withdrawal, an open proposal is a refusal of those terms, and anything else
+  withdrawal (moving to `Leave(EmbargoEvent)`, MSM-07-008, #4388), an open
+  proposal is a refusal of those terms, and anything else
   raises `VultronValidationError` (a protocol error, not a consent change;
   ADR-0093). Test seeding that hands the service an embargo the case has never
   seen is therefore a test bug, not a lenient path.

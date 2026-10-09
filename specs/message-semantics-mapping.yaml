@@ -817,10 +817,10 @@ groups:
       any participant's consent rows, the owner's included;
       (2) for any rejecting participant it MUST apply the PEC DECLINE trigger to the
       participant's row for the rejected embargo (valid from no row, INVITED, ACCEPTED or
-      EXPIRED). Rejecting the case's *active* embargo is consent withdrawal and MUST also
-      decline every open proposal's row the participant had ACCEPTED — every open proposal is
-      a revision of the embargo withdrawn from (EP-08-004), and a DECLINED participant MUST
-      NOT hold an ACCEPTED row for an embargo that can become active without re-invitation.
+      EXPIRED), except that a Reject of the case's *active* embargo from an ACCEPTED row
+      is not consent withdrawal and MUST be refused with a reported reason: withdrawal is
+      `Leave(EmbargoEvent)` (MSM-07-008). A Reject of the active embargo from any other row
+      refuses the terms in force and declines that row only.
       Rejecting a *proposed* embargo that is not active declines that embargo's row only and
       MUST leave the participant's row for the active embargo unchanged — a signatory's
       rejection of a proposed revision refuses those terms; it is not withdrawal from the
@@ -831,8 +831,10 @@ groups:
       Symmetric with MSM-07-003: the reject wire activity drives both the embargo
       register (case-owner path) and the PEC rows (rejecting participant path). The PEC
       DECLINE trigger is valid directly from no row for symmetric reasons to
-      ACCEPT (ADR-0048, ADR-0091, CM-18-003), and from ACCEPTED as first-class
-      consent withdrawal (ADR-0093, VP-13-007, VP-13-008). Consent is per embargo,
+      ACCEPT (ADR-0048, ADR-0091, CM-18-003). Accept and Reject answer an Invite;
+      leaving an embargo one is bound by is a different act with its own activity
+      (MSM-07-008, ADR-0122), so a Reject never has to be read against the case's
+      state to tell a refusal from a withdrawal. Consent is per embargo,
       so a signatory who refuses proposed terms is still bound by, and still
       consents to, the embargo that remains active; only the case owner decides
       whether the proposal replaces it. The owner's own EJ is a decision to keep
@@ -841,9 +843,9 @@ groups:
       Inspection of vultron/core/use_cases/received/embargo/reject.py and
       vultron/core/services/embargo_lifecycle/answers.py confirms
       RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle, which
-      declines the rejecting actor's row for the rejected embargo, declines its accepted
-      open proposals only when the rejected embargo is the active one, and records no
-      consent change for an owner's EJ.
+      declines the rejecting actor's row for the rejected embargo, refuses a Reject of the
+      active embargo from an ACCEPTED row, and records no consent change for an owner's
+      EJ.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
@@ -960,3 +962,36 @@ groups:
       spec_id: CM-28-005
     adr:
     - ADR-0093
+  - id: MSM-07-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The wire activity `Leave(EmbargoEvent)[context=VulnerabilityCase]` is a
+      participant's withdrawal of its consent to the case's *active* embargo. For a
+      sender whose row for that embargo is ACCEPTED, the receiver MUST apply the PEC
+      DECLINE trigger to that row and MUST also decline every open proposal's row the
+      sender had ACCEPTED: every open proposal is a revision of the embargo withdrawn
+      from (EP-08-004), and a DECLINED participant MUST NOT hold an ACCEPTED row for an
+      embargo that can become active without re-invitation. The receiver MUST refuse
+      with a reported reason a Leave whose embargo is not the active one, whose sender's
+      row for it is not ACCEPTED, or whose sender is the case owner, which ends an
+      embargo by terminating it (CM-02-005). A Leave changes no register entry.
+    rationale: >-
+      Accept and Reject answer an Invite; leaving an embargo one is bound by is a
+      different act, as `Leave(VulnerabilityCase)` is for leaving the case. A dedicated
+      activity covers every signatory, including those made signatories with no Invite
+      (CM-14-005, CM-11-001), and keeps a Reject from meaning refusal or withdrawal by
+      the state of the case. The rejected alternatives are recorded in ADR-0122.
+    verification: >-
+      Inspection of the received-side handler for `Leave(EmbargoEvent)` confirms it
+      declines the sender's ACCEPTED row for the active embargo and its accepted open
+      proposals, refuses the three cases named in the statement with a reported reason,
+      and changes no register entry.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: VP-13-017
+    adr:
+    - ADR-0093
+    - ADR-0122
