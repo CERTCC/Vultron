@@ -5,6 +5,7 @@ Unit tests for AS2JSONResponse.
 HTTP-09-002: Route handlers returning AS2 objects MUST use AS2JSONResponse.
 HTTP-09-003: Correct Content-Type and serialization behaviour.
 HTTP-08-001: Subclass fields must NOT be stripped (regression test).
+ARCH-20-006: Only an AS2 class (``as_Base`` or ``CoreObject``) is serialized.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -22,10 +23,14 @@ HTTP-08-001: Subclass fields must NOT be stripped (regression test).
 
 import json
 
+import pytest
+
 from vultron.adapters.driving.fastapi.responses import (
     AS2_CONTENT_TYPE,
     AS2JSONResponse,
 )
+from vultron.core.models.actor import VultronPerson
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -116,6 +121,41 @@ def test_non_as2_content_passthrough():
 
     assert body == data
     assert response.media_type == AS2_CONTENT_TYPE
+
+
+def test_core_object_renders_as_its_own_as2_form():
+    """A ``CoreObject`` is its own AS2 class, so it serializes as one.
+
+    ARCH-20-006: under ADR-0099 detail 3 there is no separate ``as_*`` class
+    for a domain type, so an HTTP route serves the core object's own
+    ``by_alias`` dump.
+    """
+    actor = VultronPerson(name="Finder")
+    body = json.loads(bytes(AS2JSONResponse(actor).body))
+
+    assert body["type"] == "Person"
+    assert body["id"] == actor.id_
+    assert "@context" in body
+    assert "id_" not in body
+    assert "type_" not in body
+
+
+def test_model_with_no_as2_form_is_refused():
+    """A model that is neither ``as_Base`` nor ``CoreObject`` is refused.
+
+    ARCH-20-006: a driving adapter MUST NOT synthesise an AS2 document by
+    dumping a model that has no AS2 shape. ``VultronOfferRecord`` is a bare
+    ``CoreRecord``: by-alias dumping it would emit snake_case bookkeeping keys
+    with no ``@context`` under an ``application/activity+json`` content type.
+    """
+    record = VultronOfferRecord(
+        offer_id="urn:uuid:offer-1",
+        offer_actor_id="urn:uuid:actor-1",
+        report_id="urn:uuid:report-1",
+    )
+
+    with pytest.raises(TypeError, match="VultronOfferRecord"):
+        AS2JSONResponse(record)
 
 
 def test_status_code_default():

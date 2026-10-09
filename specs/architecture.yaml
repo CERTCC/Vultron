@@ -979,34 +979,41 @@ groups:
     adr:
     - ADR-0063
   - id: ARCH-20-006
-    note: >-
-      The `as_*` mechanism named here is unavailable for promoted types: ADR-0099
-      detail 3 deletes those classes, so "render the response from the
-      corresponding `as_*` wire class" cannot be satisfied for a core type that no
-      longer has one.
-
-      The prohibition survives and is what still binds: a driving adapter MUST NOT
-      synthesise an AS2 document by dumping an arbitrary core class. Routing
-      through the ARCH-20 port is how that is honoured, and the port fails closed
-      on anything that is not a `CoreObject` — the class that carries the alias
-      generator and the `@context` serializer, and which
-      `test_promoted_core_classes_are_exactly_as2_representable` holds to a
-      complete set of AS2 spellings.
     priority: MUST
     kind: project
-    statement: Driving adapters that serve AS2 documents over HTTP (e.g. `GET /actors/{id}`) MUST render the response from
-      the corresponding `as_*` wire class. They MUST NOT dump a core-branch class with `by_alias=True` to synthesise an AS2
-      document.
-    rationale: The actor routes relied on the core actor classes' `alias_generator` to shape their external AS2 output, which
-      is why removing that generator has an externally-visible blast radius. Routing through `as_*` classes makes the external
-      contract depend on the wire layer that defines it.
-    verification: The actor router constructs responses via wire vocabulary classes; no `by_alias=True` dump of a `CoreObject`
-      subclass appears in `vultron/adapters/driving/`.
+    statement: >-
+      Driving adapters that serve an AS2 document over HTTP (an
+      `application/activity+json` response, e.g. `GET /actors/{id}`) MUST serialise it
+      from an AS2 class: a `CoreObject` subclass, which is its own wire form (ADR-0099
+      detail 3), or an `as_Base` wire vocabulary class. They MUST NOT synthesise an AS2
+      document by dumping any other model with `by_alias=True`, a bare `CoreRecord`
+      included.
+    rationale: >-
+      A domain type has one class, so the AS2 form of a core actor or case is that
+      class's own `by_alias` dump; there is no separate `as_*` class to route through.
+      What still varies is whether a model has an AS2 shape at all. A `CoreObject`
+      inherits the `alias_generator` and the `@context` serializer, and
+      `test_promoted_core_classes_are_exactly_as2_representable` holds every subclass to
+      a complete set of AS2 spellings. A bare `CoreRecord` such as `VultronOfferRecord`
+      inherits neither, so dumping it by alias emits snake_case bookkeeping keys with no
+      `@context` under an AS2 content type, which a peer cannot read. This is the HTTP
+      edge's counterpart of the rendering port's `CoreObject` gate (ARCH-20-003).
+    verification: >-
+      `test_core_object_renders_as_its_own_as2_form` and
+      `test_model_with_no_as2_form_is_refused` in
+      `test/adapters/driving/fastapi/test_responses.py` assert that `AS2JSONResponse`
+      serialises a `CoreObject` as its own AS2 form and raises for a bare `CoreRecord`.
+      A route that passes `AS2JSONResponse` an already-dumped dict bypasses that gate,
+      so inspection confirms each such dict in `vultron/adapters/driving/` is the dump
+      of a `CoreObject` or `as_Base` instance.
     relationships:
     - rel_type: refines
       spec_id: ARCH-20-001
+    - rel_type: refines
+      spec_id: ARCH-20-003
     adr:
     - ADR-0063
+    - ADR-0099
   - id: ARCH-20-007
     priority: MUST_NOT
     kind: project
@@ -1268,7 +1275,7 @@ groups:
     - ADR-0082
     - ADR-0099
 - id: ARCH-23
-  title: Core↔Wire Pairing Registry and Translator
+  title: Core↔Wire Vocabulary and Round-Trip Invariants
   specs:
   - id: ARCH-23-002
     priority: MUST
