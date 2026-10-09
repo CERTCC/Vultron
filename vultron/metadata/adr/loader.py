@@ -172,12 +172,15 @@ def _resolve_pointers(
 
 
 def _one_sided_links(resolved: _Resolved) -> list[str]:
-    """Return one fault per supersession link recorded on only one ADR."""
-    key_by_number = {
-        number: key
-        for key in resolved
-        if (number := adr_number(Path(key))) is not None
-    }
+    """Return one fault per supersession link recorded on only one ADR.
+
+    A link that names its own ADR, or a number more than one file claims, is a
+    fault too: neither can be checked two-way.
+    """
+    keys_by_number: dict[str, list[str]] = {}
+    for key in resolved:
+        if (number := adr_number(Path(key))) is not None:
+            keys_by_number.setdefault(number, []).append(key)
     faults: list[str] = []
     for key, fields in resolved.items():
         number = adr_number(Path(key))
@@ -185,11 +188,23 @@ def _one_sided_links(resolved: _Resolved) -> list[str]:
             twin = _TWIN_FIELD[field]
             for target_number in sorted(targets):
                 # Resolution only succeeds on a numbered file the discovery
-                # glob also loads, so the lookup cannot miss. Two files sharing
-                # a number keep only the last here; duplicate_numbers() in
-                # index_gen (adr-index --check) is what refuses that case.
-                target_key = key_by_number[target_number]
-                if number not in resolved[target_key][twin]:
+                # glob also loads, so the lookup cannot miss.
+                claimants = keys_by_number[target_number]
+                if len(claimants) > 1:
+                    faults.append(
+                        f"{key}: {field} names ADR-{target_number}, which "
+                        f"{len(claimants)} files claim ({', '.join(claimants)})"
+                        " — renumber the unlanded ADR so the link has one"
+                        " target"
+                    )
+                    continue
+                target_key = claimants[0]
+                if target_key == key:
+                    faults.append(
+                        f"{key}: {field} names the ADR itself — a link joins"
+                        " two different ADRs (MS-14-011)"
+                    )
+                elif number not in resolved[target_key][twin]:
                     faults.append(
                         f"{key}: {field} names {target_key}, but "
                         f"{target_key} has no {twin} entry naming {key} "

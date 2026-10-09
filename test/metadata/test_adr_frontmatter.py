@@ -467,3 +467,26 @@ class TestTwoWaySupersession:
         (adr_dir / "0002-notes.txt").write_text("not an ADR\n")
         with pytest.raises(ValueError, match=r"supersedes '0002-notes\.txt'"):
             load_adr_registry(tmp_path)
+
+    def test_self_link_fails(self, tmp_path, adr_dir):
+        """A link joins two ADRs; one naming itself is not two-way."""
+        _adr(
+            adr_dir,
+            "0001-a.md",
+            partially_superseded_by="0001-a.md",
+            partially_supersedes="0001-a.md",
+        )
+        with pytest.raises(ValueError, match="names the ADR itself"):
+            load_adr_registry(tmp_path)
+
+    def test_link_to_a_shared_number_fails(self, tmp_path, adr_dir):
+        """A number two files claim is no single target to check against."""
+        _adr(adr_dir, "0001-a.md", partially_superseded_by="0002-new.md")
+        _adr(adr_dir, "0002-new.md", partially_supersedes="0001-a.md")
+        _adr(adr_dir / "archived", "0001-z.md")
+        with pytest.raises(ValueError) as exc:
+            load_adr_registry(tmp_path)
+        message = str(exc.value)
+        assert "0002-new.md: partially_supersedes names ADR-0001" in message
+        assert "2 files claim" in message
+        assert "archived/0001-z.md" in message
