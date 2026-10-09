@@ -1004,12 +1004,15 @@ groups:
       `test_model_with_no_as2_form_is_refused` in
       `test/adapters/driving/fastapi/test_responses.py` assert that `AS2JSONResponse`
       serialises a `CoreObject` as its own AS2 form and raises for a bare `CoreRecord`.
-      A route that passes `AS2JSONResponse` an already-dumped dict bypasses that gate,
-      so inspection confirms each such dict in `vultron/adapters/driving/` is the dump
-      of a `CoreObject` or `as_Base` instance. A route that returns a plain dict without
-      `AS2JSONResponse` (the `get_object` fallback in `routers/datalayer.py`, the demo
-      ledger routes) serves `application/json`, not an AS2 document, and is outside
-      this requirement.
+      A route that passes `AS2JSONResponse` an already-dumped dict or list bypasses that
+      gate, so inspection confirms that each such body in `vultron/adapters/driving/`,
+      and each value or element of a keyed dict or list of objects, is the dump of a
+      `CoreObject` or `as_Base` instance.
+      `test_datalayer_contents_is_plain_json_not_as2` holds the whole-store dump, whose
+      contents include bare `CoreRecord` rows, to `application/json`. A route that returns a plain dict without `AS2JSONResponse`
+      (for example the `get_object` and `get_object_by_key` fallbacks and
+      `get_objects` in `routers/datalayer.py`, or the demo ledger routes) serves
+      `application/json`, not an AS2 document, and is outside this requirement.
     relationships:
     - rel_type: refines
       spec_id: ARCH-20-001
