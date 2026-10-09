@@ -248,3 +248,15 @@ class TestIdempotency:
         participant = _participant(scenario)
         assert participant.rm_closed
         assert participant.case_roles == [CVDRole.FINDER]
+
+    def test_joined_closed_participant_is_left_unchanged(
+        self, scenario: BTTestScenario
+    ) -> None:
+        """A joined participant that later closed is skipped, not refused."""
+        _seed_existing(scenario, joined=True, rm=RM.CLOSED)
+
+        scenario.assert_success(_run(scenario, ["VENDOR"]))
+
+        participant = _participant(scenario)
+        assert participant.joined is True
+        assert participant.case_roles == [CVDRole.FINDER]

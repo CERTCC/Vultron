@@ -177,11 +177,10 @@ class CreateInertInviteeParticipantNode(
         on a record that is already there.  Returns ``None`` when the invitee
         has no record and must be seated.
 
-        - Joined: never re-seated (SUCCESS).
-        - At ``RM.CLOSED``: terminal, no rejoin — refused (FAILURE,
-          CM-11-015, ADR-0085).
-        - Inert, not closed: the re-invite keeps the same record (CM-11-015),
-          so the record is left unchanged (SUCCESS).
+        A joined record is never re-seated.  An inert record at ``RM.CLOSED``
+        (a declined invitee) is terminal and refused (FAILURE, CM-11-015,
+        ADR-0085); any other inert record is kept, since a re-invite keeps
+        the same record (CM-11-015).  Both are left unchanged.
         """
         assert self.datalayer is not None
         existing_id = case.actor_participant_index.get(self.invitee_id)
@@ -190,32 +189,19 @@ class CreateInertInviteeParticipantNode(
         existing = self.datalayer.read(existing_id)
         if not isinstance(existing, CaseParticipant):
             return None
-        if existing.joined:
-            self.logger.info(
-                "%s: invitee '%s' already joined case '%s' — skip inert creation",
-                self.name,
-                self.invitee_id,
-                self.case_id,
-            )
-            return Status.SUCCESS
-        if existing.rm_closed:
+        if existing.rm_closed and not existing.joined:
             self.feedback_message = (
                 f"{self.name}: invitee '{self.invitee_id}' is at RM.CLOSED in"
                 f" case '{self.case_id}' — no rejoin (CM-11-015)"
             )
-            self.logger.warning(
-                "%s: invitee '%s' is at RM.CLOSED in case '%s' — refusing"
-                " to re-seat (CM-11-015)",
-                self.name,
-                self.invitee_id,
-                self.case_id,
-            )
+            self.logger.warning("%s", self.feedback_message)
             return Status.FAILURE
         self.logger.info(
-            "%s: invitee '%s' already has inert record '%s' in case '%s'"
-            " — kept unchanged (CM-11-015)",
+            "%s: invitee '%s' already has %s record '%s' in case '%s'"
+            " — kept unchanged",
             self.name,
             self.invitee_id,
+            "a joined" if existing.joined else "an inert",
             existing_id,
             self.case_id,
         )
@@ -285,8 +271,7 @@ class CreateInertInviteeParticipantNode(
         )
         if updated_case is None:
             self.feedback_message = (
-                f"{self.name}: case '{self.case_id}' vanished before the"
-                f" invitee '{self.invitee_id}' could be attached"
+                f"{self.name}: case '{self.case_id}' vanished"
             )
             return Status.FAILURE
         self.datalayer.save(updated_case)
