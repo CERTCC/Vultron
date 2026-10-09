@@ -17,7 +17,10 @@ Vultron API v2 Application
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+import threading
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, Path, Request
@@ -29,6 +32,10 @@ from vultron.adapters.driving.fastapi.deps import get_actor_dl, node_base_url
 from vultron.adapters.driving.fastapi.inbox_handler import (
     init_dispatcher,
     make_dispatcher,
+)
+from vultron.adapters.driving.fastapi.ledger_stream import (
+    SHUTDOWN_STATE_KEY,
+    install_shutdown_signal_hook,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import (
     configure_default_emitter,
@@ -178,9 +185,17 @@ def _make_lifespan(*, configure_globals: bool = True):
     """
 
     @asynccontextmanager
-    async def _lifespan(application: FastAPI):
+    async def _lifespan(application: FastAPI) -> AsyncIterator[dict[str, Any]]:
         if configure_globals:
             configure_logging()
+
+        # Open demo ledger streams end on this event (ADR-0104).  It reaches
+        # routes as lifespan state, which — unlike ``application.state`` —
+        # also reaches a sub-application mounted under this one (main.py).
+        ledger_stream_shutdown = threading.Event()
+        undo_shutdown_hook = install_shutdown_signal_hook(
+            ledger_stream_shutdown
+        )
 
         if configure_globals:
             init_dispatcher()
@@ -212,7 +227,10 @@ def _make_lifespan(*, configure_globals: bool = True):
             # runs once per case, so nothing else would re-send it.
             retry_pending_creation_time_revision_relays()
 
-        yield
+        yield {SHUTDOWN_STATE_KEY: ledger_stream_shutdown}
+
+        ledger_stream_shutdown.set()
+        undo_shutdown_hook()
 
         if monitor is not None:
             monitor.stop()

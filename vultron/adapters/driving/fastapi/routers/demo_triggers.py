@@ -32,25 +32,36 @@ Spec: TRIG-08-004, TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 """
 
 import json
+import threading
 from typing import Any
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
+    Header,
     HTTPException,
     Path,
     Query,
     Request,
     status,
 )
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from vultron.adapters.driving.fastapi.deps import (
+    get_ledger_stream_shutdown,
     get_trigger_dispatcher,
     get_trigger_dl,
 )
+from vultron.adapters.driving.fastapi.ledger_stream import (
+    EVENT_STREAM_MEDIA_TYPE,
+    case_ledger_entries,
+    ledger_entry_payload,
+    resolve_resume_index,
+    stream_case_ledger,
+)
 from vultron.adapters.driving.fastapi.trigger_runner import run_trigger
+from vultron.config import get_config
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import (
@@ -437,15 +448,9 @@ def demo_get_case_ledger(
     Demo/observability only — do not expose as a participant-facing endpoint.
     """
     canonical_case_id = _resolve_case_id(case_id, dl)
-    entries = [
-        e
-        for e in dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, CaseLedgerEntry) and e.case_id == canonical_case_id
-    ]
-    entries.sort(key=lambda e: e.log_index)
     payloads = [
-        e.model_dump(mode="json", by_alias=True, exclude_none=True)
-        for e in entries
+        ledger_entry_payload(e)
+        for e in case_ledger_entries(dl, canonical_case_id)
     ]
 
     accept = request.headers.get("accept", "")
@@ -453,6 +458,92 @@ def demo_get_case_ledger(
         content = "\n".join(json.dumps(p) for p in payloads)
         return Response(content=content, media_type="application/x-ndjson")
     return JSONResponse(content=payloads)
+
+
+# Declared before ``…/log/{index}``: declared after it, ``stream`` would be
+# parsed as the integer ``index`` and the request would fail with 422.
+@router.get(
+    "/{actor_id}/demo/cases/{case_id}/log/stream",
+    status_code=status.HTTP_200_OK,
+    summary="[Demo] Stream case ledger entries as server-sent events.",
+    description=(
+        "Demo-only read endpoint. "
+        "Returns a ``text/event-stream`` of the actor's ``CaseLedgerEntry`` "
+        "objects for the specified case. Each event's ``id:`` is the entry's "
+        "``log_index`` and its ``data:`` is the entry serialized exactly as "
+        "the ``…/log`` list endpoint serializes it. "
+        "Stored entries are replayed first, in ``log_index`` order; "
+        "``?since=<log_index>`` or the ``Last-Event-ID`` header (sent by a "
+        "browser ``EventSource`` on reconnect) skips entries at or below "
+        "that index — when both are given, the higher one wins. "
+        "The server then re-reads the actor's DataLayer on a short interval "
+        "(``server.ledger_stream_poll_seconds``, default 0.25 s) and pushes "
+        "each new entry, whether committed locally or replicated in. "
+        "The stream ends when the client disconnects, and ends with a "
+        "terminal ``event: close`` when the server shuts down. "
+        "Tail it with ``curl -N``. "
+        "This endpoint is for demo tooling, test scripts, and live display "
+        "only. It MUST NOT be used as a participant-facing log-replication "
+        "mechanism (use the ActivityStreams inbox channel per SYNC-02-001). "
+        "Only available in ``RunMode.PROTOTYPE``. "
+        "Spec: TRIG-09-001, SYNC-01-002, SYNC-02-003; ADR-0104."
+    ),
+    operation_id="actors_demo_stream_case_ledger",
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "content": {EVENT_STREAM_MEDIA_TYPE: {}},
+            "description": "Server-sent events, one per case ledger entry.",
+        },
+        404: {"description": "Case not found."},
+        422: {"description": "Invalid ``since`` or ``Last-Event-ID``."},
+    },
+)
+def demo_stream_case_ledger(
+    actor_id: str,
+    case_id: str,
+    request: Request,
+    since: int | None = Query(
+        default=None,
+        ge=0,
+        description="Skip entries whose log_index is at or below this value.",
+    ),
+    last_event_id: str | None = Header(
+        default=None,
+        alias="Last-Event-ID",
+        description="The id of the last event received; same effect as since.",
+    ),
+    dl: DataLayer = Depends(get_trigger_dl),
+    shutdown: threading.Event = Depends(get_ledger_stream_shutdown),
+) -> StreamingResponse:
+    """Stream case ledger entries for a case as SSE (demo scaffold).
+
+    Implements:
+        TRIG-09-001, TRIG-09-004, SYNC-01-002, SYNC-02-003; ADR-0104.
+
+    Demo/observability only — do not expose as a participant-facing endpoint.
+    """
+    try:
+        after_index = resolve_resume_index(since, last_event_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from None
+    canonical_case_id = _resolve_case_id(case_id, dl)
+    return StreamingResponse(
+        stream_case_ledger(
+            dl,
+            canonical_case_id,
+            after_index=after_index,
+            poll_seconds=get_config().server.ledger_stream_poll_seconds,
+            is_disconnected=request.is_disconnected,
+            shutdown=shutdown,
+        ),
+        media_type=EVENT_STREAM_MEDIA_TYPE,
+        # Proxies must pass each event through as it is written.
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get(
