@@ -13,7 +13,7 @@
 """Embargo-ending notices to bound signatories the ledger no longer reaches.
 
 CM-31-009: when the active embargo is terminated or replaced by a revision
-that ends no later, the CASE_MANAGER sends each ``SIGNATORY`` it no longer
+that ends no later, the CASE_MANAGER sends each signatory it no longer
 fans the ledger out to — removed (CM-31-001), or at RM ``CLOSED``
 (CM-23-004) — a direct notice, outside the ledger stream.  CM-31-010: that
 participant's paused replica applies the notice when the CASE_MANAGER sent
@@ -139,7 +139,7 @@ def _record(actor_id: str, roles: list[CVDRole]) -> CaseParticipant:
     consent = (
         EmbargoConsentState.DECLINED
         if actor_id == DECLINER
-        else EmbargoConsentState.ACCEPTED
+        else EmbargoConsentState.AGREED
     )
     record = CaseParticipant(
         id_=_participant_id(actor_id),
@@ -188,6 +188,9 @@ def _seed(dl: SqliteDataLayer, *, end_in_days: int = 60) -> None:
     )
     embargo_register.activate(case, EMBARGO_ID)
     dl.create(case)
+    # A proposal writes an UNINVITED row for every participant (ADR-0122); the
+    # register helper above only touches the case, so backfill the rows here.
+    embargo_register.write_consent_rows(dl, case)
 
 
 def _embargo(dl: SqliteDataLayer, embargo_id: str = EMBARGO_ID) -> Any:
@@ -258,6 +261,7 @@ class _Manager:
         assert isinstance(case, as_VulnerabilityCase)
         embargo_register.propose(case, REVISION_ID)
         self.dl.save(case)
+        embargo_register.write_consent_rows(self.dl, case)
         return revision
 
 

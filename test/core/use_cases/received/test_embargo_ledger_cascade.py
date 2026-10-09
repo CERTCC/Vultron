@@ -16,7 +16,11 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import (
+    activate,
+    propose,
+    write_consent_rows,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.case import VulnerabilityCase
@@ -78,6 +82,7 @@ class TestEmbargoLogEntryCascade:
         assert case_read is not None
         propose(case_read, embargo.id_)
         dl.save(case_read)
+        write_consent_rows(dl, case_read)
 
         case_ref = as_VulnerabilityCase(id_=case_id)
         activity = factory(embargo, target=case_ref, actor=author_id)

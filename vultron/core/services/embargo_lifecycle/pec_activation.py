@@ -16,11 +16,12 @@
 Split from :mod:`~vultron.core.services.embargo_lifecycle.pec` (CS-18-001):
 the activation arm of the consent bookkeeping.  Consent is per embargo
 (ADR-0122), so activation needs almost no bookkeeping: whoever holds an
-``ACCEPTED`` row for the activated embargo is its signatory by lookup, and
-whoever does not has lapsed by derivation (CM-18-001).  The one write left is
-containment: a revision that ends no later than the embargo it replaces asks
-nothing new of an existing signatory, so their acceptance is carried over to it
-(EP-05-001, CM-10-001).
+``AGREED`` row for the activated embargo is its signatory by lookup, and
+whoever does not has lapsed by derivation (CM-18-001).  Two writes are left:
+the case owner's own agreement, since activating an embargo is agreeing to it,
+and containment: a revision that ends no later than the embargo it replaces
+asks nothing new of an existing signatory, so their agreement is carried over
+to it (``CARRY_OVER``, EP-05-001, CM-10-001).
 """
 
 import logging
@@ -28,7 +29,6 @@ import logging
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle.pec import (
-    _consent_change,
     _PecEffectsMixin,
     owner_declined_embargo,
 )
@@ -54,35 +54,37 @@ class _PecActivationMixin(_PecEffectsMixin):
         previous_embargo_id: str,
         revised_embargo_id: str,
     ) -> list[ParticipantConsentChange]:
-        """Mark *revised_embargo_id* ``ACCEPTED`` for every signatory to the old one.
+        """Apply ``CARRY_OVER`` to the revision for every signatory to the old one.
 
         The shorter arm of EP-05-001: a revision ending no later than the
         embargo it replaces asks nothing new of an existing signatory
         (agreeing to N days is agreeing to every shorter period), so its
-        consent carries over by containment (CM-10-001).  Only a participant
-        whose row for *previous_embargo_id* is ``ACCEPTED`` is carried over,
-        so the containment argument is always about consent the participant
-        itself gave; one that declined the revision keeps that answer.  A
-        *longer* revision needs no counterpart: a signatory that has not
-        accepted it has lapsed by derivation (:meth:`CaseParticipant.has_lapsed`).
+        agreement carries over by containment (CM-10-001).  Only a
+        participant whose row for *previous_embargo_id* is ``AGREED`` is
+        carried over, so the containment argument is always about consent the
+        participant itself gave.  A ``DECLINED`` row for the revision is
+        lifted too: declining a shorter revision objects to losing time, not
+        to keeping the embargo, and the decline stays in the ledger
+        (ADR-0122).  A *longer* revision needs no counterpart: a signatory
+        that has not agreed to it has lapsed by derivation
+        (:meth:`CaseParticipant.has_lapsed`).
         """
         changes: list[ParticipantConsentChange] = []
         for participant_id, participant in self._each_participant(case):
             if (
                 participant.consent_for(previous_embargo_id)
-                != EmbargoConsentState.ACCEPTED
+                != EmbargoConsentState.AGREED
             ):
                 continue
-            before = participant.consent_for(revised_embargo_id)
-            if participant.apply_pec_transition_if_legal(
-                revised_embargo_id, PEC_Trigger.ACCEPT
-            ):
-                self._persistence.save(participant)
-                changes.append(
-                    _consent_change(
-                        participant_id, revised_embargo_id, before, participant
-                    )
+            changes.extend(
+                self._apply_where_legal(
+                    case,
+                    participant_id,
+                    participant,
+                    revised_embargo_id,
+                    PEC_Trigger.CARRY_OVER,
                 )
+            )
         return changes
 
     def _assert_owner_may_activate(
@@ -124,15 +126,14 @@ class _PecActivationMixin(_PecEffectsMixin):
         the embargo replaced, taken before the case was mutated;
         *previous_embargo_id* is that embargo.
 
-        - The activation is the owner's agreement: the owner's row for the
-          activated embargo becomes ``ACCEPTED`` unless it already is, so the
-          owner is a signatory of what it activated and never lapsed by it.
-        - Any other ``ACCEPTED`` row for it already makes its holder a
-          signatory (its proposer, an early acceptor), with no advance step.
-        - Replacing A with B: a B ending no later than A carries A's
+        - The owner's row for the activated embargo is ``AGREED``: an
+          activation is the owner agreeing to the terms, so the owner is
+          never lapsed by it.  A row that is already ``AGREED`` is left as it
+          is (ADR-0122).
+        - Replacing A with a B that ends no later than A carries A's
           signatories over (:meth:`_carry_signatories_over`); a longer B
-          carries nobody, and the signatories who have not accepted it are
-          lapsed by derivation.
+          carries nobody, and the signatories who have not agreed to it have
+          lapsed by derivation.  A first activation replaces nothing.
         """
         changes: list[ParticipantConsentChange] = []
         owner_id = _as_id(case.attributed_to)
@@ -140,9 +141,7 @@ class _PecActivationMixin(_PecEffectsMixin):
             changes.extend(
                 self._record_actor_acceptance(case, owner_id, embargo_id)
             )
-        if ends_no_later is None or previous_embargo_id is None:
-            return changes
-        if ends_no_later:
+        if ends_no_later and previous_embargo_id is not None:
             changes.extend(
                 self._carry_signatories_over(
                     case,
@@ -156,9 +155,13 @@ class _PecActivationMixin(_PecEffectsMixin):
             _as_id(case),
             embargo_id,
             (
-                "shorter or equal — signatories carried over"
-                if ends_no_later
-                else "longer — non-accepting signatories have lapsed"
+                "first activation"
+                if ends_no_later is None
+                else (
+                    "shorter or equal — signatories carried over"
+                    if ends_no_later
+                    else "longer — non-agreeing signatories have lapsed"
+                )
             ),
             len(changes),
         )

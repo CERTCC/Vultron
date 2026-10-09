@@ -20,7 +20,7 @@ through CM-31-013 once.  These cover the edges around them (ADR-0116, #4081,
   a delegated notice, no new acceptance, and a refusal for anything else;
 - the reinstated participant is backfilled from the first entry withheld
   after its removal entry, and its hash chain joins with no gap (CM-10-006);
-- a reinstated participant that is not ``SIGNATORY`` to the active embargo is
+- a reinstated participant that is not a signatory to the active embargo is
   sent that embargo's Invite and no case content until it consents
   (CM-31-013);
 - a removed participant is sent no Invite of any kind (CM-31-013);

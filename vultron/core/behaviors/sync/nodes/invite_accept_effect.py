@@ -119,10 +119,11 @@ class ApplyInviteAcceptFromLedgerNode(_LedgerEffectNode):
             context=case_id,
             case_roles=case_roles,
         )
+        # The record takes its UNINVITED consent rows from the register as it
+        # joins the roster, so it is stored after (ADR-0122).
+        case.add_participant(participant)
         if self.datalayer.read(participant.id_) is None:
             self.datalayer.create(participant)
-
-        case.add_participant(participant)
         self.datalayer.save(case)
         self.logger.info(
             "%s: applied ledger invite-accept for invitee '%s' to case '%s'"

@@ -1,0 +1,204 @@
+{
+  "data": {
+    "repository": {
+      "pullRequests": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "Y3Vyc29yOnYyOpK5MjAyNi0xMC0wOVQxNToxMToxMFo"
+        },
+        "nodes": [
+          {
+            "number": 4387,
+            "createdAt": "2026-10-09T13:51:49Z",
+            "updatedAt": "2026-10-09T15:11:07Z",
+            "mergedAt": "2026-10-09T15:11:05Z",
+            "headRefName": "bug/3825-close-case-decline-gate",
+            "commits": {
+              "nodes": [
+                {
+                  "commit": {
+                    "messageHeadline": "fix(close-case): gate decline Reject(Leave) emit on the CASE_MANAGER;\u2026",
+                    "parents": {
+                      "totalCount": 1
+                    }
+                  }
+                },
+                {
+                  "commit": {
+                    "messageHeadline": "docs(specs): complete #4307 effect_nodes retirement in governing specs",
+                    "parents": {
+                      "totalCount": 1
+                    }
+                  }
+                },
+                {
+                  "commit": {
+                    "messageHeadline": "Merge remote-tracking branch 'origin/main' into review-4387",
+                    "parents": {
+                      "totalCount": 2
+                    }
+                  }
+                }
+              ]
+            },
+            "comments": {
+              "nodes": [
+                {
+                  "body": "## pr-verify verdict: READY-TO-MERGE",
+                  "createdAt": "2026-10-09T15:03:51Z"
+                }
+              ]
+            },
+            "reviews": {
+              "nodes": []
+            }
+          },
+          {
+            "number": 4372,
+            "createdAt": "2026-10-08T20:04:57Z",
+            "updatedAt": "2026-10-09T15:04:20Z",
+            "mergedAt": "2026-10-09T15:04:17Z",
+            "headRefName": "plan/4322-accept-reject-embargo-triggers-active-embargo",
+            "commits": {
+              "nodes": [
+                {
+                  "commit": {
+                    "messageHeadline": "docs: plan issue #4322 \u2014 answer the embargo in force by trigger",
+                    "parents": {
+                      "totalCount": 1
+                    }
+                  }
+                },
+                {
+                  "commit": {
+                    "messageHeadline": "history: archive learning CONCERN-4322 \u2014 Accept/reject embargo trigge\u2026",
+                    "parents": {
+                      "totalCount": 1
+                    }
+                  }
+                },
+                {
+                  "commit": {
+                    "messageHeadline": "fix(pr-execute): address 6 findings from triage",
+                    "parents": {
+                      "totalCount": 1
+                    }
+                  }
+                },
+                {
+                  "commit": {
+                    "messageHeadline": "docs: withdraw from the embargo in force with Leave(EmbargoEvent)",
+                    "parents": {
+                      "totalCount": 1
+                    }
+                  }
+                },
+                {
+                  "commit": {
+                    "messageHeadline": "Merge remote-tracking branch 'origin/main' into plan/4322-accept-reje\u2026",
+                    "parents": {
+                      "totalCount": 2
+                    }
+                  }
+                },
+                {
+                  "commit": {
+                    "messageHeadline": "Merge remote-tracking branch 'origin/main' into plan/4322-accept-reje\u2026",
+                    "parents": {
+                      "totalCount": 2
+                    }
+                  }
+                }
+              ]
+            },
+            "comments": {
+              "nodes": []
+            },
+            "reviews": {
+              "nodes": [
+                {
+                  "body": "## PR Triage: #4372 \u2014 docs: plan issue #4322 \u2014 answer the embargo in force by trigger",
+                  "createdAt": "2026-10-09T13:28:25Z"
+                },
+                {
+                  "body": "## PR Execute: #4372",
+                  "createdAt": "2026-10-09T14:30:22Z"
+                },
+                {
+                  "body": "## PR Verify: #4372",
+                  "createdAt": "2026-10-09T14:31:10Z"
+                },
+                {
+                  "body": "## PR Verify: #4372",
+                  "createdAt": "2026-10-09T15:02:53Z"
+                }
+              ]
+            }
+          },
+          {
+            "number": 4374,
+            "createdAt": "2026-10-08T20:09:22Z",
+            "updatedAt": "2026-10-09T14:10:30Z",
+            "mergedAt": "2026-10-09T14:10:28Z",
+            "headRefName": "plan/4321-remove-casestatus-em-state-setter",
+            "commits": {
+              "nodes": [
+                {
+                  "commit": {
+                    "messageHeadline": "docs: plan issue #4321 \u2014 freeze the CaseStatus EM copy",
+                    "parents": {
+                      "totalCount": 1
+                    }
+                  }
+                },
+                {
+                  "commit": {
+                    "messageHeadline": "history: archive learning CONCERN-4321 \u2014 Remove or ratchet the CaseSt\u2026",
+                    "parents": {
+                      "totalCount": 1
+                    }
+                  }
+                },
+                {
+                  "commit": {
+                    "messageHeadline": "fix(pr-execute): address 3 findings from triage",
+                    "parents": {
+                      "totalCount": 1
+                    }
+                  }
+                },
+                {
+                  "commit": {
+                    "messageHeadline": "Merge remote-tracking branch 'origin/main' into plan/4321-remove-case\u2026",
+                    "parents": {
+                      "totalCount": 2
+                    }
+                  }
+                }
+              ]
+            },
+            "comments": {
+              "nodes": []
+            },
+            "reviews": {
+              "nodes": [
+                {
+                  "body": "## PR Triage: #4374 \u2014 docs: plan issue #4321 \u2014 freeze the CaseStatus EM copy",
+                  "createdAt": "2026-10-09T13:27:53Z"
+                },
+                {
+                  "body": "## PR Execute: #4374 \u2014 docs: plan issue #4321 \u2014 freeze the CaseStatus EM copy",
+                  "createdAt": "2026-10-09T13:40:09Z"
+                },
+                {
+                  "body": "## PR Verify: #4374 \u2014 docs: plan issue #4321 \u2014 freeze the CaseStatus EM copy",
+                  "createdAt": "2026-10-09T13:41:21Z"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

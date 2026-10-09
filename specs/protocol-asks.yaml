@@ -305,7 +305,7 @@ groups:
       `Accept(Invite(EmbargoEvent))` and `Reject(Invite(EmbargoEvent))` from the
       invitee; its deadline is `Invite.end_time` (CM-28-001, CM-28-012); its
       expiry consequence is stale, not void: a reply after the deadline is still
-      honoured under EMB-17 once the expiry has been recorded as `EXPIRED`
+      honoured under EMB-17 once the expiry has been recorded as `TIMED_OUT`
       (CM-28-004).
     rationale: >
       The embargo invitation already has every property an ask kind declares,

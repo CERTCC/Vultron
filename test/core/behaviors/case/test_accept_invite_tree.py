@@ -15,7 +15,7 @@
 
 """Regression tests for accept-invite BT nodes (ADR-0048, CM-10-001, CM-17-003).
 
-AC-4: The invitee MUST be a signatory (ACCEPTED row for the active embargo) after signing embargo consent.
+AC-4: The invitee MUST be a signatory (AGREED row for the active embargo) after signing embargo consent.
 """
 
 import py_trees
@@ -35,6 +35,8 @@ from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_register import EmbargoRegisterEntry
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -47,24 +49,23 @@ _EARLIER_EMBARGO_ID = "https://example.org/embargoes/embargo-000"
 
 def _run_sign_node(
     bt_scenario: BTTestScenario,
-    starting: EmbargoConsentState | None = None,
+    starting: EmbargoConsentState = EmbargoConsentState.UNINVITED,
     *,
     earlier_accepted: bool = False,
 ) -> tuple[Status, CaseParticipant]:
     """Create a CaseParticipant whose row for the active embargo is ``starting``.
 
-    ``earlier_accepted`` adds an ACCEPTED row for an earlier embargo, so the
-    participant has lapsed from the one in force.  Run the sign node, return
-    the result.
+    ``earlier_accepted`` adds an AGREED row for an earlier embargo the active
+    one replaced, so the participant has lapsed from the one in force.  Run
+    the sign node, return the result.
     """
     rows = [
         EmbargoConsent(
-            embargo_id=_EARLIER_EMBARGO_ID, state=EmbargoConsentState.ACCEPTED
+            embargo_id=_EARLIER_EMBARGO_ID, state=EmbargoConsentState.AGREED
         )
         for _ in range(1 if earlier_accepted else 0)
     ]
-    if starting is not None:
-        rows.append(EmbargoConsent(embargo_id=_EMBARGO_ID, state=starting))
+    rows.append(EmbargoConsent(embargo_id=_EMBARGO_ID, state=starting))
     participant = CaseParticipant(
         id_=_ACTOR_ID,
         attributed_to=_ACTOR_ID,
@@ -89,7 +90,7 @@ class TestSignEmbargoConsentLeafNode:
     def test_invitee_reaches_signatory_from_no_embargo(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Regression: an invitee with no row must reach ACCEPTED.
+        """Regression: an UNINVITED invitee must reach AGREED.
 
         Before the ADR-0048 fix the consent write was fail-open, leaving the
         invitee unbound while the node logged success — CM-10-001 violated.
@@ -101,7 +102,7 @@ class TestSignEmbargoConsentLeafNode:
     def test_invitee_reaches_signatory_from_invited(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Invitee who was formally INVITED also reaches ACCEPTED."""
+        """Invitee who was formally INVITED also reaches AGREED."""
         status, participant = _run_sign_node(
             bt_scenario, EmbargoConsentState.INVITED
         )
@@ -115,22 +116,36 @@ class TestSignEmbargoConsentLeafNode:
         status, participant = _run_sign_node(
             bt_scenario, earlier_accepted=True
         )
-        assert participant.consent_for(_EARLIER_EMBARGO_ID) is not None
+        register = [
+            EmbargoRegisterEntry(
+                embargo=_EARLIER_EMBARGO_ID,
+                status=EmbargoRegisterStatus.SUPERSEDED,
+            ),
+            EmbargoRegisterEntry(
+                embargo=_EMBARGO_ID,
+                status=EmbargoRegisterStatus.ACTIVE,
+                replaces=_EARLIER_EMBARGO_ID,
+            ),
+        ]
+        assert (
+            participant.consent_for(_EARLIER_EMBARGO_ID)
+            is EmbargoConsentState.AGREED
+        )
         assert status == Status.SUCCESS
         assert participant.is_signatory(_EMBARGO_ID)
-        assert not participant.has_lapsed(_EMBARGO_ID)
+        assert not participant.has_lapsed(register)
 
     def test_already_signatory_is_idempotent(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """ACCEPTED: ACCEPT is skipped, node succeeds, no duplicate row.
+        """AGREED: AGREE is skipped, node succeeds, no duplicate row.
 
-        An ACCEPTED row re-accepting is a no-op: the guard skips the illegal
-        ACCEPT trigger, and there is still exactly one row for the embargo
+        An AGREED row agreeing again is a no-op: the guard skips the illegal
+        AGREE trigger, and there is still exactly one row for the embargo
         (CM-18-005).
         """
         status, participant = _run_sign_node(
-            bt_scenario, EmbargoConsentState.ACCEPTED
+            bt_scenario, EmbargoConsentState.AGREED
         )
         assert status == Status.SUCCESS
         assert participant.is_signatory(_EMBARGO_ID)
@@ -138,10 +153,10 @@ class TestSignEmbargoConsentLeafNode:
             _EMBARGO_ID
         ]
 
-    def test_declined_participant_accept_is_skipped(
+    def test_declined_participant_agree_is_skipped(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """DECLINED: ACCEPT is skipped (ACCEPT from DECLINED is invalid), SUCCESS.
+        """DECLINED: AGREE is skipped (AGREE from DECLINED is invalid), SUCCESS.
 
         Mirrors the service-layer guard in _record_actor_acceptance.
         A DECLINED participant reaching this node (e.g., out-of-order EA
@@ -160,11 +175,10 @@ class TestSignEmbargoConsentLeafNode:
     def test_embargo_row_recorded_on_participant(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """The active embargo gets an ACCEPTED consent row."""
+        """The active embargo's consent row becomes AGREED."""
         _, participant = _run_sign_node(bt_scenario)
         assert (
-            participant.consent_for(_EMBARGO_ID)
-            == EmbargoConsentState.ACCEPTED
+            participant.consent_for(_EMBARGO_ID) == EmbargoConsentState.AGREED
         )
 
     def test_failure_when_participant_missing(
@@ -222,8 +236,8 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
     """At REVISE the whole consent step signs the active embargo only.
 
     The open revision is not the joiner's to accept: it records the active
-    embargo's id, is marked ACCEPTED through ``apply_pec_transition``, and
-    the revision gets no row (EP-05-001 then
+    embargo's id, is marked AGREED through ``apply_pec_transition``, and
+    the revision's row stays UNINVITED (EP-05-001 then
     lapses it if the owner activates longer terms).
     """
     from vultron.core.behaviors.case.accept_invite_tree import (
@@ -235,6 +249,7 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
         id_=_ACTOR_ID,
         attributed_to=_ACTOR_ID,
     )
+    case.add_participant(participant)
     node = MaybeSignEmbargoConsentNode(case_id=case.id_, invitee_id=_ACTOR_ID)
 
     result = bt_scenario.run(
@@ -246,7 +261,9 @@ def test_joiner_during_revise_signs_the_terms_in_force_not_the_revision(
 
     assert result.status == Status.SUCCESS
     assert participant.is_signatory(_EMBARGO_ID)
-    assert participant.consent_for(_REVISION_ID) is None
+    assert participant.consent_for(_REVISION_ID) is (
+        EmbargoConsentState.UNINVITED
+    )
     assert case.is_active_participant(participant)
 
 

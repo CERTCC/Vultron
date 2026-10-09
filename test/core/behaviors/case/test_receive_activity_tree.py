@@ -182,30 +182,6 @@ class TestStageOrder:
                 manager_effects=[_Emitter()],
             )
 
-    def test_legacy_effect_nodes_cannot_be_mixed_with_the_new_kinds(
-        self,
-    ) -> None:
-        with pytest.raises(VultronWiringError, match="effect_nodes"):
-            create_receive_activity_tree(
-                name="SampleBT",
-                case_id=CASE_ID,
-                precondition_guards=[],
-                effect_nodes=[_effect()],
-                replica_effects=[_effect()],
-            )
-
-    def test_an_exemption_cannot_be_mixed_with_legacy_effect_nodes(
-        self,
-    ) -> None:
-        with pytest.raises(VultronWiringError, match="effect_nodes"):
-            create_receive_activity_tree(
-                name="SampleBT",
-                case_id=CASE_ID,
-                precondition_guards=[],
-                effect_nodes=[_ack_emit()],
-                replica_emit_exemption=ACK_ECHO,
-            )
-
     @pytest.mark.parametrize(
         "gate_argument",
         [
@@ -227,15 +203,15 @@ class TestStageOrder:
                 **gate_argument,  # type: ignore[arg-type]
             )
 
-    def test_legacy_effect_nodes_still_build_ungated(self) -> None:
-        tree = create_receive_activity_tree(
-            name="LegacyBT",
-            case_id=CASE_ID,
-            precondition_guards=[],
-            effect_nodes=[_Emitter("LegacyEmit")],
-        )
-
-        assert _names(tree)[1:] == [COMMIT, "LegacyEmit"]
+    def test_effect_nodes_is_no_longer_a_parameter(self) -> None:
+        """``effect_nodes`` was retired in #4307 (BT-17-008)."""
+        with pytest.raises(TypeError):
+            create_receive_activity_tree(
+                name="LegacyBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                effect_nodes=[_Emitter("LegacyEmit")],  # type: ignore[call-arg]
+            )
 
 
 class TestReplicaEmitRefusal:
@@ -503,19 +479,19 @@ class TestRefusalEffects:
                 refusal_effects=[wrapper],
             )
 
-    def test_refusal_effects_combine_with_legacy_effect_nodes(self) -> None:
+    def test_refusal_effects_combine_with_replica_effects(self) -> None:
         tree = create_receive_activity_tree(
-            name="LegacyBT",
+            name="SampleBT",
             case_id=CASE_ID,
             precondition_guards=[_effect("Guard")],
-            effect_nodes=[_effect("LegacyEffect")],
+            replica_effects=[_effect("ReplicaEffect")],
             refusal_effects=[_Emitter()],
         )
 
         assert _names(tree)[1:] == [
             "PreconditionGuardStage",
             COMMIT,
-            "LegacyEffect",
+            "ReplicaEffect",
         ]
 
     def test_without_refusal_effects_the_guards_stay_top_level(self) -> None:

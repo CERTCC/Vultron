@@ -8,7 +8,12 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.support.embargo_register import activate, terminate
+from test.support.embargo_register import (
+    activate,
+    propose,
+    terminate,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
@@ -544,9 +549,12 @@ def _seed_invited_participant(
 ) -> str:
     """Give the replica a participant record for this store's actor.
 
-    *consent* is the state of its row for the embargo the ledger entries
-    name, or ``None`` for a participant never asked about it.
+    The embargo the ledger entries name is an open proposal, as the replica
+    holds it once the proposal's entry has replayed.  *consent* is the state of
+    the participant's row for it, or ``None`` for a participant never asked
+    about it (``UNINVITED``, ADR-0122).
     """
+    propose(case_obj, _ENTRY_EMBARGO_ID)
     participant = CaseParticipant(
         attributed_to=PARTICIPANT_ACTOR_ID,
         context=CASE_ID,
@@ -556,9 +564,10 @@ def _seed_invited_participant(
             else [EmbargoConsent(embargo_id=_ENTRY_EMBARGO_ID, state=consent)]
         ),
     )
+    case_obj.add_participant(participant)
     datalayer.create(participant)
-    case_obj.actor_participant_index[PARTICIPANT_ACTOR_ID] = participant.id_
     datalayer.save(case_obj)
+    write_consent_rows(datalayer, case_obj)
     return participant.id_
 
 
@@ -587,7 +596,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         assert result.status == Status.SUCCESS
         updated = datalayer.read(participant_id)
         assert isinstance(updated, CaseParticipant)
-        assert updated.invite_rsvp_deadline is not None
+        assert updated.rsvp_deadline_for(_ENTRY_EMBARGO_ID) is not None
         assert (
             updated.consent_for(_ENTRY_EMBARGO_ID)
             is EmbargoConsentState.INVITED
@@ -616,7 +625,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
         assert isinstance(updated, CaseParticipant)
         assert (
             updated.consent_for(_ENTRY_EMBARGO_ID)
-            is EmbargoConsentState.EXPIRED
+            is EmbargoConsentState.TIMED_OUT
         )
 
 

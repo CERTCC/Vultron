@@ -213,7 +213,7 @@ class TestProposeAndActivate:
                 coordinator.client,
                 s.actor.id_,
                 EMBARGO_ID,
-                EmbargoConsentState.ACCEPTED,
+                EmbargoConsentState.AGREED,
             )
             for s in (reporter, coordinator, vendor)
         ]

@@ -53,6 +53,14 @@ causal_edges:
     consequent_actor: vendor
     note: >
       Closure requires a validated, engaged case.
+  - antecedent: close_case
+    consequent: close_case
+    consequent_actor: vendor
+    note: >
+      C1, the Case Owner, leaves last (CM-23-015): another
+      participant's close_case precedes the owner's.  The owner's departure
+      closes the case, and a departure sent after it is not recorded
+      (CM-23-013).
   - antecedent: engage_case
     consequent: add_note_to_case
     consequent_actor: finder
@@ -167,6 +175,8 @@ All participants publish.  The embargo exits ACTIVE.
 ### 13. All participants close the case
 
 `close_case` entries appear for each participant.
+The Vendor, C2, and the Finder leave first; C1, the Case Owner, leaves last.
+A departure sent after the owner's is not recorded, so every other participant's departure is recorded first.
 
 *Antecedent:* `validate_report` and `engage_case` are in the ledger.
 

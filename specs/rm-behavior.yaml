@@ -1475,6 +1475,50 @@ groups:
     - ADR-0114
     stories:
     - story_2022_006
+  - id: RMB-14-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The RM state machine MUST NOT define any transition out of RM.CLOSED to a
+      different RM state. RM.CLOSED is terminal: once a participant's RM state
+      reaches CLOSED, no further RM progression is possible for that participant
+      on that case.
+    rationale: >-
+      `RM.CLOSED` being terminal is what gives the closure act finality. A
+      participant that anticipates returning to the case SHOULD instead move to
+      `RM.DEFERRED` (resumable via DEFERRED → ACCEPTED) rather than close; once
+      closed, the participant has no path back in, because a re-invite to a
+      participant at `RM.CLOSED` is refused (CM-11-015, ADR-0085). Rejoin
+      mechanics are deferred to a future design; the interim workaround is
+      defer-not-close (RMB-14-007).
+    verification: >-
+      A test asserts `is_valid_rm_transition(RM.CLOSED, X)` is `False` for every
+      RM state X, including RM.CLOSED itself, confirming no transition edge leaves
+      the CLOSED state.
+    adr:
+    - ADR-0085
+  - id: RMB-14-007
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A participant that anticipates returning to active coordination on a case
+      SHOULD move to RM.DEFERRED (the resumable parking state) rather than
+      RM.CLOSED. RM.DEFERRED supports both DEFERRED → ACCEPTED (resume) and
+      DEFERRED → CLOSED (abandon) transitions; RM.CLOSED supports neither.
+    rationale: >-
+      Because RM.CLOSED is terminal (RMB-14-006), a participant that closes and
+      later wants back in has no protocol path. RM.DEFERRED preserves optionality:
+      the participant can accept the case later or close it once it confirms there
+      is nothing more to do (ADR-0085). Full rejoin mechanics (reactivation via
+      re-invitation, multiple lifecycle arcs per actor) are deferred to a future
+      design Idea.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0085
+    stories:
+    - story_2022_006
 - id: RMB-15
   title: RM Write-Boundary Transition Validation
   description: >-

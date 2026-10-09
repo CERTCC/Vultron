@@ -36,10 +36,8 @@ _MAX_LEAF_LINES = 500
 # ---------------------------------------------------------------------------
 _OVERSIZE_BACKLOG: frozenset[str] = frozenset(
     [
-        # Pushed over 500 lines by the ports migration (issue #2483).
-        # Candidate for further decomposition by semantic concern.
-        # (owner.py was deleted in #4353 along with its orphaned nodes.)
-        "vultron/core/behaviors/case/nodes/participant/participant_add.py",
+        # (owner.py was deleted in #4353 and participant_add.py in #4367,
+        # each along with its orphaned nodes.)
         # Pushed over 500 lines by AC-1/AC-3 compound-state enforcement (issue #2479).
         # Candidate for decomposition into _compound_guards.py.
         "vultron/core/behaviors/case/nodes/participant/status.py",

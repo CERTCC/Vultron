@@ -66,7 +66,7 @@ def find_excluded_actor_ids(
         # one operator-visible line.
         logger.info(
             "update_case: %d participant(s) not active on case '%s' (not"
-            " joined, or not SIGNATORY to the active embargo) — case update"
+            " joined, or not a signatory to the active embargo) — case update"
             " will not be broadcast to them (CM-10-004): %s",
             len(excluded),
             case.id_,

@@ -627,12 +627,13 @@ relationship to AppendOnlyLedger/LedgerFanout implementation phases.
 
 **`participant-embargo-consent.md`**
 Design decisions for per-participant embargo consent, recorded as one row per
-(participant, embargo) — `INVITED`, `ACCEPTED`, `DECLINED`, `EXPIRED` (ADR-0122) —
-with "signatory" and "lapsed" derived from the rows and the active embargo,
+(participant, embargo register entry) — `UNINVITED`, `INVITED`, `AGREED`,
+`DECLINED`, `TIMED_OUT` (ADR-0122) — every row written, rows for a final entry
+frozen, with "signatory" and "lapsed" derived from the rows and the register,
 embargo meta-protocol delivery to non-signatories, and the
-`Accept(Invite(case))` → implicit consent rule. Records why a missing row means
+`Accept(Invite(case))` → implicit consent rule. Records why `UNINVITED` means
 *not bound by any embargo terms* rather than pre-consent (ADR-0048), so
-`ACCEPT`/`DECLINE` are valid directly from it, and the direct-assignment pitfall.
+`AGREE`/`DECLINE` are valid directly from it, and the direct-assignment pitfall.
 **Load when**: implementing per-participant EM state tracking, working on the
 consent transition table in `vultron/core/states/`, writing any PEC change, or
 debugging signatory / lapsed semantics.

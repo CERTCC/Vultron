@@ -14,7 +14,7 @@
 
 A ``CaseLedgerEntry`` announcement is case content, so the CASE_MANAGER sends
 it only to *active* participants: seated directly or having accepted its stub
-Invite, and — while an embargo is active — ``SIGNATORY`` (ADR-0114).
+Invite, and — while an embargo is active — a signatory, its row ``AGREED`` (ADR-0114).
 See ``notes/case-joining.md`` and #4046.
 """
 
@@ -102,7 +102,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
             CVDRole.CASE_MANAGER,
             RM.ACCEPTED,
             embargo.id_,
-            EmbargoConsentState.ACCEPTED,
+            EmbargoConsentState.AGREED,
         ),
         SIGNATORY_ID: _participant(
             case.id_,
@@ -110,7 +110,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
             CVDRole.FINDER,
             RM.ACCEPTED,
             embargo.id_,
-            EmbargoConsentState.ACCEPTED,
+            EmbargoConsentState.AGREED,
         ),
         UNCONSENTED_ID: _participant(
             case.id_,

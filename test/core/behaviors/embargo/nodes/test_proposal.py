@@ -85,7 +85,7 @@ def _case_with_rejecter(
 class TestRecordParticipantRejectionNode:
     def test_records_a_withdrawal_and_succeeds(self, dl: SqliteDataLayer):
         case, embargo_id, participant_id = _case_with_rejecter(
-            dl, consent=EmbargoConsentState.ACCEPTED
+            dl, consent=EmbargoConsentState.AGREED
         )
         setup_blackboard(dl)
         node = RecordParticipantRejectionNode(
@@ -185,8 +185,13 @@ class TestRecordParticipantAcceptanceNode:
             context=case.id_,
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=active.id_, state=EmbargoConsentState.ACCEPTED
-                )
+                    embargo_id=active.id_, state=EmbargoConsentState.AGREED
+                ),
+                # The row the revision's proposal wrote (ADR-0122).
+                EmbargoConsent(
+                    embargo_id=revision.id_,
+                    state=EmbargoConsentState.UNINVITED,
+                ),
             ],
         )
         case.actor_participant_index[OWNER] = owner_p.id_
@@ -225,7 +230,28 @@ class TestRecordParticipantAcceptanceNode:
         assert untouched.proposed_embargo_ids == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_p_id))
         assert owner_p.is_signatory(active_id)
-        assert owner_p.consent_for(revision_id) is EmbargoConsentState.ACCEPTED
+        assert owner_p.consent_for(revision_id) is EmbargoConsentState.AGREED
+
+    @pytest.mark.spec("MSM-07-003")
+    def test_accept_of_an_embargo_the_register_does_not_hold_writes_no_row(
+        self, dl: SqliteDataLayer
+    ):
+        """An embargo with no register entry gets no row (ADR-0122)."""
+        case, active_id, revision_id, owner_p_id = self._revise_case(
+            dl, active_replicated=True
+        )
+        setup_blackboard(dl)
+        stranger = f"{case.id_}/embargo_events/stranger"
+        node = RecordParticipantAcceptanceNode(
+            case_id=case.id_, embargo_id=stranger, accepting_actor_id=OWNER
+        )
+
+        assert _tick(node) == py_trees.common.Status.SUCCESS
+        owner_p = cast(CaseParticipant, dl.read(owner_p_id))
+        assert {r.embargo_id: r.state for r in owner_p.embargo_consents} == {
+            active_id: EmbargoConsentState.AGREED,
+            revision_id: EmbargoConsentState.UNINVITED,
+        }
 
     def test_missing_case_fails(self, dl: SqliteDataLayer):
         setup_blackboard(dl)

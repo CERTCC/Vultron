@@ -29,7 +29,11 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.fvcv_handoff_demo as demo
-from test.demo._helpers import make_testclient_call, patch_chain_shared
+from test.demo._helpers import (
+    make_testclient_call,
+    patch_chain_shared,
+    stub_closure_gate,
+)
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
@@ -597,6 +601,7 @@ class TestFvcvHandoffMilestoneAssertions:
         with (
             patch.object(ActorSession, "close_case"),
             patch.object(demo, "wait_for_all_participants_rm_closed"),
+            stub_closure_gate(),
             patch.object(demo, "verify_case_closed") as mock_m7,
             patch.object(demo, "wait_for_event_type_in_ledger"),
             patch.object(demo, "wait_for_replica_ledger_coverage"),
@@ -657,6 +662,7 @@ class TestFvcvHandoffMilestoneAssertions:
                 ActorSession, "close_case", autospec=True
             ) as mock_close,
             patch.object(demo, "wait_for_all_participants_rm_closed"),
+            stub_closure_gate(),
             patch.object(demo, "verify_case_closed"),
             patch.object(demo, "wait_for_event_type_in_ledger"),
             patch.object(demo, "wait_for_replica_ledger_coverage"),

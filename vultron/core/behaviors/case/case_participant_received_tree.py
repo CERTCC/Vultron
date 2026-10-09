@@ -94,7 +94,7 @@ def create_add_case_participant_received_tree(
     paused stream.  Once the fact is cleared, the admission backfill sends
     the participant every entry from the first one withheld after its
     removal entry, the reinstatement entry included, in log order
-    (CM-10-006); a participant that is not ``SIGNATORY`` to the active
+    (CM-10-006); a participant that is not a signatory to the active
     embargo is not admitted yet, so it is sent that embargo's Invite instead
     and its backfill waits for its consent (CM-31-013).  At a replica every
     gated stage skips: intake is its only write (RSH-08-003).

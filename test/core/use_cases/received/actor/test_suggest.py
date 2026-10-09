@@ -23,7 +23,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
-from test.support.embargo_register import activate
+from test.support.embargo_register import activate, write_consent_rows
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -404,6 +404,7 @@ class TestOwnerDirectInviteAtCaseManager:
             dl.create(embargo)
             activate(case, embargo.id_)
         dl.create(case)
+        write_consent_rows(dl, case)
         return dl
 
     def _deliver(self, dl, make_payload, roles=None):

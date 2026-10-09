@@ -2,8 +2,8 @@
 status: proposed
 date: 2026-10-08
 created: 2026-10-08
-updated: 2026-10-08
-revision: 1
+updated: 2026-10-09
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5; Concern #4015, Issues #4357, #4358, #4359, Idea #1863;
@@ -47,7 +47,8 @@ Chosen option: **move the gates**.
 
 Concretely: the full local unit and integration suites run exactly once, in `create-pr`, before an implementation Pull Request's first push (PAD-18-001, PAD-18-008).
 After that push, a fix commit is gated by the linters plus a targeted test set derived from the branch diff, escalating to the full suite for shared test infrastructure and the integration-bearing layers (PAD-18-002, PAD-18-003).
-The base branch is merged into a pushed Pull Request only when GitHub reports it `CONFLICTING` or when files the base changed overlap files the Pull Request changes (PAD-18-004).
+The base branch is merged into a pushed Pull Request only when GitHub reports it `CONFLICTING` or `BEHIND`, or when files the base changed overlap files the Pull Request changes (PAD-18-004).
+`BEHIND` is a trigger only because GitHub itself would refuse the merge; no ruleset produces it today.
 `pr-verify` stops computing base-tip containment itself and defers to GitHub's reported merge state (PAD-18-005).
 
 The reasoning is that a local run after the first push is worth its cost only when it catches something *before* CI would — that is, when it saves a CI round trip that counts against `pr-execute`'s four-iteration cap.
@@ -104,7 +105,8 @@ The archived analysis is at `plan/history/2610/learning/CONCERN-4015.md`.
 
 Implementation is split across #4357 (the targeted-tests and overlap command), #4358 (rewiring `pr-execute`, `pr-verify`, `work-epic-tasks`, `pr-ship`, `pr-triage`, and `build`), and #4359 (velocity reporting).
 
-PAD-11-001 and PAD-11-002 still require an automatic rebase plus force-push on conflict, which contradicts PAD-18-004's merge-based sync and `pr-execute/REFERENCE.md` § "Merge, do not rewrite".
-PAD-18-004 declares a `conflicts` relationship with PAD-11-002 to make that visible; reconciling the two is scoped to #4358, since changing what PAD-11 obliges needs explicit approval.
+PAD-11-001 and PAD-11-002 originally required an automatic rebase plus force-push on conflict, which contradicted PAD-18-004's merge-based sync and `pr-execute/REFERENCE.md` § "Merge, do not rewrite".
+Issue #4358 reconciled them with the maintainer's approval: a conflicted PR now has the base merged in and pushed normally, never rebased or force-pushed, and PAD-18-004 `extends` PAD-11-001 instead of declaring a `conflicts` relationship with PAD-11-002.
+The same change, also approved by the maintainer, made GitHub's `BEHIND` a third merge trigger in PAD-18-004, and made PAD-18-006 count only suite runs that happened: a docs-only Pull Request, gated by the linters alone, starts its `Suite runs:` full count at zero.
 
 Generated spec requirements: `specs/parallel-development.yaml` PAD-18-001 through PAD-18-008.

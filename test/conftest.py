@@ -343,8 +343,8 @@ def seed_case_owner_participant(dl, case):
     """Seed the CASE_OWNER participant of *case* — the actor ``attributed_to``
     names (CM-02-008) — and index it on *case*; return the participant.
 
-    Embargo initialization seeds that participant as SIGNATORY (CM-14-003) and
-    fails when it is missing, because the owner's record is created before the
+    Embargo initialization seeds that participant as a signatory, with an
+    ``AGREED`` row for the embargo (CM-14-003), and fails when it is missing, because the owner's record is created before the
     embargo (CM-14-002).  Call this before persisting *case*.
     """
     from vultron.core.models._helpers import _as_id

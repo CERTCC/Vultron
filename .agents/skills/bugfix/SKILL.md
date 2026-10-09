@@ -256,9 +256,12 @@ Once the plan is confirmed:
    report that it derived nothing — expected, and it means your selection is
    the only check.
 
-5. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
-   all relevant tests pass. Apply branch-ownership and pre-existing-failure
-   rules from `completeness-doctrine.md`. A failing check holds the PR whatever
+5. **Iterate**: run `run-linters` and the tests relevant to the fix (the
+   reproduction test and its neighbors, `uv run pytest <path> -n 0`); refine
+   until they pass. Do not run the full unit or integration suite here:
+   `create-pr` runs it exactly once before the first push (PAD-18-008).
+   Apply branch-ownership and pre-existing-failure rules from
+   `completeness-doctrine.md`. A failing check holds the PR whatever
    its cause (§ "Never Merge on Red"); never bypass a pre-commit hook (sole exception: the devcontainer
    `actionlint` hang, `notes/devcontainer-tooling.md`).
 

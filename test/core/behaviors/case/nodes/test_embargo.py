@@ -218,7 +218,7 @@ class TestInitializeDefaultEmbargoNode:
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
-        """Owner participant is seeded with an ACCEPTED row for the default embargo (CM-14-003)."""
+        """Owner participant is seeded with an AGREED row for the default embargo (CM-14-003)."""
         bt_scenario.run(
             InitializeDefaultEmbargoNode(),
             actor_id=actor_id,
@@ -533,7 +533,7 @@ class TestCaseManagerInitializesTheOwnersEmbargo:
         assert owner.is_signatory(stored_case.active_embargo_id)
         assert (
             owner.consent_for(stored_case.active_embargo_id)
-            == EmbargoConsentState.ACCEPTED
+            == EmbargoConsentState.AGREED
         )
 
     def test_an_actor_neither_owner_nor_manager_cannot_activate(self) -> None:

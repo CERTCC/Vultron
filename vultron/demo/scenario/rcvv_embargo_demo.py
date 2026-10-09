@@ -400,13 +400,13 @@ def _phase_v2_late_invite(
     # The fix lifecycle, collapse and closure presuppose it, so the caller runs
     # them only when this returns True (DEMOCI-01-007).
     signed = False
-    with demo_gate("Vendor2 is a SIGNATORY to the active embargo"):
+    with demo_gate("Vendor2 is a signatory to the active embargo"):
         wait_for_participant_embargo_consent(
             cast.coordinator.client,
             case.id_,
             cast.vendor2.actor.id_,
             embargo_id,
-            EmbargoConsentState.ACCEPTED,
+            EmbargoConsentState.AGREED,
             COMMIT_TIMEOUT_SECONDS,
             dl_actor_id=resolve_case_actor_store_id(
                 cast.coordinator.client, case.id_

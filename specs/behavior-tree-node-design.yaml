@@ -316,7 +316,8 @@ groups:
     verification_debt: '#2574'
     statement: >-
       The BT node for creating the initial case participant MUST be role-agnostic; the correct
-      node for this purpose is `CreateCaseOwnerParticipant`.
+      node for this purpose is `AddOwnerParticipantNode`, which takes the case owner's
+      additional roles from `ActorConfig.default_case_roles`.
     rationale: >-
       "Vendor" is a demo-specific assumption. In the general protocol a coordinator, deployer, or
       other role may equally receive a report and become the case owner.

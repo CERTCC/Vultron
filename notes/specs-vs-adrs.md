@@ -7,6 +7,7 @@ related_notes:
   - notes/bt-pitfalls.md
   - notes/spec-authoring-rules.md
   - notes/agentic-workflow.md
+  - notes/documentation-sweeps.md
 ---
 
 # Specs vs. ADRs — Delineation Guidelines
@@ -27,6 +28,74 @@ MS-11-001 through MS-11-006.
 | When a spec alone suffices | When the approach is uncontested — no real fork existed | Creating an ADR for an obvious choice adds noise to the decision log |
 | When an ADR alone suffices | When the decision is a one-time structural/process choice with no per-change requirement | Not every decision produces enforceable requirements |
 | Cross-referencing | Spec `rationale` field SHOULD cite the ADR; ADR "More Information" SHOULD list spec IDs | Bidirectional links preserve traceability in both directions |
+
+---
+
+## An ADR Is a Historical Record; Specs and Notes Are the Current State
+
+An ADR answers what we decided and why, given what we knew at the time — an
+answer that cannot go stale, because the past does not change. It is not a
+description of the current codebase. Specs and notes are, and they carry a
+currency obligation that an ADR does not.
+
+Three consequences for everyday work:
+
+- **A refactor is never responsible for updating an ADR.** Renaming a symbol or
+  splitting a module does not oblige you to touch any ADR that mentions it. When
+  an ADR names a function or module path that was later renamed or deleted, the
+  decision still stands and the record is still accurate about the decision;
+  only its description of the code has aged. Nothing in the tooling fails on a
+  stale symbol in an ADR body, and that is deliberate.
+- **A constraint future code must obey does not live in an ADR body.** Put it in
+  a spec requirement when it is testable, or a `notes/` file when it is design
+  insight, and cite the ADR as provenance (MS-11-004, and the Cross-Referencing
+  Pattern below).
+- **A spec or note must not resolve its own meaning by pointing into an ADR
+  body.** Cite the ADR for *why*; state the rule where the reader already is. The
+  corpus does not satisfy this yet — the "ADR-0099 detail N" citations across
+  `specs/` and `notes/` are the known exception, and they are what gates the
+  change that stops routine agent context from loading ADR bodies at all. Do not
+  add another: a citation that names a numbered detail inside a body makes that
+  body load-bearing again.
+
+What stays in the body: the reasoning, the rejected options, and how the code
+looked when the decision was made — the last written so it reads as of its time,
+with removed symbols annotated in the ADR-0063 style rather than deleted. What
+does not: project tracking (a completed migration step, a struck-through progress
+list) and drift-prone detail (counts, metrics, `file.py:line` citations). The
+human-facing version of this is `docs/adr/index.md` § "Revising vs. amending an
+ADR"; the editing mechanics are the Edit Tiers section below.
+
+### An aged code reference in an ADR body is not a defect, and there is no scrub
+
+This is the consequence most likely to be re-derived as work, so it is stated
+outright: the corpus's existing stale code references are **not** a backlog. A
+reference in a record's context or validation prose is an accurate account of the
+code as it then stood. No issue owns scrubbing them, and no advisory count of
+them is reported — a count would re-describe the same sentences as debt and
+invite the scrub back. Most of them sit inside a Decision Outcome or Considered
+Options section anyway, where the Edit Tiers below would make a rename cost a
+dated Amendment.
+
+Enforcement is therefore **forward-only**: a reference newly written into a
+record should resolve on the day it is written, which is a question about the
+pull request's own diff rather than about the corpus. A merge-blocking check
+keyed on code changes is rejected — it would reinstate the refactor obligation
+the first bullet above removes. Note that the phantom-symbol half of the
+spec-corpus check (MS-15-004) resolves only what `_SPEC_SYMBOL_RE` in
+`vultron/metadata/specs/lint.py` matches, which is where to read the live shape.
+When #4412 was scoped that was backticked all-caps identifiers with an
+underscore, which saw neither a stale class name nor a function name — so a
+check extended to record bodies has to widen the shape to be worth anything,
+and #4412 is where it widens.
+
+Source: ADR-0127 (`docs/adr/0127-decision-records-leave-routine-agent-context.md`)
+and concern #4389. This replaces the ISSUE-1777 guidance (2026-07-31) that
+asked authors to revise accepted ADR bodies in place so a reader met only
+currently-accurate statements. That pursued the same goal — keeping stale detail
+out of a reader's way — through the only mechanism available while every ADR body
+was read as routine agent context. Records revised in place under it are left as
+they are.
 
 ---
 
@@ -371,6 +440,18 @@ therefore report this section's own table and pressure someone into deleting the
 guidance to get the hook green. If you are editing the counter-examples, that is
 why they survive; the exemption is recorded in `EXEMPT_CONSUMERS` in the same
 module.
+
+### ADR bodies are out of scope, and stay that way
+
+MS-16 names specs, notes files, AGENTS.md and mirrored `docs/` tables. It does
+not name ADR bodies, and ADR-0127 decided it should not — concern #4389 had
+asked whether it should. A body is read as history, so a dated measurement in
+one stays correct as of its date however far the corpus moves; extending MS-16
+there would re-describe accurate historical prose as debt and invite the scrub
+ADR-0127 rejects. That is the same carve-out the `## Change history` exemption
+above makes, for the same reason. The one thing a body does owe is the
+forward-only reference check, which carries its own requirement rather than
+widening MS-16.
 
 ---
 

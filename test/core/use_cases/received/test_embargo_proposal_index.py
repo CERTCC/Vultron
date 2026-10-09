@@ -31,7 +31,10 @@ from typing import cast
 import pytest
 
 from test.core.use_cases.received.conftest import seed_case_owner_participant
-from test.support.embargo_register import propose
+from test.support.embargo_register import (
+    propose,
+    write_consent_rows,
+)
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -103,8 +106,10 @@ def _make_case_with_case_manager(dl, actor_id, manager_id: str | None = None):
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
+    # On the roster too (CM-19-001): a proposal writes a consent row for
+    # every participant the case lists (ADR-0122).
+    case.add_participant(cm_p)
     dl.create(cm_p)
-    case.actor_participant_index[case_manager.id_] = cm_p.id_
     dl.save(case)
     return case, case_manager
 
@@ -323,6 +328,7 @@ class TestAcceptRejectFromCoreState:
         propose(case_obj, embargo.id_)
         case_obj.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         dl.save(case_obj)
+        write_consent_rows(dl, case_obj)
         return case, embargo, proposal
 
     def test_accept_uses_core_state_index(self):
@@ -389,6 +395,7 @@ class TestAcceptRejectFromCoreState:
             counter_proposal.id_
         )
         dl.save(case_obj)
+        write_consent_rows(dl, case_obj)
 
         request = AcceptEmbargoTriggerRequest(
             actor_id=actor_id,
@@ -457,6 +464,7 @@ class TestAcceptRejectFromCoreState:
         # An open proposal the pending-proposal index has no entry for.
         propose(case, f"{case.id_}/embargo_events/unindexed")
         dl.save(case)
+        write_consent_rows(dl, case)
 
         request = AcceptEmbargoTriggerRequest(
             actor_id=actor_id,
@@ -483,6 +491,7 @@ class TestAcceptRejectFromCoreState:
         # An open proposal the pending-proposal index has no entry for.
         propose(case, f"{case.id_}/embargo_events/unindexed")
         dl.save(case)
+        write_consent_rows(dl, case)
 
         request = RejectEmbargoTriggerRequest(
             actor_id=actor_id,
@@ -535,6 +544,7 @@ class TestReceivedRejectPrunesOpenProposals:
         propose(case_obj, embargo.id_)
         case_obj.pending_embargo_proposal_index = {embargo.id_: proposal.id_}
         dl.save(case_obj)
+        write_consent_rows(dl, case_obj)
 
         def received_reject_by(actor_id: str):
             # Each participant answers the Invite the manager relayed to it
@@ -706,6 +716,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         case_obj = cast(VulnerabilityCase, dl.read(case.id_))
         propose(case_obj, embargo.id_)
         dl.save(case_obj)
+        write_consent_rows(dl, case_obj)
 
         reject_activity = em_reject_embargo_activity(
             proposal=proposal,

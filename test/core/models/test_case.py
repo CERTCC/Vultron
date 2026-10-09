@@ -21,6 +21,7 @@ from test.support.embargo_register import activate, terminate
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
+    CaseParticipant,
     FinderParticipant,
 )
 from vultron.core.models.case_status import CaseStatus
@@ -371,3 +372,107 @@ class TestVulnerabilityCaseWireRoundTrip:
         )
         assert restored.active_embargo_id == "urn:uuid:embargo-1"
         assert restored.em_state == EM.ACTIVE
+
+
+# ---------------------------------------------------------------------------
+# Every participant holds a row for every register entry (ADR-0122)
+# ---------------------------------------------------------------------------
+
+_E1 = "https://example.org/embargoes/e1"
+_E2 = "https://example.org/embargoes/e2"
+
+
+def _case_with_register() -> VulnerabilityCase:
+    from test.support.embargo_register import propose
+
+    case = VulnerabilityCase(attributed_to="https://example.org/actors/owner")
+    activate(case, _E1)
+    propose(case, _E2)
+    return case
+
+
+@pytest.mark.spec("CM-18-001")
+def test_add_participant_writes_an_uninvited_row_per_register_entry() -> None:
+    from vultron.core.states.participant_embargo_consent import (
+        EmbargoConsentState,
+    )
+
+    case = _case_with_register()
+    participant = CaseParticipant(
+        attributed_to="https://example.org/actors/joiner", context=case.id_
+    )
+    assert case.add_participant(participant) is True
+    assert [(r.embargo_id, r.state) for r in participant.embargo_consents] == [
+        (_E1, EmbargoConsentState.UNINVITED),
+        (_E2, EmbargoConsentState.UNINVITED),
+    ]
+    # Adding again is idempotent: one row per entry, never two, and it
+    # reports that nothing was written.
+    assert case.add_participant(participant) is False
+    assert [r.embargo_id for r in participant.embargo_consents] == [_E1, _E2]
+    assert case.case_participants == [participant.id_]
+
+
+def test_add_participant_returns_false_on_an_empty_register() -> None:
+    case = VulnerabilityCase(attributed_to="https://example.org/actors/owner")
+    participant = CaseParticipant(
+        attributed_to="https://example.org/actors/joiner", context=case.id_
+    )
+    # No register entry, so no row to write: the participant is still added
+    # and indexed, but the return value says its record gained nothing.
+    assert case.add_participant(participant) is False
+    assert participant.embargo_consents == []
+    assert case.case_participants == [participant.id_]
+    assert case.actor_participant_index == {
+        "https://example.org/actors/joiner": participant.id_
+    }
+
+
+def test_add_participant_reports_a_row_for_a_later_register_entry() -> None:
+    from test.support.embargo_register import propose
+
+    case = VulnerabilityCase(attributed_to="https://example.org/actors/owner")
+    activate(case, _E1)
+    participant = CaseParticipant(
+        attributed_to="https://example.org/actors/joiner", context=case.id_
+    )
+    assert case.add_participant(participant) is True
+    propose(case, _E2)
+    # Re-adding writes only the row for the new entry and reports it.
+    assert case.add_participant(participant) is True
+    assert [r.embargo_id for r in participant.embargo_consents] == [_E1, _E2]
+    assert case.case_participants == [participant.id_]
+
+
+def test_embargo_register_status_raises_for_an_unregistered_embargo() -> None:
+    from vultron.core.states.embargo_register import EmbargoRegisterStatus
+    from vultron.errors import VultronNotFoundError
+
+    case = _case_with_register()
+    assert case.embargo_register_status(_E1) is EmbargoRegisterStatus.ACTIVE
+    with pytest.raises(VultronNotFoundError):
+        case.embargo_register_status("https://example.org/embargoes/none")
+
+
+@pytest.mark.spec("CM-18-001")
+def test_a_case_refuses_an_inline_participant_missing_a_row() -> None:
+    from pydantic import ValidationError
+
+    from test.support.embargo_register import register
+
+    rowless = CaseParticipant(
+        attributed_to="https://example.org/actors/p", context="urn:case"
+    )
+    with pytest.raises(ValidationError, match="no consent row"):
+        VulnerabilityCase(
+            id_="urn:case",
+            embargo_register=register(active=_E1),
+            case_participants=[rowless],
+        )
+    rowless.write_uninvited_rows([_E1])
+    case = VulnerabilityCase(
+        id_="urn:case",
+        embargo_register=register(active=_E1),
+        case_participants=[rowless],
+    )
+    assert case.active_participants == []

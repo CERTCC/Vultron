@@ -15,6 +15,7 @@ related_notes:
 related_specs:
   - specs/project-documentation.yaml
   - specs/build-workflow.yaml
+  - specs/parallel-development.yaml
 ---
 
 # Git, Branch, and PR Workflow Pitfalls
@@ -183,9 +184,10 @@ A PR with any failing check is not mergeable. "Pre-existing", "unrelated",
 PR #4087 re-ran a failed demo gate, saw it pass, and merged calling it flaky;
 the failure (#4113) was a real fan-out bug.
 
-- **Red `main` gets exactly one fix PR.** Every other PR waits for it or rebases
-  onto it. None merges past the red, and none opens a second fix for the same
-  failure.
+- **Red `main` gets exactly one fix PR.** Every other PR waits for it to land,
+  then re-runs CI, which tests the PR merged into the fixed base; never rebase
+  an open PR onto it (PAD-11-001). None merges past the red, and none opens a
+  second fix for the same failure.
 - **A flaky check may be re-run once, and only when it is already tracked**: an
   open `flaky-test` issue (see `notes/flaky-tests.md`) holds a reproduction, and
   the PR body names that issue. A pass on rerun with no such issue is not evidence

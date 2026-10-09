@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import pytest
 
-from test.support.embargo_register import register
+from test.support.embargo_register import register, write_consent_rows
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -168,6 +168,7 @@ def _make_case_at_received(
     case.actor_participant_index[vendor_id] = vendor_participant.id_
     case.case_participants.append(vendor_participant.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
     dl.create(VultronReportCaseLink(report_id=report_id, rm_state=RM.RECEIVED))
 
     return case, offer
@@ -404,6 +405,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         # and RM.RECEIVED is the state it holds before validate-report.
         _add_participant_at_received(dl, case, self.VENDOR_ID)
         dl.save(case)
+        write_consent_rows(dl, case)
         dl.create(
             VultronReportCaseLink(
                 report_id=self.REPORT_ID, rm_state=RM.RECEIVED

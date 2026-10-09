@@ -112,7 +112,7 @@ class _Revision:
             embargo_consents=[
                 EmbargoConsent(
                     embargo_id=self.active.id_,
-                    state=EmbargoConsentState.ACCEPTED,
+                    state=EmbargoConsentState.AGREED,
                 )
             ],
         )
@@ -123,7 +123,7 @@ class _Revision:
             embargo_consents=[
                 EmbargoConsent(
                     embargo_id=self.active.id_,
-                    state=EmbargoConsentState.ACCEPTED,
+                    state=EmbargoConsentState.AGREED,
                 )
             ],
         )
@@ -133,7 +133,7 @@ class _Revision:
             embargo_consents=[
                 EmbargoConsent(
                     embargo_id=self.active.id_,
-                    state=EmbargoConsentState.ACCEPTED,
+                    state=EmbargoConsentState.AGREED,
                 )
             ],
         )
@@ -252,7 +252,7 @@ class _Revision:
         return cast(CaseParticipant, self.dl.read(self.participants[actor_id]))
 
     def signatories(self) -> set[str]:
-        """Actors whose row for the active embargo is ACCEPTED."""
+        """Actors whose row for the active embargo is AGREED."""
         active_id = self.read_case().active_embargo_id
         return {
             actor
@@ -284,25 +284,30 @@ def _assert_all_signatories_to(revision: _Revision, embargo_id: str) -> None:
     assert revision.read_case().active_embargo_id == embargo_id
     assert revision.signatories() == set(ACTORS)
     for actor, rows in revision.consent().items():
-        assert rows[embargo_id] == EmbargoConsentState.ACCEPTED, actor
-        assert not revision.participant(actor).has_lapsed(embargo_id), actor
+        assert rows[embargo_id] == EmbargoConsentState.AGREED, actor
+        assert not revision.participant(actor).has_lapsed(
+            revision.read_case().embargo_register
+        ), actor
 
 
-_ACCEPTED = EmbargoConsentState.ACCEPTED
+_ACCEPTED = EmbargoConsentState.AGREED
 _INVITED = EmbargoConsentState.INVITED
+_UNINVITED = EmbargoConsentState.UNINVITED
 
 
 @pytest.mark.spec("EP-05-002")
 @pytest.mark.spec("MSM-07-005")
 def test_proposing_a_revision_changes_nobodys_consent(revision: _Revision):
-    """ACTIVE -> REVISE: everyone stays a signatory to A; the proposer gains an ACCEPTED row for B and
+    """ACTIVE -> REVISE: everyone stays a signatory to A; the proposer gains an AGREED row for B and
     the asked signatory an INVITED one (its row for A is kept, EP-09-004)."""
     a = revision.active.id_
     b = revision.propose_revision(days=90)
 
     assert revision.read_case().current_status.em.state == EM.REVISE
     consent = revision.consent()
-    assert consent[OWNER] == {a: _ACCEPTED}
+    # The proposal gives the owner an UNINVITED row for B (ADR-0122): it is
+    # not asked, and nothing is answered for it.
+    assert consent[OWNER] == {a: _ACCEPTED, b: _UNINVITED}
     assert consent[PROPOSER] == {a: _ACCEPTED, b: _ACCEPTED}
     assert consent[THIRD] == {a: _ACCEPTED, b: _INVITED}
     assert revision.signatories() == set(ACTORS)
@@ -342,7 +347,7 @@ def test_accepted_longer_revision_lapses_only_the_silent_signatory(
     revision: _Revision,
 ):
     """ACTIVE -> REVISE -> ACTIVE under longer B: the third party, who never
-    answered, lapses (derived: an ACCEPTED row for A, none for B); the proposer
+    answered, lapses (derived: an AGREED row for A, none for B); the proposer
     (consented by proposing) and the owner (consented by accepting) stay
     signatories."""
     a = revision.active.id_
@@ -357,7 +362,7 @@ def test_accepted_longer_revision_lapses_only_the_silent_signatory(
     assert consent[OWNER] == {a: _ACCEPTED, b: _ACCEPTED}
     assert consent[PROPOSER] == {a: _ACCEPTED, b: _ACCEPTED}
     assert consent[THIRD] == {a: _ACCEPTED, b: _INVITED}
-    assert revision.participant(THIRD).has_lapsed(b)
+    assert revision.participant(THIRD).has_lapsed(case.embargo_register)
     assert not revision.participant(THIRD).is_signatory(b)
     assert revision.signatories() == {OWNER, PROPOSER}
     # The gate excludes exactly the lapsed party: it has no accepting row for B.

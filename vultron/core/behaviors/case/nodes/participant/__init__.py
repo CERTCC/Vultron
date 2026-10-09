@@ -16,28 +16,15 @@
 """
 Participant management behavior-tree nodes for case workflows.
 
-This package replaces the previous monolithic ``participant.py`` module while
-preserving its public import surface.
-
-Composite subtrees (``Sequence``/``Selector`` subclasses) for participant
-workflows are defined in ``participant_tree.py`` at the process-area root
-(BTND-07-003).  They are not re-exported here: ``participant_tree.py``
-imports leaf nodes from this package, so a re-export would close an import
-cycle (CS-05-003).
+Participant records are built and attached through the policy-free
+``_create_and_attach_participant`` helper; each seating flow (case owner,
+inert invitee, reporter) supplies its own roles and initial status
+(BTND-05-003).
 """
 
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
     resolve_participant_state_from_dl,
-)
-from vultron.core.behaviors.case.nodes.participant.participant_add import (
-    AttachParticipantToCaseNode,
-    CaseHasActiveEmbargoNode,
-    CaseHasNoActiveEmbargoNode,
-    CreateParticipantInitialStatusNode,
-    CreateParticipantNode,
-    RecordParticipantAddedEventNode,
-    SeedParticipantAsSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
@@ -49,13 +36,6 @@ from vultron.core.behaviors.case.nodes.participant.trigger_validation import (
 __all__ = [
     "_create_and_attach_participant",
     "resolve_participant_state_from_dl",
-    "CreateParticipantInitialStatusNode",
-    "CreateParticipantNode",
-    "AttachParticipantToCaseNode",
-    "RecordParticipantAddedEventNode",
-    "CaseHasActiveEmbargoNode",
-    "CaseHasNoActiveEmbargoNode",
-    "SeedParticipantAsSignatoryNode",
     "CreateParticipantStatusNode",
     "ValidateTriggerTransitionsNode",
 ]

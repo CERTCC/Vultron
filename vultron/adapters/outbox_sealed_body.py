@@ -71,7 +71,7 @@ class SealStore(Protocol):
 #: as_VulnerabilityReport]``) the report came out as ``null``, putting a proposal
 #: on the wire with no report at all in breach of CP-01-004. The receiver then had
 #: nothing to store, and everything derived from the report — the reporter
-#: participant, its ledger entry, the SIGNATORY seed — skipped "best-effort", so
+#: participant, its ledger entry, the signatory seed — skipped "best-effort", so
 #: the reporter silently never received a case replica.
 OUTBOUND_DUMP_KWARGS: dict[str, Any] = {
     "by_alias": True,

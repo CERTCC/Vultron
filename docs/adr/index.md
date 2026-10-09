@@ -48,26 +48,55 @@ losing context.
 
 ### Revising vs. amending an ADR
 
-An ADR records the decision that was made and why. Its value to a future reader
-is that they can understand the current expectation in one pass.
+An ADR is a historical record.
+It answers what we decided and why, given what we knew at the time — a question whose answer cannot go stale, because the past does not change.
+It is not a description of the current codebase.
 
-**When to revise in-place**: If a recently-accepted ADR contains a statement
-that its own implementation contradicted — e.g., an option label that says
-"rejected" for something the chosen option actually requires, or a "what is
-removed" list that conflicts with MUST-level spec entries — **revise the ADR
-body directly** to make the current expectation accurate.
+That distinction decides most editing questions.
+When an ADR names a function, a module path, or a class that was later renamed or deleted, the decision still stands and the record is still accurate about the decision; only its description of the code has aged.
 
-**When to write a new ADR**: If the decision itself changed (you adopted a
-different option than originally chosen), write a new ADR that supersedes the
-old one.
+**A refactor is never responsible for updating an ADR.**
+Renaming a symbol or splitting a module does not oblige you to touch any ADR that mentions it.
+If a decision has consequences that future code must obey, those belong in a spec requirement or a `notes/` file, which carry an obligation to stay current that an ADR does not.
+Record them there and cite the ADR as provenance — see `notes/specs-vs-adrs.md` for the delineation and MS-11-004 for the bidirectional citation pattern.
+A spec or note MUST NOT resolve its own meaning by pointing into an ADR body; cite the ADR for *why*, and state the rule where the reader already is.
+The corpus does not satisfy that rule yet: the "ADR-0099 detail N" citations in `specs/` and `notes/` are the known exception, and converting them is tracked in #4409.
+Do not add another such citation. An ADR citing a numbered detail of another ADR is fine — that is history citing history.
 
-**Do not append `### Amendment` sections**: An append-only trail of amendments
-forces future readers to reconcile the body against its own addenda to determine
-which statement is currently authoritative. This defeats the primary purpose of
-the record. The only exception is an ADR with `status: provisional` where the
-amendment explicitly finalises that status.
+**An aged code reference in an ADR body is not a defect.**
+Per [ADR-0127](0127-decision-records-leave-routine-agent-context.md), the existing stale paths and symbols across the corpus are not a backlog and no scrub is owed: a reference in a record's context or validation prose is an accurate account of the code as it then stood.
+Enforcement is forward-only — a reference newly written into an ADR should resolve on the day it is written.
 
-Source: ISSUE-1777 / learning 2026-07-31
+**How to edit an ADR**: follow the edit tiers in [ADR-0120](0120-adr-lifecycle-epochs-and-edit-tiers.md), which key off how long ago the ADR was last materially changed.
+Editorial fixes and appended annotations are allowed at any time and change neither `updated` nor `revision`.
+A clarification that does not alter what anything built on the ADR must do is appended as a dated note, rather than written over the original text.
+A material change bumps `updated` and `revision`; on an `accepted-provisional` ADR, ask the human whether to edit in place or supersede.
+On an `accepted` ADR, a material change to one detail with the chosen option intact is a dated Amendment that quotes the text it replaces.
+A change of the chosen option is a new ADR that supersedes the old one; the old one is restored to its original text, marked `superseded`, and moved to `archived/` (MS-14-004).
+Never rewrite an accepted ADR under its own number.
+The `adr-lifecycle-check` pre-commit hook holds one part of this mechanically: on an `accepted` ADR last changed more than ten days ago, it refuses a changed `## Decision Outcome` or `## Considered Options` section that adds no new dated Amendment heading, and it refuses an `updated` bump that carries no `status_override` (MS-14-009).
+It reads no other section, does not check that an Amendment quotes what it replaces, and does not fire on an `accepted-provisional` ADR, so the remaining tiers are yours to honour.
+
+**What not to write into an ADR body.**
+Implementation detail that drifts independently of the decision costs a future reader — including an agent with a limited context window — attention on claims that were true once and are not checkable now.
+
+- A statement about a completed migration step — "X is deleted", a struck-through progress list, a renaming checklist — is project tracking, not a decision.
+  Record it in the issue that does the work.
+  Deleting it is an editorial edit wherever it sits outside `## Decision Outcome` and `## Considered Options`.
+  Inside either of those, on an `accepted` ADR, the hook above refuses the deletion on its own, so leave it for the next material change or supersession to carry.
+- A count, a metric, or a `file.py:line` citation goes stale on the next unrelated edit.
+  State the rule and point at where the live answer lives.
+  MS-16-001 and MS-16-002 in `specs/meta-specifications.yaml` set out the same principle for specs, notes and AGENTS.md; extending it to ADR bodies, with a check behind it, is tracked in #4389.
+- A description of how the code looked when the decision was made is legitimate context, because it is part of why the decision was needed.
+  Write it so it reads as of its time, and annotate anything since removed.
+  [ADR-0063](0063-wire-rendering-port-for-core-objects.md) is the house style, noting inline that "that mechanism and that module were **deleted** in #2940".
+  A reference marked that way is dead but not misleading.
+
+**On the former guidance in this section.**
+Until 2026-10-09 this section asked authors to revise an accepted ADR body in place so that a reader would meet only currently-accurate statements (ISSUE-1777), and discouraged appended amendments for the same reason.
+That pursued the goal above — keeping stale detail out of a reader's way — through the only mechanism available while every ADR body was read as routine context: keeping the bodies current.
+Keeping implementation detail out of the body in the first place serves the same goal without asking a historical record to change, and without conflicting with the lifecycle rules that ADR-0120 and MS-14-009 now set.
+Records revised in place under the former guidance, such as [ADR-0098](0098-demo-scenarios-self-register.md), are left as they are.
 
 ### How to write an ADR
 
@@ -80,7 +109,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0000 Record architecture decisions](0000-record-architecture-decisions.md)
 - [ADR-0001 Use Markdown Any Decision Records](0001-use-markdown-any-decision-records.md)
 - [ADR-0002 Model Processes with Behavior Trees](0002-model-processes-with-behavior-trees.md)
-- [ADR-0003 Build our own Behavior Tree engine in Python](0003-build-custom-python-bt-engine.md)
+- [ADR-0003 Build our own Behavior Tree engine in Python](0003-build-custom-python-bt-engine.md) — partially superseded by 0008-use-py-trees-for-handler-bt-integration.md
 - [ADR-0004 Use factory methods for common BT node types](0004-use-factory-methods-for-common-bt-node-types.md)
 - [ADR-0005 Use ActivityStreams Vocabulary as the basis for Vultron Message Formats](0005-activitystreams-vocabulary-as-vultron-message-format.md)
 - [ADR-0006 Vultron Release Versioning](0006-use-calver-for-project-versioning.md)
@@ -196,10 +225,12 @@ General information about architectural decision records is available at <https:
 - [ADR-0115 Received Handlers Check the Sender's Entitlement, Declared Once per Use Case and Composed by the Receive-Tree Factory](0115-received-handlers-check-sender-entitlement.md)
 - [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md)
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md)
-- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 2)*
+- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 3)*
 - [ADR-0124 The Case Is a Projection of Its Ledger: One Replay Function for the CASE_MANAGER and Every Replica](0124-case-is-a-projection-of-its-ledger.md)
 - [ADR-0125 A Case Splits by Its Owner Proposing a Child Case: the Child Links Its Parent and Inherits the Embargo Terms Only](0125-case-split-child-case-inherits-the-embargo-only.md)
-- [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md)
+- [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)*
+- [ADR-0127 Decision Records Leave Routine Agent Context; Specs and Notes Carry the Current State](0127-decision-records-leave-routine-agent-context.md)
+- [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
 
 ## Rejected ADRs
 

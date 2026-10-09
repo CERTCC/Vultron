@@ -372,8 +372,8 @@ groups:
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that the case
       replica is delivered to a joining participant only after it has accepted the stub
-      Invite and, when an embargo is active, its consent is `SIGNATORY`, and that an
-      invitee that has not joined receives no case replica.
+      Invite and, when an embargo is active, it is a signatory to that embargo, and that
+      an invitee that has not joined receives no case replica.
     adr:
     - ADR-0114
     relationships:
@@ -390,10 +390,10 @@ groups:
       When a participant accepts the stub Invite (`Accept(Invite(Actor,
       VulnerabilityCaseStub))`) and the case has an active embargo, the acceptance MUST
       imply consent to the active embargo, marking that participant's consent row
-      for it `ACCEPTED` (CM-11-001).
+      for it `AGREED` (CM-11-001).
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      accepting the stub Invite marks the accepting participant's consent row for the active embargo `ACCEPTED` when an embargo is active.
+      accepting the stub Invite marks the accepting participant's consent row for the active embargo `AGREED` when an embargo is active.
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008

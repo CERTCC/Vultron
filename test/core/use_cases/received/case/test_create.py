@@ -455,6 +455,11 @@ _UNHELD_EMBARGO_ID = f"{_CASE_ID}/embargo_events/unheld"
 def _case_naming_unheld_embargo() -> as_VulnerabilityCase:
     case, _ = _case_with_case_actor_participant()
     unheld: as_VulnerabilityCase = case.model_copy(deep=True)
+    # The sender's inline participants carry a row for every register entry
+    # (ADR-0122), so they hold it before the entry is added.
+    for participant in unheld.case_participants:
+        if isinstance(participant, as_CaseParticipant):
+            participant.write_uninvited_rows([_UNHELD_EMBARGO_ID])
     activate(unheld, _UNHELD_EMBARGO_ID)
     return unheld
 

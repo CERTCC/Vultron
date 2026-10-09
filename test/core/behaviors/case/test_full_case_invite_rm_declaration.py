@@ -38,7 +38,7 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.embargo_register import activate
+from test.support.embargo_register import activate, write_consent_rows
 from test.support.rm_declaration import (
     ACTOR_ID,
     CASE_ID,
@@ -96,6 +96,7 @@ def _seed_with_invite(dl: SqliteDataLayer, current: RM) -> tuple[Any, Any]:
     case = cast(VulnerabilityCase, dl.read(CASE_ID))
     activate(case, f"{CASE_ID}/embargoes/shared-table")
     dl.save(case)
+    write_consent_rows(dl, case)
     # Ensure joined=True (seed_case creates participants that default to
     # joined=True, but set it explicitly to be safe).
     participant = cast(CaseParticipant, dl.read(PARTICIPANT_ID))

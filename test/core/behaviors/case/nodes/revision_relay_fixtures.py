@@ -113,6 +113,11 @@ def seed(
         id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(60)
     )
     report = VulnerabilityReport(id_=REPORT_ID, attributed_to=report_author)
+    for record in records:
+        # The rows the register's entries gave each participant (ADR-0122).
+        record.write_uninvited_rows(
+            e.embargo_id for e in case.embargo_register
+        )
     scenario.seed(*records, case, embargo, report)
     if created:
         scenario.dl.save(

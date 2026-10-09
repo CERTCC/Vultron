@@ -46,6 +46,14 @@ causal_edges:
     note: >
       Closure requires a validated, engaged case.  After the handoff, the
       Coordinator is the case owner and commits the last close entry.
+  - antecedent: close_case
+    consequent: close_case
+    consequent_actor: coordinator
+    note: >
+      The Coordinator, the Case Owner, leaves last (CM-23-015): another
+      participant's close_case precedes the owner's.  The owner's departure
+      closes the case, and a departure sent after it is not recorded
+      (CM-23-013).
   - antecedent: engage_case
     consequent: add_note_to_case
     consequent_actor: vendor
@@ -174,8 +182,9 @@ All participants publish.  The embargo exits ACTIVE.
 
 ### 13. All participants close the case
 
-`close_case` entries appear for each participant.  The Coordinator, as the
-current case owner, commits the final close entry.
+`close_case` entries appear for each participant.
+Vendor1, Vendor2, and the Finder leave first; the Coordinator, the Case Owner since the handoff, leaves last.
+A departure sent after the owner's is not recorded, so every other participant's departure is recorded first.
 
 *Antecedent:* `validate_report` and `engage_case` are in the ledger.
 

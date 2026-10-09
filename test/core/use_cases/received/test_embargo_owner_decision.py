@@ -168,7 +168,7 @@ def test_the_case_manager_applies_and_commits_the_owners_activation(
     assert case.em_state == EM.ACTIVE
     assert case.proposed_embargo_ids == []
     # The activation is the owner's agreement (ADR-0122).
-    assert _owner(dl).consent_for(embargo.id_) == EmbargoConsentState.ACCEPTED
+    assert _owner(dl).consent_for(embargo.id_) == EmbargoConsentState.AGREED
     assert _ledger(dl) == ["activate_embargo_on_case"]
 
 
@@ -252,7 +252,11 @@ def test_an_activation_the_owner_declined_is_refused_uncommitted(
     """An owner that declined the proposal is invited again first (ADR-0122)."""
     dl, _case_obj, embargo = _store()
     owner = _owner(dl)
-    owner.apply_pec_transition(embargo.id_, PEC_Trigger.DECLINE)
+    owner.apply_pec_transition(
+        embargo.id_,
+        PEC_Trigger.DECLINE,
+        entry_status=_case(dl).embargo_register_status(embargo.id_),
+    )
     dl.save(owner)
 
     result = _receive(

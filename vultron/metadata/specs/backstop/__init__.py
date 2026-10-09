@@ -34,10 +34,14 @@ from vultron.metadata.specs.backstop._cli import (
     main,
 )
 from vultron.metadata.specs.backstop._diff import (
+    base_changed_paths,
+    changed_paths,
     changes_from_paths,
     collect_git_changes,
     git_toplevel,
+    merge_base,
     parse_diff_hunks,
+    run_git,
 )
 from vultron.metadata.specs.backstop._manifest import (
     is_resolved,
@@ -72,7 +76,9 @@ from vultron.metadata.specs.backstop._symbols import (
     index_test_file,
     mirror_tests,
     module_name,
+    owner_modules,
     spec_ids_in,
+    symbol_names,
 )
 
 __all__ = [
@@ -91,8 +97,10 @@ __all__ = [
     "TEST_PREFIX",
     "TestFile",
     "analyze",
+    "base_changed_paths",
     "build_test_index",
     "changed_nodes",
+    "changed_paths",
     "changed_symbols",
     "changes_from_paths",
     "collect_git_changes",
@@ -102,13 +110,17 @@ __all__ = [
     "is_resolved",
     "load_requirements",
     "main",
+    "merge_base",
     "mentions",
     "mirror_tests",
     "module_name",
+    "owner_modules",
     "parse_diff_hunks",
     "parse_manifest",
     "render_json",
     "render_text",
+    "run_git",
     "spec_ids_in",
+    "symbol_names",
     "unresolved_groups",
 ]

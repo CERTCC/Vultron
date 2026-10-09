@@ -3,11 +3,9 @@
 > For project-wide conventions, see the root [AGENTS.md](../../AGENTS.md).
 
 This package is the project's own tooling layer: it reads the repository's
-metadata files and validates them. It backs the `spec-dump`, `spec-lint`,
-`spec-coverage`, `adr-index`, `demo-scenarios`, `append-history`,
-`show-history`, `bundle-fit`, `pr-size`, `wire-context`, `docs-withheld`,
-`docs-links`, `docs-legacy-urls`, `glossary-index`, `learnings-index`,
-`spec-backstop`, `spec-retire` console entry points, plus pre-commit hooks.
+metadata files and validates them. It backs every `vultron.metadata.*` entry
+in `pyproject.toml` `[project.scripts]` (`spec-dump`, `spec-backstop`,
+`targeted-tests`, `append-history`, and the rest), plus pre-commit hooks.
 
 Two exceptions to "reads the repository's metadata files". `planning/` reads a
 GitHub GraphQL payload piped in on **stdin** rather than files on disk, so its
@@ -35,7 +33,7 @@ are the product**.
 | `msm/` | a constant mapping table + the wire `SEMANTIC_REGISTRY` | — |
 | `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
 | `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md` (`glossary_index.py`); the built `site/` tree (`withheld.py`, `links.py`, `legacy_urls.py`, via `built_site.py`); each page's rendered HTML at build time (`anchor_ids.py`, an `on_page_content` hook under `hooks:` in `mkdocs.yml` — registers exec-emitted ids as anchor targets for `--strict`, #3735); the assembled `full.md` Markdown at build time (`full_page_links.py`, an `on_page_markdown` hook under `hooks:` — rewrites the Protocol Specification's same-section `page.md#fragment` links to in-page `#fragment` links on its single-page edition only, #4092); every `docs/**/*.md` page's `stakeholder_type`/`level` (`page_frontmatter.py`, DF-11) | `PageFrontmatter`, `WorkingRecordFrontmatter` (`page_schema.py`); publication axis: DOCBW-03-005; reference axis: DOCBW-03-007; continuity axis: DOCBW-03-008 |
-| `planning/` | an Epic's sub-issue GraphQL payload on stdin | — (selection rules: PAD-15) |
+| `planning/` | an Epic's sub-issue GraphQL payload on stdin; a branch diff (`size_bands.py`, `targeted_tests.py`) | — (selection rules: PAD-15; local test gate: PAD-18) |
 
 Shared helpers live in three places — `base.py`, `markdown_tables.py`, and
 `file_loading.py` (see [Loader Failure Attribution](#loader-failure-attribution-ms-17)).

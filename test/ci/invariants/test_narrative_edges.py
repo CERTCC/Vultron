@@ -84,6 +84,7 @@ _HANDOFF_IN_ORDER = (
     "accept_invite_actor_to_case",
     "add_note_to_case",
     "close_case",
+    "close_case",
 )
 
 #: The same flow with the new owner's invite sent before the ownership
@@ -99,6 +100,7 @@ _HANDOFF_INVITE_BEFORE_OWNERSHIP = (
     _OWNERSHIP_ACCEPTED,
     "accept_invite_actor_to_case",
     "add_note_to_case",
+    "close_case",
     "close_case",
 )
 
@@ -335,4 +337,56 @@ def test_invite_chain_rejects_malformed_chains(
     assert violations, "malformed chain produced no violation"
     assert any(expected_fragment in v for v in violations), "\n".join(
         violations
+    )
+
+
+_CLOSE = "close_case"
+
+
+def _owner_last_edge(page: Path) -> dict:
+    """The page's ``close_case → close_case`` edge naming the Case Owner."""
+    edges = [
+        e
+        for e in load_narrative_edges(_rel(page))
+        if e.get("antecedent") == _CLOSE and e.get("consequent") == _CLOSE
+    ]
+    assert len(edges) == 1, (
+        f"{_rel(page)} must declare exactly one {_CLOSE!r} → {_CLOSE!r} edge"
+        f" naming the Case Owner (CM-23-015); found {len(edges)}"
+    )
+    return edges[0]
+
+
+def _closures(*actors: str) -> dict[str, list[dict]]:
+    """A synthetic authoritative log of ``close_case`` entries by *actors*."""
+    return {
+        "case-actor": [
+            {
+                "log_index": i,
+                "eventType": _CLOSE,
+                "payloadSnapshot": {"actor": f"http://host/actors/{actor}"},
+            }
+            for i, actor in enumerate(actors)
+        ]
+    }
+
+
+@pytest.mark.spec("CM-23-015")
+@pytest.mark.parametrize("page", _narrative_pages(), ids=lambda p: p.stem)
+def test_owner_last_edge_orders_the_case_owner_after_another_departure(
+    page: Path,
+) -> None:
+    """Every narrative's ledger check rejects an owner that leaves first.
+
+    The Case Owner's departure closes the case, and a departure sent after
+    it is not recorded (CM-23-013), so every scenario closes the owner last
+    (CM-23-015).  The edge is satisfied only when another participant's
+    ``close_case`` precedes the owner's.
+    """
+    edge = _owner_last_edge(page)
+    owner = edge["consequent_actor"]
+    names = {owner: owner, "other": "other"}
+    assert not check_causal_edges(_closures("other", owner), [edge], names)
+    assert check_causal_edges(_closures(owner, "other"), [edge], names), (
+        f"{_rel(page)}: an owner-first closure passes the owner-last edge"
     )

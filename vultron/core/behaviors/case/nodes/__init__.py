@@ -24,7 +24,8 @@ Submodules:
 - ``actor``: Actor-participation invite/accept emit nodes
 - ``conditions``: Idempotency guard and role-check condition nodes
 - ``case_setup``: CaseActor provisioning leaf action node (EnsureCaseActorHostedNode)
-- ``participant``: Participant creation and attachment leaf action nodes
+- ``participant``: Shared participant create-and-attach helper, status
+  writer, and trigger-transition validation
 - ``embargo``: Default embargo initialization action nodes
 - ``close_case_effect``: Ledger-apply of a ``close_case`` entry on a replica
   (ApplyCloseCaseFromLedgerNode; composes the participant-status writer)

@@ -16,7 +16,7 @@
 
 Covers valid and invalid EM transitions in STRICT and OBSERVED mode, owner
 versus non-owner proposers, idempotency, and the one consent effect a
-proposal has: the proposer's own row for the proposed embargo becomes ACCEPTED,
+proposal has: the proposer's own row for the proposed embargo becomes AGREED,
 while nobody's row for the embargo in force moves (EP-05-002).  Also covers
 ``abandon_embargo_proposals``, the P/X/A abandonment of every open proposal
 (EMB-16-001).  The answers to a proposal are tested in ``test_answers.py``."""
@@ -25,7 +25,12 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import activate, propose, terminate
+from test.support.embargo_register import (
+    activate,
+    propose,
+    terminate,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
@@ -97,6 +102,7 @@ def test_propose_embargo_idempotent_repropse(
     # Seed the case as already having this embargo proposed
     propose(case, embargo.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     result = lifecycle.propose_embargo(
@@ -126,8 +132,9 @@ def test_propose_embargo_active_to_revise_lapses_nobody(
 
     A revision *proposal* changes no one's row for the embargo in force
     (EP-05-002, ADR-0093): every signatory to it stays a signatory.
-    Proposing terms is consenting to them, so the proposer gains an ACCEPTED
-    row for the proposed id and nobody else gains any row.
+    Proposing terms is consenting to them, so the proposer's row for the
+    proposed id is AGREED and everybody else's is the UNINVITED row the
+    proposal writes (ADR-0122).
     """
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
@@ -137,8 +144,9 @@ def test_propose_embargo_active_to_revise_lapses_nobody(
     active = _make_embargo(dl, case.id_)
     activate(case, active.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
     for p in participants:
-        _seed_consent(dl, p.id_, active.id_, ECS.ACCEPTED)
+        _seed_consent(dl, p.id_, active.id_, ECS.AGREED)
 
     revision = _make_embargo(dl, case.id_, days=90)
 
@@ -161,10 +169,13 @@ def test_propose_embargo_active_to_revise_lapses_nobody(
         assert _is_signatory(dl, case.id_, p.id_)
     # The proposer consented to its own terms; nobody else's rows moved.
     assert _consents_of(dl, finder_p.id_) == {
-        active.id_: "ACCEPTED",
-        revision.id_: "ACCEPTED",
+        active.id_: "AGREED",
+        revision.id_: "AGREED",
     }
-    assert _consents_of(dl, owner_p.id_) == {active.id_: "ACCEPTED"}
+    assert _consents_of(dl, owner_p.id_) == {
+        active.id_: "AGREED",
+        revision.id_: "UNINVITED",
+    }
 
 
 @pytest.mark.spec("EP-05-002")
@@ -174,8 +185,8 @@ def test_propose_embargo_revise_to_revise_lapses_nobody(
 ) -> None:
     """A counter-revision (REVISE → REVISE) lapses nobody either.
 
-    The proposer gains an ACCEPTED row for the counter-proposed id; a
-    signatory stays a signatory; an invitee stays invited.
+    The proposer's row for the counter-proposed id is AGREED; a signatory
+    stays a signatory; an invitee stays invited.
     """
     owner, dl = owner_and_dl
     finder = _make_actor(dl, "Finder Org")
@@ -191,8 +202,9 @@ def test_propose_embargo_revise_to_revise_lapses_nobody(
     activate(case, active.id_)
     propose(case, first_revision.id_)
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, finder_p.id_, active.id_, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, finder_p.id_, active.id_, ECS.AGREED)
     _seed_consent(dl, invitee_p.id_, first_revision.id_, ECS.INVITED)
 
     counter = _make_embargo(dl, case.id_, days=60)
@@ -207,11 +219,20 @@ def test_propose_embargo_revise_to_revise_lapses_nobody(
     assert _is_signatory(dl, case.id_, finder_p.id_)
     assert not _is_signatory(dl, case.id_, invitee_p.id_)
     assert _consents_of(dl, finder_p.id_) == {
-        active.id_: "ACCEPTED",
-        counter.id_: "ACCEPTED",
+        active.id_: "AGREED",
+        first_revision.id_: "UNINVITED",
+        counter.id_: "AGREED",
     }
-    assert _consents_of(dl, owner_p.id_) == {active.id_: "ACCEPTED"}
-    assert _consents_of(dl, invitee_p.id_) == {first_revision.id_: "INVITED"}
+    assert _consents_of(dl, owner_p.id_) == {
+        active.id_: "AGREED",
+        first_revision.id_: "UNINVITED",
+        counter.id_: "UNINVITED",
+    }
+    assert _consents_of(dl, invitee_p.id_) == {
+        active.id_: "UNINVITED",
+        first_revision.id_: "INVITED",
+        counter.id_: "UNINVITED",
+    }
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.proposed_embargo_ids == [first_revision.id_, counter.id_]
 
@@ -231,7 +252,7 @@ def test_propose_embargo_by_a_non_participant_records_no_consent(
     )
 
     assert result.em_after == EM.PROPOSED
-    assert _consents_of(dl, owner_p.id_) == {}
+    assert _consents_of(dl, owner_p.id_) == {embargo.id_: "UNINVITED"}
 
 
 @pytest.mark.spec("CM-18-003")
@@ -240,7 +261,7 @@ def test_propose_embargo_by_a_declined_participant_records_no_consent(
 ) -> None:
     """A DECLINED proposer holds no consent until re-invited (#4003).
 
-    Marking its row ACCEPTED would let the content gate admit it once the
+    Marking its row AGREED would let the content gate admit it once the
     owner activated the terms, while it had declined them.
     """
     owner, dl = owner_and_dl
@@ -278,6 +299,7 @@ def test_propose_embargo_invalid_state_raises(
     activate(case, ended.id_)
     terminate(case)
     dl.save(case)
+    write_consent_rows(dl, case)
     embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -308,6 +330,7 @@ def test_propose_embargo_observed_mode_skips_a_refused_proposal(
     activate(case, ended.id_)
     terminate(case)
     dl.save(case)
+    write_consent_rows(dl, case)
     embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -397,6 +420,7 @@ def _case_with_open_proposals(
         embargo_id: f"{embargo_id}/invite" for embargo_id in ids
     }
     dl.save(case)
+    write_consent_rows(dl, case)
     return case, ids
 
 
@@ -504,3 +528,45 @@ def test_strict_abandonment_outside_proposed_is_refused(
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.proposed_embargo_ids == ids
     assert updated.em_state == EM.REVISE
+
+
+@pytest.mark.spec("CM-18-001", "CM-10-001")
+def test_proposing_writes_an_uninvited_row_for_every_current_participant(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Every participant holds a row for the proposal at once (ADR-0122).
+
+    The proposer's row is AGREED; everyone else's is UNINVITED, so no
+    participant is left without a row to read.  Rows for other embargoes are
+    left as they were.
+    """
+    owner, dl = owner_and_dl
+    finder = _make_actor(dl, "Finder Org")
+    vendor = _make_actor(dl, "Vendor Org")
+    case, participants = _make_case(
+        dl, owner.id_, extra_participant_ids=[finder.id_, vendor.id_]
+    )
+    owner_p, finder_p, vendor_p = participants
+    active = _make_embargo(dl, case.id_)
+    activate(case, active.id_)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, vendor_p.id_, active.id_, ECS.AGREED)
+    revision = _make_embargo(dl, case.id_, days=90)
+
+    EmbargoLifecycle(persistence=dl).propose_embargo(
+        case_id=case.id_, embargo_id=revision.id_, actor_id=finder.id_
+    )
+
+    assert _consents_of(dl, owner_p.id_) == {
+        active.id_: "UNINVITED",
+        revision.id_: "UNINVITED",
+    }
+    assert _consents_of(dl, finder_p.id_) == {
+        active.id_: "UNINVITED",
+        revision.id_: "AGREED",
+    }
+    assert _consents_of(dl, vendor_p.id_) == {
+        active.id_: "AGREED",
+        revision.id_: "UNINVITED",
+    }

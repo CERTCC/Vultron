@@ -80,15 +80,15 @@ Mechanism, the silent node-shadowing variant, and the full rules:
 
 ```python
 # WRONG — skips the transition table
-participant.embargo_consents = [EmbargoConsent(embargo_id=e, state=ACCEPTED)]
-# CORRECT — validates the trigger against this embargo's row, then persist
-participant.apply_pec_transition(embargo_id, PEC_Trigger.ACCEPT)
+participant.embargo_consents = [EmbargoConsent(embargo_id=e, state=AGREED)]
+# CORRECT — checks the table and the entry's register status, then persist
+participant.apply_pec_transition(e, PEC_Trigger.AGREE, entry_status=status)
 dl.save(participant)
 ```
 
-"Signatory" and "lapsed" are reads (`is_signatory`, `has_lapsed`), never
-writes: a node that writes a row to record a lapse, advance or exit re-creates
-the second record ADR-0122 removed. See `notes/participant-embargo-consent.md`.
+Every row is written (`UNINVITED` first), so attach a new participant *before*
+storing it. "Signatory" and "lapsed" are reads, never writes (ADR-0122); see
+`notes/participant-embargo-consent.md`.
 
 ---
 
@@ -118,9 +118,9 @@ module. An `EmitCapable` node in `replica_effects` outside a `CaseManagerGate`
 raises `VultronWiringError` unless `replica_emit_exemption` names a registered
 `ReplicaEmitExemption` (`replica_emit_exemptions.py`) whose `covers` lists it.
 A new emit node class reaching the outbox mixes in `EmitCapable` (or inherits
-it from its base). `effect_nodes` is the unchecked legacy form, not mixable with
-the new two; only the close-case tree still passes it (#3825), pinned in
-`test/architecture/test_received_tree_case_manager_gate.py`. Never add a caller. Full write-up:
+it from its base). The pre-BT-17-008 `effect_nodes` parameter was retired
+(#4307) once the close-case tree, its last caller, moved its decline emit onto
+`manager_effects` (#3825). Full write-up:
 `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From the
 Factory".
 

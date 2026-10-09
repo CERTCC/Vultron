@@ -90,9 +90,9 @@ def _seed(
             attributed_to=OWNER_ACTOR_ID,
             context=CASE_ID,
         )
+        # Attached first, so it takes a row per register entry (ADR-0122).
+        case.add_participant(participant)
         datalayer.save(participant)
-        case.case_participants.append(participant.id_)
-        case.actor_participant_index[OWNER_ACTOR_ID] = participant.id_
     datalayer.save(case)
     return case
 
@@ -192,7 +192,7 @@ def test_the_activation_records_the_owners_agreement_on_the_replica(
 
     owner = datalayer.read(f"{CASE_ID}/participants/owner")
     assert isinstance(owner, CaseParticipant)
-    assert owner.consent_for(EMBARGO_ID) == EmbargoConsentState.ACCEPTED
+    assert owner.consent_for(EMBARGO_ID) == EmbargoConsentState.AGREED
 
 
 @pytest.mark.spec("RSH-08-004")
@@ -214,7 +214,7 @@ def test_the_rejection_entry_rejects_the_proposal_on_the_replica(
     # The owner's decision writes no consent (ADR-0122).
     owner = datalayer.read(f"{CASE_ID}/participants/owner")
     assert isinstance(owner, CaseParticipant)
-    assert owner.consent_for(EMBARGO_ID) is None
+    assert owner.consent_for(EMBARGO_ID) is EmbargoConsentState.UNINVITED
 
 
 @pytest.mark.spec("SYNC-12-003")

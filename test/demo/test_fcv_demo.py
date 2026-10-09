@@ -35,6 +35,7 @@ from test.demo._helpers import (
     make_client,
     make_testclient_call,
     patch_chain_shared,
+    stub_closure_gate,
 )
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
@@ -577,6 +578,7 @@ class TestFcvMilestoneAssertions:
             patch.object(
                 coordinated_case, "wait_for_all_participants_rm_closed"
             ),
+            stub_closure_gate(),
             patch.object(coordinated_case, "verify_case_closed") as mock_m7,
             patch.object(coordinated_case, "wait_for_event_type_in_ledger"),
             patch.object(coordinated_case, "wait_for_replica_ledger_coverage"),

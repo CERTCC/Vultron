@@ -56,6 +56,32 @@ vulnerability until a specified date or condition.
 
 ---
 
+## Messages
+
+Canonical definitions: `docs/reference/glossary.md` § Messaging and Protocol, which
+also defines **Message Type** and **Protocol Shorthand** for the formal message set
+(`RS`, `EP`, …).
+
+**Wire activity**:
+An ActivityStreams 2.0 (AS2) activity of a given shape, such as
+`Offer(VulnerabilityReport)`, written with the literal AS2 type names a sender puts on
+the wire.
+*Avoid*: message type (that is the formal message set)
+
+**Semantic type**:
+What a receiver recognizes an incoming wire activity as, judged from its shape alone.
+Not a Message Type: the two are many-to-many.
+*Avoid*: meaning (use *occasion* for the sender's situation)
+
+**Occasion**:
+A situation in a case that a sender conveys with a particular wire activity, sometimes
+narrowed by a distinguishing field value. One semantic type has one or more —
+`Add(CaseStatus)` has three.
+*Avoid*: meaning, use, event (an occasion is the sender's situation, not a received
+event)
+
+---
+
 ## Capability Shapes
 
 Vultron's Behavior Trees include **call-out points** — locations where the protocol cannot

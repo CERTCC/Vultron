@@ -14,6 +14,7 @@ related_notes:
   - notes/demo-interactive-ui.md
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
+  - notes/participant-embargo-consent.md
   - notes/case-state-model.md
   - notes/configuration.md
   - notes/domain-validation.md
@@ -541,8 +542,8 @@ The `payloadSnapshot` shapes come from
 **Exactly one `add_participant_status` entry per participant** (CM-18-007). The
 default embargo is established *before* participant PEC state is fixed, so each
 participant's single initialization snapshot already carries its true consent
-value — no `UNBOUND` placeholder followed by a correction. Because `ACCEPT` is
-valid directly from `UNBOUND` (CM-18-003, ADR-0048), one transition suffices.
+value — no placeholder followed by a correction. Because `AGREE` is valid
+directly from `UNINVITED` (CM-18-003, ADR-0048), one transition suffices.
 Do not add a second per-participant entry here: it would shift every downstream
 `log_index`, which is what got PR #1746 reverted after it broke `fvcv-extension`
 VFD replication timing, and it would break the "`log_index` order *is* causal

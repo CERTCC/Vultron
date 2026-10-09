@@ -248,7 +248,7 @@ class CreateCaseProposalReceivedUseCase:
         # report — because ``VultronActivity.object_`` is typed ``Any`` and so is
         # serialised by its runtime type.  Losing it would give the tree a
         # proposal with no report to store, and everything derived from the
-        # report (the reporter participant, its ledger entry, the SIGNATORY
+        # report (the reporter participant, its ledger entry, the signatory
         # seed) would silently skip, so the reporter would never get a replica.
         proposal_dict: dict | None = None
         activity_obj = request.activity

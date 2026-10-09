@@ -4,7 +4,9 @@ date: 2023-10-23
 created: 2023-10-23
 updated: 2023-10-23
 revision: 1
+amended: "2026-10-09"
 deciders: adh
+partially_superseded_by: 0008-use-py-trees-for-handler-bt-integration.md
 stakeholder_type: [project-contributor]
 ---
 # Build our own Behavior Tree engine in Python
@@ -82,6 +84,19 @@ Good, because:
 Neutral-to-bad, because:
 
 - It's closely tied to robot operating system (ROS), so it might not be a good fit for our use case
+
+## Amendment — 2026-10-09
+
+The decision stands for the legacy simulator only.
+The custom engine in `vultron/bt/` still runs the legacy protocol simulator, the vultrabot demos, and the tests under `test/bt/`.
+
+ADR-0008 chose `py_trees` for handler behavior-tree execution, and kept this engine for the simulator.
+ADR-0044 later adopted typed blackboard ports for the `py_trees` nodes under `vultron/core/behaviors/`.
+The rules that new code must follow are specified elsewhere, not in this record: BT-02-001 requires handler trees to use a standard library, BT-02-002 freezes `vultron/bt/`, and BT-16-001 places the `py_trees` fuzzer nodes under `vultron/demo/fuzzer/`.
+
+The ROS concern in the original reasoning did not hold: `py_trees` runs without ROS.
+
+- Source: #4391
 
 ## More Information
 

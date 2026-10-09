@@ -215,8 +215,9 @@ evidence. In the audit, #4034 merged with three red checks judged pre-existing,
 and #4087 re-ran a failed demo gate, saw it pass, and merged calling it flaky;
 the failure (#4113) was a real fan-out bug.
 
-- **Red `main`** gets one fix PR. Other PRs wait for it or rebase onto it; none
-  merges past it.
+- **Red `main`** gets one fix PR. Other PRs wait for it to land, then re-run
+  CI, which tests each PR merged into the fixed base; never rebase an open PR
+  onto it (PAD-11-001). None merges past it.
 - **Pre-commit hooks are never skipped** (`--no-verify`, `SKIP=`). A hook that
   fails is fixed, not bypassed; #4033 and #4034 skipped the spec-lint hook. The
   one documented environmental exception is the devcontainer `actionlint` hang in

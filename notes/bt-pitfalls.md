@@ -1347,18 +1347,18 @@ The cause was structural: about fifteen trees each wrapped their effects in
   is already reported by the guard. See
   [bt-integration.md](bt-integration.md) § "The Four Received-Side Stages"
   (CLP-10-022).
-- **`effect_nodes` is the unchecked legacy form, kept only for the close-case
-  tree.**
-  It cannot be mixed with the two new kinds, so a tree migrates whole.
-  Every other received tree moved off it (#4307); the close-case tree's
-  ungated decline emit is a bug (#3825), and the parameter goes when that
-  tree moves.
+- **The pre-BT-17-008 `effect_nodes` parameter is gone (#4307).**
+  It ran ungated and unchecked. Every received tree moved onto
+  `replica_effects` / `manager_effects`; the close-case tree, its last caller,
+  gated its decline emit by passing the whole close/decline Selector as
+  `manager_effects` (#3825). Pass the two new kinds; there is no legacy form to
+  reach for.
 - **The ratchets** live in `test/architecture/test_received_tree_case_manager_gate.py`
-  (ARCH-18-001, ARCH-18-005): `KNOWN_DIRECT_GATE_CALLERS` and
-  `KNOWN_LEGACY_EFFECT_NODES` shrink to empty, one `# owner:` per entry
-  (only #3825's close-case tree remains); the exemption uses and the gate
+  (ARCH-18-001, ARCH-18-005): `KNOWN_DIRECT_GATE_CALLERS` is empty (#4300,
+  #4301, #4302) and stays so a new direct gate caller fails;
+  `test_no_received_tree_passes_legacy_effect_nodes` is now a plain assertion
+  that no caller passes the retired keyword; the exemption uses and the gate
   callers that build no received tree are pinned exemption sets.
-  `KNOWN_DIRECT_GATE_CALLERS` is already empty (#4300, #4301, #4302).
 - **The factory runs `manager_effects` last, so an effect that must follow the
   gate has to move.**
   Where a replica-side step followed the gate only because the gated work had

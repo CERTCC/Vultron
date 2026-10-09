@@ -137,12 +137,15 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         The consent effect (EP-05-001, MSM-07-005) runs in both modes, so a
         replica syncing an announced activation keeps its consent rows in
         step with the CASE_MANAGER: the owner's row for *embargo_id* becomes
-        ``ACCEPTED`` unless it already is, and when this replaces an active
+        ``AGREED`` unless it already is (activation is the owner's decision,
+        so the owner is never lapsed by it), and when this replaces an active
         embargo A with a B that ends no later, every signatory of A is
-        carried over to B; under a longer B the signatories who have not
-        accepted it have lapsed by derivation (CM-18-001).  An owner whose
-        row for *embargo_id* is ``DECLINED`` cannot activate it, in either
-        mode: it is invited again first.
+        carried over to B by ``CARRY_OVER``; under a longer B the signatories
+        who have not agreed to it have lapsed by derivation (CM-18-001).
+        Whoever holds an ``AGREED`` row for B — its proposer, for one — is a
+        signatory by lookup, with nothing to advance.  An owner whose row for
+        *embargo_id* is ``DECLINED`` cannot activate it, in either mode: it is
+        invited again first.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.

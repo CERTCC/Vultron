@@ -18,17 +18,22 @@ with, the P/X/A eligibility guard (EMB-01-002, EMB-02-002) and the embargo
 register driver that applies a ``STRICT``/``OBSERVED`` register step to a case
 in memory.  EM is derived from the register (ADR-0122), so the step is the
 whole EM write.  Operation mixins in the sibling modules build on this class;
-nothing here mutates the store.
+the only store write here is the ``UNINVITED`` consent row a proposal gives
+every participant.
 """
 
 import logging
+from collections.abc import Iterator
 
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_register import RegisterChange
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.services.embargo_lifecycle.results import TransitionMode
 from vultron.core.states.cs import CS_pxa
+from vultron.core.states.embargo_register import RegisterTrigger
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
@@ -93,6 +98,11 @@ class _LifecycleBase:
         committed — a refused step is logged and skipped, leaving the case as
         it was: the register is never forced into a state its rules refuse.
 
+        A step that proposes an embargo also writes the consent table's new
+        column: an ``UNINVITED`` row for it on every participant record,
+        saved here (ADR-0122).  A participant created later gets its rows
+        when it is added to the case (``VulnerabilityCase.add_participant``).
+
         Returns:
             ``True`` when the step was applied.
         """
@@ -117,4 +127,25 @@ class _LifecycleBase:
                 exc,
             )
             return False
+        proposed = [
+            change.embargo_id
+            for change in changes
+            if change.trigger == RegisterTrigger.PROPOSE
+        ]
+        if proposed:
+            for _, participant in self._each_participant(case):
+                if participant.write_uninvited_rows(proposed):
+                    self._persistence.save(participant)
         return True
+
+    def _each_participant(
+        self, case: VulnerabilityCase
+    ) -> Iterator[tuple[str, CaseParticipant]]:
+        """Yield ``(participant_id, participant)`` for every record on *case*."""
+        for entry in case.case_participants:
+            participant_id = _as_id(entry)
+            if participant_id is None:
+                continue
+            participant = self._persistence.read(participant_id)
+            if isinstance(participant, CaseParticipant):
+                yield participant_id, participant

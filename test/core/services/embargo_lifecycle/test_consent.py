@@ -20,7 +20,12 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import (
+    activate,
+    propose,
+    reject,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -54,7 +59,7 @@ from .conftest import (
 def test_record_participant_consent_accept_trigger(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """ACCEPT moves the INVITED row for that embargo to ACCEPTED."""
+    """AGREE moves the INVITED row for that embargo to AGREED."""
     owner, dl = owner_and_dl
     case, participants = _make_case(dl, owner.id_)
     owner_participant_id = participants[0].id_
@@ -68,7 +73,7 @@ def test_record_participant_consent_accept_trigger(
         case_id=case.id_,
         embargo_id=embargo.id_,
         actor_id=owner.id_,
-        pec_trigger=PEC_Trigger.ACCEPT,
+        pec_trigger=PEC_Trigger.AGREE,
     )
 
     assert result.case_changed is False
@@ -76,14 +81,14 @@ def test_record_participant_consent_accept_trigger(
     assert [
         (c.embargo_id, c.consent_before, c.consent_after)
         for c in result.participant_changes
-    ] == [(embargo.id_, "INVITED", "ACCEPTED")]
-    assert _consent_of(dl, owner_participant_id, embargo.id_) == "ACCEPTED"
+    ] == [(embargo.id_, "INVITED", "AGREED")]
+    assert _consent_of(dl, owner_participant_id, embargo.id_) == "AGREED"
 
 
 def test_record_participant_consent_decline_trigger(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """DECLINE moves an ACCEPTED row to DECLINED and touches no other row."""
+    """DECLINE moves an AGREED row to DECLINED and touches no other row."""
     owner, dl = owner_and_dl
     case, participants = _make_case(dl, owner.id_)
     owner_participant_id = participants[0].id_
@@ -91,8 +96,8 @@ def test_record_participant_consent_decline_trigger(
     propose(case, embargo.id_)
     dl.save(case)
     other = _make_embargo(dl, case.id_, days=90)
-    _seed_consent(dl, owner_participant_id, embargo.id_, ECS.ACCEPTED)
-    _seed_consent(dl, owner_participant_id, other.id_, ECS.ACCEPTED)
+    _seed_consent(dl, owner_participant_id, embargo.id_, ECS.AGREED)
+    _seed_consent(dl, owner_participant_id, other.id_, ECS.AGREED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     lifecycle.record_participant_consent(
@@ -104,7 +109,7 @@ def test_record_participant_consent_decline_trigger(
 
     assert _consents_of(dl, owner_participant_id) == {
         embargo.id_: "DECLINED",
-        other.id_: "ACCEPTED",
+        other.id_: "AGREED",
     }
 
 
@@ -124,7 +129,7 @@ def test_record_participant_consent_actor_not_in_case(
         case_id=case.id_,
         embargo_id=embargo.id_,
         actor_id=outsider.id_,  # not in case
-        pec_trigger=PEC_Trigger.ACCEPT,
+        pec_trigger=PEC_Trigger.AGREE,
     )
 
     assert result.participant_changes == []
@@ -136,7 +141,7 @@ def test_record_participant_consent_illegal_trigger_raises(
 ) -> None:
     """AC-5: illegal trigger raises VultronInvalidStateTransitionError.
 
-    EXPIRE from ACCEPTED is not a valid consent transition.
+    TIME_OUT from AGREED is not a valid consent transition.
     apply_pec_transition() is fail-closed and raises; this test pins that
     behavior and confirms record_participant_consent propagates it, leaving
     the row as it was.
@@ -147,7 +152,7 @@ def test_record_participant_consent_illegal_trigger_raises(
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
-    _seed_consent(dl, owner_participant_id, embargo.id_, ECS.ACCEPTED)
+    _seed_consent(dl, owner_participant_id, embargo.id_, ECS.AGREED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -155,9 +160,9 @@ def test_record_participant_consent_illegal_trigger_raises(
             case_id=case.id_,
             embargo_id=embargo.id_,
             actor_id=owner.id_,
-            pec_trigger=PEC_Trigger.EXPIRE,  # illegal from ACCEPTED
+            pec_trigger=PEC_Trigger.TIME_OUT,  # illegal from AGREED
         )
-    assert _consent_of(dl, owner_participant_id, embargo.id_) == "ACCEPTED"
+    assert _consent_of(dl, owner_participant_id, embargo.id_) == "AGREED"
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +171,7 @@ def test_record_participant_consent_illegal_trigger_raises(
 
 
 def _active_with_revision(dl: SqliteDataLayer, owner: as_Service):
-    """Owner (ACCEPTED A) and a finder (ACCEPTED A and B); A active, B proposed."""
+    """Owner (AGREED A) and a finder (AGREED A and B); A active, B proposed."""
     finder = _make_actor(dl, "Finder Org")
     case, (owner_p, finder_p) = _make_case(
         dl, owner.id_, extra_participant_ids=[finder.id_]
@@ -176,9 +181,10 @@ def _active_with_revision(dl: SqliteDataLayer, owner: as_Service):
     activate(case, active.id_)
     propose(case, revision.id_)
     dl.save(case)
-    _seed_consent(dl, owner_p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, finder_p.id_, active.id_, ECS.ACCEPTED)
-    _seed_consent(dl, finder_p.id_, revision.id_, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, owner_p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, finder_p.id_, active.id_, ECS.AGREED)
+    _seed_consent(dl, finder_p.id_, revision.id_, ECS.AGREED)
     return case, finder, owner_p.id_, finder_p.id_, active.id_, revision.id_
 
 
@@ -187,7 +193,7 @@ def _active_with_revision(dl: SqliteDataLayer, owner: as_Service):
 def test_record_embargo_rejection_of_the_active_embargo_is_withdrawal(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Withdrawal declines the active row and every accepted open proposal."""
+    """Withdrawal declines the active row and every agreed open proposal."""
     owner, dl = owner_and_dl
     case, finder, _owner_p, finder_p, active_id, rev = _active_with_revision(
         dl, owner
@@ -203,8 +209,8 @@ def test_record_embargo_rejection_of_the_active_embargo_is_withdrawal(
         (c.embargo_id, c.consent_before, c.consent_after)
         for c in result.participant_changes
     } == {
-        (active_id, "ACCEPTED", "DECLINED"),
-        (rev, "ACCEPTED", "DECLINED"),
+        (active_id, "AGREED", "DECLINED"),
+        (rev, "AGREED", "DECLINED"),
     }
     assert _consents_of(dl, finder_p) == {
         active_id: "DECLINED",
@@ -230,7 +236,7 @@ def test_record_embargo_rejection_of_a_proposed_revision_keeps_a_signatory(
         (c.embargo_id, c.consent_after) for c in result.participant_changes
     ] == [(rev, "DECLINED")]
     assert _consents_of(dl, finder_p) == {
-        active_id: "ACCEPTED",
+        active_id: "AGREED",
         rev: "DECLINED",
     }
     assert _is_signatory(dl, case.id_, finder_p)
@@ -259,10 +265,11 @@ def test_record_embargo_rejection_by_the_owner_declines_its_own_row(
     )
 
     assert [
-        (c.embargo_id, c.consent_after) for c in result.participant_changes
-    ] == [(rev, "DECLINED")]
+        (c.embargo_id, c.consent_before, c.consent_after)
+        for c in result.participant_changes
+    ] == [(rev, "UNINVITED", "DECLINED")]
     assert _consents_of(dl, owner_p) == {
-        active_id: "ACCEPTED",
+        active_id: "AGREED",
         rev: "DECLINED",
     }
     assert _is_signatory(dl, case.id_, owner_p)
@@ -285,8 +292,8 @@ def test_record_embargo_rejection_of_an_unknown_embargo_raises(
             case_id=case.id_, actor_id=finder.id_, embargo_id=stranger.id_
         )
     assert _consents_of(dl, finder_p) == {
-        active_id: "ACCEPTED",
-        rev: "ACCEPTED",
+        active_id: "AGREED",
+        rev: "AGREED",
     }
 
 
@@ -307,6 +314,7 @@ def test_record_embargo_invite_invites_an_unasked_participant(
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
     deadline = days_from_now_utc(7)
 
     result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
@@ -320,10 +328,10 @@ def test_record_embargo_invite_invites_an_unasked_participant(
     assert [
         (c.embargo_id, c.consent_before, c.consent_after)
         for c in result.participant_changes
-    ] == [(embargo.id_, None, "INVITED")]
+    ] == [(embargo.id_, "UNINVITED", "INVITED")]
     record = cast(CaseParticipant, dl.read(participants[1].id_))
     assert record.consent_for(embargo.id_) == ECS.INVITED
-    assert record.invite_rsvp_deadline == deadline
+    assert record.rsvp_deadline_for(embargo.id_) == deadline
 
 
 @pytest.mark.spec("EP-09-004")
@@ -332,7 +340,7 @@ def test_record_embargo_invite_on_a_signatory_keeps_the_active_row_and_adds_the_
 ) -> None:
     """A signatory asked about a revision stays bound and gains INVITED(B).
 
-    The row belongs to the embargo the Invite names, so the ACCEPTED row for
+    The row belongs to the embargo the Invite names, so the AGREED row for
     the embargo in force is untouched (EP-09-004 is natural, not a no-op).
     """
     owner, dl = owner_and_dl
@@ -343,7 +351,8 @@ def test_record_embargo_invite_on_a_signatory_keeps_the_active_row_and_adds_the_
     activate(case, active.id_)
     propose(case, revision.id_)
     dl.save(case)
-    _seed_consent(dl, participants[1].id_, active.id_, ECS.ACCEPTED)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, participants[1].id_, active.id_, ECS.AGREED)
 
     result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
         case_id=case.id_, invitee_id=invitee.id_, embargo_id=revision.id_
@@ -353,7 +362,7 @@ def test_record_embargo_invite_on_a_signatory_keeps_the_active_row_and_adds_the_
         (c.embargo_id, c.consent_after) for c in result.participant_changes
     ] == [(revision.id_, "INVITED")]
     assert _consents_of(dl, participants[1].id_) == {
-        active.id_: "ACCEPTED",
+        active.id_: "AGREED",
         revision.id_: "INVITED",
     }
     assert _is_signatory(dl, case.id_, participants[1].id_)
@@ -363,7 +372,11 @@ def test_record_embargo_invite_on_a_signatory_keeps_the_active_row_and_adds_the_
 def test_a_fresh_invite_without_a_deadline_drops_a_stale_one(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A passed deadline must not expire the row a new Invite just created."""
+    """A passed deadline must not time out the row a new Invite just re-sent.
+
+    The row is still INVITED, so the Invite moves no state; it replaces the
+    row's deadline with its own (none here), and the stale one is gone.
+    """
     owner, dl = owner_and_dl
     invitee = _make_actor(dl, "Signatory")
     case, participants = _make_case(dl, owner.id_, [invitee.id_])
@@ -372,39 +385,87 @@ def test_a_fresh_invite_without_a_deadline_drops_a_stale_one(
     activate(case, active.id_)
     propose(case, revision.id_)
     dl.save(case)
-    _seed_consent(dl, participants[1].id_, active.id_, ECS.ACCEPTED)
-    record = cast(CaseParticipant, dl.read(participants[1].id_))
-    record.invite_rsvp_deadline = now_utc() - timedelta(days=1)
-    dl.save(record)
+    write_consent_rows(dl, case)
+    _seed_consent(dl, participants[1].id_, active.id_, ECS.AGREED)
+    _seed_consent(
+        dl,
+        participants[1].id_,
+        revision.id_,
+        ECS.INVITED,
+        rsvp_deadline=now_utc() - timedelta(days=1),
+    )
 
-    EmbargoLifecycle(persistence=dl).record_embargo_invite(
+    invited = EmbargoLifecycle(persistence=dl).record_embargo_invite(
         case_id=case.id_, invitee_id=invitee.id_, embargo_id=revision.id_
     )
     result = EmbargoLifecycle(persistence=dl).detect_and_apply_expiry(
-        case_id=case.id_, actor_id=invitee.id_, now=now_utc()
+        case_id=case.id_,
+        actor_id=invitee.id_,
+        embargo_id=revision.id_,
+        now=now_utc(),
     )
 
+    assert invited.participant_changes == []
     assert result.participant_changes == []
-    assert _consents_of(dl, participants[1].id_)[revision.id_] == "INVITED"
+    record = cast(CaseParticipant, dl.read(participants[1].id_))
+    assert record.consent_for(revision.id_) == ECS.INVITED
+    assert record.rsvp_deadline_for(revision.id_) is None
+
+
+@pytest.mark.spec("CM-28-013")
+def test_a_fresh_invite_restamps_an_invited_rows_deadline(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """An Invite re-sent to an INVITED row replaces that row's deadline."""
+    owner, dl = owner_and_dl
+    invitee = _make_actor(dl, "Invitee")
+    case, participants = _make_case(dl, owner.id_, [invitee.id_])
+    embargo = _make_embargo(dl, case.id_)
+    propose(case, embargo.id_)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    first = days_from_now_utc(3)
+    second = days_from_now_utc(7)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    lifecycle.record_embargo_invite(
+        case_id=case.id_,
+        invitee_id=invitee.id_,
+        embargo_id=embargo.id_,
+        rsvp_deadline=first,
+    )
+    again = lifecycle.record_embargo_invite(
+        case_id=case.id_,
+        invitee_id=invitee.id_,
+        embargo_id=embargo.id_,
+        rsvp_deadline=second,
+    )
+
+    assert again.participant_changes == []
+    record = cast(CaseParticipant, dl.read(participants[1].id_))
+    assert record.consent_for(embargo.id_) == ECS.INVITED
+    assert record.rsvp_deadline_for(embargo.id_) == second
 
 
 @pytest.mark.spec("EP-09-004")
-def test_record_embargo_invite_leaves_an_accepted_row_for_that_embargo(
+def test_record_embargo_invite_leaves_an_agreed_row_for_that_embargo(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """INVITE is illegal from ACCEPTED on the same embargo: recorded no-op."""
+    """INVITE is illegal from AGREED on the same embargo: recorded no-op."""
     owner, dl = owner_and_dl
     invitee = _make_actor(dl, "Signatory")
     case, participants = _make_case(dl, owner.id_, [invitee.id_])
     embargo = _make_embargo(dl, case.id_)
-    _seed_consent(dl, participants[1].id_, embargo.id_, ECS.ACCEPTED)
+    propose(case, embargo.id_)
+    dl.save(case)
+    _seed_consent(dl, participants[1].id_, embargo.id_, ECS.AGREED)
 
     result = EmbargoLifecycle(persistence=dl).record_embargo_invite(
         case_id=case.id_, invitee_id=invitee.id_, embargo_id=embargo.id_
     )
 
     assert result.participant_changes == []
-    assert _consent_of(dl, participants[1].id_, embargo.id_) == "ACCEPTED"
+    assert _consent_of(dl, participants[1].id_, embargo.id_) == "AGREED"
 
 
 def test_record_embargo_invite_raises_for_an_unknown_invitee(
@@ -422,14 +483,18 @@ def test_record_embargo_invite_raises_for_an_unknown_invitee(
 
 
 # ---------------------------------------------------------------------------
-# Invite expiry — every still-INVITED row expires (CM-28-013, CM-18-002)
+# Invite expiry — one invitation's row times out (CM-28-001, CM-28-013)
 # ---------------------------------------------------------------------------
 
 
 def _invited_to_two(
-    dl: SqliteDataLayer, owner: as_Service, *, deadline_in_days: int
+    dl: SqliteDataLayer,
+    owner: as_Service,
+    *,
+    active_deadline_in_days: int,
+    revision_deadline_in_days: int,
 ):
-    """A participant INVITED to A (active) and B (proposed), with a deadline."""
+    """A participant INVITED to A (active) and B (proposed), each with a deadline."""
     invitee = _make_actor(dl, "Invitee")
     case, participants = _make_case(dl, owner.id_, [invitee.id_])
     active = _make_embargo(dl, case.id_)
@@ -437,62 +502,102 @@ def _invited_to_two(
     activate(case, active.id_)
     propose(case, revision.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
     invitee_p = participants[1]
-    _seed_consent(dl, invitee_p.id_, active.id_, ECS.INVITED)
-    _seed_consent(dl, invitee_p.id_, revision.id_, ECS.INVITED)
-    record = cast(CaseParticipant, dl.read(invitee_p.id_))
-    record.invite_rsvp_deadline = now_utc() + timedelta(days=deadline_in_days)
-    dl.save(record)
+    for embargo_id, days in (
+        (active.id_, active_deadline_in_days),
+        (revision.id_, revision_deadline_in_days),
+    ):
+        _seed_consent(
+            dl,
+            invitee_p.id_,
+            embargo_id,
+            ECS.INVITED,
+            rsvp_deadline=now_utc() + timedelta(days=days),
+        )
     return case, invitee, invitee_p.id_, active.id_, revision.id_
 
 
-@pytest.mark.spec("CM-28-013", "CM-18-002")
-def test_record_invite_expiry_expires_every_invited_row(
+@pytest.mark.spec("CM-28-001", "CM-28-013", "CM-18-002")
+def test_record_invite_expiry_times_out_only_the_invitations_row(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """One RSVP deadline per participant: EXPIRE applies to each INVITED row."""
+    """A deadline belongs to one invitation: TIME_OUT moves only that row."""
     owner, dl = owner_and_dl
     case, invitee, pid, active_id, rev_id = _invited_to_two(
-        dl, owner, deadline_in_days=-1
+        dl, owner, active_deadline_in_days=-1, revision_deadline_in_days=-1
     )
-    _seed_consent(dl, pid, "https://example.org/embargoes/old", ECS.DECLINED)
 
     result = EmbargoLifecycle(persistence=dl).record_invite_expiry(
-        case_id=case.id_, actor_id=invitee.id_
+        case_id=case.id_, actor_id=invitee.id_, embargo_id=active_id
     )
 
     assert result.is_expired is True
-    assert {
+    assert [
         (c.embargo_id, c.consent_before, c.consent_after)
         for c in result.participant_changes
-    } == {
-        (active_id, "INVITED", "EXPIRED"),
-        (rev_id, "INVITED", "EXPIRED"),
-    }
+    ] == [(active_id, "INVITED", "TIMED_OUT")]
     assert _consents_of(dl, pid) == {
-        active_id: "EXPIRED",
-        rev_id: "EXPIRED",
-        "https://example.org/embargoes/old": "DECLINED",
+        active_id: "TIMED_OUT",
+        rev_id: "INVITED",
     }
-    # Idempotent: nothing is INVITED any more.
+    # Idempotent: the row is no longer INVITED.
     again = EmbargoLifecycle(persistence=dl).record_invite_expiry(
-        case_id=case.id_, actor_id=invitee.id_
+        case_id=case.id_, actor_id=invitee.id_, embargo_id=active_id
     )
     assert again.participant_changes == [] and again.is_expired is False
 
 
+@pytest.mark.spec("CM-28-001", "CM-28-012", "CM-28-013")
+def test_concurrent_invitations_time_out_at_their_own_deadlines(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Two invitations with different deadlines: only the earlier times out."""
+    owner, dl = owner_and_dl
+    case, invitee, pid, active_id, rev_id = _invited_to_two(
+        dl, owner, active_deadline_in_days=1, revision_deadline_in_days=5
+    )
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    at_earlier = now_utc() + timedelta(days=2)
+
+    assessed = {
+        embargo_id: lifecycle.assess_invite_expiry(
+            case_id=case.id_,
+            actor_id=invitee.id_,
+            embargo_id=embargo_id,
+            now=at_earlier,
+        )
+        for embargo_id in (active_id, rev_id)
+    }
+    assert assessed == {active_id: (True, True), rev_id: (False, False)}
+
+    for embargo_id, (_, needs_apply) in assessed.items():
+        if needs_apply:
+            lifecycle.record_invite_expiry(
+                case_id=case.id_, actor_id=invitee.id_, embargo_id=embargo_id
+            )
+
+    assert _consents_of(dl, pid) == {active_id: "TIMED_OUT", rev_id: "INVITED"}
+    record = cast(CaseParticipant, dl.read(pid))
+    assert record.rsvp_deadline_for(active_id) is None
+    assert record.rsvp_deadline_for(rev_id) is not None
+
+
 @pytest.mark.spec("CM-28-013", "CM-18-002")
-def test_detect_and_apply_expiry_expires_every_invited_row_after_the_deadline(
+def test_detect_and_apply_expiry_times_out_the_row_after_its_deadline(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
     owner, dl = owner_and_dl
     case, invitee, pid, active_id, rev_id = _invited_to_two(
-        dl, owner, deadline_in_days=1
+        dl, owner, active_deadline_in_days=1, revision_deadline_in_days=1
     )
     lifecycle = EmbargoLifecycle(persistence=dl)
 
     before = lifecycle.detect_and_apply_expiry(
-        case_id=case.id_, actor_id=invitee.id_, now=now_utc()
+        case_id=case.id_,
+        actor_id=invitee.id_,
+        embargo_id=active_id,
+        now=now_utc(),
     )
     assert before.is_expired is False and before.participant_changes == []
     assert _consents_of(dl, pid) == {active_id: "INVITED", rev_id: "INVITED"}
@@ -500,35 +605,69 @@ def test_detect_and_apply_expiry_expires_every_invited_row_after_the_deadline(
     after = lifecycle.detect_and_apply_expiry(
         case_id=case.id_,
         actor_id=invitee.id_,
+        embargo_id=active_id,
         now=now_utc() + timedelta(days=2),
     )
     assert after.is_expired is True
-    assert len(after.participant_changes) == 2
-    assert _consents_of(dl, pid) == {active_id: "EXPIRED", rev_id: "EXPIRED"}
+    assert len(after.participant_changes) == 1
+    assert _consents_of(dl, pid) == {active_id: "TIMED_OUT", rev_id: "INVITED"}
 
 
 @pytest.mark.spec("CM-28-013", "CM-18-002")
 def test_a_signatory_past_its_deadline_is_not_reported_expired(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """ACCEPTED(active) wins over a stale deadline; the revision row expires."""
+    """AGREED(active) wins over a passed deadline; the revision row times out."""
     owner, dl = owner_and_dl
     case, invitee, pid, active_id, rev_id = _invited_to_two(
-        dl, owner, deadline_in_days=-1
+        dl, owner, active_deadline_in_days=-1, revision_deadline_in_days=-1
     )
-    _seed_consent(dl, pid, active_id, ECS.ACCEPTED)
+    _seed_consent(dl, pid, active_id, ECS.AGREED)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
     assessed = lifecycle.assess_invite_expiry(
-        case_id=case.id_, actor_id=invitee.id_, now=now_utc()
+        case_id=case.id_,
+        actor_id=invitee.id_,
+        embargo_id=rev_id,
+        now=now_utc(),
     )
     result = lifecycle.detect_and_apply_expiry(
-        case_id=case.id_, actor_id=invitee.id_, now=now_utc()
+        case_id=case.id_,
+        actor_id=invitee.id_,
+        embargo_id=rev_id,
+        now=now_utc(),
     )
 
     assert assessed == (False, True)
     assert result.is_expired is False
-    assert _consents_of(dl, pid) == {active_id: "ACCEPTED", rev_id: "EXPIRED"}
+    assert _consents_of(dl, pid) == {active_id: "AGREED", rev_id: "TIMED_OUT"}
+
+
+@pytest.mark.spec("CM-28-013")
+def test_an_invited_row_for_a_final_entry_never_times_out(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A row whose entry was rejected is frozen, past its deadline or not."""
+    owner, dl = owner_and_dl
+    case, invitee, pid, _active_id, rev_id = _invited_to_two(
+        dl, owner, active_deadline_in_days=5, revision_deadline_in_days=-1
+    )
+    reject(case, rev_id)
+    dl.save(case)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    assert lifecycle.assess_invite_expiry(
+        case_id=case.id_,
+        actor_id=invitee.id_,
+        embargo_id=rev_id,
+        now=now_utc(),
+    ) == (True, False)
+    result = lifecycle.record_invite_expiry(
+        case_id=case.id_, actor_id=invitee.id_, embargo_id=rev_id
+    )
+
+    assert result.participant_changes == []
+    assert _consents_of(dl, pid)[rev_id] == "INVITED"
 
 
 # ---------------------------------------------------------------------------
@@ -541,21 +680,21 @@ def test_a_signatory_past_its_deadline_is_not_reported_expired(
     ("seed", "expected"),
     [
         (
-            ECS.EXPIRED,
-            [("EXPIRED", "ACCEPTED")],
+            ECS.TIMED_OUT,
+            [("TIMED_OUT", "AGREED")],
         ),
         (
             ECS.DECLINED,
-            [("DECLINED", "INVITED"), ("INVITED", "ACCEPTED")],
+            [("DECLINED", "INVITED"), ("INVITED", "AGREED")],
         ),
     ],
 )
-def test_honour_late_accept_accepts_the_active_embargo(
+def test_honour_late_accept_agrees_to_the_active_embargo(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
     seed: ECS,
     expected: list[tuple[str, str]],
 ) -> None:
-    """A late Accept is honoured from EXPIRED, and from DECLINED via INVITED."""
+    """A late Accept is honoured from TIMED_OUT, and from DECLINED via INVITED."""
     owner, dl = owner_and_dl
     late = _make_actor(dl, "Late")
     case, participants = _make_case(dl, owner.id_, [late.id_])
@@ -573,10 +712,35 @@ def test_honour_late_accept_accepts_the_active_embargo(
     assert [
         (c.consent_before, c.consent_after) for c in result.participant_changes
     ] == expected
-    assert _consent_of(dl, pid, active.id_) == "ACCEPTED"
+    assert _consent_of(dl, pid, active.id_) == "AGREED"
     assert _is_signatory(dl, case.id_, pid)
 
     again = EmbargoLifecycle(persistence=dl).honour_late_accept(
         case_id=case.id_, actor_id=late.id_, embargo_id=active.id_
     )
     assert again.participant_changes == []
+
+
+@pytest.mark.spec("EMB-17-003")
+def test_an_invitation_to_a_final_entry_is_closed_before_its_deadline(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Rejected terms close their invitation: expired for routing, no time-out.
+
+    The row is frozen, so there is nothing to apply; the caller's EMB-17
+    routing answers the Accept with an invitation to the current embargo.
+    """
+    owner, dl = owner_and_dl
+    case, invitee, pid, _active_id, rev_id = _invited_to_two(
+        dl, owner, active_deadline_in_days=5, revision_deadline_in_days=5
+    )
+    reject(case, rev_id)
+    dl.save(case)
+
+    assert EmbargoLifecycle(persistence=dl).assess_invite_expiry(
+        case_id=case.id_,
+        actor_id=invitee.id_,
+        embargo_id=rev_id,
+        now=now_utc(),
+    ) == (True, False)
+    assert _consent_of(dl, pid, rev_id) == "INVITED"

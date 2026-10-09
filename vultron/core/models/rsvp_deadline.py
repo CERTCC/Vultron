@@ -44,7 +44,8 @@ DEFAULT_RSVP_WINDOW = timedelta(days=7)
 INVITE_EXPIRED_EVENT_TYPE = "invite_to_embargo_on_case_expired"
 """Ledger ``event_type`` of the CASE_MANAGER's invite-expiry entry (CM-28-009).
 
-The entry records ``PEC_Trigger.EXPIRE`` (``INVITED → EXPIRED``), distinct from
+The entry records ``PEC_Trigger.TIME_OUT`` (``INVITED → TIMED_OUT``) on the
+invitee's row for that invitation's embargo, distinct from
 the ``Reject(Invite)`` entry of an explicit refusal (CM-28-005, ADR-0118).
 """
 
@@ -69,8 +70,8 @@ HONOUR_LATE_ACCEPT_EVENT_TYPE = "honour_late_accept_invite_to_embargo_on_case"
 
 Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives and the
 embargo is still active and matching (EMB-17-001, ADR-0118).  The CASE_MANAGER
-advances the participant ``EXPIRED → ACCEPTED`` (or ``DECLINED → INVITED →
-ACCEPTED``) and commits this entry so replicas can replay the same
+advances the participant ``TIMED_OUT → AGREED`` (or ``DECLINED → INVITED →
+AGREED``) and commits this entry so replicas can replay the same
 advancement via
 :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`.
 """

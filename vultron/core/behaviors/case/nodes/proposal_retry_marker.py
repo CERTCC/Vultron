@@ -235,7 +235,7 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         """
         assert self.datalayer is not None
         # Only active participants are sent case content (CM-10-004); the
-        # reporter is seeded SIGNATORY before this node runs (CM-14-005).
+        # reporter is seeded signatory before this node runs (CM-14-005).
         return [
             uri
             for uri, p in case_content_participants(

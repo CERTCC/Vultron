@@ -190,7 +190,7 @@ def test_seeded_embargo_records_the_owners_consent(
     """The seed goes through ``EmbargoLifecycle`` (#4144).
 
     The creation-time write records the owner's consent, so the owner is
-    ``SIGNATORY`` to the seeded embargo, as on a case the tree created.
+    a signatory (``AGREED``) to the seeded embargo, as on a case the tree created.
     """
     owner, dl = owner_and_dl
     embargo = _seed(owner, dl)
@@ -198,5 +198,5 @@ def test_seeded_embargo_records_the_owners_consent(
     stored = cast(VulnerabilityCase, dl.read(embargo.context))
     participant = dl.read(stored.actor_participant_index[owner.id_])
     assert isinstance(participant, CaseParticipant)
-    assert participant.consent_for(embargo.id_) == EmbargoConsentState.ACCEPTED
+    assert participant.consent_for(embargo.id_) == EmbargoConsentState.AGREED
     assert participant.is_signatory(stored.active_embargo_id)

@@ -85,7 +85,8 @@ class TestSubmitReportLogMessages:
             "sqlite:///:memory:",
             actor_id="https://example.org/actors/vendor",
         )
-        # CreateCaseParticipantNode reads the vendor actor from DataLayer.
+        # ProposeReportCaseToActorNode sends the vendor's own actor record
+        # inline as the proposal Create's actor (CP-01-010).
         dl.save(CaseActor(id_="https://example.org/actors/vendor"))
 
         with caplog.at_level(logging.INFO):

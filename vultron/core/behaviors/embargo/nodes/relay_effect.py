@@ -62,6 +62,7 @@ from vultron.core.behaviors.sync.nodes._helpers import (
 )
 from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -70,7 +71,6 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.errors import VultronNotFoundError
 
 
 def _answered_invite(snapshot: dict[str, Any]) -> Any:
@@ -183,7 +183,9 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
 
         ``EmbargoLifecycle.record_embargo_invite`` for the invitee — the
         Invite's sole ``to`` — with the Invite's RSVP deadline (CM-28-013).
-        An invitee with no participant record here is skipped.
+        An invitee with no participant record here is skipped (a partial
+        replica); an embargo the register does not hold is a replay gap and
+        fails.
         """
         assert self.datalayer is not None
         recipients = snapshot.get("to") or []
@@ -200,22 +202,38 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        try:
-            result = EmbargoLifecycle(
-                persistence=self.datalayer
-            ).record_embargo_invite(
-                case_id=case.id_,
-                invitee_id=invitee_id,
-                embargo_id=embargo_id,
-                rsvp_deadline=invite_rsvp_deadline(snapshot),
+        if case.embargo_register_entry(embargo_id) is None:
+            # The proposal is committed before its relay (EP-09-002), so a
+            # replica replaying the relay holds the entry; one that does not
+            # has a gap, and the entry is not marked applied (SYNC-12-001).
+            self.feedback_message = (
+                f"relayed Invite of embargo '{embargo_id}' on case"
+                f" '{case.id_}' names an embargo this replica's register does"
+                " not hold"
             )
-        except VultronNotFoundError:
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        participant_id = case.actor_participant_index.get(invitee_id)
+        if participant_id is None or not isinstance(
+            self.datalayer.read(participant_id), CaseParticipant
+        ):
+            # Neither the roster entry nor the record it names has reached
+            # this replica yet (Regime 2, ADR-0087).
             self.feedback_message = (
                 f"no participant record for invitee '{invitee_id}' on case"
                 f" '{case.id_}' — skipping (partial replica)"
             )
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
+
+        result = EmbargoLifecycle(
+            persistence=self.datalayer
+        ).record_embargo_invite(
+            case_id=case.id_,
+            invitee_id=invitee_id,
+            embargo_id=embargo_id,
+            rsvp_deadline=invite_rsvp_deadline(snapshot),
+        )
 
         self._index_for_proposer(case, embargo_id, snapshot)
         self.feedback_message = (
@@ -306,7 +324,12 @@ class ApplyEmbargoProposalFromLedgerNode(_EmbargoRelayEffectNode):
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         if _is_manager_self_relay(snapshot, proposer_id, case, self.datalayer):
-            return self._replay_invite(case, embargo_id, snapshot)
+            # Re-read: the proposal just registered the embargo, and the
+            # Invite's replay checks the register holds it.
+            proposed_case = self._resolve_case_replica(case.id_)
+            if proposed_case is None:
+                return Status.SUCCESS  # Regime 2 (ADR-0087)
+            return self._replay_invite(proposed_case, embargo_id, snapshot)
         return Status.SUCCESS
 
 

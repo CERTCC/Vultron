@@ -196,6 +196,8 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
         context=case_id,
         end_time=days_from_now_utc(45),
     )
+    # A participant holds a row for every register entry (ADR-0122).
+    manager.write_uninvited_rows([embargo.id_])
     case = VulnerabilityCase(
         id_=case_id,
         name="e2e",

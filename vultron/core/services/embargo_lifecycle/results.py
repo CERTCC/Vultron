@@ -52,13 +52,14 @@ class TransitionMode(StrEnum):
 class ParticipantConsentChange(BaseModel):
     """Records one participant's consent-row change during a lifecycle op.
 
-    ``consent_before`` is ``None`` when the participant had no row for the
-    embargo (it had not been asked); ``consent_after`` is the row's new state.
+    ``consent_before`` is the row's state before the change (``UNINVITED``
+    when the participant had not been asked); ``consent_after`` is its new
+    state.  Every row is written (ADR-0122), so neither is ever absent.
     """
 
     participant_id: str
     embargo_id: str
-    consent_before: str | None
+    consent_before: str
     consent_after: str
 
 

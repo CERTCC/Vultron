@@ -58,11 +58,20 @@ comment.
    If counts diverge, flag `INCOMPLETE-EXECUTE` and **continue to Phase 2**
    (merge state and CI must still be checked). After Phase 3, skip Phases 4–5
    and go directly to Phase 6 with an overall verdict of `GAPS-FOUND`.
-5. **Merge-state block check**: if `execute.merge_state` is absent, or
-   `merge_state.synced` is not `true`, flag `UNSYNCED-EXECUTE`. Continue to
-   Phase 2 — the live check there is what decides the verdict — but this flag
-   alone blocks `READY-TO-MERGE`, because it means execute never confirmed the
-   branch could merge.
+5. **Merge-state block check**: flag `UNSYNCED-EXECUTE` if
+   `execute.merge_state` is absent, if `merge_state.conflict_free` is not
+   `true`, or if `merge_state.merge_required` is `true` with a null
+   `sync_commit_ref` (PAD-18-004 called for a merge that never happened).
+   Continue to Phase 2 — the live check there is what decides the verdict —
+   but this flag alone blocks `READY-TO-MERGE`, because it means execute never
+   established the branch was conflict-free.
+
+   This check reads the artifact and nothing else. **Do not compare the branch
+   to the base tip** (`git merge-base --is-ancestor`, `rev-list` counts, or
+   similar): a branch behind its base that neither conflicts nor overlaps is
+   conflict-free, and execute was right not to merge (PAD-18-005). Whether
+   being behind blocks the merge is GitHub's call, read in Phase 2 as
+   `BEHIND`, which execute clears by merging.
 
 ### Phase 2 — Merge State Gate
 
@@ -85,7 +94,11 @@ cannot be ready to merge no matter what those checks find.
 
 3. Check `merge_state_status` independently of `mergeable`:
    - `DIRTY` → flag `MERGE-CONFLICT` even if `mergeable` says `MERGEABLE`
-   - `BEHIND` → flag `BRANCH-BEHIND`; blocks `READY-TO-MERGE`
+   - `BEHIND` → flag `BRANCH-BEHIND`; blocks `READY-TO-MERGE`. GitHub reports
+     it only when a ruleset requires up-to-date branches, which this
+     repository does not set (ADR-0126). `pr-execute` merges the base when it
+     sees `BEHIND` (PAD-18-004), so a live `BEHIND` here means the base moved
+     again after execute's last check: re-run `/pr-execute`, which clears it.
    - `DRAFT` → flag `PR-IS-DRAFT`; blocks `READY-TO-MERGE`. Report whether the
      `needs-rebase` label is still attached.
    - `BLOCKED` → note it in the comment (missing required review, etc.). This
@@ -129,7 +142,8 @@ cannot be ready to merge no matter what those checks find.
    failed whether it is labelled "pre-existing", "unrelated" or "flaky", and
    `skipped` findings do not clear it (`completeness-doctrine.md` § "Never Merge
    on Red"). A check that is red on `main` too is fixed by the single fix PR
-   for `main`; this PR waits for it or rebases onto it. The only exception is one
+   for `main`; this PR waits for it to land, then re-runs CI, which tests the
+   PR merged into the fixed base (no rebase, PAD-11-001). The only exception is one
    re-run of a check already tracked by an open `flaky-test` issue holding a
    reproduction: name that issue in the verdict comment. A pass on re-run with no
    such issue is not evidence — the verdict stays `GAPS-FOUND`.
@@ -283,7 +297,7 @@ If `UNRESOLVED` or `MISSING-COMMIT` findings appear, verify posts the gap and
 stops. The user re-runs `/pr-execute` or fixes manually. Verify never mutates
 files, never commits, never creates issues.
 
-This includes merge conflicts. Verify **detects** conflicts; `pr-execute` Phase 4
+This includes merge conflicts. Verify **detects** conflicts; `pr-execute` Phase 5
 **resolves** them. Verify must not run `sync-with-main.sh`, `git merge`, or any
 other mutation — its job is to be the honest reporter that the pipeline's earlier
 phases cannot be, because they run before the last thing that can change.

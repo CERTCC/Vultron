@@ -90,6 +90,12 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("TentativeReject", "Invite"),
     ("Announce", "VulnerabilityCase"),
     ("Offer", "CaseParticipant"),
+    # Role-delegation offer (ADR-0039, SE-08-003): the CASE_MANAGER records an
+    # ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+    # it receives as a protocol-significant assertion (CLP-07-001).  Like its
+    # sibling ``Offer(CaseParticipant)`` recommendation it moves no replica
+    # state — the offer is a proposal, not the grant (CLP-07-005, #3764).
+    ("Offer", "CaseParticipantRole"),
     ("Add", "CaseParticipant"),
     # The Case Owner's removal request, committed as received (CM-31-005,
     # ADR-0116).  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.

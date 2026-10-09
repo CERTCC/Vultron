@@ -202,7 +202,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   integration, BT failure diagnosis (BT-13: MUST use `BTBridge.get_failure_reason()`
   — `result.feedback_message` is always empty on a Sequence root)
 - **`behavior-tree-node-design.yaml`** - BT node parameterization, composability, reuse,
-  blackboard interface contracts, actor-config-driven roles, `CreateCaseOwnerParticipant`
+  blackboard interface contracts, actor-config-driven roles, `AddOwnerParticipantNode`
   node design, and `CVDRoles.CASE_OWNER` requirement (BTND-01 through BTND-05)
 - **`bt-composability.yaml`** - Simulator reference workflow (lookup before implementing),
   pre-definition requirement (core/behaviors/ as structure home), BT idioms over

@@ -212,8 +212,9 @@ def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
+    # Attached first: attaching writes its consent rows (ADR-0122).
+    case.add_participant(cm_participant)
     dl.create(cm_participant)
-    case.actor_participant_index[case_actor.id_] = cm_participant.id_
     dl.save(case)
     return case_actor
 
@@ -245,8 +246,8 @@ def make_case_manager(case_id: str, actor_id: str, dl) -> None:
         context=case_id,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    dl.create(manager)
     case.add_participant(manager)
+    dl.create(manager)
     dl.save(case)
 
 

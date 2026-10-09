@@ -50,6 +50,7 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.note import VultronNote
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycleResult
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
@@ -77,7 +78,7 @@ def _case_with_owner(
     suffix: str,
     *,
     em_state: EM,
-    owner_consent: EmbargoConsentState | None = None,
+    owner_consent: EmbargoConsentState = EmbargoConsentState.UNINVITED,
     with_revision: bool = True,
     store_active: bool = True,
 ) -> tuple[VulnerabilityCase, str, str, str]:
@@ -100,16 +101,23 @@ def _case_with_owner(
         dl.create(revision)
         propose(case, revision)
         open_id = revision.id_
-    consents = (
-        []
-        if owner_consent is None
-        else [EmbargoConsent(embargo_id=open_id, state=owner_consent)]
-    )
+    # Every register entry has a row (ADR-0122); the open proposal's is
+    # *owner_consent*, the others the never-asked UNINVITED.
     owner_p = as_CaseParticipant(
         attributed_to=OWNER,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
-        embargo_consents=consents,
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=entry.embargo_id,
+                state=(
+                    owner_consent
+                    if entry.embargo_id == open_id
+                    else EmbargoConsentState.UNINVITED
+                ),
+            )
+            for entry in case.embargo_register
+        ],
     )
     case.actor_participant_index[OWNER] = owner_p.id_
     case.case_participants = [owner_p.id_]
@@ -180,13 +188,18 @@ class TestIsOpenEmbargoProposalNode:
 class TestOwnerMayActivateEmbargoNode:
     @pytest.mark.parametrize(
         "owner_consent",
-        [None, EmbargoConsentState.INVITED, EmbargoConsentState.ACCEPTED],
-        ids=["no-row", "invited", "accepted"],
+        [
+            EmbargoConsentState.UNINVITED,
+            EmbargoConsentState.INVITED,
+            EmbargoConsentState.AGREED,
+            EmbargoConsentState.TIMED_OUT,
+        ],
+        ids=["uninvited", "invited", "agreed", "timed-out"],
     )
     def test_passes_with_pxa_clear_and_no_decline(
         self,
         dl: SqliteDataLayer,
-        owner_consent: EmbargoConsentState | None,
+        owner_consent: EmbargoConsentState,
     ):
         case, _, revision_id, _ = _case_with_owner(
             dl, "may-ok", em_state=EM.ACTIVE, owner_consent=owner_consent
@@ -307,7 +320,37 @@ class TestActivateEmbargoLifecycleNode:
         assert untouched.active_embargo_id == active_id
         assert untouched.proposed_embargo_ids == [revision_id]
         owner_p = cast(CaseParticipant, dl.read(owner_pid))
-        assert owner_p.consent_for(revision_id) is None
+        assert (
+            owner_p.consent_for(revision_id) is EmbargoConsentState.UNINVITED
+        )
+
+    @pytest.mark.spec("EMB-18-003")
+    @pytest.mark.spec("EP-05-001")
+    def test_a_replaced_embargo_of_another_type_fails_closed(
+        self, dl: SqliteDataLayer
+    ):
+        """A resolves to a non-embargo record: FAILURE, nothing written."""
+        case, active_id, revision_id, owner_pid = _case_with_owner(
+            dl, "act-type", em_state=EM.ACTIVE, store_active=False
+        )
+        dl.create(VultronNote(id_=active_id, content="not an embargo"))
+        setup_blackboard(dl, actor_id=MANAGER)
+        result_out: dict[str, object] = {}
+
+        node = ActivateEmbargoLifecycleNode(
+            case_id=case.id_, embargo_id=revision_id, result_out=result_out
+        )
+
+        assert _tick(node) is Status.FAILURE
+        assert isinstance(result_out["error"], VultronError)
+        untouched = _case(dl, case.id_)
+        assert untouched.current_status.em.state == EM.REVISE
+        assert untouched.active_embargo_id == active_id
+        assert untouched.proposed_embargo_ids == [revision_id]
+        owner_p = cast(CaseParticipant, dl.read(owner_pid))
+        assert (
+            owner_p.consent_for(revision_id) is EmbargoConsentState.UNINVITED
+        )
 
 
 class TestRejectEmbargoProposalLifecycleNode:

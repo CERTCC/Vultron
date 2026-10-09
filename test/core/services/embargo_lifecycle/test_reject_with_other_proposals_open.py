@@ -22,7 +22,11 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import activate, propose
+from test.support.embargo_register import (
+    activate,
+    propose,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
@@ -59,6 +63,7 @@ def _case_with_two_open(
     r2 = _make_embargo(dl, case.id_, days=120).id_
     propose(case, r1, r2)
     dl.save(case)
+    write_consent_rows(dl, case)
     assert case.em_state is em_state
     return case, r1, r2, active_id
 
@@ -119,6 +124,7 @@ def test_owner_rejecting_one_of_two_revisions_with_pxa_set_is_allowed(
     case, r1, r2, active_id = _case_with_two_open(dl, owner.id_, EM.REVISE)
     case.append_case_status(pxa_state=CS_pxa.Pxa)
     dl.save(case)
+    write_consent_rows(dl, case)
     lifecycle = EmbargoLifecycle(persistence=dl)
 
     result = lifecycle.reject_embargo_proposal(
@@ -152,6 +158,7 @@ def test_the_owners_rejection_writes_no_consent(
     embargo = _make_embargo(dl, case.id_)
     propose(case, embargo.id_)
     dl.save(case)
+    write_consent_rows(dl, case)
     finder_pid = case.actor_participant_index[finder.id_]
     _seed_consent(dl, finder_pid, embargo.id_, ECS.INVITED)
     _seed_consent(dl, owner_p.id_, embargo.id_, ECS.INVITED)

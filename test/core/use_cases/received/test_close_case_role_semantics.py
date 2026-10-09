@@ -30,7 +30,12 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
-from test.support.embargo_register import activate, propose, terminate
+from test.support.embargo_register import (
+    activate,
+    propose,
+    terminate,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -630,6 +635,9 @@ class TestPostCloseBoundary:
         """An unanswered Invite is expired at close, not left waiting on its deadline."""
         from datetime import UTC, datetime, timedelta
 
+        from vultron.core.states.embargo_register import (
+            EmbargoRegisterStatus,
+        )
         from vultron.core.states.participant_embargo_consent import (
             EmbargoConsentState,
             PEC_Trigger,
@@ -649,11 +657,14 @@ class TestPostCloseBoundary:
         dl.create(embargo)
         propose(case, embargo.id_)
         dl.save(case)
+        write_consent_rows(dl, case)
         vendor = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(vendor, CaseParticipant)
-        vendor.apply_pec_transition(embargo.id_, PEC_Trigger.INVITE)
-        vendor.invite_rsvp_deadline = datetime.now(tz=UTC) + timedelta(
-            days=365
+        vendor.apply_pec_transition(
+            embargo.id_,
+            PEC_Trigger.INVITE,
+            entry_status=EmbargoRegisterStatus.PROPOSED,
+            rsvp_deadline=datetime.now(tz=UTC) + timedelta(days=365),
         )
         dl.save(vendor)
 
@@ -662,7 +673,7 @@ class TestPostCloseBoundary:
         vendor = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(vendor, CaseParticipant)
         assert (
-            vendor.consent_for(embargo.id_) == EmbargoConsentState.EXPIRED
+            vendor.consent_for(embargo.id_) == EmbargoConsentState.TIMED_OUT
         ), "owner close must expire a pending Invite immediately (CM-23-014)"
         ledger = _case_ledger(dl)
         types = [e.event_type for e in ledger]
@@ -1055,6 +1066,7 @@ def _seed_active_embargo(
         propose(case, revision.id_)
     assert case.em_state == em_state
     dl.save(case)
+    write_consent_rows(dl, case)
 
 
 def _terminate_embargo(dl: SqliteDataLayer) -> None:
@@ -1218,6 +1230,73 @@ class TestOwnerLeaveDuringActiveEmbargo:
         assert not _case_fully_closed_present(dl), (
             "No case_fully_closed entry may be written when the decline emit fails"
         )
+
+
+class TestDeclineArmIsCaseManagerGated:
+    """CM-23-011 decline emits only at the CASE_MANAGER (BT-17-001, #3825).
+
+    The decline arm's ``EmitRejectCloseCaseNode`` used to run at every replica
+    that received a copy of the owner's Leave.  A participant cc'd on that
+    Leave while an embargo was live therefore emitted a ``Reject(Leave)`` to
+    the owner as itself — the same ungated-emit defect as #3752 / #3751.  The
+    emit is now gated on the receiver holding ``CVDRole.CASE_MANAGER``.
+    """
+
+    @pytest.mark.spec("BT-17-001")
+    @pytest.mark.spec("CM-23-011")
+    @pytest.mark.spec("HP-01-005")
+    def test_non_manager_replica_emits_no_reject_during_embargo(self):
+        """A non-manager replica declines nothing: no as:Reject is queued.
+
+        Runs the receive tree in the VENDOR's own store (``store_owner_id``)
+        and as the VENDOR actor (``receiving_actor_id``), so the executing
+        actor does not hold ``CVDRole.CASE_MANAGER``.  A copy of the Case
+        Owner's Leave arrives while an embargo is live.  Before #3825 this
+        emitted a ``Reject(Leave)``; it must now emit nothing.
+        """
+        dl = _make_full_dl(store_owner_id=VENDOR_ID)
+        _seed_active_embargo(dl, em_state=EM.ACTIVE)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(
+                sender_actor_id=OWNER_ID, receiving_actor_id=VENDOR_ID
+            ),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert dl.outbox_list() == [], (
+            "a non-CASE_MANAGER replica must emit no as:Reject when it"
+            " receives a copy of the owner's Leave during a live embargo"
+            f" (BT-17-001, CM-23-011, #3825); outbox={dl.outbox_list()}"
+        )
+
+    @pytest.mark.spec("BT-17-001")
+    @pytest.mark.spec("CM-23-011")
+    def test_non_manager_replica_closes_nothing_during_embargo(self):
+        """The replica also writes no closure state and no case_fully_closed.
+
+        The whole close/decline decision is CASE_MANAGER business; a replica
+        archives the Leave and takes any resulting closure from the ledger
+        fan-out (RSH-08-003, CLP-10-001).
+        """
+        dl = _make_full_dl(store_owner_id=VENDOR_ID)
+        _seed_active_embargo(dl, em_state=EM.ACTIVE)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(
+                sender_actor_id=OWNER_ID, receiving_actor_id=VENDOR_ID
+            ),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID)
+        assert not _case_fully_closed_present(dl)
 
 
 def _case_actor_rm_entry_states(dl: SqliteDataLayer) -> list[RM]:

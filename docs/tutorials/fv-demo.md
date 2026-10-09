@@ -168,11 +168,13 @@ The Finder then reports its own public awareness.
 
 ### Phase 6 — Case closure (M7)
 
-The Vendor closes its participation.
+The Finder closes its participation first.
+The demo waits until the Case Actor has recorded the Finder's departure.
+The Vendor then closes its participation.
 Because the Vendor is the Case Owner, the Case Actor closes the case: it advances the Vendor and itself to `RM.CLOSED` and records that the case is fully closed.
-The Finder then closes its own participation.
+The Case Owner leaves last because the Case Actor records nothing a participant sends after the case is fully closed.
 
-**M7 verified when:** every participant on both copies is `RM.CLOSED`.
+**M7 verified when:** the Case Actor's ledger records both departures before the case is fully closed, and every participant on both copies is `RM.CLOSED`.
 
 ---
 
@@ -189,7 +191,7 @@ Use the milestone lines as anchor points when reading the output.
 | `✅ M4:` | Both copies show CS includes `F` (fix ready) |
 | `✅ M5:` | Both copies show CS includes `F` (fix ready); the Vendor stops at `VFd` |
 | `✅ M6:` | Both copies show `CS.VFdPxa` and `EM.EXITED`; the Vendor is public-aware |
-| `✅ M7:` | All participants `RM.CLOSED` on both copies |
+| `✅ M7:` | Every departure recorded before the case is fully closed; all participants `RM.CLOSED` on both copies |
 
 Between milestones, look for these log line prefixes:
 

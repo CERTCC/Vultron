@@ -132,7 +132,7 @@ class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        # An ACCEPTED row stays; a participant that declined this embargo is
+        # An AGREED row stays; a participant that declined this embargo is
         # not signed (ADR-0118).
         participant.sign_embargo(active_embargo_id)
         self.logger.info(

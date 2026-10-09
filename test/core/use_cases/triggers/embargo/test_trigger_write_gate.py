@@ -23,7 +23,11 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import activate, terminate
+from test.support.embargo_register import (
+    activate,
+    terminate,
+    write_consent_rows,
+)
 from test.support.ledger import committed_event_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -285,6 +289,7 @@ def test_non_manager_propose_on_exited_case_is_refused_locally(
     activate(case, f"{case.id_}/embargo_events/ended")
     terminate(case)
     finder_dl.save(case)
+    write_consent_rows(finder_dl, case)
     request = ProposeEmbargoTriggerRequest(
         actor_id=finder.id_,
         case_id=case.id_,

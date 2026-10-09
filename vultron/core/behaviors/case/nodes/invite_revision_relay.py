@@ -58,10 +58,9 @@ from vultron.core.sync_helpers import recorded_entries_for_case
 class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
     """Invite a new joiner to each embargo proposal open when it joins.
 
-    Skips a proposal the joiner already holds a consent row for.  Each relay
-    applies PEC ``INVITE`` to the joiner's row, which is legal for a row that
-    does not exist yet, so a re-run of the effects (a resumed accept) does
-    not invite the joiner twice.  Everything that
+    Skips a proposal the joiner's row for has already left ``UNINVITED``.
+    Each relay applies PEC ``INVITE`` to the joiner's row, so a re-run of the
+    effects (a resumed accept) does not invite the joiner twice.  Everything that
     goes wrong here is the manager's own store failing, never a refusal of
     the joiner's Accept, so it raises (Regime 1, ADR-0087).
     """
@@ -102,7 +101,8 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
         pending = [
             embargo_id
             for embargo_id in case.proposed_embargo_ids
-            if self._consent_row_for(case, embargo_id) is None
+            if self._consent_row_for(case, embargo_id)
+            == EmbargoConsentState.UNINVITED
         ]
         if not pending:
             return Status.SUCCESS
@@ -132,8 +132,8 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
 
     def _consent_row_for(
         self, case: VulnerabilityCase, embargo_id: str
-    ) -> EmbargoConsentState | None:
-        """The joiner's consent to *embargo_id*, ``None`` when never asked."""
+    ) -> EmbargoConsentState:
+        """The joiner's consent to *embargo_id*; ``UNINVITED`` when never asked."""
         assert self.datalayer is not None
         participant_id = case.actor_participant_index.get(self._invitee_id)
         record = (

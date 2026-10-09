@@ -550,8 +550,8 @@ groups:
     statement: >-
       When the Case Actor accepts the CASE_MANAGER delegation, it MUST run the case
       initialization BT: establish the default embargo with both Vendor and Reporter
-      immediately as SIGNATORY (no invite/accept round-trip), and set EM state to ACTIVE
-      before the trust bootstrap is sent to the Reporter
+      immediately as signatories (no invite/accept round-trip), and set EM state to
+      ACTIVE before the trust bootstrap is sent to the Reporter
   - id: DEMOMA-08-005
     priority: MUST
     kind: project
@@ -599,8 +599,8 @@ groups:
     verification_debt: '#2573'
     statement: >-
       Vendor1 MUST invite Vendor2 to the case after accepting the report (RM→ACCEPTED),
-      and Vendor2 MUST accept and become a full SIGNATORY participant before the scenario
-      advances to fix tracking.
+      and Vendor2 MUST accept and become a full signatory participant before the
+      scenario advances to fix tracking.
     preconditions:
     - description: Vendor1 RM state = ACCEPTED; VulnerabilityCase created with CaseActor
         co-located in Vendor1 container; Vendor2 container running
@@ -619,10 +619,10 @@ groups:
       actor: vendor2
       action: POST accept-case-invite trigger
       expected: >-
-        Vendor2 joins the case and becomes SIGNATORY (active); CaseActor seeds Vendor2
+        Vendor2 joins the case and becomes a signatory (active); CaseActor seeds Vendor2
         case replica
     postconditions:
-    - description: Vendor2 is a SIGNATORY participant with EM consent; Vendor2 holds a
+    - description: Vendor2 is a signatory participant with EM consent; Vendor2 holds a
         seeded case replica; scenario may advance to fix tracking
   - id: DEMOMA-09-003
     priority: MUST
@@ -647,9 +647,10 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The PR that introduces the FVV scenario script MUST also add a dedicated parallel
-      CI job to `.github/workflows/demo-integration.yml` that runs the FVV scenario
-      using `DEMO=fvv`; the job MUST run concurrently with (not after) the FV
+      The PR that introduces the FVV scenario script MUST also register it with the
+      scenario registry (DEMOCI-11-001), so that its generated
+      `.github/demo-scenarios.json` entry (DEMOCI-11-004) runs it as its own CI
+      matrix job; that job MUST run concurrently with (not after) the FV
       job so that total CI wall-clock time does not grow linearly with scenario count
     relationships:
     - rel_type: refines
@@ -872,7 +873,7 @@ groups:
       and returns FAILURE if the case is not found.
     preconditions:
     - description: >-
-        Vendor1 RM state = ACCEPTED; Coordinator is an existing SIGNATORY participant
+        Vendor1 RM state = ACCEPTED; Coordinator is an existing signatory participant
         with a seeded case replica in their DataLayer; no pending ownership-transfer offer
         exists
     steps:
@@ -932,7 +933,7 @@ groups:
       actor: vendor2
       action: POST accept-case-invite trigger directed to CaseActor
       expected: >-
-        Vendor2 joins the case and becomes SIGNATORY (active); CaseActor emits
+        Vendor2 joins the case and becomes a signatory (active); CaseActor emits
         Announce(VulnerabilityCase) to seed Vendor2 case replica
     - order: 4
       actor: demo-script
@@ -940,7 +941,7 @@ groups:
       expected: VulnerabilityCase record present in Vendor2 DataLayer
     postconditions:
     - description: >-
-        Vendor2 is a SIGNATORY participant with a seeded case replica; scenario may
+        Vendor2 is a signatory participant with a seeded case replica; scenario may
         advance to fix tracking and final state
     relationships:
     - rel_type: refines
@@ -1204,7 +1205,7 @@ groups:
     verification_debt: '#2573'
     statement: >-
       The Coordinator MUST NOT invite the Finder to the case. The Finder is the
-      reporter, so the CASE_MANAGER seats it as a SIGNATORY participant when it
+      reporter, so the CASE_MANAGER seats it as a signatory participant when it
       creates the case (CM-22-002, CM-14-005). The scenario MUST confirm that
       the Finder is a participant and holds a case replica before the Vendor
       is invited.
@@ -1235,7 +1236,7 @@ groups:
       expected: Finder holds a case replica with EM.ACTIVE
     postconditions:
     - description: >-
-        Finder is SIGNATORY with a case replica; Vendor invitation has not
+        Finder is a signatory with a case replica; Vendor invitation has not
         yet been issued
     relationships:
     - rel_type: refines
@@ -1257,7 +1258,7 @@ groups:
       is required for determinism (per DEMOMA-11-009 pattern).
     preconditions:
     - description: >-
-        Finder is SIGNATORY with a case replica (DEMOMA-12-003 postconditions
+        Finder is a signatory with a case replica (DEMOMA-12-003 postconditions
         satisfied); Vendor is not yet a case participant
     steps:
     - order: 1
@@ -1273,11 +1274,11 @@ groups:
       actor: vendor
       action: POST accept-case-invite trigger
       expected: >-
-        Vendor transitions to SIGNATORY; CaseActor emits Announce(VulnerabilityCase)
+        Vendor becomes a signatory; CaseActor emits Announce(VulnerabilityCase)
         to seed Vendor replica with full case history
     postconditions:
     - description: >-
-        Vendor is SIGNATORY with a seeded case replica containing full history
+        Vendor is a signatory with a seeded case replica containing full history
         from genesis; all three actors (Finder, Coordinator, Vendor) plus
         CaseActor are now case participants
     relationships:
@@ -1315,9 +1316,10 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The implementation of the FCV scenario MUST add a dedicated parallel CI job
-      (`DEMO=fcv`) to `.github/workflows/demo-integration.yml` in the same PR, so
-      CI failures are independently reported per DEMOCI-03-003.
+      The implementation of the FCV scenario MUST register it with the scenario
+      registry (DEMOCI-11-001) in the same PR, so that its generated
+      `.github/demo-scenarios.json` entry (DEMOCI-11-004) runs it as its own CI
+      matrix job and CI failures are independently reported per DEMOCI-03-003.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-03-002
@@ -1675,9 +1677,10 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The implementation of the FCCV-extension scenario MUST add a dedicated parallel
-      CI job (`DEMO=fccv-extension`) to `.github/workflows/demo-integration.yml`,
-      so CI failures are independently reported per DEMOCI-03-003.
+      The implementation of the FCCV-extension scenario MUST register it with the
+      scenario registry (DEMOCI-11-001), so that its generated
+      `.github/demo-scenarios.json` entry (DEMOCI-11-004) runs it as its own CI
+      matrix job and CI failures are independently reported per DEMOCI-03-003.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-005
@@ -2337,7 +2340,7 @@ groups:
     rationale: >-
       Vendor is CASE_OWNER from self-reporting, so Vendor drives the direct
       `invite-actor-to-case` trigger (no suggest/approve chain). Coordinator
-      accepts and becomes SIGNATORY by accepting the embargo. No
+      accepts and becomes a signatory by accepting the embargo. No
       `offer_case_participant` or `accept_actor_recommendation` events are
       expected because there is no second-level recommendation in this
       two-actor scenario.
@@ -2354,12 +2357,13 @@ groups:
     statement: >-
       The RCV-embargo scenario expected-event-types list MUST include
       `invite_actor_to_case`, `accept_invite_actor_to_case`,
-      `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case` and
-      `remove_embargo_event_from_case` in addition to the universal types
-      (DEMOMA-16-001), because the Coordinator invites the Vendor and the Vendor
-      accepts, the Reporter's embargo proposal and its relayed invitations are
-      committed, the owner and the Vendor accept it, and the Coordinator
-      terminates the embargo.
+      `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case`,
+      `activate_embargo_on_case` and `remove_embargo_event_from_case` in
+      addition to the universal types (DEMOMA-16-001), because the Coordinator
+      invites the Vendor and the Vendor accepts, the Reporter's embargo proposal
+      and its relayed invitations are committed, the Vendor accepts it, the
+      owner activates it (VAM-05-008), and the Coordinator terminates the
+      embargo.
     rationale: >-
       The embargo event types are the ones the CASE_MANAGER's commit path emits
       (DEMOMA-20-006); the harness imports them from that code, so a rename
@@ -2377,12 +2381,14 @@ groups:
     statement: >-
       The RCVV-embargo scenario expected-event-types list MUST include
       `invite_actor_to_case`, `accept_invite_actor_to_case`,
-      `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case` and
-      `remove_embargo_event_from_case` in addition to the universal types
-      (DEMOMA-16-001), because the Coordinator invites both Vendors and they
-      accept, the Reporter's and Vendor1's embargo proposals and their relayed
-      invitations are committed, the owner and the other participants accept
-      them, and the embargo is torn down when the Reporter reports publication.
+      `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case`,
+      `activate_embargo_on_case` and `remove_embargo_event_from_case` in
+      addition to the universal types (DEMOMA-16-001), because the Coordinator
+      invites both Vendors and they accept, the Reporter's and Vendor1's
+      embargo proposals and their relayed invitations are committed, the other
+      participants accept them, the owner activates each revision
+      (VAM-05-008), and the embargo is torn down when the Reporter reports
+      publication.
     rationale: >-
       The embargo event types are the ones the CASE_MANAGER's commit path emits
       (DEMOMA-21-007); the harness imports them from that code, so a rename
@@ -2730,15 +2736,17 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The FCVCV scenario MUST be added to the CI demo-integration matrix in
-      `.github/workflows/demo-integration.yml` with `DEMO=fcvcv`, and
-      `actor6` MUST be listed as a service dependency alongside the existing
-      five services.
+      The FCVCV scenario MUST be registered with the scenario registry
+      (DEMOCI-11-001), so that its generated `.github/demo-scenarios.json`
+      entry (DEMOCI-11-004) adds it to the CI matrix, and `actor6` MUST be
+      defined in `docker/docker-compose-multi-actor.yml` alongside the existing
+      five actor services.
     rationale: >-
       CI coverage of all demo scenarios is required by DEMOCI-04-001. The
-      FCVCV scenario introduces the actor6 container, which must be listed as
-      a service dependency so CI spins it up. Scenario-role names in devlogs
-      match the names used in scenario code, making log archaeology easier.
+      FCVCV scenario introduces the actor6 container; CI starts the whole
+      multi-actor compose file, so defining the service there is what makes
+      it available to the run. Scenario-role names in devlogs match the names
+      used in scenario code, making log archaeology easier.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-001
@@ -2984,11 +2992,13 @@ groups:
     verification_debt: '#2573'
     statement: >-
       The FCVCV scenario MUST be routed to the invariant harness file by the
-      `demo`/`test_file` matrix in `.github/workflows/demo-integration.yml`;
-      harnesses MUST NOT be registered via a `conftest.py` scenario mapping.
+      `demo`/`test_file` pair in its generated `.github/demo-scenarios.json`
+      entry (DEMOCI-11-004); harnesses MUST NOT be registered via a
+      `conftest.py` scenario mapping.
     rationale: >-
-      The CI matrix is the sole scenario-to-harness registry; conftest.py mappings
-      are not consulted by the CI runner.
+      The harness path is derived from the registered scenario name by
+      convention (DEMOCI-11-003) and reaches CI only through the generated
+      matrix; conftest.py mappings are not consulted by the CI runner.
   - id: DEMOMA-19-022
     priority: MUST
     kind: project
@@ -3016,14 +3026,14 @@ groups:
     EM.ACTIVE before R proposes and R's proposal revises that embargo
     (ACTIVE → REVISE). V and C accept (EA); C, as case owner, activates the
     revision, returning EM to ACTIVE with the revision as the active embargo and
-    all three parties as SIGNATORY to it. The fix lifecycle then proceeds. Before
+    all three parties as signatories to it. The fix lifecycle then proceeds. Before
     the natural embargo window expires, C deliberately terminates the embargo
     (ET), advancing EM to EXITED. The case continues to the normal P-transition
     and closure sequence. This scenario is the first to exercise: (a) embargo
     proposal initiated after report submission (variation b), (b) the full
     EP→EA→ET arc (propose, activate, terminate without a further revision),
     (c) each party's consent row for the revised embargo passing through
-    INVITED → ACCEPTED (signatory to the active embargo) for all three parties.
+    INVITED → AGREED (signatory to the active embargo) for all three parties.
   specs:
   - id: DEMOMA-20-001
     priority: MUST
@@ -3091,7 +3101,7 @@ groups:
     statement: >-
       An exchange helper function `demo_terminate_embargo` MUST be added to
       `vultron/demo/exchange/` accepting `(terminating, case)` arguments — where
-      `terminating` is the `ActorSession` of any SIGNATORY participant authorized
+      `terminating` is the `ActorSession` of any signatory participant authorized
       to terminate (DEMOMA-26-001) — and posting `trigger_terminate_embargo`.
     rationale: >-
       The terminate-embargo exchange is a single-actor trigger that can be
@@ -3128,11 +3138,12 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The rcv-embargo scenario MUST be added to the CI demo-integration matrix
-      in `.github/workflows/demo-integration.yml` with `DEMO=rcv-embargo` and
-      `full_suite_only: false` (runs on every PR). The CI devlogs directory for
-      the run MUST use the scenario-role naming convention: `reporter`,
-      `coordinator`, `vendor`, `case-actor`.
+      The rcv-embargo scenario MUST be registered with `in_pr_set=True`
+      (DEMOCI-11-001), so that its generated `.github/demo-scenarios.json`
+      entry (DEMOCI-11-004) carries `"full_suite_only": false` (runs on every
+      PR).
+      The CI devlogs directory for the run MUST use the scenario-role naming
+      convention: `reporter`, `coordinator`, `vendor`, `case-actor`.
     rationale: >-
       CI coverage of the embargo lifecycle from day one avoids the deferred-add
       pattern that required a later DEMOCI-06 amendment for earlier scenarios.
@@ -3259,7 +3270,7 @@ groups:
       After completing the propose-activate sequence, `demo_propose_and_activate_embargo`
       MUST assert `em_state == EM.ACTIVE` on the coordinator's case replica and
       that R, C and V are each a signatory to the active embargo (their consent row for it
-      is `ACCEPTED`).
+      is `AGREED`).
     rationale: >-
       These post-conditions confirm that all three parties successfully enrolled in
       the embargo before the scenario advances.
@@ -3311,16 +3322,16 @@ groups:
     active embargo (EV→ER→EJ), (f) deliberate notification delay for V2
     (late invitation simulating a short-deadline vendor), and (d) accidental
     collapse via CS.P. After R proposes and C accepts an initial embargo (EP→EA),
-    EM reaches ACTIVE with R, C, and V1 as SIGNATORY. C then proposes a
+    EM reaches ACTIVE with R, C, and V1 as signatories. C then proposes a
     revision (EV), V1 accepts (EJ), and EM returns to ACTIVE with updated terms.
     V2 is not invited until after the revision is accepted, simulating a
     coordinator holding off on inviting a short-deadline vendor until the
     embargo window is near its close. V2 accepts the case invite and becomes
-    SIGNATORY. Finally, R publishes (CS.P fires), triggering
+    a signatory. Finally, R publishes (CS.P fires), triggering
     `ThreatTerminationBranchNode` which auto-terminates the embargo (EM→EXITED).
     This scenario is the first to exercise: (a) an embargo revision cycle
     (EV→ER/EJ arc), (b) a late-invitee V2 joining an active embargo (consent
-    row INVITED→ACCEPTED after EM.ACTIVE), (c) accidental embargo collapse via
+    row INVITED→AGREED after EM.ACTIVE), (c) accidental embargo collapse via
     external P-event rather than deliberate termination.
   specs:
   - id: DEMOMA-21-001
@@ -3389,12 +3400,12 @@ groups:
       The v2_late_invite phase of rcvv-embargo MUST invite V2 to the case only
       after the embargo revision (phase 3) is complete and `em_state` is confirmed
       ACTIVE; on receiving the case invite, V2 MUST accept the current embargo
-      event, becoming a signatory to it (its consent row for the embargo is `ACCEPTED`).
+      event, becoming a signatory to it (its consent row for the embargo is `AGREED`).
     rationale: >-
       Inviting V2 after the revision is complete — rather than before — is the
       defining characteristic of variation (f): the coordinator delays
       notification of a short-deadline vendor until the embargo terms are
-      settled. Asserting V2's SIGNATORY state before fix_lifecycle ensures that
+      settled. Asserting that V2 is a signatory before fix_lifecycle ensures that
       V2 is fully enrolled in the embargo before it is accidentally collapsed by
       CS.P, making the ledger record unambiguous about V2's consent at time of
       collapse.
@@ -3447,11 +3458,12 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The rcvv-embargo scenario MUST be added to the CI demo-integration matrix
-      in `.github/workflows/demo-integration.yml` with `DEMO=rcvv-embargo` and
-      `full_suite_only: false` (runs on every PR). The CI devlogs directory for
-      the run MUST use the scenario-role naming convention: `reporter`,
-      `coordinator`, `vendor`, `vendor2`, `case-actor`.
+      The rcvv-embargo scenario MUST be registered with `in_pr_set=True`
+      (DEMOCI-11-001), so that its generated `.github/demo-scenarios.json`
+      entry (DEMOCI-11-004) carries `"full_suite_only": false` (runs on every
+      PR).
+      The CI devlogs directory for the run MUST use the scenario-role naming
+      convention: `reporter`, `coordinator`, `vendor`, `vendor2`, `case-actor`.
     rationale: >-
       CI coverage from day one, consistent with the decision recorded in issue
       #1222 planning: default to add-now/remove-later rather than deferred adds.
@@ -4240,9 +4252,10 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The implementation of the FCVD scenario MUST add a dedicated parallel CI job
-      (`DEMO=fcvd`) to `.github/workflows/demo-integration.yml` in the same PR as
-      the scenario script, so CI failures are independently reported per
+      The implementation of the FCVD scenario MUST register it with the scenario
+      registry (DEMOCI-11-001) in the same PR as the scenario script, so that its
+      generated `.github/demo-scenarios.json` entry (DEMOCI-11-004) runs it as its
+      own CI matrix job and CI failures are independently reported per
       DEMOCI-03-003.
     relationships:
     - rel_type: refines
@@ -4380,11 +4393,11 @@ groups:
       `invite-actor-to-case` trigger. Coordinator's case role MUST be
       `CVDRole.OBSERVER` only — NOT `CVDRole.COORDINATOR`. Coordinator MUST
       accept the invitation via the `accept-case-invite` trigger and MUST
-      become an embargo SIGNATORY, which, because the case has an active
+      become an embargo signatory, which, because the case has an active
       embargo, is what makes it an active participant entitled to case-content
       announcements as an Observer (CM-10-004, CM-25, CM-26).
     rationale: >-
-      An OBSERVER that has not joined, or that is not SIGNATORY while an embargo
+      An OBSERVER that has not joined, or that is not a signatory while an embargo
       is active, is inert and receives no case updates (CM-10-004).
       The Invite/Accept exchange (CM-25) is the correct admission mechanism
       regardless of role. Coordinator's role is explicitly limited to OBSERVER:
@@ -4404,7 +4417,7 @@ groups:
       actor: coordinator
       action: POST accept-case-invite trigger directed to CaseActor
       expected: >-
-        Coordinator transitions to SIGNATORY with CVDRole.OBSERVER;
+        Coordinator becomes a signatory with CVDRole.OBSERVER;
         CaseActor emits Announce(VulnerabilityCase) to seed Coordinator replica
     adr:
     - ADR-0057
@@ -4423,7 +4436,7 @@ groups:
       In the VC scenario, only Vendor MUST follow the VFD fix-deployment path
       (vfd → Vfd → VFd → VFD). Coordinator, holding only `CVDRole.OBSERVER`,
       MUST NOT be driven through VFD steps. Coordinator tracks pxa state
-      updates only (public-awareness transitions shared with all SIGNATORY
+      updates only (public-awareness transitions shared with all signatory
       participants).
     rationale: >-
       VFD obligations attach to `CVDRole.VENDOR` and `CVDRole.DEPLOYER` per
@@ -4459,9 +4472,10 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The implementation of the VC scenario MUST add a dedicated parallel CI
-      job (`DEMO=vc`) to `.github/workflows/demo-integration.yml` in the same
-      PR, and MUST ship a dedicated per-scenario case-ledger invariant test
+      The implementation of the VC scenario MUST register it with the scenario
+      registry (DEMOCI-11-001) in the same PR, so that its generated
+      `.github/demo-scenarios.json` entry (DEMOCI-11-004) runs it as its own CI
+      matrix job, and MUST ship a dedicated per-scenario case-ledger invariant test
       file (`test/ci/invariants/test_vc_invariants.py`) built on the shared
       invariant library. The test MUST assert the event-type list from
       DEMOMA-16-015 and the pxa-only final state for Coordinator.

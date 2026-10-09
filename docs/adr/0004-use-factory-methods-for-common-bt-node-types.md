@@ -5,6 +5,7 @@ date: 2023-10-24
 created: 2023-10-24
 updated: 2023-10-24
 revision: 1
+amended: "2026-10-09"
 deciders: adh
 stakeholder_type: [project-contributor]
 ---
@@ -59,6 +60,13 @@ Good because:
 Bad because:
 
 - Harder to enforce consistency in how the nodes are created
+
+## Amendment — 2026-10-09
+
+This decision covers the node factories of the legacy custom engine in `vultron.bt.base` (ADR-0003).
+It does not govern `py_trees` nodes (ADR-0008); the BTND requirements set how those are built.
+
+- Source: #4391
 
 ## More Information
 

@@ -58,7 +58,7 @@ def _seat(
     case: VulnerabilityCase,
     actor_id: str,
     *,
-    consent: EmbargoConsentState | None = EmbargoConsentState.ACCEPTED,
+    consent: EmbargoConsentState | None = EmbargoConsentState.AGREED,
     joined: bool = True,
     rm_state: RM = RM.ACCEPTED,
     store: bool = True,

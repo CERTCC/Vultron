@@ -30,6 +30,14 @@ causal_edges:
     note: >
       Closure requires a validated, engaged case even when a Vendor rejected
       the invitation.
+  - antecedent: close_case
+    consequent: close_case
+    consequent_actor: coordinator
+    note: >
+      The Coordinator, the Case Owner, leaves last (CM-23-015): another
+      participant's close_case precedes the owner's.  The owner's departure
+      closes the case, and a departure sent after it is not recorded
+      (CM-23-013).
   - antecedent: engage_case
     consequent: add_note_to_case
     consequent_actor: finder
@@ -116,8 +124,10 @@ Vendor's participation.
 
 ### 8. Finder and Coordinator close the case
 
-Finder and Coordinator each submit `close_case` entries.  The Vendor, having
-rejected the invitation, has no close entry.
+Finder and Coordinator each submit `close_case` entries.
+The Finder leaves first; the Coordinator, the Case Owner, leaves last.
+A departure sent after the owner's is not recorded, so every other participant's departure is recorded first.
+The Vendor, having rejected the invitation, has no close entry.
 
 *Antecedent:* `validate_report` and `engage_case` are in the ledger.
 

@@ -39,19 +39,12 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 
 
-def _create_and_attach_participant(
+def _create_participant_if_missing(
     dl: CasePersistence,
     participant: CaseParticipant,
-    case_id: str,
-    actor_id_for_index: str,
     logger: logging.Logger,
-) -> VulnerabilityCase | None:
-    """
-    Create participant if needed and attach it to the case (unsaved return).
-
-    The caller is responsible for calling ``dl.save(case)`` after any further
-    case updates are applied.
-    """
+) -> None:
+    """Store *participant* unless a record with its id is already stored."""
     if dl.read(participant.id_) is None:
         dl.create(participant)
         logger.info(
@@ -65,11 +58,29 @@ def _create_and_attach_participant(
             participant.id_,
         )
 
+
+def _create_and_attach_participant(
+    dl: CasePersistence,
+    participant: CaseParticipant,
+    case_id: str,
+    actor_id_for_index: str,
+    logger: logging.Logger,
+) -> VulnerabilityCase | None:
+    """
+    Create participant if needed and attach it to the case (unsaved return).
+
+    Attaching writes the participant's ``UNINVITED`` consent row for every
+    embargo register entry (ADR-0122), so the record is attached before it is
+    first stored.  The caller is responsible for calling ``dl.save(case)``
+    after any further case updates are applied.
+    """
     # Regime 1 (ADR-0087): module-level resolver (bare `dl`, not a node) —
     # a missing case is logged at ERROR and returned as None so the calling
     # node fails loudly. Conformance allowlist: module-resolver category.
     stored_case = dl.read_case(case_id)
     if stored_case is None:
+        # Nothing is stored: a record never attached to a case would hold no
+        # consent rows for its register (ADR-0122).
         logger.error("Case %s not found in DataLayer", case_id)
         return None
 
@@ -79,7 +90,10 @@ def _create_and_attach_participant(
     if existing_participant_id is not None:
         existing_participant = dl.read(existing_participant_id)
         if isinstance(existing_participant, CaseParticipant):
-            stored_case.add_participant(existing_participant)
+            # The actor's existing record stays its record; *participant* is
+            # not stored beside it, unattached and without rows (ADR-0122).
+            if stored_case.add_participant(existing_participant):
+                dl.save(existing_participant)
             logger.debug(
                 "Participant already registered for actor '%s' in case '%s'",
                 actor_id_for_index,
@@ -88,6 +102,7 @@ def _create_and_attach_participant(
             return stored_case
 
     stored_case.add_participant(participant)
+    _create_participant_if_missing(dl, participant, logger)
 
     logger.info(
         "CaseParticipant '%s' attached to case '%s'",

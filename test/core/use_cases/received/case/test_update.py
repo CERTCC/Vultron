@@ -70,14 +70,17 @@ def _seat(dl, case, actor_id, participant_id, **fields):
     """
     from vultron.core.models.case_participant import CaseParticipant
 
-    dl.create(
-        CaseParticipant(
-            id_=participant_id,
-            attributed_to=actor_id,
-            context=case.id_,
-            **fields,
-        )
+    participant = CaseParticipant(
+        id_=participant_id,
+        attributed_to=actor_id,
+        context=case.id_,
+        **fields,
     )
+    # A row for every register entry (ADR-0122); explicit rows are kept.
+    participant.write_uninvited_rows(
+        e.embargo_id for e in case.embargo_register
+    )
+    dl.create(participant)
     case.actor_participant_index[actor_id] = participant_id
 
 
@@ -105,6 +108,7 @@ def _make_receiver_the_case_manager(dl, case, receiver_id=None):
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
+    manager.write_uninvited_rows(e.embargo_id for e in case.embargo_register)
     dl.create(manager)
     case.actor_participant_index[receiver_id] = manager.id_
     return manager
@@ -284,6 +288,8 @@ class TestCaseUseCases:
             attributed_to=actor_id,
             context="https://example.org/cases/uc4",
         )
+        # Never asked about the embargo in force (ADR-0122).
+        participant.write_uninvited_rows([embargo.id_])
         dl.create(participant)
 
         case = as_VulnerabilityCase(
@@ -341,7 +347,7 @@ class TestCaseUseCases:
             context="https://example.org/cases/uc5",
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                    embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
                 )
             ],
         )
@@ -476,7 +482,7 @@ class TestCaseUseCases:
                         state=(
                             EmbargoConsentState.INVITED
                             if inert == "not-signatory"
-                            else EmbargoConsentState.ACCEPTED
+                            else EmbargoConsentState.AGREED
                         ),
                     )
                 ],
@@ -490,7 +496,7 @@ class TestCaseUseCases:
             f"{case_id}/participants/dave",
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                    embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
                 )
             ],
         )

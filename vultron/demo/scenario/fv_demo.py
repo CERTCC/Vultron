@@ -29,6 +29,7 @@ from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_commit import trigger_log_commit  # noqa: F401
 from vultron.demo.helpers.ledger_dump import (
@@ -185,8 +186,8 @@ Workflow (six phases; titles match docs/tutorials/fv-demo.md):
      at VFd).
   5. Publication and embargo teardown (M6): Vendor and Finder report
      publication; embargo terminates (EM.EXITED).
-  6. Case closure (M7): Vendor and Finder close the case (RM.CLOSED on
-     both replicas).
+  6. Case closure (M7): the Finder closes the case, then the Vendor, the
+     Case Owner, closes it last (RM.CLOSED on both replicas).
 """
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
@@ -778,19 +779,22 @@ def _phase_case_closure(
     finder_in_finder: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Close the case from both participants and verify terminal state."""
+    """Close the case from both participants and verify terminal state.
+
+    The Finder leaves first; the Vendor, the Case Owner, leaves last, once
+    the Finder's departure is recorded (CM-23-015).
+    """
     logger.info("─" * 80)
     logger.info("Phase 6: Case closure — all participants RM.CLOSED")
     logger.info("─" * 80)
 
-    with demo_step(f"Actor {ref_id(vendor_in_vendor)} closes case"):
-        ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
-            case
-        ).quiet().close_case()
-    with demo_step(f"Actor {ref_id(finder_in_finder)} closes case"):
-        ActorSession(client=finder_client, actor=finder_in_finder).with_case(
-            case
-        ).quiet().close_case()
+    close_case_owner_last(
+        case=case,
+        milestone="M7",
+        authority_client=vendor_client,
+        others=[CaseLeaver(client=finder_client, actor=finder_in_finder)],
+        owner=CaseLeaver(client=vendor_client, actor=vendor_in_vendor),
+    )
 
     with demo_check("M7: all participants RM.CLOSED on both replicas"):
         wait_for_all_participants_rm_closed(

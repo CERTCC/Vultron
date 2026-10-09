@@ -11,7 +11,9 @@ so a fixture cannot hold a register no protocol event could have produced.
 
 from collections.abc import Iterable
 
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import (
     EmbargoRegisterEntry,
@@ -22,6 +24,7 @@ from vultron.core.models.embargo_register import (
     rejection_changes,
     termination_changes,
 )
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     RegisterTrigger,
@@ -109,6 +112,24 @@ def register(
     return entries
 
 
+def write_consent_rows(dl: CasePersistence, case: VulnerabilityCase) -> None:
+    """Write each participant's ``UNINVITED`` row for every register entry.
+
+    The rows a proposal and a join write in production (ADR-0122), for a
+    fixture that built *case*'s register with the helpers above, which touch
+    only the case.  Reads every participant record *case* lists from *dl* and
+    saves the ones that gained a row; rows already held are kept.
+    """
+    embargo_ids = [entry.embargo_id for entry in case.embargo_register]
+    for entry in case.case_participants:
+        participant_id = _as_id(entry)
+        record = dl.read(participant_id) if participant_id else None
+        if isinstance(record, CaseParticipant) and (
+            record.write_uninvited_rows(embargo_ids)
+        ):
+            dl.save(record)
+
+
 __all__ = [
     "activate",
     "cancel_on_threat",
@@ -116,4 +137,5 @@ __all__ = [
     "register",
     "reject",
     "terminate",
+    "write_consent_rows",
 ]
