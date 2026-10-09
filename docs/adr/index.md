@@ -60,7 +60,12 @@ Renaming a symbol or splitting a module does not oblige you to touch any ADR tha
 If a decision has consequences that future code must obey, those belong in a spec requirement or a `notes/` file, which carry an obligation to stay current that an ADR does not.
 Record them there and cite the ADR as provenance — see `notes/specs-vs-adrs.md` for the delineation and MS-11-004 for the bidirectional citation pattern.
 A spec or note MUST NOT resolve its own meaning by pointing into an ADR body; cite the ADR for *why*, and state the rule where the reader already is.
-The corpus does not satisfy that rule yet: the "ADR-0099 detail N" citations in `specs/` and `notes/` are the known exception, and converting them is tracked in #4389.
+The corpus does not satisfy that rule yet: the "ADR-0099 detail N" citations in `specs/` and `notes/` are the known exception, and converting them is tracked in #4409.
+Do not add another such citation. An ADR citing a numbered detail of another ADR is fine — that is history citing history.
+
+**An aged code reference in an ADR body is not a defect.**
+Per [ADR-0127](0127-decision-records-leave-routine-agent-context.md), the existing stale paths and symbols across the corpus are not a backlog and no scrub is owed: a reference in a record's context or validation prose is an accurate account of the code as it then stood.
+Enforcement is forward-only — a reference newly written into an ADR should resolve on the day it is written.
 
 **How to edit an ADR**: follow the edit tiers in [ADR-0120](0120-adr-lifecycle-epochs-and-edit-tiers.md), which key off how long ago the ADR was last materially changed.
 Editorial fixes and appended annotations are allowed at any time and change neither `updated` nor `revision`.
@@ -104,7 +109,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0000 Record architecture decisions](0000-record-architecture-decisions.md)
 - [ADR-0001 Use Markdown Any Decision Records](0001-use-markdown-any-decision-records.md)
 - [ADR-0002 Model Processes with Behavior Trees](0002-model-processes-with-behavior-trees.md)
-- [ADR-0003 Build our own Behavior Tree engine in Python](0003-build-custom-python-bt-engine.md)
+- [ADR-0003 Build our own Behavior Tree engine in Python](0003-build-custom-python-bt-engine.md) — partially superseded by 0008-use-py-trees-for-handler-bt-integration.md
 - [ADR-0004 Use factory methods for common BT node types](0004-use-factory-methods-for-common-bt-node-types.md)
 - [ADR-0005 Use ActivityStreams Vocabulary as the basis for Vultron Message Formats](0005-activitystreams-vocabulary-as-vultron-message-format.md)
 - [ADR-0006 Vultron Release Versioning](0006-use-calver-for-project-versioning.md)
@@ -224,6 +229,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0124 The Case Is a Projection of Its Ledger: One Replay Function for the CASE_MANAGER and Every Replica](0124-case-is-a-projection-of-its-ledger.md)
 - [ADR-0125 A Case Splits by Its Owner Proposing a Child Case: the Child Links Its Parent and Inherits the Embargo Terms Only](0125-case-split-child-case-inherits-the-embargo-only.md)
 - [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)*
+- [ADR-0127 Decision Records Leave Routine Agent Context; Specs and Notes Carry the Current State](0127-decision-records-leave-routine-agent-context.md)
 
 ## Rejected ADRs
 
