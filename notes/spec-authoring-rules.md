@@ -448,13 +448,25 @@ firm it reads; EP-02-004 (compare-and-set on the policy PUT) is the worked
 example. MS-12-006 scans the `statement` only, so a `verification:` that names a
 test file does not by itself make a spec `project`: MS-10-003 and MS-15-001
 oblige that path, and no protocol-tier variant of the verification convention
-is needed. The detector still scans `verification:` and the roughly ninety
-protocol-worded specs #3600 relabeled to `project` on that basis (#3943) have
-not yet returned to `protocol`; #4312 fixes both. Those that gain no user story
-carry `missing_story_reference`, which raises the MS-12-007 ceiling once, by the
-reverted count. #3601 and #2717 own the burn-down.
+is needed. #4312 re-adjudicated the specs #3600 had relabeled to `project` on
+the strength of their `verification:` path (#3943) and returned the RFC-content
+ones to `protocol`; those that mapped to no existing user story carry
+`missing_story_reference` again, a one-time raise of the MS-12-007 ceiling that
+the story work in #3601 and #2717 burns down.
 
-Source: ISSUE-4195
+The statement still has to be code-free **as written**. A rule that is RFC
+content but spells a protocol concept in this codebase's identifiers — a dotted
+enum member (`CVDRole.CASE_OWNER`, `CS_vf.vf`), a wire class's Python name
+(`as_CaseProposal`, `RmInviteToCaseActivity`), a helper function, the
+`DataLayer` — matches MS-12-002 first and stays `project`, even though MS-12-006's
+narrow token list does not flag it. Protocol vocabulary is not a codebase
+reference: AS2 wire types and field names, the protocol shorthands (`CP`,
+`ET`), state notation (`VFd···`) and bare semantic names
+(`INVITE_TO_EMBARGO_ON_CASE`) all appear in protocol statements. The remedy for
+a code-spelled protocol rule is to reword the statement in protocol vocabulary,
+which returns it to `protocol` with no relabel argument needed.
+
+Source: ISSUE-4195, ISSUE-4312
 
 ## Removed Requirements: Never Reuse an ID, Archive the Text
 
