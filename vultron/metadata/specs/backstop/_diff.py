@@ -63,7 +63,12 @@ def parse_diff_hunks(diff: str) -> tuple[dict[str, set[int]], set[str]]:
     return changed, deleted
 
 
-def _run_git(root: Path) -> GitRunner:
+def run_git(root: Path) -> GitRunner:
+    """A :data:`GitRunner` for the repository at *root*.
+
+    A non-zero git exit raises :class:`BackstopError` carrying git's stderr.
+    """
+
     def run(args: Sequence[str]) -> str:
         proc = subprocess.run(  # nosec B603 B607 - fixed git argv
             ["git", *args],
@@ -82,14 +87,45 @@ def _run_git(root: Path) -> GitRunner:
 
 def git_toplevel(cwd: Path) -> Path:
     """Return the git work-tree root containing *cwd*."""
-    return Path(_run_git(cwd)(["rev-parse", "--show-toplevel"]).strip())
+    return Path(run_git(cwd)(["rev-parse", "--show-toplevel"]).strip())
+
+
+def merge_base(git: GitRunner, base: str) -> str:
+    """The merge base of *base* and ``HEAD``: where the branch diff starts."""
+    return git(["merge-base", base, "HEAD"]).strip()
+
+
+def _untracked(git: GitRunner, *pathspec: str) -> list[str]:
+    listing = git(
+        ["ls-files", "--others", "--exclude-standard", "--", *pathspec]
+    )
+    return listing.splitlines()
+
+
+def changed_paths(git: GitRunner, base: str) -> list[str]:
+    """Every path the branch changes, of any file type.
+
+    The branch diff is the merge base with *base* against the working tree,
+    so committed, uncommitted, and untracked changes all count, and a deleted
+    or renamed-away path is listed under its old name (``--no-renames``).
+    """
+    start = merge_base(git, base)
+    diff = git(["diff", "--name-only", "--no-renames", start, "--"])
+    return sorted(set(diff.splitlines()) | set(_untracked(git)))
+
+
+def base_changed_paths(git: GitRunner, base: str) -> list[str]:
+    """Paths *base* changed since its merge base with ``HEAD``."""
+    start = merge_base(git, base)
+    diff = git(["diff", "--name-only", "--no-renames", start, base, "--"])
+    return sorted(set(diff.splitlines()))
 
 
 def collect_git_changes(
     git: GitRunner, root: Path, base: str
 ) -> list[FileChange]:
     """Collect committed, uncommitted, and untracked ``.py`` changes."""
-    merge_base = git(["merge-base", base, "HEAD"]).strip()
+    merge_base_sha = merge_base(git, base)
     # ``--src-prefix``/``--dst-prefix`` pin the ``a/``/``b/`` prefixes that
     # :func:`parse_diff_hunks` matches on. Without them, a user's
     # ``diff.mnemonicPrefix`` or ``diff.noprefix`` config renames them and
@@ -103,7 +139,7 @@ def collect_git_changes(
             "--no-renames",
             "--src-prefix=a/",
             "--dst-prefix=b/",
-            merge_base,
+            merge_base_sha,
             "--",
             "vultron",
             "test",
@@ -115,14 +151,11 @@ def collect_git_changes(
         for p, ls in changed.items()
     ]
     changes += [
-        FileChange(p, git(["show", f"{merge_base}:{p}"])) for p in deleted
+        FileChange(p, git(["show", f"{merge_base_sha}:{p}"])) for p in deleted
     ]
-    untracked = git(
-        ["ls-files", "--others", "--exclude-standard", "--", "vultron", "test"]
-    )
     changes += [
         FileChange(p, (root / p).read_text(encoding="utf-8"))
-        for p in untracked.splitlines()
+        for p in _untracked(git, "vultron", "test")
         if p.endswith(".py")
     ]
     return sorted(changes, key=lambda c: c.path)

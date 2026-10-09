@@ -213,7 +213,7 @@ def mirror_tests(path: str, test_paths: Iterable[str]) -> list[str]:
     )
 
 
-def _owner_modules(module: str) -> set[str]:
+def owner_modules(module: str) -> set[str]:
     """*module* and its ancestor packages below ``vultron`` (re-exports)."""
     parts = module.split(".")
     return {".".join(parts[:i]) for i in range(2, len(parts) + 1)}
@@ -223,5 +223,5 @@ def imported_symbols(
     test: TestFile, module: str, symbols: set[str]
 ) -> set[str]:
     """Changed *symbols* that *test* imports by name from *module*."""
-    owners = _owner_modules(module)
+    owners = owner_modules(module)
     return {n for m, n in test.names if n in symbols and m in owners}
