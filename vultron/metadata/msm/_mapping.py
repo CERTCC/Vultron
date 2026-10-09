@@ -155,20 +155,18 @@ ROW_SPECS: tuple[RowSpec, ...] = (
     # ------------------------------------------------------------------
     # em.md — Embargo Management (EM) shorthands
     # Source: MSM-02.
-    # EP expands into three wire activities; EV/EJ/EC collapse with
+    # EP is Invite(Event) alone (MSM-02-001); EV/EJ/EC collapse with
     # EP/ER/EA respectively, distinguished by EM context not payload.
+    # Create(Event) mints embargo terms and Announce(Event) states the terms
+    # in force; neither proposes anything, so neither carries a shorthand.
     # ------------------------------------------------------------------
     RowSpec(
         semantics=MessageSemantics.CREATE_EMBARGO_EVENT,
         page="em",
-        shorthands=("EP",),
-        status=MappingStatus.EXPANSION,
     ),
     RowSpec(
         semantics=MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE,
         page="em",
-        shorthands=("EP",),
-        status=MappingStatus.EXPANSION,
     ),
     RowSpec(
         semantics=MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,

@@ -128,10 +128,26 @@ def test_expansion_gi_appears_in_multiple_rows():
     assert len(gi_rows) > 1, "GI should appear in multiple rows (expansion)"
 
 
-def test_expansion_ep_appears_in_multiple_rows():
-    """EP shorthand is present in more than one RowSpec."""
+def test_ep_maps_only_to_invite_embargo():
+    """EP is Invite(Event) and nothing else (MSM-02-001) — not an expansion."""
     ep_rows = [row for row in ROW_SPECS if "EP" in row.shorthands]
-    assert len(ep_rows) > 1, "EP should appear in multiple rows (expansion)"
+    assert [row.semantics for row in ep_rows] == [
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+    ]
+
+
+@pytest.mark.parametrize(
+    "semantics",
+    [
+        MessageSemantics.CREATE_EMBARGO_EVENT,
+        MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE,
+    ],
+)
+def test_create_and_announce_embargo_event_have_no_shorthand(semantics):
+    """Minting or announcing embargo terms proposes nothing, so carries no EP."""
+    row = SEMANTICS_TO_ROW[semantics]
+    assert row.shorthands == ()
+    assert row.status == MappingStatus.NONE
 
 
 # ---------------------------------------------------------------------------
