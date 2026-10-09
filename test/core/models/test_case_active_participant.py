@@ -79,13 +79,13 @@ def test_joined_defaults_true_and_round_trips() -> None:
 @pytest.mark.parametrize(
     "consents",
     [
-        {},
+        {EMBARGO_ID: S.UNINVITED},
         {EMBARGO_ID: S.INVITED},
         {EMBARGO_ID: S.DECLINED},
-        {EMBARGO_ID: S.EXPIRED},
-        {EMBARGO_ID: S.ACCEPTED},
+        {EMBARGO_ID: S.TIMED_OUT},
+        {EMBARGO_ID: S.AGREED},
     ],
-    ids=["never-asked", "invited", "declined", "expired", "accepted"],
+    ids=["never-asked", "invited", "declined", "timed-out", "agreed"],
 )
 def test_joined_participant_is_active_with_no_embargo(
     consents: dict[str, EmbargoConsentState],
@@ -103,22 +103,22 @@ def test_joined_participant_is_active_with_no_embargo(
 @pytest.mark.parametrize(
     ("consents", "active"),
     [
-        ({EMBARGO_ID: S.ACCEPTED}, True),
-        ({EMBARGO_ID: S.ACCEPTED, REVISION_ID: S.INVITED}, True),
-        ({}, False),
+        ({EMBARGO_ID: S.AGREED}, True),
+        ({EMBARGO_ID: S.AGREED, REVISION_ID: S.INVITED}, True),
+        ({EMBARGO_ID: S.UNINVITED}, False),
         ({EMBARGO_ID: S.INVITED}, False),
-        ({EMBARGO_ID: S.EXPIRED}, False),
+        ({EMBARGO_ID: S.TIMED_OUT}, False),
         ({EMBARGO_ID: S.DECLINED}, False),
-        ({REVISION_ID: S.ACCEPTED}, False),
+        ({EMBARGO_ID: S.UNINVITED, REVISION_ID: S.AGREED}, False),
     ],
     ids=[
         "signatory",
         "signatory-asked-about-revision",
         "never-asked",
         "invited",
-        "expired",
+        "timed-out",
         "declined",
-        "accepted-another-embargo-only",
+        "agreed-another-embargo-only",
     ],
 )
 def test_active_embargo_requires_signatory(
@@ -140,18 +140,24 @@ def test_longer_revision_excludes_a_non_accepting_signatory() -> None:
     ``is_signatory(active_embargo_id)`` and the lapse is derived.
     """
     case = _case(embargo=True)
-    participant = _participant(consents={EMBARGO_ID: S.ACCEPTED})
+    participant = _participant(consents={EMBARGO_ID: S.AGREED})
     assert case.is_active_participant(participant)
 
+    # The revision's proposal writes the participant's UNINVITED row for it.
+    participant.write_uninvited_rows([REVISION_ID])
     activate(case, REVISION_ID)
 
-    assert participant.has_lapsed(case.active_embargo_id)
+    assert participant.has_lapsed(case.embargo_register)
     assert not case.is_active_participant(participant)
-    assert participant.consent_for(EMBARGO_ID) is S.ACCEPTED
+    assert participant.consent_for(EMBARGO_ID) is S.AGREED
 
-    participant.apply_pec_transition(REVISION_ID, PEC_Trigger.ACCEPT)
+    participant.apply_pec_transition(
+        REVISION_ID,
+        PEC_Trigger.AGREE,
+        entry_status=case.embargo_register_status(REVISION_ID),
+    )
     assert case.is_active_participant(participant)
-    assert not participant.has_lapsed(case.active_embargo_id)
+    assert not participant.has_lapsed(case.embargo_register)
 
 
 @pytest.mark.spec("CM-10-004")
@@ -159,7 +165,7 @@ def test_longer_revision_excludes_a_non_accepting_signatory() -> None:
 def test_unjoined_participant_is_inert(embargo: bool) -> None:
     """A participant that has not accepted its stub Invite is never active."""
     case = _case(embargo=embargo)
-    participant = _participant(joined=False, consents={EMBARGO_ID: S.ACCEPTED})
+    participant = _participant(joined=False, consents={EMBARGO_ID: S.AGREED})
     assert not case.is_active_participant(participant)
 
 
@@ -172,7 +178,7 @@ def test_closed_participant_stays_active(embargo: bool) -> None:
     """
     case = _case(embargo=embargo)
     participant = _participant(
-        rm_state=RM.CLOSED, consents={EMBARGO_ID: S.ACCEPTED}
+        rm_state=RM.CLOSED, consents={EMBARGO_ID: S.AGREED}
     )
     assert participant.rm_closed
     assert case.is_active_participant(participant)
@@ -245,10 +251,10 @@ def test_no_participant_property_reads_as_active() -> None:
 @pytest.mark.parametrize(
     "consents",
     [
-        {},
+        {EMBARGO_ID: S.UNINVITED},
         {EMBARGO_ID: S.INVITED},
         {EMBARGO_ID: S.DECLINED},
-        {EMBARGO_ID: S.ACCEPTED},
+        {EMBARGO_ID: S.AGREED},
     ],
     ids=["never-asked", "invited", "declined", "signatory"],
 )
@@ -269,7 +275,7 @@ def test_removed_participant_is_inert_whatever_its_consent(
 def test_clearing_the_fact_makes_a_signatory_active_again() -> None:
     """The check turns false to true when the fact is cleared (#4081, #4084)."""
     case = _case(embargo=True)
-    participant = _participant(consents={EMBARGO_ID: S.ACCEPTED})
+    participant = _participant(consents={EMBARGO_ID: S.AGREED})
     participant.removal_activity = REMOVAL_ID
     assert not case.is_active_participant(participant)
 
@@ -294,7 +300,7 @@ def _signatory(
         joined=joined,
         removal_activity=removal_activity,
         embargo_consents=[
-            EmbargoConsent(embargo_id=EMBARGO_ID, state=S.ACCEPTED)
+            EmbargoConsent(embargo_id=EMBARGO_ID, state=S.AGREED)
         ],
     )
 

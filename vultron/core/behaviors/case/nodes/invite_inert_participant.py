@@ -88,8 +88,9 @@ class CreateInertInviteeParticipantNode(
     through the active-participant filter (CM-10-004).
 
     The initial status is RM ``RECEIVED``, VF ``vf`` (vendor not yet aware)
-    for VENDOR invitees, and PEC ``INVITED`` when the case carries an active
-    embargo; PEC ``UNBOUND`` otherwise.  These are the exact values the
+    for VENDOR invitees, an ``UNINVITED`` consent row for every embargo
+    register entry, and ``INVITED`` on the row for the active embargo when the
+    case carries one (ADR-0122).  These are the exact values the
     CASE_MANAGER's acceptance of the future stub-Invite reply will start from
     (CM-11-009, CM-11-007).
 
@@ -454,12 +455,15 @@ class ApplyInviteRejectToParticipantNode(
         active_embargo_id = (
             case.active_embargo_id if case is not None else None
         )
-        if active_embargo_id and participant.accepts_pec_trigger(
-            active_embargo_id, PEC_Trigger.DECLINE
-        ):
-            participant.apply_pec_transition(
-                active_embargo_id, PEC_Trigger.DECLINE
+        if (
+            case is not None
+            and active_embargo_id
+            and participant.apply_pec_transition_if_legal(
+                active_embargo_id,
+                PEC_Trigger.DECLINE,
+                entry_status=case.embargo_register_status(active_embargo_id),
             )
+        ):
             self.datalayer.save(participant)
             self.logger.info(
                 "%s: applied PEC DECLINED for invitee '%s' (active embargo,"

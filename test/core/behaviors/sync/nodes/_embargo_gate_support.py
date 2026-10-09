@@ -42,6 +42,7 @@ from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
@@ -78,8 +79,8 @@ def seed_case(datalayer, *, embargo_active: bool) -> None:
     if embargo_active:
         activate(case, embargo)
     for actor_id, consent, roles in (
-        (MANAGER_ID, EmbargoConsentState.ACCEPTED, [CVDRole.CASE_MANAGER]),
-        (SIGNATORY_ID, EmbargoConsentState.ACCEPTED, []),
+        (MANAGER_ID, EmbargoConsentState.AGREED, [CVDRole.CASE_MANAGER]),
+        (SIGNATORY_ID, EmbargoConsentState.AGREED, []),
         (NON_SIGNATORY_ID, EmbargoConsentState.INVITED, []),
     ):
         participant = CaseParticipant(
@@ -109,12 +110,16 @@ def collect_recipients(bridge, node_cls: type) -> list[str]:
 def accept_embargo(datalayer, actor_id: str) -> None:
     """Record that *actor_id* accepted the active embargo (CM-10-006 admission).
 
-    Marks the participant's row for the embargo ``ACCEPTED``, which is what
+    Marks the participant's row for the embargo ``AGREED``, which is what
     the active-participant check reads (CM-10-004).
     """
     participant = datalayer.read(f"{actor_id}/participant")
     assert isinstance(participant, CaseParticipant)
-    participant.apply_pec_transition(EMBARGO_ID, PEC_Trigger.ACCEPT)
+    participant.apply_pec_transition(
+        EMBARGO_ID,
+        PEC_Trigger.AGREE,
+        entry_status=EmbargoRegisterStatus.ACTIVE,
+    )
     datalayer.save(participant)
 
 

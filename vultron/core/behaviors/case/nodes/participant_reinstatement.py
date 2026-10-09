@@ -131,7 +131,7 @@ class ReinstateCaseParticipantReceivedNode(ParticipantMoveEffectNode):
     Calls :meth:`CaseParticipant.clear_removal` on the shared effect frame.
     The participant does not accept again, and its status history and
     embargo consent rows are untouched; whether it is active again is the
-    case-level check's answer, so a participant that is not ``SIGNATORY`` to
+    case-level check's answer, so a participant that is not a signatory to
     the active embargo stays inert until it consents (ADR-0116).  The replica
     apply node clears the same fact from the ledger entry.
 
@@ -159,7 +159,7 @@ class EmitParticipantReinstatementNoticeNode(EmitParticipantMoveNoticeNode):
     the reinstatement entry, which the admission backfill sends it once it
     is active (CM-10-006); its replica applies that entry, not this notice
     (RSH-08-003).  The notice reaches an inert participant too — one that is
-    not ``SIGNATORY`` to the active embargo — because it carries only the
+    not a signatory to the active embargo — because it carries only the
     participant's own record, no other case content.
     """
 

@@ -76,7 +76,7 @@ stakeholder_type: [project-contributor]
     `--check` verifies those, and also the consumers that are checked rather than generated: the `mkdocs.yml` nav, the `notes/` scenario tables (including their event-type columns, resolved from the invariant-harness constants), the `DEMOCI-06-002`/`-003` spec enumerations, and the register of scenarios that are specified but not yet built.
     It also rejects a restated scenario count and a stray `include-markdown` directive.
   - `wire-context` → `vultron.metadata.wire_context.sync:main` (generates the normative JSON-LD `@context` from the wire vocabulary, VM-10-001)
-  - `bundle-fit` → `vultron.metadata.planning.bundle_fit:main` (two-stage issue-bundle selection for the `propose-bundle` skill); `pr-size` → `vultron.metadata.planning.size_bands:main` (the `size:` label band table)
+  - `bundle-fit` → `vultron.metadata.planning.bundle_fit:main` (two-stage issue-bundle selection for the `propose-bundle` skill); `pr-size` → `vultron.metadata.planning.size_bands:main` (the `size:` label band table); `targeted-tests` → `vultron.metadata.planning.targeted_tests:main` (the post-first-push local test gate derived from the branch diff, and the base-overlap check, PAD-18)
   - `learnings-index` → `vultron.metadata.history.incoming:main` (validates and indexes `plan/incoming/learnings/`)
   - `append-history` → `vultron.metadata.history.cli:main`; `show-history` → `vultron.metadata.history.show_history_cli:main`; `backfill-implementation-history` → `vultron.metadata.history.backfill_implementation:main`
 - **How entry is selected**: via `[project.scripts]` in `pyproject.toml`; uvicorn deployment (`docker/Dockerfile`) uses `vultron.adapters.driving.fastapi.main:app`.

@@ -117,8 +117,8 @@ def test_fcv_invite_actor_to_case_exactly_once(
 ) -> None:
     """``invite_actor_to_case`` appears exactly once (the Vendor's invitation).
 
-    The Finder is the reporter, so the CASE_MANAGER seats it as a SIGNATORY
-    participant when it creates the case (CM-22-002, CM-14-005); FCV never
+    The Finder is the reporter, so the CASE_MANAGER seats it as a signatory
+    participant (an ``AGREED`` consent row) when it creates the case (CM-22-002, CM-14-005); FCV never
     invites it.  The one Invite is the Vendor's.  The upper bound matters: a
     floor alone cannot tell the scenario's one send from a second Invite, such
     as a Finder invite reintroduced with its own activity id (CLP-07-002).

@@ -347,8 +347,8 @@ missing from a scenario that requires it).
 
 **Design**: Each scenario defines its own required event-type list that
 extends the universal types (DEMOMA-16-001) with scenario-specific required phases.
-The spec requirements in `specs/multi-actor-demo.yaml` DEMOMA-16-001 through
-DEMOMA-16-011 are the normative source; the test constants implement them.
+The DEMOMA-16 spec requirements in `specs/multi-actor-demo.yaml` are the
+normative source; the test constants implement them.
 
 ### Scenario required event types
 
@@ -417,6 +417,16 @@ When a scenario phase is added or removed, update both:
 Both MUST change in the same PR per DEMOMA-16-008. Failure to update the spec
 is a latent silent-failure risk; failure to update the test means the new spec
 requirement is untested.
+
+One direction is now ratcheted. In `test/metadata/test_demo_scenario_artifacts.py`,
+`test_per_scenario_demoma_16_names_every_harness_event_type` fails when a
+harness expects a non-universal type that its DEMOMA-16 requirement does not
+name. `test_democi_06_002_names_exactly_the_pr_set_event_types` holds the
+DEMOCI-06-002 coverage list equal to the PR-set harnesses' types. Both were
+added when the embargo harnesses gained `activate_embargo_on_case` and the
+specs did not (#4402). The reverse direction is not checked: some statements
+name a type in order to exclude it (DEMOMA-16-002, DEMOMA-16-011), so an extra
+name in the spec is not drift.
 
 Corollary for planning work: an amendment to a DEMOMA-16 requirement and the
 corresponding edits to `_XXX_EXPECTED_EVENT_TYPES` cannot be split across a

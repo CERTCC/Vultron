@@ -16,6 +16,7 @@
 """Tests for as_CaseParticipant model, focusing on the embargo_consents rows (CM-10-001)."""
 
 import unittest
+from datetime import UTC, datetime
 from typing import cast
 
 import pytest
@@ -33,6 +34,7 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.vocab.objects.case_participant import (
     CoordinatorParticipant,
     FinderParticipant,
@@ -49,6 +51,7 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
         self.case_id = "https://example.org/cases/case-001"
         self.embargo_id_1 = "https://example.org/embargoes/emb-001"
         self.embargo_id_2 = "https://example.org/embargoes/emb-002"
+        self.rsvp_deadline = datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC)
         self.participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
@@ -58,18 +61,24 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
         return [
             EmbargoConsent(
                 embargo_id=self.embargo_id_1,
-                state=EmbargoConsentState.ACCEPTED,
+                state=EmbargoConsentState.AGREED,
             ),
             EmbargoConsent(
                 embargo_id=self.embargo_id_2,
                 state=EmbargoConsentState.INVITED,
+                rsvp_deadline=self.rsvp_deadline,
             ),
         ]
 
     def test_embargo_consents_default_empty(self):
-        """A new as_CaseParticipant has never been asked about any embargo."""
+        """A new as_CaseParticipant holds no rows; reading a missing one raises.
+
+        Every register entry has a row on every participant (ADR-0122), so a
+        missing row is a defect, never "not asked".
+        """
         self.assertEqual([], self.participant.embargo_consents)
-        self.assertIsNone(self.participant.consent_for(self.embargo_id_1))
+        with pytest.raises(VultronNotFoundError):
+            self.participant.consent_for(self.embargo_id_1)
 
     def test_embargo_consents_can_be_set_at_creation(self):
         participant = as_CaseParticipant(
@@ -78,7 +87,7 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
             embargo_consents=self._rows(),
         )
         self.assertEqual(
-            EmbargoConsentState.ACCEPTED,
+            EmbargoConsentState.AGREED,
             participant.consent_for(self.embargo_id_1),
         )
         self.assertEqual(
@@ -95,8 +104,16 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
         dumped = participant.model_dump(by_alias=True, mode="json")
         self.assertEqual(
             [
-                {"embargoId": self.embargo_id_1, "state": "ACCEPTED"},
-                {"embargoId": self.embargo_id_2, "state": "INVITED"},
+                {
+                    "embargoId": self.embargo_id_1,
+                    "state": "AGREED",
+                    "rsvpDeadline": None,
+                },
+                {
+                    "embargoId": self.embargo_id_2,
+                    "state": "INVITED",
+                    "rsvpDeadline": "2030-01-02T03:04:05Z",
+                },
             ],
             dumped["embargoConsents"],
         )
@@ -162,7 +179,7 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
                 embargo_consents=self._rows(),
             )
             self.assertEqual(
-                EmbargoConsentState.ACCEPTED,
+                EmbargoConsentState.AGREED,
                 participant.consent_for(self.embargo_id_1),
                 f"{cls.__name__} should inherit embargo_consents",
             )

@@ -224,6 +224,78 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         assert result.disposition is HandlerDisposition.APPLIED
         assert len(dl.outbox_list()) == 1
 
+    def _seed_case_with_cm(self, dl):
+        """Seed a case whose CASE_MANAGER is the receiving (case-actor) store."""
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
+
+        manager = CaseParticipant(
+            id_=f"{self._CASE_URI}/participants/cm",
+            attributed_to=self._CASE_ACTOR_URI,
+            context=self._CASE_URI,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case = VulnerabilityCase(
+            id_=self._CASE_URI,
+            name="ROLE-TEST",
+            attributed_to=self._CASE_ACTOR_URI,
+            case_participants=[manager.id_],
+            actor_participant_index={self._CASE_ACTOR_URI: manager.id_},
+        )
+        dl.create(manager)
+        dl.create(case)
+
+    @pytest.mark.spec("CLP-07-005")
+    @pytest.mark.spec("CLP-10-006")
+    def test_offer_at_case_manager_is_ledgered_and_applied(self, make_payload):
+        """A role offer the CASE_MANAGER receives is ledgered, not rejected (#3764).
+
+        Before ``("Offer", "CaseParticipantRole")`` was a canonical signature,
+        the guarded commit at the CASE_MANAGER failed and the handler reported
+        ``REFUSED`` (#2255 surfaced the BT failure).  The CASE_MANAGER now
+        commits the ``offer_case_participant_role`` entry and the receipt is
+        ``APPLIED``.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.adapters.driven.wire_render.as2 import (
+            As2WireRenderAdapter,
+        )
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=self._CASE_ACTOR_URI,
+        )
+        self._seed_case_with_cm(dl)
+        offer = self._make_offer(role=CVDRole.COORDINATOR)
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+
+        result = OfferCaseParticipantRoleReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=MagicMock(),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ]
+        offer_entries = [
+            e for e in entries if e.event_type == "offer_case_participant_role"
+        ]
+        assert len(offer_entries) == 1
+        assert (
+            offer_entries[0].payload_snapshot.get("actor") == self._VENDOR_URI
+        )
+        assert offer_entries[0].log_object_id == offer.id_
+
     @pytest.mark.spec("HP-01-003")
     def test_offer_case_participant_role_refused_when_neither_reply_sent(
         self, make_payload

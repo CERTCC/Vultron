@@ -33,7 +33,7 @@ embargo's id is derived from its case, EP-04-012), and ``published`` and
 import uuid
 from datetime import datetime
 
-from vultron.core.models._helpers import _as_id, as_utc
+from vultron.core.models._helpers import as_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
@@ -121,11 +121,16 @@ def build_inert_invitee_participant(
         published=published,
         updated=published,
     )
+    # The record gets an UNINVITED row for every register entry before it is
+    # first stored, then INVITE on the embargo in force (ADR-0122, CM-11-006).
+    participant.write_uninvited_rows(case.register_embargo_ids)
     embargo_id = embargo_in_force_id(case)
-    if embargo_id and participant.accepts_pec_trigger(
-        embargo_id, PEC_Trigger.INVITE
-    ):
-        participant.apply_pec_transition(embargo_id, PEC_Trigger.INVITE)
+    if embargo_id:
+        participant.apply_pec_transition_if_legal(
+            embargo_id,
+            PEC_Trigger.INVITE,
+            entry_status=case.embargo_register_status(embargo_id),
+        )
     return participant
 
 
@@ -135,17 +140,17 @@ def embargo_in_force_id(case: VulnerabilityCase) -> str | None:
     In force means EM ``ACTIVE``, or ``REVISE`` while the prior terms still
     hold; a joiner signs the terms in force, never an open revision (CM-10-001).
     """
-    return _as_id(case.active_embargo)
+    return case.active_embargo_id
 
 
 def sign_embargo_in_force(
     case: VulnerabilityCase, record: CaseParticipant
 ) -> bool:
-    """Consent *record* to the embargo in force; True when now ACCEPTED.
+    """Consent *record* to the embargo in force; True when now AGREED.
 
     The one consent write at the stub Accept, through
     :meth:`CaseParticipant.sign_embargo` (CM-18-005).  It applies to every role.
-    A case with no embargo in force changes nothing and adds no row.
+    A case with no embargo in force changes nothing.
     """
     embargo_id = embargo_in_force_id(case)
     return embargo_id is not None and record.sign_embargo(embargo_id)

@@ -21,10 +21,14 @@ must re-consent (EP-05-001).  Both reads go through
 unreadable record fails closed before the case is mutated.
 """
 
+import logging
+
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_register import (
     activation_changes,
+    apply_register_step,
     proposal_changes,
+    register_step_is_legal,
 )
 from vultron.core.services.embargo_lifecycle.base import _LifecycleBase
 from vultron.core.services.embargo_lifecycle.results import (
@@ -37,6 +41,24 @@ from vultron.core.services.embargo_ordering import (
     read_embargo_event,
 )
 from vultron.core.states.em import EM
+from vultron.errors import VultronInvalidStateTransitionError
+
+logger = logging.getLogger(__name__)
+
+
+def _propose_then_activate_is_legal(
+    case: VulnerabilityCase, embargo_id: str
+) -> bool:
+    """Whether proposing *embargo_id* and then activating it are both legal."""
+    try:
+        proposed = apply_register_step(
+            case.embargo_register, proposal_changes(embargo_id)
+        )
+    except VultronInvalidStateTransitionError:
+        return False
+    return register_step_is_legal(
+        proposed, activation_changes(proposed, embargo_id)
+    )
 
 
 class _ActivationArmMixin(_LifecycleBase):
@@ -122,14 +144,25 @@ class _ActivationArmMixin(_LifecycleBase):
         if (
             transition_mode == TransitionMode.OBSERVED
             and case.embargo_register_entry(embargo_id) is None
-            and not self._apply_register_step(
+        ):
+            # Check both steps before the first one lands: proposing saves
+            # the new UNINVITED rows on every participant, and a refused
+            # activation after it would leave those rows for an entry the
+            # unsaved case never records (ADR-0122).
+            if not _propose_then_activate_is_legal(case, embargo_id):
+                logger.warning(
+                    "OBSERVED mode: activation of unrecorded embargo '%s' on"
+                    " case '%s' refused, case left unchanged",
+                    embargo_id,
+                    case.id_,
+                )
+                return False
+            self._apply_register_step(
                 case,
                 proposal_changes(embargo_id),
                 transition_mode=transition_mode,
                 actor_id=actor_id,
             )
-        ):
-            return False
         return self._apply_register_step(
             case,
             activation_changes(case.embargo_register, embargo_id),

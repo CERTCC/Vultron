@@ -2,36 +2,43 @@
 """Participant Embargo Consent (PEC): one consent row per (participant, embargo).
 
 A participant's consent is not one scalar answering "am I bound?"; it is a
-separate answer to each embargo it was asked about (ADR-0122, CM-18).  Each
-row — a :class:`~vultron.core.models.embargo_consent.EmbargoConsent` — holds
-one of the four states below, and this module owns the transitions between
-them.  Whether a participant is *bound* is a lookup of the row for the case's
-active embargo; whether it has *lapsed* is derived from the rows and the
-active embargo.  Neither is stored.
+separate answer to each embargo in the case's embargo register (ADR-0122,
+CM-18).  Each row — a :class:`~vultron.core.models.embargo_consent.EmbargoConsent`
+— holds one of the five states below, and this module owns the transitions
+between them.  Every row is written: a participant has one for every register
+entry, starting at ``UNINVITED``, so no state is read from a missing row.
+Whether a participant is *bound* is a lookup of the row for the register's
+``ACTIVE`` entry; whether it has *lapsed* is derived from the rows and the
+register.  Neither is a state, and neither is stored.
 
 States
 ------
-INVITED  – Asked about this embargo; no answer yet.
-ACCEPTED – Accepted this embargo, explicitly or by containment (EP-05-001).
-DECLINED – Explicitly refused this embargo, or withdrew from it (ADR-0093).
-EXPIRED  – Invited, and the RSVP deadline passed with no answer (ADR-0118).
-           Not a refusal.
+UNINVITED – Not asked about this embargo.  The start state.
+INVITED   – Asked; no answer yet.  Carries the invitation's RSVP deadline.
+AGREED    – Agreed to this embargo: explicitly, as its proposer, by seeding
+            (CM-14-003, CM-14-005), or by carry-over (EP-05-001).
+DECLINED  – Explicitly refused this embargo, or withdrew from it (ADR-0093).
+TIMED_OUT – Invited, and the RSVP deadline passed with no answer (ADR-0118).
+            Not a refusal.
 
-A participant with no row for an embargo has not been asked about it.
+Transitions
+-----------
+INVITE     : UNINVITED | DECLINED | TIMED_OUT → INVITED
+AGREE      : UNINVITED | INVITED | TIMED_OUT → AGREED
+DECLINE    : UNINVITED | INVITED | AGREED | TIMED_OUT → DECLINED
+TIME_OUT   : INVITED → TIMED_OUT  (RSVP deadline passed, CM-28-014)
+CARRY_OVER : every state except AGREED → AGREED  (EP-05-001)
 
-Transitions (``None`` is "no row yet")
---------------------------------------
-INVITE  : None | DECLINED | EXPIRED → INVITED
-ACCEPT  : None | INVITED | EXPIRED → ACCEPTED
-DECLINE : None | INVITED | ACCEPTED | EXPIRED → DECLINED
-EXPIRE  : INVITED → EXPIRED  (RSVP deadline passed, CM-28-014)
-
-``ACCEPTED`` refuses ``INVITE`` and ``DECLINED`` refuses ``ACCEPT``: a
-participant that declined is re-invited first (``DECLINED → INVITED``), never
-flipped silently.  ``ACCEPT`` and ``DECLINE`` are valid directly from no row for
-self-determined embargoes and implicit-consent cases (ADR-0048, CM-14-005).
-Whether repeating a trigger is idempotent is the caller's decision (CM-13-005):
-:func:`consent_trigger_is_legal` says whether it moves.
+``AGREED`` refuses ``INVITE`` and ``DECLINED`` refuses ``AGREE``: a
+participant that declined is invited again first, never flipped silently.
+``CARRY_OVER`` is the one way past that: the activation of a revision that ends
+no later than the embargo it replaces binds every participant that agreed to
+the replaced one, a ``DECLINED`` row for the revision included, because
+agreeing to N days is agreeing to every shorter period.  Rows for an entry in a
+final register status accept no trigger at all; that rule needs the register,
+so :meth:`~vultron.core.models.case_participant.CaseParticipant.apply_pec_transition`
+applies it.  Whether repeating a trigger is idempotent is the caller's decision
+(CM-13-005): :func:`consent_trigger_is_legal` says whether it moves.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -55,10 +62,11 @@ from vultron.errors import VultronInvalidStateTransitionError
 class EmbargoConsentState(StrEnum):
     """State of one participant's consent to one embargo."""
 
+    UNINVITED = "UNINVITED"
     INVITED = "INVITED"
-    ACCEPTED = "ACCEPTED"
+    AGREED = "AGREED"
     DECLINED = "DECLINED"
-    EXPIRED = "EXPIRED"
+    TIMED_OUT = "TIMED_OUT"
 
 
 class PEC_Trigger(StrEnum):
@@ -66,47 +74,51 @@ class PEC_Trigger(StrEnum):
 
     # auto() produces lowercase names when stringified.
     INVITE = auto()
-    ACCEPT = auto()
+    AGREE = auto()
     DECLINE = auto()
-    EXPIRE = auto()
+    TIME_OUT = auto()
+    CARRY_OVER = auto()
 
 
 _S = EmbargoConsentState
 _T = PEC_Trigger
 
-#: ``trigger → {source → destination}``; a ``None`` source is "no row yet".
+#: ``trigger → {source → destination}`` (ADR-0122).
 _TRANSITIONS: dict[
-    PEC_Trigger, dict[EmbargoConsentState | None, EmbargoConsentState]
+    PEC_Trigger, dict[EmbargoConsentState, EmbargoConsentState]
 ] = {
     _T.INVITE: {
-        None: _S.INVITED,
+        _S.UNINVITED: _S.INVITED,
         _S.DECLINED: _S.INVITED,
-        _S.EXPIRED: _S.INVITED,
+        _S.TIMED_OUT: _S.INVITED,
     },
-    _T.ACCEPT: {
-        None: _S.ACCEPTED,
-        _S.INVITED: _S.ACCEPTED,
-        _S.EXPIRED: _S.ACCEPTED,
+    _T.AGREE: {
+        _S.UNINVITED: _S.AGREED,
+        _S.INVITED: _S.AGREED,
+        _S.TIMED_OUT: _S.AGREED,
     },
     _T.DECLINE: {
-        None: _S.DECLINED,
+        _S.UNINVITED: _S.DECLINED,
         _S.INVITED: _S.DECLINED,
-        _S.ACCEPTED: _S.DECLINED,
-        _S.EXPIRED: _S.DECLINED,
+        _S.AGREED: _S.DECLINED,
+        _S.TIMED_OUT: _S.DECLINED,
     },
-    _T.EXPIRE: {_S.INVITED: _S.EXPIRED},
+    _T.TIME_OUT: {_S.INVITED: _S.TIMED_OUT},
+    _T.CARRY_OVER: {
+        source: _S.AGREED for source in _S if source is not _S.AGREED
+    },
 }
 
 
 def consent_trigger_is_legal(
-    current: EmbargoConsentState | None, trigger: PEC_Trigger
+    current: EmbargoConsentState, trigger: PEC_Trigger
 ) -> bool:
     """True when *trigger* moves a row at *current* (CM-18-003)."""
     return current in _TRANSITIONS[trigger]
 
 
 def consent_after(
-    current: EmbargoConsentState | None, trigger: PEC_Trigger
+    current: EmbargoConsentState, trigger: PEC_Trigger
 ) -> EmbargoConsentState:
     """The state *trigger* leaves a row in, starting from *current*.
 
@@ -118,6 +130,5 @@ def consent_after(
         return _TRANSITIONS[trigger][current]
     except KeyError:
         raise VultronInvalidStateTransitionError(
-            f"PEC: consent {current if current else 'with no row'} does not"
-            f" accept trigger '{trigger}'."
+            f"PEC: consent {current} does not accept trigger '{trigger}'."
         ) from None

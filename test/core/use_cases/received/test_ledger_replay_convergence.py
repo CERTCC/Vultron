@@ -36,7 +36,7 @@ from typing import Any, cast
 import pytest
 from pydantic import BaseModel
 
-from test.support.embargo_register import propose
+from test.support.embargo_register import propose, write_consent_rows
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     read_sealed_body_dict,
@@ -131,7 +131,7 @@ def _owned(net: LedgerNetwork) -> LedgerNetwork:
 
 def _consent(
     net: LedgerNetwork, store_of: str, member: str, embargo_id: str
-) -> EmbargoConsentState | None:
+) -> EmbargoConsentState:
     """*member*'s consent row for *embargo_id* as *store_of* holds it."""
     participant = net.stores[store_of].read(
         net.case(store_of).actor_participant_index[member]
@@ -174,7 +174,7 @@ def test_a_replica_follows_the_owners_embargo_activation():
     """Accept(EmbargoEvent): PROPOSED → ACTIVE in the manager's store and the bystander's.
 
     The activation is the owner's agreement too (ADR-0122), so the owner's
-    row is ACCEPTED in both stores.
+    row is AGREED in both stores.
     """
     net = _owned(
         LedgerNetwork(
@@ -194,7 +194,7 @@ def test_a_replica_follows_the_owners_embargo_activation():
         assert case.current_status.em.state == EM.ACTIVE, actor_id
         assert case.active_embargo_id == net.initial_embargo_id, actor_id
         assert _consent(net, actor_id, OWNER, net.initial_embargo_id) == (
-            EmbargoConsentState.ACCEPTED
+            EmbargoConsentState.AGREED
         ), actor_id
     assert _ledger(net, BYSTANDER) == _ledger(net, MANAGER)
 
@@ -220,7 +220,9 @@ def test_a_replica_follows_the_owners_rejection_of_a_proposal():
         case = net.case(actor_id)
         assert case.em_state == EM.NONE, actor_id
         assert case.proposed_embargo_ids == [], actor_id
-        assert _consent(net, actor_id, OWNER, net.initial_embargo_id) is None
+        assert _consent(net, actor_id, OWNER, net.initial_embargo_id) is (
+            EmbargoConsentState.UNINVITED
+        ), actor_id
     assert _ledger(net, BYSTANDER) == _ledger(net, MANAGER)
 
 
@@ -238,6 +240,8 @@ def _propose_revision_everywhere(
         case = cast(VulnerabilityCase, dl.read(net.case_id))
         propose(case, revision.id_)
         dl.save(case)
+        # The UNINVITED rows the proposal writes in production (ADR-0122).
+        write_consent_rows(dl, case)
     return revision
 
 
@@ -263,7 +267,7 @@ def test_a_replica_carries_signatories_over_to_a_shorter_activated_revision():
         assert case.active_embargo_id == revision.id_, actor_id
         assert case.em_state == EM.ACTIVE, actor_id
         assert _consent(net, actor_id, BYSTANDER, revision.id_) == (
-            EmbargoConsentState.ACCEPTED
+            EmbargoConsentState.AGREED
         ), actor_id
 
 
@@ -331,7 +335,7 @@ def test_the_owners_accept_of_an_invite_is_only_its_own_consent():
         assert case.em_state == EM.PROPOSED, actor_id
         assert case.active_embargo_id is None, actor_id
         assert _consent(net, actor_id, OWNER, net.initial_embargo_id) == (
-            EmbargoConsentState.ACCEPTED
+            EmbargoConsentState.AGREED
         ), actor_id
 
 

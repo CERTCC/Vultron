@@ -183,7 +183,7 @@ def _await_consent_committed(
     case_id: str,
     embargo_id: str,
 ) -> None:
-    """Gate on *answerer*'s consent being ``ACCEPTED`` in the CASE_MANAGER's store.
+    """Gate on *answerer*'s consent being ``AGREED`` in the CASE_MANAGER's store.
 
     Only meaningful for a first proposal, where the answer moves the answerer
     from invited to accepted.  A signatory's answer to a revision changes no
@@ -194,7 +194,7 @@ def _await_consent_committed(
         case_id,
         answerer.actor.id_,
         embargo_id,
-        EmbargoConsentState.ACCEPTED,
+        EmbargoConsentState.AGREED,
         COMMIT_TIMEOUT_SECONDS,
         dl_actor_id=resolve_case_actor_store_id(observer.client, case_id),
     )
@@ -268,7 +268,7 @@ def demo_propose_and_activate_embargo(
     ``accept-embargo`` — the vendor's records its consent, the coordinator's,
     as case owner, is sent as Accept(EmbargoEvent, target=Case) and
     activates the embargo (ADR-0122).  The helper then checks every replica
-    for ``EM.ACTIVE`` and the coordinator's replica for an ``ACCEPTED`` consent row on all
+    for ``EM.ACTIVE`` and the coordinator's replica for an ``AGREED`` consent row on all
     three participants (DEMOMA-20-002, DEMOMA-20-009).
 
     Args:
@@ -310,14 +310,14 @@ def demo_propose_and_activate_embargo(
         )
         for label, session in sessions.items():
             with demo_check(
-                f"{label} is a SIGNATORY in the Coordinator's replica"
+                f"{label} is a signatory in the Coordinator's replica"
             ):
                 wait_for_participant_embargo_consent(
                     sessions["Coordinator"].client,
                     case.id_,
                     session.actor.id_,
                     embargo_id,
-                    EmbargoConsentState.ACCEPTED,
+                    EmbargoConsentState.AGREED,
                     COMMIT_TIMEOUT_SECONDS,
                 )
 
@@ -344,7 +344,7 @@ def demo_propose_embargo_revision(
 
     *owner* may be the same session as *proposing*; it is then never sent an
     Invite and answers its own proposal.  *accepting* must be neither.
-    The owner answers only once the acceptor's ``ACCEPTED`` row for the revision
+    The owner answers only once the acceptor's ``AGREED`` row for the revision
     is committed at the CASE_MANAGER, so the owner does not decide ahead of it
     (ADR-0122).
 
@@ -430,7 +430,7 @@ def demo_terminate_embargo(
     (DEMOMA-20-012).
 
     Args:
-        terminating: Any SIGNATORY participant authorized to terminate, bound
+        terminating: Any signatory participant authorized to terminate, bound
             to its own container.  The CASE_MANAGER's store is read through
             that container when it is co-hosted there, else through the
             actor's own replica (:func:`resolve_case_actor_store_id`).

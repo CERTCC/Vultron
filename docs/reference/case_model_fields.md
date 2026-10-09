@@ -56,11 +56,10 @@ Defined in `vultron/core/models/case_participant.py`.
 | `attributed_to` | The actor this record stands for; `actor_participant_index` is keyed on it |
 | `case_roles` | `list[CVDRole]` — the roles this actor holds in this case |
 | `participant_statuses` | Append-only history of `ParticipantStatus` snapshots |
-| `embargo_consents` | `list[EmbargoConsent]` — one Participant Embargo Consent (PEC) row for each embargo this participant was asked about, each holding the embargo URI and `INVITED`, `ACCEPTED`, `DECLINED` or `EXPIRED` (ADR-0122). "Signatory" and "lapsed" are read from these rows and the case's active embargo, never stored |
+| `embargo_consents` | `list[EmbargoConsent]` — one Participant Embargo Consent (PEC) row for every entry in the case's embargo register, each holding the embargo URI, one of `UNINVITED`, `INVITED`, `AGREED`, `DECLINED` or `TIMED_OUT`, and, on an `INVITED` row only, that invitation's `rsvp_deadline` (ADR-0122). A row is written `UNINVITED` when an embargo is proposed and when the participant joins the case; a missing row is a defect. "Signatory" and "lapsed" are read from these rows and the register, never stored |
 | `joined` | Whether the participant has joined the case: it was seated by case initialization or accepted its stub Invite. Defaults to `true`. One input to `VulnerabilityCase.is_active_participant`, which decides whether the participant is sent case content (CM-10-004, ADR-0114) |
 | `removal_activity` | The removal fact: the id of the `Remove(CaseParticipant)` activity that took this participant out of active participation, or `None` when it is not removed. The record stays on the roster. One input to `VulnerabilityCase.is_active_participant`: a removed participant is inert whatever its embargo consent (CM-31-001, ADR-0116) |
 | `participant_case_name` | Optional human-readable name for this participant in this case |
-| `invite_rsvp_deadline` | The RSVP deadline the CASE_MANAGER stamped as `Invite.end_time` on this participant's `Invite(EmbargoEvent)`; recorded at the manager's commit of that Invite and reaching replicas through the ledger, never derived on receipt (CM-28-012, CM-28-013) |
 
 Role-specific subclasses (`VendorParticipant`, `CoordinatorParticipant`, `ObserverParticipant`, `CaseActorParticipant`, and others) set `case_roles` for convenience.
 All of them share the same `type_` value, `"CaseParticipant"`.

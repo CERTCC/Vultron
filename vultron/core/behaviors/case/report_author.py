@@ -16,7 +16,7 @@
 """The reporter of a stored report: its ``attributed_to`` (CP-01-004).
 
 The case-proposal tree derives the reporter from the report the proposal
-carried inline in three places — the reporter participant, its SIGNATORY seed,
+carried inline in three places — the reporter participant, its signatory seed,
 and the creation-time revision's relay (EP-04-011).  Each decides for itself
 what a missing reporter costs; the lookup is shared.
 """

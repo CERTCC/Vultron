@@ -86,7 +86,7 @@ def _seed_case_with_manager(dl: SqliteDataLayer) -> None:
             case_roles=roles,
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=_EMBARGO_ID, state=EmbargoConsentState.ACCEPTED
+                    embargo_id=_EMBARGO_ID, state=EmbargoConsentState.AGREED
                 )
             ],
         )

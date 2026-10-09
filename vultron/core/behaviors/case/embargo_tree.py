@@ -29,7 +29,7 @@ Subtrees defined here:
   EM.NONE (EP-04-008); any other case runs the leaf steps: resolve
   duration, create event, select a longer creation-time proposal as the
   pending revision (EP-04-003), then advance EM state to ACTIVE with the
-  embargo attached, the owner seeded as SIGNATORY and that revision
+  embargo attached, the owner seeded as a signatory and that revision
   registered, in one commit (EP-04-002, EP-04-012).
 
 Consumed by ``case_proposal_received_tree.py``.
@@ -104,7 +104,7 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
                         # written, to become a pending revision.
                         ResolveCreationTimeRevisionNode(),
                         # EP-04-002, EP-04-012: activation, consent, the
-                        # owner's SIGNATORY seed (CM-14-003) and the revision
+                        # owner's signatory seed (CM-14-003) and the revision
                         # (ACTIVE → REVISE) are one commit, so EM.PROPOSED is
                         # never persisted and no failure leaves the case
                         # active but unfinished (#4142).

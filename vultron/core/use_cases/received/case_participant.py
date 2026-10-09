@@ -274,7 +274,7 @@ class AddCaseParticipantToCaseReceivedUseCase(
     entry, clears the removal fact without asking the participant to accept
     again, backfills it once it is active (CM-10-006), sends it a direct
     notice, and sends it the active embargo's Invite when it is not
-    ``SIGNATORY`` to it (CM-31-013).
+    a signatory to it (CM-31-013).
     """
 
     # Re-declared so ``request`` names this handler's own event class, the

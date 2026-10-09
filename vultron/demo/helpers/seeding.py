@@ -1245,11 +1245,12 @@ def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
             ),
         ],
     )
+    # Attached first: attaching writes its consent rows (ADR-0122).
+    case_obj.add_participant(vendor_p)
     try:
         dl.create(vendor_p)
     except ValueError:
         pass
-    case_obj.add_participant(vendor_p)
     logger.debug(
         "seed_case_participants_for_demo: added vendor '%s' at RM.RECEIVED",
         vendor_actor_id,
@@ -1270,11 +1271,12 @@ def _seed_reporter_participant(
         name=f"Reporter participant for {case_id}",
         case_roles=[CVDRole.REPORTER],
     )
+    # Attached first: attaching writes its consent rows (ADR-0122).
+    case_obj.add_participant(reporter_p)
     try:
         dl.create(reporter_p)
     except ValueError:
         pass
-    case_obj.add_participant(reporter_p)
     logger.debug(
         "seed_case_participants_for_demo: added reporter '%s'",
         reporter_actor_id,
@@ -1335,11 +1337,12 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
         name=f"CaseActor participant for {case_id}",
         case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
     )
+    # Attached first: attaching writes its consent rows (ADR-0122).
+    case_obj.add_participant(manager_p)
     try:
         dl.create(manager_p)
     except ValueError:
         pass
-    case_obj.add_participant(manager_p)
     logger.debug(
         "seed_case_participants_for_demo: added CaseActor '%s'",
         case_actor_id,
@@ -1387,7 +1390,7 @@ def _seed_active_embargo(case_obj, dl) -> None:
     )
     # The EM write goes through the lifecycle service like the tree's own
     # (EMB-18-001): one save at EM.ACTIVE, with the owner's consent recorded
-    # and the owner's consent row seeded ACCEPTED as the creation arm does (CM-14-005).
+    # and the owner's consent row seeded AGREED as the creation arm does (CM-14-005).
     EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
         case_id=case_id, embargo=embargo, actor_id=owner_id
     )

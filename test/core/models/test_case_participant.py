@@ -1,5 +1,7 @@
 """Unit tests for core CaseParticipant and role subclasses (issue #728)."""
 
+from datetime import UTC, datetime
+
 import pytest
 from pydantic import ValidationError
 
@@ -16,14 +18,23 @@ from vultron.core.models.case_participant import (
 )
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_register import EmbargoRegisterEntry
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.embargo_register import (
+    FINAL_REGISTER_STATUSES,
+    EmbargoRegisterStatus,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole, validate_roles
-from vultron.errors import VultronValidationError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 _ACTOR = "https://example.org/actors/alice"
 _CONTEXT = "https://example.org/cases/case-001"
@@ -58,10 +69,9 @@ class TestCaseParticipantConstruction:
         assert p.case_roles == []
 
     def test_default_embargo_consents_empty(self):
-        """A fresh participant has never been asked about any embargo."""
+        """A fresh record holds no rows until it joins a case's roster."""
         p = _make()
         assert p.embargo_consents == []
-        assert p.consent_for("urn:e1") is None
 
     def test_participant_case_name_default_none(self):
         """participant_case_name defaults to None."""
@@ -339,9 +349,12 @@ class TestCNARoleOnParticipant:
 
 _EMBARGO = "https://example.org/embargoes/em-001"
 _OTHER = "https://example.org/embargoes/em-002"
+_DEADLINE = datetime(2030, 1, 1, tzinfo=UTC)
 
 S = EmbargoConsentState
 T = PEC_Trigger
+R = EmbargoRegisterStatus
+_ACTIVE = R.ACTIVE
 
 
 def _with_rows(**rows: EmbargoConsentState) -> CaseParticipant:
@@ -354,39 +367,44 @@ def _with_rows(**rows: EmbargoConsentState) -> CaseParticipant:
     )
 
 
+def _entry(
+    embargo_id: str, status: EmbargoRegisterStatus, replaces: str | None = None
+) -> EmbargoRegisterEntry:
+    return EmbargoRegisterEntry(
+        embargo=embargo_id, status=status, replaces=replaces
+    )
+
+
 class TestConsentFor:
-    def test_absent_row_is_none(self):
-        assert _make().consent_for(_EMBARGO) is None
+    @pytest.mark.spec("CM-18-001")
+    def test_missing_row_raises(self):
+        """A missing row is a defect, never "not asked" (ADR-0122)."""
+        with pytest.raises(VultronNotFoundError):
+            _make().consent_for(_EMBARGO)
 
     def test_reads_the_row_for_that_embargo_only(self):
-        p = _with_rows(**{_EMBARGO: S.ACCEPTED, _OTHER: S.DECLINED})
-        assert p.consent_for(_EMBARGO) is S.ACCEPTED
+        p = _with_rows(**{_EMBARGO: S.AGREED, _OTHER: S.DECLINED})
+        assert p.consent_for(_EMBARGO) is S.AGREED
         assert p.consent_for(_OTHER) is S.DECLINED
-        assert p.consent_for("urn:unknown") is None
+        with pytest.raises(VultronNotFoundError):
+            p.consent_for("urn:unknown")
 
     def test_rows_round_trip_serialization(self):
-        p = _with_rows(**{_EMBARGO: S.ACCEPTED, _OTHER: S.INVITED})
+        p = _with_rows(**{_EMBARGO: S.AGREED, _OTHER: S.UNINVITED})
         restored = CaseParticipant.model_validate(p.model_dump(by_alias=True))
-        assert restored.consent_for(_EMBARGO) is S.ACCEPTED
-        assert restored.consent_for(_OTHER) is S.INVITED
+        assert restored.consent_for(_EMBARGO) is S.AGREED
+        assert restored.consent_for(_OTHER) is S.UNINVITED
 
     def test_retired_scalar_fields_are_refused(self):
-        with pytest.raises(ValidationError):
-            CaseParticipant.model_validate(
-                {
-                    "attributed_to": _ACTOR,
-                    "context": _CONTEXT,
-                    "embargo_consent_state": "SIGNATORY",
-                }
-            )
-        with pytest.raises(ValidationError):
-            CaseParticipant.model_validate(
-                {
-                    "attributed_to": _ACTOR,
-                    "context": _CONTEXT,
-                    "accepted_embargo_ids": [_EMBARGO],
-                }
-            )
+        for key, value in (
+            ("embargo_consent_state", "SIGNATORY"),
+            ("accepted_embargo_ids", [_EMBARGO]),
+            ("invite_rsvp_deadline", _DEADLINE.isoformat()),
+        ):
+            with pytest.raises(ValidationError):
+                CaseParticipant.model_validate(
+                    {"attributed_to": _ACTOR, "context": _CONTEXT, key: value}
+                )
 
     def test_status_no_longer_carries_consent(self):
         p = _make()
@@ -396,57 +414,184 @@ class TestConsentFor:
         assert not hasattr(status, "embargo_adherence")
 
 
+class TestWriteUninvitedRows:
+    """The creation write of the consent table (ADR-0122)."""
+
+    @pytest.mark.spec("CM-18-001")
+    def test_writes_one_uninvited_row_per_embargo(self):
+        p = _make()
+        assert p.write_uninvited_rows([_EMBARGO, _OTHER]) is True
+        assert [(r.embargo_id, r.state) for r in p.embargo_consents] == [
+            (_EMBARGO, S.UNINVITED),
+            (_OTHER, S.UNINVITED),
+        ]
+
+    def test_keeps_rows_already_held(self):
+        p = _with_rows(**{_EMBARGO: S.AGREED})
+        assert p.write_uninvited_rows([_EMBARGO, _OTHER, _OTHER]) is True
+        assert p.consent_for(_EMBARGO) is S.AGREED
+        assert p.consent_for(_OTHER) is S.UNINVITED
+        assert len(p.embargo_consents) == 2
+
+    def test_idempotent(self):
+        p = _with_rows(**{_EMBARGO: S.UNINVITED})
+        assert p.write_uninvited_rows([_EMBARGO]) is False
+
+
+class TestRsvpDeadlineOnTheRow:
+    """An RSVP deadline belongs to one invitation (CM-28-001, CM-28-013)."""
+
+    @pytest.mark.spec("CM-28-013")
+    def test_only_an_invited_row_carries_a_deadline(self):
+        EmbargoConsent(
+            embargo_id=_EMBARGO, state=S.INVITED, rsvp_deadline=_DEADLINE
+        )
+        for state in (S.UNINVITED, S.AGREED, S.DECLINED, S.TIMED_OUT):
+            with pytest.raises(ValidationError):
+                EmbargoConsent(
+                    embargo_id=_EMBARGO, state=state, rsvp_deadline=_DEADLINE
+                )
+
+    @pytest.mark.spec("CM-28-006")
+    def test_naive_deadline_is_read_as_utc(self):
+        row = EmbargoConsent(
+            embargo_id=_EMBARGO,
+            state=S.INVITED,
+            rsvp_deadline=datetime(2030, 1, 1),  # noqa: DTZ001 — naive on purpose
+        )
+        assert row.rsvp_deadline == _DEADLINE
+
+    @pytest.mark.spec("CM-28-013")
+    def test_invite_sets_the_deadline_and_leaving_invited_clears_it(self):
+        p = _with_rows(**{_EMBARGO: S.UNINVITED})
+        p.apply_pec_transition(
+            _EMBARGO, T.INVITE, entry_status=_ACTIVE, rsvp_deadline=_DEADLINE
+        )
+        assert p.rsvp_deadline_for(_EMBARGO) == _DEADLINE
+        p.apply_pec_transition(_EMBARGO, T.TIME_OUT, entry_status=_ACTIVE)
+        assert p.consent_for(_EMBARGO) is S.TIMED_OUT
+        assert p.rsvp_deadline_for(_EMBARGO) is None
+
+    @pytest.mark.spec("CM-28-013")
+    def test_a_deadline_rides_only_on_invite(self):
+        p = _with_rows(**{_EMBARGO: S.INVITED})
+        with pytest.raises(VultronValidationError):
+            p.apply_pec_transition(
+                _EMBARGO,
+                T.AGREE,
+                entry_status=_ACTIVE,
+                rsvp_deadline=_DEADLINE,
+            )
+        assert p.consent_for(_EMBARGO) is S.INVITED
+
+    @pytest.mark.spec("CM-28-001")
+    def test_concurrent_invitations_keep_their_own_deadlines(self):
+        later = _DEADLINE.replace(year=2031)
+        p = _with_rows(**{_EMBARGO: S.UNINVITED, _OTHER: S.UNINVITED})
+        p.apply_pec_transition(
+            _EMBARGO, T.INVITE, entry_status=_ACTIVE, rsvp_deadline=_DEADLINE
+        )
+        p.apply_pec_transition(
+            _OTHER, T.INVITE, entry_status=R.PROPOSED, rsvp_deadline=later
+        )
+        assert p.rsvp_deadline_for(_EMBARGO) == _DEADLINE
+        assert p.rsvp_deadline_for(_OTHER) == later
+
+    def test_restamp_replaces_an_invited_rows_deadline_only(self):
+        later = _DEADLINE.replace(year=2031)
+        p = _make(
+            embargo_consents=[
+                EmbargoConsent(
+                    embargo_id=_EMBARGO,
+                    state=S.INVITED,
+                    rsvp_deadline=_DEADLINE,
+                ),
+                EmbargoConsent(embargo_id=_OTHER, state=S.AGREED),
+            ]
+        )
+        assert p.restamp_rsvp_deadline(_EMBARGO, later, entry_status=_ACTIVE)
+        assert p.rsvp_deadline_for(_EMBARGO) == later
+        assert not p.restamp_rsvp_deadline(
+            _EMBARGO, later, entry_status=_ACTIVE
+        )
+        assert not p.restamp_rsvp_deadline(_OTHER, later, entry_status=_ACTIVE)
+        assert not p.restamp_rsvp_deadline(
+            _EMBARGO, _DEADLINE, entry_status=R.SUPERSEDED
+        )
+        assert p.rsvp_deadline_for(_EMBARGO) == later
+
+
 class TestApplyPecTransition:
     """apply_pec_transition() is the single authoritative consent-write path."""
 
     @pytest.mark.spec("CM-18-005")
-    def test_first_contact_creates_the_row(self):
+    def test_missing_row_raises_and_writes_nothing(self):
         p = _make()
-        p.apply_pec_transition(_EMBARGO, T.INVITE)
-        assert p.consent_for(_EMBARGO) is S.INVITED
-        assert len(p.embargo_consents) == 1
+        with pytest.raises(VultronNotFoundError):
+            p.apply_pec_transition(_EMBARGO, T.INVITE, entry_status=_ACTIVE)
+        assert p.embargo_consents == []
 
     @pytest.mark.spec("CM-18-005", "CM-18-003")
     def test_transition_replaces_the_row_without_duplicating(self):
-        p = _make()
-        p.apply_pec_transition(_EMBARGO, T.INVITE)
-        p.apply_pec_transition(_EMBARGO, T.ACCEPT)
-        assert p.consent_for(_EMBARGO) is S.ACCEPTED
-        assert [r.embargo_id for r in p.embargo_consents] == [_EMBARGO]
+        p = _with_rows(**{_OTHER: S.UNINVITED, _EMBARGO: S.UNINVITED})
+        p.apply_pec_transition(_EMBARGO, T.INVITE, entry_status=_ACTIVE)
+        p.apply_pec_transition(_EMBARGO, T.AGREE, entry_status=_ACTIVE)
+        assert p.consent_for(_EMBARGO) is S.AGREED
+        assert [r.embargo_id for r in p.embargo_consents] == [_OTHER, _EMBARGO]
 
     @pytest.mark.spec("CM-18-005")
     def test_one_embargo_does_not_touch_another(self):
-        p = _with_rows(**{_EMBARGO: S.ACCEPTED})
-        p.apply_pec_transition(_OTHER, T.INVITE)
-        assert p.consent_for(_EMBARGO) is S.ACCEPTED
+        p = _with_rows(**{_EMBARGO: S.AGREED, _OTHER: S.UNINVITED})
+        p.apply_pec_transition(_OTHER, T.INVITE, entry_status=R.PROPOSED)
+        assert p.consent_for(_EMBARGO) is S.AGREED
         assert p.consent_for(_OTHER) is S.INVITED
 
     @pytest.mark.spec("CM-18-003")
     def test_illegal_trigger_raises_and_leaves_rows_unchanged(self):
-        from vultron.errors import VultronInvalidStateTransitionError
-
-        p = _with_rows(**{_EMBARGO: S.ACCEPTED})
+        p = _with_rows(**{_EMBARGO: S.AGREED})
         with pytest.raises(VultronInvalidStateTransitionError):
-            p.apply_pec_transition(_EMBARGO, T.ACCEPT)
-        assert p.consent_for(_EMBARGO) is S.ACCEPTED
+            p.apply_pec_transition(_EMBARGO, T.AGREE, entry_status=_ACTIVE)
+        assert p.consent_for(_EMBARGO) is S.AGREED
         assert len(p.embargo_consents) == 1
 
-    @pytest.mark.spec("CM-18-003")
-    def test_illegal_trigger_with_no_row_creates_no_row(self):
-        from vultron.errors import VultronInvalidStateTransitionError
-
-        p = _make()
-        with pytest.raises(VultronInvalidStateTransitionError):
-            p.apply_pec_transition(_EMBARGO, T.EXPIRE)
-        assert p.embargo_consents == []
-
     def test_if_legal_reports_whether_the_row_moved(self):
-        p = _with_rows(**{_EMBARGO: S.ACCEPTED})
-        assert p.apply_pec_transition_if_legal(_EMBARGO, T.ACCEPT) is False
-        assert p.apply_pec_transition_if_legal(_EMBARGO, T.DECLINE) is True
+        p = _with_rows(**{_EMBARGO: S.AGREED})
+        assert not p.apply_pec_transition_if_legal(
+            _EMBARGO, T.AGREE, entry_status=_ACTIVE
+        )
+        assert p.apply_pec_transition_if_legal(
+            _EMBARGO, T.DECLINE, entry_status=_ACTIVE
+        )
         assert p.consent_for(_EMBARGO) is S.DECLINED
-        assert p.apply_pec_transition_if_legal(_EMBARGO, T.EXPIRE) is False
+        assert not p.apply_pec_transition_if_legal(
+            _EMBARGO, T.TIME_OUT, entry_status=_ACTIVE
+        )
         assert p.consent_for(_EMBARGO) is S.DECLINED
+
+
+class TestFinalEntriesAreFrozen:
+    """A row whose register entry is final accepts no trigger (ADR-0122)."""
+
+    @pytest.mark.spec("CM-18-003")
+    @pytest.mark.parametrize("status", sorted(FINAL_REGISTER_STATUSES))
+    @pytest.mark.parametrize("trigger", list(T))
+    def test_no_trigger_moves_a_row_for_a_final_entry(self, status, trigger):
+        for state in S:
+            p = _with_rows(**{_EMBARGO: state})
+            assert not p.accepts_pec_trigger(
+                _EMBARGO, trigger, entry_status=status
+            )
+            assert not p.apply_pec_transition_if_legal(
+                _EMBARGO, trigger, entry_status=status
+            )
+            with pytest.raises(VultronInvalidStateTransitionError):
+                p.apply_pec_transition(_EMBARGO, trigger, entry_status=status)
+            assert p.consent_for(_EMBARGO) is state
+
+    @pytest.mark.parametrize("status", [R.PROPOSED, R.ACTIVE])
+    def test_rows_for_open_entries_follow_the_table(self, status):
+        p = _with_rows(**{_EMBARGO: S.UNINVITED})
+        assert p.accepts_pec_trigger(_EMBARGO, T.INVITE, entry_status=status)
 
 
 class TestAcceptsPecTrigger:
@@ -456,44 +601,25 @@ class TestAcceptsPecTrigger:
     @pytest.mark.parametrize(
         ("state", "accepts"),
         [
-            (None, True),
+            (S.UNINVITED, True),
             (S.DECLINED, True),
-            (S.EXPIRED, True),
+            (S.TIMED_OUT, True),
             (S.INVITED, False),
-            (S.ACCEPTED, False),
+            (S.AGREED, False),
         ],
     )
     def test_invite_legality_by_row(self, state, accepts):
-        p = _make() if state is None else _with_rows(**{_EMBARGO: state})
-        assert p.accepts_pec_trigger(_EMBARGO, T.INVITE) is accepts
+        p = _with_rows(**{_EMBARGO: state})
+        assert (
+            p.accepts_pec_trigger(_EMBARGO, T.INVITE, entry_status=_ACTIVE)
+            is accepts
+        )
 
     def test_asking_changes_nothing(self):
-        p = _with_rows(**{_EMBARGO: S.ACCEPTED})
-        p.accepts_pec_trigger(_EMBARGO, T.INVITE)
-        p.accepts_pec_trigger(_EMBARGO, T.DECLINE)
-        assert p.consent_for(_EMBARGO) is S.ACCEPTED
-
-    def test_asking_about_an_unasked_embargo_creates_no_row(self):
-        p = _make()
-        assert p.accepts_pec_trigger(_EMBARGO, T.ACCEPT) is True
-        assert p.embargo_consents == []
-
-
-class TestInvitedEmbargoIds:
-    def test_lists_only_unanswered_invitations(self):
-        p = _with_rows(
-            **{
-                "urn:a": S.INVITED,
-                "urn:b": S.ACCEPTED,
-                "urn:c": S.DECLINED,
-                "urn:d": S.EXPIRED,
-                "urn:e": S.INVITED,
-            }
-        )
-        assert sorted(p.invited_embargo_ids()) == ["urn:a", "urn:e"]
-
-    def test_empty_when_never_asked(self):
-        assert _make().invited_embargo_ids() == []
+        p = _with_rows(**{_EMBARGO: S.AGREED})
+        p.accepts_pec_trigger(_EMBARGO, T.INVITE, entry_status=_ACTIVE)
+        p.accepts_pec_trigger(_EMBARGO, T.DECLINE, entry_status=_ACTIVE)
+        assert p.consent_for(_EMBARGO) is S.AGREED
 
 
 class TestIsSignatory:
@@ -501,88 +627,130 @@ class TestIsSignatory:
 
     @pytest.mark.spec("CM-18-001")
     def test_no_embargo_in_force_nobody_is_signatory(self):
-        p = _with_rows(**{_EMBARGO: S.ACCEPTED})
+        p = _with_rows(**{_EMBARGO: S.AGREED})
         assert p.is_signatory(None) is False
 
     @pytest.mark.spec("CM-18-001")
     @pytest.mark.parametrize(
         ("state", "expected"),
         [
-            (None, False),
+            (S.UNINVITED, False),
             (S.INVITED, False),
-            (S.ACCEPTED, True),
+            (S.AGREED, True),
             (S.DECLINED, False),
-            (S.EXPIRED, False),
+            (S.TIMED_OUT, False),
         ],
     )
-    def test_signatory_iff_active_row_is_accepted(self, state, expected):
-        p = _make() if state is None else _with_rows(**{_EMBARGO: state})
+    def test_signatory_iff_active_row_is_agreed(self, state, expected):
+        p = _with_rows(**{_EMBARGO: state})
         assert p.is_signatory(_EMBARGO) is expected
 
     @pytest.mark.spec("CM-18-001")
-    def test_acceptance_of_another_embargo_does_not_make_a_signatory(self):
-        p = _with_rows(**{_OTHER: S.ACCEPTED})
+    def test_agreement_to_another_embargo_does_not_make_a_signatory(self):
+        p = _with_rows(**{_OTHER: S.AGREED, _EMBARGO: S.UNINVITED})
         assert p.is_signatory(_EMBARGO) is False
+
+    def test_missing_row_for_the_active_embargo_raises(self):
+        with pytest.raises(VultronNotFoundError):
+            _make().is_signatory(_EMBARGO)
+
+
+_D0 = "https://example.org/embargoes/d0"
+_D1 = "https://example.org/embargoes/d1"
+_D2 = "https://example.org/embargoes/d2"
 
 
 class TestHasLapsed:
-    """Lapsed is derived, never stored (CM-18-001, CM-18-016)."""
+    """Lapsed is read from the rows and the register (ADR-0122, CM-18-001)."""
 
     @pytest.mark.spec("CM-18-001")
     def test_no_embargo_in_force_nobody_has_lapsed(self):
-        assert _with_rows(**{_OTHER: S.ACCEPTED}).has_lapsed(None) is False
+        p = _with_rows(**{_D0: S.AGREED})
+        assert p.has_lapsed([]) is False
+        assert p.has_lapsed([_entry(_D0, R.TERMINATED)]) is False
 
     @pytest.mark.spec("CM-18-001")
-    @pytest.mark.parametrize("active_row", [None, S.INVITED, S.EXPIRED])
-    def test_accepted_earlier_but_not_the_active_one_is_lapsed(
+    @pytest.mark.parametrize(
+        "active_row", [S.UNINVITED, S.INVITED, S.TIMED_OUT]
+    )
+    def test_agreed_to_the_replaced_embargo_but_not_the_active_one(
         self, active_row
     ):
-        rows = {_OTHER: S.ACCEPTED}
-        if active_row is not None:
-            rows[_EMBARGO] = active_row
-        assert _with_rows(**rows).has_lapsed(_EMBARGO) is True
+        register = [_entry(_D0, R.SUPERSEDED), _entry(_D1, _ACTIVE, _D0)]
+        p = _with_rows(**{_D0: S.AGREED, _D1: active_row})
+        assert p.has_lapsed(register) is True
 
     @pytest.mark.spec("CM-18-001")
-    def test_a_signatory_has_not_lapsed(self):
-        p = _with_rows(**{_OTHER: S.ACCEPTED, _EMBARGO: S.ACCEPTED})
-        assert p.has_lapsed(_EMBARGO) is False
-
-    @pytest.mark.spec("CM-18-001")
-    def test_declining_the_active_embargo_is_a_refusal_not_a_lapse(self):
-        p = _with_rows(**{_OTHER: S.ACCEPTED, _EMBARGO: S.DECLINED})
-        assert p.has_lapsed(_EMBARGO) is False
+    @pytest.mark.parametrize("active_row", [S.AGREED, S.DECLINED])
+    def test_an_answer_to_the_active_embargo_is_not_a_lapse(self, active_row):
+        register = [_entry(_D0, R.SUPERSEDED), _entry(_D1, _ACTIVE, _D0)]
+        p = _with_rows(**{_D0: S.AGREED, _D1: active_row})
+        assert p.has_lapsed(register) is False
 
     @pytest.mark.spec("CM-18-001")
     def test_never_bound_participant_has_not_lapsed(self):
-        assert _make().has_lapsed(_EMBARGO) is False
-        p = _with_rows(**{_OTHER: S.DECLINED, "urn:x": S.INVITED})
-        assert p.has_lapsed(_EMBARGO) is False
+        register = [_entry(_D0, R.SUPERSEDED), _entry(_D1, _ACTIVE, _D0)]
+        p = _with_rows(**{_D0: S.TIMED_OUT, _D1: S.INVITED})
+        assert p.has_lapsed(register) is False
 
     @pytest.mark.spec("CM-18-001")
-    def test_accepting_only_an_open_proposal_is_not_a_lapse(self):
-        """An early acceptor of a revision was never bound, so has not lapsed."""
-        p = _with_rows(**{_OTHER: S.ACCEPTED})
-        assert p.has_lapsed(_EMBARGO) is True
-        assert p.has_lapsed(_EMBARGO, open_proposal_ids=[_OTHER]) is False
+    def test_three_step_chain_stays_lapsed(self):
+        """Agree D0; longer D1 activates; shorter D2 activates: still lapsed.
+
+        D2 carries over only those who agreed to D1, so the participant has no
+        agreement to D2; following ``replaces`` from D2 passes D1 (never
+        answered) and reaches its agreement to D0.
+        """
+        register = [
+            _entry(_D0, R.SUPERSEDED),
+            _entry(_D1, R.SUPERSEDED, _D0),
+            _entry(_D2, _ACTIVE, _D1),
+        ]
+        p = _with_rows(**{_D0: S.AGREED, _D1: S.INVITED, _D2: S.UNINVITED})
+        assert p.has_lapsed(register) is True
+
+    @pytest.mark.spec("CM-18-001")
+    def test_agreeing_to_a_proposal_that_never_took_effect_binds_nothing(self):
+        """Only embargoes once in force are on the ``replaces`` chain."""
+        register = [_entry(_D0, R.REJECTED), _entry(_D1, _ACTIVE)]
+        p = _with_rows(**{_D0: S.AGREED, _D1: S.UNINVITED})
+        assert p.has_lapsed(register) is False
+        open_revision = [_entry(_D1, _ACTIVE), _entry(_D2, R.PROPOSED)]
+        q = _with_rows(**{_D1: S.UNINVITED, _D2: S.AGREED})
+        assert q.has_lapsed(open_revision) is False
+
+    @pytest.mark.spec("CM-18-001")
+    def test_withdrawal_from_a_later_embargo_is_not_a_lapse(self):
+        """Agree D0; shorter D1 carried over; withdraw from D1; longer D2."""
+        register = [
+            _entry(_D0, R.SUPERSEDED),
+            _entry(_D1, R.SUPERSEDED, _D0),
+            _entry(_D2, _ACTIVE, _D1),
+        ]
+        p = _with_rows(**{_D0: S.AGREED, _D1: S.DECLINED, _D2: S.UNINVITED})
+        assert p.has_lapsed(register) is False
 
     @pytest.mark.spec("CM-18-001")
     def test_lapse_is_read_not_written(self):
-        p = _with_rows(**{_OTHER: S.ACCEPTED})
+        register = [_entry(_D0, R.SUPERSEDED), _entry(_D1, _ACTIVE, _D0)]
+        p = _with_rows(**{_D0: S.AGREED, _D1: S.UNINVITED})
         before = list(p.embargo_consents)
-        assert p.has_lapsed(_EMBARGO) is True
+        assert p.has_lapsed(register) is True
         assert p.embargo_consents == before
 
 
 class TestSignEmbargo:
     """``sign_embargo`` seeding (CM-14-005, CM-10-001, ADR-0122)."""
 
-    @pytest.mark.parametrize("start", [None, S.INVITED, S.EXPIRED, S.ACCEPTED])
-    def test_signs_where_accept_is_legal(self, start):
-        p = _make() if start is None else _with_rows(**{_EMBARGO: start})
+    @pytest.mark.parametrize(
+        "start", [S.UNINVITED, S.INVITED, S.TIMED_OUT, S.AGREED]
+    )
+    def test_signs_where_agree_is_legal(self, start):
+        p = _with_rows(**{_EMBARGO: start})
 
         assert p.sign_embargo(_EMBARGO) is True
 
-        assert p.consent_for(_EMBARGO) is S.ACCEPTED
+        assert p.consent_for(_EMBARGO) is S.AGREED
         assert p.is_signatory(_EMBARGO)
         assert len(p.embargo_consents) == 1
 
@@ -595,7 +763,7 @@ class TestSignEmbargo:
         assert not p.is_signatory(_EMBARGO)
 
     def test_signing_leaves_other_embargo_rows_alone(self):
-        p = _with_rows(**{_OTHER: S.DECLINED})
+        p = _with_rows(**{_OTHER: S.DECLINED, _EMBARGO: S.UNINVITED})
         p.sign_embargo(_EMBARGO)
         assert p.consent_for(_OTHER) is S.DECLINED
 
@@ -645,3 +813,25 @@ def test_a_reinstated_participant_can_be_removed_again() -> None:
     assert participant.record_removal("https://example.org/activities/r2")
 
     assert participant.removal_activity == "https://example.org/activities/r2"
+
+
+@pytest.mark.spec("CM-18-001")
+def test_has_lapsed_refuses_a_replaces_the_register_does_not_hold():
+    """A dangling ``replaces`` is a broken register, never "not lapsed"."""
+    register = [_entry(_D1, _ACTIVE, _D0)]
+    p = _with_rows(**{_D0: S.AGREED, _D1: S.UNINVITED})
+    with pytest.raises(VultronValidationError):
+        p.has_lapsed(register)
+
+
+@pytest.mark.spec("CM-18-001")
+def test_has_lapsed_refuses_a_replaces_chain_that_loops():
+    """A looping ``replaces`` chain is a broken register: it raises, never hangs."""
+    register = [
+        _entry(_D2, _ACTIVE, _D1),
+        _entry(_D1, EmbargoRegisterStatus.SUPERSEDED, _D0),
+        _entry(_D0, EmbargoRegisterStatus.SUPERSEDED, _D1),
+    ]
+    p = _with_rows(**{_D0: S.UNINVITED, _D1: S.UNINVITED, _D2: S.UNINVITED})
+    with pytest.raises(VultronValidationError):
+        p.has_lapsed(register)

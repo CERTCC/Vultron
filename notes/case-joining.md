@@ -55,7 +55,7 @@ reinstatement). This note keeps the flow in one place.
 |---|---|---|---|---|---|
 | 1 | CASE_MANAGER sends `Invite(Actor, VulnerabilityCaseStub)`; record created | `RECEIVED` | `v` | `INVITED` if an embargo is active | yes |
 | — | optional on-behalf `v→V` by the Case Manager or Case Owner | — | `V` | — | yes |
-| 2a | `Accept(Invite(stub))` — join, and consent to the active embargo | `RECEIVED` | `V` | `SIGNATORY` if an embargo is active | **no** |
+| 2a | `Accept(Invite(stub))` — join, and consent to the active embargo | `RECEIVED` | `V` | `AGREED` if an embargo is active | **no** |
 | 2b | `Reject(Invite(stub))` — hard no | `CLOSED` | `V` | `DECLINED` if an embargo is active | yes, permanently |
 | 3 | CASE_MANAGER sends `Announce(VulnerabilityCase)` and replays the ledger | — | — | — | no |
 | 4 | CASE_MANAGER sends `Invite(Actor, VulnerabilityCase)` with its ledger position | — | — | — | no |
@@ -70,7 +70,7 @@ stub, because accepting a stub is not a judgement of the case.
 **Active** means: seated by the case initialization sequence (the Case Owner,
 the CASE_MANAGER and the reporter, who are never sent a stub) or accepted the
 stub Invite, has not been removed, and — only when an embargo is active —
-`SIGNATORY` to it. "Inert until SIGNATORY" is wrong, because many cases have
+a signatory to it. "Inert until a signatory" is wrong, because many cases have
 no active embargo: one not yet established, or one already exited.
 
 One predicate decides it: `VulnerabilityCase.is_active_participant()`, read
@@ -99,7 +99,7 @@ closure the ledger does not already record, and a closed replica does not see ho
 the case ended; that is intended (the same assumption as CM-23-013). The
 exception never widens entitlement (a participant that is inert or removed when
 it leaves is not sent those entries), and the CM-31-009 embargo notice to a
-closed `SIGNATORY` is the only other message a closed participant gets. The
+closed signatory is the only other message a closed participant gets. The
 CASE_MANAGER's store is where every participant's closure is verified, so the
 demos' "all participants closed" check reads that store. The fan-out code
 (`FanOutLogEntryExcludingClosedNode`, `skip_closed=True`) is not yet composed
@@ -134,7 +134,7 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
   `min_rsvp_window`, capped at the active embargo's end when one is active. On
   expiry the *Invite* closes as an expired ask and the record stays inert at
   `RECEIVED` (CM-11-014). The CASE_MANAGER never closes an invitee's RM for it,
-  and consent stays `INVITED`: the expiry-to-`EXPIRED` rule (CM-28-004, #4153)
+  and consent stays `INVITED`: the time-out-to-`TIMED_OUT` rule (CM-28-004, #4153)
   is for an expired `Invite(EmbargoEvent)`, not for the terms a stub carries.
   Expiry is read, not recorded: an Invite is expired when `now >= end_time`
   (the embargo Invite's comparison), judged against the CASE_MANAGER's own copy.
@@ -203,7 +203,7 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 - **Only the Case Owner asks.** The CASE_MANAGER refuses a request from anyone
   else, and a removal of itself or of the Case Owner. It never removes on its
   own initiative. Self-removal is `Leave(VulnerabilityCase)`.
-- **Consent is untouched.** A removed `SIGNATORY` stays bound. So does a
+- **Consent is untouched.** A removed signatory stays bound. So does a
   participant that left the case: both get the direct embargo-ending notices
   (CM-31-009), the only messages a removed participant receives besides the
   removal itself.
@@ -298,7 +298,7 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   Invite is now the first effect that commits after the join, so it carries
   the #2898 ordering: after the case announce and the backfill.
 - **Where the embargo-ending notices live (#4083).** The recipients are
-  `embargo_ending_notice_recipients` (joined, `SIGNATORY` to the ending
+  `embargo_ending_notice_recipients` (joined, a signatory to the ending
   embargo, removed or RM `CLOSED`). The decision is `embargo_ending_notice`:
   a termination before the agreed end owes ET; a revision that ends no later
   (the EP-05-001 carry-over arm, ties included) owes `Announce(EmbargoEvent)`;
@@ -334,7 +334,7 @@ message is designed: we accept offers and invitations, never bare objects.
 
 - **Roster membership is not "accepted" and not "entitled to content."** Ask
   whether the participant is active: it accepted the stub Invite, has not been
-  removed, and — only while an embargo is active — is `SIGNATORY` to it. The
+  removed, and — only while an embargo is active — is a signatory to it. The
   check lives in the shared recipient selection, never at a send site
   (CM-10-004, CM-10-005).
 - **A joined participant never answers the original `Offer(VulnerabilityReport)`**

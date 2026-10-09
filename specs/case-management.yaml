@@ -790,11 +790,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `CaseParticipant` MUST record its consent per embargo: one consent row for each embargo the
-      participant was asked about, naming the embargo and the participant's answer to it (CM-18-001).
-      A participant accepts an embargo explicitly, by an `Accept`, or by containment, when the case
-      owner activates a revision that ends no later than terms the participant had accepted
-      (EP-05-001). No other record of embargo consent may exist on the participant.
+      `CaseParticipant` MUST record its consent per embargo: one consent row for every entry in the
+      case's embargo register, naming the embargo and the participant's answer to it, `UNINVITED`
+      until it is asked (CM-18-001). A participant agrees to an embargo explicitly, by an `Accept`,
+      as its proposer, by seeding (CM-14-003, CM-14-005), or by containment, when the case owner
+      activates a revision that ends no later than terms the participant had agreed to (EP-05-001).
+      Each invitation's RSVP deadline is stored on that invitation's `INVITED` row (CM-28-013). No
+      other record of embargo consent may exist on the participant.
     rationale: >-
       Consent is per embargo (ADR-0093, ADR-0122). The rows are what the CM-10-004 content gate
       reads, so they must name every embargo the participant is bound to, including one carried over
@@ -803,7 +805,7 @@ groups:
       replaced — could disagree with them (Concern #3884); there is now nothing to disagree with.
     verification: Inspection of `vultron/core/models/case_participant.py` confirms that
       `CaseParticipant` carries `embargo_consents` rows and declares no scalar consent field and no
-      `accepted_embargo_ids`.
+      `accepted_embargo_ids` or `invite_rsvp_deadline`.
     relationships:
     - rel_type: implements
       spec_id: VP-05-001
@@ -848,7 +850,7 @@ groups:
       has accepted the stub Invite
       (`Accept(Invite(Actor, VulnerabilityCaseStub))`), has not been removed
       (CM-31-001), and, only when an embargo is active, its consent row for that
-      embargo is `ACCEPTED` (CM-18-001). Every other participant is inert and MUST NOT receive case
+      embargo is `AGREED` (CM-18-001). Every other participant is inert and MUST NOT receive case
       content: no `CaseLedgerEntry` announcements, no
       `Announce(VulnerabilityCase)`, no status broadcasts, no embargo
       announcements (ADR-0114).
@@ -860,7 +862,7 @@ groups:
       entitlement has to be checked rather than implied by membership.
     verification: >-
       Tests confirm that an invitee that has not accepted the stub Invite, and a
-      joined participant whose row for the active embargo is not `ACCEPTED`, receive no
+      joined participant whose row for the active embargo is not `AGREED`, receive no
       case content, and that an active participant does, including one seated by
       case initialization that was never sent a stub. A test confirms a removed
       participant receives no case content whatever its embargo consent.
@@ -890,7 +892,7 @@ groups:
       stream, replay included, rather than filtering entries.
     verification: >-
       Unit tests on the fan-out recipient collectors confirm that, under an active embargo, a participant
-      that is not `SIGNATORY` to the active embargo is excluded from the recipients while a
+      that is not a signatory to the active embargo is excluded from the recipients while a
       signatory is included, and that with no active embargo both are included. A unit test on the
       replay sender confirms that a replay to such a participant sends no entry.
     relationships:
@@ -964,7 +966,7 @@ groups:
       When a participant accepts the stub Invite
       (`Accept(Invite(Actor, VulnerabilityCaseStub))`), the CASE_MANAGER MUST
       leave the participant's RM state at `RM.RECEIVED`, set its VF state to
-      `V` when it holds the VENDOR role, and, when an embargo is active, mark its consent row for that embargo `ACCEPTED`, making it a signatory. Accepting the stub is joining the case
+      `V` when it holds the VENDOR role, and, when an embargo is active, mark its consent row for that embargo `AGREED`, making it a signatory. Accepting the stub is joining the case
       and consenting to the active embargo; it is not a judgement of the case.
     rationale: >-
       The invitee has seen only the stub. Its judgement of the case comes after
@@ -972,7 +974,7 @@ groups:
       Invite (CM-11-010).
     verification: Tests confirm that `Accept(Invite(Actor, VulnerabilityCaseStub))`
       leaves the participant at `RM.RECEIVED`, sets VF `V` for a vendor, and
-      records consent `SIGNATORY` when an embargo is active.
+      marks its consent row for the active embargo `AGREED` when an embargo is active.
     relationships:
     - rel_type: implements
       spec_id: VP-03-012
@@ -1219,7 +1221,7 @@ groups:
       unanswered, the CASE_MANAGER MUST close the Invite as an expired ask and
       MUST NOT change the invitee's participant state: the record stays inert at
       `RM.RECEIVED`, and its consent row for the embargo stays `INVITED` — the CM-28-004
-      expiry-to-`EXPIRED` rule applies to an `Invite(EmbargoEvent)`, not to the
+      time-out-to-`TIMED_OUT` rule applies to an `Invite(EmbargoEvent)`, not to the
       embargo terms a stub Invite carries. Case-wide closure checks ("all
       participants closed") MUST count only participants that have joined: those
       seated by the case initialization sequence (CM-14-001) and those that have
@@ -1527,9 +1529,9 @@ groups:
   - id: CM-13-005
     priority: MUST
     kind: protocol
-    statement: 'Embargo accept/reject handlers MUST be idempotent: if the participant''s consent row for the embargo is already `ACCEPTED` (for accept) or `DECLINED` (for reject), the handler MUST succeed silently without re-running state machine transitions
+    statement: 'Embargo accept/reject handlers MUST be idempotent: if the participant''s consent row for the embargo is already `AGREED` (for accept) or `DECLINED` (for reject), the handler MUST succeed silently without re-running state machine transitions
       or emitting invalid-transition warnings'
-    verification: A unit test confirms that a repeated embargo accept on an already-`ACCEPTED` consent row returns success without re-running state machine transitions or emitting
+    verification: A unit test confirms that a repeated embargo accept on an already-`AGREED` consent row returns success without re-running state machine transitions or emitting
       invalid-transition warnings.
     lint_suppress:
     - missing_story_reference
@@ -1537,12 +1539,12 @@ groups:
     priority: MUST
     kind: project
     statement: When a case is created with a default embargo that reaches `EM.ACTIVE` at creation time, the case owner MUST
-      be initialized as a `SIGNATORY` in the same BT node or an immediately following sibling node in the same BT subtree
+      be initialized as a signatory in the same BT node or an immediately following sibling node in the same BT subtree
     rationale: The case creator is the case owner by default; seeding them as a signatory prevents the case owner from being
       locked out of their own active embargo until a separate accept step occurs. The consent state must be set via the PEC
       state machine (not by direct field assignment) to preserve state machine invariants.
     verification: Integration tests in `test/demo/` confirm that when a case is created with a
-      default embargo, the case owner's consent row for it is marked `ACCEPTED` in the same BT
+      default embargo, the case owner's consent row for it is marked `AGREED` in the same BT
       subtree that activates the embargo.
     relationships:
     - rel_type: depends_on
@@ -1614,12 +1616,12 @@ groups:
   - id: CM-14-003
     priority: MUST
     kind: protocol
-    statement: When the case initialization sequence creates a default embargo, the case owner MUST be seeded as `SIGNATORY`
+    statement: When the case initialization sequence creates a default embargo, the case owner MUST be seeded as a signatory
       on that embargo immediately after the embargo reaches `EM.ACTIVE` state
     rationale: The case owner initiated the embargo by accepting the default policy on behalf of the case. Requiring a separate
       accept step would leave the case owner as a non-signatory on their own active embargo.
     verification: Integration tests in `test/demo/` confirm that the case owner is seeded as
-      `SIGNATORY` on the default embargo immediately after it reaches `EM.ACTIVE` during case
+      a signatory on the default embargo immediately after it reaches `EM.ACTIVE` during case
       initialization.
     relationships:
     - rel_type: depends_on
@@ -1651,14 +1653,14 @@ groups:
   - id: CM-14-005
     priority: MUST
     kind: protocol
-    statement: When the reporter is added as a `CaseParticipant` during case initialization, they MUST be seeded as `SIGNATORY`
+    statement: When the reporter is added as a `CaseParticipant` during case initialization, they MUST be seeded as a signatory
       on any active embargo
     rationale: 'The reporter already possesses the vulnerability information before the case is created. Requiring an explicit
       embargo acceptance before sharing case content would create a paradoxical deadlock: the reporter has the information
       that the embargo is meant to protect, yet cannot receive case updates until they accept the embargo. Seeding them as
-      SIGNATORY reflects their implicit consent, expressed by submitting the report.'
+      signatory reflects their implicit consent, expressed by submitting the report.'
     verification: Integration tests in `test/demo/` confirm that the reporter is seeded as
-      `SIGNATORY` on any active embargo when added as a `CaseParticipant` during case
+      a signatory on any active embargo when added as a `CaseParticipant` during case
       initialization.
     relationships:
     - rel_type: depends_on
@@ -1730,7 +1732,7 @@ groups:
     kind: protocol
     statement: >-
       Step 3 of the case initialization sequence MUST initialize the default embargo to
-      `EM.ACTIVE` and seed the case owner as `SIGNATORY` whenever the case is embargo-eligible,
+      `EM.ACTIVE` and seed the case owner as a signatory whenever the case is embargo-eligible,
       using the actor default where one is configured and the EP-04-005 protocol default
       otherwise.
     rationale: The embargo must be in place before any participant other than the case owner is
@@ -1741,7 +1743,7 @@ groups:
       policy; EP-04-005 now supplies a bounded protocol default when none is configured, so the
       only condition is embargo-eligibility (EP-04-008).
     verification: Integration tests in `test/demo/` confirm that step 3 sets the default embargo
-      to `EM.ACTIVE` and seeds the case owner as `SIGNATORY` both when an actor default policy is
+      to `EM.ACTIVE` and seeds the case owner as a signatory both when an actor default policy is
       configured and when none is, and that it is skipped when the case is not embargo-eligible.
     relationships:
     - rel_type: depends_on
@@ -1770,13 +1772,13 @@ groups:
     statement: >-
       Step 5 of the case initialization sequence MUST add the reporter as a
       `CaseParticipant` with `RM.ACCEPTED` and `CVDRole.FINDER`/`REPORTER`, and seed
-      them as `SIGNATORY` on any active embargo.
+      them as a signatory on any active embargo.
     rationale: The reporter is added after the Create(Case) notification is flushed
       (CM-14-011) so that the case object exists on the reporter's system before the
       fan-out of the ledger entry that records their participation.
     verification: Integration tests in `test/demo/` confirm that step 5 adds the reporter as a
-      `CaseParticipant` with `RM.ACCEPTED` and seeds them as `SIGNATORY` on any active
-      embargo.
+      `CaseParticipant` with `RM.ACCEPTED` and seeds them as a signatory (an `AGREED` row)
+      on any active embargo.
     stories:
     - story_2022_013
     - story_2022_063
@@ -2402,15 +2404,18 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant's embargo consent MUST be tracked per embargo, as one row for each embargo it was
-      asked about, each row holding one of four states: `INVITED` (asked; no answer yet), `ACCEPTED`,
-      `DECLINED` (explicitly refused, or withdrawn from) and `EXPIRED` (invited, and the RSVP
-      deadline passed with no answer). A participant with no row for an embargo has not been asked
-      about it. A participant is a *signatory* when its row for the case's active embargo is
-      `ACCEPTED`; a participant has *lapsed* when it holds an `ACCEPTED` row for another embargo and
-      has no accepting row for the active one. Both are derived from the rows and the case's active
-      embargo, never stored, and nothing is derived from the rows once the embargo has terminated
-      (EM `EXITED`, no active embargo).
+      A participant's embargo consent MUST be tracked per embargo, as one row for every entry in the
+      case's embargo register, each row holding one of five states: `UNINVITED` (not asked; the start
+      state), `INVITED` (asked; no answer yet), `AGREED`, `DECLINED` (explicitly refused, or withdrawn
+      from) and `TIMED_OUT` (invited, and the RSVP deadline passed with no answer). Every row MUST be
+      written: proposing an embargo writes an `UNINVITED` row for it on every current participant, and
+      creating a participant record writes one for every entry already in the register. A missing row
+      is a defect, and reading one MUST raise. A participant is a *signatory* when its row for the
+      register's `ACTIVE` entry is `AGREED`. A participant has *lapsed* when an entry is `ACTIVE`, its
+      row for that entry is neither `AGREED` nor `DECLINED`, and, following `replaces` back from the
+      `ACTIVE` entry, the first entry whose row is `AGREED` or `DECLINED` has an `AGREED` row. Both
+      are read from the rows and the register, never stored, and with no `ACTIVE` entry nobody is a
+      signatory and nobody has lapsed.
     rationale: >-
       The scalar `ParticipantEmbargoConsent` value this replaces answered one question — is this
       participant bound by the *active* embargo? — while `accepted_embargo_ids` recorded which terms
@@ -2418,17 +2423,21 @@ groups:
       rules. One row per (participant, embargo) states each answer once; "bound by the active
       embargo" is a lookup of the active embargo's row, so there is nothing to reconcile and no
       first-proposal versus revision asymmetry (ADR-0122, which supersedes the seven-state machine of
-      ADR-0048, ADR-0093 and ADR-0118). The "pocket veto" survives as the `EXPIRED` row state, kept
-      distinct from `DECLINED` so every reader can tell silence from a refusal (ADR-0118).
-      `UNBOUND` and `UNBOUND_EXITED` are not states: an embargo the participant was never asked about
-      has no row, and a terminated embargo is the case's fact (EM `EXITED`), not a per-participant
-      one.
+      ADR-0048, ADR-0093 and ADR-0118). Writing every row names the start state, so no reader infers
+      "not asked" from an absent record, and the register lets anything check that each participant
+      has a row for each embargo. The "pocket veto" survives as the `TIMED_OUT` row state, kept
+      distinct from `DECLINED` so every reader can tell silence from a refusal (ADR-0118). A
+      terminated embargo is the register's fact, not a per-participant one. Lapsed follows the
+      `replaces` chain, so only embargoes that were once in force can bind, and a withdrawal from a
+      later embargo ends the binding of an earlier one.
     verification: >-
       Inspection of `vultron/core/states/participant_embargo_consent.py` confirms that
-      `EmbargoConsentState` declares exactly `INVITED`, `ACCEPTED`, `DECLINED` and `EXPIRED`.
-      Inspection of `vultron/core/models/case_participant.py` confirms that `is_signatory()` and
-      `has_lapsed()` are computed from `embargo_consents` and the active embargo id, and that no
-      consent state is stored beside the rows.
+      `EmbargoConsentState` declares exactly `UNINVITED`, `INVITED`, `AGREED`, `DECLINED` and
+      `TIMED_OUT`. Unit tests confirm that `consent_for()` raises on a missing row, that a proposal
+      and a participant's creation write `UNINVITED` rows, that every participant holds exactly one
+      row per register entry after case setup, a proposal and a join, and that `has_lapsed()` reads
+      the `replaces` chain (a three-step chain, an agreed proposal that never took effect, and a
+      withdrawal).
     adr:
     - ADR-0048
     - ADR-0091
@@ -2442,15 +2451,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `INVITED → EXPIRED` transition MAY be driven by a timer expiry (pocket veto) rather than
+      The `INVITED → TIMED_OUT` transition MAY be driven by a timer expiry (pocket veto) rather than
       requiring an explicit participant action. The timer period SHOULD be a configurable policy
       window (default: 7 days). The pocket veto materialises when the timer fires without a prior
-      answer; the system applies the `EXPIRE` trigger and records `EXPIRED`, never `DECLINED`, which
-      only an explicit refusal reaches. A lapse is NOT timer-based and is not a stored transition:
-      it is what the rows say once the case owner activates a revised embargo that ends later than
-      the one the participant accepted and the participant has not accepted the revised terms
-      (CM-18-001, EP-05-001). A lapsed participant is re-invited (an `INVITED` row for the embargo
-      in force), and the deadline attaches to that invitation.
+      answer; the system applies the `TIME_OUT` trigger to the row of the invitation whose deadline
+      passed and records `TIMED_OUT`, never `DECLINED`, which only an explicit refusal reaches. A
+      lapse is NOT timer-based and is not a stored transition: it is what the rows say once the case
+      owner activates a revised embargo that ends later than the one the participant agreed to and
+      the participant has not agreed to the revised terms (CM-18-001, EP-05-001). A lapsed
+      participant is re-invited (an `INVITED` row for the embargo in force), and the deadline
+      attaches to that invitation.
     note: >-
       The policy window is the FALLBACK, not the primary mechanism. When the
       inviting `Invite(EmbargoEvent)` activity carries an explicit
@@ -2462,18 +2472,18 @@ groups:
       the active embargo was replaced by longer terms it has not accepted. While a revision is merely
       proposed the prior embargo is still in force and every signatory to it is still bound by it, so
       nothing about their consent has changed. Per ADR-0118, a participant that did not answer has
-      made no decision, so a timeout records `EXPIRED`, distinct from an explicit `DECLINED`; both are
-      re-invitable. A pocket veto exists so that an unanswered *invitation* cannot stall
+      made no decision, so a timeout records `TIMED_OUT`, distinct from an explicit `DECLINED`; both
+      are re-invitable. A pocket veto exists so that an unanswered *invitation* cannot stall
       coordination; nothing stalls on a lapsed participant, who is already excluded from embargoed
       content by the CM-10-004 gate, and there is no invitation from which to derive a deadline.
-      An RSVP deadline attaches to the participant's outstanding invitation, so when it passes every
-      row still `INVITED` expires with it.
+      An RSVP deadline belongs to one invitation and is stored on that invitation's `INVITED` row
+      (CM-28-013), so its passing times out only that row, never the participant's other
+      invitations.
     verification: >-
-      Inspection of `vultron/core/services/embargo_lifecycle/consent.py` confirms that
-      `detect_and_apply_expiry()` applies `EXPIRE` only to `INVITED` rows of a participant whose
-      `invite_rsvp_deadline` has passed. Inspection of `vultron/core/services/embargo_lifecycle/`
-      confirms that `propose_embargo()` and the owner's revision acceptance write no row to record a
-      lapse.
+      Unit tests confirm that `record_invite_expiry()` and `detect_and_apply_expiry()` apply
+      `TIME_OUT` only to the named invitation's row once its own deadline has passed, leaving a
+      concurrent invitation with a later deadline `INVITED`, and that `propose_embargo()` and the
+      owner's revision acceptance write no row to record a lapse.
     adr:
     - ADR-0093
     - ADR-0118
@@ -2486,31 +2496,40 @@ groups:
     kind: project
     statement: >-
       The consent row machine MUST implement exactly the following valid triggers, each applied to
-      the row for one embargo: INVITE (from no row, `DECLINED` or `EXPIRED`, to `INVITED`), ACCEPT
-      (from no row, `INVITED` or `EXPIRED`, to `ACCEPTED`), DECLINE (from no row, `INVITED`,
-      `ACCEPTED` or `EXPIRED`, to `DECLINED`) and EXPIRE (from `INVITED` only, to `EXPIRED`). No
-      other trigger is valid from any state.
+      the row for one embargo: INVITE (from `UNINVITED`, `DECLINED` or `TIMED_OUT`, to `INVITED`),
+      AGREE (from `UNINVITED`, `INVITED` or `TIMED_OUT`, to `AGREED`), DECLINE (from `UNINVITED`,
+      `INVITED`, `AGREED` or `TIMED_OUT`, to `DECLINED`), TIME_OUT (from `INVITED` only, to
+      `TIMED_OUT`) and CARRY_OVER (from every state except `AGREED`, to `AGREED`). No other trigger
+      is valid from any state, and a row for an entry in a final register status (`SUPERSEDED`,
+      `REJECTED`, `CANCELLED`, `TERMINATED`) accepts no trigger at all.
     rationale: >-
-      `DECLINED` and `EXPIRED` are not terminal: a participant who declined or let an invitation
-      expire can be re-invited (e.g., when embargo terms change). `ACCEPTED` is not re-invitable and
-      `DECLINED` does not accept directly, so a consent already given is not silently undone and a
-      refusal is not silently reversed. Per ADR-0048, `ACCEPT` and `DECLINE` are valid directly from
-      no row, because consent is not always mediated by an invitation: a Finder who sets the embargo
-      on their own case has no inviter; participants added during case initialization already have
-      an embargo in scope (ADR-0041); and the reporter's consent is implicit in submitting the report
-      (CM-14-005). Requiring a synthetic `INVITED` step for these paths would record an invitation
-      event that never occurred. Per ADR-0093, `DECLINE` is also valid from `ACCEPTED`: a participant
-      bound by an embargo MAY explicitly withdraw consent by rejecting the *active* embargo
-      (VP-13-007, VP-13-008). A rejection of a *proposed* embargo declines only that embargo's row
-      and leaves the participant's row for the embargo in force alone (MSM-07-004). Per ADR-0118,
-      `EXPIRE` is the timer path only (CM-18-002); a late Accept the CASE_MANAGER honours moves
-      `EXPIRED → ACCEPTED` directly (EMB-17-002), and a late explicit Reject moves `EXPIRED →
-      DECLINED`. A lapse and a termination are not triggers: they are derived (CM-18-001, CM-18-016).
+      `DECLINED` and `TIMED_OUT` are not terminal: a participant who declined or let an invitation
+      time out can be re-invited (e.g., when embargo terms change). `AGREED` is not re-invitable and
+      `DECLINED` does not agree directly, so a consent already given is not silently undone and a
+      refusal is not silently reversed. Per ADR-0048, `AGREE` and `DECLINE` are valid directly from
+      `UNINVITED`, because consent is not always mediated by an invitation: a Finder who sets the
+      embargo on their own case has no inviter; participants added during case initialization
+      already have an embargo in scope (ADR-0041); and the reporter's consent is implicit in
+      submitting the report (CM-14-005). Requiring a synthetic `INVITED` step for these paths would
+      record an invitation event that never occurred. Per ADR-0093, `DECLINE` is also valid from
+      `AGREED`: a participant bound by an embargo MAY explicitly withdraw consent by rejecting the
+      *active* embargo (VP-13-007, VP-13-008). A rejection of a *proposed* embargo declines only that
+      embargo's row and leaves the participant's row for the embargo in force alone (MSM-07-004). Per
+      ADR-0118, `TIME_OUT` is the timer path only (CM-18-002); a late Accept the CASE_MANAGER honours
+      moves `TIMED_OUT → AGREED` directly (EMB-17-002), and a late explicit Reject moves `TIMED_OUT →
+      DECLINED`. `CARRY_OVER` is caused only by the activation of a revision that ends no later than
+      the embargo it replaces (EP-05-001); it lifts a `DECLINED` row too, because agreeing to N days
+      is agreeing to every shorter period and declining a shorter revision objects to losing time,
+      not to keeping the embargo. A row whose embargo is final records the past, so nothing more can
+      be consented to it; a late Accept of such terms is answered with an invitation to the current
+      embargo (EMB-17-003). A lapse and a termination are not triggers: they are derived (CM-18-001,
+      CM-18-016).
     verification: >-
       Inspection of `vultron/core/states/participant_embargo_consent.py` confirms that the
-      transition table implements exactly the triggers INVITE, ACCEPT, DECLINE and EXPIRE with the
-      specified source-state constraints, and a unit test applies every (state, trigger) pair and
-      confirms each unlisted one raises.
+      transition table implements exactly the triggers INVITE, AGREE, DECLINE, TIME_OUT and
+      CARRY_OVER with the specified source-state constraints; a unit test applies every (state,
+      trigger) pair and confirms each unlisted one raises, and another confirms that no trigger
+      moves a row whose register entry is final.
     relationships:
     - rel_type: refines
       spec_id: CM-18-001
@@ -2524,11 +2543,11 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      A participant's consent row MUST NOT move from `ACCEPTED` to `INVITED` directly. The only paths
+      A participant's consent row MUST NOT move from `AGREED` to `INVITED` directly. The only paths
       back to `INVITED` from a resolved row are `DECLINED → INVITED` (re-invite after explicit
-      decline) and `EXPIRED → INVITED` (re-invite after an unanswered invitation expired); a
-      participant that has lapsed is re-invited by the absence of an accepting row for the new
-      embargo (an `INVITED` row for it), which leaves its `ACCEPTED` row for the old embargo alone.
+      decline) and `TIMED_OUT → INVITED` (re-invite after an unanswered invitation timed out); a
+      participant that has lapsed is re-invited on its row for the new embargo (an `INVITED` row for
+      it), which leaves its `AGREED` row for the old embargo alone.
     rationale: >-
       Consent already given cannot be withdrawn by re-inviting the participant. A signatory to the
       active embargo is bound by it; only replacing that embargo with longer terms (which lapses the
@@ -2545,12 +2564,13 @@ groups:
     priority: MUST
     kind: project
     statement: A participant's consent row MUST be changed by applying a `PEC_Trigger` through
-      `CaseParticipant.apply_pec_transition(embargo_id, trigger)` and persisting the participant.
-      Code MUST NOT assign `CaseParticipant.embargo_consents` directly as the means of recording a
-      consent change.
-    rationale: '`apply_pec_transition()` validates the trigger against the consent table and raises
-      `VultronInvalidStateTransitionError` on an illegal transition, making consent writes
-      fail-closed regardless of upstream BT guard coverage. Direct assignment to the rows bypasses
+      `CaseParticipant.apply_pec_transition(embargo_id, trigger, entry_status=...)`, given the
+      register status of the embargo's entry, and persisting the participant. Code MUST NOT assign
+      `CaseParticipant.embargo_consents` directly as the means of recording a consent change; the
+      `UNINVITED` rows that record no answer are written by `CaseParticipant.write_uninvited_rows()`.
+    rationale: '`apply_pec_transition()` validates the trigger against the consent table and the
+      register status, and raises `VultronInvalidStateTransitionError` on an illegal transition or a
+      frozen row, making consent writes fail-closed regardless of upstream BT guard coverage. Direct assignment to the rows bypasses
       the table, so a row could reach a state no trigger leads to. The legacy `apply_pec_trigger()`
       soft-fail helper was removed (CONCERN-1871); all consent-write sites MUST use
       `CaseParticipant.apply_pec_transition()` (or `apply_pec_transition_if_legal()` where an
@@ -2593,7 +2613,7 @@ groups:
       The case-initialization sequence MUST establish the default embargo before seeding each
       participant's consent row for it, so that the participant record written at initialization
       carries its true post-initialization rows.
-    rationale: 'Because `ACCEPT` is valid directly from no row (CM-18-003, ADR-0048), an
+    rationale: 'Because `AGREE` is valid directly from `UNINVITED` (CM-18-003, ADR-0048), an
       initialization participant reaches its consent in a single transition, so a placeholder is
       unnecessary. Emitting two entries per participant would also shift every downstream
       `log_index`; PR #1746 was reverted for exactly that, having broken `fvcv-extension` VFD
@@ -2636,7 +2656,7 @@ groups:
       Emitting two entries per participant shifts every downstream `log_index`; PR #1746
       was reverted for exactly that, having broken `fvcv-extension` VFD replication timing.
       Holding initialization to one entry per participant keeps `log_index` order stable.
-      Because `ACCEPT` is valid directly from no row (CM-18-003, ADR-0048), an initialization
+      Because `AGREE` is valid directly from `UNINVITED` (CM-18-003, ADR-0048), an initialization
       participant reaches its consent in a single transition, so a placeholder is unnecessary.
     verification: Integration tests in `test/demo/` confirm that case initialization commits
       exactly one `add_participant_status_to_participant` ledger entry per participant.
@@ -2649,11 +2669,12 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      The embargo lifecycle MUST NOT write a consent row to record a lapse or an exit. A proposal,
-      the activation of a longer revision and the termination of the embargo write no row for a
-      participant that has not itself been invited, has not itself answered, or whose acceptance is
-      not being carried over by containment (EP-05-001); a participant's lapsed or exited position
-      is read from its rows and the case (CM-18-001).
+      The embargo lifecycle MUST NOT write a consent row to record a lapse or an exit. Beyond the
+      `UNINVITED` row a proposal writes for every participant (CM-18-001), a proposal, the activation
+      of a longer revision and the termination of the embargo change no row of a participant that
+      has not itself been invited, has not itself answered, is not the case owner activating the
+      embargo, or whose agreement is not being carried over by containment (EP-05-001); a
+      participant's lapsed or exited position is read from its rows and the register (CM-18-001).
     rationale: >-
       The reconciliation rules that lapsed signatories at activation, advanced holders of the
       activated id and exited every record at termination existed only to keep a scalar state in
@@ -2662,8 +2683,9 @@ groups:
       that ADR-0122 removed.
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/` assert that activating a longer revision
-      and terminating the embargo report no participant consent change and leave every
-      `embargo_consents` row as it was, and that the lapsed and exited positions read as such.
+      changes no row but the owner's, that terminating the embargo reports no participant consent
+      change and leaves every `embargo_consents` row as it was, and that the lapsed and exited
+      positions read as such.
     relationships:
     - rel_type: refines
       spec_id: CM-18-001
@@ -3357,7 +3379,7 @@ groups:
       them is fanned out.  They never widen entitlement (CM-10-004): a participant
       that is inert or removed when it leaves is not sent them.  The only other
       message a closed participant receives is the direct embargo notice to a
-      SIGNATORY that CM-31-009 requires, which carries no other case content.  A
+      signatory that CM-31-009 requires, which carries no other case content.  A
       participant that has left stops at the entries that record its departure: it
       does not receive later entries, case_fully_closed included.  A closing
       participant waits for those entries and MUST NOT write its own RM.CLOSED to
@@ -3686,7 +3708,7 @@ groups:
     statement: >-
       As part of the CM-23-002 owner-close sequence, after the CASE_MANAGER advances its own
       CaseParticipant to RM.CLOSED and before it commits `case_fully_closed`, it MUST expire every
-      embargo Invite still awaiting a reply on the case (every consent row that is `INVITED` moves to `EXPIRED`), without waiting for its RSVP deadline. It MUST commit
+      embargo Invite still awaiting a reply on the case (every consent row that is `INVITED` moves to `TIMED_OUT`), without waiting for its RSVP deadline. It MUST commit
       an expired-invitation CaseLedgerEntry for each (CM-28-009, CM-28-014). A pending case Invite
       carries no RSVP deadline and so needs no settling: an answer to it after close is an external
       append, refused at the ADR-0085 boundary.
@@ -3698,7 +3720,7 @@ groups:
       finality (CM-23-002).
     verification: >-
       A test confirms that an owner Leave(VulnerabilityCase) on a case with an unanswered Invite
-      whose RSVP deadline is in the future moves that participant's consent to `EXPIRED`, commits
+      whose RSVP deadline is in the future moves that participant's consent to `TIMED_OUT`, commits
       the expired-invitation entry, and orders that entry after the CASE_MANAGER's RM.CLOSED entry
       and before `case_fully_closed`.
     relationships:
@@ -4247,7 +4269,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An expired invitation MUST be recorded as the consent row's `EXPIRED` state via the `EXPIRE` trigger (`INVITED → EXPIRED`), never as `DECLINED`. `DECLINED` MUST be reached only by an explicit refusal, so the consent row distinguishes "never responded" from "explicitly declined".
+      An expired invitation MUST be recorded as the consent row's `TIMED_OUT` state via the `TIME_OUT` trigger (`INVITED → TIMED_OUT`), never as `DECLINED`. `DECLINED` MUST be reached only by an explicit refusal, so the consent row distinguishes "never responded" from "explicitly declined".
     rationale: >-
       A participant that did not answer made no decision, and code, logs, demos and replicas read
       the consent row, not ledger provenance (ADR-0118). An expired participant is re-invitable
@@ -4262,7 +4284,7 @@ groups:
       record (CM-11-015, ADR-0114).
     verification: >-
       A unit test confirms that the CASE_MANAGER's expiry evaluation moves an `INVITED` participant
-      past its deadline to `EXPIRED`, not `DECLINED`, and that `DECLINE` is not applied on the timer
+      past its deadline to `TIMED_OUT`, not `DECLINED`, and that `DECLINE` is not applied on the timer
       path.
     relationships:
     - rel_type: refines
@@ -4277,7 +4299,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An expired embargo invitation MUST be distinguishable from an explicit refusal both in the participant's consent row (`EXPIRED` versus `DECLINED`, CM-28-004) and in the canonical case
+      An expired embargo invitation MUST be distinguishable from an explicit refusal both in the participant's consent row (`TIMED_OUT` versus `DECLINED`, CM-28-004) and in the canonical case
       ledger (CM-28-009).
     rationale: >-
       The canonical ledger is the project's history mechanism (ADR-0019), so expiry-versus-refusal
@@ -4286,7 +4308,7 @@ groups:
     verification: >-
       Inspection of `vultron/core/` confirms that the expired-invitation ledger entry type
       (`invite_to_embargo_on_case_expired`) differs from the `Reject(Invite(EmbargoEvent))` entry
-      type used for explicit refusals, and that the participant records `EXPIRED` rather than
+      type used for explicit refusals, and that the participant records `TIMED_OUT` rather than
       `DECLINED`.
     adr:
     - ADR-0065
@@ -4369,7 +4391,7 @@ groups:
       different from the `Reject(Invite(EmbargoEvent))` entry used to record an explicit refusal.
     rationale: >-
       The ledger entry makes expiry-versus-refusal distinguishable in the ledger (CM-28-005), and it
-      is how a replica learns the `EXPIRED` state without computing it (CM-28-014); authoring a
+      is how a replica learns the `TIMED_OUT` state without computing it (CM-28-014); authoring a
       single entry type for both events would conflate them. See ADR-0065, ADR-0118.
     verification: >-
       Inspection of `vultron/core/` confirms that the expired-invitation ledger entry
@@ -4461,8 +4483,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST record the RSVP deadline on the invitee's participant record at
-      its commit of the Invite emission, and the replica apply node for that entry MUST
+      The CASE_MANAGER MUST record the RSVP deadline on the invitee's `INVITED` consent row for
+      the invited embargo at its commit of the Invite emission, and the replica apply node for that entry MUST
       record the same deadline (EP-09-007). A participant MUST NOT derive or store an RSVP
       deadline on receipt of an Invite (EP-09-003).
     rationale: >-
@@ -4470,10 +4492,17 @@ groups:
       once by the CASE_MANAGER and reaches replicas through the ledger (ADR-0108). Writing it
       at receipt was the one-store shape ADR-0113 retired for EM (#3918).
     verification: >-
-      A test asserts the invitee's `invite_rsvp_deadline` is set in the CASE_MANAGER's store
+      A test asserts the invitee's `INVITED` row for the embargo carries the deadline in the
+      CASE_MANAGER's store
       when the Invite emission is committed and in a replica's store when the entry is
-      replayed, and is unset on a participant that received the Invite directly. Until the
-      implementation lands the tests are strict `xfail`s naming their tracking issue.
+      replayed, and is unset on a participant that received the Invite directly:
+      `test/core/behaviors/embargo/nodes/test_relay.py::TestRelayEmbargoInviteToEachNode`
+      (`test_each_invite_carries_the_managers_deadline_and_records_it`,
+      `test_the_committed_entry_carries_the_deadline_for_replay`),
+      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_records_invitee_deadline_from_relayed_invite_entry`,
+      and the deadline tests in `test/core/services/embargo_lifecycle/test_consent.py`
+      (`test_a_fresh_invite_restamps_an_invited_rows_deadline`,
+      `test_a_fresh_invite_without_a_deadline_drops_a_stale_one`).
     relationships:
     - rel_type: depends_on
       spec_id: CM-28-012
@@ -4501,8 +4530,11 @@ groups:
     verification: >-
       A test runs the late-`Accept` path as a non-manager and asserts no expiry entry is committed;
       a test replays an `invite_to_embargo_on_case_expired` entry into a replica and asserts the
-      participant reads `EXPIRED`. Until the implementation lands the tests are strict `xfail`s
-      naming their tracking issue.
+      participant reads `TIMED_OUT`:
+      `test/core/use_cases/received/test_embargo_invite_lapse.py::TestExpiryIsTheManagersAlone::test_non_manager_commits_no_expiry_entry`,
+      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
+      and
+      `test/core/behaviors/embargo/nodes/test_expiry.py::TestApplyInviteExpiryFromLedgerNode::test_a_replica_applies_time_out_without_a_deadline`.
     relationships:
     - rel_type: refines
       spec_id: CM-28-009
@@ -4718,7 +4750,7 @@ groups:
     statement: >-
       Whether a participant is active MUST be computed by one case-level check from stored facts —
       the CM-10-004 definition: joined (seated by case initialization or accepted the stub Invite),
-      not removed, and a signatory to the active embargo (its consent row for it is `ACCEPTED`) when an embargo is active — and MUST NOT be stored. RM `CLOSED`
+      not removed, and a signatory to the active embargo (its consent row for it is `AGREED`) when an embargo is active — and MUST NOT be stored. RM `CLOSED`
       is not an input (#4100). A participant-level
       property MUST NOT compute a partial answer under a name that reads as "active".
     rationale: >-
@@ -4875,7 +4907,7 @@ groups:
     kind: protocol
     statement: >-
       When the active embargo is terminated (including by the case becoming public) or replaced by a
-      shorter revision, the CASE_MANAGER MUST send every `SIGNATORY` participant the ledger fan-out
+      shorter revision, the CASE_MANAGER MUST send every signatory participant the ledger fan-out
       does not reach — removed (CM-31-001), or at RM `CLOSED` and skipped by the CM-23-004 fan-out —
       a direct notice outside the ledger stream:
       `Remove(EmbargoEvent)` for a termination, `Announce(EmbargoEvent)` with the new terms for a
@@ -4986,11 +5018,11 @@ groups:
     rationale: >-
       Invites reach inert participants because they ask them to join or consent (CM-10-007). A removed
       participant was taken out by the Case Owner's decision; inviting it to vote on embargo revisions
-      would undo that decision. A reinstated participant that is not `SIGNATORY` stays inert until it
+      would undo that decision. A reinstated participant that is not a signatory stays inert until it
       consents, so it must be asked.
     verification: >-
       Tests assert the embargo-Invite recipient selection excludes a removed participant, and that
-      reinstating a participant that is not `SIGNATORY` to the active embargo enqueues that embargo's
+      reinstating a participant that is not a signatory to the active embargo enqueues that embargo's
       Invite to it.
     relationships:
     - rel_type: refines

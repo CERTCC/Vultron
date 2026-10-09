@@ -213,7 +213,7 @@ KNOWN_FACTORIES_BYPASSING_INTAKE: frozenset[str] = frozenset(
         # honour-late-accept tree — the CASE_MANAGER-gated honour decision
         # called from AcceptInviteToEmbargoOnCaseReceivedUseCase for the
         # EMB-17-001 branch; commits a synthesised honour entry, not a received
-        # one, then applies EXPIRED/DECLINED → SIGNATORY (ADR-0118, RSH-08-004).
+        # one, then applies TIMED_OUT/DECLINED → AGREED (ADR-0118, RSH-08-004).
         "create_honour_late_accept_tree",
         # noop-ledger-entry tree — called from _commit_noop_ledger_entry in
         # AcceptInviteToEmbargoOnCaseReceivedUseCase for the EMB-17-004 no-op
