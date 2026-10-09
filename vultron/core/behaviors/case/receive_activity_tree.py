@@ -38,9 +38,9 @@ refuses an :class:`~vultron.core.behaviors.emit_capable.EmitCapable` node in
 ``replica_effects``, outside any gate, unless the tree names a registered
 :class:`~vultron.core.behaviors.replica_emit_exemptions.ReplicaEmitExemption`
 that covers it.
-``test/architecture/test_received_tree_case_manager_gate.py`` ratchets the
-received trees that still call the gate themselves or still pass the
-unchecked legacy ``effect_nodes``.
+``test/architecture/test_received_tree_case_manager_gate.py`` ratchets that no
+received tree calls the gate itself (and, since #4307 retired the legacy
+``effect_nodes`` parameter, that no caller passes it).
 
 :func:`create_guarded_commit_case_ledger_entry_tree` is the commit stage.  It
 is called here and nowhere else: a tree factory that calls it directly forks
@@ -138,26 +138,18 @@ def ungated_emitters(
     return ungated_nodes(roots, EmitCapable)
 
 
-def _check_effect_arguments(
+def _check_gate_arguments(
     name: str,
     *,
-    legacy: bool,
-    new_kinds: bool,
     gate_arguments_without_effects: bool,
 ) -> None:
-    """Refuse effect arguments that would be silently ignored or mixed.
+    """Refuse gate arguments that would be silently ignored.
 
     Raises:
-        VultronWiringError: legacy ``effect_nodes`` is combined with
-            ``replica_effects``, ``manager_effects`` or an exemption, or a
-            gate argument is passed without ``manager_effects`` (BT-17-008).
+        VultronWiringError: a gate argument is passed without
+            ``manager_effects`` (BT-17-008).
     """
     where = f"create_receive_activity_tree({name})"
-    if legacy and new_kinds:
-        raise VultronWiringError(
-            f"{where}: effect_nodes cannot be combined with replica_effects,"
-            " manager_effects or replica_emit_exemption (BT-17-008)"
-        )
     if gate_arguments_without_effects:
         raise VultronWiringError(
             f"{where}: manager_case_id, manager_gate_name,"
@@ -296,7 +288,6 @@ def create_receive_activity_tree(
     name: str,
     case_id: str | None,
     precondition_guards: list[py_trees.behaviour.Behaviour],
-    effect_nodes: list[py_trees.behaviour.Behaviour] | None = None,
     case_may_be_absent: bool = False,
     *,
     sender_guard: "py_trees.behaviour.Behaviour | None" = None,
@@ -375,11 +366,10 @@ def create_receive_activity_tree(
     emit-capable and contain no state writer: a refusal commits nothing, so
     it may change no state.
 
-    ``effect_nodes`` is the pre-BT-17-008 form, kept only for the close-case
-    tree, whose ungated decline emit is #3825's to gate: it runs ungated
-    where ``replica_effects`` would, unchecked.  It cannot be combined with
-    the two new kinds.  Every other received tree passes the two new kinds
-    (#4307); delete the parameter when the close-case tree moves.
+    The pre-BT-17-008 ``effect_nodes`` parameter — ungated and unchecked — was
+    retired in #4307 once the close-case tree, its last caller, moved its
+    decline emit onto ``manager_effects`` (#3825).  Every received tree now
+    passes ``replica_effects`` / ``manager_effects``.
 
     When ``case_id`` is ``None`` the commit step is omitted entirely,
     preserving behaviour for trees that receive no explicit case context;
@@ -395,8 +385,6 @@ def create_receive_activity_tree(
         name: Name for the root ``Sequence`` node.
         case_id: Case URI for the guarded-commit stage; ``None`` omits it.
         precondition_guards: Read-only guard nodes after the sender guard.
-        effect_nodes: Legacy ungated effects, unchecked; only the close-case
-            tree still passes them (#3825).
         case_may_be_absent: Pass ``True`` when the receiver may not hold the
             case yet (e.g. an invitee seeing the first Invite).
         sender_guard: Optional sender-entitlement condition node, placed
@@ -418,21 +406,19 @@ def create_receive_activity_tree(
             guard refuses, at the CASE_MANAGER, once per received activity.
 
     Raises:
-        VultronWiringError: ``effect_nodes`` is mixed with the new effect
-            kinds, ``manager_effects`` has no ``manager_case_id``, an
-            exemption is unregistered, an emit-capable node sits in
-            ``replica_effects`` without one (BT-17-008), or a refusal effect
-            is not emit-capable or holds a state writer (CLP-10-022).
+        VultronWiringError: ``manager_effects`` has no ``manager_case_id``, a
+            gate argument is passed without ``manager_effects``, an exemption
+            is unregistered, an emit-capable node sits in ``replica_effects``
+            without one (BT-17-008), or a refusal effect is not emit-capable or
+            holds a state writer (CLP-10-022).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
     CLP-10-017, CLP-10-022 and ``specs/behavior-tree-integration.yaml`` BT-17-008.
     """
     replica = replica_effects or []
     manager = manager_effects or []
-    _check_effect_arguments(
+    _check_gate_arguments(
         name,
-        legacy=bool(effect_nodes),
-        new_kinds=bool(replica or manager or replica_emit_exemption),
         gate_arguments_without_effects=not manager
         and (
             manager_case_id is not None
@@ -471,7 +457,6 @@ def create_receive_activity_tree(
             " — commit step omitted",
             name,
         )
-    children.extend(effect_nodes or [])
     children.extend(replica)
     if manager:
         children.append(
