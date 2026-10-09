@@ -119,7 +119,7 @@ Actors invited later decide for themselves whether to accept the embargo, so add
 | What you sent | What to confirm |
 |---|---|
 | `Invite(Event)` | The case `em_state` is `PROPOSED`. |
-| `Accept(Invite(Event))` | Your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) row for the embargo is `ACCEPTED` (you are a signatory), as [§9 Participant Embargo Consent (PEC) State Machine in the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) defines it. |
+| `Accept(Invite(Event))` | Your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) row for the embargo is `AGREED` (you are a signatory), as [§9 Participant Embargo Consent (PEC) State Machine in the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) defines it. |
 | `Add(Event)`, with or without `inReplyTo` | The case `em_state` is `ACTIVE` and the case names one active embargo. |
 | `Announce(Event)` | Every participant's replica carries the same active embargo ID. |
 
