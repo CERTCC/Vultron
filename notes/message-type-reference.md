@@ -14,6 +14,7 @@ related_specs:
   - specs/diataxis-requirements.yaml
   - specs/project-documentation.yaml
   - specs/received-status-handling.yaml
+  - specs/handler-protocol.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/received-status-authorization.md
@@ -350,7 +351,65 @@ The YAML file and the `include-markdown` fragments (the whole table, a slice per
 page, one per occasion) are generated, committed, and gated by a `--check` hook;
 `_mapping.py` becomes their loader and validator. That replaces MSM-06-001's
 build-time rendering, so the implementation revises MSM-06-001. Until it lands, the
-pages render as described below.
+pages render as described below. The occasion requirements are MSM-08.
+
+### Planning decisions (#4418)
+
+**"Sent by" is the receiver's rule, not the CVD convention.** The column states
+the `sender_entitlement` the received use case declares, because that is what
+another implementation must satisfy, and it cannot drift. It is often broader
+than the convention: any active participant may send `Add(ParticipantStatus)`
+with `vf_state` `VF`, though a vendor is the one with a fix. An occasion may add
+a "usually" note, typed as `CVDRole` values, so the row reads "an active
+participant (usually: vendor)" (MSM-08-005). The wording per kind:
+
+| `SenderEntitlementKind` | "Sent by" |
+|---|---|
+| `CASE_MANAGER` | the case manager |
+| `CASE_OWNER` | the case owner |
+| `ACTIVE_PARTICIPANT` | an active participant |
+| `INVITEE` | the invitee |
+| `NAMED_ACTOR` | the actor the request was addressed to |
+| `EXECUTING_ACTOR` | the receiving actor itself |
+| `SenderExemption` | not yet checked |
+
+Two cautions. About half the received use cases are exempt today, so the
+column fills in only as the exemptions close; do not paper over that with
+hand-written values. And a kind names the entitlement at the CASE_MANAGER: a
+replica other than the CASE_MANAGER accepts an embargo message only from the
+CASE_MANAGER (PCR-03-001), whatever the kind says.
+
+**Exchange positions are not roles.** "The receiver of a report" or "the
+invitee" holds that position only relative to one exchange; the same
+coordinator receives one report and sends the next, and a report precedes any
+case, so there is no participant record to hold the role. `CVDRole` values are
+durable facts persisted on `CaseParticipant.roles`. So positions stay in the
+occasion's description for now; whether they become a named, closed vocabulary
+is a separate question, not a `CVDRole` extension by default.
+
+**One grammar for "When…".** Every occasion's "when" is the sender's situation,
+from the sender's side — for mechanics and a `Create` that precedes an `Add` too:
+"the case manager has committed a case event" for `Announce(CaseLedgerEntry)`,
+"a replicated entry does not chain onto the receiver's ledger" for
+`Reject(CaseLedgerEntry)`. So every wire activity keeps at least one row.
+
+**Occasion prose is docs prose.** The "when", description and notes fields live
+in Python but render on reference pages *and* in how-to guides, so a fragment
+must satisfy both hosts (DF-09-008): style guide sentence rules, glossary terms,
+and no "you" (MSM-08-007). The details link names the formal message and code,
+"Fix Readiness (CF)", because the row's "Send" cell already gives the wire form
+and DF-09-010 wants the pair (MSM-08-008).
+
+**Each occasion's example shows its own distinguisher.** Today the CV and CF
+sections of `cs.md` render the same `add_status_to_participant()` example, which
+dispatches correctly and shows neither occasion's `vf_state`. A dispatch check
+alone passes that, so MSM-08-003 also requires the example to carry the
+distinguishing value.
+
+**A distinguisher is typed.** Either a field value checked against the field's
+enum (`vf_state` = `VF`), or a state context naming a state machine and its
+states (the EM state that separates `EP` from `EV` on `Invite(Event)`)
+(MSM-08-002).
 
 ## Examples are rendered at build time
 

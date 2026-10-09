@@ -1062,3 +1062,180 @@ groups:
     adr:
     - ADR-0093
     - ADR-0122
+- id: MSM-08
+  title: Occasions
+  description: >-
+    Requirements for the occasion, the unit of the message lookup table: a situation in
+    a case that a sender conveys with a wire activity, sometimes narrowed by a
+    distinguishing field value or state context (glossary, Messaging and Protocol). One
+    `SEMANTIC_REGISTRY` entry has one or more occasions. Occasions are declared on the
+    entry, and the lookup table and the per-occasion reference sections are renderings
+    of them. Decision: ADR-0128.
+  specs:
+  - id: MSM-08-001
+    priority: MUST
+    kind: process
+    statement: Every `SEMANTIC_REGISTRY` entry outside the dispatcher-fallback exemptions
+      (MSM-06-002) MUST declare at least one occasion, and each occasion MUST state when
+      it applies, a stable anchor ID, a description and the example that renders it.
+      Construction of an entry with no occasion MUST fail.
+    rationale: The lookup table is complete only if every wire activity has a row. A
+      construction-time failure makes a new registry entry without an occasion
+      impossible, not merely detectable, so completeness does not depend on a ratchet
+      someone remembers to extend.
+    verification: >-
+      A unit test constructs a `SemanticEntry` with no occasion and asserts it raises,
+      and a test enumerates `SEMANTIC_REGISTRY` and asserts every non-exempt entry has
+      at least one occasion.
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-002
+    priority: MUST
+    kind: process
+    statement: An occasion's distinguisher MUST be either a field value or a state
+      context. A field value MUST be a member of that field's enum, and a state context
+      MUST name a state machine and states that are members of that machine's state
+      enum.
+    rationale: '"Distinguished by" is the only thing that tells two occasions of one
+      wire activity apart, such as vendor awareness and fix ready on
+      `Add(ParticipantStatus)`. A free-text distinguisher can name a value no
+      implementation sends. Typing it against the enums makes a renamed or retired
+      state fail at construction.'
+    verification: >-
+      A unit test asserts that an occasion whose field value is not a member of the
+      field's enum, or whose state context names a state outside its machine's enum,
+      fails at construction.
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-003
+    priority: MUST
+    kind: process
+    statement: Each occasion's example MUST dispatch to the occasion's own
+      `SEMANTIC_REGISTRY` entry, and an occasion with a distinguisher MUST have an
+      example that carries the distinguishing value.
+    rationale: Dispatch alone does not tell occasions of one entry apart. When this
+      group was planned, the vendor awareness and fix readiness sections rendered the
+      same example, which dispatches correctly and shows neither situation's
+      `vf_state`. Each occasion needs an example that shows what makes it that
+      occasion.
+    verification: >-
+      A parametrized test over every occasion asserts that its example matches exactly
+      the occasion's own entry pattern and, for an occasion with a field-value
+      distinguisher, that the example carries that field value.
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-004
+    priority: MUST
+    kind: process
+    statement: Occasion anchor IDs MUST be unique across `SEMANTIC_REGISTRY`, each anchor
+      MUST resolve to exactly one section on the entry's message page, and every
+      occasion section MUST be referenced by a row of the lookup table.
+    rationale: The table links each row to its details by anchor. A duplicate anchor
+      links two rows to one section, and an unreferenced section is reference content
+      no reader can reach from the table.
+    verification: >-
+      A test asserts anchor uniqueness across the registry, and a test over the
+      message pages asserts that each anchor resolves to exactly one section and that
+      each occasion section is referenced by a table row.
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-005
+    priority: MUST
+    kind: process
+    statement: The lookup table's "Sent by" value MUST state the sender entitlement that
+      the occasion's received use case declares (HP-01-007), and MUST state an exempt
+      use case as not yet checked. An occasion MAY add the CVD roles that usually send
+      it, which MUST be values of `CVDRole`.
+    rationale: 'The entitlement is the rule a receiver applies, so it is what another
+      implementation must satisfy, and deriving it means it cannot drift from the code.
+      It is often broader than the CVD convention: any active participant may announce
+      that a fix is ready, though in practice a vendor does. The usual-role note gives
+      the convention without replacing the rule. Positions within one exchange, such as
+      the receiver of a report, are not CVD roles and stay in the description.'
+    verification: >-
+      A test asserts that each rendered "Sent by" value equals the wording for the
+      use case's declared entitlement kind, or the not-yet-checked wording for an
+      exemption, and that every usual-role value is a `CVDRole` member.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-007
+    adr:
+    - ADR-0115
+    - ADR-0128
+  - id: MSM-08-006
+    priority: MUST
+    kind: process
+    statement: The mapping status that MSM-06-003 requires MUST be derived from the
+      occasions and their shorthands, and MUST NOT be declared per entry, except that
+      an occasion MAY declare a mechanism that evolved per MSM-05.
+    rationale: 'A declared status is a second copy of what the shorthands already say,
+      and the two disagreed: `EP` was tagged as expanding to `Create(Event)` and
+      `Announce(Event)`, where MSM-02-001 maps it to `Invite(Event)` alone. An evolved
+      mechanism has no shorthand to count, so it alone is declared.'
+    verification: >-
+      A unit test builds entries with one shorthand on one occasion, several occasions
+      on one entry, and one shorthand on several entries, and asserts the derived
+      status is direct, collapse and expansion respectively.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-06-003
+    adr:
+    - ADR-0128
+  - id: MSM-08-007
+    priority: MUST
+    kind: process
+    statement: An occasion's "when" text MUST describe the sender's situation, for
+      protocol mechanics and for a `Create` that precedes an `Add` as well as for CVD
+      events, and every occasion's prose fields MUST follow the documentation style
+      guide (DF-09-001), use the glossary's canonical terms (DF-09-002) and address
+      no reader.
+    rationale: 'One grammar lets a reader scan the "When…" column by situation. The
+      prose lives in Python, outside the reach of DF-09-001 as written, yet renders on
+      reference pages and in how-to guides; a fragment with more than one host must
+      satisfy the rules of each (DF-09-008), so it can use neither the how-to "you" nor
+      reference-only phrasing.'
+    verification: >-
+      The generated occasion fragments under `docs/` are `lint-docs` targets
+      (DF-09-007), and review of each occasion confirms the "when" text names the
+      sender's situation.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: depends_on
+      spec_id: DF-09-001
+    - rel_type: depends_on
+      spec_id: DF-09-008
+    adr:
+    - ADR-0128
+  - id: MSM-08-008
+    priority: MUST
+    kind: process
+    statement: A lookup-table row's details link MUST name the formal protocol message
+      and its shorthand when the occasion has one, and otherwise the plain-English
+      heading of the occasion's section.
+    rationale: DF-09-010 requires reader-facing docs to name a protocol activity by its
+      formal name and code paired with its wire form. The row supplies the wire form in
+      "Send", so the link text supplies the name, for example "Fix Readiness (CF)".
+    verification: >-
+      A test over the generated table asserts that each details link text equals the
+      formal message name and shorthand for occasions with a shorthand, and the section
+      heading otherwise.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: depends_on
+      spec_id: DF-09-010
+    adr:
+    - ADR-0128
