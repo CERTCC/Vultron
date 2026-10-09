@@ -24,7 +24,8 @@ seated as reporter when the case is created (CM-22-002), so it is never
 invited; the Coordinator directly invites Vendor (``invite-actor-to-case``).
 Vendor accepts the report and embargo, advances through the fix lifecycle
 to fix ready (VFd; Vendor stops at VFd), and all three participants
-coordinate to VFdPxa closure.  Coordinator closes the case.
+coordinate to VFdPxa closure.  The Coordinator, the Case Owner, closes the
+case last.
 
 Spec: DEMOMA-12 (GitHub issue #1593).
 """

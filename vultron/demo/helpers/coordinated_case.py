@@ -39,6 +39,7 @@ from dataclasses import dataclass
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     run_case_invite_chain,
@@ -476,27 +477,30 @@ def everyone_closes_case(
 ) -> None:
     """Every participant closes the case; check the terminal state everywhere.
 
+    The Vendor, the Reporter and each of *later_vendors* leave first, in that
+    order; the Coordinator, the Case Owner, leaves last, once their
+    departures are recorded (CM-23-015).
+
     *later_vendors* are ``(label, client, actor)`` for vendors beyond the first
     (the second vendor of ``rcvv-embargo``); each closes and is checked for
     ledger coverage like the rest.
     """
-    with demo_step(f"Actor {ref_id(coordinator_in_coordinator)} closes case"):
-        ActorSession(
+    close_case_owner_last(
+        case=case,
+        milestone="M7",
+        authority_client=coordinator_client,
+        others=[
+            CaseLeaver(client=vendor_client, actor=vendor_in_vendor),
+            CaseLeaver(client=reporter_client, actor=reporter_in_reporter),
+            *(
+                CaseLeaver(client=client, actor=actor)
+                for _, client, actor in later_vendors
+            ),
+        ],
+        owner=CaseLeaver(
             client=coordinator_client, actor=coordinator_in_coordinator
-        ).with_case(case).quiet().close_case()
-    with demo_step(f"Actor {ref_id(vendor_in_vendor)} closes case"):
-        ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
-            case
-        ).quiet().close_case()
-    with demo_step(f"Actor {ref_id(reporter_in_reporter)} closes case"):
-        ActorSession(
-            client=reporter_client, actor=reporter_in_reporter
-        ).with_case(case).quiet().close_case()
-    for label, client, actor in later_vendors:
-        with demo_step(f"Actor {ref_id(actor)} ({label}) closes case"):
-            ActorSession(client=client, actor=actor).with_case(
-                case
-            ).quiet().close_case()
+        ),
+    )
 
     with demo_check("M7: all participants RM.CLOSED on all replicas"):
         wait_for_all_participants_rm_closed(
