@@ -42,6 +42,7 @@ import py_trees
 from vultron.core.behaviors.case.nodes.delegation import (
     AutoAcceptCaseParticipantRoleNode,
     EmitRejectCaseParticipantRoleNode,
+    GrantCaseParticipantRoleNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -100,10 +101,27 @@ def create_offer_case_participant_role_received_tree(
         ],
     )
 
+    # The CASE_MANAGER grants the role on its own copy at commit; it excludes
+    # itself from the Announce fan-out, so it never replays its own accept
+    # entry. Remote replicas apply the grant from the ledger (CM-02-016).
+    manager_effects: list[py_trees.behaviour.Behaviour] | None = (
+        [
+            GrantCaseParticipantRoleNode(
+                case_id=case_id,
+                role=role,
+                target_actor_id=target_actor_id,
+            )
+        ]
+        if case_id
+        else None
+    )
+
     return create_receive_activity_tree(
         name="OfferCaseParticipantRoleReceivedBT",
         case_id=case_id if case_id else None,
         precondition_guards=[],
         replica_effects=[accept_or_reject],
         replica_emit_exemption=OFFER_ROLE,
+        manager_effects=manager_effects,
+        manager_case_id=case_id if case_id else None,
     )

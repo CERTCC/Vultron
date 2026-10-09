@@ -34,10 +34,16 @@ from vultron.core.behaviors.helpers import (
     DataLayerAction,
     _EmitSingleActivityBase,
 )
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.behaviors.sync.nodes.role_grant_effect import (
+    grant_role_to_target,
+)
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -169,6 +175,66 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction, EmitCapable):
             self.actor_id,
             accept_id,
         )
+        return Status.SUCCESS
+
+
+class GrantCaseParticipantRoleNode(DataLayerAction, StateWriteCapable):
+    """Grant the offered role on the CASE_MANAGER's own case replica (ADR-0039).
+
+    Runs as a ``manager_effects`` entry of the offer-received tree, so the
+    factory's CASE_MANAGER gate (BT-17-008) fires it only at the CASE_MANAGER —
+    the ledger holder, which excludes itself from the ``Announce`` fan-out and
+    so never replays its own ``accept_case_participant_role`` entry. The CM
+    therefore applies the grant to its own copy here; every other participant
+    applies it from the ledger via
+    :class:`~vultron.core.behaviors.sync.nodes.role_grant_effect.ApplyCaseParticipantRoleGrantFromLedgerNode`
+    (CM-02-016).  Idempotent and non-fatal: an absent case or a target that is
+    not a participant returns SUCCESS without writing.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        role: CVDRole,
+        target_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.role = role
+        self.target_actor_id = target_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        case = self.datalayer.read(self.case_id)
+        if not isinstance(case, VulnerabilityCase):
+            return Status.SUCCESS
+        granted = grant_role_to_target(
+            cast(CasePersistence, self.datalayer),
+            case,
+            self.target_actor_id,
+            self.role,
+        )
+        if granted:
+            self.logger.info(
+                "%s: granted %s to '%s' on the CASE_MANAGER's copy of"
+                " case '%s' (CM-02-016)",
+                self.name,
+                self.role.value,
+                self.target_actor_id,
+                self.case_id,
+            )
+        else:
+            self.logger.warning(
+                "%s: '%s' is not a participant on the CASE_MANAGER's case"
+                " '%s' — role %s not applied",
+                self.name,
+                self.target_actor_id,
+                self.case_id,
+                self.role.value,
+            )
         return Status.SUCCESS
 
 

@@ -442,8 +442,9 @@ groups:
       A CASE_MANAGER that receives one records it as a canonical ledger assertion
       (`("Offer", "CaseParticipantRole")` in `_CANONICAL_PAYLOAD_SIGNATURES`,
       CLP-07-001/CLP-07-005), with no replica state effect — a role offer is a
-      proposal, not the grant, like `Offer(CaseParticipant)` (#3764); whether its
-      acceptance mutates participant roles is tracked by #4404.
+      proposal, not the grant, like `Offer(CaseParticipant)` (#3764); its acceptance
+      grants the role to the target participant — the CASE_MANAGER applies it on its own
+      copy at commit and every other replica from the ledger (CM-02-016).
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
