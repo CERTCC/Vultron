@@ -84,6 +84,7 @@ REPLAYED: dict[str, dict[str, Any]] = {
     for event_type in (
         MS.ACCEPT_CASE_OWNERSHIP_TRANSFER.value,
         MS.ACCEPT_INVITE_ACTOR_TO_CASE.value,
+        MS.INVITE_ACTOR_TO_CASE.value,
         MS.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value,
         MS.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
         MS.REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
@@ -160,11 +161,6 @@ NO_REPLICA_EFFECT: dict[str, str] = {
 #: terminal value is empty (ARCH-18-005).
 # owner: #4294 #4295 #3764 (one per entry, named first in its reason)
 KNOWN_UNREPLAYED: dict[str, str] = {
-    MS.INVITE_ACTOR_TO_CASE.value: (
-        "#4294 / #4295: the stub Invite creates the inert invitee's record"
-        " (RM RECEIVED, PEC INVITED) on the CASE_MANAGER only (CM-11-006,"
-        " ADR-0124)"
-    ),
     MS.REJECT_INVITE_ACTOR_TO_CASE.value: (
         "#4294 / #4295: closes the inert invitee's record (RM CLOSED, PEC"
         " DECLINED) on the CASE_MANAGER only (CM-11-007, ADR-0124)"

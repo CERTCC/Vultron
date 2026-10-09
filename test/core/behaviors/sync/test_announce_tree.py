@@ -891,63 +891,98 @@ def _make_accept_invite_entry(
     )
 
 
+def _make_stub_invite_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> CaseLedgerEntry:
+    """Create a ledger entry with event_type='invite_actor_to_case'."""
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/invite-{log_index}",
+            event_type="invite_actor_to_case",
+            payload_snapshot={
+                "type": "Invite",
+                "actor": "https://example.org/actors/manager",
+                "object": {"type": "Actor", "id": INVITEE_ACTOR_ID},
+                "roles": ["vendor"],
+                "context": CASE_ID,
+            },
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
 class TestAnnounceLogEntryAppliesInviteAccept:
-    """Participant receiving accept_invite_actor_to_case ledger entry adds invitee."""
+    """A participant learns of an invitee from the stub Invite, then the Accept."""
 
-    @pytest.mark.spec("SYNC-12-001")
-    @pytest.mark.spec("SYNC-02-001")
-    def test_participant_adds_invitee_on_accept_invite_entry(
-        self, bridge, datalayer, case_actor, case_obj
-    ):
-        """BT adds new participant to case replica when entry is accept_invite_actor_to_case.
-
-        Existing participants (e.g. Finder) must learn about new invitees
-        exclusively via Announce(as_CaseLedgerEntry) fan-out (SYNC-02-002).
-        """
-        entry = _make_accept_invite_entry(0, case_obj.genesis_hash)
-        event = _make_event(entry, actor_id=case_actor.id_)
-
-        result = bridge.execute_with_setup(
+    def _announce(self, bridge, case_actor, entry):
+        return bridge.execute_with_setup(
             tree=create_announce_log_entry_tree(),
             actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
+            activity=_make_event(entry, actor_id=case_actor.id_),
             sync_port=MagicMock(spec=SyncActivityPort),
         )
 
-        assert result.status == Status.SUCCESS
+    @pytest.mark.spec("SYNC-12-001")
+    @pytest.mark.spec("SYNC-02-001")
+    @pytest.mark.spec("CM-31-012")
+    def test_participant_learns_invitee_from_invite_then_accept_entries(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The Invite entry makes the inert record; the Accept entry joins it.
+
+        Existing participants (e.g. Finder) learn about new invitees
+        exclusively via Announce(as_CaseLedgerEntry) fan-out (SYNC-02-002).
+        """
+        invite = _make_stub_invite_entry(0, case_obj.genesis_hash)
+        accept = _make_accept_invite_entry(1, invite.entry_hash)
+
+        assert (
+            self._announce(bridge, case_actor, invite).status == Status.SUCCESS
+        )
         updated = datalayer.read(CASE_ID)
-        assert updated is not None
-        assert INVITEE_ACTOR_ID in updated.actor_participant_index
+        record = datalayer.read(
+            updated.actor_participant_index[INVITEE_ACTOR_ID]
+        )
+        assert record.joined is False
+
+        assert (
+            self._announce(bridge, case_actor, accept).status == Status.SUCCESS
+        )
+        record = datalayer.read(record.id_)
+        assert record.joined is True
+
+    @pytest.mark.spec("SYNC-12-001")
+    @pytest.mark.spec("CM-31-012")
+    def test_accept_entry_without_the_invite_entry_fails_and_stores_nothing(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """No record held: a broken invariant, so the Accept entry is refused."""
+        entry = _make_accept_invite_entry(0, case_obj.genesis_hash)
+
+        result = self._announce(bridge, case_actor, entry)
+
+        assert result.status == Status.FAILURE
+        updated = datalayer.read(CASE_ID)
+        assert INVITEE_ACTOR_ID not in updated.actor_participant_index
+        assert datalayer.read(entry.id_) is None
 
     @pytest.mark.spec("SYNC-12-003")
     def test_invite_accept_add_is_idempotent(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """Already-stored accept-invite entry exits early; pre-applied invitee unchanged."""
-        # Pre-apply the effect (invitee already registered) to reflect first run.
-        invitee_participant = CaseParticipant(
-            id_=f"{CASE_ID}/participants/vendor2",
-            attributed_to=INVITEE_ACTOR_ID,
-            context=CASE_ID,
+        """Already-stored entries exit early; the record is unchanged."""
+        invite = _make_stub_invite_entry(0, case_obj.genesis_hash)
+        assert (
+            self._announce(bridge, case_actor, invite).status == Status.SUCCESS
         )
-        datalayer.create(invitee_participant)
-        case_obj.add_participant(invitee_participant)
-        datalayer.save(case_obj)
-        entry = _make_accept_invite_entry(0, case_obj.genesis_hash)
-        # Pre-store entry so second run takes the already-stored path.
-        datalayer.save(entry)
-        event = _make_event(entry, actor_id=case_actor.id_)
-
-        result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
+        # Replay the same Invite entry: stored already, one record remains.
+        assert (
+            self._announce(bridge, case_actor, invite).status == Status.SUCCESS
         )
 
-        assert result.status == Status.SUCCESS
         updated = datalayer.read(CASE_ID)
-        assert updated is not None
         assert (
             list(updated.actor_participant_index.keys()).count(
                 INVITEE_ACTOR_ID

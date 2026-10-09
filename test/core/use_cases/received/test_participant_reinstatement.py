@@ -844,5 +844,12 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
         kwargs |= {"invitee_id": VENDOR, "sender_id": OWNER}
     names = [node.name for node in factory(**kwargs).children]
 
-    guard = names.index("SuggestedActorNotRemovedIfCaseManager")
+    # The Accept tree's guard also refuses a joined or closed actor
+    # (CM-16-006), so it is a different composite from the recommend tree's.
+    guard_name = (
+        "SuggestedActorNotRemovedIfCaseManager"
+        if factory is create_recommend_actor_to_case_received_tree
+        else "AcceptedInviteeAdmittedIfCaseManager"
+    )
+    guard = names.index(guard_name)
     assert guard < names.index("GuardedCommitCaseLedgerEntryBT")

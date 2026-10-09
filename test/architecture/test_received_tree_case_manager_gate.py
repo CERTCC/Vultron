@@ -132,7 +132,7 @@ KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
 # ---------------------------------------------------------------------------
 # 3. Modules that call the gate but build no received tree.  BT-17-008 binds
 #    received trees only: a trigger, expiry or retry tree runs on the actor's
-#    own initiative.  The four ``case_manager_admits_*_guard`` composites
+#    own initiative.  The ``case_manager_admits_*_guard`` composites
 #    are gate-wrapped read-only conditions passed as a received tree's
 #    ``precondition_guards`` (the embargo Invite tree, the participant
 #    removal and reinstatement trees, the two suggest-actor trees): they
@@ -165,6 +165,10 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         (
             f"{_C}/nodes/participant_reinstatement.py",
             "case_manager_admits_reinstatement_guard",
+        ),
+        (
+            f"{_C}/nodes/suggest_actor/conditions.py",
+            "case_manager_admits_accepted_invitee_guard",
         ),
         (
             f"{_C}/nodes/suggest_actor/conditions.py",

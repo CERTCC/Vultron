@@ -52,10 +52,11 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension, VfDimension
-from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.participants.inert_invitee import (
+    build_inert_invitee_participant,
+    inert_invitee_participant_id,
+)
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.states.rm import RM
@@ -142,21 +143,6 @@ class CreateInertInviteeParticipantNode(
                 pass
         return []
 
-    def _build_initial_status(
-        self, roles: list[CVDRole], case_id: str
-    ) -> ParticipantStatus:
-        """Return a single birth status at RM.RECEIVED (PRM-06-001)."""
-        vf: VfDimension | None = None
-        if CVDRole.VENDOR in roles:
-            vf = VfDimension(state=CS_vf.vf)
-        return ParticipantStatus(
-            context=case_id,
-            attributed_to=self.invitee_id,
-            rm=RmDimension(state=RM.RECEIVED),
-            vf=vf,
-            cvd_role=roles,
-        )
-
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -193,34 +179,10 @@ class CreateInertInviteeParticipantNode(
                 self.case_id,
             )
             return Status.FAILURE
-        status = self._build_initial_status(roles, self.case_id)
-        participant_id = (
-            f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}"
+        participant = build_inert_invitee_participant(
+            case, self.invitee_id, roles
         )
-        participant = CaseParticipant(
-            id_=participant_id,
-            attributed_to=self.invitee_id,
-            context=self.case_id,
-            case_roles=roles,
-            participant_statuses=[status],
-            joined=False,
-        )
-
-        # Apply PEC INVITE if the case has an active embargo (CM-11-006)
-        active_embargo_id = _as_id(case.active_embargo)
-        if active_embargo_id and participant.accepts_pec_trigger(
-            active_embargo_id, PEC_Trigger.INVITE
-        ):
-            participant.apply_pec_transition(
-                active_embargo_id, PEC_Trigger.INVITE
-            )
-            self.logger.info(
-                "%s: set PEC INVITED for invitee '%s' (active embargo '%s',"
-                " CM-11-006)",
-                self.name,
-                self.invitee_id,
-                active_embargo_id,
-            )
+        participant_id = participant.id_
 
         self.datalayer.create(participant)
         case.add_participant(participant)
@@ -271,8 +233,8 @@ class AdvanceInviteeVFToVendorAwareNode(
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        participant_id = (
-            f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}"
+        participant_id = inert_invitee_participant_id(
+            self.case_id, self.invitee_id
         )
         participant = self.datalayer.read(participant_id)
         if not isinstance(participant, CaseParticipant):
@@ -354,8 +316,8 @@ class ApplyInviteRejectToParticipantNode(
         assert self.actor_id is not None
 
         # Verify that the participant exists before attempting transitions
-        participant_id = (
-            f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}"
+        participant_id = inert_invitee_participant_id(
+            self.case_id, self.invitee_id
         )
         participant = self.datalayer.read(participant_id)
         if not isinstance(participant, CaseParticipant):

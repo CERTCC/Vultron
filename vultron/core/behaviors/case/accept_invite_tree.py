@@ -41,8 +41,9 @@ Tree structure::
 
 Admitting the invitee, announcing the case to it and backfilling the ledger
 are the CASE_MANAGER's (PCR-08-009); every other participant learns of the
-new member from the ``Accept(Invite)`` entry's fan-out, which its replica
-applies through ``ApplyInviteAcceptFromLedgerNode``.  No ``Add(CaseParticipant)``
+new member from the stub Invite's entry (``ApplyStubInviteFromLedgerNode``
+creates the inert record) and the ``Accept(Invite)`` entry's fan-out (its
+replica marks the record joined through ``ApplyInviteAcceptFromLedgerNode``).  No ``Add(CaseParticipant)``
 follows and no ``add_case_participant`` entry is committed: that message now
 means reinstatement only (CM-31-012, ADR-0116).  The same handler runs on any actor
 that holds a copy of the Accept, so the effects sit behind a role gate and

@@ -110,11 +110,6 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         # REPLICATE — case_status_effect.py: CaseStatus per-dimension
         # carry-forward on replay (RSH-05-023/019, #3814)
         ("sync/nodes/case_status_effect.py", "PxaDimension"),
-        # BOOTSTRAP — ADR-0114 birth write: invitee's first ParticipantStatus
-        # at RM.RECEIVED (no prior state; embed directly in CaseParticipant,
-        # not via CreateParticipantStatusNode). CM-11-006 / #4048.
-        ("case/nodes/invite_inert_participant.py", "RmDimension"),
-        ("case/nodes/invite_inert_participant.py", "VfDimension"),
     ]
 )
 

@@ -47,6 +47,7 @@ _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
 _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 _REMOVE_NOTE_FROM_CASE_EVENT = "remove_note_from_case"
 _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
+_INVITE_ACTOR_TO_CASE_EVENT = MessageSemantics.INVITE_ACTOR_TO_CASE.value
 _CLOSE_CASE_EVENT = "close_case"
 _ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
 _ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT = "accept_case_ownership_transfer"
@@ -213,6 +214,20 @@ class IsInviteAcceptEventNode(_SingleEventTypeNode):
     """
 
     matched_event_type = _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT
+
+
+class IsStubInviteEventNode(_SingleEventTypeNode):
+    """Precondition: return SUCCESS when this log entry IS a stub Invite.
+
+    Used as the precondition in the ``StubInviteEffects`` Selector's inner
+    Sequence in ``AnnounceLogEntryReceivedBT``, in the same
+    ``Selector(Seq(Is, Apply), Inverter(Is))`` shape as the other slots.  A
+    replacement stub shares the event type with the first (CM-11-015).
+
+    Per BTND-08-001, BTND-08-002, CM-11-006, CM-31-012, SYNC-12-001.
+    """
+
+    matched_event_type = _INVITE_ACTOR_TO_CASE_EVENT
 
 
 class IsCloseCaseEventNode(_SingleEventTypeNode):

@@ -44,6 +44,7 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
     ApplyRmVerdictFromLedgerNode,
+    ApplyStubInviteFromLedgerNode,
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
@@ -68,6 +69,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
     IsRmVerdictEventNode,
+    IsStubInviteEventNode,
     IsSubmitReportEventNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
@@ -261,6 +263,13 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 "RemoveNote",
                 IsRemoveNoteEventNode,
                 ApplyRemoveNoteFromLedgerNode,
+            ),
+            # The stub Invite creates the invitee's inert record (CM-11-006);
+            # the Accept entry below marks it joined.
+            _event_effect_slot(
+                "StubInvite",
+                IsStubInviteEventNode,
+                ApplyStubInviteFromLedgerNode,
             ),
             _event_effect_slot(
                 "InviteAccept",

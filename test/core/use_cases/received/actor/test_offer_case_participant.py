@@ -636,6 +636,87 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 # ---------------------------------------------------------------------------
 
 
+class TestAcceptRefusesAnInviteeThatCannotBeInvited:
+    """A second Accept after join, or one for a closed invitee, commits nothing.
+
+    The Case Owner's Accept makes the CASE_MANAGER send and commit a stub
+    Invite.  An invitee that has already joined or is at ``RM.CLOSED`` is sent
+    no further one, so no second Invite entry reaches the ledger for it
+    (CM-11-015, CM-16-006).
+    """
+
+    def _accept(self, dl: SqliteDataLayer) -> Any:
+        helper = TestAcceptOfferCaseParticipantReceivedUseCase()
+        event = helper._event_with_stored_offer(dl)
+        return AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    def _record(self, dl: SqliteDataLayer) -> CaseParticipant:
+        from vultron.core.models.case import VulnerabilityCase
+
+        case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        record = dl.read(case.actor_participant_index[RECOMMENDED_ID])
+        assert isinstance(record, CaseParticipant)
+        return record
+
+    @pytest.mark.spec("CM-16-006")
+    def test_first_accept_still_invites(self):
+        dl, _ = _seed_dl_for_case_actor()
+        result = self._accept(dl)
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert self._record(dl).joined is False
+        assert len(dl.list_objects("CaseLedgerEntry")) >= 1
+
+    @pytest.mark.spec("CM-16-006")
+    @pytest.mark.spec("CM-11-015")
+    def test_second_accept_after_join_is_refused_and_commits_nothing(self):
+        dl, _ = _seed_dl_for_case_actor()
+        assert self._accept(dl).disposition is HandlerDisposition.APPLIED
+        record = self._record(dl)
+        record.joined = True
+        dl.save(record)
+        ledger_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._accept(dl)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert RECOMMENDED_ID in (result.reason or "")
+        assert "joined" in (result.reason or "")
+        assert len(dl.list_objects("CaseLedgerEntry")) == ledger_before
+
+    @pytest.mark.spec("CM-16-006")
+    @pytest.mark.spec("CM-11-015")
+    def test_accept_for_a_closed_invitee_is_refused_and_commits_nothing(self):
+        from vultron.core.models.dimensions import RmDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.rm import RM
+
+        dl, _ = _seed_dl_for_case_actor()
+        assert self._accept(dl).disposition is HandlerDisposition.APPLIED
+        record = self._record(dl)
+        record.participant_statuses.append(
+            ParticipantStatus(
+                context=CASE_ID,
+                attributed_to=RECOMMENDED_ID,
+                rm=RmDimension(state=RM.CLOSED),
+            )
+        )
+        dl.save(record)
+        ledger_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._accept(dl)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "RM.CLOSED" in (result.reason or "")
+        assert len(dl.list_objects("CaseLedgerEntry")) == ledger_before
+
+
 class TestRejectOfferCaseParticipantReceivedUseCase:
     def _event(
         self, origin: str | None = RECOMMENDATION_ID

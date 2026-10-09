@@ -30,7 +30,6 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _LedgerEffectNode,
 )
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.enums.roles import validate_roles
 
 logger = logging.getLogger(__name__)
 
@@ -40,19 +39,26 @@ class ApplyInviteAcceptFromLedgerNode(_LedgerEffectNode):
 
     When a non-CaseActor participant receives ``Announce(CaseLedgerEntry)``
     and the entry's ``event_type`` is ``accept_invite_actor_to_case``, this
-    node extracts the invitee actor ID from ``payload_snapshot["actor"]``,
-    creates a stub ``CaseParticipant``, and calls ``case.add_participant()``
-    to add the new participant to the local case replica (idempotent).
+    node extracts the invitee actor ID from ``payload_snapshot["actor"]`` and
+    marks the invitee's existing inert record ``joined=True``.  It never
+    creates a record: the record exists on every replica from the stub
+    Invite's entry
+    (:class:`~vultron.core.behaviors.sync.nodes.stub_invite_effect.ApplyStubInviteFromLedgerNode`),
+    as it does on the CASE_MANAGER from the moment it sends the Invite
+    (CM-11-006, CM-31-012).  That is how existing participants learn that a
+    new actor has joined: they MUST NOT update ``case_participants`` from
+    ``Accept(Invite)`` messages; they learn it from this ledger entry
+    (ADR-0022, SYNC-02-002, DEMOMA-07-003).
 
-    This is the mechanism by which existing participants (e.g. the Finder)
-    learn that a new actor (e.g. Vendor2) has joined the case — they MUST NOT
-    update ``case_participants`` directly from ``Accept(Invite)`` messages;
-    only the CaseActor does that. All other participants learn via this ledger
-    entry effect (ADR-0022, SYNC-02-002, DEMOMA-07-003).
+    A record already ``joined`` is left alone (idempotent, a replay).  A
+    replica that holds no record for the invitee has a broken invariant: the
+    chain is complete and applied in order (SYNC-14, SYNC-15), so the stub
+    Invite's entry came first.  The node fails with a reason and writes
+    nothing, as the CASE_MANAGER refuses an Accept it holds no record for
+    (CM-11-021).
 
-    Lenient on missing data: if the case replica is absent, the invitee ID
-    cannot be extracted, or the participant is already present, the node
-    returns SUCCESS to avoid blocking the ``Announce`` processing flow.
+    Lenient only on a replica that holds no copy of the case (Regime 2,
+    ADR-0087) or a snapshot that names no invitee.
     """
 
     def update(self) -> Status:
@@ -77,56 +83,35 @@ class ApplyInviteAcceptFromLedgerNode(_LedgerEffectNode):
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
-        if invitee_id in case.actor_participant_index:
-            participant_id = case.actor_participant_index[invitee_id]
-            existing = self.datalayer.read(participant_id)
-            if isinstance(existing, CaseParticipant) and not existing.joined:
-                # Inert stub record (ADR-0114, CM-11-006): Accept has arrived,
-                # so promote the participant to fully joined.
-                existing.joined = True
-                self.datalayer.save(existing)
-                self.logger.info(
-                    "%s: promoted inert participant '%s' to joined=True"
-                    " for case '%s' (ADR-0114, SYNC-02-002)",
-                    self.name,
-                    invitee_id,
-                    case_id,
-                )
-                return Status.SUCCESS
+        participant_id = case.actor_participant_index.get(invitee_id)
+        record = (
+            self.datalayer.read(participant_id) if participant_id else None
+        )
+        if not isinstance(record, CaseParticipant):
+            self.feedback_message = (
+                f"Accept(Invite) entry {entry.log_index} for '{invitee_id}'"
+                f" in case '{case_id}' but this replica holds no participant"
+                " record for the invitee: the stub Invite's entry has not"
+                " been applied, so the chain is incomplete or out of order"
+                " (CM-11-006, CM-11-021, SYNC-14)"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        if record.joined:
             self.logger.debug(
-                "%s: invitee '%s' already in actor_participant_index"
-                " for case '%s' — idempotent no-op",
+                "%s: invitee '%s' already joined case '%s' — idempotent no-op",
                 self.name,
                 invitee_id,
                 case_id,
             )
             return Status.SUCCESS
 
-        obj_snapshot = snapshot.get("object")
-        raw_roles = (
-            obj_snapshot.get("roles")
-            if isinstance(obj_snapshot, dict)
-            else None
-        )
-        try:
-            case_roles = validate_roles(raw_roles) if raw_roles else []
-        except (TypeError, ValueError, KeyError):
-            case_roles = []
-
-        participant = CaseParticipant(
-            id_=f"{case_id}/participants/{invitee_id.rstrip('/').rsplit('/', 1)[-1]}",
-            attributed_to=invitee_id,
-            context=case_id,
-            case_roles=case_roles,
-        )
-        if self.datalayer.read(participant.id_) is None:
-            self.datalayer.create(participant)
-
-        case.add_participant(participant)
-        self.datalayer.save(case)
+        record.joined = True
+        self.datalayer.save(record)
         self.logger.info(
-            "%s: applied ledger invite-accept for invitee '%s' to case '%s'"
-            " (SYNC-02-002, DEMOMA-07-003)",
+            "%s: marked participant '%s' joined=True for case '%s'"
+            " (ADR-0114, SYNC-02-002)",
             self.name,
             invitee_id,
             case_id,

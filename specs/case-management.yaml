@@ -1241,8 +1241,10 @@ groups:
       When the CASE_MANAGER re-invites an invitee that has not answered its stub
       Invite, or whose stub Invite expired, the re-invite MUST be a fresh stub
       Invite on the same participant record with a new deadline, and its
-      `inReplyTo` MUST be the id of the invitee's earlier stub Invite. A
-      re-invite to a participant at `RM.CLOSED` MUST be refused (ADR-0085).
+      `inReplyTo` MUST be the id of the invitee's earlier stub Invite. A stub
+      Invite to a participant that has joined or is at `RM.CLOSED` MUST be
+      refused, wherever the CASE_MANAGER would send one, before any ledger entry
+      is committed for it (ADR-0085).
     rationale: >-
       One actor has one participant record per case. `RM.CLOSED` is terminal
       with no rejoin path, and a stub reject is a closure (CM-11-007). Naming
@@ -1251,8 +1253,10 @@ groups:
       earlier one, naming the fresh one.
     verification: >-
       Tests confirm a re-invite reuses the existing record with a new deadline
-      and names the earlier stub in `inReplyTo`, and a re-invite to a
-      participant at `RM.CLOSED` is refused.
+      and names the earlier stub in `inReplyTo`, a re-invite to a participant
+      at `RM.CLOSED` is refused, and the Case Owner's `Accept(Offer(CaseParticipant))`
+      naming a participant that has joined or is at `RM.CLOSED` is refused with
+      no ledger entry committed.
     adr:
     - ADR-0114
     - ADR-0085
@@ -1972,7 +1976,9 @@ groups:
       entry, (3) send `AcceptActorRecommendation` to the original recommender with
       `in_reply_to` set to the ID of the original recommender's `Offer` activity, and
       (4) send the stub Invite (`Invite(Actor, VulnerabilityCaseStub)`, CM-11-013) to
-      the suggested actor per CM-17.
+      the suggested actor per CM-17. It MUST refuse the Accept, with a reported
+      reason and before it commits or sends anything, when the suggested actor
+      has already joined or is at `RM.CLOSED` (CM-11-015).
     verification: Integration tests in `test/demo/` confirm that after the Case Owner accepts a
       participant recommendation, the CASE_MANAGER commits a ledger entry, fans it out, sends
       `AcceptActorRecommendation`, and sends `Invite` to the suggested actor.

@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 """Tests for ApplyInviteAcceptFromLedgerNode.
 
-Covers accept_invite_actor_to_case ledger event application.
-Per SYNC-02-002, ADR-0022, DEMOMA-07-003.
+The Accept entry marks the invitee's existing inert record joined and never
+creates one (CM-11-006, CM-11-021, CM-31-012).  Per SYNC-02-002, ADR-0022,
+DEMOMA-07-003.
 """
-
-from unittest.mock import patch
 
 import pytest
 from py_trees.common import Status
@@ -21,6 +20,8 @@ from vultron.core.behaviors.sync.nodes.invite_accept_effect import (
     ApplyInviteAcceptFromLedgerNode,
 )
 from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -50,149 +51,81 @@ def case_with_actor(datalayer):
     return case
 
 
-@pytest.mark.spec("SYNC-12-001")
-@pytest.mark.spec("SYNC-12-002")
-def test_apply_invite_accept_adds_participant(
-    bridge, datalayer, case_actor, case_with_actor
-):
-    """Invitee is added to case.actor_participant_index after invite-accept."""
-    assert case_with_actor is not None
-    entry = _make_invite_accept_entry(INVITEE_ACTOR_ID)
-    event = _make_event(entry, actor_id=case_actor.id_)
+@pytest.fixture
+def inert_invitee(datalayer, case_with_actor):
+    """The replica's inert record, as the stub Invite's entry leaves it."""
+    record = CaseParticipant(
+        id_=f"{CASE_ID}/participants/vendor2",
+        attributed_to=INVITEE_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.VENDOR],
+        joined=False,
+    )
+    datalayer.create(record)
+    case = datalayer.read(CASE_ID)
+    case.add_participant(record)
+    datalayer.save(case)
+    return record
 
-    result = bridge.execute_with_setup(
+
+def _apply(bridge, case_actor):
+    event = _make_event(_make_invite_accept_entry(), actor_id=case_actor.id_)
+    return bridge.execute_with_setup(
         tree=ApplyInviteAcceptFromLedgerNode(name="ApplyInviteAccept"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
     )
 
+
+@pytest.mark.spec("CM-31-012")
+@pytest.mark.spec("CM-11-006")
+def test_accept_marks_the_existing_record_joined(
+    bridge, datalayer, case_actor, inert_invitee
+):
+    """AC-2: the held inert record becomes joined and none is created."""
+    result = _apply(bridge, case_actor)
+
     assert result.status == Status.SUCCESS
     updated = datalayer.read(CASE_ID)
-    assert updated is not None
-    assert INVITEE_ACTOR_ID in updated.actor_participant_index
+    assert list(updated.actor_participant_index) == [INVITEE_ACTOR_ID]
+    record = datalayer.read(updated.actor_participant_index[INVITEE_ACTOR_ID])
+    assert record.joined is True
+    assert record.id_ == inert_invitee.id_
+    assert record.case_roles == [CVDRole.VENDOR]
 
 
-@pytest.mark.spec("SYNC-12-003")
-def test_apply_invite_accept_idempotent(
+@pytest.mark.spec("CM-31-012")
+@pytest.mark.spec("CM-11-021")
+def test_accept_with_no_record_fails_with_a_reason_and_builds_none(
     bridge, datalayer, case_actor, case_with_actor
 ):
-    """Applying the same invite-accept twice does not duplicate participant."""
-    assert case_with_actor is not None
-    entry = _make_invite_accept_entry(INVITEE_ACTOR_ID)
-    event = _make_event(entry, actor_id=case_actor.id_)
+    """AC-3: a replica with no record has a broken invariant; it builds none."""
+    result = _apply(bridge, case_actor)
 
+    assert result.status == Status.FAILURE
+    assert INVITEE_ACTOR_ID in (result.feedback_message or "")
+    assert "no participant record" in (result.feedback_message or "")
+    updated = datalayer.read(CASE_ID)
+    assert INVITEE_ACTOR_ID not in updated.actor_participant_index
+    assert datalayer.read(f"{CASE_ID}/participants/vendor2") is None
+
+
+@pytest.mark.spec("CM-31-012")
+@pytest.mark.spec("SYNC-12-003")
+def test_accept_applied_twice_leaves_one_joined_record(
+    bridge, datalayer, case_actor, inert_invitee
+):
+    """AC-4: a replay changes nothing the first application did not."""
     for _ in range(2):
-        result = bridge.execute_with_setup(
-            tree=ApplyInviteAcceptFromLedgerNode(name="ApplyInviteAccept"),
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-        )
-        assert result.status == Status.SUCCESS
+        assert _apply(bridge, case_actor).status == Status.SUCCESS
 
     updated = datalayer.read(CASE_ID)
-    actor_ids = list(updated.actor_participant_index.keys())
-    assert actor_ids.count(INVITEE_ACTOR_ID) == 1
+    assert list(updated.actor_participant_index) == [INVITEE_ACTOR_ID]
+    record = datalayer.read(updated.actor_participant_index[INVITEE_ACTOR_ID])
+    assert record.joined is True
 
 
 @pytest.mark.spec("SYNC-12-001")
 def test_apply_invite_accept_skips_missing_case(bridge, case_actor):
     """Node returns SUCCESS when the case is not in the local DataLayer."""
-    entry = _make_invite_accept_entry(INVITEE_ACTOR_ID)
-    event = _make_event(entry, actor_id=case_actor.id_)
-
-    result = bridge.execute_with_setup(
-        tree=ApplyInviteAcceptFromLedgerNode(name="ApplyInviteAccept"),
-        actor_id=PARTICIPANT_ACTOR_ID,
-        activity=event,
-    )
-
-    assert result.status == Status.SUCCESS
-
-
-@pytest.mark.spec("CM-17-003")
-def test_apply_invite_accept_from_ledger_preserves_roles(
-    bridge, datalayer, case_actor, case_with_actor
-):
-    """CM-17-003: ledger path sets case_roles from payload_snapshot object.roles.
-
-    Before fix: stub CaseParticipant was created with no case_roles regardless
-    of what the payload_snapshot["object"]["roles"] contained (ISSUE-2719 Bug 1
-    sibling). After fix: roles are extracted and set on the participant.
-    """
-    entry = _to_persistable_entry(
-        HashChainLedgerRecord(
-            case_id=CASE_ID,
-            log_index=1,
-            object_id="https://example.org/activities/accept-invite-with-roles",
-            event_type="accept_invite_actor_to_case",
-            payload_snapshot={
-                "actor": {"id": INVITEE_ACTOR_ID},
-                "object": {
-                    "id": "https://example.org/activities/invite-001",
-                    "type": "Invite",
-                    "roles": ["vendor"],
-                },
-            },
-            prev_log_hash="0" * 64,
-        )
-    )
-    event = _make_event(entry, actor_id=case_actor.id_)
-
-    result = bridge.execute_with_setup(
-        tree=ApplyInviteAcceptFromLedgerNode(name="ApplyInviteAccept"),
-        actor_id=PARTICIPANT_ACTOR_ID,
-        activity=event,
-    )
-
-    assert result.status == Status.SUCCESS
-    updated = datalayer.read(CASE_ID)
-    assert INVITEE_ACTOR_ID in updated.actor_participant_index
-
-    from vultron.enums.roles import CVDRole
-
-    participant_id = updated.actor_participant_index[INVITEE_ACTOR_ID]
-    participant = datalayer.read(participant_id)
-    assert participant is not None
-    assert CVDRole.VENDOR in participant.case_roles
-
-
-@pytest.mark.spec("SYNC-12-001")
-def test_apply_invite_accept_handles_typeerror_in_roles(
-    bridge, datalayer, case_actor, case_with_actor
-):
-    """#2801: TypeError in validate_roles is caught; node returns SUCCESS.
-
-    If validate_roles raises TypeError (e.g. non-iterable roles payload),
-    the except clause MUST catch it rather than letting it propagate out of
-    update() and abort AnnounceLogEntryReceivedBT.
-    """
-    entry = _to_persistable_entry(
-        HashChainLedgerRecord(
-            case_id=CASE_ID,
-            log_index=2,
-            object_id="https://example.org/activities/accept-invite-typeerror",
-            event_type="accept_invite_actor_to_case",
-            payload_snapshot={
-                "actor": {"id": INVITEE_ACTOR_ID},
-                "object": {
-                    "id": "https://example.org/activities/invite-typeerror",
-                    "type": "Invite",
-                    "roles": ["vendor"],
-                },
-            },
-            prev_log_hash="0" * 64,
-        )
-    )
-    event = _make_event(entry, actor_id=case_actor.id_)
-
-    with patch(
-        "vultron.core.behaviors.sync.nodes.invite_accept_effect.validate_roles",
-        side_effect=TypeError("not iterable"),
-    ):
-        result = bridge.execute_with_setup(
-            tree=ApplyInviteAcceptFromLedgerNode(name="ApplyInviteAccept"),
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-        )
-
-    assert result.status == Status.SUCCESS
+    assert _apply(bridge, case_actor).status == Status.SUCCESS

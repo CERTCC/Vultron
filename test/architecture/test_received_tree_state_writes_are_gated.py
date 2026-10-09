@@ -189,6 +189,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyRemoveCaseParticipantFromLedgerNode",
             "ApplyRemoveNoteFromLedgerNode",
             "ApplyRmVerdictFromLedgerNode",
+            "ApplyStubInviteFromLedgerNode",
         )
     },
     (
