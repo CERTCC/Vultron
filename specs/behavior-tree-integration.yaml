@@ -770,12 +770,12 @@ groups:
       the factory gates `manager_effects` after the commit and refuses an
       emit-capable node in `replica_effects` that no registered exemption
       covers. The corpus-wide check is
-      `test/architecture/test_received_tree_case_manager_gate.py`: received
-      trees still calling `create_case_manager_gated_tree` themselves, or
-      still passing the unchecked legacy `effect_nodes`, are ratchets with an
-      owner per entry, and the exemption uses are a pinned exemption set
-      (ARCH-18-001, ARCH-18-005). Until a tree leaves the legacy ratchet, a
-      reviewer checks its emit nodes against this requirement.
+      `test/architecture/test_received_tree_case_manager_gate.py`: a ratchet
+      that no received tree calls `create_case_manager_gated_tree` itself, a
+      plain assertion that no caller passes the legacy `effect_nodes` (retired
+      in #4307 once the close-case tree moved its decline emit onto
+      `manager_effects`, #3825), and the exemption uses as a pinned exemption
+      set (ARCH-18-001, ARCH-18-005).
     relationships:
     - rel_type: refines
       spec_id: BT-17-001

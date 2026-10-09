@@ -22,9 +22,8 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    fixes the stage order intake → guards → commit → effects.  Only
    ``vultron/core/behaviors/case/receive_activity_tree.py`` — which *defines*
    both factories — is exempt.
-2. No rejection validator sits in an effect stage (``effect_nodes``,
-   ``replica_effects``, ``manager_effects`` or ``refusal_effects``;
-   CLP-10-009).
+2. No rejection validator sits in an effect stage (``replica_effects``,
+   ``manager_effects`` or ``refusal_effects``; CLP-10-009).
 3. No node that any factory uses as a protocol effect appears as a
    precondition guard anywhere — a corpus-derived check that no effect
    precedes the commit (CLP-10-006 verification).  The refusal-effects
@@ -105,12 +104,12 @@ def test_no_direct_calls_to_guarded_commit_outside_factory_module() -> None:
 
 
 # ---------------------------------------------------------------------------
-# CLP-10-009 ratchet: rejection validators must not appear in effect_nodes
+# CLP-10-009 ratchet: rejection validators must not appear in an effect stage
 # ---------------------------------------------------------------------------
 
 #: Node classes whose only role is to REFUSE an assertion (return FAILURE to
 #: reject).  These are precondition guards and MUST appear in
-#: ``precondition_guards``, never in ``effect_nodes``.
+#: ``precondition_guards``, never in an effect stage.
 REJECTION_VALIDATORS = {
     "ValidateRMTransitionNode",
     "CheckCaseStatusIdempotencyNode",
@@ -122,13 +121,13 @@ REJECTION_VALIDATORS = {
 
 RECEIVE_ACTIVITY_TREE_CALL = "create_receive_activity_tree"
 
-#: The factory's effect-stage keywords: the legacy ``effect_nodes``, the
-#: BT-17-008 ``replica_effects`` / ``manager_effects`` that replace it, and
+#: The factory's effect-stage keywords: the BT-17-008 ``replica_effects`` /
+#: ``manager_effects`` (which replaced the retired ``effect_nodes``, #4307) and
 #: the ``refusal_effects`` that run only when a guard refuses (CLP-10-022).
 #: A refusal effect is a protocol effect too: the same node used as a guard
 #: elsewhere would run ahead of a commit on an accepted delivery.
 EFFECT_KEYWORDS = frozenset(
-    {"effect_nodes", "replica_effects", "manager_effects", "refusal_effects"}
+    {"replica_effects", "manager_effects", "refusal_effects"}
 )
 
 
@@ -187,11 +186,11 @@ def _find_validators_in_effect_nodes() -> list[tuple[str, int, str]]:
 
 @pytest.mark.spec("CLP-10-009")
 def test_no_rejection_validators_in_effect_nodes() -> None:
-    """Rejection validators must not appear in effect_nodes of create_receive_activity_tree.
+    """Rejection validators must not appear in an effect stage of create_receive_activity_tree.
 
     A node that refuses an inbound assertion (returns FAILURE) is a
     precondition guard and MUST be placed in ``precondition_guards``.
-    Placing it in ``effect_nodes`` causes it to run after GuardedCommit,
+    Placing it in an effect stage causes it to run after GuardedCommit,
     producing a canonical ledger entry the actor then refuses to apply
     (canonical/replica divergence, ISSUE-2254, CLP-10-009).
     """
@@ -202,8 +201,8 @@ def test_no_rejection_validators_in_effect_nodes() -> None:
             for path, line_no, name in violations
         )
         pytest.fail(
-            f"Found {len(violations)} rejection validator(s) in effect_nodes"
-            " of create_receive_activity_tree.\n"
+            f"Found {len(violations)} rejection validator(s) in an effect"
+            " stage of create_receive_activity_tree.\n"
             "Move them to precondition_guards (CLP-10-009, ISSUE-2254):\n"
             f"{lines}"
         )
@@ -211,7 +210,7 @@ def test_no_rejection_validators_in_effect_nodes() -> None:
 
 # ---------------------------------------------------------------------------
 # CLP-10-006 ratchet: no protocol-effect node precedes the commit.  A node any
-# factory places in ``effect_nodes`` is, by that factory's own declaration, a
+# factory places in an effect stage is, by that factory's own declaration, a
 # protocol effect; the same node in another factory's ``precondition_guards``
 # would run before the commit.
 # ---------------------------------------------------------------------------
