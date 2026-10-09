@@ -26,6 +26,8 @@ Sub-modules
   (AC-2 of ISSUE-3058).
 - :mod:`~vultron.core.predicates.addressing` — actor-id equality and
   recipient membership, tolerant of a trailing slash (HP-09-001, #2667).
+- :mod:`~vultron.core.predicates.case_closure` — the one "case is fully
+  closed" condition over a case's ledger entries (CM-23-013, ADR-0085).
 
 Import constraints
 ------------------

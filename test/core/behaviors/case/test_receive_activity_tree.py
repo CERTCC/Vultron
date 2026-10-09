@@ -48,6 +48,7 @@ from vultron.errors import VultronWiringError
 
 CASE_ID = "https://example.org/cases/case-factory-gate-001"
 COMMIT = "GuardedCommitCaseLedgerEntryBT"
+POST_CLOSE = "CaseOpenToExternalWrites"
 
 
 class _Emitter(EmitCapable, py_trees.behaviour.Behaviour):
@@ -107,6 +108,7 @@ class TestStageOrder:
 
         assert isinstance(tree.children[0], IntakeReceivedActivityNode)
         assert _names(tree)[1:] == [
+            POST_CLOSE,
             "Guard",
             COMMIT,
             "Replica",
@@ -385,12 +387,13 @@ class TestRefusalEffects:
         )
 
         assert _names(tree)[1:] == [
+            POST_CLOSE,
             "SenderGuard",
             "PreconditionGuardStage",
             COMMIT,
             "Replica",
         ]
-        stage = tree.children[2]
+        stage = tree.children[3]
         assert isinstance(stage, PreconditionGuardStage)
         assert list(stage.guards.children) == [guard]
         gates = [
@@ -417,7 +420,7 @@ class TestRefusalEffects:
         )
 
         assert ungated_emitters([tree]) == []
-        stage = tree.children[1]
+        stage = tree.children[2]
         checks = [
             n for n in stage.iterate() if isinstance(n, CheckIsCaseManagerNode)
         ]
@@ -489,6 +492,7 @@ class TestRefusalEffects:
         )
 
         assert _names(tree)[1:] == [
+            POST_CLOSE,
             "PreconditionGuardStage",
             COMMIT,
             "ReplicaEffect",
@@ -501,4 +505,115 @@ class TestRefusalEffects:
             precondition_guards=[_effect("Guard")],
         )
 
+        assert _names(tree)[1:] == [POST_CLOSE, "Guard", COMMIT]
+
+
+class TestPostCloseStage:
+    """The factory places the post-close write boundary (CM-23-013)."""
+
+    @pytest.mark.spec("CM-23-013")
+    def test_every_tree_gets_the_guard_right_after_intake(self) -> None:
+        from vultron.core.behaviors.case.nodes.post_close import (
+            CaseOpenToExternalWritesNode,
+        )
+
+        tree = create_receive_activity_tree(
+            name="SampleBT", case_id=None, precondition_guards=[]
+        )
+
+        assert isinstance(tree.children[1], CaseOpenToExternalWritesNode)
+
+    @pytest.mark.spec("CM-23-013")
+    def test_the_guard_judges_the_commit_case_else_the_manager_case(
+        self,
+    ) -> None:
+        from vultron.core.behaviors.case.nodes.post_close import (
+            CaseOpenToExternalWritesNode,
+        )
+
+        committed = create_receive_activity_tree(
+            name="SampleBT", case_id=CASE_ID, precondition_guards=[]
+        )
+        gated = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=None,
+            precondition_guards=[],
+            manager_effects=[_Emitter()],
+            manager_case_id=CASE_ID,
+        )
+
+        for tree in (committed, gated):
+            guard = tree.children[1]
+            assert isinstance(guard, CaseOpenToExternalWritesNode)
+            assert guard._case_id == CASE_ID
+
+    @pytest.mark.spec("CM-23-013")
+    def test_an_exempt_tree_carries_no_guard(self) -> None:
+        from vultron.core.behaviors.case.nodes.post_close import (
+            PostCloseExemption,
+        )
+
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+            post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
+        )
+
         assert _names(tree)[1:] == ["Guard", COMMIT]
+
+    @pytest.mark.spec("CM-23-013")
+    def test_a_reply_wraps_the_guard_in_a_gated_refusal_stage(self) -> None:
+        from vultron.core.behaviors.case.nodes.post_close import (
+            CaseOpenToExternalWritesNode,
+        )
+        from vultron.core.behaviors.case.nodes.refusal_stage import (
+            PreconditionGuardStage,
+        )
+
+        reply = _Emitter("LateReply")
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+            post_close_reply=[reply],
+        )
+
+        assert _names(tree)[1:] == ["PostCloseStage", "Guard", COMMIT]
+        stage = tree.children[1]
+        assert isinstance(stage, PreconditionGuardStage)
+        assert [type(g) for g in stage.guards.children] == [
+            CaseOpenToExternalWritesNode
+        ]
+        assert ungated_emitters([tree]) == []
+        gates = [
+            n
+            for n in stage.refusal.iterate()
+            if isinstance(n, CaseManagerGate)
+        ]
+        assert [g.gated_branch for g in gates] == [reply]
+
+    @pytest.mark.spec("CM-23-013")
+    def test_a_reply_on_an_exempt_tree_is_refused(self) -> None:
+        from vultron.core.behaviors.case.nodes.post_close import (
+            PostCloseExemption,
+        )
+
+        with pytest.raises(VultronWiringError, match="exempt"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
+                post_close_reply=[_Emitter()],
+            )
+
+    @pytest.mark.spec("CM-23-013")
+    def test_a_reply_that_writes_state_is_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="post_close_reply"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                post_close_reply=[_EmittingWriter()],
+            )

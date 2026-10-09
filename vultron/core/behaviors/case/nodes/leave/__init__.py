@@ -30,7 +30,8 @@ by semantic concern (BTND-07-004):
   replicas can observe it rather than infer it (CM-23-005).
 
 - :mod:`.decline` — :class:`EmitRejectCloseCaseNode`, the ``as:Reject`` arm for
-  an owner close blocked by a live embargo (CM-23-011).
+  an owner close blocked by a live embargo (CM-23-011), and the optional reply
+  to a Leave that arrives after ``case_fully_closed`` (CM-23-013).
 
 Re-exported here so existing importers keep working unchanged.
 
@@ -42,6 +43,7 @@ from vultron.core.behaviors.case.nodes.leave.advance import (
     AdvanceParticipantToRMClosedNode,
 )
 from vultron.core.behaviors.case.nodes.leave.decline import (
+    LATE_LEAVE_DECLINE,
     EmitRejectCloseCaseNode,
 )
 from vultron.core.behaviors.case.nodes.leave.record import (
@@ -53,4 +55,5 @@ __all__ = [
     "AdvanceParticipantToRMClosedNode",
     "CommitCaseActorRMClosedEntryNode",
     "EmitRejectCloseCaseNode",
+    "LATE_LEAVE_DECLINE",
 ]

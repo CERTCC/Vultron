@@ -17,10 +17,11 @@
 
 :func:`create_receive_activity_tree` is the one way to build a received-side
 BT.
-It fixes the stage order intake → sender guard → precondition guards →
-guarded commit → protocol effects (CLP-10-006, CLP-10-010, ADR-0115) and
-supplies the shared intake node itself (CLP-10-017), so no handler opts out
-of recording what arrived.
+It fixes the stage order intake → post-close guard → sender guard →
+precondition guards → guarded commit → protocol effects (CLP-10-006,
+CLP-10-010, ADR-0115, CM-23-013) and supplies the shared intake node and the
+post-close write-boundary guard itself (CLP-10-017, ADR-0131), so no handler
+opts out of recording what arrived or forgets the closed-case boundary.
 A tree that owes the sender feedback when its guards refuse passes
 ``refusal_effects``: the factory runs them only on that refusal, at the
 CASE_MANAGER, once per received activity, and the tree still fails before
@@ -61,6 +62,10 @@ from vultron.core.behaviors.case.nodes.intake import (
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
+)
+from vultron.core.behaviors.case.nodes.post_close import (
+    CaseOpenToExternalWritesNode,
+    PostCloseExemption,
 )
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
@@ -232,8 +237,17 @@ def _refusal_stage(
     precondition_guards: list[py_trees.behaviour.Behaviour],
     refusal_effects: list[py_trees.behaviour.Behaviour],
     case_id: str | None,
+    *,
+    stage_name: str = "PreconditionGuardStage",
+    guards_name: str = "PreconditionGuards",
+    gate_suffix: str = "RefusalIfCaseManager",
+    argument: str = "refusal_effects",
 ) -> PreconditionGuardStage:
     """Wrap the guards so *refusal_effects* run only when they refuse.
+
+    Builds both refusal stages: the precondition-guard stage
+    (``refusal_effects``) and the post-close stage (``post_close_reply``),
+    which differ only in their names and the guards they wrap.
 
     The refusal effects sit inside the CASE_MANAGER gate on *case_id*, the
     case the guards judged: the CASE_MANAGER adjudicates, so only it answers a
@@ -262,26 +276,72 @@ def _refusal_stage(
     )
     if not_emitters or writers:
         raise VultronWiringError(
-            f"create_receive_activity_tree({name}): refusal_effects must"
+            f"create_receive_activity_tree({name}): {argument} must"
             f" emit and write no case state; not emit-capable:"
             f" {not_emitters}, state writers: {writers} (CLP-10-022)"
         )
     gate = create_case_manager_gated_tree(
-        name=f"{name}RefusalIfCaseManager",
+        name=f"{name}{gate_suffix}",
         case_id=case_id,
         children=refusal_effects,
         case_may_be_absent=True,
     )
     return PreconditionGuardStage(
-        name="PreconditionGuardStage",
+        name=stage_name,
         guards=py_trees.composites.Sequence(
-            name="PreconditionGuards",
+            name=guards_name,
             memory=False,
             children=precondition_guards,
         ),
         refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=gate),
         intake=intake,
     )
+
+
+def _post_close_stage(
+    name: str,
+    intake: IntakeReceivedActivityNode,
+    guard_case_id: str | None,
+    exemption: PostCloseExemption | None,
+    reply: list[py_trees.behaviour.Behaviour],
+) -> list[py_trees.behaviour.Behaviour]:
+    """The post-close write-boundary guard, with its optional reply.
+
+    Returns the nodes to place directly after intake: nothing for an exempt
+    tree, the bare :class:`CaseOpenToExternalWritesNode` when the tree owes
+    no reply, or a refusal stage that runs *reply* only when the guard
+    refuses (CM-23-013).
+
+    Raises:
+        VultronWiringError: an exempt tree passes a reply (the reply could
+            never run), or a reply node is not emit-capable or writes state.
+    """
+    if exemption is not None:
+        if reply:
+            raise VultronWiringError(
+                f"create_receive_activity_tree({name}): post_close_reply"
+                f" needs the post-close guard, but the tree is exempt"
+                f" ({exemption}) (CM-23-013)"
+            )
+        return []
+    guard = CaseOpenToExternalWritesNode(
+        case_id=guard_case_id, name="CaseOpenToExternalWrites"
+    )
+    if not reply:
+        return [guard]
+    return [
+        _refusal_stage(
+            name,
+            intake,
+            [guard],
+            reply,
+            guard_case_id,
+            stage_name="PostCloseStage",
+            guards_name="PostCloseGuard",
+            gate_suffix="PostCloseReplyIfCaseManager",
+            argument="post_close_reply",
+        )
+    ]
 
 
 def create_receive_activity_tree(
@@ -299,14 +359,29 @@ def create_receive_activity_tree(
     manager_body_name: str | None = None,
     manager_case_may_be_absent: bool = False,
     refusal_effects: list[py_trees.behaviour.Behaviour] | None = None,
+    post_close_exemption: PostCloseExemption | None = None,
+    post_close_reply: list[py_trees.behaviour.Behaviour] | None = None,
 ) -> py_trees.composites.Sequence:
     """Compose a receive-side BT with the four CLP-10-010 stages in order.
 
     Structurally enforces the receive-side ordering (ADR-0111, ADR-0115,
-    BT-17-008)::
+    BT-17-008, CM-23-013)::
 
-        Intake → [sender_guard] → [*precondition_guards] → GuardedCommit
+        Intake → CaseOpenToExternalWrites → [sender_guard]
+            → [*precondition_guards] → GuardedCommit
             → [*replica_effects] → CaseManagerGate[*manager_effects]
+
+    ``CaseOpenToExternalWrites`` is the post-close write boundary
+    (CM-23-013, ADR-0085, ADR-0131): at the case's CASE_MANAGER, once the
+    ledger holds ``case_fully_closed``, it refuses the activity, so nothing is
+    committed and no state changes; on any other store it passes.  Every
+    received tree gets it from here.  Its case is ``case_id``, else
+    ``manager_case_id``, else the case the received activity names.  A tree
+    that must keep working after close passes ``post_close_exemption``.  A
+    tree that answers a late activity passes ``post_close_reply``: emit-only
+    nodes run, at the CASE_MANAGER, only when the guard refuses (the
+    close-case tree's ``Reject(Leave)`` under ``PostCloseReply.REJECT``).
+    Every other tree drops a late activity with no reply.
 
     With ``refusal_effects`` the guards are wrapped in a
     :class:`~vultron.core.behaviors.case.nodes.refusal_stage.PreconditionGuardStage`
@@ -404,16 +479,22 @@ def create_receive_activity_tree(
             :class:`CheckIsCaseManagerNode`.
         refusal_effects: Emit-capable nodes run only when a precondition
             guard refuses, at the CASE_MANAGER, once per received activity.
+        post_close_exemption: Why this tree carries no post-close guard;
+            ``None`` (the default) places it (CM-23-013).
+        post_close_reply: Emit-capable nodes run only when the post-close
+            guard refuses, at the CASE_MANAGER, once per received activity.
 
     Raises:
         VultronWiringError: ``manager_effects`` has no ``manager_case_id``, a
             gate argument is passed without ``manager_effects``, an exemption
             is unregistered, an emit-capable node sits in ``replica_effects``
             without one (BT-17-008), or a refusal effect is not emit-capable or
-            holds a state writer (CLP-10-022).
+            holds a state writer (CLP-10-022), or an exempt tree passes a
+            ``post_close_reply`` (CM-23-013).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
-    CLP-10-017, CLP-10-022 and ``specs/behavior-tree-integration.yaml`` BT-17-008.
+    CLP-10-017, CLP-10-022, ``specs/behavior-tree-integration.yaml``
+    BT-17-008 and ``specs/case-management.yaml`` CM-23-013.
     """
     replica = replica_effects or []
     manager = manager_effects or []
@@ -431,6 +512,15 @@ def create_receive_activity_tree(
 
     intake = IntakeReceivedActivityNode()
     children: list[py_trees.behaviour.Behaviour] = [intake]
+    children.extend(
+        _post_close_stage(
+            name,
+            intake,
+            case_id or manager_case_id,
+            post_close_exemption,
+            post_close_reply or [],
+        )
+    )
     if sender_guard is not None:
         children.append(sender_guard)
     if refusal_effects:

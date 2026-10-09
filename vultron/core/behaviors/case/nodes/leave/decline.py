@@ -22,8 +22,17 @@ from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 logger = logging.getLogger(__name__)
 
 
+_ACTIVE_EMBARGO_DECLINE = "owner close declined: active embargo (CM-23-011)"
+"""The default ``decline_reason``: the CM-23-011 owner-close decline."""
+
+LATE_LEAVE_DECLINE = (
+    "Leave declined: the case is fully closed and records nothing (CM-23-013)"
+)
+"""The ``decline_reason`` of the post-close reply to a late Leave."""
+
+
 class EmitRejectCloseCaseNode(_EmitSingleActivityBase):
-    """Emit a ``Reject(Leave(VulnerabilityCase))`` declining an owner close.
+    """Emit a ``Reject(Leave(VulnerabilityCase))`` declining a Leave.
 
     Per CM-23-011, when the Case Owner sends ``Leave(VulnerabilityCase)`` while
     the case still holds an active embargo, the Case Actor declines the closure
@@ -31,6 +40,11 @@ class EmitRejectCloseCaseNode(_EmitSingleActivityBase):
     instead of running the CM-23-002 closure sequence.  The decline is sent
     back to the owner (``close_sender_id``) and threaded to the received Leave
     via ``in_reply_to``.
+
+    The same reply answers a ``Leave`` that arrives after
+    ``case_fully_closed`` when the CASE_MANAGER's ``post_close_reply`` policy
+    is ``REJECT`` (CM-23-013, ADR-0131); ``decline_reason`` names which
+    decline it is in the log.
 
     Subclasses :class:`_EmitSingleActivityBase`; only ``_call_factory`` is
     overridden (BTND-07-005, BTND-07-009).
@@ -43,11 +57,13 @@ class EmitRejectCloseCaseNode(_EmitSingleActivityBase):
         close_activity_id: str | None = None,
         captured: dict | None = None,
         name: str | None = None,
+        decline_reason: str = _ACTIVE_EMBARGO_DECLINE,
     ) -> None:
         super().__init__(captured=captured, name=name)
         self._case_id = case_id
         self._close_sender_id = close_sender_id
         self._close_activity_id = close_activity_id
+        self._decline_reason = decline_reason
 
     def _call_factory(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
@@ -61,8 +77,9 @@ class EmitRejectCloseCaseNode(_EmitSingleActivityBase):
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
-            "Case actor '%s' declined owner close of case '%s' via as:Reject"
-            " — active embargo (CM-23-011)",
+            "Case actor '%s' sent as:Reject to '%s' for case '%s' — %s",
             self.actor_id,
+            self._close_sender_id,
             self._case_id,
+            self._decline_reason,
         )

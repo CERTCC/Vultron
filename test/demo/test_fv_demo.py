@@ -1136,10 +1136,12 @@ class TestWaitForAllParticipantsRmClosed:
         ActorSession(client=vendor_client, actor=vendor).with_case(
             case
         ).notify_published()
-        ActorSession(client=vendor_client, actor=vendor).with_case(
+        # The finder leaves before the owner: a Leave after the owner's close
+        # records nothing (CM-23-013, CM-23-015).
+        ActorSession(client=finder_client, actor=finder).with_case(
             case
         ).close_case()
-        ActorSession(client=finder_client, actor=finder).with_case(
+        ActorSession(client=vendor_client, actor=vendor).with_case(
             case
         ).close_case()
         case_data = vendor_client.get(vendor_client.dl_path(case.id_))
@@ -1932,14 +1934,16 @@ def completed_workflow(
     with demo.demo_step("vendor reports publication"):
         vendor_session.notify_published()
 
-    # Case closure — both actors must close so RM=CLOSED for all.
+    # Case closure — both actors must close so RM=CLOSED for all.  The finder
+    # leaves first: a Leave after the owner's close records nothing
+    # (CM-23-013, CM-23-015).
     finder_in_finder = demo.get_actor_by_id(finder_client, finder.id_)
-    with demo.demo_step("vendor closes case"):
-        vendor_session.close_case()
     with demo.demo_step("finder closes case"):
         ActorSession(client=finder_client, actor=finder_in_finder).with_case(
             case
         ).close_case()
+    with demo.demo_step("vendor closes case"):
+        vendor_session.close_case()
 
     # Final refresh to pick up any post-closure case-actor state.
     case_data = vendor_client.get(vendor_client.dl_path(case.id_))

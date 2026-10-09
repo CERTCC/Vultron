@@ -70,8 +70,9 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
 
     Committed synchronously here rather than emitted as a self-addressed
     ``Add(ParticipantStatus)`` through the CLP-10-001 loopback, because
-    CM-23-002 makes this the **penultimate** step and ``case_fully_closed`` the
-    final entry.  Loopback delivery is an outbox background task, so it could
+    CM-23-002 requires this entry to **precede** ``case_fully_closed``, the
+    owner-close write boundary after which no external act is recorded
+    (CM-23-013).  Loopback delivery is an outbox background task, so it could
     not honour that ordering.
 
     Idempotent by construction: ``CreateLogEntryNode`` skips an entry that
@@ -113,7 +114,8 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
 
         A missing entry costs the replicas their view of *one* transition, which
         is ISSUE-2505 in miniature; a missing ``case_fully_closed`` costs every
-        replica the case's terminal anchor.  The lesser loss wins, loudly.
+        replica the case's write-boundary marker.  The lesser loss wins,
+        loudly.
         ``_commit_one`` in :mod:`..case_proposal_received_tree` makes the same
         call for the same event type, reserving hard failure for the
         load-bearing genesis entry.

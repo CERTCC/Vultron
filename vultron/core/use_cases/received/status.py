@@ -43,6 +43,7 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received._bt_verdict import (
     find_named,
     node_failed,
+    post_close_refusal,
     verdict_from_bt,
 )
 from vultron.core.use_cases.received._store_only import (
@@ -190,6 +191,8 @@ class AddCaseStatusToCaseReceivedUseCase:
             return HandlerResult.skipped(
                 f"CaseStatus '{status_id}' already in case '{case_id}'"
             )
+        if (refusal := post_close_refusal(tree)) is not None:
+            return refusal  # dropped with no reply, no fault (CM-23-017)
         verdict = verdict_from_bt(tree, result, label="AddCaseStatusToCaseBT")
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
@@ -328,6 +331,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             activity=request,
         )
 
+        if (refusal := post_close_refusal(tree)) is not None:
+            return refusal  # dropped with no reply, no fault (CM-23-017)
         verdict = verdict_from_bt(tree, result, label="AddParticipantStatusBT")
         if verdict.disposition is HandlerDisposition.REFUSED and (
             _adoption_gate_blocked(tree)

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, ClassVar
 import py_trees
 from py_trees.common import Status
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.add_report_received_tree import (
     create_add_report_to_case_received_tree,
@@ -25,6 +26,7 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     find_named,
+    post_close_refusal,
     reference_edit_verdict,
     verdict_from_bt,
 )
@@ -116,6 +118,14 @@ class AddReportToCaseReceivedUseCase:
 
 
 class CloseCaseReceivedUseCase:
+    """Close the case on an owner Leave, or close one participant's handling.
+
+    A Leave that arrives after ``case_fully_closed`` is ``REFUSED`` and
+    records nothing (CM-23-013); ``actor_config.post_close_reply`` decides
+    whether the sender gets ``Reject(Leave(VulnerabilityCase))`` or no reply
+    (ADR-0131).
+    """
+
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
         "#4070", "no sender check defined for case closure"
     )
@@ -127,13 +137,18 @@ class CloseCaseReceivedUseCase:
         sync_port: "SyncActivityPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        actor_config: ActorConfig | None = None,
     ) -> None:
         self._dl = dl
         self._request: CloseCaseReceivedEvent = request
         self._sync_port = sync_port
         # trigger_activity lets the received-close tree emit an as:Reject when
-        # it must decline an owner close during a live embargo (CM-23-011).
+        # it must decline an owner close during a live embargo (CM-23-011),
+        # or answer a late Leave under PostCloseReply.REJECT (CM-23-013).
         self._trigger_activity = trigger_activity
+        # actor_config carries post_close_reply, the one policy point for the
+        # reply to a Leave after case_fully_closed (ADR-0131).
+        self._actor_config = actor_config or ActorConfig()
         # wire_render_port renders the CASE_MANAGER's own RM.CLOSED
         # ParticipantStatus into the canonical ledger snapshot CM-23-005
         # requires (CommitCaseActorRMClosedEntryNode, ISSUE-2505).
@@ -164,6 +179,7 @@ class CloseCaseReceivedUseCase:
             activity_obj=request.activity,
             sender_actor_id=request.actor_id,
             receiving_actor_id=receiving_actor_id,
+            post_close_reply=self._actor_config.post_close_reply,
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -175,6 +191,10 @@ class CloseCaseReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
+        if (refusal := post_close_refusal(tree)) is not None:
+            # The case is fully closed: nothing was recorded, and the sender
+            # got a Reject only under PostCloseReply.REJECT (CM-23-013).
+            return refusal
         if _close_declined(tree):
             # The decline arm ran: the case was left open and the owner was
             # answered with an as:Reject (CM-23-011).  That is a refusal of the

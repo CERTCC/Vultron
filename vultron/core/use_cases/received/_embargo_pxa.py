@@ -50,7 +50,10 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.embargo import (
     InviteToEmbargoOnCaseReceivedEvent,
 )
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
@@ -145,7 +148,9 @@ def run_pxa_refusal_tree(
         return "not the replication leader"
     if node_failed(tree, EmbargoInviteNotYetRefusedNode):
         return "the ER was already sent (HP-01-003)"
-    applied_or_raise(tree, result, label="RefuseEmbargoInviteBT")
+    verdict = applied_or_raise(tree, result, label="RefuseEmbargoInviteBT")
+    if verdict.disposition is HandlerDisposition.REFUSED:
+        return verdict.reason  # the case is fully closed (CM-23-013)
     return None
 
 

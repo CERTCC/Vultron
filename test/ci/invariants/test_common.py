@@ -1705,3 +1705,98 @@ def test_unique_payload_ids_passes_one_entry_per_activity_per_replica():
 def test_unique_payload_ids_ignores_snapshots_without_an_id():
     replicas = {"case-actor": [_entry(0, _SHA256("a"), GENESIS_HASH)] * 2}
     assert check_unique_payload_snapshot_ids(replicas) == []
+
+
+# ---------------------------------------------------------------------------
+# Invariant 18: check_no_participant_act_after_case_fully_closed (CM-23-013)
+# ---------------------------------------------------------------------------
+
+_PC_MANAGER = "https://example.org/api/v2/actors/case-actor"
+_PC_OWNER = "https://example.org/api/v2/actors/vendor"
+_PC_FINDER = "https://example.org/api/v2/actors/finder"
+_PC_NAMES = {
+    "case-actor": "case-actor",
+    "vendor": "vendor",
+    "finder": "finder",
+}
+
+
+def _pc_entry(index: int, event: str, actor: str, subject: str | None = None):
+    snapshot: dict = {"actor": actor}
+    if subject is not None:
+        snapshot["object"] = {"attributedTo": subject, "rmState": "CLOSED"}
+    return {
+        "logIndex": index,
+        "eventType": event,
+        "payloadSnapshot": snapshot,
+    }
+
+
+def _pc_ledger(*late: dict) -> dict[str, list[dict]]:
+    entries = [
+        _pc_entry(0, "close_case", _PC_FINDER),
+        _pc_entry(1, "close_case", _PC_OWNER),
+        _pc_entry(
+            2,
+            "add_participant_status_to_participant",
+            _PC_MANAGER,
+            _PC_MANAGER,
+        ),
+        _pc_entry(3, "case_fully_closed", _PC_OWNER),
+        *late,
+    ]
+    return {"case-actor": entries}
+
+
+@pytest.mark.spec("CM-23-013")
+def test_post_close_invariant_passes_when_the_owner_closes_last():
+    from test.ci.invariants.common import (
+        check_no_participant_act_after_case_fully_closed,
+    )
+
+    assert (
+        check_no_participant_act_after_case_fully_closed(
+            _pc_ledger(), _PC_NAMES
+        )
+        == []
+    )
+
+
+@pytest.mark.spec("CM-23-013")
+def test_post_close_invariant_flags_a_participant_act_after_the_boundary():
+    from test.ci.invariants.common import (
+        check_no_participant_act_after_case_fully_closed,
+    )
+
+    (violation,) = check_no_participant_act_after_case_fully_closed(
+        _pc_ledger(_pc_entry(4, "close_case", _PC_FINDER)), _PC_NAMES
+    )
+    assert "logIndex=4" in violation
+    assert _PC_FINDER in violation
+
+
+@pytest.mark.spec("CM-23-013")
+def test_post_close_invariant_allows_the_case_managers_own_entries():
+    from test.ci.invariants.common import (
+        check_no_participant_act_after_case_fully_closed,
+    )
+
+    late = _pc_entry(4, "invite_expired", _PC_MANAGER)
+    assert (
+        check_no_participant_act_after_case_fully_closed(
+            _pc_ledger(late), _PC_NAMES
+        )
+        == []
+    )
+
+
+@pytest.mark.spec("CM-23-002")
+def test_post_close_invariant_requires_the_boundary():
+    from test.ci.invariants.common import (
+        check_no_participant_act_after_case_fully_closed,
+    )
+
+    replicas = {"case-actor": _pc_ledger()["case-actor"][:3]}
+    assert check_no_participant_act_after_case_fully_closed(
+        replicas, _PC_NAMES
+    ) == ["expected exactly one 'case_fully_closed' entry, found 0"]

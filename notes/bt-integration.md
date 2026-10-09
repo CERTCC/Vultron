@@ -13,6 +13,7 @@ related_specs:
   - specs/embargo-policy.yaml
   - specs/participant-case-replica.yaml
   - specs/case-bootstrap-trust.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/bt-canonical-reference.md
   - notes/case-ledger-authority.md
@@ -397,6 +398,25 @@ stages in a fixed order (CLP-10-006, CLP-10-010):
    CBT-01-005). A stored `VultronActivity` dehydrates `object`/`target` to ids,
    so the faithful copy is the received evidence ADR-0107 step 5 seals at parse;
    #3742 persists it beside the archived row, through this node.
+   Directly after intake the factory places `CaseOpenToExternalWritesNode`
+   (`case/nodes/post_close.py`), the CM-23-013 write boundary. At the case's
+   CASE_MANAGER, once the ledger holds `case_fully_closed`, it fails the tree,
+   so nothing after it runs: no commit, no effect, no emit. It passes on every
+   other store, so replicas keep applying the closure fan-out. Its case is the
+   commit's `case_id`, else `manager_case_id`, else the case the activity names
+   (context, `case_id`, target). The handler's verdict comes from
+   `post_close_refusal` (`use_cases/received/_bt_verdict.py`), which
+   `verdict_from_bt` and `applied_or_raise` ask first, so it is `REFUSED`
+   whatever the handler reads from other failures; a handler that answers a
+   refusal itself (the status handlers' ProcessingFault) asks it first. A
+   handler that commits or sends *before* its tree runs (embargo Accept and
+   Invite) asks the same node first through `post_close_refusal_before_tree`
+   (`use_cases/received/_sender_preflight.py`). A tree opts out only with a
+   `PostCloseExemption` (resync, or a subtree whose enclosing tree already
+   guards). `post_close_reply` takes emit-only nodes that answer the refusal;
+   only the close-case tree passes one, `Reject(Leave)` under
+   `ActorConfig.post_close_reply = reject`. Every other late activity is
+   dropped with no reply (ADR-0131, CM-23-017).
 2. **Guards** — read-only precondition checks that return FAILURE to refuse.
    They write nothing. A refusal goes to the process log and, where the
    protocol calls for an answer, back to the sender — never to the ledger
