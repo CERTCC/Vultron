@@ -2,6 +2,7 @@
 
 import pytest
 
+from test.metadata._adr_stubs import write_adr_stub
 from vultron.metadata.adr.index_gen import (
     duplicate_numbers,
     generate_index,
@@ -10,15 +11,8 @@ from vultron.metadata.adr.index_gen import (
 )
 
 
-def _write_adr(adr_dir, num, status, title, superseded_by=None):
-    fm = (
-        f"---\nstatus: {status}\ncreated: 2020-01-01\nupdated: 2020-01-01\n"
-        "revision: 1\n"
-    )
-    if superseded_by:
-        fm += f"superseded_by: {superseded_by}\n"
-    fm += "---\n"
-    (adr_dir / f"{num}-stub.md").write_text(f"{fm}# {title}\n")
+def _write_adr(adr_dir, num, status, title, **links):
+    write_adr_stub(adr_dir, f"{num}-stub.md", status, title, **links)
 
 
 def _scaffold(tmp_path):
@@ -79,9 +73,12 @@ class TestGenerateIndex:
         """
         adr_dir = _scaffold(tmp_path)
         _write_adr(adr_dir, "0001", "accepted", "Replacement")
-        (adr_dir / "0002-stub.md").write_text(
-            "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n"
-            "partially_superseded_by: 0001-stub.md\n---\n# Older\n"
+        _write_adr(
+            adr_dir,
+            "0002",
+            "accepted",
+            "Older",
+            partially_superseded_by="0001-stub.md",
         )
 
         out = generate_index(tmp_path)
@@ -98,10 +95,13 @@ class TestGenerateIndex:
     def test_successor_line_names_what_it_supersedes(self, tmp_path):
         """The successor side is shown, so a reader of either ADR sees the link."""
         adr_dir = _scaffold(tmp_path)
-        (adr_dir / "0003-stub.md").write_text(
-            "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\n"
-            "revision: 1\nsupersedes:\n  - 0001-stub.md\n  - 0002-stub.md\n"
-            "partially_supersedes: [0004-stub.md, 0005-stub.md]\n---\n# New\n"
+        _write_adr(
+            adr_dir,
+            "0003",
+            "accepted",
+            "New",
+            supersedes=["0001-stub.md", "0002-stub.md"],
+            partially_supersedes=["0004-stub.md", "0005-stub.md"],
         )
 
         out = generate_index(tmp_path)
@@ -116,9 +116,12 @@ class TestGenerateIndex:
     @pytest.mark.spec("MS-14-011")
     def test_partial_successor_line(self, tmp_path):
         adr_dir = _scaffold(tmp_path)
-        (adr_dir / "0002-stub.md").write_text(
-            "---\nstatus: proposed\ncreated: 2020-01-01\nupdated: 2020-01-01\n"
-            "revision: 1\npartially_supersedes: 0001-stub.md\n---\n# New\n"
+        _write_adr(
+            adr_dir,
+            "0002",
+            "proposed",
+            "New",
+            partially_supersedes="0001-stub.md",
         )
         out = generate_index(tmp_path)
         proposed = out.split("## Proposed ADRs")[1].split("## Rejected")[0]
@@ -130,15 +133,19 @@ class TestGenerateIndex:
     @pytest.mark.spec("MS-14-011")
     def test_list_valued_forward_pointers_are_joined(self, tmp_path):
         adr_dir = _scaffold(tmp_path)
-        (adr_dir / "0001-stub.md").write_text(
-            "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\n"
-            "revision: 1\npartially_superseded_by: [0002-stub.md, ADR-0003]\n"
-            "---\n# Old\n"
+        _write_adr(
+            adr_dir,
+            "0001",
+            "accepted",
+            "Old",
+            partially_superseded_by=["0002-stub.md", "ADR-0003"],
         )
-        (adr_dir / "0004-stub.md").write_text(
-            "---\nstatus: superseded\ncreated: 2020-01-01\nupdated: 2020-01-01\n"
-            "revision: 1\nsuperseded_by: [0002-stub.md, 0003-stub.md]\n"
-            "---\n# Older\n"
+        _write_adr(
+            adr_dir,
+            "0004",
+            "superseded",
+            "Older",
+            superseded_by=["0002-stub.md", "0003-stub.md"],
         )
 
         out = generate_index(tmp_path)
@@ -156,12 +163,15 @@ class TestGenerateIndex:
 
     @pytest.mark.spec("MS-14-011")
     def test_retired_successor_shows_both_sides(self, tmp_path):
-        """ADR-0082's shape: retired itself, and it retired ADR-0062."""
+        """An ADR that was itself retired still names what it retired."""
         adr_dir = _scaffold(tmp_path)
-        (adr_dir / "0002-stub.md").write_text(
-            "---\nstatus: superseded\ncreated: 2020-01-01\nupdated: 2020-01-01\n"
-            "revision: 1\nsuperseded_by: 0003-stub.md\n"
-            "supersedes: 0001-stub.md\n---\n# Middle\n"
+        _write_adr(
+            adr_dir,
+            "0002",
+            "superseded",
+            "Middle",
+            superseded_by="0003-stub.md",
+            supersedes="0001-stub.md",
         )
         out = generate_index(tmp_path)
         retired = out.split("## Superseded / Archived ADRs")[1]

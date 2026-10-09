@@ -12,6 +12,7 @@ import pytest
 
 import vultron.metadata.specs.lint as lint_module
 import vultron.metadata.specs.verification as verification_module
+from test.metadata._adr_stubs import write_adr_stub
 from test.metadata.specs._helpers import write_yaml
 from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs.lint import lint
@@ -628,10 +629,7 @@ def _write_successor_stub(adr_dir, num, supersedes):
     A supersession link must be recorded on both ADRs, so a fixture retiring
     an ADR also needs the successor-side ``supersedes`` entry.
     """
-    (adr_dir / f"{num}-stub.md").write_text(
-        f"---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\n"
-        f"revision: 1\nsupersedes: {supersedes}\n---\n# ADR-{num}\n"
-    )
+    write_adr_stub(adr_dir, f"{num}-stub.md", supersedes=supersedes)
 
 
 def test_lint_adr_ref_missing_emits_warn(tmp_path, capsys):

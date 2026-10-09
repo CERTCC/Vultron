@@ -6,6 +6,7 @@ Validation test requirement: specs/meta-specifications.yaml MS-14 (ADR-0043).
 import pytest
 from pydantic import ValidationError
 
+from test.metadata._adr_stubs import write_adr_stub as _adr
 from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.adr.schema import SUPERSESSION_FIELDS, AdrFrontmatter
 from vultron.metadata.docs.page_schema import StakeholderType
@@ -272,26 +273,6 @@ def test_loader_raises_valueerror_on_malformed_yaml(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _adr(adr_dir, name, status="accepted", **links):
-    """Write an ADR stub whose frontmatter carries the given link fields."""
-    lines = [
-        "---",
-        f"status: {status}",
-        "created: 2020-01-01",
-        "updated: 2020-01-01",
-        "revision: 1",
-    ]
-    for field, value in links.items():
-        if isinstance(value, list):
-            lines.append(f"{field}:")
-            lines.extend(f"  - {v}" for v in value)
-        else:
-            lines.append(f"{field}: {value}")
-    lines += ["---", f"# {name}", ""]
-    adr_dir.mkdir(parents=True, exist_ok=True)
-    (adr_dir / name).write_text("\n".join(lines))
-
-
 @pytest.fixture
 def adr_dir(tmp_path):
     return tmp_path / "docs" / "adr"
@@ -470,7 +451,7 @@ class TestTwoWaySupersession:
     def test_dangling_successor_side_entry_fails(
         self, tmp_path, adr_dir, field
     ):
-        """AC-2: the successor-side fields resolve like ``superseded_by``."""
+        """The successor-side fields must resolve, like ``superseded_by``."""
         _adr(adr_dir, "0001-new.md", **{field: "9999-nope.md"})
         with pytest.raises(ValueError, match=f"{field} '9999-nope.md'"):
             load_adr_registry(tmp_path)
@@ -478,4 +459,11 @@ class TestTwoWaySupersession:
     def test_dangling_adr_number_entry_fails(self, tmp_path, adr_dir):
         _adr(adr_dir, "0001-new.md", supersedes=["ADR-9999"])
         with pytest.raises(ValueError, match="supersedes 'ADR-9999'"):
+            load_adr_registry(tmp_path)
+
+    def test_pointer_to_a_non_adr_file_fails(self, tmp_path, adr_dir):
+        """A numbered file that is not markdown is not an ADR to link to."""
+        _adr(adr_dir, "0001-new.md", supersedes="0002-notes.txt")
+        (adr_dir / "0002-notes.txt").write_text("not an ADR\n")
+        with pytest.raises(ValueError, match=r"supersedes '0002-notes\.txt'"):
             load_adr_registry(tmp_path)

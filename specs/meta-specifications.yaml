@@ -1147,7 +1147,7 @@ groups:
       A successor can retire several ADRs (ADR-0099 retired two), which a single-valued field
       could not record, and with only the forward pointer checked the successor side drifted out
       of date. An agent reading the successor needs to see what it replaced, and a loader check
-      fails a one-sided link in CI. Planned in #3848.
+      fails a one-sided link in CI. Planned in #3848 and built in #4351.
     verification: >-
       `test/metadata/test_adr_frontmatter.py` checks that each of the four fields accepts a single
       ADR or a list (`TestSupersessionFieldsAreLists`), that the loader fails a one-sided

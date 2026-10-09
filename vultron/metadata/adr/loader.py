@@ -32,7 +32,8 @@ from vultron.metadata.file_loading import (
 # Files under docs/adr/ that are not decision records.
 SKIP_FILES = {"index.md", "README.md"}
 
-_ADR_NUM_RE = re.compile(r"^(\d{4})-")
+_ADR_NUMBER_RE = re.compile(r"\d{4}")
+_ADR_NUM_RE = re.compile(rf"^({_ADR_NUMBER_RE.pattern})-")
 
 
 def adr_number(path: Path) -> str | None:
@@ -184,7 +185,9 @@ def _one_sided_links(resolved: _Resolved) -> list[str]:
             twin = _TWIN_FIELD[field]
             for target_number in sorted(targets):
                 # Resolution only succeeds on a numbered file the discovery
-                # glob also loads, so the lookup cannot miss.
+                # glob also loads, so the lookup cannot miss. Two files sharing
+                # a number keep only the last here; duplicate_numbers() in
+                # index_gen (adr-index --check) is what refuses that case.
                 target_key = key_by_number[target_number]
                 if number not in resolved[target_key][twin]:
                     faults.append(
@@ -210,10 +213,12 @@ def _superseded_target_number(adr_dir: Path, target: str) -> str | None:
         found = any(adr_dir.glob(f"{number}-*.md")) or any(
             (adr_dir / "archived").glob(f"{number}-*.md")
         )
-        return number if found and _ADR_NUM_RE.match(f"{number}-") else None
+        # The glob matches any prefix; only a four-digit one is an ADR number.
+        return number if found and _ADR_NUMBER_RE.fullmatch(number) else None
     # Otherwise treat as a filename / path fragment.
     name = Path(candidate).name
-    if not (
+    # Only a markdown file is an ADR the discovery glob loads.
+    if not name.endswith(".md") or not (
         (adr_dir / name).exists() or (adr_dir / "archived" / name).exists()
     ):
         return None
