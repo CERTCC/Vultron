@@ -129,6 +129,7 @@ def test_post_activity_to_actor_inbox_accepted(client_actors, created_actors):
         assert resp.status_code == status.HTTP_202_ACCEPTED
 
 
+@pytest.mark.spec("IE-04-002")
 def test_post_non_activity_to_actor_inbox_returns_422(
     client_actors, created_actors
 ):

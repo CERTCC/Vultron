@@ -54,6 +54,8 @@ from .conftest import (
 )
 
 
+@pytest.mark.spec("CSB-12-002")
+@pytest.mark.spec("CSB-13-003")
 @pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
 def test_propose_embargo_strict_raises_when_pxa_set(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
