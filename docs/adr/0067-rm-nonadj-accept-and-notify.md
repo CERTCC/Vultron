@@ -102,13 +102,12 @@ addition it MUST:
 
 ### Implementation shape
 
-A blackboard flag key `rm_transition_anomaly` is set by
-`FilterParticipantStatusDimensionsNode` (forward gap) and by
-`ValidateRMTransitionNode` (backward regression on the standalone path) when
-an anomaly is detected. A new `EmitRMGapNoteNode` in
-`effect_nodes` of `add_participant_status_tree` reads this flag and emits the
-note when set. The `append_participant_status_tree` standalone path only logs
-— it has no `case_id` and no caller in production.
+This decision constrains any implementation by the invariants below; the concrete nodes and trees that satisfy them are tracked by the governing requirements RSH-06-001 through RSH-06-005, whose `verification:` fields name the current tests — this ADR does not name them, so an implementation refactor does not invalidate it.
+
+- The anomaly — a non-adjacent forward jump, or a backward regression — is detected and recorded at the moment of receipt, on whichever received path carried the declaration.
+- The clarification `Add(Note, VulnerabilityCase)` to the sender is emitted only by the CASE_MANAGER, because only the CASE_MANAGER adjudicates a declaration into case state.
+- A wholly refused backward regression still owes the sender that note, even though the refusal is a precondition-guard failure that stops the tree before its ordinary effects; the note is therefore emitted on the refusal path, once per received activity, so a redelivery does not repeat it.
+- The test-only standalone path has no case context: it logs the anomaly at WARNING and emits no note.
 
 ### Consequences
 
@@ -150,3 +149,11 @@ note when set. The `append_participant_status_tree` standalone path only logs
 
 Generated spec requirements: `specs/received-status-handling.yaml` RSH-06-001
 through RSH-06-005.
+
+## Amendment — 2026-10-09
+
+The "Implementation shape" section is rewritten to record decision-level invariants only; the decision itself is unchanged.
+As first written, the section named concrete node classes and a factory parameter — `rm_transition_anomaly`, `FilterParticipantStatusDimensionsNode`, `ValidateRMTransitionNode`, `EmitRMGapNoteNode`, and the `effect_nodes` of `add_participant_status_tree`.
+A later refactor (the received-tree factory work landed with #4310) renamed those nodes and moved the note from a single effect stage to both the accepted-path effects and the refusal-path effects, which left the ADR describing an implementation that no longer existed.
+The replacement text states only what any implementation MUST satisfy — where the anomaly is detected, that the note is emitted only by the CASE_MANAGER, that a wholly refused backward regression still owes the sender a note on the refusal path once per received activity, and that the test-only standalone path logs but emits no note — and defers the live node and tree mapping to RSH-06-001 through RSH-06-005, whose `verification:` fields track the current tests.
+This also records the missing fact the original section lacked: that a wholly refused regression is a precondition-guard failure whose note runs as a refusal effect, not an ordinary effect (#4348, found while implementing #4310).
