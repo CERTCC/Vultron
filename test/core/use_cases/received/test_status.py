@@ -17,6 +17,9 @@ from typing import cast
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -35,6 +38,7 @@ from vultron.core.use_cases.received.status import (
     CreateCaseStatusReceivedUseCase,
     CreateParticipantStatusReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
@@ -126,11 +130,18 @@ class TestStatusUseCases:
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cs3",
             name="Add Status Case",
+            # attributed_to anchors the per-case ledger genesis the gated
+            # commit needs (CLP-08-005).
+            attributed_to="https://test.example/api/v2/actors/test-actor",
         )
         status = as_CaseStatus(
             id_="https://example.org/cases/case_cs3/statuses/s3",
             context=case.id_,
         )
+        # RSH-08-003/#3814: appending the CaseStatus is now CASE_MANAGER-gated,
+        # so the store's own actor must hold the role for the write to run,
+        # which also runs the guarded commit (sync_port injected below).
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
         dl.create(status)
 
@@ -140,7 +151,10 @@ class TestStatusUseCases:
         event = make_payload(activity)
 
         result = AddCaseStatusToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         case = dl.read(case.id_)
@@ -153,7 +167,10 @@ class TestStatusUseCases:
         # HP-01-003: a redelivered Add of a status already present is a
         # no-op, not a refusal.
         again = AddCaseStatusToCaseReceivedUseCase(
-            dl, event, wire_render_port=As2WireRenderAdapter()
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert again.disposition == HandlerDisposition.SKIPPED
 
@@ -523,10 +540,15 @@ class TestStatusUseCases:
             "sqlite:///:memory:",
             actor_id="https://example.org/users/vendor",
         )
+        # RSH-08-003/#3814: the append is now CASE_MANAGER-gated.  The subject
+        # participant is the store's own actor, so holding CASE_MANAGER lets
+        # the gated write run while leaving it a non-owner (so the adoption
+        # call-out still withholds, keeping the SKIPPED assertion below).
         participant = as_CaseParticipant(
             id_="https://example.org/cases/case_ps2/participants/p2",
             context="https://example.org/cases/case_ps2",
             attributed_to="https://example.org/users/vendor",
+            case_roles=[CVDRole.CASE_MANAGER],
         )
         pstatus = as_ParticipantStatus(
             id_="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
@@ -535,6 +557,8 @@ class TestStatusUseCases:
         case_ps2 = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ps2",
             name="PS Case 2",
+            # Genesis anchor for the gated commit (CLP-08-005).
+            attributed_to="https://example.org/users/vendor",
         )
         # Register the vendor actor as a participant so step 1 passes
         case_ps2.case_participants.append(participant.id_)
@@ -560,6 +584,7 @@ class TestStatusUseCases:
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
         # The default call-out withholds adoption of a non-owner's claim
         # (RSH-07-001).  The append lands, and a withheld adoption is not a
@@ -588,10 +613,13 @@ class TestStatusUseCases:
         vendor_id = "https://example.org/users/vendor-nostamp"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=vendor_id)
 
+        # RSH-08-003/#3814: the append is CASE_MANAGER-gated; the store owner
+        # (also the subject) holds the role so the gated write runs.
         participant = as_CaseParticipant(
             id_="https://example.org/cases/case_ps_nostamp/participants/p",
             context="https://example.org/cases/case_ps_nostamp",
             attributed_to=vendor_id,
+            case_roles=[CVDRole.CASE_MANAGER],
         )
         pstatus = as_ParticipantStatus(
             id_=(
@@ -603,6 +631,8 @@ class TestStatusUseCases:
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ps_nostamp",
             name="PS No-Stamp Test",
+            # Genesis anchor for the gated commit (CLP-08-005).
+            attributed_to=vendor_id,
         )
         case.case_participants.append(participant.id_)
         case.actor_participant_index[vendor_id] = participant.id_
@@ -622,6 +652,7 @@ class TestStatusUseCases:
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
         ).execute()
 
         refreshed = dl.read(participant.id_)

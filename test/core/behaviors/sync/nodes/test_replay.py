@@ -148,9 +148,9 @@ class TestFindCaseActorNode:
     """``FindCaseActorNode`` resolves an *address* from the role (ADR-0088).
 
     It publishes ``case_actor_id`` for the downstream announce/replay nodes and
-    ``case_id`` for the role gate in ``create_reject_log_entry_tree``.  It does
-    not decide authority — that is the separate ``CheckIsCaseManagerNode`` in
-    that tree (ARCH-24-005).
+    ``case_id`` for later nodes.  It does not decide authority — that is the
+    factory's CASE_MANAGER gate in ``create_reject_log_entry_tree``
+    (ARCH-24-005).
     """
 
     @pytest.mark.spec("ARCH-24-001")

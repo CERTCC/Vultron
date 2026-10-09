@@ -46,22 +46,31 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
     CloseReportReceivedEvent,
     InvalidateReportReceivedEvent,
 )
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import (
     CloseReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
+)
+from vultron.enums.roles import CVDRole
+from vultron.semantic_registry import extract_event
+from vultron.wire.as2.factories import (
+    rm_close_report_activity,
+    rm_invalidate_report_activity,
+    rm_submit_report_activity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -119,10 +128,18 @@ def _make_dl(
     report = as_VulnerabilityReport(id_=REPORT_ID, name="Routing Guard Report")
     dl.save(report)
 
+    # RSH-08-003/#3814: the sender's RM move now runs only inside the
+    # CASE_MANAGER gate, so the store's own actor must hold CVDRole.CASE_MANAGER
+    # for the gated write to land in its replica.  Whichever actor owns the
+    # store (the receiver, or the sender in the fallback case) is seeded as the
+    # manager; the subject of the write is still the sender (RSH-08-001).
     receiving_participant = CaseParticipant(
         id_="https://example.org/participants/p-receiving-guard",
         attributed_to=RECEIVING_ACTOR_ID,
         context=CASE_ID,
+        case_roles=(
+            [CVDRole.CASE_MANAGER] if actor_id == RECEIVING_ACTOR_ID else []
+        ),
         participant_statuses=[
             ParticipantStatus(
                 rm=RmDimension(state=receiving_rm),
@@ -135,6 +152,9 @@ def _make_dl(
         id_="https://example.org/participants/p-sender-guard",
         attributed_to=SENDER_ACTOR_ID,
         context=CASE_ID,
+        case_roles=(
+            [CVDRole.CASE_MANAGER] if actor_id == SENDER_ACTOR_ID else []
+        ),
         participant_statuses=[
             ParticipantStatus(
                 rm=RmDimension(state=sender_rm),
@@ -147,6 +167,10 @@ def _make_dl(
     case = as_VulnerabilityCase(
         id_=CASE_ID,
         name="Report Routing Guard Test Case",
+        # attributed_to seeds the per-case genesis hash (CLP-08-003); the
+        # store owner is the CASE_MANAGER, so the gated canonical commit
+        # (CLP-10-013, #4304) can anchor its chain when the write runs.
+        attributed_to=actor_id,
     )
     case.vulnerability_reports.append(REPORT_ID)
     case.case_participants.append(receiving_participant.id_)
@@ -175,44 +199,71 @@ def _rm_state(dl: SqliteDataLayer, actor_id: str) -> RM | None:
     return participant.participant_statuses[-1].rm.state
 
 
+def _offer() -> as_Offer:
+    """The canonical ``Offer(Report)`` the verdict rejects (CLP-10-013)."""
+    return rm_submit_report_activity(
+        as_VulnerabilityReport(id_=REPORT_ID, name="r"),
+        to=RECEIVING_ACTOR_ID,
+        actor=SENDER_ACTOR_ID,
+    )
+
+
 def _make_invalidate_event(
     receiving_actor_id: str | None = RECEIVING_ACTOR_ID,
 ) -> InvalidateReportReceivedEvent:
-    activity = VultronActivity(
-        id_="https://example.org/activities/invalidate-guard",
-        type_="TentativeReject",
-        actor=SENDER_ACTOR_ID,
-        object_=REPORT_ID,
+    # RSH-08-003/#3814: the sender's RM write now runs behind the CASE_MANAGER
+    # gate, which sits after the canonical ledger commit (CLP-10-013, #4304).
+    # A hand-built bare-report activity is not canonical, so build the real
+    # ``TentativeReject(Offer(Report))`` the wire factory emits.
+    event = extract_event(
+        rm_invalidate_report_activity(
+            _offer(), actor=SENDER_ACTOR_ID, to=[RECEIVING_ACTOR_ID]
+        )
     )
-    return InvalidateReportReceivedEvent(
-        semantic_type=MessageSemantics.INVALIDATE_REPORT,
-        activity_id=activity.id_,
-        actor_id=SENDER_ACTOR_ID,
-        object_=VulnerabilityReport(id_=REPORT_ID),
-        inner_object=VulnerabilityReport(id_=REPORT_ID),
-        activity=activity,
-        receiving_actor_id=receiving_actor_id,
+    return cast(
+        InvalidateReportReceivedEvent,
+        event.model_copy(update={"receiving_actor_id": receiving_actor_id}),
     )
 
 
 def _make_close_report_event(
     receiving_actor_id: str | None = RECEIVING_ACTOR_ID,
 ) -> CloseReportReceivedEvent:
-    activity = VultronActivity(
-        id_="https://example.org/activities/close-report-guard",
-        type_="Reject",
-        actor=SENDER_ACTOR_ID,
-        object_=REPORT_ID,
+    event = extract_event(
+        rm_close_report_activity(
+            _offer(), actor=SENDER_ACTOR_ID, to=[RECEIVING_ACTOR_ID]
+        )
     )
-    return CloseReportReceivedEvent(
-        semantic_type=MessageSemantics.CLOSE_REPORT,
-        activity_id=activity.id_,
-        actor_id=SENDER_ACTOR_ID,
-        object_=VulnerabilityReport(id_=REPORT_ID),
-        inner_object=VulnerabilityReport(id_=REPORT_ID),
-        activity=activity,
-        receiving_actor_id=receiving_actor_id,
+    return cast(
+        CloseReportReceivedEvent,
+        event.model_copy(update={"receiving_actor_id": receiving_actor_id}),
     )
+
+
+def _run_invalidate(dl, request):
+    """Execute InvalidateReportReceivedUseCase with the ports the inbox gives it.
+
+    RSH-08-003/#3814: the sender's RM write and the canonical ledger commit
+    (CLP-10-013, #4304) now run inside the CASE_MANAGER gate, so the store owner
+    must be the manager (see ``_make_dl``) and the use case needs the sync and
+    wire-render ports the inbox would supply.
+    """
+    return InvalidateReportReceivedUseCase(
+        dl=dl,
+        request=request,
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+
+def _run_close(dl, request):
+    """Execute CloseReportReceivedUseCase with the ports the inbox gives it."""
+    return CloseReportReceivedUseCase(
+        dl=dl,
+        request=request,
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
 
 
 # ---------------------------------------------------------------------------
@@ -233,12 +284,9 @@ class TestInvalidateReportReceivedSubject:
         """RM.INVALID is recorded for the sender, the activity's subject."""
         dl = _make_dl(receiving_rm=RM.RECEIVED, sender_rm=RM.RECEIVED)
 
-        InvalidateReportReceivedUseCase(
-            dl=dl,
-            request=_make_invalidate_event(
-                receiving_actor_id=RECEIVING_ACTOR_ID
-            ),
-        ).execute()
+        _run_invalidate(
+            dl, _make_invalidate_event(receiving_actor_id=RECEIVING_ACTOR_ID)
+        )
 
         assert _rm_state(dl, SENDER_ACTOR_ID) == RM.INVALID, (
             "the sender's participant must reach RM.INVALID: the activity"
@@ -251,12 +299,9 @@ class TestInvalidateReportReceivedSubject:
         """The receiving actor's own RM does not move on receipt."""
         dl = _make_dl(receiving_rm=RM.RECEIVED, sender_rm=RM.RECEIVED)
 
-        InvalidateReportReceivedUseCase(
-            dl=dl,
-            request=_make_invalidate_event(
-                receiving_actor_id=RECEIVING_ACTOR_ID
-            ),
-        ).execute()
+        _run_invalidate(
+            dl, _make_invalidate_event(receiving_actor_id=RECEIVING_ACTOR_ID)
+        )
 
         assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.RECEIVED, (
             "the receiving actor is not the mover, so its participant must"
@@ -284,13 +329,17 @@ class TestInvalidateReportReceivedSubject:
 
         executed_as = _spy_executing_actor(monkeypatch)
 
-        result = InvalidateReportReceivedUseCase(
-            dl=dl,
-            request=_make_invalidate_event(receiving_actor_id=None),
-        ).execute()
+        result = _run_invalidate(
+            dl, _make_invalidate_event(receiving_actor_id=None)
+        )
 
         assert result.disposition == HandlerDisposition.APPLIED, result.reason
-        assert executed_as == [store_owner_id], (
+        # The received tree executes as the store's owner (BT-17-006).  The
+        # store owner is the CASE_MANAGER here, so the gated canonical commit
+        # now runs (CLP-10-013, #4304); that inner commit tree runs under its
+        # own actor, so assert only that the *received* tree — the first run —
+        # executed as the store owner, never as the sender.
+        assert executed_as[0] == store_owner_id, (
             "absent receiving_actor_id, the tree executes as the store's"
             " owner, never as the sender (BT-17-006)"
         )
@@ -319,12 +368,9 @@ class TestCloseReportReceivedSubject:
         """RM.CLOSED is recorded for the sender, the activity's subject."""
         dl = _make_dl(receiving_rm=RM.RECEIVED, sender_rm=RM.INVALID)
 
-        CloseReportReceivedUseCase(
-            dl=dl,
-            request=_make_close_report_event(
-                receiving_actor_id=RECEIVING_ACTOR_ID
-            ),
-        ).execute()
+        _run_close(
+            dl, _make_close_report_event(receiving_actor_id=RECEIVING_ACTOR_ID)
+        )
 
         assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED, (
             "the sender's participant must reach RM.CLOSED: the activity"
@@ -337,12 +383,9 @@ class TestCloseReportReceivedSubject:
         """The receiving actor's own RM does not move on receipt."""
         dl = _make_dl(receiving_rm=RM.INVALID, sender_rm=RM.INVALID)
 
-        CloseReportReceivedUseCase(
-            dl=dl,
-            request=_make_close_report_event(
-                receiving_actor_id=RECEIVING_ACTOR_ID
-            ),
-        ).execute()
+        _run_close(
+            dl, _make_close_report_event(receiving_actor_id=RECEIVING_ACTOR_ID)
+        )
 
         assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.INVALID, (
             "the receiving actor is not the mover, so its participant must"
@@ -370,13 +413,17 @@ class TestCloseReportReceivedSubject:
 
         executed_as = _spy_executing_actor(monkeypatch)
 
-        result = CloseReportReceivedUseCase(
-            dl=dl,
-            request=_make_close_report_event(receiving_actor_id=None),
-        ).execute()
+        result = _run_close(
+            dl, _make_close_report_event(receiving_actor_id=None)
+        )
 
         assert result.disposition == HandlerDisposition.APPLIED, result.reason
-        assert executed_as == [store_owner_id], (
+        # The received tree executes as the store's owner (BT-17-006).  The
+        # store owner is the CASE_MANAGER here, so the gated canonical commit
+        # now runs (CLP-10-013, #4304); that inner commit tree runs under its
+        # own actor, so assert only that the *received* tree — the first run —
+        # executed as the store owner, never as the sender.
+        assert executed_as[0] == store_owner_id, (
             "absent receiving_actor_id, the tree executes as the store's"
             " owner, never as the sender (BT-17-006)"
         )
@@ -394,17 +441,14 @@ class TestCloseInvalidateDisposition:
 
     @pytest.mark.spec("HP-01-003")
     def test_invalidate_is_applied(self):
-        result = InvalidateReportReceivedUseCase(
-            dl=_make_dl(), request=_make_invalidate_event()
-        ).execute()
+        result = _run_invalidate(_make_dl(), _make_invalidate_event())
         assert result.disposition == HandlerDisposition.APPLIED
 
     @pytest.mark.spec("HP-01-003")
     def test_close_is_applied(self):
-        result = CloseReportReceivedUseCase(
-            dl=_make_dl(sender_rm=RM.INVALID),
-            request=_make_close_report_event(),
-        ).execute()
+        result = _run_close(
+            _make_dl(sender_rm=RM.INVALID), _make_close_report_event()
+        )
         assert result.disposition == HandlerDisposition.APPLIED
 
     @pytest.mark.spec("HP-01-003")
@@ -413,9 +457,7 @@ class TestCloseInvalidateDisposition:
     def test_close_from_received_is_applied(self):
         """RECEIVED → CLOSED is an RM transition (ADR-0114), so it applies."""
         dl = _make_dl()
-        result = CloseReportReceivedUseCase(
-            dl=dl, request=_make_close_report_event()
-        ).execute()
+        result = _run_close(dl, _make_close_report_event())
         assert result.disposition == HandlerDisposition.APPLIED, result.reason
         assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED
 
@@ -430,9 +472,7 @@ class TestCloseInvalidateDisposition:
         rule, never refused for adjacency (RSH-06-006).
         """
         dl = _make_dl(sender_rm=RM.VALID)
-        result = CloseReportReceivedUseCase(
-            dl=dl, request=_make_close_report_event()
-        ).execute()
+        result = _run_close(dl, _make_close_report_event())
         assert result.disposition == HandlerDisposition.APPLIED, result.reason
         assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED
 
@@ -441,9 +481,7 @@ class TestCloseInvalidateDisposition:
     def test_invalidate_from_accepted_is_refused(self):
         """ACCEPTED → INVALID is a regression: refused, recorded state kept."""
         dl = _make_dl(sender_rm=RM.ACCEPTED)
-        result = InvalidateReportReceivedUseCase(
-            dl=dl, request=_make_invalidate_event()
-        ).execute()
+        result = _run_invalidate(dl, _make_invalidate_event())
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "RSH-06-002" in result.reason
         assert _rm_state(dl, SENDER_ACTOR_ID) == RM.ACCEPTED
@@ -456,9 +494,7 @@ class TestCloseInvalidateDisposition:
         event = _make_invalidate_event().model_copy(
             update={"actor_id": stranger}
         )
-        result = InvalidateReportReceivedUseCase(
-            dl=dl, request=event
-        ).execute()
+        result = _run_invalidate(dl, event)
         assert result.disposition == HandlerDisposition.REFUSED
         assert _rm_state(dl, SENDER_ACTOR_ID) == RM.RECEIVED
         assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.RECEIVED
@@ -466,16 +502,12 @@ class TestCloseInvalidateDisposition:
     @pytest.mark.spec("HP-01-003")
     def test_invalidate_without_local_case_is_refused(self):
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVING_ACTOR_ID)
-        result = InvalidateReportReceivedUseCase(
-            dl=dl, request=_make_invalidate_event()
-        ).execute()
+        result = _run_invalidate(dl, _make_invalidate_event())
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "InvalidateReportReceivedBT" in result.reason
 
     @pytest.mark.spec("HP-01-003")
     def test_close_without_local_case_is_refused(self):
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=RECEIVING_ACTOR_ID)
-        result = CloseReportReceivedUseCase(
-            dl=dl, request=_make_close_report_event()
-        ).execute()
+        result = _run_close(dl, _make_close_report_event())
         assert result.disposition == HandlerDisposition.REFUSED

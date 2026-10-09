@@ -102,7 +102,6 @@ _E = "vultron/core/behaviors/embargo"
 _N = "vultron/core/behaviors/note"
 _R = "vultron/core/behaviors/report"
 _S = "vultron/core/behaviors/status"
-_Y = "vultron/core/behaviors/sync"
 
 # ---------------------------------------------------------------------------
 # 1. Received-tree functions that still call create_case_manager_gated_tree.
@@ -140,9 +139,8 @@ KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
 #    hold no effect and no emit, which is all BT-17-008 governs (#4301
 #    keeps their direct gate).  The admission backfill is a CM-10-006
 #    follow-on that the embargo Accept use case runs on its own, given no
-#    activity; the Remove(EmbargoEvent) teardown nests it in its active-only
-#    branch (#4301 moved it out of the received-tree module rather than
-#    reshape that branch).
+#    activity; the Add and Remove(EmbargoEvent) trees run the same nodes
+#    (embargo_admission_backfill_nodes) in their manager_effects (#4323).
 # ---------------------------------------------------------------------------
 # permanent: BT-17-008 (binds received-side trees only; #4301 keeps these)
 GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
@@ -229,8 +227,7 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
 #    Each entry is the decision recorded in replica_emit_exemptions.py.
 # ---------------------------------------------------------------------------
 # permanent: BT-17-008 (one recorded decision per entry; the reasons are in
-# replica_emit_exemptions.py, and GENESIS_REJECT_ANNOUNCE names the issue
-# that deletes it: #4324)
+# replica_emit_exemptions.py)
 REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
         (
@@ -248,21 +245,14 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             f"{_S}/add_case_status_tree.py",
             "add_case_status_tree",
         ),
-        (
-            "CLOSE_REPORT_RM_DECLARATION",
-            f"{_R}/received_report_trees.py",
-            "create_close_report_received_tree",
-        ),
-        (
-            "DEFER_RM_DECLARATION",
-            f"{_R}/prioritize_tree.py",
-            "create_defer_case_tree",
-        ),
-        (
-            "ENGAGE_RM_DECLARATION",
-            f"{_R}/prioritize_tree.py",
-            "create_engage_case_tree",
-        ),
+        # The RM-declaration gap-note exemptions (engage, defer, the three
+        # report verdicts) and RSH_STATUS were retired by #3814: once each
+        # tree's state write moved under the CASE_MANAGER gate (RSH-08-003),
+        # its whole ordered effect pipeline — gap note and, for
+        # add_participant_status, the adoption emit and threat teardown —
+        # moved with it, so those trees emit nothing outside the gate.
+        # add_case_status keeps CASE_STATUS: it gates only the append, leaving
+        # the CSB-18 diagnostic and the threat-ask ungated.
         (
             "EMBARGO_INVITE_ANSWER",
             f"{_E}/announce_teardown_tree.py",
@@ -274,16 +264,6 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             "embargo_invite_refusal_tree",
         ),
         (
-            "GENESIS_REJECT_ANNOUNCE",
-            f"{_Y}/reject_tree.py",
-            "create_reject_log_entry_tree",
-        ),
-        (
-            "INVALIDATE_REPORT_RM_DECLARATION",
-            f"{_R}/received_report_trees.py",
-            "create_invalidate_report_received_tree",
-        ),
-        (
             "OFFER_ROLE",
             f"{_C}/offer_case_participant_role_received_tree.py",
             "create_offer_case_participant_role_received_tree",
@@ -292,16 +272,6 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             "REPORT_CASE_PROPOSAL",
             f"{_C}/receive_report_case_tree.py",
             "create_receive_report_case_tree",
-        ),
-        (
-            "RSH_STATUS",
-            f"{_S}/add_participant_status_tree.py",
-            "add_participant_status_tree",
-        ),
-        (
-            "VALIDATE_REPORT_RM_DECLARATION",
-            f"{_R}/received_report_trees.py",
-            "create_validate_report_received_tree",
         ),
     }
 )

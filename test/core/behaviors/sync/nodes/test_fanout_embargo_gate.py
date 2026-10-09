@@ -334,7 +334,7 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
         sync_port=sync_port,
         trigger_activity=trigger_activity,
     ).execute_with_setup(
-        tree=create_reject_log_entry_tree(),
+        tree=create_reject_log_entry_tree(CASE_ID),
         actor_id=MANAGER_ID,
         activity=event,
         sync_port=sync_port,

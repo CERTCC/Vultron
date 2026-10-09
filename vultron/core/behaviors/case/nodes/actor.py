@@ -36,11 +36,10 @@ the process-area root per BTND-07-003:
 """
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 from py_trees.common import Status
-from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
-from pydantic import ValidationError
+from py_trees.ports import BehaviourWithPorts, PortInformation
 
 from vultron.core.behaviors.case.nodes.invite_actor_emit import (  # noqa: F401
     EmitInviteActorToCaseNode,
@@ -52,174 +51,8 @@ from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
 from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
-from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
-from vultron.core.behaviors.emit_capable import EmitCapable
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-)
 from vultron.core.behaviors.node_logger import node_logger
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole
-
-
-class ProposeCaseToActorNode(DataLayerActionWithPorts, EmitCapable):
-    """Send ``Create(as_CaseProposal)`` to the registered case-actor service.
-
-    Reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
-    ``CreateCaseActorNode`` / ``ResolveCaseActorUrlsNode``), resolves the
-    linked ``VulnerabilityReport`` ID from the case record, and delegates
-    activity construction and persistence to
-    ``trigger_activity_factory.create_case_proposal()`` so the wire layer
-    handles serialization (CP-01-004: report must be embedded inline, not
-    as a URI reference).
-
-    This node MUST run AFTER ``CreateCaseActorNode`` succeeds, because the
-    case-actor identity must exist in the DataLayer before the proposal can
-    be addressed to it (CP-04-002).
-
-    Returns FAILURE when:
-
-    - DataLayer, ``actor_id``, or ``trigger_activity_factory`` is unavailable.
-    - ``case_id`` or ``case_actor_id`` is missing from the blackboard.
-    - The case is not found in the DataLayer.
-    - No ``VulnerabilityReport`` is linked to the case (CP-01-004).
-    - ``trigger_activity_factory.create_case_proposal()`` raises an exception.
-
-    Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
-    """
-
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "case_id": PortInformation(data_type=str, required=False),
-        "case_actor_id": PortInformation(data_type=str, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id", "case_actor_id": "/case_actor_id"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._case_id_bb = None
-        self._case_actor_id_bb = None
-        try:
-            self._case_id_bb = self.get_input("case_id")
-        except (NoDataAvailable, NotImplementedError):
-            pass
-        try:
-            self._case_actor_id_bb = self.get_input("case_actor_id")
-        except (NoDataAvailable, NotImplementedError):
-            pass
-
-    def _read_blackboard_ids(self) -> tuple[str, str] | None:
-        """Read case_id and case_actor_id from ports.
-
-        Returns ``(case_id, case_actor_id)`` on success, or ``None`` after
-        setting ``feedback_message`` on any error.
-        """
-        case_id = self._case_id_bb
-        if not isinstance(case_id, str) or not case_id:
-            self.feedback_message = "case_id not found in blackboard"
-            return None
-
-        case_actor_id = self._case_actor_id_bb
-        if not isinstance(case_actor_id, str) or not case_actor_id:
-            self.feedback_message = "case_actor_id not found in blackboard"
-            return None
-
-        return case_id, case_actor_id
-
-    def _get_report_id(self, case_id: str) -> str | None:
-        """Return the first VulnerabilityReport URI linked to *case_id*.
-
-        Returns the report ID string on success, or ``None`` after setting
-        ``feedback_message`` on any error.
-        """
-        # Regime 1 (ADR-0087): building a CaseProposal requires the case; a
-        # missing DataLayer / case yields the canonical FAILURE feedback+log via
-        # the helper, and this method maps that to its None → caller-FAILURE
-        # contract.
-        case, failure = self._require_case(case_id)
-        if failure is not None:
-            return None
-
-        if not case.vulnerability_reports:
-            self.feedback_message = (
-                f"No VulnerabilityReport linked to case '{case_id}'"
-                " — cannot build CaseProposal (CP-01-004)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return None
-
-        raw = case.vulnerability_reports[0]
-        # vulnerability_reports entries may be string URIs or ref objects.
-        if isinstance(raw, str):
-            return raw
-        return str(getattr(raw, "id_", raw))
-
-    def _build_proposal(self, case_id: str, case_actor_id: str) -> str | None:
-        """Call factory and enqueue outbox item; return activity_id or None."""
-        report_id = self._get_report_id(case_id)
-        if report_id is None:
-            return None
-        assert self.trigger_activity_factory is not None
-        assert self.actor_id is not None
-        assert self.datalayer is not None
-        # CP-01-007: see ProposeReportCaseToActorNode — the CaseActor cannot look
-        # the offer up in a sibling's store, so it travels on the proposal.
-        offer_id, offer_actor_id = find_offer_for_report(
-            self.datalayer, report_id
-        )
-        try:
-            activity_id, _ = (
-                self.trigger_activity_factory.create_case_proposal(
-                    actor=self.actor_id,
-                    report_id=report_id,
-                    case_actor_id=case_actor_id,
-                    offer_id=offer_id,
-                    offer_actor_id=offer_actor_id,
-                )
-            )
-        except (ValidationError, ValueError) as exc:
-            # The proposal could not be built from the report — a malformed
-            # report (ValidationError) or a missing/invalid one (ValueError,
-            # e.g. report not found).  Fail the node with a message; a
-            # programming error (TypeError, AttributeError) must surface loudly
-            # instead (CS-23-001).
-            self.feedback_message = f"create_case_proposal failed: {exc}"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return None
-        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity_id)
-        return activity_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return f
-
-        ids = self._read_blackboard_ids()
-        if ids is None:
-            return Status.FAILURE
-        case_id, case_actor_id = ids
-
-        activity_id = self._build_proposal(case_id, case_actor_id)
-        if activity_id is None:
-            return Status.FAILURE
-
-        self.logger.info(
-            "%s: Queued Create(as_CaseProposal) '%s' to outbox"
-            " for case-actor '%s' (case '%s')",
-            self.name,
-            activity_id,
-            case_actor_id,
-            case_id,
-        )
-        return Status.SUCCESS
 
 
 class EvaluateDefaultRolesNode(BehaviourWithPorts):

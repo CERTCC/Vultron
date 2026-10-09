@@ -319,14 +319,14 @@ ReceiveReportCaseBT (Sequence)
    ├─ CheckProposalAlreadySentForReport    # idempotency
    └─ ReceiveReportProposalFlow (Sequence)
       ├─ WritePendingReportCaseLinkNode      # VultronReportCaseLink(status=PENDING_PROPOSAL)
-      └─ ProposeCaseToActorNode              # Create(as_CaseProposal) → CaseActor
+      └─ ProposeReportCaseToActorNode              # Create(as_CaseProposal) → CaseActor
 ```
 
 No `VulnerabilityCase`, no participants, no embargo created by the report receiver.
 
-## BT Integration: `ProposeCaseToActorNode`
+## BT Integration: `ProposeReportCaseToActorNode`
 
-`ProposeCaseToActorNode` sends `Create(as_CaseProposal)` to the CaseActor
+`ProposeReportCaseToActorNode` sends `Create(as_CaseProposal)` to the CaseActor
 service. The CaseActor service URI comes from
 `ActorConfig.case_actor_service_url` (CP-08-001 through CP-08-003).
 
@@ -652,7 +652,7 @@ A receiver-local case created by calling `create_case_activity` anyway is broken
 three distinct ways, none of which raise:
 
 - it has no `ReportCaseLink`, so `create_case_received` skips it;
-- it gets no participants, because `ProposeCaseToActorNode` finds no linked
+- it gets no participants, because `ProposeReportCaseToActorNode` finds no linked
   report; and
 - it is entirely distinct from the canonical case the CaseActor owns, so every
   later assertion reads the wrong object.

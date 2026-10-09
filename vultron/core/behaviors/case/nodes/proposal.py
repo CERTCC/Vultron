@@ -20,8 +20,8 @@ Provides :class:`ProposeReportCaseToActorNode`, the ADR-0041 variant of the
 proposal send that operates directly from a ``report_id`` without requiring a
 ``VulnerabilityCase`` to already exist in the DataLayer.
 
-The pre-ADR-0041 node (:class:`~vultron.core.behaviors.case.nodes.actor.ProposeCaseToActorNode`)
-reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
+The pre-ADR-0041 node (``ProposeCaseToActorNode``, now deleted — issue #4353)
+read ``case_id`` and ``case_actor_id`` from the blackboard (written by
 ``CreateCaseActorNode``).  This module's node reads the CaseActor's identity from
 :func:`~vultron.core.behaviors.case.case_actor_identity.case_actor_identity`
 instead — the container's identity, not a per-case one derived from the report
@@ -51,7 +51,7 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
     """Send ``Create(as_CaseProposal)`` from ``report_id`` without a prior case.
 
     Used by the slimmed ``receive_report_case_tree`` (ADR-0041).  Unlike
-    :class:`~vultron.core.behaviors.case.nodes.actor.ProposeCaseToActorNode`,
+    the deleted ``ProposeCaseToActorNode`` (issue #4353),
     this node does not require a ``VulnerabilityCase`` to exist — it uses
     ``report_id`` directly and derives ``case_actor_id`` from
     ``ActorConfig.case_actor_service_url`` + a deterministic slug from

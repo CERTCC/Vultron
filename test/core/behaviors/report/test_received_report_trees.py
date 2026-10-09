@@ -550,8 +550,15 @@ class TestAckReportReceivedUseCase:
 
 
 class TestCloseReportReceivedTree:
-    def test_happy_path_stores_activity_and_transitions_rm(self, dl):
-        """Intake archives the activity; the sender's RM → CLOSED (RSH-08-001)."""
+    def test_archives_activity_but_gates_the_rm_write_at_a_replica(self, dl):
+        """Intake archives the Reject; the RM write is CASE_MANAGER-gated.
+
+        RSH-08-003 (#3814): ``ACTOR_ID`` here is an ordinary participant, not
+        the case's CASE_MANAGER, so the sender's RM → CLOSED does not run — the
+        replica takes it from the ledger instead.  The transition at the
+        CASE_MANAGER is covered by ``test_report_routing_guard.py`` and
+        ``test_receive_tree_ledger_commit.py``.
+        """
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.INVALID)
         event = _make_close_report_event()
         tree = create_close_report_received_tree(event, case_id=CASE_ID)
@@ -566,7 +573,7 @@ class TestCloseReportReceivedTree:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(CaseParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm.state == RM.CLOSED
+        assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_no_case_fails_after_storing_activity(self, dl, caplog):
         """No case linked to report → BT FAILURE, but the activity is stored.
@@ -607,8 +614,12 @@ class TestCloseReportReceivedTree:
 
 
 class TestCloseReportReceivedUseCase:
-    def test_use_case_stores_activity_and_transitions_rm(self):
-        """Use case delegates to BT; activity stored + RM → CLOSED."""
+    def test_use_case_archives_activity_but_gates_the_rm_write(self):
+        """Use case delegates to BT; activity stored, RM write CASE_MANAGER-gated.
+
+        RSH-08-003 (#3814): a non-manager receiver writes no RM state; the
+        transition at the CASE_MANAGER is covered elsewhere.
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
@@ -621,7 +632,7 @@ class TestCloseReportReceivedUseCase:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(CaseParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm.state == RM.CLOSED
+        assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_use_case_warns_when_no_case(self, caplog):
         """Use case ledgers WARNING when no case is found for the report.
@@ -652,8 +663,15 @@ class TestCloseReportReceivedUseCase:
 
 
 class TestInvalidateReportReceivedTree:
-    def test_happy_path_stores_activity_and_transitions_rm(self, dl):
-        """Intake archives the activity; the sender's RM → INVALID (RSH-08-001)."""
+    def test_archives_activity_but_gates_the_rm_write_at_a_replica(self, dl):
+        """Intake archives the TentativeReject; the RM write is gated.
+
+        RSH-08-003 (#3814): ``ACTOR_ID`` is an ordinary participant, not the
+        CASE_MANAGER, so the sender's RM → INVALID does not run here — the
+        replica takes it from the ledger.  The CASE_MANAGER transition is
+        covered by ``test_report_routing_guard.py`` and
+        ``test_receive_tree_ledger_commit.py``.
+        """
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
         tree = create_invalidate_report_received_tree(event, case_id=CASE_ID)
@@ -668,7 +686,7 @@ class TestInvalidateReportReceivedTree:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(CaseParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm.state == RM.INVALID
+        assert participant.participant_statuses[-1].rm.state == RM.RECEIVED
 
     def test_no_case_fails_after_storing_activity(self, dl, caplog):
         """No case linked to report → BT FAILURE, but the activity is stored.
@@ -711,8 +729,12 @@ class TestInvalidateReportReceivedTree:
 
 
 class TestInvalidateReportReceivedUseCase:
-    def test_use_case_stores_activity_and_transitions_rm(self):
-        """Use case delegates to BT; activity stored + RM → INVALID."""
+    def test_use_case_archives_activity_but_gates_the_rm_write(self):
+        """Use case delegates to BT; activity stored, RM write CASE_MANAGER-gated.
+
+        RSH-08-003 (#3814): a non-manager receiver writes no RM state; the
+        transition at the CASE_MANAGER is covered elsewhere.
+        """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=ACTOR_ID,
@@ -725,7 +747,7 @@ class TestInvalidateReportReceivedUseCase:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(CaseParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm.state == RM.INVALID
+        assert participant.participant_statuses[-1].rm.state == RM.RECEIVED
 
     def test_use_case_warns_when_no_case(self, caplog):
         """Use case ledgers WARNING when no case is found for the report.

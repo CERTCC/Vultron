@@ -22,6 +22,9 @@ from typing import cast
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_store_owner_as_case_manager,
+)
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -124,6 +127,9 @@ class TestCaseUseCases:
             name="Original Name",
             attributed_to=owner_id,
         )
+        # RSH-08-003/#3814: ApplyCaseUpdateNode now runs only at the case's
+        # CASE_MANAGER, so the receiving store must hold that role.
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(
@@ -222,6 +228,8 @@ class TestCaseUseCases:
             name="Original",
             attributed_to=owner_id,
         )
+        # RSH-08-003/#3814: the apply runs only at the CASE_MANAGER.
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(
@@ -285,6 +293,9 @@ class TestCaseUseCases:
             embargo_register=register(active=embargo.id_),
         )
         case.actor_participant_index[actor_id] = participant.id_
+        # RSH-08-003/#3814: the exclusion-resolving effect runs only at the
+        # CASE_MANAGER, so the receiving store must hold that role.
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(
@@ -507,6 +518,7 @@ class TestCaseUseCases:
     # Broadcast tests (CM-06-001, CM-06-002)
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("CM-06-003")
     @pytest.mark.parametrize(
         "receiving_actor_id",
         [RECEIVER_ID, None],
@@ -584,6 +596,8 @@ class TestCaseUseCases:
         case = as_VulnerabilityCase(
             id_=case_id, name="Original", attributed_to=owner_id
         )
+        # RSH-08-003/#3814: the apply runs only at the CASE_MANAGER.
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
 
         updated_case = as_VulnerabilityCase(

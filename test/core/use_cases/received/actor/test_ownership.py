@@ -18,6 +18,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.nodes.store_received_object import (
@@ -141,11 +144,19 @@ class TestOwnershipTransferUseCases:
             name="OT Case 2",
             attributed_to="https://example.org/users/vendor",
         )
+        # RSH-08-003/#3814: applying the ownership change is CASE_MANAGER-gated;
+        # the receiving CaseActor (coordinator) holds the role.
+        seed_case_manager_participant(dl, case, coordinator_id)
         dl.create(case)
+
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
         offer = offer_case_ownership_transfer_activity(
             case,
-            target=coordinator_id,
+            # Inline target: the Accept embeds this Offer, and the gated commit
+            # (now reached because coordinator is the CASE_MANAGER) requires the
+            # payload's object.target to be an inline object, not a bare ID.
+            target=as_Service(id_=coordinator_id, name="Coordinator"),
             actor="https://example.org/users/vendor",
             id_="https://example.org/activities/offer_ot2",
         )
@@ -177,9 +188,14 @@ class TestOwnershipTransferUseCases:
         assert result.disposition == HandlerDisposition.APPLIED
 
     @pytest.mark.spec("HP-01-003")
-    def test_accept_ownership_transfer_for_unknown_case_is_refused(
+    def test_accept_ownership_transfer_for_unknown_case_writes_nothing(
         self, make_payload
     ):
+        """An Accept(ownership) for a case this actor does not hold changes
+        no ownership: the receiver is not that case's CASE_MANAGER (ADR-0087
+        Regime 3), so both the guarded commit and the gated transfer are
+        skipped and no case state is written (RSH-08-003, #3814).  The
+        transfer, if it is this actor's to make, arrives through the ledger."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         coordinator_id = "https://example.org/users/coordinator"
@@ -207,7 +223,9 @@ class TestOwnershipTransferUseCases:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        assert result.disposition == HandlerDisposition.REFUSED
+        # Nothing written: the case was never held, so it is still absent.
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert dl.read("https://example.org/cases/case_ot_missing") is None
 
     @pytest.mark.spec("HP-01-003")
     def test_accept_ownership_transfer_without_case_is_refused(self):
@@ -746,11 +764,17 @@ class TestOwnershipTransferUseCases:
             name="OT Accept No-Stamp Test",
             attributed_to="https://example.org/users/vendor-nostamp",
         )
+        # RSH-08-003/#3814: the ownership write is CASE_MANAGER-gated; the
+        # store owner (coordinator) that falls back as receiver holds the role.
+        seed_case_manager_participant(dl, case, coordinator_id)
         dl.create(case)
+
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
         offer = offer_case_ownership_transfer_activity(
             case,
-            target=coordinator_id,
+            # Inline target so the gated commit accepts the canonical payload.
+            target=as_Service(id_=coordinator_id, name="Coordinator"),
             actor="https://example.org/users/vendor-nostamp",
             id_="https://example.org/activities/offer_ot_nostamp",
         )

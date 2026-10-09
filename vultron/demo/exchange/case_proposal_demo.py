@@ -24,7 +24,7 @@ Workflow
 --------
 1. Finder submits a vulnerability report to the vendor inbox.
 2. The vendor processes the report: ``create_receive_report_case_tree``
-   runs, which includes ``ProposeCaseToActorNode`` — this queues
+   runs, which includes ``ProposeReportCaseToActorNode`` — this queues
    ``Create(as_CaseProposal)`` addressed to the case-actor service and
    flushes the vendor's outbox.
 3. The case-actor service receives ``Create(as_CaseProposal)`` and
@@ -81,7 +81,7 @@ def demo_case_proposal_round_trip(
     """Exercise the full CaseProposal round-trip (CP-07-003).
 
     Finder submits a report to vendor's inbox.  The vendor's BT tree
-    includes ``ProposeCaseToActorNode``, which queues
+    includes ``ProposeReportCaseToActorNode``, which queues
     ``Create(as_CaseProposal)`` to the case-actor service.  The
     case-actor responds with ``Accept(as_CaseProposal)`` and
     ``Create(VulnerabilityCase)``.
@@ -117,7 +117,7 @@ def demo_case_proposal_round_trip(
             verify_object_stored(client, offer.id_)
 
     with demo_step(
-        "Step 2: Verify ProposeCaseToActorNode sent Create(as_CaseProposal)"
+        "Step 2: Verify ProposeReportCaseToActorNode sent Create(as_CaseProposal)"
         " and the case-actor responded"
     ):
         with demo_check(

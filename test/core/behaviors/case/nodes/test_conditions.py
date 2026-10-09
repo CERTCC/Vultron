@@ -16,12 +16,15 @@
 """
 Unit tests for case condition nodes.
 
-Covers CheckCaseAlreadyExists and CheckCaseExistsForReport.
+Covers CheckCaseExistsForReport.
 Per specs/idempotency.yaml ID-04-004.
 
 Also covers the construction-time guarantee that VulnerabilityCase rejects
 invalid id_ values (ARCH-10-001), which made the former ValidateCaseObject
 BT node redundant (removed in issue #716).
+
+Note: TestCheckCaseAlreadyExists was removed in issue #4353 because
+CheckCaseAlreadyExists was orphaned by create_create_case_tree's removal.
 """
 
 import pytest
@@ -32,7 +35,6 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckAutoCaseCreationEnabledNode,
-    CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -95,58 +97,6 @@ def participant(
     case_obj.case_participants.append(p.id_)
     bt_scenario.dl.save(case_obj)
     return p
-
-
-# ---------------------------------------------------------------------------
-# CheckCaseAlreadyExists
-# ---------------------------------------------------------------------------
-
-
-class TestCheckCaseAlreadyExists:
-    """ID-04-004: idempotency guard — case with participants → SUCCESS."""
-
-    def test_returns_failure_when_case_missing(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: CaseActor,
-        actor_id: str,
-    ) -> None:
-        result = bt_scenario.run(
-            CheckCaseAlreadyExists(
-                case_id="https://example.org/cases/missing"
-            ),
-            actor_id=actor_id,
-        )
-        assert result.status == Status.FAILURE
-
-    def test_returns_failure_when_case_has_no_participants(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: CaseActor,
-        actor_id: str,
-        case_obj: VulnerabilityCase,
-    ) -> None:
-        """Case exists but has no participants → still FAILURE (needs init)."""
-        result = bt_scenario.run(
-            CheckCaseAlreadyExists(case_id=case_obj.id_),
-            actor_id=actor_id,
-        )
-        assert result.status == Status.FAILURE
-
-    def test_returns_success_when_case_has_participants(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: CaseActor,
-        actor_id: str,
-        case_obj: VulnerabilityCase,
-        participant: CaseParticipant,
-    ) -> None:
-        """Case with participants → SUCCESS (already initialized)."""
-        result = bt_scenario.run(
-            CheckCaseAlreadyExists(case_id=case_obj.id_),
-            actor_id=actor_id,
-        )
-        assert result.status == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------
