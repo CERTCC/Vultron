@@ -36,7 +36,6 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.em import EM
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
-    unaddressed_copy_refusal,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
@@ -47,10 +46,7 @@ from vultron.core.use_cases.received._embargo_pxa import (
     pxa_embargo_ineligible,
     run_pxa_refusal_tree,
 )
-from vultron.core.use_cases.received._sender_preflight import (
-    post_close_refusal_before_tree,
-    sender_refusal,
-)
+from vultron.core.use_cases.received._sender_preflight import door_refusal
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -356,53 +352,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 receiving_actor_id=receiving_actor_id,
             )
 
-    def _preflight_refusal(
-        self, *, case_id: str, receiving_actor_id: str
-    ) -> HandlerResult | None:
-        """The refusal owed before any tree runs, or ``None``.
-
-        The expiry, EMB-17 and P/X/A paths commit or send before the main
-        tree's own guards run, so their checks run here first.
-        """
-        request = self._request
-        # CM-23-013: after case_fully_closed nothing is recorded or answered.
-        if (
-            refusal := post_close_refusal_before_tree(
-                self._dl,
-                receiving_actor_id,
-                request,
-                case_id=case_id,
-                sync_port=self._sync_port,
-            )
-        ) is not None:
-            return refusal
-
-        # Door check before any tree or write, after the shape checks
-        # that write nothing: an unaddressed copy is refused (HP-01-005,
-        # ADR-0118).
-        if (
-            refusal := unaddressed_copy_refusal(
-                receiving_actor_id,
-                request,
-                label="Accept(Invite(EmbargoEvent))",
-            )
-        ) is not None:
-            return refusal
-
-        # The sender must be the recorded Invite's invitee before anything is
-        # written or sent: the P/X/A rejection, the expiry commit and the
-        # EMB-17 routing all write (EP-09-010, HP-01-006, ADR-0115).
-        return sender_refusal(
-            self._dl,
-            receiving_actor_id,
-            SenderIsInviteeNode(
-                invite_id=request.invite_id,
-                sender_actor_id=request.actor_id,
-            ),
-            label="Accept(Invite(EmbargoEvent))",
-            sync_port=self._sync_port,
-        )
-
     def execute(self) -> HandlerResult:
         request = self._request
         receiving_actor_id = resolve_receiving_actor_id(
@@ -429,9 +378,22 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         accepting_actor_id = request.actor_id
         invite_id = request.invite_id or ""
 
+        # Before any tree or write, since the expiry, EMB-17 and P/X/A paths
+        # below all write or send: the case must not be fully closed
+        # (CM-23-013), the copy must be addressed here (HP-01-005, ADR-0118),
+        # and the sender must be the Invite's invitee (EP-09-010, HP-01-006).
         if (
-            refusal := self._preflight_refusal(
-                case_id=case_id, receiving_actor_id=receiving_actor_id
+            refusal := door_refusal(
+                self._dl,
+                receiving_actor_id,
+                request,
+                SenderIsInviteeNode(
+                    invite_id=request.invite_id,
+                    sender_actor_id=accepting_actor_id,
+                ),
+                case_id=case_id,
+                label="Accept(Invite(EmbargoEvent))",
+                sync_port=self._sync_port,
             )
         ) is not None:
             return refusal

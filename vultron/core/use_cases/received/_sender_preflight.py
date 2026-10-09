@@ -42,6 +42,7 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.use_cases._helpers import unaddressed_copy_refusal
 from vultron.core.use_cases.received._bt_verdict import (
     post_close_refusal,
     verdict_from_bt,
@@ -115,3 +116,34 @@ def post_close_refusal_before_tree(
         return refusal
     verdict_from_bt(tree, result, label="PostClosePreflight")
     return None
+
+
+def door_refusal(
+    dl: CasePersistence,
+    receiving_actor_id: str,
+    request: VultronEvent,
+    guard: py_trees.behaviour.Behaviour,
+    *,
+    case_id: str,
+    label: str,
+    sync_port: SyncActivityPort | None,
+) -> HandlerResult | None:
+    """The first refusal owed before a handler writes, or ``None``.
+
+    In order: the case is fully closed (CM-23-013), the copy was not
+    addressed to this receiver (HP-01-005), the sender is not entitled
+    (HP-01-006).  None of the three writes or sends anything.
+    """
+    return (
+        post_close_refusal_before_tree(
+            dl,
+            receiving_actor_id,
+            request,
+            case_id=case_id,
+            sync_port=sync_port,
+        )
+        or unaddressed_copy_refusal(receiving_actor_id, request, label=label)
+        or sender_refusal(
+            dl, receiving_actor_id, guard, label=label, sync_port=sync_port
+        )
+    )
