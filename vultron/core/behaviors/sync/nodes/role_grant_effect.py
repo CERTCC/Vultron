@@ -20,8 +20,9 @@ grant is the CASE_MANAGER-committed ``accept_case_participant_role`` ledger
 entry.  :func:`grant_role_to_target` is the one place that entry becomes case
 state — it adds the offered ``CVDRole`` to the target participant's
 ``case_roles`` on a given replica.  The CASE_MANAGER applies it to its own
-replica when it commits the accept
-(:class:`~vultron.core.behaviors.case.nodes.delegation.AutoAcceptCaseParticipantRoleNode`);
+replica via
+:class:`~vultron.core.behaviors.case.nodes.delegation.GrantCaseParticipantRoleNode`,
+the ``manager_effects`` node of the offer-received tree that commits the accept;
 every other participant applies it by replaying the entry through
 :class:`ApplyCaseParticipantRoleGrantFromLedgerNode` in
 ``create_announce_log_entry_tree`` (CM-02-016, RSH-08-004, ADR-0124).
