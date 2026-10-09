@@ -7,6 +7,7 @@ related_notes:
   - notes/bt-pitfalls.md
   - notes/spec-authoring-rules.md
   - notes/agentic-workflow.md
+  - notes/documentation-sweeps.md
 ---
 
 # Specs vs. ADRs — Delineation Guidelines
@@ -52,9 +53,10 @@ Three consequences for everyday work:
 - **A spec or note must not resolve its own meaning by pointing into an ADR
   body.** Cite the ADR for *why*; state the rule where the reader already is. The
   corpus does not satisfy this yet — the "ADR-0099 detail N" citations across
-  `specs/` and `notes/` are the known exception, and converting them is tracked
-  in #4389, which is also where extending the MS-16 drift rule to ADR bodies
-  sits.
+  `specs/` and `notes/` are the known exception, and they are what gates the
+  change that stops routine agent context from loading ADR bodies at all. Do not
+  add another: a citation that names a numbered detail inside a body makes that
+  body load-bearing again.
 
 What stays in the body: the reasoning, the rejected options, and how the code
 looked when the decision was made — the last written so it reads as of its time,
@@ -64,7 +66,28 @@ list) and drift-prone detail (counts, metrics, `file.py:line` citations). The
 human-facing version of this is `docs/adr/index.md` § "Revising vs. amending an
 ADR"; the editing mechanics are the Edit Tiers section below.
 
-Source: concern #4389. This replaces the ISSUE-1777 guidance (2026-07-31) that
+### An aged code reference in an ADR body is not a defect, and there is no scrub
+
+This is the consequence most likely to be re-derived as work, so it is stated
+outright: the corpus's existing stale code references are **not** a backlog. A
+reference in a record's context or validation prose is an accurate account of the
+code as it then stood. No issue owns scrubbing them, and no advisory count of
+them is reported — a count would re-describe the same sentences as debt and
+invite the scrub back. Most of them sit inside a Decision Outcome or Considered
+Options section anyway, where the Edit Tiers below would make a rename cost a
+dated Amendment.
+
+Enforcement is therefore **forward-only**: a reference newly written into a
+record should resolve on the day it is written, which is a question about the
+pull request's own diff rather than about the corpus. A merge-blocking check
+keyed on code changes is rejected — it would reinstate the refactor obligation
+the first bullet above removes. Note that the phantom-symbol half of the
+spec-corpus check (MS-15-004) matches only backticked all-caps identifiers with
+an underscore, so it does not see a stale class name or function name; a check
+extended to ADR bodies has to widen that shape to be worth anything.
+
+Source: ADR-0127 (`docs/adr/0127-decision-records-leave-routine-agent-context.md`)
+and concern #4389. This replaces the ISSUE-1777 guidance (2026-07-31) that
 asked authors to revise accepted ADR bodies in place so a reader met only
 currently-accurate statements. That pursued the same goal — keeping stale detail
 out of a reader's way — through the only mechanism available while every ADR body
