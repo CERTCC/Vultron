@@ -25,6 +25,10 @@ from types import FrameType
 
 import pytest
 
+from test.adapters.driving.fastapi.sse_helpers import (
+    parse_sse_body,
+    save_ledger_entry,
+)
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -38,13 +42,13 @@ from vultron.adapters.driving.fastapi.ledger_stream import (
     resolve_resume_index,
     stream_case_ledger,
 )
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
 POLL = 0.01
+ACTOR = "urn:uuid:4d1c0b7e-2f3a-4e5b-8c6d-7e8f9a0b1c2d"
 
 
 @pytest.fixture
@@ -66,27 +70,11 @@ def case(dl: SqliteDataLayer) -> as_VulnerabilityCase:
     return case_obj
 
 
-def _entry(
-    dl: SqliteDataLayer, case_id: str, log_index: int
-) -> CaseLedgerEntry:
-    entry = CaseLedgerEntry(
-        case_id=case_id,
-        log_index=log_index,
-        log_object_id=f"{case_id}/objects/{log_index}",
-        event_type=f"test_event_{log_index}",
-    )
-    dl.save(entry)
-    return entry
-
-
 def _parse(frame: str) -> dict[str, str]:
     """Parse one SSE frame into its field → value map."""
     assert frame.endswith("\n\n"), frame
-    fields: dict[str, str] = {}
-    for line in frame.strip("\n").split("\n"):
-        name, _, value = line.partition(": ")
-        fields[name] = value
-    return fields
+    (event,) = parse_sse_body(frame)
+    return event
 
 
 async def _never_disconnected() -> bool:
@@ -109,6 +97,7 @@ async def _collect(
     async for frame in stream_case_ledger(
         dl,
         case_id,
+        actor_id=ACTOR,
         after_index=after_index,
         poll_seconds=POLL,
         is_disconnected=is_disconnected,
@@ -145,13 +134,13 @@ class TestResolveResumeIndex:
 
 class TestFraming:
     def test_entry_event_carries_index_and_list_payload(self, dl, case):
-        entry = _entry(dl, case.id_, 2)
+        entry = save_ledger_entry(dl, case.id_, 2)
         fields = _parse(format_entry_event(entry))
         assert fields["id"] == "2"
         assert json.loads(fields["data"]) == ledger_entry_payload(entry)
 
     def test_payload_is_the_wire_form_without_nones(self, dl, case):
-        payload = ledger_entry_payload(_entry(dl, case.id_, 0))
+        payload = ledger_entry_payload(save_ledger_entry(dl, case.id_, 0))
         assert payload["logIndex"] == 0
         assert "log_index" not in payload
         assert None not in payload.values()
@@ -165,8 +154,8 @@ class TestCaseLedgerEntries:
         other = as_VulnerabilityCase(name="OTHER")
         dl.create(other)
         for i in (2, 0, 1):
-            _entry(dl, case.id_, i)
-        _entry(dl, other.id_, 0)
+            save_ledger_entry(dl, case.id_, i)
+        save_ledger_entry(dl, other.id_, 0)
         entries = case_ledger_entries(dl, case.id_)
         assert [e.log_index for e in entries] == [0, 1, 2]
         assert {e.case_id for e in entries} == {case.id_}
@@ -175,14 +164,14 @@ class TestCaseLedgerEntries:
 class TestStreamCaseLedger:
     def test_replays_stored_entries_then_closes_on_shutdown(self, dl, case):
         for i in range(3):
-            _entry(dl, case.id_, i)
+            save_ledger_entry(dl, case.id_, i)
         frames = asyncio.run(_collect(dl, case.id_))
         assert [_parse(f).get("id") for f in frames[:-1]] == ["0", "1", "2"]
         assert frames[-1] == format_close_event()
 
     def test_after_index_skips_entries_at_or_below_it(self, dl, case):
         for i in range(4):
-            _entry(dl, case.id_, i)
+            save_ledger_entry(dl, case.id_, i)
         frames = asyncio.run(_collect(dl, case.id_, after_index=1))
         assert [_parse(f).get("id") for f in frames[:-1]] == ["2", "3"]
 
@@ -190,7 +179,7 @@ class TestStreamCaseLedger:
         assert asyncio.run(_collect(dl, case.id_)) == [format_close_event()]
 
     def test_pushes_an_entry_committed_after_connect(self, dl, case):
-        _entry(dl, case.id_, 0)
+        save_ledger_entry(dl, case.id_, 0)
         shutdown = threading.Event()
 
         async def scenario() -> list[str]:
@@ -198,13 +187,14 @@ class TestStreamCaseLedger:
             stream = stream_case_ledger(
                 dl,
                 case.id_,
+                actor_id=ACTOR,
                 after_index=None,
                 poll_seconds=POLL,
                 is_disconnected=_never_disconnected,
                 shutdown=shutdown,
             )
             frames.append(await anext(stream))
-            _entry(dl, case.id_, 1)
+            save_ledger_entry(dl, case.id_, 1)
             frames.append(await asyncio.wait_for(anext(stream), 5))
             shutdown.set()
             frames.extend([f async for f in stream])
@@ -217,8 +207,8 @@ class TestStreamCaseLedger:
     def test_disconnect_ends_the_stream_without_a_close_event(
         self, dl, case, caplog
     ):
-        _entry(dl, case.id_, 0)
-        calls = 0
+        save_ledger_entry(dl, case.id_, 0)
+        calls: int = 0
 
         async def disconnects_on_second_check() -> bool:
             nonlocal calls
@@ -238,10 +228,23 @@ class TestStreamCaseLedger:
         assert calls == 2
         assert "client disconnected" in caplog.text
 
+    def test_a_failing_read_is_logged_as_a_failure_not_a_disconnect(
+        self, dl, case, caplog, monkeypatch
+    ):
+        def broken(*_args, **_kwargs):
+            raise RuntimeError("store unavailable")
+
+        monkeypatch.setattr(dl, "list_objects", broken)
+        with caplog.at_level(logging.INFO):
+            with pytest.raises(RuntimeError, match="store unavailable"):
+                asyncio.run(_collect(dl, case.id_))
+        assert "stream failed" in caplog.text
+        assert "client disconnected" not in caplog.text
+
     def test_shutdown_is_logged_as_the_close_reason(self, dl, case, caplog):
         with caplog.at_level(logging.INFO):
             asyncio.run(_collect(dl, case.id_))
-        assert "Ledger stream opened" in caplog.text
+        assert f"Ledger stream opened (actor_id={ACTOR}" in caplog.text
         assert "server shutting down" in caplog.text
 
 

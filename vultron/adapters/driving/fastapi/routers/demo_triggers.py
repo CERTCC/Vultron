@@ -535,6 +535,7 @@ def demo_stream_case_ledger(
         stream_case_ledger(
             dl,
             canonical_case_id,
+            actor_id=actor_id,
             after_index=after_index,
             poll_seconds=get_config().server.ledger_stream_poll_seconds,
             is_disconnected=request.is_disconnected,

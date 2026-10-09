@@ -131,6 +131,7 @@ async def stream_case_ledger(
     dl: DataLayer,
     canonical_case_id: str,
     *,
+    actor_id: str,
     after_index: int | None,
     poll_seconds: float,
     is_disconnected: Callable[[], Awaitable[bool]],
@@ -145,12 +146,16 @@ async def stream_case_ledger(
     nothing.
 
     Ends when the client disconnects, or yields :func:`format_close_event`
-    and ends once *shutdown* is set.
+    and ends once *shutdown* is set.  *actor_id* names the actor whose store
+    is read, for the lifecycle log lines.
     """
     last_sent = after_index
+    # Overwritten on every other way out; a disconnect may arrive as a
+    # cancellation or a generator close, which pass through ``finally`` only.
     reason = "client disconnected"
     logger.info(
-        "Ledger stream opened for case %s (after log_index %s)",
+        "Ledger stream opened (actor_id=%s case_id=%s after log_index %s)",
+        actor_id,
         canonical_case_id,
         last_sent,
     )
@@ -170,10 +175,15 @@ async def stream_case_ledger(
             if await is_disconnected():
                 return
             await asyncio.sleep(poll_seconds)
+    except Exception:
+        # Re-raised for the server to report; recorded here so the close
+        # line does not blame the client.
+        reason = "stream failed"
+        raise
     finally:
-        # Also reached when Starlette cancels the generator on disconnect.
         logger.info(
-            "Ledger stream closed for case %s at log_index %s: %s",
+            "Ledger stream closed (actor_id=%s case_id=%s at log_index %s): %s",
+            actor_id,
             canonical_case_id,
             last_sent,
             reason,

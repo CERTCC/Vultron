@@ -38,6 +38,7 @@ import pytest
 import uvicorn
 
 from test.adapters.driving.fastapi import ledger_stream_server as srv
+from test.adapters.driving.fastapi.sse_helpers import read_sse_event
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -52,19 +53,6 @@ STREAM_PATH = (
     f"/api/v2/actors/{srv.ACTOR_ID}/demo/cases/"
     f"{strip_id_prefix(srv.CASE_ID)}/log/stream"
 )
-
-
-def _read_event(lines: Iterator[str]) -> dict[str, str]:
-    """Read lines up to the blank line that ends one SSE event."""
-    fields: dict[str, str] = {}
-    for line in lines:
-        if line == "":
-            if fields:
-                return fields
-            continue
-        name, _, value = line.partition(": ")
-        fields[name] = value
-    raise AssertionError(f"stream ended mid-event: {fields}")
 
 
 def _wait_until(predicate, timeout: float = 10.0) -> None:
@@ -123,7 +111,7 @@ def _commit(client: httpx.Client, event_type: str) -> int:
         },
     )
     assert response.status_code == 202, response.text
-    return response.json()["log_index"]
+    return int(response.json()["log_index"])
 
 
 def test_connect_replay_commit_receive_disconnect(base_url: str, caplog):
@@ -144,12 +132,12 @@ def test_connect_replay_commit_receive_disconnect(base_url: str, caplog):
                 )
                 lines = response.iter_lines()
 
-                replayed = [_read_event(lines), _read_event(lines)]
+                replayed = [read_sse_event(lines), read_sse_event(lines)]
                 assert [int(e["id"]) for e in replayed] == [first, second]
                 assert [json.loads(e["data"]) for e in replayed] == listed
 
                 third = _commit(client, "after_connect")
-                pushed = _read_event(lines)
+                pushed = read_sse_event(lines)
                 assert int(pushed["id"]) == third
                 assert json.loads(pushed["data"])["eventType"] == (
                     "after_connect"
@@ -159,45 +147,44 @@ def test_connect_replay_commit_receive_disconnect(base_url: str, caplog):
             _wait_until(lambda: "client disconnected" in caplog.text)
 
 
-def _free_port() -> int:
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
-
-
-def test_sigterm_sends_close_and_lets_the_server_exit():
+def test_sigterm_sends_close_and_lets_the_server_exit(tmp_path: Path):
     """A real SIGTERM ends an open stream with ``event: close``.
 
     uvicorn waits for open connections before running lifespan shutdown, so
     without the signal hook this server would hang until the graceful
     shutdown timeout instead of exiting.
     """
-    port = _free_port()
+    # Bound here and handed over with --fd, so no other xdist worker can take
+    # the port between choosing it and the child binding it.
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
     env = {
         **os.environ,
         "VULTRON_MODE": "prototype",
         "VULTRON_SERVER__LEDGER_STREAM_POLL_SECONDS": "0.05",
         "PYTHONPATH": str(REPO_ROOT),
     }
-    proc = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "--factory",
-            "test.adapters.driving.fastapi.ledger_stream_server:make_seeded_app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--log-level",
-            "warning",
-        ],
-        cwd=REPO_ROOT,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
+    log_path = tmp_path / "uvicorn.log"
+    with log_path.open("wb") as log:
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "uvicorn",
+                "--factory",
+                "test.adapters.driving.fastapi.ledger_stream_server:make_seeded_app",
+                "--fd",
+                str(sock.fileno()),
+                "--log-level",
+                "warning",
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            pass_fds=(sock.fileno(),),
+        )
     try:
         url = f"http://127.0.0.1:{port}"
 
@@ -214,13 +201,13 @@ def test_sigterm_sends_close_and_lets_the_server_exit():
                 assert response.status_code == 200
                 lines = response.iter_lines()
                 replayed = [
-                    _read_event(lines) for _ in range(srv.SEEDED_ENTRIES)
+                    read_sse_event(lines) for _ in range(srv.SEEDED_ENTRIES)
                 ]
                 assert [e["id"] for e in replayed] == ["0", "1"]
 
                 proc.send_signal(signal.SIGTERM)
 
-                assert _read_event(lines) == {"event": "close", "data": ""}
+                assert read_sse_event(lines) == {"event": "close", "data": ""}
         # uvicorn's default graceful-shutdown timeout is unbounded, so an exit
         # at all means the stream let go.  After a clean shutdown uvicorn
         # re-raises the signal it caught, hence -SIGTERM rather than 0.
@@ -229,5 +216,6 @@ def test_sigterm_sends_close_and_lets_the_server_exit():
         if proc.poll() is None:
             proc.kill()
             proc.wait()
-        if proc.stdout is not None:
-            proc.stdout.close()
+        sock.close()
+        # Surfaced in the failure report when an assertion above failed.
+        print(log_path.read_text(errors="replace"))

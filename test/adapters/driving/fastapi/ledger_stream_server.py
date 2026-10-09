@@ -23,11 +23,11 @@ SIGTERM.  Not a test module: pytest does not collect it.
 
 from fastapi import FastAPI
 
+from test.adapters.driving.fastapi.sse_helpers import save_ledger_entry
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.config import RunMode, get_config
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -74,12 +74,5 @@ def make_seeded_app() -> FastAPI:
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
     app = build_app(dl)
     for i in range(SEEDED_ENTRIES):
-        dl.save(
-            CaseLedgerEntry(
-                case_id=CASE_ID,
-                log_index=i,
-                log_object_id=f"{CASE_ID}/objects/{i}",
-                event_type=f"seeded_{i}",
-            )
-        )
+        save_ledger_entry(dl, CASE_ID, i, event_type=f"seeded_{i}")
     return app

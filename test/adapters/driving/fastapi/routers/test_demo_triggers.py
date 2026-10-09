@@ -28,6 +28,10 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
+from test.adapters.driving.fastapi.sse_helpers import (
+    parse_sse_body,
+    save_ledger_entry,
+)
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import (
     get_ledger_stream_shutdown,
@@ -119,10 +123,10 @@ def client_demo(dl):
     app.dependency_overrides[get_trigger_dl] = lambda: dl
     # Already set, so a ledger stream replays what is stored, sends its
     # terminal close event and ends — TestClient reads a response to its end.
-    stream_shutdown = threading.Event()
-    stream_shutdown.set()
+    already_shut_down = threading.Event()
+    already_shut_down.set()
     app.dependency_overrides[get_ledger_stream_shutdown] = lambda: (
-        stream_shutdown
+        already_shut_down
     )
     mock_emitter = AsyncMock()
     with patch(
@@ -538,18 +542,7 @@ class TestDemoSyncLogEntry:
 # ---------------------------------------------------------------------------
 
 
-def _make_log_entry(dl, case_id: str, log_index: int) -> object:
-    """Create and save a CaseLedgerEntry directly to the DataLayer."""
-    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
-    entry = CaseLedgerEntry(
-        case_id=case_id,
-        log_index=log_index,
-        log_object_id=f"{case_id}/objects/{log_index}",
-        event_type=f"test_event_{log_index}",
-    )
-    dl.save(entry)
-    return entry
+_make_log_entry = save_ledger_entry
 
 
 # ---------------------------------------------------------------------------
@@ -762,20 +755,6 @@ class TestDemoGetCaseLedgerEntry:
 _STREAM_PATH = "/actors/{actor_id}/demo/cases/{case_id}/log/stream"
 
 
-def _sse_events(body: str) -> list[dict[str, str]]:
-    """Split an SSE body into one field → value map per event."""
-    events = []
-    for block in body.split("\n\n"):
-        if not block.strip():
-            continue
-        fields = {}
-        for line in block.split("\n"):
-            name, _, value = line.partition(": ")
-            fields[name] = value
-        events.append(fields)
-    return events
-
-
 class TestDemoStreamCaseLedger:
     """Tests for the prototype-only SSE ledger stream (#3641).
 
@@ -809,7 +788,7 @@ class TestDemoStreamCaseLedger:
             f"{_route_key(case_with_actor.id_)}/log"
         ).json()
 
-        events = _sse_events(
+        events = parse_sse_body(
             client_demo.get(self._url(actor, case_with_actor.id_)).text
         )
 
@@ -825,7 +804,7 @@ class TestDemoStreamCaseLedger:
         dl.create(other)
         _make_log_entry(dl, case_with_actor.id_, log_index=0)
         _make_log_entry(dl, other.id_, log_index=0)
-        events = _sse_events(
+        events = parse_sse_body(
             client_demo.get(self._url(actor, case_with_actor.id_)).text
         )
         assert [json.loads(e["data"])["caseId"] for e in events[:-1]] == [
@@ -837,7 +816,7 @@ class TestDemoStreamCaseLedger:
     ):
         for i in range(4):
             _make_log_entry(dl, case_with_actor.id_, log_index=i)
-        events = _sse_events(
+        events = parse_sse_body(
             client_demo.get(
                 self._url(actor, case_with_actor.id_), params={"since": 1}
             ).text
@@ -849,7 +828,7 @@ class TestDemoStreamCaseLedger:
     ):
         for i in range(4):
             _make_log_entry(dl, case_with_actor.id_, log_index=i)
-        events = _sse_events(
+        events = parse_sse_body(
             client_demo.get(
                 self._url(actor, case_with_actor.id_),
                 headers={"Last-Event-ID": "2"},
@@ -862,7 +841,7 @@ class TestDemoStreamCaseLedger:
     ):
         for i in range(4):
             _make_log_entry(dl, case_with_actor.id_, log_index=i)
-        events = _sse_events(
+        events = parse_sse_body(
             client_demo.get(
                 self._url(actor, case_with_actor.id_),
                 params={"since": 0},
@@ -877,7 +856,7 @@ class TestDemoStreamCaseLedger:
         http_case_id = "https://example.org/cases/demo/stream"
         dl.create(as_VulnerabilityCase(id_=http_case_id, name="HTTP Case"))
         _make_log_entry(dl, http_case_id, log_index=0)
-        events = _sse_events(
+        events = parse_sse_body(
             client_demo.get(self._url(actor, http_case_id)).text
         )
         assert json.loads(events[0]["data"])["caseId"] == http_case_id
