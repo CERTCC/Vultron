@@ -2357,12 +2357,13 @@ groups:
     statement: >-
       The RCV-embargo scenario expected-event-types list MUST include
       `invite_actor_to_case`, `accept_invite_actor_to_case`,
-      `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case` and
-      `remove_embargo_event_from_case` in addition to the universal types
-      (DEMOMA-16-001), because the Coordinator invites the Vendor and the Vendor
-      accepts, the Reporter's embargo proposal and its relayed invitations are
-      committed, the owner and the Vendor accept it, and the Coordinator
-      terminates the embargo.
+      `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case`,
+      `activate_embargo_on_case` and `remove_embargo_event_from_case` in
+      addition to the universal types (DEMOMA-16-001), because the Coordinator
+      invites the Vendor and the Vendor accepts, the Reporter's embargo proposal
+      and its relayed invitations are committed, the Vendor accepts it, the
+      owner activates it (VAM-05-008), and the Coordinator terminates the
+      embargo.
     rationale: >-
       The embargo event types are the ones the CASE_MANAGER's commit path emits
       (DEMOMA-20-006); the harness imports them from that code, so a rename
@@ -2380,12 +2381,14 @@ groups:
     statement: >-
       The RCVV-embargo scenario expected-event-types list MUST include
       `invite_actor_to_case`, `accept_invite_actor_to_case`,
-      `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case` and
-      `remove_embargo_event_from_case` in addition to the universal types
-      (DEMOMA-16-001), because the Coordinator invites both Vendors and they
-      accept, the Reporter's and Vendor1's embargo proposals and their relayed
-      invitations are committed, the owner and the other participants accept
-      them, and the embargo is torn down when the Reporter reports publication.
+      `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case`,
+      `activate_embargo_on_case` and `remove_embargo_event_from_case` in
+      addition to the universal types (DEMOMA-16-001), because the Coordinator
+      invites both Vendors and they accept, the Reporter's and Vendor1's
+      embargo proposals and their relayed invitations are committed, the other
+      participants accept them, the owner activates each revision
+      (VAM-05-008), and the embargo is torn down when the Reporter reports
+      publication.
     rationale: >-
       The embargo event types are the ones the CASE_MANAGER's commit path emits
       (DEMOMA-21-007); the harness imports them from that code, so a rename
