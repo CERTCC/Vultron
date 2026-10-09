@@ -1772,9 +1772,9 @@ def wait_for_participant_embargo_accepted(
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll until *actor_id*'s consent row for *embargo_id* is ``ACCEPTED``.
+    """Poll until *actor_id*'s consent row for *embargo_id* is ``AGREED``.
 
-    An Accept always marks the accepted embargo's own row ``ACCEPTED``, including
+    An Accept always marks the accepted embargo's own row ``AGREED``, including
     for a proposed revision (ADR-0122), so the revision's row is the trace of it.
     Read it where the CASE_MANAGER commits it: an owner that activates a longer
     revision first lapses every signatory that has not answered (EP-05-001).
@@ -1797,8 +1797,8 @@ def wait_for_participant_embargo_accepted(
         case_id,
         actor_id,
         lambda participant: participant.consent_for(embargo_id),
-        lambda value: value == EmbargoConsentState.ACCEPTED,
-        f"consent for {embargo_id!r} to be ACCEPTED",
+        lambda value: value == EmbargoConsentState.AGREED,
+        f"consent for {embargo_id!r} to be AGREED",
         timeout_seconds,
         poll_interval,
         dl_actor_id,

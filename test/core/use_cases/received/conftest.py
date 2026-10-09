@@ -88,9 +88,10 @@ def seed_case_manager_participant(
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
+    # Attached first, so it takes a consent row for every embargo already
+    # in the register (ADR-0122), as production attaches before storing.
+    case.add_participant(participant)
     dl.create(participant)
-    case.case_participants.append(participant.id_)
-    case.actor_participant_index[manager_actor_id] = participant.id_
     return participant
 
 
@@ -112,9 +113,10 @@ def seed_case_owner_participant(
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
+    # Attached first, so it takes a consent row for every embargo already
+    # in the register (ADR-0122), as production attaches before storing.
+    case.add_participant(participant)
     dl.create(participant)
-    case.case_participants.append(participant.id_)
-    case.actor_participant_index[owner_actor_id] = participant.id_
     return participant
 
 
@@ -137,9 +139,10 @@ def seed_case_participant(
         context=case.id_,
         case_roles=roles or [CVDRole.FINDER],
     )
+    # Attached first, so it takes a consent row for every embargo already
+    # in the register (ADR-0122), as production attaches before storing.
+    case.add_participant(participant)
     dl.create(participant)
-    case.case_participants.append(participant.id_)
-    case.actor_participant_index[actor_id] = participant.id_
     return participant
 
 
@@ -208,9 +211,10 @@ def seed_inert_invitee(
         ],
         joined=False,
     )
+    # Attaching writes its UNINVITED row for every register entry, as the stub
+    # Invite's record gets them (ADR-0122), so it is stored after.
+    case.add_participant(participant)
     dl.create(participant)
-    case.case_participants.append(participant.id_)
-    case.actor_participant_index[invitee_id] = participant.id_
     return participant
 
 

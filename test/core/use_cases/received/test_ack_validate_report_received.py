@@ -209,6 +209,10 @@ class TestFullReportFlow:
             end_time=days_from_now_utc(45),
         )
         dl.save(embargo)
+        # The sender's participants carry a row for every register entry
+        # (ADR-0122); neither has answered this embargo.
+        for participant in (case_manager, vendor_participant):
+            participant.write_uninvited_rows([embargo.id_])
         case = as_VulnerabilityCase.model_construct(
             id_=self.CASE_ID,
             name="Flow test case",

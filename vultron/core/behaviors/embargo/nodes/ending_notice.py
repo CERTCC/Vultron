@@ -15,7 +15,7 @@
 
 """Embargo-ending notices to bound signatories the ledger no longer reaches.
 
-A ``SIGNATORY`` that was removed (CM-31-001) or that left the case and is
+A signatory that was removed (CM-31-001) or that left the case and is
 skipped at RM ``CLOSED`` (CM-23-004) stays bound by the embargo, but no
 ledger entry reaches it.  When the active embargo is terminated, or replaced
 by a revision that ends no later (ADR-0093 containment), the CASE_MANAGER
@@ -329,8 +329,8 @@ def embargo_ending_notice_nodes(
 class AwaitsEmbargoEndingNoticeNode(DataLayerConditionWithPorts):
     """Condition: the executing actor can be owed a CM-31-009 notice.
 
-    ``SUCCESS`` when the actor's own record in this replica is a joined
-    ``SIGNATORY`` of the embargo in force that the ledger fan-out no longer
+    ``SUCCESS`` when the actor's own record in this replica is joined and
+    a signatory of the embargo in force that the ledger fan-out no longer
     reaches — removed, or at RM ``CLOSED``
     (:func:`~vultron.core.participants.recipients.awaits_embargo_ending_notice`)
     — so a direct notice from the CASE_MANAGER is its only channel

@@ -15,7 +15,8 @@
 
 Per-participant consent bookkeeping (``record_participant_consent``,
 ``record_embargo_rejection``, ``record_embargo_invite``), lazy RSVP-deadline enforcement
-(``detect_and_apply_expiry``, EMB-17) and the public eligibility check
+(``assess_invite_expiry``, ``record_invite_expiry``,
+``detect_and_apply_expiry``, EMB-17) and the public eligibility check
 callers use before creating anything (``assert_embargo_eligible``,
 EP-04-008).
 """
@@ -33,11 +34,11 @@ from vultron.core.services.embargo_lifecycle.results import (
     ParticipantConsentChange,
 )
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import FINAL_REGISTER_STATUSES
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
 )
-from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,33 @@ def _unchanged(
     )
 
 
+_ANSWERED_OR_TIMED_OUT = frozenset(
+    {EmbargoConsentState.DECLINED, EmbargoConsentState.TIMED_OUT}
+)
+"""Row states that close an invitation without a deadline left to read.
+
+A ``TIMED_OUT`` row's deadline passed; a ``DECLINED`` row was answered, and
+a participant that declined is invited again before it can agree (ADR-0122,
+EMB-17-002).  Both rows drop their deadline when they leave ``INVITED``, so
+the state itself is what says the invitation closed.
+"""
+
+
+def _invitation_has_closed(
+    participant: CaseParticipant, embargo_id: str, now: datetime
+) -> bool:
+    """Whether *participant*'s invitation to *embargo_id* has closed by *now*.
+
+    Closed means the row timed out or was declined, or is still ``INVITED``
+    with a deadline that has passed (CM-28-001).  An Accept of a closed
+    invitation is a late Accept, routed by EMB-17.
+    """
+    if participant.consent_for(embargo_id) in _ANSWERED_OR_TIMED_OUT:
+        return True
+    deadline = participant.rsvp_deadline_for(embargo_id)
+    return deadline is not None and now >= deadline
+
+
 class _ConsentOperationsMixin(_PecEffectsMixin):
     """Consent, invite-expiry and eligibility operations with no EM transition."""
 
@@ -72,15 +100,18 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
     ) -> EmbargoLifecycleResult:
         """Record that *invitee_id* was invited to *embargo_id*, without moving EM.
 
-        Applies PEC ``INVITE`` to the invitee's row for *embargo_id* where
-        CM-18-003 allows it — from no row, ``DECLINED`` or ``EXPIRED`` — so
-        an ``ACCEPTED`` row stays accepted.  The row belongs to *embargo_id*
-        alone: a signatory asked about a revision gains a row for the revision
-        and keeps its row for the embargo in force, so its binding is
-        untouched (EP-09-004, ADR-0122).  When *rsvp_deadline* is given the
-        invitee's record takes it (CM-28-013).  The CASE_MANAGER calls this as
-        it relays the Invite; a replica calls it as it replays the relay's
-        ledger entry (EP-09-007), so both stores apply one rule.
+        Applies PEC ``INVITE`` to the invitee's row for *embargo_id* where it
+        is legal — from ``UNINVITED``, ``DECLINED`` or ``TIMED_OUT`` — so an
+        ``AGREED`` row stays agreed.  The row belongs to *embargo_id* alone: a
+        signatory asked about a revision has its revision row invited and
+        keeps its row for the embargo in force, so its binding is untouched
+        (EP-09-004, ADR-0122).  *rsvp_deadline* goes on the invited row
+        (CM-28-013); an Invite sent again to a row still ``INVITED`` moves no
+        state but replaces the row's deadline, so a passed one cannot time out
+        the fresh invitation.  A row whose register entry is final is frozen
+        and records nothing.  The CASE_MANAGER calls this as it relays the
+        Invite; a replica calls it as it replays the relay's ledger entry
+        (EP-09-007), so both stores apply one rule.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` that owns the participant.
@@ -94,35 +125,28 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             invitee's row change, empty when ``INVITE`` did not apply.
 
         Raises:
-            VultronNotFoundError: If *case_id* does not resolve to a case, or
-                *invitee_id* has no participant record on it.
+            VultronNotFoundError: If *case_id* does not resolve to a case,
+                *invitee_id* has no participant record on it, or the register
+                has no entry for *embargo_id*.
         """
         case = self._read_case(case_id)
         em_state = case.em_state
-        participant_id = case.actor_participant_index.get(invitee_id)
-        participant = (
-            self._persistence.read(participant_id) if participant_id else None
+        participant_id, participant = self._require_participant(
+            case, invitee_id
         )
-        if not isinstance(participant, CaseParticipant) or not participant_id:
-            raise VultronNotFoundError(
-                "CaseParticipant", f"{invitee_id} on case {case_id}"
-            )
+        entry_status = case.embargo_register_status(embargo_id)
 
         before = participant.consent_for(embargo_id)
-        changed = participant.apply_pec_transition_if_legal(
-            embargo_id, PEC_Trigger.INVITE
+        moved = participant.apply_pec_transition_if_legal(
+            embargo_id,
+            PEC_Trigger.INVITE,
+            entry_status=entry_status,
+            rsvp_deadline=rsvp_deadline,
         )
-        moved = changed
-        # One deadline per participant attaches to its outstanding invitation
-        # (CM-28-013).  A fresh invitation that carries none replaces an older
-        # deadline rather than inheriting it, so a passed one cannot expire the
-        # new row (e.g. a signatory asked about a revision).
-        if (rsvp_deadline is not None or moved) and (
-            participant.invite_rsvp_deadline != rsvp_deadline
-        ):
-            participant.invite_rsvp_deadline = rsvp_deadline
-            changed = True
-        if changed:
+        restamped = not moved and participant.restamp_rsvp_deadline(
+            embargo_id, rsvp_deadline, entry_status=entry_status
+        )
+        if moved or restamped:
             self._persistence.save(participant)
 
         changes = (
@@ -132,12 +156,13 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         )
         logger.info(
             "Recorded embargo invite of '%s' to embargo '%s' on case '%s'"
-            " (consent %s → %s)",
+            " (consent %s → %s, RSVP deadline %s)",
             invitee_id,
             embargo_id,
             case_id,
             before,
             participant.consent_for(embargo_id),
+            participant.rsvp_deadline_for(embargo_id),
         )
         return _unchanged(em_state, participant_changes=changes)
 
@@ -201,10 +226,10 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
     ) -> EmbargoLifecycleResult:
         """Apply a PEC trigger to one participant's row without changing EM state.
 
-        Useful for recording individual consent signals (invite, accept,
+        Useful for recording individual consent signals (invite, agree,
         decline) that change no embargo register entry.  The trigger is
-        applied to the row for *embargo_id*, creating it on first contact; an
-        illegal trigger raises (CM-18-009).
+        applied to the row for *embargo_id*; an illegal trigger, or one on a
+        row whose register entry is final, raises (CM-18-009, ADR-0122).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` that owns the participant.
@@ -222,8 +247,8 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
 
         em_state = case.em_state
 
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
+        resolved = self._find_participant(case, actor_id)
+        if resolved is None:
             logger.warning(
                 "record_participant_consent: actor '%s' has no participant"
                 " record in case '%s' — skipping",
@@ -231,16 +256,15 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
                 case_id,
             )
             return _unchanged(em_state)
-
-        participant = self._persistence.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return _unchanged(em_state)
+        participant_id, participant = resolved
 
         before = participant.consent_for(embargo_id)
-        participant.apply_pec_transition(embargo_id, pec_trigger)
-        changed = participant.consent_for(embargo_id) != before
-        if changed:
-            self._persistence.save(participant)
+        participant.apply_pec_transition(
+            embargo_id,
+            pec_trigger,
+            entry_status=case.embargo_register_status(embargo_id),
+        )
+        self._persistence.save(participant)
 
         logger.info(
             "Recorded consent for actor '%s' on case '%s' (embargo '%s',"
@@ -255,62 +279,39 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
 
         return _unchanged(
             em_state,
-            participant_changes=(
-                [
-                    _consent_change(
-                        participant_id, embargo_id, before, participant
-                    )
-                ]
-                if changed
-                else []
-            ),
-        )
-
-    def _expire_invited_rows(
-        self, participant_id: str, participant: CaseParticipant
-    ) -> list[ParticipantConsentChange]:
-        """Apply ``EXPIRE`` to each ``INVITED`` row of *participant*; persist.
-
-        An RSVP deadline attaches to the participant's outstanding invitation
-        (CM-28-013), so when it passes every embargo the participant was still
-        only invited to expires with it (``INVITED → EXPIRED``, never
-        ``DECLINED``, CM-18-002).  Idempotent: rows in any other state are
-        left as they are, so a repeat reports nothing.
-        """
-        changes: list[ParticipantConsentChange] = []
-        for embargo_id in participant.invited_embargo_ids():
-            before = participant.consent_for(embargo_id)
-            participant.apply_pec_transition(embargo_id, PEC_Trigger.EXPIRE)
-            changes.append(
+            participant_changes=[
                 _consent_change(
                     participant_id, embargo_id, before, participant
                 )
-            )
-        if changes:
-            self._persistence.save(participant)
-        return changes
+            ],
+        )
 
     def assess_invite_expiry(
         self,
         *,
         case_id: str,
         actor_id: str,
+        embargo_id: str,
         now: datetime,
     ) -> tuple[bool, bool]:
-        """Read-only check: has the RSVP deadline passed and does EXPIRE need applying?
+        """Read-only check: has the invitation to *embargo_id* timed out?
 
         Returns a ``(is_expired, needs_apply)`` pair where:
 
-        * ``is_expired`` — ``True`` when the deadline has passed **and** the
-          participant is not a signatory to the active embargo.  Used by :func:`EMB-17` routing.
-        * ``needs_apply`` — ``True`` when the participant is still ``INVITED``
-          **and** the deadline has passed.  When ``True``, the caller MUST
-          call :meth:`record_invite_expiry` after committing the ledger entry
-          (CLP-10-006).
+        * ``is_expired`` — ``True`` when the invitation is closed — its
+          deadline has passed, its row already ``TIMED_OUT`` or
+          ``DECLINED``, or the embargo's register entry is final (the terms
+          are stale, EMB-17-003) — **and** the participant is not a
+          signatory to the active embargo.  Used by EMB-17 routing.
+        * ``needs_apply`` — ``True`` when the row for *embargo_id* is still
+          ``INVITED`` **and** its deadline has passed.  When ``True``, the
+          caller MUST call :meth:`record_invite_expiry` after committing the
+          ledger entry (CLP-10-006).
 
-        This method makes **no writes**.  The pair mirrors what
-        :meth:`detect_and_apply_expiry` computes but without the side-effect,
-        so a BT node can assess the situation, the commit node can persist the
+        Only the row for *embargo_id* is read: an RSVP deadline belongs to
+        one invitation (CM-28-001, CM-28-012), and the participant's other
+        invitations keep their own.  This method makes **no writes**, so a
+        BT node can assess the situation, the commit node can persist the
         ledger entry, and only then the effect node calls
         :meth:`record_invite_expiry` (guard → commit → effect, CLP-10-006,
         BT-06-006).
@@ -318,26 +319,36 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         Args:
             case_id: ID of the ``VulnerabilityCase``.
             actor_id: ID of the actor whose participant record to check.
+            embargo_id: ID of the ``EmbargoEvent`` the invitation was for.
             now: Current UTC datetime used for deadline comparison.
 
         Returns:
             ``(is_expired, needs_apply)`` — both ``False`` when the actor has
-            no participant record, the record has no deadline, or the deadline
+            no participant record, or the invitation is still open: the row
+            is not ``TIMED_OUT`` or ``DECLINED`` and its deadline, if any,
             has not yet passed.
         """
         case = self._read_case(case_id)
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
+        resolved = self._find_participant(case, actor_id)
+        if resolved is None:
             return False, False
-        participant = self._persistence.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return False, False
-        deadline = participant.invite_rsvp_deadline
-        if deadline is None or now < deadline:
-            return False, False
-        # Deadline passed.
-        needs_apply = bool(participant.invited_embargo_ids())
+        _, participant = resolved
         is_expired = not participant.is_signatory(case.active_embargo_id)
+        entry = case.embargo_register_entry(embargo_id)
+        if entry is not None and entry.status in FINAL_REGISTER_STATUSES:
+            # The terms were superseded, rejected, cancelled or terminated:
+            # the invitation is closed whatever its deadline, and its row is
+            # frozen, so there is nothing to time out (ADR-0122).  The
+            # caller's EMB-17 routing answers with the current embargo.
+            return is_expired, False
+        if not _invitation_has_closed(participant, embargo_id, now):
+            return False, False
+        # Only an INVITED row carries a deadline (CM-28-013) and the entry is
+        # open, so an INVITED row whose deadline passed times out; a row
+        # already TIMED_OUT or DECLINED has nothing to apply.
+        needs_apply = (
+            participant.consent_for(embargo_id) == EmbargoConsentState.INVITED
+        )
         return is_expired, needs_apply
 
     def record_invite_expiry(
@@ -345,31 +356,37 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         *,
         case_id: str,
         actor_id: str,
+        embargo_id: str,
     ) -> EmbargoLifecycleResult:
-        """Apply PEC ``EXPIRE`` (``INVITED → EXPIRED``) after the commit.
+        """Apply PEC ``TIME_OUT`` (``INVITED → TIMED_OUT``) after the commit.
 
         This is the **effect** half of the guard → commit → effect trio
         (CLP-10-006, BT-06-006).  The CASE_MANAGER calls it only after its
         expiry entry has been committed by
-        :func:`~vultron.core.behaviors.sync.commit_tree.create_commit_log_entry_tree`.
+        :func:`~vultron.core.behaviors.sync.commit_tree.create_commit_log_entry_tree`,
+        and a replica calls it as it replays that entry.  Only the row for
+        *embargo_id* moves: the deadline that passed belongs to that one
+        invitation (CM-28-001, CM-28-012).
 
-        Idempotent: if the participant is no longer ``INVITED`` (already
-        ``EXPIRED``, or any other state), the call is a no-op.  An actor with
-        no participant record is logged and skipped.
+        Idempotent: a row that is no longer ``INVITED`` (already
+        ``TIMED_OUT``, or any other state), or whose register entry is final,
+        is left as it is.  An actor with no participant record is logged and
+        skipped.
 
         Args:
             case_id: ID of the ``VulnerabilityCase``.
-            actor_id: ID of the actor whose invite expired.
+            actor_id: ID of the actor whose invite timed out.
+            embargo_id: ID of the ``EmbargoEvent`` the invitation was for.
 
         Returns:
             :class:`EmbargoLifecycleResult` with ``is_expired=True`` when
-            ``EXPIRE`` was applied, ``is_expired=False`` when the invitee was
-            already ``EXPIRED`` (idempotent call).
+            ``TIME_OUT`` was applied, ``is_expired=False`` when the row had
+            already left ``INVITED`` (idempotent call).
         """
         case = self._read_case(case_id)
         em_state = case.em_state
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
+        resolved = self._find_participant(case, actor_id)
+        if resolved is None:
             logger.debug(
                 "record_invite_expiry: actor '%s' has no participant"
                 " record in case '%s' — skipping",
@@ -377,24 +394,22 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
                 case_id,
             )
             return _unchanged(em_state)
-        participant = self._persistence.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
-            return _unchanged(em_state)
-        participant_changes = self._expire_invited_rows(
-            participant_id, participant
+        participant_id, participant = resolved
+        participant_changes = self._apply_where_legal(
+            case, participant_id, participant, embargo_id, PEC_Trigger.TIME_OUT
         )
         if participant_changes:
             logger.info(
-                "Invite expired for actor '%s' on case '%s'"
-                " (PEC INVITED → EXPIRED — recorded after commit)",
+                "Invite to embargo '%s' timed out for actor '%s' on case '%s'"
+                " (PEC INVITED → TIMED_OUT — recorded after commit)",
+                embargo_id,
                 actor_id,
                 case_id,
             )
-        is_expired = bool(participant_changes)
         return _unchanged(
             em_state,
             participant_changes=participant_changes,
-            is_expired=is_expired,
+            is_expired=bool(participant_changes),
         )
 
     def honour_late_accept(
@@ -404,7 +419,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         actor_id: str,
         embargo_id: str,
     ) -> EmbargoLifecycleResult:
-        """Apply the honour decision: ``EXPIRED → ACCEPTED`` (or ``DECLINED → INVITED → ACCEPTED``).
+        """Apply the honour decision: ``TIMED_OUT → AGREED`` (or ``DECLINED → INVITED → AGREED``).
 
         This is the **effect** of :data:`HONOUR_LATE_ACCEPT_EVENT_TYPE`
         (EMB-17-001, ADR-0118).  Called by the replica replay node
@@ -413,19 +428,19 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         :class:`~vultron.core.behaviors.embargo.nodes.expiry.HonourLateAcceptNode`
         **after** the entry is committed (CLP-10-006).
 
-        A participant whose row for *embargo_id* is ``DECLINED`` is first moved
-        ``DECLINED → INVITED`` (since ``ACCEPT`` is not legal from
-        ``DECLINED``, CM-18-003), then the shared
+        A participant whose row for *embargo_id* is ``DECLINED`` is first
+        invited again (``DECLINED → INVITED``, since ``AGREE`` is not legal
+        from ``DECLINED``), then the shared
         :meth:`~vultron.core.services.embargo_lifecycle.pec._PecEffectsMixin._record_actor_acceptance`
-        applies ``ACCEPT`` to that row.
+        applies ``AGREE`` to that row.
 
-        Idempotent: a participant whose row is already ``ACCEPTED`` is not
+        Idempotent: a participant whose row is already ``AGREED`` is not
         changed.
 
         Args:
             case_id: ID of the ``VulnerabilityCase``.
             actor_id: ID of the honouring actor.
-            embargo_id: ID of the active ``EmbargoEvent`` to accept.
+            embargo_id: ID of the active ``EmbargoEvent`` to agree to.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing the PEC transitions.
@@ -436,37 +451,25 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         """
         case = self._read_case(case_id)
         em_state = case.em_state
-        participant_id = case.actor_participant_index.get(actor_id)
-        participant = (
-            self._persistence.read(participant_id) if participant_id else None
-        )
-        if not isinstance(participant, CaseParticipant) or not participant_id:
-            raise VultronNotFoundError(
-                "CaseParticipant", f"{actor_id} on case {case_id}"
-            )
+        participant_id, participant = self._require_participant(case, actor_id)
 
         participant_changes: list[ParticipantConsentChange] = []
-
-        # DECLINED is not a legal ACCEPT source (CM-18-003); re-invite first.
+        # DECLINED is not a legal AGREE source (CM-18-003); invite again first.
         if participant.consent_for(embargo_id) == EmbargoConsentState.DECLINED:
-            before = participant.consent_for(embargo_id)
-            participant.apply_pec_transition(embargo_id, PEC_Trigger.INVITE)
-            self._persistence.save(participant)
-            participant_changes.append(
-                _consent_change(
-                    participant_id, embargo_id, before, participant
-                )
+            participant_changes = self._apply_where_legal(
+                case,
+                participant_id,
+                participant,
+                embargo_id,
+                PEC_Trigger.INVITE,
             )
             logger.info(
                 "honour_late_accept: re-invited DECLINED actor '%s'"
-                " on case '%s' before ACCEPT (DECLINED → INVITED)",
+                " on case '%s' before AGREE (DECLINED → INVITED)",
                 actor_id,
                 case_id,
             )
 
-        # Re-read case after the INVITE write so the fresh participant record
-        # is used by _record_actor_acceptance (participant may have changed).
-        case = self._read_case(case_id)
         accept_changes = self._record_actor_acceptance(
             case, actor_id, embargo_id
         )
@@ -487,26 +490,28 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         *,
         case_id: str,
         actor_id: str,
+        embargo_id: str,
         now: datetime,
     ) -> EmbargoLifecycleResult:
-        """Lazily enforce the RSVP deadline: apply EXPIRE if the invite expired.
+        """Lazily enforce one invitation's RSVP deadline: apply ``TIME_OUT`` if it passed.
 
-        Reads the participant record for *actor_id* in *case_id*.  If the
-        participant is in ``INVITED`` state and ``invite_rsvp_deadline`` is
-        set and ``now >= invite_rsvp_deadline``, applies ``PEC_Trigger.EXPIRE``
-        (``INVITED → EXPIRED``) and returns a result with ``is_expired=True``.
-        An expired invite is not a refusal, so ``DECLINE`` is never the timer
-        path (ADR-0118, CM-18-002).
+        Reads the row for *embargo_id* on *actor_id*'s participant record.
+        If the row is ``INVITED`` and its deadline has passed, applies
+        ``PEC_Trigger.TIME_OUT`` (``INVITED → TIMED_OUT``).  A timed-out
+        invitation is not a refusal, so ``DECLINE`` is never the timer path
+        (ADR-0118, CM-18-002), and the participant's other invitations keep
+        their own deadlines (CM-28-001).
 
-        Idempotent: if the participant is already ``EXPIRED`` (or any state
-        other than ``INVITED``), no PEC transition is applied.  The result
-        still carries ``is_expired=True`` when the deadline has passed and the
-        participant is not a signatory to the active embargo, so the caller can branch on whether
-        the invite window closed without re-deriving it.
+        Idempotent: a row already ``TIMED_OUT`` (or in any state other than
+        ``INVITED``) is not moved.  The result still carries
+        ``is_expired=True`` when the deadline has passed and the participant
+        is not a signatory to the active embargo, so the caller can branch on
+        whether the invite window closed without re-deriving it.
 
         Args:
             case_id: ID of the VulnerabilityCase.
             actor_id: ID of the actor whose participant record to check.
+            embargo_id: ID of the ``EmbargoEvent`` the invitation was for.
             now: Current UTC datetime used for deadline comparison.
 
         Returns:
@@ -514,11 +519,10 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             whether the deadline has passed.
         """
         case = self._read_case(case_id)
-
         em_state = case.em_state
 
-        participant_id = case.actor_participant_index.get(actor_id)
-        if not participant_id:
+        resolved = self._find_participant(case, actor_id)
+        if resolved is None:
             logger.debug(
                 "detect_and_apply_expiry: actor '%s' has no participant"
                 " record in case '%s' — skipping",
@@ -526,41 +530,33 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
                 case_id,
             )
             return _unchanged(em_state)
+        participant_id, participant = resolved
 
-        participant = self._persistence.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
+        deadline = participant.rsvp_deadline_for(embargo_id)
+        if not _invitation_has_closed(participant, embargo_id, now):
             return _unchanged(em_state)
 
-        deadline = participant.invite_rsvp_deadline
-        is_expired = deadline is not None and now >= deadline
-
-        if not is_expired:
-            return _unchanged(em_state)
-
-        # Deadline has passed — apply EXPIRE to every still-INVITED row.
-        # Idempotent: EXPIRED and every other state are left unchanged.
-        participant_changes = self._expire_invited_rows(
-            participant_id, participant
+        participant_changes = self._apply_where_legal(
+            case, participant_id, participant, embargo_id, PEC_Trigger.TIME_OUT
         )
         if participant_changes:
             logger.info(
-                "Invite expired for actor '%s' on case '%s'"
-                " (deadline=%s, PEC INVITED → EXPIRED)",
+                "Invite to embargo '%s' timed out for actor '%s' on case '%s'"
+                " (deadline=%s, PEC INVITED → TIMED_OUT)",
+                embargo_id,
                 actor_id,
                 case_id,
                 deadline,
             )
 
-        # A signatory to the embargo in force has already accepted; a stale
+        # A signatory to the embargo in force has already agreed; a stale
         # deadline is not a real expiry.  Anyone else past the deadline
-        # (just-expired, already-expired, or declined) triggers the EMB-17
+        # (just timed out, already timed out, or declined) triggers the EMB-17
         # late-Accept routing in the caller.
-        is_expired = not participant.is_signatory(case.active_embargo_id)
-
         return _unchanged(
             em_state,
             participant_changes=participant_changes,
-            is_expired=is_expired,
+            is_expired=not participant.is_signatory(case.active_embargo_id),
         )
 
     def assert_embargo_eligible(self, *, case_id: str, operation: str) -> None:

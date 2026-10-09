@@ -415,7 +415,7 @@ The table shows the states the FV run traverses in each.
 | RM (Finder) | `ACCEPTED → CLOSED` | seated at `ACCEPTED` on creation (CBT-01-008) |
 | RM (Case Actor) | `RECEIVED → VALID → ACCEPTED → CLOSED` | its own record tracks the proposal and the owner closure (CM-23-005) |
 | EM | `ACTIVE → EXITED` | the default embargo is active from creation; `PROPOSED` is never entered |
-| PEC | signatory for both participants | consent row for the default embargo seeded `ACCEPTED` on creation; no invitation round-trip |
+| PEC | signatory for both participants | consent row for the default embargo seeded `AGREED` on creation; no invitation round-trip |
 | CS vendor path (VFD) | `vfd → Vfd → VFd` | `D` is not demonstrated; the Vendor stops at fix ready |
 | CS public path (PXA) | `pxa → Pxa` | `X` and `A` are not demonstrated |
 

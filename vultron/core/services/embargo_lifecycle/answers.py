@@ -54,8 +54,8 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         """Record *actor_id*'s acceptance of an embargo Invite.
 
         ``Accept(Invite(EmbargoEvent))`` is always the sender's own consent,
-        the case owner's included (MSM-07-003, ADR-0122): the PEC ``ACCEPT``
-        trigger marks the sender's row for *embargo_id* ``ACCEPTED``,
+        the case owner's included (MSM-07-003, ADR-0122): the PEC ``AGREE``
+        trigger marks the sender's row for *embargo_id* ``AGREED``,
         whether *embargo_id* is the embargo in force, a proposed revision or
         a first proposal.  It moves no register entry, so EM is unchanged;
         being a signatory is the lookup of the active embargo's row.

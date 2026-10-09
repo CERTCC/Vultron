@@ -233,7 +233,7 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
     case = net.case(OWNER)
     bystander = replica.read(case.actor_participant_index[BYSTANDER])
     assert isinstance(bystander, CaseParticipant)
-    assert bystander.consent_for(revision_id) != EmbargoConsentState.ACCEPTED
+    assert bystander.consent_for(revision_id) != EmbargoConsentState.AGREED
     assert case.current_status.em.state == EM.REVISE
     assert case.proposed_embargo_ids == [revision_id]
 
@@ -677,7 +677,7 @@ def test_a_lapsed_bystander_gets_its_invite_but_no_ledger_entry():
     ).execute()
 
     bystander = _participant(net, MANAGER, BYSTANDER)
-    assert bystander.has_lapsed(revision_id)
+    assert bystander.has_lapsed(net.case(MANAGER).embargo_register)
     assert not bystander.is_signatory(revision_id)
     assert net.deliver(MANAGER, to=BYSTANDER, type_="Announce") == []
     assert net.case(BYSTANDER).current_status.em.state == EM.REVISE
@@ -826,8 +826,9 @@ def test_termination_leaves_nobody_a_signatory_in_every_store():
         assert net.case(actor_id).active_embargo_id is None, actor_id
         for member in states:
             participant = _participant(net, actor_id, member)
+            register = net.case(actor_id).embargo_register
             assert not participant.is_signatory(None), (actor_id, member)
-            assert not participant.has_lapsed(None), (actor_id, member)
+            assert not participant.has_lapsed(register), (actor_id, member)
 
 
 def _faults(net: _Network, sender: str, to: str):

@@ -24,10 +24,10 @@ from vultron.metadata.specs.backstop._analysis import (
     load_requirements,
 )
 from vultron.metadata.specs.backstop._diff import (
-    _run_git,
     changes_from_paths,
     collect_git_changes,
     git_toplevel,
+    run_git,
 )
 from vultron.metadata.specs.backstop._manifest import (
     parse_manifest,
@@ -87,7 +87,7 @@ def _collect(args: argparse.Namespace) -> tuple[Path, list[FileChange]]:
         root = repo_root().resolve()
         return root, changes_from_paths(root, args.paths)
     root = git_toplevel(Path.cwd()).resolve()
-    return root, collect_git_changes(_run_git(root), root, args.base)
+    return root, collect_git_changes(run_git(root), root, args.base)
 
 
 def _run(args: argparse.Namespace) -> int:

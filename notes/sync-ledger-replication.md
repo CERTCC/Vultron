@@ -418,7 +418,7 @@ whose embargo gate is undecidable fails the tree at the CASE_MANAGER before the
 replay, rather than reading as a skip (#4324).
 
 Only a joined participant that is not active is *paused*: one the active
-embargo withholds (not `SIGNATORY` to it), or one the Case Owner removed
+embargo withholds (not a signatory to it), or one the Case Owner removed
 (CM-31-001, ADR-0116). `inactive_joined_participants()` names them, and the
 collectors publish them as `fanout_withheld`. A participant that has not
 joined is inert whatever the embargo, and gets its case and ledger through

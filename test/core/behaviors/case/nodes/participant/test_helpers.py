@@ -21,9 +21,13 @@ from typing import Any, cast
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import propose
 from vultron.core.behaviors.case.nodes import _create_and_attach_participant
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 
 
@@ -157,6 +161,74 @@ class TestCreateAndAttachParticipant:
             logging.getLogger("test"),
         )
         assert result is None
+        assert bt_scenario.dl.read(participant.id_) is None
+
+    @pytest.mark.spec("CM-18-001")
+    def test_stores_the_participant_with_a_row_per_register_entry(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        actor_id: str,
+    ) -> None:
+        """The first stored record already holds an UNINVITED row per entry."""
+        embargo_id = f"{case_obj.id_}/embargoes/e1"
+        propose(case_obj, embargo_id)
+        bt_scenario.dl.save(case_obj)
+        participant = CaseParticipant(
+            attributed_to=actor_id,
+            context=case_obj.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        _create_and_attach_participant(
+            bt_scenario.dl,
+            participant,
+            case_obj.id_,
+            actor_id,
+            logging.getLogger("test"),
+        )
+        stored = bt_scenario.dl.read(participant.id_)
+        assert isinstance(stored, CaseParticipant)
+        assert [(r.embargo_id, r.state) for r in stored.embargo_consents] == [
+            (embargo_id, EmbargoConsentState.UNINVITED)
+        ]
+
+    @pytest.mark.spec("CM-18-001")
+    def test_an_existing_participant_gains_and_saves_new_rows(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        actor_id: str,
+    ) -> None:
+        """A registered actor's record gains rows for later entries; no second record is stored."""
+        node_logger = logging.getLogger("test")
+        first = CaseParticipant(
+            attributed_to=actor_id,
+            context=case_obj.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        case = _create_and_attach_participant(
+            bt_scenario.dl, first, case_obj.id_, actor_id, node_logger
+        )
+        assert case is not None
+        embargo_id = f"{case_obj.id_}/embargoes/e1"
+        propose(case, embargo_id)
+        bt_scenario.dl.save(case)
+
+        second = CaseParticipant(
+            attributed_to=actor_id,
+            context=case_obj.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        result = _create_and_attach_participant(
+            bt_scenario.dl, second, case_obj.id_, actor_id, node_logger
+        )
+
+        assert result is not None
+        assert result.actor_participant_index[actor_id] == first.id_
+        stored = bt_scenario.dl.read(first.id_)
+        assert isinstance(stored, CaseParticipant)
+        assert stored.consent_for(embargo_id) is EmbargoConsentState.UNINVITED
+        assert bt_scenario.dl.read(second.id_) is None
 
 
 class TestResolveParticipantStateShapeGuard:

@@ -338,7 +338,7 @@ class TestTerminateEmbargoBT:
         for participant_id in case.actor_participant_index.values():
             updated_p = cast(as_CaseParticipant, dl.read(participant_id))
             assert updated_p.consent_for(embargo_id) is (
-                EmbargoConsentState.ACCEPTED
+                EmbargoConsentState.AGREED
             )
             assert not updated_p.is_signatory(updated_case.active_embargo_id)
 
@@ -1010,7 +1010,7 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
                 row.embargo_id for row in participant.embargo_consents
             )
             if participant.consent_for(embargo_id)
-            is EmbargoConsentState.ACCEPTED
+            is EmbargoConsentState.AGREED
         ]
 
     @pytest.mark.spec("EP-09-001")

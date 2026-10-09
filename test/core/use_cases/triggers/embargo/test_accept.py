@@ -246,8 +246,7 @@ def test_accept_embargo_activates_the_proposed_embargo(
         dl.read(updated.actor_participant_index[owner.id_]),
     )
     assert (
-        owner_participant.consent_for(embargo_id)
-        == EmbargoConsentState.ACCEPTED
+        owner_participant.consent_for(embargo_id) == EmbargoConsentState.AGREED
     )
     # As the CASE_MANAGER the decision is a canonical entry every replica
     # replays (#4085), so the Accept itself is addressed to nobody.
@@ -385,7 +384,7 @@ def test_non_owner_manager_accept_is_consent_and_moves_no_register_entry(
     )
     assert (
         manager_participant.consent_for(embargo_id)
-        == EmbargoConsentState.ACCEPTED
+        == EmbargoConsentState.AGREED
     )
     committed = committed_event_types(dl, case.id_)
     assert MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value in committed

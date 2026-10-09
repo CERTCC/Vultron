@@ -136,13 +136,14 @@ def test_no_link_and_manager_sender_selects_direct(dl, make_payload):
 def test_refusal_carries_the_chosen_routes_reason(dl, make_payload):
     """A trusted-route refusal is that route's, not a later arm's gate."""
     dl.save(_link())
+    unheld = f"{_CASE_ID}/embargo_events/unheld"
     case = _case().model_copy(
-        update={
-            "embargo_register": register(
-                active=f"{_CASE_ID}/embargo_events/unheld"
-            )
-        }
+        update={"embargo_register": register(active=unheld)}
     )
+    # A participant carries a row for every register entry (ADR-0122).
+    for participant in case.case_participants:
+        assert isinstance(participant, as_CaseParticipant)
+        participant.write_uninvited_rows([unheld])
 
     tree, result, route, _ = _run(dl, make_payload, _CREATOR, case)
 

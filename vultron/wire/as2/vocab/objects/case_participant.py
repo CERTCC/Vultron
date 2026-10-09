@@ -8,8 +8,9 @@ The as_-prefixed names are retained for backward compatibility.
 ``as_CaseParticipant`` was held back with the two status classes by #3487, which
 scoped it out because the status pair "drags the as_CaseParticipant cascade with
 them".  The cascade turned out to be the cheap part: the two classes carried
-identical field sets apart from ``invite_rsvp_deadline`` (core-only, and excluded
-from the wire), and core already implemented every method the wire class had —
+identical field sets apart from an invite RSVP deadline (core-only then; it
+now rides on each consent row, ADR-0122), and core already implemented every
+method the wire class had —
 role serialization, name derivation, status seeding, ``has_role``, ``roles`` —
 plus several the wire class did not.  Nothing needed relocating from this class.
 

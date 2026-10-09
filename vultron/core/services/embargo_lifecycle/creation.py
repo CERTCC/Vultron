@@ -21,7 +21,7 @@ save the case at ``EM.PROPOSED`` in between, and a failure there left it
 stranded, because the once-per-case guard reads any state but ``NONE`` as
 "already initialized" (EP-04-012, #4123).
 
-What follows activation — the consent records, the owner's SIGNATORY seed
+What follows activation — the consent records, the owner's signatory seed
 (CM-14-003) and a contested creation's pending revision (EP-04-003) — is
 committed with it, in one ``save_many``.  Written after the case was saved
 ``ACTIVE``, a failure there left the owner unseeded or the revision
@@ -156,14 +156,14 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
 
         The consent effects are those of ``propose_embargo`` followed by
         ``activate_embargo``: a proposing *actor_id* that is a participant
-        marks its row for the id ``ACCEPTED`` (ADR-0093); being a signatory to
+        marks its row for the id ``AGREED`` (ADR-0093); being a signatory to
         the active embargo is then just that lookup.  The proposal never
         stays open: its register entry is activated in the same commit
         (EP-08-003).
         The case owner — ``attributed_to``, never the executing actor, which
         on the CASE_MANAGER's creation path is someone else — is then seeded
-        ``SIGNATORY`` of the embargo it set (CM-14-003).  An owner that has
-        already ``DECLINED`` records nothing: ``ACCEPT`` is not legal from
+        a signatory of the embargo it set (CM-14-003).  An owner that has
+        already ``DECLINED`` records nothing: ``AGREE`` is not legal from
         that state, so it stays declined until re-invited (CM-18-003).
 
         A *revision* is the longer creation-time proposal that lost

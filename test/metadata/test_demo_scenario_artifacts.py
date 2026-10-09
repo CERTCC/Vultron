@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Ratchets over the artifacts generated from the demo scenario registry.
 
-Three things are checked here, and they fail for different reasons on purpose:
+Four things are checked here, and they fail for different reasons on purpose:
 
 * **The committed artifacts are current** (``test_committed_artifacts_are_in_sync``).
   This duplicates the ``demo-scenarios-sync`` pre-commit hook deliberately: a
@@ -25,8 +25,14 @@ Three things are checked here, and they fail for different reasons on purpose:
 * **The CI matrix projection stays narrow** (``test_matrix_carries_only_...``).
   Entries are splatted into ``matrix: include:``, so every extra key becomes a
   matrix variable in every step of two jobs (DEMOCI-11-004).
+* **The specs that enumerate scenarios agree with the registry and harnesses**
+  (``test_democi_06_*``, ``test_per_scenario_demoma_16_*``).  Prose is the one
+  input no generator rewrites, so it drifts silently unless checked
+  (DEMOCI-11-007, DEMOMA-16-008).
 
-Requirements: ``specs/demo-ci.yaml`` DEMOCI-11-004, DEMOCI-11-005.
+Requirements: ``specs/demo-ci.yaml`` DEMOCI-06-002, DEMOCI-06-003,
+DEMOCI-11-004, DEMOCI-11-005, DEMOCI-11-007; ``specs/multi-actor-demo.yaml``
+DEMOMA-16-008.
 """
 
 from __future__ import annotations
@@ -45,12 +51,19 @@ from vultron.demo.scenario.registry import (
     is_scenario_name,
 )
 from vultron.metadata.base import MkDocsYamlLoader
+from vultron.metadata.demo_scenarios.event_types import (
+    additional_event_types,
+    harness_event_types,
+)
 from vultron.metadata.demo_scenarios.render import (
     MATRIX_KEYS,
     PAGE_SLUGS,
     matrix_entries,
     render_page,
     scenario_matrix_json,
+)
+from vultron.metadata.demo_scenarios.scenario_groups import (
+    per_scenario_event_type_requirements,
 )
 from vultron.metadata.demo_scenarios.sync import (
     ARTIFACTS,
@@ -274,6 +287,80 @@ def test_democi_06_002_names_exactly_the_pr_set_scenarios() -> None:
         f"registry has {sorted(expected)}. If the PR validation set really "
         "changed, amend DEMOCI-06-002 in the same PR — its coverage rationale "
         "is the reason the set is what it is."
+    )
+
+
+def test_democi_06_002_names_exactly_the_pr_set_event_types() -> None:
+    """DEMOCI-06-002 names exactly the PR-set harnesses' non-universal types.
+
+    The statement's coverage claim is "the universal types plus these", and that
+    list is what justifies the PR set being this small.  When a harness gains an
+    event type (as both embargo harnesses did with ``activate_embargo_on_case``)
+    and the spec is not amended, the authority silently understates what the PR
+    set must cover; when a PR-set scenario is dropped, the spec keeps claiming
+    coverage of types nothing in the set still exercises.
+
+    Event types are told apart from the statement's other backticked spans
+    (``pull_request``, ``demo-integration.yml``) by membership in some
+    registered harness's expected list — the same AST read the coverage matrix
+    is ratcheted against.  A misspelled type is therefore not recognised, but
+    then the correctly spelled one is missing, and that is reported.
+    """
+    scenarios = discover_scenarios()
+    harnesses = {
+        spec.name: harness_event_types(spec, _REPO_ROOT) for spec in scenarios
+    }
+    known = {t for types in harnesses.values() if types for t in types}
+    statement = (
+        load_registry(_REPO_ROOT / "specs").get("DEMOCI-06-002").statement
+    )
+    named = set(re.findall(r"`([^`]+)`", statement)) & known
+    covered = set().union(
+        *(
+            additional_event_types(harnesses[spec.name] or ())
+            for spec in scenarios
+            if spec.in_pr_set
+        )
+    )
+    assert named == covered, (
+        "DEMOCI-06-002 must name exactly the non-universal event types the "
+        "PR-set invariant harnesses expect. Missing from the spec: "
+        f"{sorted(covered - named)}; named but not covered by the PR set: "
+        f"{sorted(named - covered)}."
+    )
+
+
+def test_per_scenario_demoma_16_names_every_harness_event_type() -> None:
+    """Each scenario's DEMOMA-16 requirement names every type its harness adds.
+
+    The per-scenario sibling of the DEMOCI-06-002 check above, and the drift it
+    catches is the same: both embargo harnesses gained
+    ``activate_embargo_on_case`` while DEMOMA-16-016 and -017 still listed five
+    types.  One-directional on purpose — some statements name a type in order
+    to exclude it (DEMOMA-16-002: FV "does not include an
+    ``invite_actor_to_case`` phase"), so an extra name is not drift.
+    """
+    registry = load_registry(_REPO_ROOT / "specs")
+    requirements = per_scenario_event_type_requirements(registry)
+    unstated: dict[str, list[str]] = {}
+    for spec in discover_scenarios():
+        harness = harness_event_types(spec, _REPO_ROOT)
+        if harness is None:
+            continue  # DEMOCI-11-003 reports a missing harness separately
+        named = {
+            token
+            for spec_id in requirements.get(spec.name, ())
+            for token in re.findall(
+                r"`([^`]+)`", registry.get(spec_id).statement
+            )
+        }
+        missing = sorted(additional_event_types(harness) - named)
+        if missing:
+            unstated[spec.name] = missing
+    assert not unstated, (
+        "These scenarios' harnesses expect event types their DEMOMA-16 "
+        f"requirement does not name: {unstated}. Amend the requirement in the "
+        "same PR as the harness."
     )
 
 

@@ -267,8 +267,8 @@ def embargo_ending_notice_recipients(
 ) -> list[str]:
     """Return the actor IDs owed a direct notice that *embargo_id* ended.
 
-    A joined participant that is ``SIGNATORY`` to *embargo_id* — its row
-    for it is ``ACCEPTED`` — and that the ledger fan-out no longer reaches:
+    A joined participant that is a signatory to *embargo_id* — its row
+    for it is ``AGREED`` — and that the ledger fan-out no longer reaches:
     removed (CM-31-001), or at RM ``CLOSED`` (CM-23-004).  Such a
     participant stays bound (CM-31-008) and cannot learn from the ledger
     that the embargo was terminated or shortened, so the CASE_MANAGER tells
@@ -280,7 +280,14 @@ def embargo_ending_notice_recipients(
     (MSM-07-006, EP-05-001), so the selection is the same before and after
     the EM write.  The notice is not case content (CM-10-007), so the active
     check does not apply.  Roster order is kept, minus *excluding*.
+
+    An *embargo_id* the register does not hold has no signatories to notify:
+    every participant's rows cover the register's entries (ADR-0122), so
+    ``is_signatory`` would have no row to read.  Return nothing rather than
+    reading a row that cannot exist.
     """
+    if case.embargo_register_entry(embargo_id) is None:
+        return []
     return [
         actor_id
         for actor_id, _record in _select(
@@ -296,7 +303,7 @@ def embargo_ending_notice_recipients(
 def _owed_ending_notice(record: CaseParticipant, embargo_id: str) -> bool:
     """True when *record* is owed a CM-31-009 notice that *embargo_id* ended.
 
-    Joined, ``SIGNATORY`` to *embargo_id*, and beyond the ledger fan-out.
+    Joined, a signatory to *embargo_id*, and beyond the ledger fan-out.
     The one rule both sides read: the CASE_MANAGER to pick the recipients,
     the paused replica to decide whether a notice is one it can be owed.
     """
@@ -313,7 +320,7 @@ def awaits_embargo_ending_notice(
     """True when *actor_id* can be owed a CM-31-009 notice on *case*.
 
     Read in the participant's own replica, about itself (CM-31-010): it is
-    a joined ``SIGNATORY`` of the embargo its replica has in force, and the
+    joined and a signatory of the embargo its replica has in force, and the
     ledger fan-out no longer reaches it (removed, or at RM ``CLOSED``).
     This is :func:`embargo_ending_notice_recipients` seen from the receiver,
     so a replica applies only a notice the CASE_MANAGER would send it.  A

@@ -1,4 +1,4 @@
-"""Multi-participant consent chain: no row -> INVITED -> ACCEPTED.
+"""Multi-participant consent chain: UNINVITED -> INVITED -> AGREED.
 
 Exercises the consent-row path via BTTestScenario and BT nodes (ADR-0122).
 A regression to direct row assignment would cause this test to fail because:
@@ -6,9 +6,9 @@ A regression to direct row assignment would cause this test to fail because:
 - The BT nodes enforce valid trigger-based transitions.
 
 Covers:
-- no row -> INVITED: via PEC_Trigger.INVITE applied before the accept BT
-- INVITED -> ACCEPTED: via _SignEmbargoConsentLeafNode inside the accept BT
-- no row -> ACCEPTED: single-step path (a participant never asked about the
+- UNINVITED -> INVITED: via PEC_Trigger.INVITE applied before the accept BT
+- INVITED -> AGREED: via _SignEmbargoConsentLeafNode inside the accept BT
+- UNINVITED -> AGREED: single-step path (a participant never asked about the
   embargo may still accept it)
 - Multi-participant: two participants, each becoming a signatory independently
 - A participant that accepted an earlier embargo has lapsed from the embargo
@@ -27,6 +27,8 @@ from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_register import EmbargoRegisterEntry
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
@@ -50,20 +52,35 @@ _EARLIER_EMBARGO_ID = "https://example.org/embargoes/embargo-000"
 
 def _participant(
     actor_id: str,
-    state: EmbargoConsentState | None = None,
+    state: EmbargoConsentState = EmbargoConsentState.UNINVITED,
     *,
     embargo_id: str = _EMBARGO_ID,
 ) -> CaseParticipant:
-    """A participant with one consent row for *embargo_id* (none when None)."""
-    return CaseParticipant(
+    """A participant with a *state* row for *embargo_id*.
+
+    Every other embargo of the case (the active one, the earlier one) gets
+    the ``UNINVITED`` row each register entry writes (ADR-0122).
+    """
+    participant = CaseParticipant(
         id_=actor_id,
         attributed_to=actor_id,
-        embargo_consents=(
-            [EmbargoConsent(embargo_id=embargo_id, state=state)]
-            if state is not None
-            else []
-        ),
+        embargo_consents=[EmbargoConsent(embargo_id=embargo_id, state=state)],
     )
+    participant.write_uninvited_rows([_EARLIER_EMBARGO_ID, _EMBARGO_ID])
+    return participant
+
+
+#: ``_EMBARGO_ID`` is the embargo in force; it replaced ``_EARLIER_EMBARGO_ID``.
+_REGISTER = [
+    EmbargoRegisterEntry(
+        embargo=_EARLIER_EMBARGO_ID, status=EmbargoRegisterStatus.SUPERSEDED
+    ),
+    EmbargoRegisterEntry(
+        embargo=_EMBARGO_ID,
+        status=EmbargoRegisterStatus.ACTIVE,
+        replaces=_EARLIER_EMBARGO_ID,
+    ),
+]
 
 
 def _run_sign_node(
@@ -82,7 +99,7 @@ def _run_sign_node(
 
 
 # ---------------------------------------------------------------------------
-# Full chain: no row -> INVITED -> ACCEPTED
+# Full chain: UNINVITED -> INVITED -> AGREED
 # ---------------------------------------------------------------------------
 
 
@@ -93,15 +110,15 @@ class TestConsentChainNoRowToSignatory:
     def test_no_row_to_signatory_via_accept_bt(
         self, bt_scenario: BTTestScenario
     ):
-        """No row -> ACCEPTED via _SignEmbargoConsentLeafNode.
+        """UNINVITED -> AGREED via _SignEmbargoConsentLeafNode.
 
-        ADR-0048: having no row means 'never asked', not 'pre-consent', so
-        ACCEPT is valid directly from it.
+        ADR-0048: ``UNINVITED`` means 'never asked', not 'pre-consent', so
+        AGREE is valid directly from it.
         """
         participant = _participant(_ACTOR_A)
         final = _run_sign_node(bt_scenario, participant)
-        assert final == EmbargoConsentState.ACCEPTED, (
-            f"Expected ACCEPTED after ACCEPT from no row, got {final!r}"
+        assert final == EmbargoConsentState.AGREED, (
+            f"Expected AGREED after AGREE from UNINVITED, got {final!r}"
         )
         assert participant.is_signatory(_EMBARGO_ID)
 
@@ -109,15 +126,19 @@ class TestConsentChainNoRowToSignatory:
     def test_invited_to_signatory_via_accept_bt(
         self, bt_scenario: BTTestScenario
     ):
-        """No row -> INVITED -> ACCEPTED full two-step path.
+        """UNINVITED -> INVITED -> AGREED full two-step path.
 
         Step 1: apply_pec_transition(INVITE) -> INVITED (simulates receiving invite)
-        Step 2: BT sign node applies ACCEPT trigger -> ACCEPTED
+        Step 2: BT sign node applies AGREE trigger -> AGREED
         """
         participant = _participant(_ACTOR_A)
 
         # Step 1: simulate invite arrival via the consent table
-        participant.apply_pec_transition(_EMBARGO_ID, PEC_Trigger.INVITE)
+        participant.apply_pec_transition(
+            _EMBARGO_ID,
+            PEC_Trigger.INVITE,
+            entry_status=EmbargoRegisterStatus.ACTIVE,
+        )
         assert (
             participant.consent_for(_EMBARGO_ID) == EmbargoConsentState.INVITED
         ), "Precondition: participant must be INVITED before accept step"
@@ -125,8 +146,8 @@ class TestConsentChainNoRowToSignatory:
 
         # Step 2: BT accept path
         final = _run_sign_node(bt_scenario, participant)
-        assert final == EmbargoConsentState.ACCEPTED, (
-            f"Expected ACCEPTED after ACCEPT from INVITED, got {final!r}"
+        assert final == EmbargoConsentState.AGREED, (
+            f"Expected AGREED after AGREE from INVITED, got {final!r}"
         )
         assert participant.is_signatory(_EMBARGO_ID)
 
@@ -134,16 +155,19 @@ class TestConsentChainNoRowToSignatory:
         """Regression guard: the row is only written through the table.
 
         ``apply_pec_transition`` raises on a trigger that is not legal from
-        the current row (an ACCEPTED row is never re-INVITED), where a direct
+        the current row (an AGREED row is never re-INVITED), where a direct
         write would record it silently.  If the BT bypassed the table, this
         transition-rule enforcement would be silently dropped.
         """
-        participant = _participant(_ACTOR_A, EmbargoConsentState.ACCEPTED)
+        participant = _participant(_ACTOR_A, EmbargoConsentState.AGREED)
         with pytest.raises(VultronInvalidStateTransitionError):
-            participant.apply_pec_transition(_EMBARGO_ID, PEC_Trigger.INVITE)
+            participant.apply_pec_transition(
+                _EMBARGO_ID,
+                PEC_Trigger.INVITE,
+                entry_status=EmbargoRegisterStatus.ACTIVE,
+            )
         assert (
-            participant.consent_for(_EMBARGO_ID)
-            == EmbargoConsentState.ACCEPTED
+            participant.consent_for(_EMBARGO_ID) == EmbargoConsentState.AGREED
         )
 
     @pytest.mark.spec("EMB-11-001")
@@ -158,7 +182,7 @@ class TestConsentChainNoRowToSignatory:
 
 
 # ---------------------------------------------------------------------------
-# Multi-participant: two actors both reach ACCEPTED independently
+# Multi-participant: two actors both reach AGREED independently
 # ---------------------------------------------------------------------------
 
 
@@ -176,23 +200,27 @@ class TestMultiParticipantConsentChain:
         state_a = _run_sign_node(bt_scenario, participant_a)
         state_b = _run_sign_node(bt_scenario, participant_b)
 
-        assert state_a == EmbargoConsentState.ACCEPTED, (
-            f"Participant A: expected ACCEPTED, got {state_a!r}"
+        assert state_a == EmbargoConsentState.AGREED, (
+            f"Participant A: expected AGREED, got {state_a!r}"
         )
-        assert state_b == EmbargoConsentState.ACCEPTED, (
-            f"Participant B: expected ACCEPTED, got {state_b!r}"
+        assert state_b == EmbargoConsentState.AGREED, (
+            f"Participant B: expected AGREED, got {state_b!r}"
         )
 
     @pytest.mark.spec("EMB-11-001")
     def test_participants_reach_signatory_from_different_starting_states(
         self, bt_scenario: BTTestScenario
     ):
-        """One participant starts with no row; one at INVITED. Both sign."""
+        """One participant starts UNINVITED; one at INVITED. Both sign."""
         participant_a = _participant(_ACTOR_A)
         participant_b = _participant(_ACTOR_B)
 
         # B gets invited first
-        participant_b.apply_pec_transition(_EMBARGO_ID, PEC_Trigger.INVITE)
+        participant_b.apply_pec_transition(
+            _EMBARGO_ID,
+            PEC_Trigger.INVITE,
+            entry_status=EmbargoRegisterStatus.ACTIVE,
+        )
         assert (
             participant_b.consent_for(_EMBARGO_ID)
             == EmbargoConsentState.INVITED
@@ -202,8 +230,8 @@ class TestMultiParticipantConsentChain:
         state_a = _run_sign_node(bt_scenario, participant_a)
         state_b = _run_sign_node(bt_scenario, participant_b)
 
-        assert state_a == EmbargoConsentState.ACCEPTED
-        assert state_b == EmbargoConsentState.ACCEPTED
+        assert state_a == EmbargoConsentState.AGREED
+        assert state_b == EmbargoConsentState.AGREED
 
     @pytest.mark.spec("EMB-11-001")
     def test_second_participant_does_not_affect_first(
@@ -241,20 +269,20 @@ class TestLapsedToSignatory:
         """A lapsed participant is a signatory after the sign node runs."""
         participant = _participant(
             _ACTOR_A,
-            EmbargoConsentState.ACCEPTED,
+            EmbargoConsentState.AGREED,
             embargo_id=_EARLIER_EMBARGO_ID,
         )
-        assert participant.has_lapsed(_EMBARGO_ID)
+        assert participant.has_lapsed(_REGISTER)
         assert not participant.is_signatory(_EMBARGO_ID)
 
         final = _run_sign_node(bt_scenario, participant)
-        assert final == EmbargoConsentState.ACCEPTED, (
-            f"A lapsed participant must reach ACCEPTED, got {final!r}"
+        assert final == EmbargoConsentState.AGREED, (
+            f"A lapsed participant must reach AGREED, got {final!r}"
         )
         assert participant.is_signatory(_EMBARGO_ID)
-        assert not participant.has_lapsed(_EMBARGO_ID)
+        assert not participant.has_lapsed(_REGISTER)
         # Its row for the earlier embargo is kept, not overwritten.
         assert (
             participant.consent_for(_EARLIER_EMBARGO_ID)
-            == EmbargoConsentState.ACCEPTED
+            == EmbargoConsentState.AGREED
         )
