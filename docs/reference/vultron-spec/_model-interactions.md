@@ -13,9 +13,11 @@ so. The cascades below are the complete set that this specification requires.
 
 ### 10.1 Admitting a Participant
 
-When an actor accepts an invitation, the CASE_MANAGER admits it to the case and
-delivers the case content. The steps are ordered because each one supplies a
-precondition for the next.
+When an actor accepts the stub Invite, the CASE_MANAGER admits it to the case and
+delivers the case content. The CASE_MANAGER created the actor's inert participant
+record, at RM state `Received`, when it sent the stub Invite
+([§11.2 Invitation and Acceptance](interactions.md#112-invitation-and-acceptance-n)).
+The steps are ordered because each one supplies a precondition for the next.
 
 ```mermaid
 ---
@@ -25,37 +27,39 @@ sequenceDiagram
     autonumber
     participant I as Invited actor
     participant CM as CASE_MANAGER
-    participant P as Existing participants
+    participant P as Active participants
 
-    I->>CM: Accept(Invite)
+    I->>CM: Accept(Invite(Actor, VulnerabilityCaseStub))
     CM->>CM: Commit ledger entry for the acceptance
     CM->>P: Announce(CaseLedgerEntry)
-    CM->>I: Announce(CaseLedgerEntry)
-    CM->>CM: Create CaseParticipant, RM state Received
-    CM->>CM: Record embargo consent, if an embargo is in force
+    CM->>CM: Record effect: RM stays Received, embargo consent Accepted
     CM->>I: Announce(VulnerabilityCase) — full case content
     CM->>I: Prior ledger entries, oldest first
+    CM->>I: Invite(Actor, VulnerabilityCase) — full-case Invite
 ```
 
-On receiving `Accept(Invite)`, the CASE_MANAGER MUST perform these five steps in
-this order:
+On receiving `Accept(Invite)`, the CASE_MANAGER MUST perform these four steps in
+this order (CM-17-004):
 
 1. Commit a ledger entry recording the acceptance, and send that entry to every
-   participant.
-2. Create the participant's `CaseParticipant` record with RM state `Received`.
-3. Record the participant's embargo consent, if an embargo is in force.
-4. Send `Announce(VulnerabilityCase)` carrying the full case snapshot.
-5. Send the ledger entries committed before this participant joined, oldest
-   first.
+   active participant.
+2. Record the acceptance's effect on the participant: its RM state stays
+   `Received`, and its embargo consent for the active embargo, if any, becomes
+   `Accepted`.
+3. When the participant is now active, send `Announce(VulnerabilityCase)`
+   carrying the full case snapshot, then replay the ledger entries committed
+   before this participant joined, oldest first.
+4. Send the full-case Invite, which asks the participant to judge the case.
 
 !!! note "Recall: report management states"
     {% include-markdown "./includes/_rm-states-table.md" %}
 
     Full definitions are in [§6.1 States](tracking-models.md#61-states).
 
-Steps 2, 3 and 4 MUST occur in that order. Step 4 delivers the content that
-step 3 authorizes, and step 2 establishes the RM state that step 4's delivery
-gate tests ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
+Step 3 delivers the content that step 2 authorizes: the embargo consent recorded
+in step 2 is what the delivery gate tests
+([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
+Step 4 follows the replay, so the participant judges a case it already holds.
 
 ### 10.2 Embargo Revision and Termination Cascades
 

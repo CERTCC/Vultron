@@ -13,7 +13,7 @@
 
 """``POST /actors/{actor_id}/trigger/add-on-behalf-status`` over HTTP.
 
-The on-behalf assertions of ADR-0084 become reachable: a Case Manager records
+The on-behalf assertions of ADR-0121 become reachable: a Case Manager records
 an existing vendor participant's awareness (v→V, PRM-06-003) or an existing
 deployer participant's deployment (d→D, PRM-06-004).  A target that is not a
 participant is refused and nothing is created (PRM-06-006), and fix readiness

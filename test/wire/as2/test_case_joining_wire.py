@@ -10,13 +10,12 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Planned wire behaviour for joining a case (ADR-0114, ADR-0070, #4006).
+"""Wire behaviour for joining a case (ADR-0114, ADR-0121).
 
-Tests for requirements introduced by the case-joining plan: the case stub's
+Tests for the case-joining requirements: the case stub's
 own wire identity (CM-11-013) and the full-case Invite and its replies being
 distinguishable from the stub Invite and its replies (CM-11-011, VAM-04-011
-through VAM-04-014).  They were strict-``xfail`` until #4045 and #4050
-landed; see ``notes/case-joining.md``.
+through VAM-04-014).  See ``notes/case-joining.md``.
 """
 
 import pytest

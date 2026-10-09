@@ -350,7 +350,7 @@ class AddOnBehalfStatusTriggerRequest(
     awareness is being recorded) and refuses ``CS_vf.VF`` (f→F), which is
     always self-declared by the Vendor role holder.
 
-    Per ADR-0084, PRM-06-003/004/005.
+    Per ADR-0121, PRM-06-003/004/005.
     """
 
 

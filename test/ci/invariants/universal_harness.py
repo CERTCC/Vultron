@@ -40,6 +40,7 @@ from test.ci.invariants.common import (
     check_cross_actor_hash_agreement,
     check_cross_actor_payload_actor_agreement,
     check_cs_state_transitions_observed,
+    check_event_type_count,
     check_event_type_present,
     check_genesis_entry_present,
     check_hash_chain,
@@ -69,6 +70,7 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
     check_fix_ready: bool = True,
     *,
     narrative_path: str | None = None,
+    joined_invitees: int = 0,
 ) -> dict[str, Any]:
     """Return the universal invariant test functions keyed by name.
 
@@ -94,6 +96,12 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         carries the machine-readable ``causal_edges:`` front-matter block.
         When provided, injects ``test_invariant_16_causal_edges_in_ledger_order``.
         When absent, that test is omitted (DEMOMA-22-005).
+    joined_invitees:
+        How many actors the scenario invites to join the case (each accepts
+        its stub Invite).  When positive, injects
+        ``test_invariant_17_every_joined_invitee_judged_the_case``: the
+        ledger holds a full-case Invite and a reply to it for each of them
+        (CM-11-010, CM-11-011), whatever the invitee's role.
     """
     calling_module = sys._getframe(1).f_globals.get("__name__", __name__)
 
@@ -441,6 +449,40 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         )
         result["test_invariant_16_causal_edges_in_ledger_order"] = (
             test_invariant_16_causal_edges_in_ledger_order
+        )
+
+    if joined_invitees > 0:
+        _joined_invitees = joined_invitees
+
+        @pytest.mark.case_ledger_invariants
+        @pytest.mark.parametrize(
+            "event_type",
+            ["invite_actor_to_full_case", "accept_invite_actor_to_full_case"],
+        )
+        def test_invariant_17_every_joined_invitee_judged_the_case(
+            event_type: str,
+            request: pytest.FixtureRequest,
+        ) -> None:
+            """Each joined invitee is sent the full-case Invite and replies to it.
+
+            After an invitee accepts its stub Invite the CASE_MANAGER sends the
+            full-case Invite, and the invitee judges the case by accepting it
+            (CM-11-010, CM-11-011).  The scenario invites
+            ``joined_invitees`` actors, so each event type appears exactly
+            that many times: a floor alone is satisfied by a double commit
+            for one invitee while another is never sent the Invite (#4120).
+            """
+            replicas = request.getfixturevalue(replicas_fixture)
+            violations = check_event_type_count(
+                replicas,
+                event_type,
+                min_count=_joined_invitees,
+                max_count=_joined_invitees,
+            )
+            assert not violations, violations[0] if violations else ""
+
+        result["test_invariant_17_every_joined_invitee_judged_the_case"] = (
+            test_invariant_17_every_joined_invitee_judged_the_case
         )
 
     for fn in result.values():

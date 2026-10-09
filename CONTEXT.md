@@ -46,7 +46,7 @@ content (ADR-0114).
 **Stub Invite / full-case Invite**:
 The stub Invite (`Invite(Actor, VulnerabilityCaseStub)`) asks an actor to join and creates
 its inert record; the full-case Invite (`Invite(Actor, VulnerabilityCase)`) later asks a
-joined participant to judge the case (ADR-0114, ADR-0070).
+joined participant to judge the case (ADR-0114, ADR-0121).
 *Avoid*: "the case Invite" without saying which
 
 **Embargo**:

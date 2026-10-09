@@ -145,6 +145,10 @@ loses a round-trip in which the Case Owner decides:
 
 Both paths end in an `Accept` of an `Invite`
 ([§11.2 Invitation and Acceptance](interactions.md#112-invitation-and-acceptance-n)).
+That `Accept` joins the case; it is not RV. A participant that joined this way never saw the
+report offer, so it judges the case by answering a second `Invite` that has the case itself
+as its target, the full-case `Invite`, and that reply is RV, RI or RC
+([VAM-04-011](../specs/protocol.md#vam-04-011), [CM-11-020](../specs/protocol.md#cm-11-020)).
 
 **Fault reporting.** The three failure modes of
 [§4.6 Error and Acknowledgment Messages](layers.md#46-error-and-acknowledgment-messages) have these wire forms:
@@ -329,11 +333,11 @@ types of [§5.2 Object Types](layers.md#52-object-types).
 | Shorthand | Wire form |
 |---|---|
 | `RS` | `Offer` of a `VulnerabilityReport` |
-| `RI` | `TentativeReject` of the report offer |
-| `RV` | `Accept` of the report offer |
+| `RI` | `TentativeReject` of the report offer, or of the full-case `Invite` ([VAM-04-013](../specs/protocol.md#vam-04-013)) |
+| `RV` | `Accept` of the report offer, or of the full-case `Invite` ([VAM-04-012](../specs/protocol.md#vam-04-012)) |
 | `RD` | `Ignore` of the `VulnerabilityCase` |
 | `RA` | `Join` of the `VulnerabilityCase` |
-| `RC` | `Reject` of the report offer |
+| `RC` | `Reject` of the report offer, of the stub `Invite` ([CM-11-007](../specs/protocol.md#cm-11-007)), or of the full-case `Invite` ([VAM-04-014](../specs/protocol.md#vam-04-014)) |
 | `RK` | `Read` of the report offer |
 | `EP`, `EV` | `Invite` to an `EmbargoEvent`, in the context of the case |
 | `EA`, `EC` | `Accept` of that `Invite` |

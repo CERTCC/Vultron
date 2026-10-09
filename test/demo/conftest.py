@@ -701,3 +701,18 @@ def stub_summary_seed():
 
     with patch.object(invite_chain, "_seed_stub_summary", seed):
         yield
+
+
+@pytest.fixture(autouse=True)
+def stub_full_case_reply():
+    """Skip the chain's full-case Invite wait and reply in mock-driven tests.
+
+    After the join the invite chain waits for the full-case Invite and answers
+    it (CM-11-010, CM-11-011).  Mock-driven scenario tests have no container
+    to poll and no trigger to post, so the step is a no-op there;
+    ``test_invite_chain`` overrides this fixture to test the real step.
+    """
+    from vultron.demo.helpers import invite_chain
+
+    with patch.object(invite_chain, "reply_to_full_case_invite"):
+        yield

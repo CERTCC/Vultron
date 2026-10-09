@@ -364,21 +364,6 @@ def test_run_invite_path_rm_triage_polls_invited_client_for_rm_state(
     )
     monkeypatch.setattr(
         workflow_module,
-        "find_full_case_invite_for_actor",
-        lambda *a, **kw: "urn:uuid:full-invite",
-    )
-    monkeypatch.setattr(
-        workflow_module,
-        "wait_for_replica_ledger_coverage",
-        lambda *a, **kw: None,
-    )
-    monkeypatch.setattr(
-        workflow_module,
-        "receiver_accepts_full_case_invite",
-        lambda *a, **kw: None,
-    )
-    monkeypatch.setattr(
-        workflow_module,
         "receiver_engages_case",
         lambda *a, **kw: None,
     )

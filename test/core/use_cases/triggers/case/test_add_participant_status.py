@@ -906,7 +906,7 @@ class TestCreateParticipantStatusNode:
         """CSB-16-001: same-state VF write (no actual transition) is allowed.
 
         Uses CS_vf.Vf because VENDOR participants cannot hold CS_vf.vf
-        (Vendor-implies-V, PRM-06-002, ADR-0084).
+        (Vendor-implies-V, PRM-06-002, ADR-0121).
         """
         from py_trees.common import Status
 

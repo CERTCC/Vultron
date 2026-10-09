@@ -522,6 +522,8 @@ def _phase_c2_suggests_v2(
         invitee_in_own_container=v2_in_v2,
         invite_timeout=40.0,
         replica_timeout=40.0,
+        ledger_client=c1_client,
+        reply_timeout=40.0,
     )
 
     # All 6 participants (Finder + C1 + V1 + C2 + V2 + CaseActor) present is the
