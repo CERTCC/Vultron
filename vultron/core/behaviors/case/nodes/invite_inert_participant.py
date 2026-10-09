@@ -51,7 +51,11 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
-from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
+from vultron.core.behaviors.case.stub_invite_lifetime import (
+    RecordedStubInvite,
+    invitee_record,
+    recorded_stub_invites,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -60,6 +64,8 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.participants.inert_invitee import (
+    accept_activity_stamp,
+    advance_vf_to_vendor_aware,
     build_inert_invitee_participant,
     inert_invitee_participant_id,
 )
@@ -156,6 +162,19 @@ class CreateInertInviteeParticipantNode(
                 pass
         return []
 
+    def _stub_invite_just_sent(self) -> RecordedStubInvite | None:
+        """The newest stub Invite this CASE_MANAGER recorded for the invitee.
+
+        The record's id and every time on it derive from that Invite, the act
+        that causes the record, so a replica reading the same Invite's ledger
+        entry builds the same record (ADR-0124).
+        """
+        assert self.datalayer is not None and self.actor_id is not None
+        sent = recorded_stub_invites(
+            self.datalayer, self.case_id, self.actor_id, self.invitee_id
+        )
+        return sent[-1] if sent else None
+
     def _existing_record_outcome(
         self, case: VulnerabilityCase
     ) -> Status | None:
@@ -219,8 +238,21 @@ class CreateInertInviteeParticipantNode(
                 self.case_id,
             )
             return Status.FAILURE
+        invite = self._stub_invite_just_sent()
+        if invite is None:
+            self.feedback_message = (
+                f"{self.name}: no stub Invite to '{self.invitee_id}' is"
+                f" recorded for case '{self.case_id}' — the record is born"
+                " from the Invite that names it (CM-11-006)"
+            )
+            self.logger.error("%s", self.feedback_message)
+            return Status.FAILURE
         participant = build_inert_invitee_participant(
-            case, self.invitee_id, roles
+            case,
+            self.invitee_id,
+            roles,
+            invite_id=invite.invite_id,
+            published=invite.published,
         )
         participant_id = participant.id_
 
@@ -252,15 +284,17 @@ class CreateInertInviteeParticipantNode(
 class AdvanceInviteeVFToVendorAwareNode(
     DataLayerActionWithPorts, StateWriteCapable
 ):
-    """Record VF ``Vf`` (vendor aware) on a VENDOR invitee after a stub reply.
+    """Record VF ``Vf`` (vendor aware) on a VENDOR invitee after a stub Accept.
 
-    CM-11-009: any reply to the stub Invite — Accept or Reject — is evidence
-    the vendor knows of the case, so VF advances to ``Vf``.  For non-VENDOR
-    roles the node is a no-op (SUCCESS).
+    CM-11-009: the invitee's reply is evidence the vendor knows of the case, so
+    VF advances to ``Vf``.  VF is a vendor-only status: for a record without the
+    VENDOR role the node is a no-op (SUCCESS) and writes no status.
 
-    Uses :class:`~vultron.core.behaviors.case.nodes.participant.status.CreateParticipantStatusNode`
-    via an inner BTBridge to append the new status through the sole writer
-    (BTND-10-001).
+    The write is
+    :func:`~vultron.core.participants.inert_invitee.advance_vf_to_vendor_aware`,
+    the same function a replica applies from the ``Accept(Invite)`` entry
+    (CM-31-012); its status id and times derive from the Accept, so both sides
+    record the same status (ADR-0124).
     """
 
     def __init__(
@@ -269,19 +303,24 @@ class AdvanceInviteeVFToVendorAwareNode(
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.invitee_id = invitee_id
-        self._vf_node = CreateParticipantStatusNode(
-            actor_id=invitee_id,
-            rm_state=None,
-            vf_state=CS_vf.Vf,
-            d_state=None,
-            pxa_state=None,
-        )
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
-        assert self.actor_id is not None
 
         participant_id = inert_invitee_participant_id(
             self.case_id, self.invitee_id
@@ -294,36 +333,27 @@ class AdvanceInviteeVFToVendorAwareNode(
                 participant_id,
             )
             return Status.SUCCESS
-
-        if CVDRole.VENDOR not in participant.case_roles:
+        try:
+            accept_id, published = accept_activity_stamp(self.activity)
+        except ValueError as exc:
+            self.feedback_message = f"{self.name}: {exc} (CLP-15-006)"
+            self.logger.exception("%s", self.feedback_message)
+            return Status.FAILURE
+        if not advance_vf_to_vendor_aware(participant, accept_id, published):
             self.logger.debug(
-                "%s: invitee '%s' is not a VENDOR — VF advance is a no-op",
+                "%s: no VF advance for invitee '%s' (not a VENDOR still at"
+                " vf)",
                 self.name,
                 self.invitee_id,
             )
             return Status.SUCCESS
-
-        # Run as the receiving actor (case manager), not the invitee —
-        # _store_for_actor resolves the DL from the actor_id and the invitee
-        # has no store here (the CASE_MANAGER's own store).
-        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
-            self._vf_node,
-            actor_id=self.actor_id,
-            case_id=self.case_id,
+        self.datalayer.save(participant)
+        self.logger.info(
+            "%s: advanced VF to Vf for VENDOR invitee '%s' (CM-11-009)",
+            self.name,
+            self.invitee_id,
         )
-        if result.status != Status.SUCCESS:
-            self.logger.error(
-                "%s: failed to advance VF to Vf for invitee '%s'",
-                self.name,
-                self.invitee_id,
-            )
-        else:
-            self.logger.info(
-                "%s: advanced VF to Vf for VENDOR invitee '%s' (CM-11-009)",
-                self.name,
-                self.invitee_id,
-            )
-        return result.status
+        return Status.SUCCESS
 
 
 class ApplyInviteRejectToParticipantNode(

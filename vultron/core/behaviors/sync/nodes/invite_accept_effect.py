@@ -30,6 +30,10 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _LedgerEffectNode,
 )
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants.inert_invitee import (
+    apply_stub_accept,
+    parse_stamp,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +102,20 @@ class ApplyInviteAcceptFromLedgerNode(_LedgerEffectNode):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        if record.joined:
+        try:
+            published = parse_stamp(snapshot.get("published"))
+        except ValueError as exc:
+            self.feedback_message = (
+                f"Accept(Invite) entry {entry.log_index} for '{invitee_id}'"
+                f" in case '{case_id}': {exc} (CLP-15-006)"
+            )
+            self.logger.exception("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        # The CASE_MANAGER's own effects of the Accept, from the same
+        # functions: consent to the embargo in force, joined, and a vendor's
+        # VF to Vf (CM-31-012, ADR-0124).  A joined record is a replay.
+        if not apply_stub_accept(case, record, entry.log_object_id, published):
             self.logger.debug(
                 "%s: invitee '%s' already joined case '%s' — idempotent no-op",
                 self.name,
@@ -107,11 +124,10 @@ class ApplyInviteAcceptFromLedgerNode(_LedgerEffectNode):
             )
             return Status.SUCCESS
 
-        record.joined = True
         self.datalayer.save(record)
         self.logger.info(
-            "%s: marked participant '%s' joined=True for case '%s'"
-            " (ADR-0114, SYNC-02-002)",
+            "%s: applied the Accept to participant '%s' for case '%s'"
+            " (joined, consent, vendor VF; ADR-0114, SYNC-02-002)",
             self.name,
             invitee_id,
             case_id,

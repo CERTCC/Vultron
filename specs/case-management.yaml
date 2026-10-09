@@ -1051,14 +1051,17 @@ groups:
       at RM `RECEIVED`, VF `v` when it holds the VENDOR role, and an `INVITED` consent row for the active embargo when one is active, and MUST commit the creation
       to the case ledger. The participant is inert (CM-10-004). A replica
       applying that ledger entry MUST create the same inert participant
-      record.
+      record, equal in every field: its ids and timestamps derive from the
+      entry (the Invite's id and `published`), never from the replica's clock
+      or a random id (ADR-0124).
     rationale: >-
       The CASE_MANAGER needs to track every invitee from the moment it is
       invited — whether it has been told and how it answered — including the
       invitees that decline (ADR-0114).
     verification: A test sends a stub Invite and finds the invitee's participant
       at RM `RECEIVED`, VF `v` (vendor) and consent `INVITED` (active embargo),
-      with a ledger entry recording its creation.
+      with a ledger entry recording its creation. A two-replica test finds the
+      replica's record equal to the CASE_MANAGER's in every field.
     adr:
     - ADR-0114
     stories:
@@ -4952,15 +4955,20 @@ groups:
     statement: >-
       The CASE_MANAGER MUST NOT emit `Add(CaseParticipant)`, or commit an `add_case_participant` ledger
       entry, as a consequence of an invitee accepting the stub Invite. A replica creates the
-      invitee's inert record from the stub Invite's ledger entry (CM-11-006) and marks it joined
-      from the `Accept(Invite)` entry.
+      invitee's inert record from the stub Invite's ledger entry (CM-11-006) and, from the
+      `Accept(Invite)` entry, makes the changes the CASE_MANAGER makes at the Accept: consent to the
+      embargo in force when one is, `joined`, and a vendor's VF to `Vf` (CM-11-009). Its ids and
+      timestamps derive from the entry (ADR-0124).
     rationale: >-
       CM-17-004 does not call for it, the `Accept(Invite)` entry already carries the change, and a
       replica usually refuses the direct message for want of the participant record it names. It also
       records one move twice, and `Add(CaseParticipant)` now means reinstatement only (CM-31-011).
     verification: >-
       A test drives an invitee's stub-Invite acceptance at the CASE_MANAGER and asserts no
-      `Add(CaseParticipant)` is enqueued and no `add_case_participant` entry is committed.
+      `Add(CaseParticipant)` is enqueued and no `add_case_participant` entry is committed. A
+      two-replica test compares the whole participant record, status ids and timestamps
+      included, between the CASE_MANAGER and each replica after the Accept, for a vendor, a
+      non-vendor, and a case with and without an embargo in force.
     relationships:
     - rel_type: refines
       spec_id: CM-17-004

@@ -118,6 +118,11 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         # outside ``behaviors/`` (CM-11-006 / #4048 / #4384).
         ("../participants/inert_invitee.py", "RmDimension"),
         ("../participants/inert_invitee.py", "VfDimension"),
+        # BOOTSTRAP — the Accept-time advance in the same module: the
+        # vendor-aware status copies the latest status and moves VF only, for a
+        # VENDOR still at ``vf``; the CASE_MANAGER and a replica both call it,
+        # with the status id and times derived from the Accept (CM-11-009).
+        ("../participants/inert_invitee.py", "VfDimension"),
     ]
 )
 

@@ -33,6 +33,10 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants.inert_invitee import (
+    accept_activity_stamp,
+    mark_joined,
+)
 
 
 class ActivateInviteeParticipantNode(
@@ -57,14 +61,19 @@ class ActivateInviteeParticipantNode(
         "new_invite_participant": PortInformation(
             data_type=object, required=True
         ),
+        "activity": PortInformation(data_type=object, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"new_invite_participant": "/new_invite_participant"}
+        return {
+            "new_invite_participant": "/new_invite_participant",
+            "activity": "/activity",
+        }
 
     def initialise(self) -> None:
         super().initialise()
+        self.activity = self.get_input("activity")
         try:
             self._participant_bb = self.get_input("new_invite_participant")
         except (NoDataAvailable, NotImplementedError):
@@ -83,8 +92,14 @@ class ActivateInviteeParticipantNode(
                 self.invitee_id,
             )
             return Status.FAILURE
-        if not participant.joined:
-            participant.joined = True
+        try:
+            _, published = accept_activity_stamp(self.activity)
+        except ValueError as exc:
+            self.feedback_message = f"{self.name}: {exc} (CLP-15-006)"
+            self.logger.exception("%s", self.feedback_message)
+            return Status.FAILURE
+        # The consent the preceding node signed rides on this save.
+        if mark_joined(participant, published):
             self.datalayer.save(participant)
             self.logger.info(
                 "%s: promoted inert participant '%s' to joined=True"

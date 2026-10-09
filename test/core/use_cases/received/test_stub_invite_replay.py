@@ -25,6 +25,10 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_vf
+from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers.actor import SvcInviteActorToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
@@ -47,26 +51,20 @@ def _record(net: LedgerNetwork, holder: str) -> CaseParticipant:
 
 
 def _view(net: LedgerNetwork, holder: str) -> dict[str, Any]:
-    """What two stores at the same ledger position must agree on."""
-    record = _record(net, holder)
-    status = record.participant_statuses[-1]
+    """The WHOLE of the joiner's record and the roster, as one store holds them.
+
+    Not a subset: every field, including each status's id and times, the
+    consent rows and the record's own times.  Two stores at the same ledger
+    position must agree on all of it (ADR-0124).
+    """
     return {
-        "id": record.id_,
-        "joined": record.joined,
-        "roles": list(record.case_roles),
-        "rm": status.rm.state,
-        "vf": status.vf.state if status.vf else None,
-        "consent": {c.embargo_id: c.state for c in record.embargo_consents},
+        "record": _record(net, holder).model_dump(mode="json"),
         "roster": sorted(net.case(holder).actor_participant_index),
+        "members": sorted(
+            str(getattr(p, "id_", p))
+            for p in net.case(holder).case_participants
+        ),
     }
-
-
-#: What the Accept entry settles.  The CASE_MANAGER also advances the vendor's
-#: VF to ``Vf`` and the joiner's consent row from ``INVITED`` to ``ACCEPTED`` on
-#: the Accept (CM-11-009, CM-18); no replica replays those two writes yet.  They
-#: are owned by #4294 (consent rows) and #4295 (participant status), not by the
-#: stub Invite's entry.
-_SETTLED_BY_THE_ACCEPT = ("id", "joined", "roles", "rm", "roster")
 
 
 def _the_owner_invites_the_joiner(
@@ -130,9 +128,31 @@ def _the_joiner_accepts(net: LedgerNetwork) -> None:
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
 
 
+#: (roles the owner names, the case's EM state).  An embargo in force gives the
+#: joiner a consent row; a case with no embargo in force gives none.  A vendor
+#: carries VF; no other role does.
+SCENARIOS = [
+    pytest.param([CVDRole.VENDOR], EM.ACTIVE, id="vendor-embargo"),
+    pytest.param([CVDRole.COORDINATOR], EM.ACTIVE, id="coordinator-embargo"),
+    pytest.param([CVDRole.VENDOR], EM.NONE, id="vendor-no-embargo"),
+    pytest.param([CVDRole.COORDINATOR], EM.NONE, id="coordinator-no-embargo"),
+    pytest.param(
+        [CVDRole.VENDOR, CVDRole.COORDINATOR],
+        EM.ACTIVE,
+        id="vendor-and-coordinator-embargo",
+    ),
+]
+
+
+def _net(em_state: EM) -> LedgerNetwork:
+    return LedgerNetwork(
+        "https://example.org/cases/stub-invite-replay", em_state=em_state
+    )
+
+
 @pytest.fixture
 def net() -> LedgerNetwork:
-    return LedgerNetwork("https://example.org/cases/stub-invite-replay")
+    return _net(EM.ACTIVE)
 
 
 @pytest.mark.spec("CM-11-006")
@@ -170,32 +190,42 @@ def test_the_stub_invite_entry_fans_out_and_gives_a_replica_the_inert_record(
 
 @pytest.mark.spec("CM-11-006")
 @pytest.mark.spec("CM-31-012")
-def test_a_third_participant_learns_of_the_joiner_and_matches_the_manager(
-    net: LedgerNetwork,
+@pytest.mark.parametrize(("roles", "em_state"), SCENARIOS)
+def test_replicas_hold_the_managers_whole_record_after_invite_and_accept(
+    roles: list[CVDRole], em_state: EM
 ) -> None:
-    """Two replicas follow the joiner from invite to join and equal the manager.
+    """At each ledger position every replica equals the CASE_MANAGER, in full.
 
-    The owner and the bystander are replicas that never receive the Invite or
-    the joiner's Accept directly.  After the Accept entry, each holds the
-    joiner's record joined, identical to the CASE_MANAGER's (AC-5).
+    The owner and the bystander never receive the Invite or the Accept
+    directly.  After the Invite entry and again after the Accept entry, each
+    holds a record equal to the CASE_MANAGER's in every field: ids, times,
+    VF, consent rows, ``joined`` (AC-5, ADR-0124).
     """
-    _the_owner_invites_the_joiner(net)
+    net = _net(em_state)
+    _the_owner_invites_the_joiner(net, roles)
     for replica in (OWNER, BYSTANDER):
         _deliver_announcements(net, replica)
         assert _record(net, replica).joined is False, replica
         assert _view(net, replica) == _view(net, MANAGER), replica
 
     _the_joiner_accepts(net)
-    assert _record(net, MANAGER).joined is True
+    manager = _record(net, MANAGER)
+    assert manager.joined is True
     for replica in (OWNER, BYSTANDER):
         _deliver_announcements(net, replica)
-        assert _record(net, replica).joined is True, replica
-        for key in _SETTLED_BY_THE_ACCEPT:
-            assert _view(net, replica)[key] == _view(net, MANAGER)[key], (
-                replica,
-                key,
-            )
-        assert _view(net, replica)["id"] == _view(net, MANAGER)["id"], replica
+        assert _view(net, replica) == _view(net, MANAGER), replica
+
+    # What the Accept did, so the equality above is not two blanks.
+    vfs = [s.vf.state for s in manager.participant_statuses if s.vf]
+    if CVDRole.VENDOR in roles:
+        assert vfs == [CS_vf.vf, CS_vf.Vf]
+    else:
+        assert vfs == []
+    if em_state is EM.ACTIVE:
+        rows = {c.embargo_id: c.state for c in manager.embargo_consents}
+        assert rows == {net.initial_embargo_id: EmbargoConsentState.ACCEPTED}
+    else:
+        assert manager.embargo_consents == []
 
 
 @pytest.mark.spec("CM-31-012")
@@ -208,9 +238,9 @@ def test_replaying_the_whole_stream_leaves_one_record(
     _the_joiner_accepts(net)
     _deliver_announcements(net, BYSTANDER)
     before = _view(net, BYSTANDER)
-    assert before["joined"] is True
+    assert before["record"]["joined"] is True
+    assert before == _view(net, MANAGER)
 
-    status_ids = [s.id_ for s in _record(net, BYSTANDER).participant_statuses]
     for activity in net.queued(MANAGER, to=BYSTANDER, type_="Announce"):
         body = read_sealed_body_dict(net.stores[MANAGER], activity.id_)
         assert body is not None
@@ -221,29 +251,3 @@ def test_replaying_the_whole_stream_leaves_one_record(
         ), verdict.reason
 
     assert _view(net, BYSTANDER) == before
-    # The record was left alone, not rebuilt (a rebuild mints new status ids).
-    assert [
-        s.id_ for s in _record(net, BYSTANDER).participant_statuses
-    ] == status_ids
-
-
-@pytest.mark.spec("CM-11-006")
-@pytest.mark.spec("CM-11-009")
-@pytest.mark.parametrize(
-    "roles",
-    [[CVDRole.COORDINATOR], [CVDRole.FINDER, CVDRole.OBSERVER]],
-)
-def test_a_non_vendor_joiner_has_no_vf_on_the_manager_or_a_replica(
-    net: LedgerNetwork, roles: list[CVDRole]
-) -> None:
-    """VF is a vendor-only status: no VF is written for any other role."""
-    _the_owner_invites_the_joiner(net, roles)
-    _deliver_announcements(net, BYSTANDER)
-    _the_joiner_accepts(net)
-    _deliver_announcements(net, BYSTANDER)
-
-    for holder in (MANAGER, BYSTANDER):
-        record = _record(net, holder)
-        assert record.joined is True, holder
-        assert record.case_roles == roles, holder
-        assert all(s.vf is None for s in record.participant_statuses), holder

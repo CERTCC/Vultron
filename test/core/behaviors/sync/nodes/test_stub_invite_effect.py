@@ -17,6 +17,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _to_persistable_entry,
 )
 from test.support.embargo_register import activate
+from test.support.stub_invite import store_stub_invite
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
 )
@@ -26,6 +27,7 @@ from vultron.core.behaviors.sync.nodes.stub_invite_effect import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants.inert_invitee import parse_stamp
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -129,21 +131,6 @@ def test_active_embargo_gives_the_invited_consent_row(
     assert record.consent_for(EMBARGO_ID) == EmbargoConsentState.INVITED
 
 
-def _content(record):
-    """What two stores at one ledger position must agree on (no clock, no uuid)."""
-    return {
-        "id": record.id_,
-        "attributed_to": record.attributed_to,
-        "joined": record.joined,
-        "roles": list(record.case_roles),
-        "consents": {c.embargo_id: c.state for c in record.embargo_consents},
-        "statuses": [
-            (s.rm.state, s.vf.state if s.vf else None, list(s.cvd_role))
-            for s in record.participant_statuses
-        ],
-    }
-
-
 @pytest.mark.spec("CM-11-006")
 @pytest.mark.parametrize(
     "roles",
@@ -152,17 +139,29 @@ def _content(record):
 def test_replica_record_equals_the_one_the_case_manager_creates(
     bridge, datalayer, case_actor, roles
 ):
-    """The replica makes no choice of its own: same content as the manager's.
+    """The replica makes no choice of its own: the manager's record, whole.
 
     The CASE_MANAGER side runs its own ``CreateInertInviteeParticipantNode`` on
-    a copy of the case; the replica applies the entry.  The two records agree on
-    everything except the clock and the minted ids.
+    a copy of the case; the replica applies the entry.  The two records are equal
+    in every field, including the status ids and the times.
     """
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     activate(case, EMBARGO_ID)
     datalayer.save(case)
+    entry = _stub_invite_entry(roles)
+    snapshot = entry.payload_snapshot
     manager = BTTestScenario(actor_id=MANAGER_ID).seed(
         case.model_copy(deep=True)
+    )
+    # The CASE_MANAGER holds the very Invite the entry snapshots.
+    store_stub_invite(
+        manager.dl,
+        case_id=CASE_ID,
+        issuer_id=MANAGER_ID,
+        invitee_id=INVITEE_ACTOR_ID,
+        roles=roles,
+        invite_id=snapshot["id"],
+        published=parse_stamp(snapshot["published"]),
     )
     manager.assert_success(
         manager.run(
@@ -177,10 +176,14 @@ def test_replica_record_equals_the_one_the_case_manager_creates(
         manager_case.actor_participant_index[INVITEE_ACTOR_ID]
     )
 
-    _apply(bridge, case_actor, _stub_invite_entry(roles))
+    _apply(bridge, case_actor, entry)
 
     _, record = _held(datalayer)
-    assert _content(record) == _content(manager_record)
+    assert manager_record is not None
+    # The whole record, status ids and times included, not a subset.
+    assert record.model_dump(mode="json") == manager_record.model_dump(
+        mode="json"
+    )
     assert record.consent_for(EMBARGO_ID) == EmbargoConsentState.INVITED
 
 
@@ -263,3 +266,20 @@ def test_an_entry_with_no_roles_fails_with_a_reason(
 def test_missing_case_replica_is_skipped(bridge, case_actor):
     result = _apply(bridge, case_actor, _stub_invite_entry(["vendor"]))
     assert result.status == Status.SUCCESS
+
+
+@pytest.mark.spec("CLP-15-006")
+def test_an_entry_with_no_published_fails_and_stores_nothing(
+    bridge, datalayer, case_actor, case_obj
+):
+    """A time the entry does not carry is never replaced by the local clock."""
+    entry = _stub_invite_entry(["vendor"])
+    snapshot = dict(entry.payload_snapshot)
+    snapshot.pop("published")
+    broken = entry.model_copy(update={"payload_snapshot": snapshot})
+
+    result = _apply(bridge, case_actor, broken)
+
+    assert result.status == Status.FAILURE
+    assert "published" in (result.feedback_message or "")
+    assert _held_or_none(datalayer)[1] is None

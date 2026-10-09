@@ -39,6 +39,7 @@ from vultron.core.behaviors.sync.nodes._helpers import (
 )
 from vultron.core.participants.inert_invitee import (
     build_inert_invitee_participant,
+    parse_stamp,
 )
 from vultron.enums.roles import validate_roles
 
@@ -91,7 +92,30 @@ class ApplyStubInviteFromLedgerNode(_LedgerEffectNode):
             return self._refuse_roles(invitee_id, case_id, exc)
         if not roles:
             return self._refuse_roles(invitee_id, case_id, "no roles named")
-        participant = build_inert_invitee_participant(case, invitee_id, roles)
+        invite_id = snapshot.get("id")
+        try:
+            published = parse_stamp(snapshot.get("published"))
+        except ValueError as exc:
+            self.feedback_message = (
+                f"stub Invite entry for '{invitee_id}' in case '{case_id}':"
+                f" {exc} (CLP-15-006)"
+            )
+            self.logger.exception("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        if not isinstance(invite_id, str) or not invite_id:
+            self.feedback_message = (
+                f"stub Invite entry for '{invitee_id}' in case '{case_id}'"
+                " carries no Invite id"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        participant = build_inert_invitee_participant(
+            case,
+            invitee_id,
+            roles,
+            invite_id=invite_id,
+            published=published,
+        )
 
         if self.datalayer.read(participant.id_) is None:
             self.datalayer.create(participant)

@@ -885,6 +885,7 @@ def _make_accept_invite_entry(
                     "id": "https://example.org/invites/1",
                 },
                 "context": CASE_ID,
+                "published": "2026-10-09T13:00:00+00:00",
             },
             prev_log_hash=prev_hash,
         )
@@ -907,6 +908,8 @@ def _make_stub_invite_entry(
                 "object": {"type": "Actor", "id": INVITEE_ACTOR_ID},
                 "roles": ["vendor"],
                 "context": CASE_ID,
+                "id": f"https://example.org/activities/invite-{log_index}",
+                "published": "2026-10-09T12:00:00+00:00",
             },
             prev_log_hash=prev_hash,
         )

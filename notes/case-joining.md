@@ -277,20 +277,26 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   it (`ApplyStubInviteFromLedgerNode`, #4384) with the CASE_MANAGER's own
   builder, `build_inert_invitee_participant`, reading the embargo for the
   `INVITED` consent row from its own case at that ledger position. A record the
-  replica already holds is left alone (a replacement stub reuses the record),
-  and the `Accept(Invite)` entry only marks it joined: with no record held,
+  replica already holds is left alone (a replacement stub reuses the record).
+  The `Accept(Invite)` entry then makes on that record the changes the
+  CASE_MANAGER makes at the Accept, through the same functions in
+  `core/participants/inert_invitee.py`: consent to the embargo in force (every
+  role), `joined`, and a vendor's VF to `Vf`. With no record held,
   `ApplyInviteAcceptFromLedgerNode` fails with a reason rather than build one,
-  because the chain is complete and in order (SYNC-14, SYNC-15). A stub that is
-  later rejected, and an expiry, leave the replica's record at RM `RECEIVED`:
-  the reject entry is not replayed yet (#4294, #4295). In the accept-invite
-  tree the full-case Invite is now the first effect that commits after the
-  join, so it carries the #2898 ordering: after the case announce and the
-  backfill. VF is a vendor-only status: the record carries `v` (and, at the
-  Accept, `Vf`) only when its roles include `VENDOR`, and no status of any
-  other invitee has a VF. Not yet replayed, so a replica is not identical to
-  the CASE_MANAGER after the Accept: the vendor's `Vf`, the consent row's move
-  to `ACCEPTED`, and the status id and timestamps that each store mints for
-  itself (#4294, #4295).
+  because the chain is complete and in order (SYNC-14, SYNC-15).
+- **A replica's record is the CASE_MANAGER's, whole (ADR-0124).** Every id and
+  time on the record derives from the entry that causes it, never from a clock
+  or a random id: the participant's and its first status's `published` and
+  `updated` are the stub Invite's `published`, the first status id is a `uuid5`
+  of the Invite's id and the invitee, and the vendor-aware status takes the
+  Accept's id and `published` the same way. The two-replica test compares the
+  whole record, a vendor and a non-vendor, with and without an embargo in
+  force. VF is a vendor-only status: no other role's record ever carries one.
+  Not yet replayed: the stub Reject (RM `CLOSED`, consent `DECLINED`, a
+  vendor's `Vf`), whose entry no slot applies (#4294, #4295). An expiry writes
+  nothing, by decision (CM-11-014). In the accept-invite tree the full-case
+  Invite is now the first effect that commits after the join, so it carries
+  the #2898 ordering: after the case announce and the backfill.
 - **Where the embargo-ending notices live (#4083).** The recipients are
   `embargo_ending_notice_recipients` (joined, `SIGNATORY` to the ending
   embargo, removed or RM `CLOSED`). The decision is `embargo_ending_notice`:

@@ -22,9 +22,13 @@ replica (#4384).  Covers the shared builder, the CASE_MANAGER's birth node, and
 the Accept-time advance.
 """
 
+from datetime import UTC, datetime
+from types import SimpleNamespace
+
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.stub_invite import STUB_PUBLISHED, store_stub_invite
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     AdvanceInviteeVFToVendorAwareNode,
     CreateInertInviteeParticipantNode,
@@ -41,6 +45,11 @@ from vultron.enums.roles import CVDRole
 CASE_ID = "https://example.org/cases/vf-vendor-only"
 MANAGER_ID = "https://example.org/actors/manager"
 INVITEE_ID = "https://example.org/actors/invitee"
+INVITE_ID = f"{CASE_ID}/invitations/stub-1"
+ACCEPT = SimpleNamespace(
+    activity_id="https://example.org/activities/accept-1",
+    activity=SimpleNamespace(published=datetime(2026, 10, 9, 13, tzinfo=UTC)),
+)
 
 NON_VENDOR_ROLES = [
     [CVDRole.COORDINATOR],
@@ -56,8 +65,30 @@ VENDOR_ROLES = [
 ]
 
 
+def _build(roles):
+    return build_inert_invitee_participant(
+        _case(),
+        INVITEE_ID,
+        roles,
+        invite_id=INVITE_ID,
+        published=STUB_PUBLISHED,
+    )
+
+
 def _case() -> VulnerabilityCase:
     return VulnerabilityCase(id_=CASE_ID, attributed_to=MANAGER_ID)
+
+
+def _manager() -> BTTestScenario:
+    scenario = BTTestScenario(actor_id=MANAGER_ID).seed(_case())
+    store_stub_invite(
+        scenario.dl,
+        case_id=CASE_ID,
+        issuer_id=MANAGER_ID,
+        invitee_id=INVITEE_ID,
+        invite_id=INVITE_ID,
+    )
+    return scenario
 
 
 def _record(scenario: BTTestScenario) -> CaseParticipant:
@@ -71,7 +102,7 @@ def _record(scenario: BTTestScenario) -> CaseParticipant:
 @pytest.mark.spec("CM-11-006")
 @pytest.mark.parametrize("roles", NON_VENDOR_ROLES)
 def test_builder_writes_no_vf_status_for_a_non_vendor(roles):
-    record = build_inert_invitee_participant(_case(), INVITEE_ID, roles)
+    record = _build(roles)
 
     assert record.participant_statuses[-1].rm.state == RM.RECEIVED
     assert all(s.vf is None for s in record.participant_statuses)
@@ -80,7 +111,7 @@ def test_builder_writes_no_vf_status_for_a_non_vendor(roles):
 @pytest.mark.spec("CM-11-006")
 @pytest.mark.parametrize("roles", VENDOR_ROLES)
 def test_builder_writes_vf_v_when_vendor_is_among_the_roles(roles):
-    record = build_inert_invitee_participant(_case(), INVITEE_ID, roles)
+    record = _build(roles)
 
     vf = record.participant_statuses[-1].vf
     assert vf is not None
@@ -90,7 +121,7 @@ def test_builder_writes_vf_v_when_vendor_is_among_the_roles(roles):
 @pytest.mark.spec("CM-11-006")
 @pytest.mark.parametrize("roles", NON_VENDOR_ROLES + VENDOR_ROLES)
 def test_case_manager_birth_node_follows_the_builder(roles):
-    scenario = BTTestScenario(actor_id=MANAGER_ID).seed(_case())
+    scenario = _manager()
 
     result = scenario.run(
         CreateInertInviteeParticipantNode(
@@ -101,20 +132,19 @@ def test_case_manager_birth_node_follows_the_builder(roles):
     )
 
     scenario.assert_success(result)
-    expected = build_inert_invitee_participant(_case(), INVITEE_ID, roles)
-    vf = _record(scenario).participant_statuses[-1].vf
-    assert (vf.state if vf else None) == (
-        expected.participant_statuses[-1].vf.state
-        if expected.participant_statuses[-1].vf
-        else None
+    # The node stores exactly what the shared builder makes: same ids, same times.
+    record = _record(scenario)
+    assert record.model_dump(mode="json") == _build(roles).model_dump(
+        mode="json"
     )
+    vf = record.participant_statuses[-1].vf
     assert (vf is not None) == (CVDRole.VENDOR in roles)
 
 
 @pytest.mark.spec("CM-11-009")
 @pytest.mark.parametrize("roles", NON_VENDOR_ROLES)
 def test_accept_advance_is_a_no_op_for_a_non_vendor(roles):
-    scenario = BTTestScenario(actor_id=MANAGER_ID).seed(_case())
+    scenario = _manager()
     scenario.run(
         CreateInertInviteeParticipantNode(
             invitee_id=INVITEE_ID,
@@ -127,7 +157,8 @@ def test_accept_advance_is_a_no_op_for_a_non_vendor(roles):
     result = scenario.run(
         AdvanceInviteeVFToVendorAwareNode(
             case_id=CASE_ID, invitee_id=INVITEE_ID
-        )
+        ),
+        activity=ACCEPT,
     )
 
     scenario.assert_success(result)
@@ -139,7 +170,7 @@ def test_accept_advance_is_a_no_op_for_a_non_vendor(roles):
 @pytest.mark.spec("CM-11-009")
 @pytest.mark.parametrize("roles", VENDOR_ROLES)
 def test_accept_advance_moves_a_vendor_to_vf_aware(roles):
-    scenario = BTTestScenario(actor_id=MANAGER_ID).seed(_case())
+    scenario = _manager()
     scenario.run(
         CreateInertInviteeParticipantNode(
             invitee_id=INVITEE_ID,
@@ -151,7 +182,8 @@ def test_accept_advance_moves_a_vendor_to_vf_aware(roles):
     result = scenario.run(
         AdvanceInviteeVFToVendorAwareNode(
             case_id=CASE_ID, invitee_id=INVITEE_ID
-        )
+        ),
+        activity=ACCEPT,
     )
 
     scenario.assert_success(result)
