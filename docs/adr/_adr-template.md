@@ -29,6 +29,13 @@ revision: 1
 deciders: {list everyone involved in the decision}
 consulted: {list everyone whose opinions are sought (typically subject-matter experts); and with whom there is a two-way communication}
 informed: {list everyone who is kept up-to-date on progress; and with whom there is a one-way communication}
+# Supersession links (MS-14-011): each takes one ADR filename or a list. Record
+# every link on both ADRs; the loader fails a one-sided pair. A successor lists
+# what it replaced in supersedes (whole ADR) or partially_supersedes (one
+# decision inside a live ADR), and that ADR gets superseded_by or
+# partially_superseded_by naming this one.
+# supersedes: [{NNNN-retired-adr.md}]
+# partially_supersedes: [{NNNN-partly-replaced-adr.md}]
 # stakeholder_type: fixed. Every ADR is project working record: it declares
 # [project-contributor] and never a level (DF-11-012).
 stakeholder_type: [project-contributor]

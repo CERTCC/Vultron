@@ -9,9 +9,11 @@ consulted: >-
   Claude Sonnet 5.5; CONCERN-2320; CONCERN-4006; CONCERN-2087; ADR-0114;
   specs/case-management.yaml CM-11; specs/participant-role-management.yaml PRM-06;
   the 2026-10-02 audit of unsupervised agent decisions (#4195)
-supersedes: 0070-invited-actor-rm-triage-via-ledger-backfill.md
 informed: []
 stakeholder_type: [project-contributor]
+supersedes:
+  - 0070-invited-actor-rm-triage-via-ledger-backfill.md
+  - 0084-participant-assertion-authority.md
 ---
 
 # A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants

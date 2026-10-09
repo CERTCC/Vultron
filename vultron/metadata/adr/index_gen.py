@@ -37,6 +37,7 @@ from vultron.metadata.adr.loader import (
     SKIP_FILES,
     _find_repo_root,
     _iter_adr_paths,
+    adr_number,
     load_adr_post,
     load_adr_registry,
 )
@@ -54,13 +55,15 @@ from vultron.metadata.specs.schema import AdrStatus
 _SECTIONS_START = "## Accepted ADRs"
 
 _H1_RE = re.compile(r"^#\s+(.*?)\s*$", re.MULTILINE)
-_ADR_NUM_RE = re.compile(r"^(\d{4})-")
 
-
-def _adr_number(path: Path) -> str | None:
-    """Return the zero-padded ADR number from a filename, or None."""
-    match = _ADR_NUM_RE.match(path.name)
-    return match.group(1) if match else None
+# Index annotation phrase for each supersession field, in rendering order:
+# what replaced this ADR first, then what this ADR replaced (MS-14-011).
+_SUPERSESSION_PHRASES: tuple[tuple[str, str], ...] = (
+    ("superseded_by", "superseded by"),
+    ("partially_superseded_by", "partially superseded by"),
+    ("supersedes", "supersedes"),
+    ("partially_supersedes", "partially supersedes"),
+)
 
 
 _TITLE_ADR_PREFIX_RE = re.compile(r"^ADR-\d{4}:?\s*", re.IGNORECASE)
@@ -82,9 +85,27 @@ def _entry(path: Path, adr_dir: Path) -> str:
     """Render one index bullet as ``- [ADR-NNNN <title>](rel-path)``."""
     rel = str(path.relative_to(adr_dir))
     title = _adr_title(path)
-    number = _adr_number(path)
+    number = adr_number(path)
     label = f"ADR-{number} {title}" if number else title
     return f"- [{label}]({rel})"
+
+
+def _supersession_suffix(fm: AdrFrontmatter) -> str:
+    """Render an ADR's supersession links as an index annotation.
+
+    Both sides are shown: a retired or partly replaced ADR names what replaced
+    it, and a successor names what it replaced, so a reader landing on either
+    entry sees the link. The index is where a reader decides which ADR to
+    open, and an unannotated entry reads as wholly current. List-valued
+    pointers are joined with commas; several kinds of link are joined with
+    semicolons. Returns ``""`` when the ADR has no supersession links.
+    """
+    parts = [
+        f"{phrase} {', '.join(targets)}"
+        for field, phrase in _SUPERSESSION_PHRASES
+        if (targets := getattr(fm, field))
+    ]
+    return f" — {'; '.join(parts)}" if parts else ""
 
 
 def generate_index(repo_root: Path | None = None) -> str:
@@ -119,30 +140,15 @@ def generate_index(repo_root: Path | None = None) -> str:
             entry += f" *(revision {fm.revision})*"
 
         if fm.status in (AdrStatus.ACCEPTED, AdrStatus.ACCEPTED_PROVISIONAL):
-            suffix = (
-                " *(provisional)*"
-                if fm.status is AdrStatus.ACCEPTED_PROVISIONAL
-                else ""
-            )
-            # A live ADR with one decision replaced: say so here, because the
-            # index is where a reader decides which ADR to open, and an
-            # unannotated entry reads as wholly current.
-            if fm.partially_superseded_by:
-                suffix += (
-                    f" — partially superseded by {fm.partially_superseded_by}"
-                )
-            accepted.append(entry + suffix)
+            if fm.status is AdrStatus.ACCEPTED_PROVISIONAL:
+                entry += " *(provisional)*"
+            accepted.append(entry + _supersession_suffix(fm))
         elif fm.status is AdrStatus.PROPOSED:
-            proposed.append(entry)
+            proposed.append(entry + _supersession_suffix(fm))
         elif fm.status is AdrStatus.REJECTED:
-            rejected.append(entry)
+            rejected.append(entry + _supersession_suffix(fm))
         else:  # superseded / deprecated
-            link = (
-                f" — superseded by {fm.superseded_by}"
-                if fm.superseded_by
-                else ""
-            )
-            retired.append(entry + link)
+            retired.append(entry + _supersession_suffix(fm))
 
     def _section(header: str, items: list[str], preface: str = "") -> str:
         body = "\n".join(items) if items else "- none"
@@ -218,7 +224,7 @@ def duplicate_numbers(repo_root: Path | None = None) -> dict[str, list[str]]:
     for path in sorted(adr_dir.glob("*.md")):
         if path.name in SKIP_FILES:
             continue
-        number = _adr_number(path)
+        number = adr_number(path)
         if number is None:
             continue
         claims.setdefault(number, []).append(path.name)

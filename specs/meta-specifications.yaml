@@ -1137,7 +1137,6 @@ groups:
   - id: MS-14-011
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       ADR supersession links MUST be recorded in both directions: every `superseded_by` or
       `partially_superseded_by` entry on an ADR MUST be matched by a `supersedes` or
@@ -1149,7 +1148,15 @@ groups:
       A successor can retire several ADRs (ADR-0099 retired two), which a single-valued field
       could not record, and with only the forward pointer checked the successor side drifted out
       of date. An agent reading the successor needs to see what it replaced, and a loader check
-      fails a one-sided link in CI. Planned in #3848.
+      fails a one-sided link in CI. Planned in #3848 and built in #4351.
+    verification: >-
+      `test/metadata/test_adr_frontmatter.py` checks that each of the four fields accepts a single
+      ADR or a list (`TestSupersessionFieldsAreLists`), that the loader fails a one-sided
+      `superseded_by` / `supersedes` or `partially_superseded_by` / `partially_supersedes` pair in
+      each direction and accepts a matched pair whatever pointer form either side uses
+      (`TestTwoWaySupersession`), and that the real ADR corpus loads
+      (`test_all_adr_files_have_valid_frontmatter`). `test/metadata/test_adr_index_gen.py` checks
+      that the generated index shows the successor side and joins list-valued pointers.
     relationships:
     - rel_type: depends_on
       spec_id: MS-14-005

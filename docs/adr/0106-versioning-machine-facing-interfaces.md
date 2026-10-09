@@ -9,6 +9,7 @@ deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
 stakeholder_type: [project-contributor]
+partially_supersedes: 0069-vultron-namespace-uri.md
 ---
 
 # Version Each Machine-Facing Interface Independently of the Release Tag

@@ -9,6 +9,10 @@ deciders: Allen D. Householder
 consulted: notes/case-ledger-authority.md, notes/case-communication-model.md, notes/ownership-transfer.md, notes/outbox.md, docs/adr/0021-caseactor-inbox-routing-canonical-ledger.md, docs/adr/0042-http-only-inter-actor-delivery.md, docs/adr/0073-per-actor-storage-isolation.md, docs/adr/0088-consolidate-case-authority-determination.md
 informed: CERT/CC Vultron protocol team
 stakeholder_type: [project-contributor]
+partially_supersedes:
+  - 0021-caseactor-inbox-routing-canonical-ledger.md
+  - 0042-http-only-inter-actor-delivery.md
+  - 0073-per-actor-storage-isolation.md
 ---
 
 # A Container Emits Only as Actors It Hosts; a Participant Asks the CaseActor to Act
