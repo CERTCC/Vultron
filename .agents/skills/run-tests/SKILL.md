@@ -42,9 +42,14 @@ that slot were OOM-killed mid-run. Set `PYTEST_XDIST_AUTO_NUM_WORKERS` to
 override. Drop `-n auto` (or pass `-n 0`) for a targeted single-file run, where
 starting workers costs more than it saves.
 
-## Pre-PR Validation (build and create-pr)
+## Pre-PR Validation (create-pr only)
 
-Run **both** suites before opening a PR:
+The full local gate runs **exactly once per tree state**, before a Pull
+Request's first push, in `create-pr` Phase 3 (PAD-18-001, PAD-18-008): it is
+re-run only after a fix changes the tree. A skill that hands off to
+`create-pr` runs the linters and does not run these suites itself; it may run
+the specific test files it is writing or changing while it works. The gate is
+both suites:
 
 ```bash
 uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
@@ -54,14 +59,35 @@ uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>
 The first command covers the unit suite (integration tests excluded by
 `addopts = "-m 'not integration'"`). The second explicitly runs the
 integration suite. Both must pass; a branch that only breaks integration
-tests must not reach a non-draft PR.
+tests must not reach a non-draft PR. A PR that changes no Python is gated by
+the linters alone, and its `Suite runs:` full count starts at zero
+(PAD-18-006).
+
+## After the First Push (targeted gate)
+
+Once a PR is pushed, CI runs the full suite on every push (ADR-0126). A local
+fix commit is gated by the linters plus the **targeted set** for the branch
+diff (PAD-18-002), not by the full suite:
+
+```bash
+git fetch origin <base> || { echo "fetch failed — stop and report"; false; }
+gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; }; echo "exit: $rc"; (exit $rc)
+```
+
+`targeted-tests` escalates to the full suite itself (its `--pytest` output
+becomes `pytest -m ""`) when the branch diff touches shared test
+infrastructure or an integration-bearing path (PAD-18-003). It cannot see CI:
+when the fix is for a CI failure in a test outside the printed set, run the
+**All** row above instead. `pr-execute` Phase 5 Step 3 is the canonical
+caller.
 
 ## Constraints
 
 - Run exactly once per validation cycle; do not use `-q` or change output formatting.
-- Do not change `tail -5` in the commands above. Other skills that tail a longer
-  window (`pr-execute` uses `-20` and `-40`) may do so, but must keep the rest of
-  the shape intact.
+- Do not change `tail -5` in the pre-PR commands above. A command that tails a
+  longer window (the targeted gate and `pr-execute` use `-20`) may do so, but
+  must keep the rest of the shape intact.
 - **Never end a validation command with a pipe.** A pipeline exits with its
   *last* stage's status, so `… | tail`, `… | tee … | tail`, `… | head`, and
   `… | wc` all report 0 no matter how pytest exited — a `pytest-timeout` kill
@@ -79,6 +105,11 @@ tests must not reach a non-draft PR.
   command never runs and `tail` prints the *previous* run's summary — a
   passing-looking tail above a non-zero `exit:`. Trust the code.
 - `filterwarnings = ["error"]` in `pyproject.toml` — warnings are test errors; fix root cause, do not suppress.
-- Integration tests are excluded from the default interactive run; always run `-m integration` explicitly in pre-PR validation.
+- Integration tests are excluded from the default interactive run; always run
+  `-m integration` explicitly in pre-PR validation, and keep the targeted
+  gate's `-m ""` so integration-marked tests in the set still run.
 - Treat all failures as branch-owned by default; clean-base proof is required before classifying as pre-existing.
-- **Never re-run the test suite to get more output.** Full pytest output is written to `/tmp/last-test-run.log` (or `/tmp/pytest-unit.log` / `/tmp/pytest-integration.log` when both suites run). Read or grep those files instead.
+- **Never re-run the test suite to get more output.** Full pytest output is
+  written to `/tmp/last-test-run.log` (or `/tmp/pytest-unit.log` /
+  `/tmp/pytest-integration.log` when both suites run, `/tmp/pytest-gate.log`
+  for the targeted gate). Read or grep those files instead.

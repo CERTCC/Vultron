@@ -149,6 +149,10 @@ from vultron.core.behaviors.sync.nodes.rm_verdict_effect import (
     ApplyRmVerdictFromLedgerNode,
     IsRmVerdictEventNode,
 )
+from vultron.core.behaviors.sync.nodes.role_grant_effect import (
+    ApplyCaseParticipantRoleGrantFromLedgerNode,
+    IsAcceptCaseParticipantRoleEventNode,
+)
 
 __all__ = [
     # conditions
@@ -174,6 +178,7 @@ __all__ = [
     "IsInviteExpiryNoopEventNode",
     # effects
     "ApplyNoteFromLedgerNode",
+    "ApplyCaseParticipantRoleGrantFromLedgerNode",
     "ApplyRemoveNoteFromLedgerNode",
     "ApplyCreateCaseParticipantFromLedgerNode",
     "ApplyUpdateCaseParticipantFromLedgerNode",
@@ -184,6 +189,7 @@ __all__ = [
     "ApplyOfferReportFromLedgerNode",
     "ApplyOwnershipTransferFromLedgerNode",
     "ApplyOfferOwnershipTransferFromLedgerNode",
+    "IsAcceptCaseParticipantRoleEventNode",
     "IsOfferOwnershipTransferEventNode",
     # participant_removal_effect (CM-31-007, CM-31-011)
     "ApplyReinstateCaseParticipantFromLedgerNode",

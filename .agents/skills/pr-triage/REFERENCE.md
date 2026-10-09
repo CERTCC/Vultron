@@ -187,15 +187,16 @@ Runs for every implementation or bug-fix PR (scope defined in
 Emit a finding (captured as `needs_integration_tests: true` in `pr_metadata`)
 if the PR modifies any of:
 
-- `demo/` — any demo script or orchestration file
+- `vultron/demo/` — any demo script or orchestration file
 - `integration_tests/` — any integration test file
-- `adapters/` — driving or driven adapters
+- `vultron/adapters/` — driving or driven adapters
 - `vultron/core/behaviors/` — behavior tree logic
 - `vultron/core/use_cases/` — use-case implementations
-- `vultron/wire/as2/extractor.py` — semantic extraction
+- `vultron/wire/as2/extractor/` — semantic extraction (a package)
 
-`pr-execute` reads this flag from `pr_metadata` to decide whether to run the
-full suite.
+The flag is informational. `pr-execute`'s local gate comes from
+`targeted-tests`, which escalates to the full suite on these same paths
+(PAD-18-003), so execute does not read the flag to choose its test scope.
 
 ---
 
@@ -215,7 +216,7 @@ by GitHub, so check both.
 |---|---|---|
 | `CLEAN` | Mergeable, checks green | none |
 | `UNSTABLE` | Mergeable, but a non-required check is failing/pending | none — Phase 11 owns CI |
-| `BEHIND` | Base advanced; repo requires up-to-date branches | **IMPROVE** |
+| `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0126) | **IMPROVE** (`fix-now`: execute merges the base to clear it, PAD-18-004) |
 | `DIRTY` | Conflicts — authoritative even if `mergeable` says otherwise | **FAIL** |
 | `BLOCKED` | Missing required review or failing required check | **IMPROVE** (note the cause; not fixable by execute) |
 | `DRAFT` | PR is a draft and cannot merge | **IMPROVE** |
@@ -234,7 +235,8 @@ only by whoever holds it. Do not tag a conflict `defer-ask` or
 
 `base_ref` is not always `main`. When a PR targets another task branch, all
 sync operations in execute must use that base — see `sync-with-main.sh`, which
-takes the base branch as its first argument.
+takes the base branch as its first argument, and `targeted-tests --base
+origin/<base_ref>` for the overlap check and the targeted set.
 
 ---
 

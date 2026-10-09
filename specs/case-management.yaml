@@ -275,6 +275,38 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-02-014
+  - id: CM-02-016
+    priority: MUST
+    kind: project
+    statement: >-
+      When the CASE_MANAGER commits an `accept_case_participant_role` ledger entry (the
+      acceptance of an `Offer(CaseParticipantRole)`, ADR-0039), the offered `CVDRole` MUST be
+      granted to the target Actor's `CaseParticipant`. Authority is the CASE_MANAGER ledger: the
+      CASE_MANAGER applies the grant to its own replica when it commits the entry, and every
+      other participant applies it by replaying that entry's `Announce` (RSH-08-004). A
+      participant MUST NOT mutate `case_roles` from an `Accept` message directly.
+    rationale: >-
+      `#3764` made `("Offer", "CaseParticipantRole")` a canonical ledger signature, but an offer
+      is a proposal, not the grant; before this requirement no received tree mutated the target's
+      `case_roles` and the committed `accept_case_participant_role` entry had no replay slot, so
+      the role was granted nowhere and no replica learned it. Keeping role authority with the
+      CASE_MANAGER — applied inline on its own copy at commit and by ledger replay everywhere
+      else — keeps every replica convergent (ADR-0108, ADR-0124), the same shape role-free
+      participant and status grants already use.
+    verification: >-
+      `test/core/behaviors/sync/nodes/test_role_grant_effect.py` applies an
+      `accept_case_participant_role` entry to a replica via the shared `grant_role_to_target`
+      and asserts the target participant gains the offered role, that redelivery is idempotent,
+      and that a replica missing the target participant is a non-fatal skip;
+      `test/core/behaviors/case/nodes/test_delegation.py` asserts the CASE_MANAGER grants the
+      role on its own copy when it commits the accept; and
+      `test/architecture/test_ledger_event_types_are_replayed.py` holds the event type in the
+      replayed set.
+    adr:
+    - ADR-0039
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-015
 - id: CM-03
   title: Case State Model
   specs:
@@ -1884,6 +1916,32 @@ groups:
       `SubmitReportReceivedUseCase.execute()` reaches a store helper.
     adr:
     - ADR-0111
+  - id: CM-15-006
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The `auto_create_case=True` default in `ActorConfig` is a reference
+      implementation choice, not a Vultron protocol requirement. An implementation
+      that sets `auto_create_case=False` creates the case in a later, separate
+      step (for example `SvcCreateCaseUseCase` with the report's `report_id`);
+      once that case is linked to the report, the implementation SHOULD close it
+      through `SvcCloseCaseUseCase` when the operator or user requests closure.
+    rationale: >-
+      CONCERN-1902 observed that `SvcCloseCaseUseCase` is never reached in the
+      reference process because the case is always auto-created at RM.RECEIVED.
+      ADR-0085 resolves this: the auto-create behaviour is an implementation
+      choice made by the reference/demo process. `SvcCloseCaseUseCase` is the
+      tested closure path for the non-auto-create scenario. It resolves the case
+      through the report link and refuses a report with no linked case, so the
+      case must exist before closure.
+    verification: >-
+      Existing unit tests in
+      `test/core/use_cases/triggers/test_close_case_trigger.py` (including
+      `test_close_case_raises_when_no_linked_case`) and
+      `test/core/behaviors/report/test_trigger_report_trees.py` cover the
+      closure path; no new code is required.
+    adr:
+    - ADR-0085
 - id: CM-16
   title: Actor Suggestion Routing (Recommend-Actor Flow)
   specs:

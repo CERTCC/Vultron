@@ -8,6 +8,7 @@ description: >
 related_notes:
   - notes/diataxis-framework.md
   - notes/documentation-strategy.md
+  - notes/specs-vs-adrs.md
 related_specs:
   - specs/diataxis-requirements.yaml
   - specs/meta-specifications.yaml

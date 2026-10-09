@@ -69,9 +69,27 @@ Write the status file, then run up to the agent cap at once. Per task:
 1. Create `/tmp/wt-<issue>` from `origin/main` (never `git worktree prune`).
 2. Spawn the build agent (`build`, or `bugfix`) in that worktree.
 3. On PR open, spawn a **fresh** agent in the same worktree to run `pr-ship`.
-4. Merge only on `READY-TO-MERGE`, as soon as it arrives. Then sync every
-   other open PR with `main`; re-run `pr-ship` only if the sync touched its
-   files or conflicted.
+4. Merge only on `READY-TO-MERGE`, as soon as it arrives. If another PR merged
+   after that verify ran, run the checks below on this PR first and re-run
+   `pr-ship` instead of merging if any of them fires. After each merge, run them
+   for every other open PR from a worktree on that PR's head — its own, or a
+   fresh one (PAD-18-004):
+
+   ```bash
+   # fresh worktree only if the PR's own is gone:
+   git fetch origin <head_ref> && git worktree add --detach /tmp/wt-<issue> FETCH_HEAD
+   # in that worktree:
+   git fetch origin main
+   bash .agents/skills/shared/merge-state.sh <pr>   # exit 1 = CONFLICTING; JSON merge_state_status BEHIND
+   PYTHONPATH= uv run targeted-tests --base origin/main --overlap   # exit 1 = overlap
+   ```
+
+   Re-run `pr-ship` (a fresh agent; its execute phase merges `main` and
+   resolves) **only** for a PR that is `CONFLICTING` or `BEHIND`, or whose
+   overlap check lists files. Leave every other PR alone, even though it is
+   now behind `main`. A PR still in `pr-ship` before its verify phase needs no
+   nudge: its execute phase runs the same checks before each push and again
+   on CI green.
 5. Remove that worktree by explicit path.
 
 Parked tasks (waiting on the user) do not use a slot. Keep running everything
