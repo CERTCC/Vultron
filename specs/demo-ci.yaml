@@ -518,9 +518,10 @@ groups:
           Using the marker alone relies on each test file skipping when its
           devlogs directory is absent — an implicit, fragile coupling between
           the filesystem state and test selection. An explicit file path makes
-          the scenario-to-test relationship declarative and visible in the
-          workflow definition, so adding a new matrix entry also requires
-          explicitly naming the test file that validates it.
+          the scenario-to-test relationship declarative and visible in each
+          generated `.github/demo-scenarios.json` entry (DEMOCI-11-004), whose
+          `test_file` is derived from the registered scenario name
+          (DEMOCI-11-003).
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-03-004
