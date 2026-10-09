@@ -6,17 +6,22 @@ Detailed criteria consumed during execution. Referenced from SKILL.md.
 
 ## Integration Test Detection
 
-`pr_metadata.needs_integration_tests` is set by `pr-triage`. Execute reads
-this flag — it does not re-detect. The detection logic (for reference) is:
+`pr_metadata.needs_integration_tests` is set by `pr-triage` and is
+informational for execute. The local gate's scope comes from `targeted-tests`
+(SKILL.md Phase 5 Step 3), which reports `full` when the branch diff touches
+any of these integration-bearing paths (PAD-18-003), as well as shared test
+infrastructure (`conftest.py`, fixtures, factories, `pyproject.toml`,
+`uv.lock`):
 
-Run **full suite (unit + integration)** if PR modifies any of:
-
-- `demo/` — any demo script or orchestration file
+- `vultron/demo/` — any demo script or orchestration file
 - `integration_tests/` — any integration test file
-- `adapters/` — driving or driven adapters
+- `vultron/adapters/` — driving or driven adapters
 - `vultron/core/behaviors/` — behavior tree logic
 - `vultron/core/use_cases/` — use-case implementations
-- `vultron/wire/as2/extractor.py` — semantic extraction
+- `vultron/wire/as2/extractor/` — semantic extraction (a package)
+
+The docker-driven scripts under `integration_tests/` are not pytest tests; CI
+runs them. A local `full` gate is `pytest -m ""`, every marker enabled.
 
 ---
 
@@ -171,18 +176,26 @@ explicit blocked/unblocked status.
 
 ## Conflict Resolution Rules
 
-### Why sync runs late
+### When sync runs, and why it runs late
 
-The branch is synced in Phase 5 (CI loop, Step 2) — after all fixes, before the
-test suite. Three reasons:
+The base is merged in Phase 5 (CI loop, Step 2) **only** when GitHub reports the
+PR `CONFLICTING` or `targeted-tests --overlap` finds files both the base and the
+PR changed since the merge base (PAD-18-004). Otherwise the branch is left
+behind its base: CI already tests the PR merged into its base on every push,
+and no repository rule requires up-to-date branches (ADR-0126).
 
-1. **Execute's own fixes can create conflicts.** A fix touching the same lines a
-   base-branch commit touched is only conflicting once both exist.
+The check runs after all fixes, before the local gate. Three reasons:
+
+1. **Execute's own fixes can create conflicts or overlap.** A fix touching a file
+   a base-branch commit touched only overlaps once both exist. The overlap check
+   counts uncommitted work for this reason.
 2. **The base branch moves during the run.** Triage's merge state is stale by the
    time execute finishes; another PR can land mid-pipeline.
-3. **Tests must run on the merged tree.** A clean merge can still be a *semantic*
-   conflict — both sides apply, the result is broken. Only running the suite
-   post-merge catches that.
+3. **The gate must be derived from the merged tree.** When a merge happens, the
+   targeted set is derived from the post-merge branch diff, which then covers
+   the overlapping and conflicted files. A semantic conflict between files
+   neither side shares is not caught here; CI on `main` catches it after merge,
+   and closing that gap is a merge queue's job (#1863).
 
 ### Merge, do not rewrite
 
@@ -212,7 +225,10 @@ Rules that do not bend:
   That is a silent revert; it is worse than the conflict.
 - **Verify no markers remain** before pushing:
   `git grep -nE '^(<<<<<<<|=======|>>>>>>>)'` must be empty.
-- **Re-run the full suite after resolving**, even if it passed pre-merge.
+- **Re-run the gate after resolving**, even if it passed pre-merge: the
+  targeted set of PAD-18-002, derived from the post-merge branch diff
+  (PAD-18-004), escalated to the full suite when `targeted-tests` reports
+  `full` (SKILL.md Phase 5 Step 3).
 - **Never resolve a conflict you do not understand.** Abort
   (`sync-with-main.sh --abort`), record the merge-state finding as `skipped` with
   the conflicted paths and why, and stop. An honest stop beats a wrong merge.
@@ -293,9 +309,16 @@ File: `.claude/pr-{number}-execute.json`
   "timestamp": "2026-01-01T00:00:00Z",
   "integration_tests_run": true,
   "final_ci_status": "passing",  // "passing" | "failing" | "timeout"
+  "suite_runs": {
+    "full": 2,          // includes create-pr's first-push run
+    "targeted": 1
+  },
   "merge_state": {
     "base_ref": "main",
-    "synced": true,
+    "conflict_free": true,
+    "merge_required": true,
+    "merge_reason": "overlap",  // "conflicting" | "overlap" | null
+    "overlap_paths": ["vultron/core/models/case/case.py", "uv.lock"],
     "sync_commit_ref": "def5678",
     "conflicts_resolved": ["vultron/core/models/case/case.py", "uv.lock"],
     "mergeable_after_sync": "MERGEABLE",
@@ -373,17 +396,49 @@ diverge (indicating execute was interrupted before completion).
 
 | Field | Meaning |
 |---|---|
-| `base_ref` | Branch synced against — copied from `pr_metadata.base_ref`, not assumed to be `main` |
-| `synced` | `true` if the branch contains the base tip after Phase 4 |
-| `sync_commit_ref` | Merge commit SHA, or `null` if the branch was already current |
-| `conflicts_resolved` | Paths that had conflict markers; `[]` for a clean merge |
-| `mergeable_after_sync` | `merge-state.sh` result from Phase 4 step 6 |
+| `base_ref` | Branch checked against — copied from `pr_metadata.base_ref`, not assumed to be `main` |
+| `conflict_free` | `true` if, at the end of Phase 5, the branch has no unresolved conflict with the base: no merge was required, or the required merge completed with no markers left |
+| `merge_required` | `true` if Phase 5 Step 2 called for a merge in any iteration (PAD-18-004); `false` if every check found neither `CONFLICTING` nor overlap |
+| `merge_reason` | `"conflicting"`, `"overlap"`, or `null` when `merge_required` is `false` |
+| `overlap_paths` | Paths `targeted-tests --overlap` listed; `[]` when none |
+| `sync_commit_ref` | Merge commit SHA, or `null` when no merge was required or the branch already contained the base |
+| `conflicts_resolved` | Paths that had conflict markers; `[]` for a clean merge or no merge |
+| `mergeable_after_sync` | `merge-state.sh` `mergeable` from the "On CI green" (or eject) call in Phase 5 |
 | `merge_state_status_after_sync` | `mergeStateStatus` from the same call |
 | `undrafted` | `true` if execute ran `gh pr ready` and dropped `needs-rebase` |
 
-`merge_state` is **required**. `pr-verify` treats a missing or `synced: false`
-block as a hard gate failure — an execute run that never checked mergeability
-cannot produce a READY-TO-MERGE verdict.
+`merge_state` is **required**. `pr-verify` treats a missing block, a
+`conflict_free` that is not `true`, or a `merge_required: true` with a null
+`sync_commit_ref` as `UNSYNCED-EXECUTE` — an execute run that never established
+the PR was conflict-free cannot produce a READY-TO-MERGE verdict. Containing the
+base tip is **not** required (PAD-18-005): a branch that is behind but neither
+conflicts nor overlaps is conflict-free.
+
+`integration_tests_run` is `true` when any gate run in Phase 5 was the full
+suite (`pytest -m ""`), which includes the integration-marked tests.
+
+### `suite_runs` Fields and the Suite runs count
+
+| Field | Meaning |
+|---|---|
+| `full` | Full-suite local runs this PR has cost, **starting at one** for `create-pr`'s first-push run (PAD-18-001, PAD-18-006) |
+| `targeted` | Targeted-set gate runs this PR has cost |
+
+Derivation, so the count is cumulative across every execute run on the PR:
+
+1. Find the most recent `Suite runs: <N> full, <M> targeted` line in an earlier
+   execute comment on this PR (PR reviews and comments; take the latest).
+2. If there is one, start from its `N` and `M` — it already counts the
+   first-push run. If there is none, start from `full = 1, targeted = 0`: the
+   one is `create-pr`'s first-push run, which happened before any execute
+   artifact existed.
+3. Add each Phase 5 Step 3 gate run of this execute run: one to `full` per
+   full-suite run, one to `targeted` per targeted run.
+
+`scripts/velocity.py` reads the line from the most recent PR comment or review
+that carries it (PAD-18-007), so keep it a plain line in exactly the form
+`Suite runs: <N> full, <M> targeted` — no bold, no extra words between the
+numbers.
 
 ### `docs_refresh` Fields
 
@@ -411,8 +466,10 @@ commits.
 **Halted (inversion, awaiting you)**: <H>
 **Tests run**: unit only / unit + integration
 **CI status**: ✅ passing / ❌ failing / ⏳ timed out
-**Base sync**: ✅ merged `<base_ref>` @ `def5678` — <N> conflicts resolved / ✅ already current / ❌ conflicts unresolved
+**Base sync**: ✅ merged `<base_ref>` @ `def5678` (<conflicting / overlap>) — <N> conflicts resolved / ✅ not needed — no conflict, no overlap / ❌ conflicts unresolved
 **Docs line**: `<docs_refresh.docs_line>` — <N> pages updated by execute
+
+Suite runs: <suite_runs.full> full, <suite_runs.targeted> targeted
 
 ---
 

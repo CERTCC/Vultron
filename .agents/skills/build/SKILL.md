@@ -300,21 +300,20 @@ later) are separate decisions. Apply
 
 ### Phase 6 — Validate
 
-1. Run in order:
+1. Run the linters:
 
    ```bash
    uv run ruff check --fix && uv run ruff format
    uv run ruff check && uv run mypy && uv run pyright
-   uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
-   uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
    ```
 
-   Both suites must pass. The first command covers the unit suite (integration
-   tests excluded by `addopts`); the second explicitly runs the integration
-   suite so demo-layer regressions are caught before the PR opens.
-   Do not run `mdlint.sh` or any other whole-tree tool concurrently with the
-   integration suite; resource contention can inflate per-test runtime past the
-   per-test timeout ceiling.
+   Do **not** run `pytest` here. The full local unit and integration suites run
+   exactly once before the first push, in `create-pr` Phase 3, adjacent to the
+   push they guard (PAD-18-001, PAD-18-008). Running them here as well would
+   pay for the most expensive step in the pipeline twice with no change to the
+   tree in between. While implementing, run the specific test files you are
+   writing or changing (`uv run pytest <path> -n 0`) as often as you like;
+   those are development runs, not the gate.
 
 2. **Spec backstop (blocking).** Update the Spec manifest from Phase 3 if the
    work drifted, then resolve it against the diff per `deepen-context`

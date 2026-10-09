@@ -69,9 +69,20 @@ Write the status file, then run up to the agent cap at once. Per task:
 1. Create `/tmp/wt-<issue>` from `origin/main` (never `git worktree prune`).
 2. Spawn the build agent (`build`, or `bugfix`) in that worktree.
 3. On PR open, spawn a **fresh** agent in the same worktree to run `pr-ship`.
-4. Merge only on `READY-TO-MERGE`, as soon as it arrives. Then sync every
-   other open PR with `main`; re-run `pr-ship` only if the sync touched its
-   files or conflicted.
+4. Merge only on `READY-TO-MERGE`, as soon as it arrives. Then, for each
+   other open PR, check it in its own worktree (PAD-18-004):
+
+   ```bash
+   git fetch origin main
+   bash .agents/skills/shared/merge-state.sh <pr>   # exit 1 = CONFLICTING
+   PYTHONPATH= uv run targeted-tests --base origin/main --overlap   # exit 1 = overlap
+   ```
+
+   Re-run `pr-ship` (a fresh agent; its execute phase merges `main` and
+   resolves) **only** for a PR that is `CONFLICTING` or whose overlap check
+   lists files. Leave every other PR alone, even though it is now behind
+   `main`. A PR still in `pr-ship` needs no nudge: its execute
+   phase runs the same check before each push.
 5. Remove that worktree by explicit path.
 
 Parked tasks (waiting on the user) do not use a slot. Keep running everything

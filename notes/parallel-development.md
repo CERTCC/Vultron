@@ -88,7 +88,7 @@ Use minimum depth. Many Epics will have leaf Tasks with no Subtasks.
 | `needs-info` | Anyone | **The only hold**: waiting on a person or decision. Keeps the issue out of `Ready` (PAD-16-004/005) |
 | `ready-for-human` | Anyone | `Ready`, but a human does it: agent selection skips it (PAD-16-007) |
 | `needs-decomposition` | `create-epic` | Epic with no sub-issues yet; input to `plan-issue` |
-| `needs-rebase` | Build agent | PR or task branch has merge conflicts that must be rebased |
+| `needs-rebase` | `create-pr`, `pr-execute` | PR has merge conflicts an agent could not resolve; a human must. The name predates merge-based syncing (PAD-11-004) |
 | `specs-notes` | ingest-idea, learn | Docs-only PR containing only specs/ and notes/ changes |
 | `concern` | process-concerns, new-item, ingest-concern | Technical risk, debt, or fragile area |
 
@@ -203,17 +203,29 @@ cannot see a claim that was never pushed; #3714 widens it to every prefix.
 ## Merge Conflict Recovery
 
 ```text
-PR has conflicts:
-  1. git fetch origin main && git rebase origin/main
-     ├── Rebase succeeds → git push --force-with-lease; CI re-runs
-     └── Rebase fails
-           → gh pr comment: explain conflict
-           → gh pr edit --add-label needs-rebase
-           → Stop; wait for human to resolve
+Pushed PR (pr-execute Phase 5 Step 2, and work-epic-tasks after each merge):
+  1. git fetch origin <base>
+     merge-state.sh <pr>                       → CONFLICTING?
+     targeted-tests --base origin/<base> --overlap → shared files?
+     ├── neither → do nothing; being behind the base is fine (PAD-18-004)
+     └── either  → sync-with-main.sh <base>  (merge, never rebase: PAD-11-001)
+           ├── merges, or conflicts resolved
+           │     → targeted gate on the post-merge diff
+           │     → git push (never --force: PAD-11-002); CI re-runs
+           └── conflict cannot be resolved safely
+                 → sync-with-main.sh --abort
+                 → gh pr comment: explain conflict      (PAD-11-003)
+                 → gh pr edit --add-label needs-rebase  (PAD-11-004)
+                 → Stop; wait for human to resolve      (PAD-11-005)
 ```
 
-No proactive area-overlap detection at this stage. At 2–4 developers,
-PR-time detection is sufficient.
+The overlap check is the proactive detection: the base is merged only when it
+touched a file the PR also changes, or GitHub reports a conflict. A semantic
+conflict between files neither side shares is not detected before merge; CI on
+`main` catches it afterwards, and a merge queue (#1863) is the escalation if
+that proves frequent (ADR-0126). Before the first push, `create-pr` still
+freshens by cherry-picking onto a fresh base (`freshen-branch.sh`): nothing is
+published yet, so there is nothing to rewrite.
 
 ---
 

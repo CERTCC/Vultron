@@ -611,48 +611,73 @@ groups:
       - id: PAD-11-001
         priority: MUST
         kind: process
-        verification_debt: '#2571'
         statement: >-
-          When a PR has merge conflicts, the `build` skill MUST attempt an
-          automatic rebase of the task branch onto `main`.
+          When an open PR has merge conflicts with its base branch, the agent
+          syncing it MUST merge the base branch into the task branch and
+          resolve the conflicts. It MUST NOT rebase a branch that has an open
+          PR.
+        rationale: >-
+          Rebasing a pushed branch rewrites the commits reviewers commented on
+          and the `commit_ref` values the triage and execute artifacts
+          recorded. A merge commit keeps both valid.
+        verification: >-
+          Inspection: `pr-execute` Phase 5 Step 2 resolves a `CONFLICTING` PR
+          with `sync-with-main.sh`, which merges the base, and no step of
+          `pr-execute` rebases the branch.
       - id: PAD-11-002
         priority: MUST
         kind: process
-        verification_debt: '#2571'
         statement: >-
-          If the automatic rebase succeeds, the agent MUST force-push the
-          rebased branch. CI re-runs automatically on the updated head.
+          After resolving the merge, the agent MUST push the merge commit with
+          a normal push and MUST NOT force-push the branch. CI re-runs
+          automatically on the updated head.
+        rationale: >-
+          A merge only adds commits, so a normal push always succeeds. A push
+          that git rejects as non-fast-forward means someone rewrote the
+          remote branch, which is a reason to stop, not to force.
+        verification: >-
+          Inspection: `pr-execute` Phase 5 Step 4 pushes without `--force`
+          and stops when git demands a force-push.
       - id: PAD-11-003
         priority: MUST
         kind: process
-        verification_debt: '#2571'
         statement: >-
-          If the automatic rebase fails, the agent MUST post a comment on the
-          PR explaining the conflict.
+          If the agent cannot resolve the merge safely, it MUST abort the
+          merge and post a comment on the PR explaining the conflict.
         rationale: >-
           Ensures human reviewers have visibility into the nature of the
           conflict before intervening.
+        verification: >-
+          Inspection: `pr-execute` Phase 5 Step 2's unresolved-conflict path
+          runs `sync-with-main.sh --abort` and posts a PR comment naming the
+          conflicted paths.
       - id: PAD-11-004
         priority: MUST
         kind: process
-        verification_debt: '#2571'
         statement: >-
-          If the automatic rebase fails, the agent MUST apply the
+          If the agent cannot resolve the merge safely, it MUST apply the
           `needs-rebase` label to the PR.
         rationale: >-
           The label signals to the sweeper and other agents that human
-          intervention is required before the PR can proceed.
+          intervention is required before the PR can proceed. Its name
+          predates merge-based syncing and is kept so existing queries still
+          find it.
+        verification: >-
+          Inspection: `pr-execute` Phase 5 Step 2's unresolved-conflict path
+          adds the `needs-rebase` label.
       - id: PAD-11-005
         priority: MUST_NOT
         kind: process
-        verification_debt: '#2571'
         statement: >-
-          If the automatic rebase fails, the agent MUST NOT attempt further
-          changes; human intervention is required to resolve the conflict and
-          remove the `needs-rebase` label.
+          If the agent cannot resolve the merge safely, it MUST NOT attempt
+          further changes; human intervention is required to resolve the
+          conflict and remove the `needs-rebase` label.
         rationale: >-
           Prevents the agent from making the conflict worse or creating
           additional commits on a branch that requires human resolution.
+        verification: >-
+          Inspection: `pr-execute` Phase 5 Step 2's unresolved-conflict path
+          stops the execute run without pushing.
 
   - id: PAD-12
     title: Review-Priorities — Issue Triage
@@ -1234,8 +1259,12 @@ groups:
           merge when it reports no overlap and GitHub does not report
           `CONFLICTING`.
         relationships:
-        - rel_type: conflicts
-          spec_id: PAD-11-002
+        - rel_type: extends
+          spec_id: PAD-11-001
+          note: >-
+            PAD-11-001 says how a conflicted PR is synced (merge, never
+            rebase); this adds when a pushed PR is synced at all (on
+            conflict or file overlap only).
       - id: PAD-18-005
         adr:
         - ADR-0126

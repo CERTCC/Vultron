@@ -10,7 +10,7 @@
 **Overall verdict**: ✅ READY-TO-MERGE / ❌ GAPS-FOUND / 🔀 CONFLICTS-FOUND / ⏳ PENDING-CI / ⏳ PENDING-MERGE-CHECK
 **CI status**: ✅ passing / ❌ failing / ⏳ pending
 **Merge state**: ✅ MERGEABLE (CLEAN) / 🔀 CONFLICTING (DIRTY) / ⚠️ BEHIND / 📝 DRAFT / ⏳ UNKNOWN — base `<base_ref>`
-**Base sync in execute**: ✅ merged @ `def5678` (<N> conflicts resolved) / ✅ already current / ❌ not performed
+**Base sync in execute**: ✅ merged @ `def5678` (<conflicting / overlap>; <N> conflicts resolved) / ✅ not needed — conflict-free, no overlap / ❌ required but not performed
 **Integrity check**: ✅ all <N> findings accounted for / ❌ INCOMPLETE-EXECUTE (<M> of <N> results found)
 **Docs line**: ✅ current — `<Docs: line>` / ❌ STALE-DOCS-LINE — <which commit or page it misses>
 
@@ -23,7 +23,7 @@ This PR conflicts with `<base_ref>` and cannot be merged. Conflicting paths:
 - `vultron/core/models/case/case.py`
 - `uv.lock`
 
-Re-run `/pr-execute` (Phase 4 syncs and resolves), or resolve manually with
+Re-run `/pr-execute` (Phase 5 syncs and resolves), or resolve manually with
 `bash .agents/skills/shared/sync-with-main.sh <base_ref>`, then
 `git add <paths> && git commit --no-edit && git push -u origin HEAD`.
 
@@ -69,7 +69,7 @@ this PR. Please decide whether to fold them in before merge:
 | 🔀 MERGE-CONFLICT | `mergeable: CONFLICTING`, `mergeStateStatus: DIRTY`, or conflict markers found at HEAD |
 | ⏳ MERGE-STATE-UNKNOWN | GitHub had not computed mergeability after polling |
 | ⚠️ BRANCH-BEHIND | `mergeStateStatus: BEHIND` — base advanced and the repo requires up-to-date branches |
-| ⚠️ UNSYNCED-EXECUTE | `execute.merge_state` missing or `synced: false` — execute never confirmed mergeability |
+| ⚠️ UNSYNCED-EXECUTE | `execute.merge_state` missing, `conflict_free` not `true`, or `merge_required: true` with no `sync_commit_ref` — execute never established the PR was conflict-free. Not raised for a branch that is merely behind its base (PAD-18-005) |
 | 📝 PR-IS-DRAFT | PR is still a draft (check for a lingering `needs-rebase` label) |
 | 📄 STALE-DOCS-LINE | PR body's `Docs:` line is missing, still the placeholder, does not cover a fix commit that changed described behavior, or names a page the diff does not change (Phase 3b) |
 | 📑 MISSING-SPEC-AMENDED | `spec-amendments.sh` lists an amended `statement:`/`priority:` and the PR body lacks a `## Spec amended` section naming it, or that section still holds a `<TODO>` (Phase 3c) |
@@ -99,5 +99,5 @@ headline the user needs.
 | `READY-TO-MERGE` | Merge | Cleaned up |
 | `PENDING-CI` | Re-run `/pr-verify` after CI finishes | Preserved |
 | `PENDING-MERGE-CHECK` | Re-run `/pr-verify` in a minute — GitHub is still computing | Preserved |
-| `CONFLICTS-FOUND` | Delete the execute artifact, re-run `/pr-execute` (Phase 4 resolves) | Preserved |
+| `CONFLICTS-FOUND` | Delete the execute artifact, re-run `/pr-execute` (Phase 5 resolves) | Preserved |
 | `GAPS-FOUND` | Fix manually, or delete the execute artifact and re-run `/pr-execute` | Preserved |

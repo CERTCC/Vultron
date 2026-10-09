@@ -238,8 +238,12 @@ Emit a finding per [REFERENCE.md](REFERENCE.md) § "Merge State Findings":
 Also emit findings for these `merge_state_status` values even when
 `mergeable` is `MERGEABLE`:
 
-- `BEHIND` — base has advanced and the repo requires branches be up to date:
-  **IMPROVE**, `fix-now` (execute's sync resolves it)
+- `BEHIND` — base has advanced and a ruleset requires branches be up to date:
+  **IMPROVE**, `fix-now`, and say in the description that it needs a human.
+  This repository sets no such ruleset (ADR-0126), and execute merges the base
+  only on `CONFLICTING` or file overlap (PAD-18-004), so execute records it
+  `skipped` rather than merging to clear it; `pr-verify` still blocks on it
+  (PAD-18-005).
 - `DIRTY` — treat exactly like `CONFLICTING` above, even if `mergeable`
   disagrees; the two fields are computed separately and `DIRTY` is the stronger
   signal
@@ -250,6 +254,12 @@ Also emit findings for these `merge_state_status` values even when
 
 Never downgrade a conflict to IMPROVE or NEW-ISSUE. Resolving it is always
 in scope for the PR that has it.
+
+**Being behind the base is not a finding.** A branch that lacks the base's
+latest commits but is `MERGEABLE` and not `BEHIND` gets no merge-state finding:
+CI tests the PR merged into its base on every push, and execute decides
+whether to merge from a live conflict and overlap check (PAD-18-004), not from
+triage's snapshot. Do not emit a "sync with main" finding for it.
 
 ### Phase 13 — Emit Artifact and Post Comment
 

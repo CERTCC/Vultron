@@ -18,8 +18,13 @@ one batch pass. No new discovery happens here. The finding set is fixed at the
 start; execute either resolves each item or records why it was skipped.
 
 Execute's exit criterion is **CI green**: it does not hand off to pr-verify until
-the branch is synced, tests pass locally, and all CI checks have completed
-successfully (or the 4-iteration cap is reached).
+the branch is conflict-free against its base, the local gate passes, and all CI
+checks have completed successfully (or the 4-iteration cap is reached).
+
+After a PR's first push, CI is the full-suite authority (ADR-0126). Execute
+therefore merges the base only when the PR conflicts or the base touched the
+PR's files (PAD-18-004), and gates each push with the linters plus the
+targeted test set for the branch diff, not the full suite (PAD-18-002).
 
 **One exception to "no new discovery"**: the CI loop (Phase 5) re-reads CI state
 and merge state from live sources rather than trusting triage's snapshots. CI
@@ -54,7 +59,9 @@ Run /pr-triage first (or /pr-ship to run the full pipeline).
 3. Validate `schema_version == "1.0"`. If mismatch, stop and report.
 4. Extract `pr_metadata.domains` and invoke `deepen-context` with those hints
    to load the same domain context that triage used.
-5. Check `pr_metadata.needs_integration_tests` — determines test scope in Phase 5.
+5. Note `pr_metadata.needs_integration_tests`. It is informational: Phase 5's
+   gate does not read it, because `targeted-tests` escalates to the full suite
+   on the same integration-bearing paths (PAD-18-003).
 6. Note `pr_metadata.base_ref` — Phase 5 syncs against this branch, not
    necessarily `main`.
 
@@ -80,7 +87,8 @@ or `IMPROVE`:
 4. Record `commit_ref` (short SHA) for each finding addressed in this commit.
 
 **Do not push yet.** All pushes happen inside the CI loop (Phase 5) so that
-every push includes the sync commit and passes local tests first.
+every push includes any merge the base called for and passes the local gate
+first.
 
 ### Phase 3 — Handle NEW-ISSUE Findings
 
@@ -187,8 +195,8 @@ Do not mark a comment resolved unless the code actually addresses it.
 ### Phase 5 — CI Loop
 
 This phase owns syncing, testing, pushing, and CI wait. It loops until CI is
-green or the cap is reached. **Maximum 4 iterations.** One iteration = one full
-Sync → Test → Push → Wait cycle.
+green or the cap is reached. **Maximum 4 iterations.** One iteration = one
+Sync (when needed) → Test → Push → Wait cycle.
 
 #### Step 1 — Apply CI fixes
 
@@ -236,7 +244,46 @@ fix(ci): resolve CI failures — <summary>
 
 Record `commit_ref` for each CI finding addressed.
 
-#### Step 2 — Sync with base
+#### Step 2 — Sync with base, only when needed
+
+Merge the base into the branch **only** when GitHub reports the PR
+`CONFLICTING` or the base changed files this PR also changes (PAD-18-004).
+Being behind the base is not by itself a reason to merge: CI tests the PR
+merged into its base on every push. Run both checks first:
+
+```bash
+git fetch origin <base_ref>
+bash .agents/skills/shared/merge-state.sh <number>; ms=$?; echo "merge-state exit: $ms"
+PYTHONPATH= uv run targeted-tests --base origin/<base_ref> --overlap; ov=$?; echo "overlap exit: $ov"
+```
+
+`targeted-tests --overlap` lists the paths the base changed since the merge
+base that this branch also changes, counting uncommitted work. It does not
+fetch, so the `git fetch` must come first.
+
+Take the first row that matches:
+
+| `merge-state.sh` | `--overlap` | Action |
+|---|---|---|
+| any | `2` | Setup error (unknown base ref) — stop and report |
+| `1` (`CONFLICTING`) | `0` or `1` | Merge — record `merge_reason: "conflicting"` |
+| `0` or `2` | `1` (paths listed) | Merge — record `merge_reason: "overlap"` and the listed paths |
+| `0` or `2` | `0` (none) | **Do not merge.** Go to Step 3 |
+
+`merge_state.merge_required` is `true` if any iteration merged, and `false` only
+when every iteration reached the last row.
+
+`merge-state.sh` exit `2` (`UNKNOWN`) does not force a merge: a conflict needs
+a file both sides changed, so the overlap check already sees it. The live
+mergeability gate is `pr-verify`'s, not this step's.
+
+A `mergeStateStatus` of `BEHIND` is not a merge trigger either. GitHub reports
+it only when a ruleset requires up-to-date branches, which ADR-0126 found this
+repository does not set; record triage's `BEHIND` finding as `outcome: skipped`
+with that reason, and let `pr-verify` block on it (PAD-18-005) until a human
+decides.
+
+When a merge is called for:
 
 ```bash
 bash .agents/skills/shared/sync-with-main.sh <base_ref>
@@ -264,32 +311,73 @@ Verify no markers survived:
 git grep -nE '^(<<<<<<<|>>>>>>>) ' -- . && echo "MARKERS PRESENT — do not push" || echo "clean"
 ```
 
-If `sync-with-main.sh` still reports `CONFLICTING` after resolution, record
-the merge-state finding as `outcome: skipped` with the conflicted paths and stop
-— do not push.
+**If a conflict cannot be resolved safely** (PAD-11-003 to PAD-11-005), do not
+guess and do not push:
 
-#### Step 3 — Run local tests
+1. `bash .agents/skills/shared/sync-with-main.sh --abort`
+2. Post a PR comment naming each conflicted path and why its resolution is
+   unclear: `gh pr comment <number> --body-file <file>`.
+3. `gh pr edit <number> --add-label needs-rebase` — the label name predates
+   merge-based syncing; it means "a human must resolve this conflict".
+4. Record the merge-state finding as `outcome: skipped` with the conflicted
+   paths, set `merge_state.conflict_free: false`, and stop the run after
+   Phase 6.
+
+#### Step 3 — Run the local gate
+
+The gate is the linters plus the **targeted test set** for the branch diff
+(PAD-18-002), never a bare full-suite run by default. Derive the set from the
+branch as it stands now, after any Step 2 merge, so a merge's overlapping and
+conflicted files are covered by the same derivation:
 
 ```bash
-uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -20 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
+uv run ruff check && uv run ruff format --check && uv run mypy && uv run pyright
+git fetch origin <base_ref>
+PYTHONPATH= uv run targeted-tests --base origin/<base_ref> > /tmp/targeted-tests.txt; rc=$?; cat /tmp/targeted-tests.txt; echo "exit: $rc"; (exit $rc)
 ```
 
-If `pr_metadata.needs_integration_tests` is true, also run:
+Read the first line of `/tmp/targeted-tests.txt`:
+
+- **A test path** — the gate is the targeted set. Paths printed on stderr as
+  `no test maps to` are left to CI; that is expected, not an error.
+- **`full`** — the branch diff touches shared test infrastructure or an
+  integration-bearing path (PAD-18-003); each following line names the path
+  and reason. The gate is the full suite with every marker enabled.
+
+Run the command `targeted-tests --pytest` prints for whichever mode it chose.
+It carries `-m ""` so integration-marked tests among the selected files are
+not deselected by the `addopts` default:
 
 ```bash
-uv run pytest integration_tests/ -v > /tmp/pytest-integration.log 2>&1; rc=$?; tail -40 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
+gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base_ref> --pytest) || { echo "targeted-tests failed"; false; }
+eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; echo "exit: $rc"; (exit $rc)
+```
+
+**Escalate yourself when the CI failure being fixed is outside the set.**
+`targeted-tests` cannot see CI (PAD-18-003). If the iteration's input includes
+a CI test failure whose test file is not one of the paths in
+`/tmp/targeted-tests.txt` (and is not under a listed directory), the set
+missed something: run the full suite instead.
+
+```bash
+uv run pytest -m "" -n auto --tb=short > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Read the `exit:` line, not just the tail — see `run-tests/SKILL.md` § Constraints.
 A piped form would report 0 for a killed run and this step would push it.
 
-**If the tail output is insufficient**, grep or read `/tmp/pytest-unit.log` or
-`/tmp/pytest-integration.log` — **do not re-run the test suite for more output**.
+**If the tail output is insufficient**, grep or read `/tmp/pytest-gate.log`
+— **do not re-run the test suite for more output**.
+
+**Count every gate run** for the execute summary's `Suite runs:` line
+(PAD-18-006): a run of the full suite (either escalation) adds one to
+`suite_runs.full`; a targeted run adds one to `suite_runs.targeted`. Single-test
+re-runs while debugging a failure are not gate runs and are not counted.
 
 If tests fail: fix branch-owned failures per [REFERENCE.md](REFERENCE.md)
-§ "Test Failure Rules", then **restart this iteration from Step 2** — always
-re-sync after a fix so the pushed commit includes both the fix and a clean merge.
-Do not push failing code.
+§ "Test Failure Rules", commit, then **re-run Step 2's two checks**. Return to
+the merge only if they now call for one; otherwise re-run this step's gate
+directly. Do not push failing code.
 
 After tests pass, run the xfail ratchet per [REFERENCE.md](REFERENCE.md)
 § "xfail Ratchet".
@@ -329,7 +417,8 @@ bash .agents/skills/shared/wait-for-ci.sh <number>
 **On CI green**:
 
 1. Run `merge-state.sh <number>`. If it now reports `CONFLICTING`, return to
-   Step 2 — a push can race a base-branch merge.
+   Step 2 — a push can race a base-branch merge. A base that merely moved
+   ahead is not a reason to return; only `CONFLICTING` is.
 
 2. If the PR is a draft with a `needs-rebase` label, undraft it:
 
@@ -339,7 +428,8 @@ bash .agents/skills/shared/wait-for-ci.sh <number>
    gh pr edit <number> --remove-label needs-rebase
    ```
 
-3. Record `final_ci_status: "passing"`. Populate the `merge_state` block.
+3. Record `final_ci_status: "passing"`. Populate the `merge_state` block from
+   this `merge-state.sh` call and the Step 2 decision.
 4. Exit the loop.
 
 **On iteration 4 failure (eject)**:
@@ -352,7 +442,9 @@ Record `final_ci_status: "failing"`. List the unresolved CI failures. Run
 1. Build the execute artifact in memory throughout Phases 2–5; write it only now.
    Write `.claude/pr-{number}-execute.json` per the schema in [REFERENCE.md](REFERENCE.md).
 2. Render the execute summary comment (format in [REFERENCE.md](REFERENCE.md)
-   § "Execute Comment Format").
+   § "Execute Comment Format"). It carries the `Suite runs: <N> full, <M>
+   targeted` line, derived per [REFERENCE.md](REFERENCE.md) § "Suite runs
+   count" — the full count starts at one for `create-pr`'s first-push run.
 3. Post comment: `gh pr review <number> --comment --body "<summary>"`
 4. Record `execute_comment_url` in the artifact; re-write the file with the URL.
 5. Print artifact path and outcome summary to stdout.
