@@ -100,42 +100,54 @@ def create_close_case_received_tree(
 
         CloseCaseBT (Sequence, via create_receive_activity_tree)
         ├── IntakeReceivedActivityNode                  # archive the Leave (CLP-10-017)
-        └── CloseOrDecline (Selector)                   # close unless declined
-            ├── CloseCaseReceive (Sequence, via create_receive_activity_tree)
-            │   ├── IntakeReceivedActivityNode          # finds the archive; no-op
-            │   ├── Inverter(OwnerCloseBlockedByEmbargoCheck)  # guard: SUCCESS iff NOT declining
-            │   │   └── Sequence: CheckIsCaseOwner → HasCaseStatuses
-            │   │              → ReadEmState → IsCloseBlockedByActiveEmbargo
-            │   ├── GuardedCommitOrSkip (Selector)      # Record receipt (CLP-10-006)
-            │   │   ├── Sequence(SkipIfNotCaseManager)
-            │   │   │   └── Inverter(CheckIsCaseManagerNode)
-            │   │   └── CommitCaseLedgerEntryNode       # commits the close_case entry
-            │   └── CloseCaseEffectsIfCaseManager (CaseManagerGate)  # RSH-08-003, #3814
-            │       └── OwnerOrNonOwnerEffects (Selector)   # Role discriminator
-            │       ├── OwnerLeaveSeq (Sequence)        # Owner path (CM-23-002)
-            │       │   ├── SenderIsCaseOwnerNode        # guard: sender IS CASE_OWNER
-            │       │   ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
-            │       │   ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
-            │       │   ├── CommitCaseActorRMClosedEntryNode  # step 2 on the ledger (CM-23-005)
-            │       │   └── CommitCaseFullyClosedBT (Sequence)  # steps 3-4: commit + fan-out
-            │       │       ├── RequireSyncPortNode             # refuse before writing
-            │       │       ├── ReconstructChainTailNode        # step 3a: tail hash
-            │       │       ├── CreateCaseFullyClosedEntry      # step 3b: build entry
-            │       │       ├── PersistCaseFullyClosedEntry     # step 3c: write to DataLayer
-            │       │       └── FanOutLogEntryNode              # step 4: fan-out
-            │       └── NonOwnerLeaveFallbackSeq (Sequence)  # Non-owner (CM-23-003)
-            │           └── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
-            └── DeclineOwnerCloseIfEmbargoed (Sequence)  # CM-23-011 decline arm
-                ├── CheckIsCaseOwner → HasCaseStatuses
-                │        → ReadEmState → IsCloseBlockedByActiveEmbargo  # decline decision
-                └── EmitRejectCloseCase                 # decline via as:Reject
+        └── CloseOrDeclineIfCaseManager (CaseManagerGate)  # BT-17-008, #3825
+            └── CloseOrDecline (Selector)               # close unless declined
+                ├── CloseCaseReceive (Sequence, via create_receive_activity_tree)
+                │   ├── IntakeReceivedActivityNode          # finds the archive; no-op
+                │   ├── Inverter(OwnerCloseBlockedByEmbargoCheck)  # guard: SUCCESS iff NOT declining
+                │   │   └── Sequence: CheckIsCaseOwner → HasCaseStatuses
+                │   │              → ReadEmState → IsCloseBlockedByActiveEmbargo
+                │   ├── GuardedCommitOrSkip (Selector)      # Record receipt (CLP-10-006)
+                │   │   ├── Sequence(SkipIfNotCaseManager)
+                │   │   │   └── Inverter(CheckIsCaseManagerNode)
+                │   │   └── CommitCaseLedgerEntryNode       # commits the close_case entry
+                │   └── CloseCaseEffectsIfCaseManager (CaseManagerGate)  # RSH-08-003, #3814
+                │       └── OwnerOrNonOwnerEffects (Selector)   # Role discriminator
+                │       ├── OwnerLeaveSeq (Sequence)        # Owner path (CM-23-002)
+                │       │   ├── SenderIsCaseOwnerNode        # guard: sender IS CASE_OWNER
+                │       │   ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
+                │       │   ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
+                │       │   ├── CommitCaseActorRMClosedEntryNode  # step 2 on the ledger (CM-23-005)
+                │       │   └── CommitCaseFullyClosedBT (Sequence)  # steps 3-4: commit + fan-out
+                │       │       ├── RequireSyncPortNode             # refuse before writing
+                │       │       ├── ReconstructChainTailNode        # step 3a: tail hash
+                │       │       ├── CreateCaseFullyClosedEntry      # step 3b: build entry
+                │       │       ├── PersistCaseFullyClosedEntry     # step 3c: write to DataLayer
+                │       │       └── FanOutLogEntryNode              # step 4: fan-out
+                │       └── NonOwnerLeaveFallbackSeq (Sequence)  # Non-owner (CM-23-003)
+                │           └── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
+                └── DeclineOwnerCloseIfEmbargoed (Sequence)  # CM-23-011 decline arm
+                    ├── CheckIsCaseOwner → HasCaseStatuses
+                    │        → ReadEmState → IsCloseBlockedByActiveEmbargo  # decline decision
+                    └── EmitRejectCloseCase                 # decline via as:Reject
 
-    Intake runs first, ahead of both arms, so the inbound Leave is archived
-    whether the close proceeds or is declined (CLP-10-017, CLP-10-018); the
-    per-arm ``StoreActivityNode`` this tree once carried duplicated it and was
-    removed (CLP-10-019).  The inner ``CloseCaseReceive`` is built by the same
-    factory because only the factory supplies the guarded receipt commit; its
-    intake node finds the archive already present and writes nothing.
+    Intake runs first, ahead of the gate, so the inbound Leave is archived on
+    every replica whether or not the receiver is the CASE_MANAGER (CLP-10-017,
+    CLP-10-018); the per-arm ``StoreActivityNode`` this tree once carried
+    duplicated it and was removed (CLP-10-019).  The inner ``CloseCaseReceive``
+    is built by the same factory because only the factory supplies the guarded
+    receipt commit; its intake node finds the archive already present and
+    writes nothing.
+
+    The ``CloseOrDecline`` Selector is passed as the factory's
+    ``manager_effects``, so the factory wraps the whole close/decline decision
+    in a CASE_MANAGER gate (BT-17-008).  Only the case's CASE_MANAGER declines
+    an owner close (CM-23-011) or runs its closure effects (CM-23-002/003); a
+    replica cc'd on the Leave skips the gate, emits no ``as:Reject`` (the
+    #3825 defect), writes nothing, and takes any resulting closure from the
+    ledger fan-out (CLP-10-001, RSH-08-003, HP-01-005).  The two arms stay in
+    one Selector because the close arm FAILS when a decline is warranted and
+    only a Selector lets the decline arm run next.
 
     The same decline decision (owner + live embargo) gates both arms: the close
     arm runs only when the decision is inverted-false, and the decline arm runs
@@ -178,7 +190,6 @@ def create_close_case_received_tree(
             name="CloseCaseBT",
             case_id=case_id,
             precondition_guards=[],
-            effect_nodes=[],
         )
 
     advance_leaving_participant = AdvanceParticipantToRMClosedNode(
@@ -382,15 +393,32 @@ def create_close_case_received_tree(
     # the close arm's inverted embargo guard blocks it. Intake sits ahead of
     # the Selector so both arms leave the archive in place (CLP-10-018); no
     # commit at this level — the receipt commit belongs to the close arm.
+    #
+    # The whole Selector is passed as ``manager_effects`` so the factory wraps
+    # it in a CASE_MANAGER gate (BT-17-008): the decline arm's
+    # ``EmitRejectCloseCaseNode`` is emit-capable, and only the case's
+    # CASE_MANAGER declines an owner close (CM-23-011, BT-17-001). The close
+    # arm's own effects are already CASE_MANAGER-gated internally and its
+    # commit is role-gated, so on a replica cc'd on the Leave the gate skips
+    # the whole decision: nothing is written, nothing is emitted, and the
+    # replica takes any resulting closure from the ledger fan-out
+    # (CLP-10-001, RSH-08-003). The close/decline arms stay in one Selector —
+    # the close arm FAILS when a decline is warranted, and only a Selector lets
+    # the decline arm run next, which a side-by-side Sequence placement in
+    # ``replica_effects``/``manager_effects`` could not express. ``case_id`` is
+    # ``None`` (no commit at this level); ``manager_case_id`` names the case
+    # whose CASE_MANAGER gates the Selector.
     return create_receive_activity_tree(
         name="CloseCaseBT",
         case_id=None,
         precondition_guards=[],
-        effect_nodes=[
+        manager_effects=[
             py_trees.composites.Selector(
                 name="CloseOrDecline",
                 memory=False,
                 children=[close_arm, decline_arm],
             ),
         ],
+        manager_case_id=case_id,
+        manager_gate_name="CloseOrDeclineIfCaseManager",
     )
