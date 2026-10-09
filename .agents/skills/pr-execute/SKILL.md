@@ -261,7 +261,8 @@ PYTHONPATH= uv run targeted-tests --base origin/<base_ref> --overlap; ov=$?; ech
 base that this branch also changes, counting uncommitted work. It does not
 fetch, so the `git fetch` must come first.
 
-Take the first row that matches:
+Treat a `merge_state_status` of `DIRTY` in `merge-state.sh`'s JSON as
+`CONFLICTING`, whatever its exit code. Then take the first row that matches:
 
 | `merge-state.sh` | `--overlap` | Action |
 |---|---|---|
@@ -273,9 +274,10 @@ Take the first row that matches:
 `merge_state.merge_required` is `true` if any iteration merged, and `false` only
 when every iteration reached the last row.
 
-`merge-state.sh` exit `2` (`UNKNOWN`) does not force a merge: a conflict needs
-a file both sides changed, so the overlap check already sees it. The live
-mergeability gate is `pr-verify`'s, not this step's.
+`merge-state.sh` exit `2` (`UNKNOWN`, or a `gh pr view` failure) does not
+force a merge: a conflict needs a file both sides changed, so the overlap check
+already sees it whatever GitHub answered. The live mergeability gate is
+`pr-verify`'s, not this step's.
 
 A `mergeStateStatus` of `BEHIND` is not a merge trigger either. GitHub reports
 it only when a ruleset requires up-to-date branches, which ADR-0126 found this
@@ -349,8 +351,8 @@ It carries `-m ""` so integration-marked tests among the selected files are
 not deselected by the `addopts` default:
 
 ```bash
-gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base_ref> --pytest) || { echo "targeted-tests failed"; false; }
-eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; echo "exit: $rc"; (exit $rc)
+gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base_ref> --pytest); rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; }; echo "exit: $rc"; (exit $rc)
 ```
 
 **Escalate yourself when the CI failure being fixed is outside the set.**
@@ -443,8 +445,8 @@ Record `final_ci_status: "failing"`. List the unresolved CI failures. Run
    Write `.claude/pr-{number}-execute.json` per the schema in [REFERENCE.md](REFERENCE.md).
 2. Render the execute summary comment (format in [REFERENCE.md](REFERENCE.md)
    § "Execute Comment Format"). It carries the `Suite runs: <N> full, <M>
-   targeted` line, derived per [REFERENCE.md](REFERENCE.md) § "Suite runs
-   count" — the full count starts at one for `create-pr`'s first-push run.
+   targeted` line, derived per [REFERENCE.md](REFERENCE.md) § "`suite_runs`
+   Fields and the Suite runs count" — the full count starts at one for `create-pr`'s first-push run.
 3. Post comment: `gh pr review <number> --comment --body "<summary>"`
 4. Record `execute_comment_url` in the artifact; re-write the file with the URL.
 5. Print artifact path and outcome summary to stdout.

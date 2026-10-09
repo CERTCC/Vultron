@@ -161,8 +161,9 @@ bad merge that breaks three workflows is one failed CI run on `main`.
 - Any week where `median_merges_from_main` is 2 or more suggests the
   conflict-driven sync rule is triggering often, which is worth investigating.
 - This field cannot see the old policy's sync cost. Under the pre-#4358
-  PAD-11-002 the branch was rebased, and `create-pr` cherry-picks onto a fresh base; neither
-  leaves a merge commit, and a force-push replaces the PR's commit list.
+  PAD-11-002 the branch was rebased, and `create-pr` cherry-picks onto a
+  fresh base; neither leaves a merge commit, and a force-push replaces the
+  PR's commit list.
   Do not compare post-ADR-0126 values to a pre-ADR-0126 `merges_from_main`
   baseline; read it as a trend from ADR-0126 onward.
 

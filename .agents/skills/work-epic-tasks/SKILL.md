@@ -70,7 +70,8 @@ Write the status file, then run up to the agent cap at once. Per task:
 2. Spawn the build agent (`build`, or `bugfix`) in that worktree.
 3. On PR open, spawn a **fresh** agent in the same worktree to run `pr-ship`.
 4. Merge only on `READY-TO-MERGE`, as soon as it arrives. Then, for each
-   other open PR, check it in its own worktree (PAD-18-004):
+   other open PR, check it from a worktree on that PR's head — its own, or a
+   fresh `/tmp/wt-<issue>` if that is gone (PAD-18-004):
 
    ```bash
    git fetch origin main

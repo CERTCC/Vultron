@@ -47,7 +47,8 @@ starting workers costs more than it saves.
 The full local gate runs **exactly once**, before a Pull Request's first push,
 in `create-pr` Phase 3 (PAD-18-001, PAD-18-008). A skill that hands off to
 `create-pr` runs the linters and does not run these suites itself; it may run
-the specific test files it is writing or changing while it works. The gate is both suites:
+the specific test files it is writing or changing while it works. The gate is
+both suites:
 
 ```bash
 uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
@@ -67,9 +68,9 @@ fix commit is gated by the linters plus the **targeted set** for the branch
 diff (PAD-18-002), not by the full suite:
 
 ```bash
-git fetch origin main
-gate=$(PYTHONPATH= uv run targeted-tests --pytest) || { echo "targeted-tests failed"; false; }
-eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; echo "exit: $rc"; (exit $rc)
+git fetch origin <base>
+gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
+[ "$rc" -eq 0 ] && { eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; }; echo "exit: $rc"; (exit $rc)
 ```
 
 `targeted-tests` escalates to the full suite itself (its `--pytest` output
@@ -102,6 +103,11 @@ caller.
   command never runs and `tail` prints the *previous* run's summary — a
   passing-looking tail above a non-zero `exit:`. Trust the code.
 - `filterwarnings = ["error"]` in `pyproject.toml` — warnings are test errors; fix root cause, do not suppress.
-- Integration tests are excluded from the default interactive run; always run `-m integration` explicitly in pre-PR validation, and keep the targeted gate's `-m ""` so integration-marked tests in the set still run.
+- Integration tests are excluded from the default interactive run; always run
+  `-m integration` explicitly in pre-PR validation, and keep the targeted
+  gate's `-m ""` so integration-marked tests in the set still run.
 - Treat all failures as branch-owned by default; clean-base proof is required before classifying as pre-existing.
-- **Never re-run the test suite to get more output.** Full pytest output is written to `/tmp/last-test-run.log` (or `/tmp/pytest-unit.log` / `/tmp/pytest-integration.log` when both suites run, `/tmp/pytest-gate.log` for the targeted gate). Read or grep those files instead.
+- **Never re-run the test suite to get more output.** Full pytest output is
+  written to `/tmp/last-test-run.log` (or `/tmp/pytest-unit.log` /
+  `/tmp/pytest-integration.log` when both suites run, `/tmp/pytest-gate.log`
+  for the targeted gate). Read or grep those files instead.

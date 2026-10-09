@@ -141,7 +141,8 @@ cannot be ready to merge no matter what those checks find.
    failed whether it is labelled "pre-existing", "unrelated" or "flaky", and
    `skipped` findings do not clear it (`completeness-doctrine.md` § "Never Merge
    on Red"). A check that is red on `main` too is fixed by the single fix PR
-   for `main`; this PR waits for it or rebases onto it. The only exception is one
+   for `main`; this PR waits for it to land, then re-runs CI, which tests the
+   PR merged into the fixed base (no rebase, PAD-11-001). The only exception is one
    re-run of a check already tracked by an open `flaky-test` issue holding a
    reproduction: name that issue in the verdict comment. A pass on re-run with no
    such issue is not evidence — the verdict stays `GAPS-FOUND`.

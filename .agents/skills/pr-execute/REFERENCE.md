@@ -401,7 +401,7 @@ diverge (indicating execute was interrupted before completion).
 | `merge_required` | `true` if Phase 5 Step 2 called for a merge in any iteration (PAD-18-004); `false` if every check found neither `CONFLICTING` nor overlap |
 | `merge_reason` | `"conflicting"`, `"overlap"`, or `null` when `merge_required` is `false` |
 | `overlap_paths` | Paths `targeted-tests --overlap` listed; `[]` when none |
-| `sync_commit_ref` | Merge commit SHA, or `null` when no merge was required or the branch already contained the base |
+| `sync_commit_ref` | Merge commit SHA, or `null` when no merge was required. When a required merge finds the branch already contains the base (`sync-with-main.sh` exit `0` with nothing merged), record `HEAD`'s SHA: the merge was satisfied |
 | `conflicts_resolved` | Paths that had conflict markers; `[]` for a clean merge or no merge |
 | `mergeable_after_sync` | `merge-state.sh` `mergeable` from the "On CI green" (or eject) call in Phase 5 |
 | `merge_state_status_after_sync` | `mergeStateStatus` from the same call |
@@ -464,7 +464,7 @@ commits.
 **Excursions filed and fixed**: <M> (PR closes them)
 **Deferred (you approved)**: <K>
 **Halted (inversion, awaiting you)**: <H>
-**Tests run**: unit only / unit + integration
+**Tests run**: targeted set / full suite (`-m ""`)
 **CI status**: ✅ passing / ❌ failing / ⏳ timed out
 **Base sync**: ✅ merged `<base_ref>` @ `def5678` (<conflicting / overlap>) — <N> conflicts resolved / ✅ not needed — no conflict, no overlap / ❌ conflicts unresolved
 **Docs line**: `<docs_refresh.docs_line>` — <N> pages updated by execute

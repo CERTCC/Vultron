@@ -14,7 +14,7 @@ Run **full test suite (unit + integration)** if PR modifies:
 3. `adapters/` — driving or driven adapters
 4. `vultron/core/behaviors/` — behavior tree logic
 5. `vultron/core/use_cases/` — use-case implementations
-6. `vultron/wire/as2/extractor.py` — semantic extraction (core to message handling)
+6. `vultron/wire/as2/extractor/` — semantic extraction (core to message handling)
 
 ### Detection Implementation
 
@@ -26,7 +26,7 @@ needs_integration = any(
   f.startswith("adapters/") or
   f.startswith("vultron/core/behaviors/") or
   f.startswith("vultron/core/use_cases/") or
-  f == "vultron/wire/as2/extractor.py"
+  f.startswith("vultron/wire/as2/extractor/")
   for f in changed_files
 )
 ```
@@ -46,7 +46,7 @@ needs_integration = any(
 **Commands**:
 
 1. `uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)` (all unit tests)
-2. `uv run pytest integration_tests/ -v > /tmp/pytest-integration.log 2>&1; rc=$?; tail -40 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)` (integration test suite)
+2. `uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -40 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)` (integration test suite)
 
 **When**: Demo, adapters, behavior trees, or use-cases modified
 
