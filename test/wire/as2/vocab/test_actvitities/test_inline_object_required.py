@@ -574,6 +574,7 @@ class TestGenericTransitiveActivitiesRequireObject(unittest.TestCase):
             with self.subTest(cls=cls.__name__):
                 self._assert_none_rejected(cls)
 
+    @pytest.mark.spec("RF-02-002")
     def test_generic_transitive_classes_reject_missing(self):
         for cls in _GENERIC_TRANSITIVE_CLASSES:
             with self.subTest(cls=cls.__name__):

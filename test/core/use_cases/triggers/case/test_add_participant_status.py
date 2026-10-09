@@ -1346,6 +1346,7 @@ class TestValidateTriggerTransitions:
         participant = self.dl.read(self.actor_participant.id_)
         return len(getattr(participant, "participant_statuses", []))
 
+    @pytest.mark.spec("CM-04-005")
     def test_ac1_invalid_vf_jump_raises_and_persists_nothing(self):
         """AC-1: vf → VF (skips Vf) raises VultronValidationError; no record written.
 
@@ -1370,6 +1371,7 @@ class TestValidateTriggerTransitions:
             self._execute(rm_state=RM.CLOSED)
         assert self._status_count() == before
 
+    @pytest.mark.spec("CM-04-005")
     def test_ac3_backward_pxa_raises_and_persists_nothing(self):
         """AC-3: Pxa → pxa (backward) raises VultronValidationError; no record written.
 

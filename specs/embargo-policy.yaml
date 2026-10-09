@@ -745,7 +745,7 @@ groups:
     - story_2022_027
   - id: EP-05-002
     priority: MUST_NOT
-    kind: project
+    kind: protocol
     statement: >-
       A revision proposal (`ACTIVE → REVISE`) and any further counter-revision
       (`REVISE → REVISE`) MUST NOT change any participant's consent to the embargo in
@@ -770,6 +770,8 @@ groups:
     adr:
     - ADR-0093
     - ADR-0122
+    stories:
+    - story_2022_014
 - id: EP-06
   title: PEC Idempotency
   specs:
