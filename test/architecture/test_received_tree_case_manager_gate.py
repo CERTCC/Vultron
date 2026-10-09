@@ -23,11 +23,12 @@ covers.  These checks keep that the only way in:
    that calls ``create_receive_activity_tree``) calls
    ``create_case_manager_gated_tree`` itself.  Terminal value: empty,
    reached by #4300, #4301 and #4302; kept so a new caller fails.
-2. **Ratchet** ``KNOWN_LEGACY_EFFECT_NODES``: no received tree passes the
-   unchecked legacy ``effect_nodes``.  Terminal value: empty, then the
-   parameter goes.  #4307 moved every other tree off it; the close-case
-   tree's entry is #3825's, and the parameter stays until that entry
-   leaves.
+2. **Check** ``test_no_received_tree_passes_legacy_effect_nodes``: no
+   received tree passes the legacy ``effect_nodes``.  #4307 moved every
+   tree off it — the close-case tree's decline emit, its last caller, onto
+   ``manager_effects`` (#3825) — and retired the parameter from
+   ``create_receive_activity_tree``, so the former ratchet set is gone and
+   this is now a plain "no caller passes ``effect_nodes``" assertion.
 3. **Pinned exemption set** ``GATE_CALLERS_OUTSIDE_RECEIVED_TREES``: the
    modules that call the gate and build no received tree (trigger, expiry,
    relay-guard, admission-backfill and retry trees), so a new caller must
@@ -110,24 +111,6 @@ _S = "vultron/core/behaviors/status"
 # ---------------------------------------------------------------------------
 # owner: none (terminal value)
 KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset()
-
-# ---------------------------------------------------------------------------
-# 2. Received trees still passing the unchecked legacy ``effect_nodes``.
-#    #4307 moved every other received tree onto replica_effects and
-#    manager_effects.  When the last entry leaves, delete ``effect_nodes``
-#    from create_receive_activity_tree and turn this into a plain "no caller
-#    passes effect_nodes" check.
-# ---------------------------------------------------------------------------
-# owner: #3825
-KNOWN_LEGACY_EFFECT_NODES: frozenset[_Site] = frozenset(
-    {
-        # owner: #3825 — the close-case decline arm emits ungated
-        (
-            f"{_C}/receive_close_case_tree.py",
-            "create_close_case_received_tree",
-        ),
-    }
-)
 
 # ---------------------------------------------------------------------------
 # 3. Modules that call the gate but build no received tree.  BT-17-008 binds
@@ -338,12 +321,17 @@ def _receive_calls() -> Iterator[tuple[str, str, ast.Call]]:
 
 
 def _legacy_effect_nodes_sites() -> frozenset[_Site]:
-    """Sites passing ``effect_nodes`` by keyword or as the fourth positional."""
+    """Sites passing the retired ``effect_nodes`` keyword (#4307).
+
+    ``effect_nodes`` was removed from ``create_receive_activity_tree``, so a
+    caller passing it is a static guard against the keyword's reintroduction.
+    Position is no longer matched: the fourth positional is now
+    ``case_may_be_absent``.
+    """
     return frozenset(
         (rel, scope)
         for rel, scope, call in _receive_calls()
-        if len(call.args) >= 4
-        or any(kw.arg == _LEGACY_KEYWORD for kw in call.keywords)
+        if any(kw.arg == _LEGACY_KEYWORD for kw in call.keywords)
     )
 
 
@@ -412,11 +400,16 @@ def test_gate_callers_outside_received_trees_are_pinned() -> None:
 @pytest.mark.spec("BT-17-008")
 @pytest.mark.spec("ARCH-18-001")
 def test_no_received_tree_passes_legacy_effect_nodes() -> None:
-    _assert_pinned(
-        "received tree passing the unchecked effect_nodes",
-        _legacy_effect_nodes_sites(),
-        KNOWN_LEGACY_EFFECT_NODES,
-        "pass replica_effects and manager_effects instead (BT-17-008)",
+    """No received tree passes the retired ``effect_nodes`` keyword (#4307).
+
+    ``effect_nodes`` was removed from ``create_receive_activity_tree`` once the
+    close-case tree moved its decline emit onto ``manager_effects`` (#3825), so
+    passing it now raises ``TypeError`` at runtime; this is the static guard.
+    """
+    offenders = sorted(_legacy_effect_nodes_sites())
+    assert offenders == [], (
+        "effect_nodes was retired in #4307; pass replica_effects and"
+        f" manager_effects instead (BT-17-008): {offenders}"
     )
 
 
