@@ -99,6 +99,38 @@ def test_non_manager_accept_embargo_asks_the_case_manager(
     )
 
 
+@pytest.mark.xfail(
+    strict=True,
+    raises=VultronNotFoundError,
+    reason=(
+        "EP-09-012: the trigger resolves only open proposals, so the "
+        "embargo in force cannot be answered by Invite id. Tracked by #4373."
+    ),
+)
+@pytest.mark.spec("EP-09-012")
+def test_accept_embargo_answers_the_embargo_in_force_by_invite_id(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """An ``INVITED`` row on the active embargo is answerable by Invite id."""
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, invite, _ = _build_active_embargo_case(
+        finder_dl, owner.id_, finder.id_
+    )
+
+    result = SvcAcceptEmbargoUseCase(
+        finder_dl,
+        AcceptEmbargoTriggerRequest(
+            actor_id=finder.id_, case_id=case.id_, proposal_id=invite.id_
+        ),
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        sync_port=SyncActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.activity is not None
+
+
 def test_is_case_owner_fail_closed_when_attributed_to_is_none() -> None:
     """_is_case_owner must return False when case.attributed_to is None.
 

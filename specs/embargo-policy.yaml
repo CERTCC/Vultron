@@ -1610,32 +1610,36 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The accept and reject embargo triggers MUST let a participant answer the embargo in
-      force when the caller names the `Invite(EmbargoEvent)` to answer and the
+      The accept and reject embargo triggers MUST let a participant answer the embargo
+      in force when the caller names the `Invite(EmbargoEvent)` to answer and the
       participant's consent row for that Invite's embargo is `INVITED` or `EXPIRED`
       (CM-18-001). The trigger MUST resolve the named Invite from the participant's own
       record of the Invite it received, not from the record of open proposals, and MUST
       raise a not-found error when the participant holds no such Invite or its row is in
-      any other state. When the caller names no Invite, the trigger MUST select among the
-      open proposals only (EP-08-002) and MUST NOT fall back to the embargo in force.
+      any other state. When the caller names no Invite, the trigger MUST select among
+      the open proposals only (EP-08-002) and MUST NOT fall back to the embargo in force.
     rationale: >-
       Activation takes a proposal out of the record of open proposals (EP-08-003), so a
-      participant that had not yet answered when the owner activated it, or that was
-      invited to the embargo in force as a late joiner, can no longer name that embargo
-      through the open-proposal record. The receive side already honours the answer
+      participant that was relayed the proposal (EP-09-011) and had not answered when
+      the owner activated it, including one whose reply deadline has since passed
+      (`EXPIRED`, EMB-17), can no longer name that embargo through the open-proposal
+      record. The receive side already honours the answer
       (MSM-07-003, EMB-17-002); only the trigger could not send it. Answering an embargo
       is an intentional act, so the caller names the Invite: a no-name call that fell
       back to the embargo in force could consent to terms the caller did not mean.
     note: >-
       Answering the embargo in force goes through the relayed `Invite(EmbargoEvent)`
       (ADR-0122), not the full-case Invite, whose replies move only the RM state
-      (CM-11-011). A joiner that accepts the stub Invite is already `ACCEPTED` for the
-      active embargo (CM-11-001) and needs no trigger.
+      (CM-11-011). A joiner whose `INVITED` row for the embargo in force comes from the
+      stub Invite (CM-11-006) holds no `Invite(EmbargoEvent)` to name; accepting the
+      stub makes it `ACCEPTED` (CM-11-001), so it needs no trigger.
     verification: >-
       Trigger tests under `test/core/use_cases/triggers/embargo/` answer the embargo in
-      force by Invite id with an `INVITED` row (accept and reject), and assert the
-      not-found error for an `ACCEPTED` row, a `DECLINED` row, an unknown Invite id, and
-      a no-name call when no proposal is open.
+      force by Invite id with an `INVITED` row and with an `EXPIRED` row (accept and
+      reject), and assert the not-found error for an `ACCEPTED` row, a `DECLINED` row,
+      and an unknown Invite id. A no-name call when no proposal is open raises the
+      not-found error even though the participant holds an `INVITED` row and the
+      received Invite for the embargo in force, so a fallback would fail the test.
     relationships:
     - rel_type: constrains
       spec_id: EP-08-002
