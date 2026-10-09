@@ -36,12 +36,13 @@ class CreateEmbargoEventReceivedEvent(VultronEvent):
         return cast("EmbargoEvent | None", self.object_)
 
 
-class AddEmbargoEventToCaseReceivedEvent(VultronEvent):
-    """Actor added an EmbargoEvent to a VulnerabilityCase."""
+class _OwnerEmbargoDecisionEvent(VultronEvent):
+    """The case owner's decision on an embargo proposal (ADR-0122).
 
-    semantic_type: Literal[MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE] = (
-        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE
-    )
+    ``Accept`` or ``Reject`` of the ``EmbargoEvent`` itself, with the case
+    as ``target`` — not of the ``Invite`` that proposed it, which is each
+    sender's own consent.
+    """
 
     @property
     def embargo_id(self) -> str | None:
@@ -58,6 +59,28 @@ class AddEmbargoEventToCaseReceivedEvent(VultronEvent):
     @property
     def case(self) -> "VulnerabilityCase | None":
         return cast("VulnerabilityCase | None", self.target)
+
+
+class ActivateEmbargoOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
+    """The case owner activated a proposed embargo on the case.
+
+    ``Accept(EmbargoEvent, target=VulnerabilityCase)`` (ADR-0122).
+    """
+
+    semantic_type: Literal[MessageSemantics.ACTIVATE_EMBARGO_ON_CASE] = (
+        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE
+    )
+
+
+class RejectEmbargoProposalOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
+    """The case owner rejected a proposed embargo on the case.
+
+    ``Reject(EmbargoEvent, target=VulnerabilityCase)`` (ADR-0122).
+    """
+
+    semantic_type: Literal[
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE
+    ] = MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE
 
 
 class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):

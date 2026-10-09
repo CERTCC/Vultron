@@ -1526,7 +1526,7 @@ groups:
       (VP-11-002, CM-02-005): it changes only the Participant's own PEC state and does not end
       the embargo for the case (VP-13-009). A signatory withdraws by sending
       `Leave(EmbargoEvent)` for the embargo in force, which moves its consent row
-      `ACCEPTED → DECLINED` (ADR-0093, MSM-07-008, EP-09-013).
+      `ACCEPTED → DECLINED` (ADR-0093, MSM-07-010, EP-09-013).
   - id: VP-13-018
     priority: MAY
     kind: protocol

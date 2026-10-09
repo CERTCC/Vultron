@@ -718,7 +718,8 @@ groups:
     statement: >-
       The Participant Embargo Consent (PEC) state machine MUST NOT be assigned any
       formal shorthand in the 28-shorthand protocol message set; all PEC transitions
-      are either side-effects of EM wire activities (MSM-07-002 through MSM-07-005)
+      are either side-effects of EM wire activities (MSM-07-002 through MSM-07-005,
+      MSM-07-008)
       or timer-based internal events (MSM-07-007) with no dedicated wire message or
       dispatch value of their own.
     rationale: >-
@@ -765,37 +766,32 @@ groups:
     kind: project
     statement: >-
       The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (EA wire form:
-      Accept(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
-      (1) when the sending actor is the case owner it MUST activate the accepted
-      embargo's register entry, superseding any entry in force, so the derived EM
-      becomes ACTIVE (ADR-0122; for EC this replaces the active embargo and applies
-      the MSM-07-005 consent rule);
-      (2) for any accepting participant it MUST apply the PEC ACCEPT trigger to the
-      participant's row for the accepted embargo, advancing it from no row, INVITED or
-      EXPIRED to ACCEPTED. The rule is the same whether the accepted embargo is the
-      case's active embargo, a first proposal (EM PROPOSED) or a *proposed revision* of an
-      embargo still in force: the accepted embargo's row is marked, and only that row. A
-      participant is a signatory exactly when the row for the active embargo is ACCEPTED, so
-      accepting a proposed revision binds the participant to nothing new until the owner
-      activates it (MSM-07-005). A participant whose row for the accepted embargo is DECLINED
-      records nothing — ACCEPT is not legal from DECLINED (CM-18-003), so it is re-invited
-      first.
+      Accept(Invite(Event)[context=VulnerabilityCase])) is always the sending actor's own
+      consent, whoever sends it, the case owner included: it MUST apply the PEC ACCEPT
+      trigger to the sender's row for the accepted embargo, advancing it from no row,
+      INVITED or EXPIRED to ACCEPTED, and MUST NOT change any embargo register entry. The
+      rule is the same whether the accepted embargo is the case's active embargo, a first
+      proposal (EM PROPOSED) or a *proposed revision* of an embargo still in force: the
+      accepted embargo's row is marked, and only that row. A participant is a signatory
+      exactly when the row for the active embargo is ACCEPTED, so accepting a proposed
+      revision binds the participant to nothing new until the owner activates it
+      (MSM-07-008). A participant whose row for the accepted embargo is DECLINED records
+      nothing — ACCEPT is not legal from DECLINED (CM-18-003), so it is re-invited first.
     rationale: >-
-      The same wire activity simultaneously drives the case's embargo register
-      (for the case owner) and the participant-level PEC rows (for the accepting
-      actor). An implementer handling this activity MUST update both, not
-      just the register. The PEC ACCEPT trigger is valid directly from no row
-      because consent can be self-determined without an invitation (ADR-0048,
-      ADR-0091, CM-18-003). Consent is per embargo (CM-10-001, ADR-0093, ADR-0122): an Accept
-      is always a statement about the embargo it names, so it always marks that embargo's row
-      and there is no first-proposal versus revision asymmetry to special-case.
+      The case owner's decision for the case has its own activity (MSM-07-008, ADR-0122), so
+      an Accept of an Invite means one thing whoever sends it and no handler branches on the
+      sender to learn what it means. The PEC ACCEPT trigger is valid directly from no row
+      because consent can be self-determined without an invitation (ADR-0048, ADR-0091,
+      CM-18-003). Consent is per embargo (CM-10-001, ADR-0093, ADR-0122): an Accept is always
+      a statement about the embargo it names, so it always marks that embargo's row and there
+      is no first-proposal versus revision asymmetry to special-case.
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` assert that a
-      non-owner accepting the embargo in force, a first proposal and a proposed revision each
-      marks exactly that embargo's row ACCEPTED, that a signatory accepting a proposed revision
-      keeps its ACCEPTED row for the active embargo, that a non-owner proposer of a first
-      proposal is a signatory once the owner accepts it, and that a DECLINED participant's
-      Accept records nothing.
+      participant accepting the embargo in force, a first proposal and a proposed revision each
+      marks exactly that embargo's row ACCEPTED and moves no register entry, that the case
+      owner's Accept of an Invite records only its own consent, that a signatory accepting a
+      proposed revision keeps its ACCEPTED row for the active embargo, and that a DECLINED
+      participant's Accept records nothing.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
@@ -809,43 +805,39 @@ groups:
     kind: project
     statement: >-
       The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (ER wire form:
-      Reject(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
-      (1) when the sending actor is the case owner it MUST reject the proposal's
-      register entry, so the derived EM becomes NONE (for ER) or stays ACTIVE with
-      the prior terms still in force (for EJ) once no other proposal is open, and
-      stays PROPOSED or REVISE while another is (ADR-0122); an EJ MUST NOT change
-      any participant's consent rows, the owner's included;
-      (2) for any rejecting participant it MUST apply the PEC DECLINE trigger to the
-      participant's row for the rejected embargo (valid from no row, INVITED, ACCEPTED or
-      EXPIRED), except that a Reject of the case's *active* embargo from an ACCEPTED row
-      is not consent withdrawal and MUST be refused with a reported reason: withdrawal is
-      `Leave(EmbargoEvent)` (MSM-07-008). A Reject of the active embargo from any other row
-      refuses the terms in force and declines that row only.
-      Rejecting a *proposed* embargo that is not active declines that embargo's row only and
-      MUST leave the participant's row for the active embargo unchanged — a signatory's
-      rejection of a proposed revision refuses those terms; it is not withdrawal from the
-      embargo in force. When no embargo is in force (EM PROPOSED) a Reject of a proposal declines that
+      Reject(Invite(Event)[context=VulnerabilityCase])) is always the sending actor's own
+      consent, whoever sends it, the case owner included: it MUST apply the PEC DECLINE
+      trigger to the sender's row for the rejected embargo (valid from no row, INVITED,
+      ACCEPTED or EXPIRED) and MUST NOT change any embargo register entry, except that a
+      Reject of the case's *active* embargo from an ACCEPTED row is not consent withdrawal
+      and MUST be refused with a reported reason: withdrawal is `Leave(EmbargoEvent)`
+      (MSM-07-010). A Reject of the active embargo from any other row refuses the terms in
+      force and declines that row only. Rejecting a *proposed*
+      embargo that is not active declines that embargo's row only and MUST leave the
+      participant's row for the active embargo unchanged — a signatory's rejection of a
+      proposed revision refuses those terms; it is not withdrawal from the embargo in force.
+      When no embargo is in force (EM PROPOSED) a Reject of a proposal declines that
       proposal's row only: it withdraws from nothing, and other open proposals the
       participant accepted stay accepted.
     rationale: >-
-      Symmetric with MSM-07-003: the reject wire activity drives both the embargo
-      register (case-owner path) and the PEC rows (rejecting participant path). The PEC
-      DECLINE trigger is valid directly from no row for symmetric reasons to
-      ACCEPT (ADR-0048, ADR-0091, CM-18-003). Accept and Reject answer an Invite;
-      leaving an embargo one is bound by is a different act with its own activity
-      (MSM-07-008, ADR-0122), so a Reject never has to be read against the case's
-      state to tell a refusal from a withdrawal. Consent is per embargo,
-      so a signatory who refuses proposed terms is still bound by, and still
-      consents to, the embargo that remains active; only the case owner decides
-      whether the proposal replaces it. The owner's own EJ is a decision to keep
-      the standing embargo and therefore cannot be a decline of it.
+      Symmetric with MSM-07-003: the case owner's rejection of a proposal for the case has its
+      own activity (MSM-07-009, ADR-0122), so a Reject of an Invite is the sender's consent
+      and nothing else. The PEC DECLINE trigger is valid directly from no row for symmetric
+      reasons to ACCEPT (ADR-0048, ADR-0091, CM-18-003). Leaving an embargo one is bound
+      by is a different act with its own activity (MSM-07-010, ADR-0122), so a Reject never
+      has to be read against the case's state to tell a refusal from a withdrawal. Consent
+      is per embargo, so a
+      signatory who refuses proposed terms is still bound by, and still consents to, the
+      embargo that remains active; only the case owner decides whether the proposal replaces
+      it.
     verification: >-
       Inspection of vultron/core/use_cases/received/embargo/reject.py and
-      vultron/core/services/embargo_lifecycle/answers.py confirms
-      RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle, which
-      declines the rejecting actor's row for the rejected embargo, refuses a Reject of the
-      active embargo from an ACCEPTED row, and records no consent change for an owner's
-      EJ.
+      vultron/core/services/embargo_lifecycle/consent.py confirms
+      RejectInviteToEmbargoOnCaseReceivedUseCase applies
+      EmbargoLifecycle.record_embargo_rejection, which declines the rejecting actor's row for
+      the rejected embargo, refuses a Reject of the active embargo from an ACCEPTED row,
+      applies the same rule to the case owner, and moves no
+      register entry.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
@@ -858,9 +850,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When the case owner's Accept(Invite(Event)) (EC) replaces active embargo A
-      with revision B (the register activates B and supersedes A, so the derived EM
-      goes REVISE → ACTIVE),
+      When the case owner's Accept(Event)[target=VulnerabilityCase] (MSM-07-008) replaces
+      active embargo A with revision B (the register activates B and supersedes A, so the
+      derived EM goes REVISE → ACTIVE),
       implementations MUST settle every participant's consent rows against B:
       if B ends no later than A, every participant whose row for A is ACCEPTED MUST be carried
       over by marking its row for B ACCEPTED (where ACCEPT is legal, CM-18-003); if B ends
@@ -891,8 +883,8 @@ groups:
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms that
       propose_embargo() writes only the proposer's row for the proposed id, and that
-      accept_embargo_invite() on the owner path carries signatories over to a revision that
-      ends no later than the replaced embargo and writes nothing for a longer one. Unit tests
+      activate_embargo() carries signatories over to a revision that ends no later than the
+      replaced embargo and writes nothing for a longer one. Unit tests
       in test/core/services/embargo_lifecycle/ assert both arms, the derived lapse, and the
       no-op on proposal.
     relationships:
@@ -963,6 +955,74 @@ groups:
     adr:
     - ADR-0093
   - id: MSM-07-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The wire activity ACTIVATE_EMBARGO_ON_CASE (wire form:
+      Accept(Event)[target=VulnerabilityCase], the EmbargoEvent itself as the object) is the
+      case owner's decision for the case and MUST be accepted only from the case owner; any
+      other sender MUST be refused with REFUSED before any write (HP-01-006). It MUST
+      activate the named proposal's embargo register entry and supersede any entry in force
+      in the same step, so the derived EM becomes ACTIVE (EA, or EC for a revision); MUST
+      mark the owner's row for the activated embargo ACCEPTED unless it already is; and, when
+      it replaces an embargo in force, MUST apply the MSM-07-005 consent rule. It MUST be
+      refused before it is committed when the named embargo is not an open proposal of the
+      case, when CS is public, exploited or attacked (EMB-02-002), or when the owner's row for
+      the proposal is DECLINED (the owner is invited again first, CM-18-003).
+    rationale: >-
+      Giving the owner's decision its own activity retires the two-audience rule: an Accept of
+      an Invite is always the sender's consent (MSM-07-003), and this activity is always the
+      owner's decision for the case, so neither meaning depends on who sent the message
+      (ADR-0122). Refusing a doomed activation before the commit keeps the ledger free of an
+      entry that replicas, replaying in OBSERVED mode, would apply without the CASE_MANAGER's
+      P/X/A check.
+    verification: >-
+      Unit tests in `test/core/use_cases/received/` assert that the case owner's
+      Accept(EmbargoEvent, target=Case) at the CASE_MANAGER activates the proposal, records
+      the owner's ACCEPTED row and carries signatories over to a shorter revision, that a
+      replica replaying the committed entry converges, and that a non-owner sender, a
+      non-open proposal, P/X/A and a DECLINED owner are each refused with nothing committed.
+    relationships:
+    - rel_type: derives_from
+      spec_id: EP-09-005
+    - rel_type: depends_on
+      spec_id: MSM-07-005
+    adr:
+    - ADR-0122
+  - id: MSM-07-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The wire activity REJECT_EMBARGO_PROPOSAL_ON_CASE (wire form:
+      Reject(Event)[target=VulnerabilityCase], the EmbargoEvent itself as the object) is the
+      case owner's decision for the case and MUST be accepted only from the case owner; any
+      other sender MUST be refused with REFUSED before any write (HP-01-006). It MUST reject
+      the named proposal's embargo register entry, so the derived EM becomes NONE (ER) or
+      stays ACTIVE with the prior terms in force (EJ) once no other proposal is open, and
+      stays PROPOSED or REVISE while another is (EP-08-001); it MUST NOT change any
+      participant's consent rows, the owner's included. When it rejects the last open
+      revision while CS is public, exploited or attacked, the embargo MUST be terminated
+      instead (EMB-04-002). It MUST be refused before it is committed when the named embargo
+      is not an open proposal of the case.
+    rationale: >-
+      The owner's rejection decides the proposal for the case; whether the owner, as a
+      participant, also refuses those terms is a separate Reject of the Invite (MSM-07-004).
+      Keeping the two apart lets the owner keep the prior terms without declining them
+      (ADR-0122).
+    verification: >-
+      Unit tests in `test/core/use_cases/received/` assert that the case owner's
+      Reject(EmbargoEvent, target=Case) at the CASE_MANAGER rejects the proposal with no
+      consent row changed, leaves another open proposal open, terminates the embargo when it
+      rejects the last revision after disclosure, and that a non-owner sender or a non-open
+      proposal is refused with nothing committed.
+    relationships:
+    - rel_type: derives_from
+      spec_id: EP-09-005
+    - rel_type: depends_on
+      spec_id: EMB-04-002
+    adr:
+    - ADR-0122
+  - id: MSM-07-010
     priority: MUST
     kind: project
     statement: >-

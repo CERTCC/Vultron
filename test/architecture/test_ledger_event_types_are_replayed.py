@@ -88,9 +88,9 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
         MS.REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
         MS.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
+        MS.ACTIVATE_EMBARGO_ON_CASE.value,
         MS.ADD_CASE_PARTICIPANT_TO_CASE.value,
         MS.ADD_CASE_STATUS_TO_CASE.value,
-        MS.ADD_EMBARGO_EVENT_TO_CASE.value,
         MS.ADD_NOTE_TO_CASE.value,
         MS.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
         MS.ADD_REPORT_TO_CASE.value,
@@ -100,6 +100,7 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.ENGAGE_CASE.value,
         MS.INVALIDATE_REPORT.value,
         MS.OFFER_CASE_OWNERSHIP_TRANSFER.value,
+        MS.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
         MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
         MS.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
         MS.REMOVE_CASE_PARTICIPANT_FROM_CASE.value,
@@ -188,7 +189,7 @@ def test_the_derivation_finds_both_commit_paths():
     received = received_commit_semantics()
     assert {
         MS.ADD_NOTE_TO_CASE.value,
-        MS.ADD_EMBARGO_EVENT_TO_CASE.value,
+        MS.ACTIVATE_EMBARGO_ON_CASE.value,
         MS.VALIDATE_REPORT.value,
     } <= received
     # A Create(VulnerabilityCase) is not ledgered as received (CLP-10-013).
@@ -199,9 +200,9 @@ def test_the_derivation_finds_both_commit_paths():
         INVITE_EXPIRED_EVENT_TYPE,
     } <= explicit_event_types()
     # A replay slot's own constant is compared, never committed, so defining
-    # it must not make its type look committed: Add(EmbargoEvent) is
-    # committed only on the receive side.
-    assert MS.ADD_EMBARGO_EVENT_TO_CASE.value not in explicit_event_types()
+    # it must not make its type look committed: Add(Note) is committed only
+    # on the receive side.
+    assert MS.ADD_NOTE_TO_CASE.value not in explicit_event_types()
 
 
 @pytest.mark.spec("RSH-08-004")

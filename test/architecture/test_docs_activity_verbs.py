@@ -176,8 +176,9 @@ _FORM_ALIASES = MappingProxyType({"ActivateEmbargo": "AddEmbargoToCase"})
 #: A node id absent here may carry no qualifier at all.
 _EXPECTED_QUALIFIER = MappingProxyType(
     {
-        "ActivateEmbargo": "inReplyTo: Invite(Event)",
-        "AddEmbargoToCase": "no inReplyTo",
+        # The case owner's decisions name the case they decide for (ADR-0122).
+        "ActivateEmbargo": "target: VulnerabilityCase",
+        "RejectEmbargoProposal": "target: VulnerabilityCase",
     }
 )
 
@@ -394,13 +395,13 @@ def test_mermaid_labels_are_the_canonical_as2_form():
     the formal protocol never names it comes from the reference tree's own heading,
     so asserting it here would only re-state a hand-maintained list.
 
-    The wire line may carry a trailing ``, <qualifier>`` naming the field that
-    distinguishes two activities sharing one wire form. ``ActivateEmbargo`` and
-    ``AddEmbargoToCase`` are both ``Add(Event)`` and are told apart by
-    ``inReplyTo``, so the qualifier is *checked* against
-    ``_EXPECTED_QUALIFIER`` rather than stripped — it is the only thing
-    distinguishing them, and discarding it let a label assert the exact opposite
-    of the truth while this test passed.
+    The wire line may carry a trailing ``, <qualifier>`` naming a field the
+    reader needs to tell an activity apart, such as the case ``target`` of the
+    case owner's ``Accept``/``Reject(Event)``. The qualifier is *checked*
+    against ``_EXPECTED_QUALIFIER`` rather than stripped: when two activities
+    once shared ``Add(Event)`` and were told apart only by ``inReplyTo``,
+    discarding it let a label assert the exact opposite of the truth while this
+    test passed.
 
     An unresolvable node id is a failure, not a skip.  Skipping it silently is
     the same false-clean signal DF-09-009 forbids, and it hid ``ActivateEmbargo``

@@ -36,6 +36,7 @@ related_specs:
   - specs/handler-protocol.yaml
   - specs/case-ledger-processing.yaml
   - specs/idempotency.yaml
+  - specs/status-dimension-objects.yaml
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/bt-integration.md
@@ -140,6 +141,9 @@ construction, at every register step and in `add_case_status`.
 `append_case_status(em_state=...)` is refused, and a received `Add(CaseStatus)`
 whose EM differs from `case.em_state` has its EM refused and the case's carried
 forward (RSH-05-023). Core code reads `case.em_state`, never the status copy.
+The copy is immutable (SDO-03-006, #4375): `EmDimension` is frozen and
+`CaseStatus.em` a frozen field, so an in-place write raises. A status with a
+different EM is built by construction or `model_copy(update=...)`.
 
 **The termination reason** (`END_TIME_REACHED`, `EARLY`, `THREAT_SIGNAL`) is
 required on every `TERMINATE` — `terminate_active_embargo(reason=...)`,
@@ -170,17 +174,17 @@ class EmbargoLifecycle:
         self, *, case_id, embargo_id, actor_id, transition_mode=STRICT
     ) -> EmbargoLifecycleResult: ...
     def accept_embargo_invite(
-        self, *, case_id, embargo_id, actor_id, transition_mode=STRICT
-    ) -> EmbargoLifecycleResult: ...
-    def reject_embargo_invite(
-        self, *, case_id, embargo_id, actor_id, transition_mode=STRICT
-    ) -> EmbargoLifecycleResult: ...
+        self, *, case_id, embargo_id, actor_id
+    ) -> EmbargoLifecycleResult: ...  # the sender's consent; EM unchanged
+    def reject_embargo_proposal(
+        self, *, case_id, embargo_id, actor_id=None, transition_mode=STRICT
+    ) -> EmbargoLifecycleResult: ...  # the owner's REJECT; no consent
     def terminate_active_embargo(
         self, *, case_id, reason, actor_id, transition_mode=STRICT
     ) -> EmbargoLifecycleResult: ...
     def activate_embargo(
         self, *, case_id, embargo_id, actor_id=None, transition_mode=STRICT
-    ) -> EmbargoLifecycleResult: ...
+    ) -> EmbargoLifecycleResult: ...  # the owner's ACTIVATE; owner AGREE
     def initialize_creation_embargo(
         self, *, case_id, embargo, actor_id=None, revision=None
     ) -> EmbargoLifecycleResult: ...  # NONE → ACTIVE, one write; stores embargo
@@ -200,10 +204,17 @@ class EmbargoLifecycle:
         # raises unless P/X/A are all clear (propose_embargo's STRICT guard)
 ```
 
-`record_embargo_rejection` is the consent half of `reject_embargo_invite` for a
-receiver that records a participant's answer without deciding the proposal —
-the received `Reject(Invite(EmbargoEvent))` tree calls it through
-`RecordParticipantRejectionNode`, so both sides apply one MSM-07-004 rule.
+The answers to an Invite and the case owner's decision on a proposal are
+separate operations, because they are separate messages (ADR-0122):
+`accept_embargo_invite` and `record_embargo_rejection` record a sender's own
+consent to an `Accept`/`Reject(Invite(EmbargoEvent))` — the owner's included —
+and move no register entry (MSM-07-003, MSM-07-004); `activate_embargo` and
+`reject_embargo_proposal` apply the owner's `Accept`/`Reject(EmbargoEvent,
+target=Case)` (MSM-07-008, MSM-07-009). No operation branches on whether the
+sender is the owner. The received `Reject(Invite(EmbargoEvent))` tree and the
+trigger both reach `record_embargo_rejection`, through
+`RecordParticipantRejectionNode` and `RejectEmbargoLifecycleNode`, so both
+sides apply one MSM-07-004 rule.
 
 The received-side nodes name their own no-ops and gaps, and the handler keys on
 that rather than on the store: `RecordParticipantRejectionNode` prefixes a
@@ -246,10 +257,10 @@ first:
   teardown — stores the `EmbargoEvent` its entry carries before calling
   `EmbargoLifecycle` (#3915), and fails, blocking the persist (SYNC-12-001),
   when the entry names the embargo by id only and the replica lacks it.
-- **The activation writers** — `accept_embargo_invite()`,
-  `activate_embargo()` and the creation-time `initialize_creation_embargo()`,
-  the only paths that *activate* an embargo (a register `ACTIVATE` step).
-  All three compute their EP-05-001 arm through
+- **The activation writers** — `activate_embargo()` (the owner's
+  `Accept(EmbargoEvent, target=Case)`) and the creation-time
+  `initialize_creation_embargo()`, the only paths that *activate* an embargo
+  (a register `ACTIVATE` step). Both compute their EP-05-001 arm through
   `EmbargoLifecycle._activation_arm()` before any write: it reads the
   activated record, and on a revision the replaced one too, so a bare id from
   an inbox (which stores only the first level of nesting: `Accept(Invite(A))`
@@ -264,10 +275,11 @@ first:
 So "a replica lacking the replaced embargo" is a broken invariant, not a
 replication lag, and no catch-up fetch, replay-on-store trigger, or
 `end_time`-in-snapshot mechanism is built for it (CONCERN-4004). Nothing would
-re-drive a parked item, so there is no `DEFERRED` arm:
-`RecordParticipantAcceptanceNode` reports an unreadable replaced embargo
-(missing, or not an `EmbargoEvent`) as an invariant violation logged at ERROR,
-and the handler reports `REFUSED` (HP-01-003). A sender-side refusal to build
+re-drive a parked item, so there is no `DEFERRED` arm: the owner's activation
+(`ActivateEmbargoLifecycleNode`, and `SetEmbargoActiveNode` on replay) fails on
+an unreadable replaced embargo (missing, or not an `EmbargoEvent`), and the
+handler reports `REFUSED` (HP-01-003). Recording consent reads no embargo
+record, so `RecordParticipantAcceptanceNode` has no such failure (ADR-0122). A sender-side refusal to build
 an announce during sync replay is logged at ERROR too, not as a recoverable
 WARNING. An unknown *accepted* embargo stays an ordinary WARNING refusal.
 
@@ -285,16 +297,27 @@ enforces EMB-01-002, EMB-02-002, and EMB-04-002 via
 `_assert_pxa_embargo_eligible()` in STRICT mode:
 
 - `propose_embargo()` — raises when `pxa_state != CS_pxa.pxa` (any of P/X/A set)
-- `accept_embargo_invite()` — raises when owner would drive EM to ACTIVE with
-  P/X/A set; non-owner consent recording is not blocked
-- `reject_embargo_invite()` — raises when EM is REVISE and P/X/A is set (caller
-  MUST use `terminate_active_embargo()` instead)
+- `activate_embargo()` — raises when P/X/A is set; consent recording by
+  `accept_embargo_invite()` is never blocked
+- `reject_embargo_proposal()` — raises when it would return a `REVISE` case to
+  the prior terms with P/X/A set (caller MUST use `terminate_active_embargo()`
+  instead, EMB-04-002)
+
+`activate_embargo()` also refuses, in either mode, an owner whose row for the
+proposal is `DECLINED`: activation records the owner's `AGREE`, which
+`DECLINED` refuses, so the owner is invited again first (ADR-0122). The
+received owner-decision trees check both refusals with read-only guards ahead
+of the commit (`OwnerMayActivateEmbargoNode`), because a replica replays the
+committed activation `OBSERVED`, which does not re-check P/X/A.
 
 The received-side path (`received/embargo/`) reaches `EmbargoLifecycle`
-through nodes: the received Accept runs `accept_embargo_invite(OBSERVED)`
-(`RecordParticipantAcceptanceNode`), the received Reject records consent through
-`record_embargo_rejection` (`RecordParticipantRejectionNode`) and the owner's
-Reject decides the proposal through `DecideRejectedEmbargoProposalNode`, and the
+through nodes: the received `Accept(Invite)` records consent through
+`accept_embargo_invite` (`RecordParticipantAcceptanceNode`), the received
+`Reject(Invite)` through `record_embargo_rejection`
+(`RecordParticipantRejectionNode`); the owner's `Accept(EmbargoEvent)` runs
+`activate_embargo` (`ActivateEmbargoLifecycleNode`) and its
+`Reject(EmbargoEvent)` runs `reject_embargo_proposal`
+(`DecideRejectedEmbargoProposalNode`), both in `owner_decision_tree.py`; the
 teardown replay runs `terminate_active_embargo(OBSERVED)`.
 
 **Late-Accept routing (EMB-17)**: when an inbound `Accept(Invite(EmbargoEvent))`
@@ -343,10 +366,12 @@ CM-18-003 allows it. In any other store the tree stores the Invite and its
 (EMB-15), writing no EM or consent state (EP-09-003); the replica takes that
 state from the ledger through the relay replay nodes in
 `vultron/core/behaviors/embargo/nodes/relay_effect.py` (#3915, RSH-08-004).
-The owner's Reject of an open proposal is decided by
-`DecideRejectedEmbargoProposalNode` in both stores, `STRICT` on the CASE_MANAGER
-and `OBSERVED` on replay: `reject_embargo_invite` returns EM `REVISE → ACTIVE`
-(or `PROPOSED → NONE`) and forgets the proposal. EMB-01-002 and
+The owner's `Reject(EmbargoEvent, target=Case)` is decided by
+`DecideRejectedEmbargoProposalNode`, `STRICT` on the CASE_MANAGER and
+`OBSERVED` on replay (the `EmbargoProposalRejection` slot):
+`reject_embargo_proposal` returns EM `REVISE → ACTIVE` (or `PROPOSED → NONE`)
+and rejects the proposal; the owner's `Accept(EmbargoEvent, target=Case)` is
+replayed by the `EmbargoActivation` slot (ADR-0122). EMB-01-002 and
 EMB-02-002 are enforced as explicit pre-flight guards in
 `InviteToEmbargoOnCaseReceivedUseCase.execute()` and
 `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute()` respectively (implemented
@@ -418,8 +443,12 @@ the embargo has not yet been activated. The fix checks EM state directly.
 Trigger use cases are thin orchestrators: resolve actors/cases → call
 `EmbargoLifecycle` → build and send the outbound activity.
 BT behaviors use `ProposeEmbargoLifecycleNode`, `AcceptEmbargoLifecycleNode`,
-`RejectEmbargoLifecycleNode`, and `TerminateEmbargoLifecycleNode` which all
-catch `VultronError` and return `Status.FAILURE`.
+`RejectEmbargoLifecycleNode`, `ActivateEmbargoLifecycleNode`,
+`RejectEmbargoProposalLifecycleNode` and `TerminateEmbargoLifecycleNode`, which
+all catch `VultronError` and return `Status.FAILURE`. The accept and reject
+triggers pick by actor: a case owner's `accept-embargo` and `reject-embargo`
+send its decision for the case (`activate_embargo_trigger_bt`,
+`reject_embargo_proposal_trigger_bt`), anyone else's its consent (ADR-0122).
 
 ---
 
@@ -433,16 +462,16 @@ When implementing any code that transitions embargo state:
    through `EmbargoLifecycle` instead (EMB-18-001). A refused step raises or
    fails the node without a write (EMB-18-002).
 2. **P/X/A precondition**: STRICT mode guards `propose_embargo()` and
-   `accept_embargo_invite()` (owner-only) against PXA-set cases.  If your
+   `activate_embargo()` against PXA-set cases.  If your
    caller receives `VultronInvalidStateTransitionError`, the case is no longer
    embargo-eligible — do not attempt to retry; emit ER to the proposer.
-3. **REVISE+PXA reject**: `reject_embargo_invite()` raises in STRICT mode when
-   EM is REVISE and P/X/A is set — the correct path is
-   `terminate_active_embargo()` per EMB-04-002.
+3. **REVISE+PXA reject**: `reject_embargo_proposal()` raises in STRICT mode
+   when it would return a REVISE case to the prior terms with P/X/A set — the
+   correct path is `terminate_active_embargo()` per EMB-04-002.
 4. **PEC cascade is automatic**: `propose_embargo()` changes no consent — a
    proposal binds nobody (ADR-0093, EP-05-002) — and records the proposer's
-   consent to the proposed id. The owner path of `accept_embargo_invite()`
-   settles consent when it replaces the active embargo: a *shorter* replacement
+   consent to the proposed id. `activate_embargo()` records the owner's
+   agreement and settles consent when it replaces the active embargo: a *shorter* replacement
    carries every signatory over by marking the revision's row `ACCEPTED`, and
    under *longer* terms the signatories who have not accepted them have lapsed
    by derivation, with nothing written (MSM-07-005).
@@ -527,10 +556,12 @@ Two rules follow for any new proposal-selection code:
   `CANCEL`) and the P/X/A abandonment (`CANCEL`) each change the proposal's
   register entry through `EmbargoLifecycle`, and the step prunes the relay
   index with it. A participant's accept or reject is consent, not a decision,
-  and changes no entry. Replicas decide too: the received Accept goes through
-  `accept_embargo_invite`, and the received `Reject(Invite)` tree and its ledger
-  replay both run `DecideRejectedEmbargoProposalNode`, which acts only when the
-  rejecting actor is the case owner. Termination decides *every* open proposal,
+  and changes no entry — the owner's included, whose decision for the case is
+  a separate `Accept`/`Reject(EmbargoEvent, target=Case)` (ADR-0122). Replicas
+  decide too: the committed owner decisions are replayed by the
+  `EmbargoActivation` and `EmbargoProposalRejection` slots, through
+  `activate_embargo` and `DecideRejectedEmbargoProposalNode` in `OBSERVED`
+  mode. Termination decides *every* open proposal,
   not only the terminated embargo's own entry (EP-08-004, ADR-0113): a case has
   one active embargo (VP-04-002), so every proposal open while EM is `ACTIVE` or
   `REVISE` is a revision of it. The register enforces this (invariant 3 refuses
@@ -538,9 +569,8 @@ Two rules follow for any new proposal-selection code:
   node (`ClearActiveEmbargoNode`) runs `terminate_active_embargo(OBSERVED)`, the
   rule holds on every replica (#3914).
 - **A Reject names the active embargo or an open proposal — nothing else.**
-  `reject_embargo_invite` and `record_embargo_rejection` classify the named
-  embargo before the owner's decision changes its entry: the active one is consent
-  withdrawal (moving to `Leave(EmbargoEvent)`, MSM-07-008, #4388), an open
+  `record_embargo_rejection` classifies the named embargo: the active one is consent
+  withdrawal (moving to `Leave(EmbargoEvent)`, MSM-07-010, #4388), an open
   proposal is a refusal of those terms, and anything else
   raises `VultronValidationError` (a protocol error, not a consent change;
   ADR-0093). Test seeding that hands the service an embargo the case has never
@@ -733,18 +763,22 @@ belongs in any embargo tree; a resolver that finds nobody fails.
 
 **Only the CASE_MANAGER records an answer, and only one it can apply.** The
 received `Accept`/`Reject(Invite(EmbargoEvent))` trees put their effects
-behind `create_case_manager_gated_tree`; a participant handed an answer
+behind `create_case_manager_gated_tree`, and the owner-decision trees put theirs
+in the factory's `manager_effects`; a participant handed an answer
 directly reports `REFUSED` through `not_case_manager_refusal()` and writes
 nothing (BT-17-001, HP-01-005). A `Reject` naming an embargo that is neither
 active nor open — a late answer to a decided revision — is refused by a
-read-only guard *before* the guarded commit (`IsRejectableEmbargoNode`). Once
+read-only guard *before* the guarded commit (`IsRejectableEmbargoNode`), as is
+an owner decision naming no open proposal (`IsOpenEmbargoProposalNode`) and an
+activation the P/X/A or declined-owner rule would refuse
+(`OwnerMayActivateEmbargoNode`). Once
 committed, an entry whose replica apply node fails blocks its persist
 (SYNC-12-001) and every later entry buffers behind it (SYNC-14-001), so a
 refusal the manager makes after its commit stalls every replica. The replay
 of a rejection of an embargo the replica no longer holds is a no-op for the
 same reason.
 
-**The owner's Reject decides one proposal, not all of them.** With several
+**The owner's `Reject(EmbargoEvent)` decides one proposal, not all of them.** With several
 open (EP-08-001), it forgets the one it names (EP-08-003) and EM stays
 `PROPOSED`/`REVISE` while another is open. When it rejects the last open
 revision after P/X/A is set, the case does not return to the prior terms: the

@@ -70,11 +70,11 @@ from vultron.wire.as2.factories.case_participant import (
 )
 from vultron.wire.as2.factories.embargo import (
     activate_embargo_activity,
-    add_embargo_to_case_activity,
     announce_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
+    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
@@ -142,11 +142,11 @@ __all__ = [
     "remove_participant_from_case_activity",
     # embargo
     "activate_embargo_activity",
-    "add_embargo_to_case_activity",
     "announce_embargo_activity",
     "em_accept_embargo_activity",
     "em_propose_embargo_activity",
     "em_reject_embargo_activity",
+    "reject_embargo_proposal_activity",
     "remove_embargo_from_case_activity",
     # report
     "parse_submit_report_offer",

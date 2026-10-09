@@ -866,10 +866,10 @@ def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
 @pytest.mark.parametrize(
     "sem",
     [
-        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
+        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
-        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
     ],
 )
 def test_make_dispatcher_gives_embargo_ending_paths_the_trigger_port(

@@ -30,6 +30,7 @@ from typing import cast
 
 import pytest
 
+from test.core.use_cases.received.conftest import seed_case_owner_participant
 from test.support.embargo_register import propose
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -42,12 +43,14 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.embargo import (
     InviteToEmbargoOnCaseReceivedEvent,
+    RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     InviteToEmbargoOnCaseReceivedUseCase,
+    RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import (
@@ -61,7 +64,10 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import VultronNotFoundError
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.factories import em_propose_embargo_activity
+from vultron.wire.as2.factories import (
+    em_propose_embargo_activity,
+    reject_embargo_proposal_activity,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -493,8 +499,9 @@ class TestAcceptRejectFromCoreState:
 
 
 class TestReceivedRejectPrunesOpenProposals:
-    """A received Reject(Invite(EmbargoEvent)) prunes in the CASE_MANAGER's
-    store iff the rejecting actor is the case owner (EP-08-003, #3470).
+    """Only the owner's Reject(EmbargoEvent, target=Case) prunes an open
+    proposal in the CASE_MANAGER's store (EP-08-003, ADR-0122); every
+    Reject(Invite(EmbargoEvent)) is consent, the owner's included (#3470).
 
     Only the CASE_MANAGER receives an answer (EP-09); a participant replica
     learns it from the committed entry's ledger replay, tested in
@@ -556,11 +563,46 @@ class TestReceivedRejectPrunesOpenProposals:
 
         return dl, case, embargo, proposal, received_reject_by
 
+    def _seat_owner(self, dl, case) -> None:
+        stored = cast(VulnerabilityCase, dl.read(case.id_))
+        seed_case_owner_participant(dl, stored, self._OWNER)
+        dl.save(stored)
+
     @pytest.mark.spec("EP-08-003")
-    def test_owners_reject_prunes_both_records_in_the_managers_store(self):
-        dl, case, _embargo, _proposal, received_reject_by = (
+    def test_owners_decision_prunes_both_records_in_the_managers_store(self):
+        dl, case, embargo, _proposal, _received_reject_by = (
             self._replica_with_open_proposal()
         )
+        self._seat_owner(dl, case)
+        decision = reject_embargo_proposal_activity(
+            embargo, target=case.id_, actor=self._OWNER, to=[self._REPLICA]
+        )
+        event = cast(
+            RejectEmbargoProposalOnCaseReceivedEvent,
+            extract_event(decision).model_copy(
+                update={"receiving_actor_id": self._REPLICA}
+            ),
+        )
+
+        result = RejectEmbargoProposalOnCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+        replica_case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert replica_case.proposed_embargo_ids == []
+        assert replica_case.pending_embargo_proposal_index == {}
+
+    @pytest.mark.spec("EP-08-003")
+    @pytest.mark.spec("MSM-07-004")
+    def test_owners_reject_of_an_invite_prunes_nothing(self):
+        dl, case, embargo, proposal, received_reject_by = (
+            self._replica_with_open_proposal()
+        )
+        self._seat_owner(dl, case)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -569,10 +611,12 @@ class TestReceivedRejectPrunesOpenProposals:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        assert result.disposition is HandlerDisposition.APPLIED
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
         replica_case = cast(VulnerabilityCase, dl.read(case.id_))
-        assert replica_case.proposed_embargo_ids == []
-        assert replica_case.pending_embargo_proposal_index == {}
+        assert replica_case.proposed_embargo_ids == [embargo.id_]
+        assert replica_case.pending_embargo_proposal_index == {
+            embargo.id_: proposal.id_
+        }
 
     @pytest.mark.spec("EP-08-003")
     def test_participants_reject_is_consent_and_prunes_nothing(self):

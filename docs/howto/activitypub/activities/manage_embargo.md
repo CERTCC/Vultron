@@ -40,15 +40,13 @@ flowchart TB
     subgraph as:Invite
         EmProposeEmbargo["Embargo Proposal (EP) / Embargo Revision Proposal (EV)<br/>Invite(Event)"]
     end
-    subgraph as:Accept
+    subgraph participant answers
         EmAcceptEmbargo["Embargo Proposal Acceptance (EA) / Embargo Revision Acceptance (EC)<br/>Accept(Invite(Event))"]
-    end
-    subgraph as:Reject
         EmRejectEmbargo["Embargo Proposal Rejection (ER) / Embargo Revision Rejection (EJ)<br/>Reject(Invite(Event))"]
     end
-    subgraph as:Add
-        ActivateEmbargo["Activate the agreed embargo<br/>Add(Event), inReplyTo: Invite(Event)"]
-        AddEmbargoToCase["Attach the embargo to the case<br/>Add(Event), no inReplyTo"]
+    subgraph Case Owner decides
+        ActivateEmbargo["Activate the revision<br/>Accept(Event), target: VulnerabilityCase"]
+        RejectEmbargoProposal["Keep the current terms<br/>Reject(Event), target: VulnerabilityCase"]
     end
     subgraph as:Remove
         RemoveEmbargoFromCase["Embargo Termination (ET)<br/>Remove(Event)"]
@@ -56,22 +54,18 @@ flowchart TB
     subgraph as:Announce
         AnnounceEmbargo["Announce the embargo terms<br/>Announce(Event)"]
     end
-    start([Start])
-    start --> f{Ask first?}
-    f -->|n| AddEmbargoToCase
-    f -->|y| v{Active?}
-    v -->|y| t{Terminate?}
-    v -->|n| p{Propose?}
+    start([Start]) --> t{Terminate?}
+    t -->|n| p{Propose?}
     p -->|y| EmProposeEmbargo
-    p -->|n| v
-    EmProposeEmbargo --> a{Accept?}
-    a -->|y| EmAcceptEmbargo
-    a -->|n| EmRejectEmbargo
-    EmAcceptEmbargo --> ActivateEmbargo
-    EmRejectEmbargo --> v
+    p -->|n| t
+    EmProposeEmbargo --> EmAcceptEmbargo
+    EmProposeEmbargo --> EmRejectEmbargo
+    EmAcceptEmbargo --> d{Owner activates?}
+    EmRejectEmbargo --> d
+    d -->|y| ActivateEmbargo
+    d -->|n| RejectEmbargoProposal
     ActivateEmbargo --> t
-    AddEmbargoToCase --> t
-    t -->|n| p
+    RejectEmbargoProposal --> t
     t -->|y| RemoveEmbargoFromCase
     RemoveEmbargoFromCase --> AnnounceEmbargo
     AnnounceEmbargo --> exited([EM.EXITED])
@@ -86,12 +80,16 @@ Embargo Revision Proposal (EV) is implemented in ActivityStreams as `Invite(Even
 1. Send `Invite(Event)` with the revised `EmbargoEvent`.
    The case moves to `EM.REVISE`.
 2. Each participant answers with Embargo Revision Acceptance (EC), `Accept(Invite(Event))`, or Embargo Revision Rejection (EJ), `Reject(Invite(Event))`.
-3. As Case Owner, send `Add(Event)` with `inReplyTo` naming the `Invite(Event)` it answers, once the revision has carried, then `Announce(Event)`.
+   Either answer records only that participant's own consent to the revision, the Case Owner's included; the active embargo is unchanged.
+3. As Case Owner, send `Accept(Event)` with the revised `EmbargoEvent` as its `object` and the case as its `target`, once you judge the revision has carried, then `Announce(Event)`.
+   The revision replaces the active embargo and your own consent to it is recorded.
+   If the revision ends no later than the embargo it replaces, every participant that agreed to the old terms is bound by the new ones too.
 
 A revision uses the same activities as an initial proposal.
 The receiver tells the two apart from the case's EM state: a proposal that arrives while the embargo is active is a revision (MSM-02).
 
-If the revision is rejected, the case returns to `EM.ACTIVE` under the original terms.
+To keep the current terms, send `Reject(Event)` with the same `object` and `target` as Case Owner instead.
+The case returns to `EM.ACTIVE` under the original terms, and no participant's consent changes.
 The embargo does not lapse because a revision failed.
 
 ---
@@ -124,8 +122,9 @@ See [Early Termination](../../../topics/process_models/em/early_termination.md).
 | What you sent | What to confirm |
 |---|---|
 | `Invite(Event)` on an active embargo | The case `em_state` is `REVISE`. |
-| `Add(Event)` after a revision | The case `em_state` is `ACTIVE` and the active embargo carries the new terms. |
-| `Reject(Invite(Event))` on a revision | The case `em_state` is `ACTIVE` and the terms are unchanged. |
+| `Accept(Event)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE` and the active embargo carries the new terms. |
+| `Reject(Event)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE` and the terms are unchanged. |
+| `Reject(Invite(Event))` on a revision | Your consent row for the revision is `DECLINED`; the case `em_state` is still `REVISE`. |
 | `Remove(Event)` | Once the CASE_MANAGER's ledger entry arrives, the case `em_state` is `EXITED` and no embargo is active. |
 
 ---

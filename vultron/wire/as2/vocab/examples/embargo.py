@@ -15,16 +15,15 @@ from datetime import timedelta
 
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
-    add_embargo_to_case_activity,
     announce_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
+    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
-    as_Add,
     as_Announce,
     as_Invite,
     as_Reject,
@@ -106,27 +105,28 @@ def reject_embargo() -> as_Reject:
     return activity
 
 
-def add_embargo_to_case() -> as_Add:
-    _case = case()
-    _vendor = vendor()
-    activity = add_embargo_to_case_activity(
-        embargo_event(90),
-        actor=_vendor.id_,
-        target=_case.id_,
-        to=f"{_case.id_}/participants",
-    )
-    return activity
-
-
-def activate_embargo() -> as_Add:
+def activate_embargo() -> as_Accept:
+    """The case owner's activation of the proposed embargo (ADR-0122)."""
     _case = case()
     _vendor = vendor()
     activity = activate_embargo_activity(
         embargo_event(),
         actor=_vendor.id_,
         target=_case.id_,
-        in_reply_to=propose_embargo().id_,
-        to=f"{_case.id_}/participants",
+        context=_case.id_,
+    )
+    return activity
+
+
+def reject_embargo_proposal() -> as_Reject:
+    """The case owner's rejection of the proposed embargo (ADR-0122)."""
+    _case = case()
+    _vendor = vendor()
+    activity = reject_embargo_proposal_activity(
+        embargo_event(),
+        actor=_vendor.id_,
+        target=_case.id_,
+        context=_case.id_,
     )
     return activity
 

@@ -62,10 +62,11 @@ from vultron.core.models.events.case_proposal import (
 )
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
-    AddEmbargoEventToCaseReceivedEvent,
+    ActivateEmbargoOnCaseReceivedEvent,
     AnnounceEmbargoEventToCaseReceivedEvent,
     CreateEmbargoEventReceivedEvent,
     InviteToEmbargoOnCaseReceivedEvent,
+    RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
@@ -149,7 +150,8 @@ AnyReceivedEvent = (
     |
     # embargo
     CreateEmbargoEventReceivedEvent
-    | AddEmbargoEventToCaseReceivedEvent
+    | ActivateEmbargoOnCaseReceivedEvent
+    | RejectEmbargoProposalOnCaseReceivedEvent
     | RemoveEmbargoEventFromCaseReceivedEvent
     | AnnounceEmbargoEventToCaseReceivedEvent
     | InviteToEmbargoOnCaseReceivedEvent
@@ -230,7 +232,8 @@ __all__ = [
     "RemoveCaseParticipantFromCaseReceivedEvent",
     # embargo
     "CreateEmbargoEventReceivedEvent",
-    "AddEmbargoEventToCaseReceivedEvent",
+    "ActivateEmbargoOnCaseReceivedEvent",
+    "RejectEmbargoProposalOnCaseReceivedEvent",
     "RemoveEmbargoEventFromCaseReceivedEvent",
     "AnnounceEmbargoEventToCaseReceivedEvent",
     "InviteToEmbargoOnCaseReceivedEvent",

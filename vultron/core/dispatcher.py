@@ -46,11 +46,13 @@ logger = logging.getLogger(__name__)
 _JOIN_BACKFILL_GATED_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
         MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
     }

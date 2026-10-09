@@ -15,8 +15,9 @@
 
 """The case owner's Reject of an open embargo proposal (EP-08-003).
 
-:class:`DecideRejectedEmbargoProposalNode` applies the owner's ER or EJ on
-the received path and in the ledger replay;
+:class:`DecideRejectedEmbargoProposalNode` applies the owner's
+``Reject(EmbargoEvent, target=Case)`` (ER or EJ, ADR-0122) on the received
+path and in the ledger replay;
 :class:`OwnerRejectsRevisionAfterDisclosureNode` tells when that Reject must
 end the embargo instead (EMB-04-002).  The P/X/A abandonment of open
 proposals (EMB-16-001) is the CASE_MANAGER's decision, not an owner's
@@ -47,32 +48,29 @@ from vultron.errors import VultronError
 class DecideRejectedEmbargoProposalNode(
     DataLayerActionWithPorts, StateWriteCapable
 ):
-    """Apply the case owner's Reject of an open proposal (ER / EJ, EP-08-003).
+    """Apply the case owner's rejection of an open proposal (ER / EJ, EP-08-003).
 
-    Only the owner's answer decides a proposal; a participant's Reject is
-    consent, which :class:`RecordParticipantRejectionNode` records.  When
-    ``rejecting_actor_id`` is the owner and ``embargo_id`` is still an open
-    proposal of the case, this node calls
-    ``EmbargoLifecycle.reject_embargo_invite`` for the owner, which drives
-    ``PROPOSED → NONE`` or ``REVISE → ACTIVE`` and forgets the proposal
-    together (EMB-18-001) — or, while another proposal stays open, only
-    forgets this one (EP-08-001).  It leaves the consent record alone:
-    :class:`RecordParticipantRejectionNode` runs before it on both paths.  The received path runs it ``STRICT`` in the
-    CASE_MANAGER's store; the ledger replay runs it ``OBSERVED`` (EP-09-007).
+    The effect of ``Reject(EmbargoEvent, target=Case)``, which only the case
+    owner sends (ADR-0122); the received tree's sender guard has already
+    established that.  Calls ``EmbargoLifecycle.reject_embargo_proposal``,
+    which drives ``PROPOSED → NONE`` or ``REVISE → ACTIVE`` — or, while
+    another proposal stays open, only rejects this one (EP-08-001).  It writes
+    no consent: a participant's refusal of terms, the owner's included, is a
+    ``Reject(Invite(EmbargoEvent))``.  The received path runs it ``STRICT``
+    in the CASE_MANAGER's store; the ledger replay runs it ``OBSERVED``
+    (EP-09-007).
 
-    Returns SUCCESS and changes nothing when the rejecting actor is not the
-    owner, or when the embargo is no longer an open proposal (already
-    decided, or the active embargo — a withdrawal, which moves no EM state),
-    so a repeated Reject is idempotent.  Returns FAILURE when the case cannot
-    be read or the lifecycle refuses the transition (for example ``STRICT``
-    EJ with P/X/A set, EMB-04-002).
+    Returns SUCCESS and changes nothing when the embargo is no longer an
+    open proposal (already decided, or ended by the EMB-04-002 termination
+    that ran first), so a repeated Reject is idempotent.  Returns FAILURE when
+    the case cannot be read or the lifecycle refuses the transition (for
+    example ``STRICT`` EJ with P/X/A set, EMB-04-002).
     """
 
     def __init__(
         self,
         case_id: str,
         embargo_id: str,
-        rejecting_actor_id: str,
         name: str | None = None,
         *,
         transition_mode: TransitionMode = TransitionMode.STRICT,
@@ -80,7 +78,6 @@ class DecideRejectedEmbargoProposalNode(
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.embargo_id = embargo_id
-        self.rejecting_actor_id = rejecting_actor_id
         self.transition_mode = transition_mode
 
     def update(self) -> Status:
@@ -92,12 +89,6 @@ class DecideRejectedEmbargoProposalNode(
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        if _as_id(case.attributed_to) != self.rejecting_actor_id:
-            self.feedback_message = (
-                f"'{self.rejecting_actor_id}' is not the owner of case"
-                f" '{self.case_id}': its Reject is consent and decides nothing"
-            )
-            return Status.SUCCESS
         if self.embargo_id not in case.proposed_embargo_ids:
             self.feedback_message = (
                 f"Embargo '{self.embargo_id}' is not an open proposal of case"
@@ -108,14 +99,11 @@ class DecideRejectedEmbargoProposalNode(
         try:
             result = EmbargoLifecycle(
                 persistence=self.datalayer
-            ).reject_embargo_invite(
+            ).reject_embargo_proposal(
                 case_id=self.case_id,
                 embargo_id=self.embargo_id,
-                actor_id=self.rejecting_actor_id,
+                actor_id=self.actor_id,
                 transition_mode=self.transition_mode,
-                # RecordParticipantRejectionNode runs first on both paths and
-                # has already applied the owner's consent effect (MSM-07-004).
-                record_consent=False,
             )
         except VultronError as exc:
             self.feedback_message = str(exc)
@@ -124,7 +112,7 @@ class DecideRejectedEmbargoProposalNode(
 
         log_em_transition(
             self.logger,
-            self.rejecting_actor_id,
+            self.actor_id or "<unknown>",
             self.case_id,
             result.em_before,
             result.em_after,

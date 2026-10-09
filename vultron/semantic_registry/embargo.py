@@ -16,38 +16,42 @@
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
-    AddEmbargoEventToCaseReceivedEvent,
+    ActivateEmbargoOnCaseReceivedEvent,
     AnnounceEmbargoEventToCaseReceivedEvent,
     CreateEmbargoEventReceivedEvent,
     InviteToEmbargoOnCaseReceivedEvent,
+    RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
-    AddEmbargoEventToCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
     AnnounceEmbargoEventToCaseReceivedUseCase,
     CreateEmbargoEventReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
+    RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.extractor import (
     AcceptInviteToEmbargoOnCasePattern,
-    AddEmbargoEventToCasePattern,
+    ActivateEmbargoOnCasePattern,
     AnnounceEmbargoEventToCasePattern,
     CreateEmbargoEventPattern,
     InviteToEmbargoOnCasePattern,
+    RejectEmbargoProposalOnCasePattern,
     RejectInviteToEmbargoOnCasePattern,
     RemoveEmbargoEventFromCasePattern,
 )
 from vultron.wire.as2.vocab.activities.embargo import (
-    _AddEmbargoToCaseActivity,
+    _ActivateEmbargoActivity,
     _AnnounceEmbargoActivity,
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
+    _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
 )
 
@@ -59,15 +63,6 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=CreateEmbargoEventReceivedUseCase,
         phrase="{actor} created an embargo event",
         # The use case's door check reads to/cc (HP-01-005, ADR-0118).
-        include_activity=True,
-    ),
-    SemanticEntry(
-        semantics=MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
-        pattern=AddEmbargoEventToCasePattern,
-        event_class=AddEmbargoEventToCaseReceivedEvent,
-        use_case_class=AddEmbargoEventToCaseReceivedUseCase,
-        phrase="{actor} added an embargo to the case",
-        wire_activity_class=_AddEmbargoToCaseActivity,
         include_activity=True,
     ),
     SemanticEntry(
@@ -114,6 +109,26 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=RejectInviteToEmbargoOnCaseReceivedUseCase,
         phrase="{actor} declined the embargo",
         wire_activity_class=_EmRejectEmbargoActivity,
+        include_activity=True,
+    ),
+    # The case owner's decision for the case (ADR-0122): Accept/Reject of
+    # the EmbargoEvent itself, never of the Invite that proposed it.
+    SemanticEntry(
+        semantics=MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+        pattern=ActivateEmbargoOnCasePattern,
+        event_class=ActivateEmbargoOnCaseReceivedEvent,
+        use_case_class=ActivateEmbargoOnCaseReceivedUseCase,
+        phrase="{actor} activated the embargo",
+        wire_activity_class=_ActivateEmbargoActivity,
+        include_activity=True,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
+        pattern=RejectEmbargoProposalOnCasePattern,
+        event_class=RejectEmbargoProposalOnCaseReceivedEvent,
+        use_case_class=RejectEmbargoProposalOnCaseReceivedUseCase,
+        phrase="{actor} rejected the proposed embargo",
+        wire_activity_class=_RejectEmbargoProposalActivity,
         include_activity=True,
     ),
 ]

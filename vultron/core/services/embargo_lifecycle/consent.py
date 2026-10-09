@@ -150,16 +150,15 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
     ) -> EmbargoLifecycleResult:
         """Record *actor_id*'s rejection of *embargo_id* without moving EM.
 
-        The consent half of :meth:`reject_embargo_invite`, for a receiver
-        that records what a participant answered but does not decide the
-        proposal in this call — the received ``Reject(Invite(EmbargoEvent))``
-        tree.  Applies the MSM-07-004 rule by which embargo the Reject names
-        (ADR-0093): the case's *active* embargo is consent withdrawal —
-        the actor's row for it becomes ``DECLINED``, a signatory's included;
-        a *proposed* embargo is a refusal of those terms — only that
-        embargo's row becomes ``DECLINED``, and the actor's row for the
-        embargo in force is untouched.  The owner's EJ (the owner refusing a proposed
-        revision while an embargo is in force) changes nobody's record.
+        The effect of a ``Reject(Invite(EmbargoEvent))``, which is always the
+        sender's own consent, the case owner's included (ADR-0122).  Applies
+        the MSM-07-004 rule by which embargo the Reject names (ADR-0093): the
+        case's *active* embargo is consent withdrawal — the actor's row for
+        it becomes ``DECLINED``, a signatory's included; a *proposed* embargo
+        is a refusal of those terms — only that embargo's row becomes
+        ``DECLINED``, and the actor's row for the embargo in force is
+        untouched.  The owner's decision on a proposal is
+        :meth:`reject_embargo_proposal`.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` that owns the participant.

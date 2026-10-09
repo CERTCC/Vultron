@@ -13,7 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Embargo accept trigger use case."""
+"""Embargo accept trigger use case.
+
+A participant's accept is ``Accept(Invite(EmbargoEvent))``, its own consent.
+The case owner's accept is its decision for the case,
+``Accept(EmbargoEvent, target=Case)``, which activates the proposal
+(ADR-0122).
+"""
 
 import json
 import logging
@@ -21,8 +27,12 @@ from typing import ClassVar, cast
 
 import py_trees.behaviour
 
+from vultron.core.behaviors.embargo.nodes import (
+    EMBARGO_ACTIVATION_EVENT_TYPE,
+)
 from vultron.core.behaviors.embargo.trigger_tree import (
     accept_embargo_trigger_bt,
+    activate_embargo_trigger_bt,
 )
 from vultron.core.behaviors.sender_entitlement import (
     is_case_owner as _is_case_owner,
@@ -67,22 +77,41 @@ class SvcAcceptEmbargoUseCase(SvcEmbargoTriggerBase):
             raise VultronValidationError(
                 f"Could not resolve EmbargoEvent '{self._embargo_id}'."
             )
+        self._is_owner = _is_case_owner(self._case, self._actor_id)
+
+    def _asserted_event_type(self) -> str:
+        if self._is_owner:
+            return EMBARGO_ACTIVATION_EVENT_TYPE
+        return self._assertion_event_type
 
     def _assertion_subject(self) -> str:
         return self._proposal_id
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activity(to: list[str] | None) -> tuple[str, str]:
-            accept_id, accept_blob = self._factory.accept_embargo(
-                proposal_id=self._proposal_id,
-                case_id=self._case.id_,
-                actor=self._actor_id,
-                to=to,
-            )
+            if self._is_owner:
+                accept_id, accept_blob = self._factory.activate_embargo(
+                    embargo_id=self._embargo_id,
+                    case_id=self._case.id_,
+                    actor=self._actor_id,
+                    to=to,
+                )
+            else:
+                accept_id, accept_blob = self._factory.accept_embargo(
+                    proposal_id=self._proposal_id,
+                    case_id=self._case.id_,
+                    actor=self._actor_id,
+                    to=to,
+                )
             self._captured["activity"] = json.loads(accept_blob)
             return accept_id, accept_blob
 
-        return accept_embargo_trigger_bt(
+        build_tree = (
+            activate_embargo_trigger_bt
+            if self._is_owner
+            else accept_embargo_trigger_bt
+        )
+        return build_tree(
             case_id=self._case.id_,
             embargo_id=self._embargo_id,
             result_out=self._result_out,
@@ -91,10 +120,7 @@ class SvcAcceptEmbargoUseCase(SvcEmbargoTriggerBase):
 
     def _log_lifecycle_result(self) -> None:
         lr = self._lifecycle_result
-        if (
-            _is_case_owner(self._case, self._actor_id)
-            and lr.em_after != lr.em_before
-        ):
+        if self._is_owner and lr.em_after != lr.em_before:
             logger.info(
                 "Actor '%s' accepted embargo proposal '%s'; activated embargo"
                 " '%s' on case '%s' (EM %s → %s)",

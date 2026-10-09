@@ -242,7 +242,12 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
 
 
 class AcceptEmbargoLifecycleNode(_EmbargoLifecycleNode):
-    """Apply STRICT accept-invite transition."""
+    """Record the executing actor's ``Accept(Invite(EmbargoEvent))``.
+
+    The sender's own consent, the case owner's included (ADR-0122): it moves
+    no register entry.  The owner's activation is
+    ``ActivateEmbargoLifecycleNode`` (``owner_decision.py``).
+    """
 
     def __init__(
         self,
@@ -267,12 +272,18 @@ class AcceptEmbargoLifecycleNode(_EmbargoLifecycleNode):
             case_id=self._case_id_value,
             embargo_id=self._embargo_id,
             actor_id=actor_id,
-            transition_mode=TransitionMode.STRICT,
         )
 
 
 class RejectEmbargoLifecycleNode(_EmbargoLifecycleNode):
-    """Apply STRICT reject-invite transition."""
+    """Record the executing actor's ``Reject(Invite(EmbargoEvent))``.
+
+    The sender's own consent, the case owner's included (MSM-07-004,
+    ADR-0122): a Reject of the active embargo is withdrawal, one of a
+    proposal declines that proposal's row only.  It moves no register entry;
+    the owner's rejection of a proposal is
+    ``RejectEmbargoProposalLifecycleNode`` (``owner_decision.py``).
+    """
 
     def __init__(
         self,
@@ -293,11 +304,10 @@ class RejectEmbargoLifecycleNode(_EmbargoLifecycleNode):
         lifecycle: EmbargoLifecycle,
         actor_id: str,
     ) -> EmbargoLifecycleResult:
-        return lifecycle.reject_embargo_invite(
+        return lifecycle.record_embargo_rejection(
             case_id=self._case_id_value,
-            embargo_id=self._embargo_id,
             actor_id=actor_id,
-            transition_mode=TransitionMode.STRICT,
+            embargo_id=self._embargo_id,
         )
 
 
@@ -377,11 +387,15 @@ class ReadEmbargoIdNode(DataLayerActionWithPorts):
 
 
 class SetEmbargoActiveNode(DataLayerActionWithPorts, StateWriteCapable):
-    """Set embargo active on case and transition EM → ACTIVE.
+    """Apply the case owner's activation of an embargo; EM → ACTIVE.
 
     Routes the activation through ``EmbargoLifecycle.activate_embargo()``
-    (EMB-18-001).  Returns FAILURE when the register refuses it
-    (EMB-18-002): in STRICT mode the embargo must be an open proposal.
+    (EMB-18-001), the effect of the owner's
+    ``Accept(EmbargoEvent, target=Case)`` (ADR-0122).  The ledger replay runs
+    it ``OBSERVED`` (EP-09-007).  An embargo already in force is a no-op, so
+    a re-delivered entry changes nothing.  Returns FAILURE when the register
+    refuses it (EMB-18-002): in STRICT mode the embargo must be an open
+    proposal.
     """
 
     def __init__(

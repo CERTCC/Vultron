@@ -30,6 +30,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle.pec import (
     _consent_change,
     _PecEffectsMixin,
+    owner_declined_embargo,
 )
 from vultron.core.services.embargo_lifecycle.results import (
     ParticipantConsentChange,
@@ -38,6 +39,7 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
 )
+from vultron.errors import VultronInvalidStateTransitionError
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +85,28 @@ class _PecActivationMixin(_PecEffectsMixin):
                 )
         return changes
 
+    def _assert_owner_may_activate(
+        self, case: VulnerabilityCase, embargo_id: str
+    ) -> None:
+        """Refuse an activation the case owner has declined (ADR-0122).
+
+        Activation records the owner's ``AGREE``, which ``DECLINED`` refuses
+        (CM-18-003): an owner that declined the proposal as a participant is
+        invited again before it can activate it.  Called before anything is
+        written, in either mode, so replay refuses what the CASE_MANAGER
+        would have refused.
+
+        Raises:
+            VultronInvalidStateTransitionError: If the owner's row for
+                *embargo_id* is ``DECLINED``.
+        """
+        if owner_declined_embargo(self._persistence, case, embargo_id):
+            raise VultronInvalidStateTransitionError(
+                f"Case owner '{_as_id(case.attributed_to)}' declined embargo"
+                f" '{embargo_id}' on case '{_as_id(case)}': it is invited"
+                " again before it can activate it (CM-18-003)."
+            )
+
     def _consent_at_activation(
         self,
         case: VulnerabilityCase,
@@ -93,31 +117,31 @@ class _PecActivationMixin(_PecEffectsMixin):
     ) -> list[ParticipantConsentChange]:
         """The consent rows written once *embargo_id* is the embargo in force.
 
-        The one consent effect of an activation, shared by the owner path of
-        ``accept_embargo_invite`` and by ``activate_embargo`` so the two
-        cannot drift.  *ends_no_later* is ``None`` for a first activation
-        (``PROPOSED → ACTIVE``, nothing replaced) and otherwise
-        :meth:`_revision_ends_no_later`'s answer for the embargo replaced,
-        taken before the case was mutated; *previous_embargo_id* is that
-        embargo.
+        The consent effect of the case owner's
+        ``Accept(EmbargoEvent, target=Case)`` (ADR-0122).  *ends_no_later* is
+        ``None`` for a first activation (``PROPOSED → ACTIVE``, nothing
+        replaced) and otherwise :meth:`_revision_ends_no_later`'s answer for
+        the embargo replaced, taken before the case was mutated;
+        *previous_embargo_id* is that embargo.
 
-        - A first activation writes nothing: an ``ACCEPTED`` row for the
-          activated embargo already makes its holder a signatory (its proposer,
-          an early acceptor), with no advance step (ADR-0122).
-        - Replacing A with B is the owner's acceptance of B: the owner's row
-          gains B first, so the owner is never lapsed by its own activation.
-          Then a B ending no later than A carries A's signatories over
-          (:meth:`_carry_signatories_over`); a longer B carries nobody, and
-          the signatories who have not accepted it are lapsed by derivation.
+        - The activation is the owner's agreement: the owner's row for the
+          activated embargo becomes ``ACCEPTED`` unless it already is, so the
+          owner is a signatory of what it activated and never lapsed by it.
+        - Any other ``ACCEPTED`` row for it already makes its holder a
+          signatory (its proposer, an early acceptor), with no advance step.
+        - Replacing A with B: a B ending no later than A carries A's
+          signatories over (:meth:`_carry_signatories_over`); a longer B
+          carries nobody, and the signatories who have not accepted it are
+          lapsed by derivation.
         """
-        if ends_no_later is None or previous_embargo_id is None:
-            return []
         changes: list[ParticipantConsentChange] = []
         owner_id = _as_id(case.attributed_to)
         if owner_id is not None and owner_id in case.actor_participant_index:
             changes.extend(
                 self._record_actor_acceptance(case, owner_id, embargo_id)
             )
+        if ends_no_later is None or previous_embargo_id is None:
+            return changes
         if ends_no_later:
             changes.extend(
                 self._carry_signatories_over(
