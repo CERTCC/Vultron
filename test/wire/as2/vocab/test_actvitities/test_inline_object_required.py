@@ -56,11 +56,11 @@ from vultron.wire.as2.vocab.activities.case_participant import (
 )
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
-    _AddEmbargoToCaseActivity,
     _AnnounceEmbargoActivity,
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
+    _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.report import (
@@ -493,11 +493,11 @@ class TestNoneObjectRejected(unittest.TestCase):
     def test_activate_embargo_rejects_missing(self):
         self._assert_missing_rejected(_ActivateEmbargoActivity)
 
-    def test_add_embargo_to_case_rejects_none(self):
-        self._assert_none_rejected(_AddEmbargoToCaseActivity)
+    def test_reject_embargo_proposal_rejects_none(self):
+        self._assert_none_rejected(_RejectEmbargoProposalActivity)
 
-    def test_add_embargo_to_case_rejects_missing(self):
-        self._assert_missing_rejected(_AddEmbargoToCaseActivity)
+    def test_reject_embargo_proposal_rejects_missing(self):
+        self._assert_missing_rejected(_RejectEmbargoProposalActivity)
 
     def test_announce_embargo_rejects_none(self):
         self._assert_none_rejected(_AnnounceEmbargoActivity)

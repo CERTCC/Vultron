@@ -6,7 +6,7 @@ level: 300
 # How to Establish an Embargo
 
 Use this guide to put a case under embargo.
-An embargo can be negotiated, by proposing terms and collecting acceptances, or added outright by the Case Owner when the terms are already settled.
+An embargo starts as a proposal, and the Case Owner activates it, either after collecting the other participants' answers or at once when the terms are already settled.
 You finish with the case at Embargo Management (EM) state `EM.ACTIVE` and the terms announced to every participant.
 
 ---
@@ -17,7 +17,7 @@ You finish with the case at Embargo Management (EM) state `EM.ACTIVE` and the te
 
 - An existing case with no active embargo.
   A case carries at most one.
-- The Case Owner role, for adding or activating an embargo.
+- The Case Owner role, for activating an embargo.
   Any participant can propose one.
 - The embargo terms you intend to propose — at minimum, an end date and time.
 
@@ -30,38 +30,35 @@ You finish with the case at Embargo Management (EM) state `EM.ACTIVE` and the te
 
 ## The exchange
 
-The flowchart below shows both routes to `EM.ACTIVE`.
-The `Ask first?` branch is the choice between negotiating the terms and adding them directly.
+The flowchart below shows the route to `EM.ACTIVE`.
+Each participant's answer to the Invite records its own consent; the Case Owner's decision is a separate activity on the embargo itself.
 
 ```mermaid
 ---
-title: Establishing an Embargo: Negotiated and Direct Paths
+title: Establishing an Embargo
 ---
 flowchart TB
     subgraph as:Invite
         EmProposeEmbargo["Embargo Proposal (EP) / Embargo Revision Proposal (EV)<br/>Invite(Event)"]
     end
-    subgraph as:Accept
+    subgraph participant answers
         EmAcceptEmbargo["Embargo Proposal Acceptance (EA) / Embargo Revision Acceptance (EC)<br/>Accept(Invite(Event))"]
-    end
-    subgraph as:Reject
         EmRejectEmbargo["Embargo Proposal Rejection (ER) / Embargo Revision Rejection (EJ)<br/>Reject(Invite(Event))"]
+    end
+    subgraph Case Owner decides
+        ActivateEmbargo["Activate the embargo<br/>Accept(Event), target: VulnerabilityCase"]
+        RejectEmbargoProposal["Reject the proposal<br/>Reject(Event), target: VulnerabilityCase"]
     end
     subgraph as:Announce
         AnnounceEmbargo["Announce the embargo terms<br/>Announce(Event)"]
     end
-    subgraph as:Add
-        ActivateEmbargo["Activate the agreed embargo<br/>Add(Event), inReplyTo: Invite(Event)"]
-        AddEmbargoToCase["Attach the embargo to the case<br/>Add(Event), no inReplyTo"]
-    end
-    start([Start]) --> f{Ask first?}
-    f -->|n| AddEmbargoToCase
-    f -->|y| EmProposeEmbargo
-    EmProposeEmbargo --> a{Accept?}
-    a -->|y| EmAcceptEmbargo
-    a -->|n| EmRejectEmbargo
-    EmAcceptEmbargo --> ActivateEmbargo
-    AddEmbargoToCase --> AnnounceEmbargo
+    start([Start]) --> EmProposeEmbargo
+    EmProposeEmbargo --> EmAcceptEmbargo
+    EmProposeEmbargo --> EmRejectEmbargo
+    EmAcceptEmbargo --> d{Owner activates?}
+    EmRejectEmbargo --> d
+    d -->|y| ActivateEmbargo
+    d -->|n| RejectEmbargoProposal
     ActivateEmbargo --> AnnounceEmbargo
 ```
 
@@ -75,11 +72,13 @@ The same activity carries a revision, Embargo Revision Proposal (EV); a receiver
 1. Send `Invite(Event)` with the proposed `EmbargoEvent` as its `object` and the case as its `context`.
    The case moves to `EM.PROPOSED`.
 2. Each participant answers with Embargo Proposal Acceptance (EA), `Accept(Invite(Event))`, or Embargo Proposal Rejection (ER), `Reject(Invite(Event))`.
-3. As Case Owner, send `Add(Event)` once the proposal has carried, with `inReplyTo` naming the `Invite(Event)` it answers.
-   The case moves to `EM.ACTIVE`.
+   Either answer records only that participant's own consent, the Case Owner's included; the case stays at `EM.PROPOSED`.
+3. As Case Owner, send `Accept(Event)` with the proposed `EmbargoEvent` as its `object` and the case as its `target`, once you judge the proposal has carried.
+   The case moves to `EM.ACTIVE`, and your own consent to the terms is recorded with it.
 4. Send `Announce(Event)` so every participant has the terms in hand.
 
-If the proposal is rejected, the case returns to `EM.NONE` and the negotiation is open again.
+To turn the proposal down, send `Reject(Event)` with the same `object` and `target` as Case Owner instead.
+The case returns to `EM.NONE` and the negotiation is open again.
 Propose revised terms with another `Invite(Event)`.
 
 Propose one set of terms at a time.
@@ -90,21 +89,22 @@ See [Default Embargoes](../../../topics/process_models/em/defaults.md).
 
 ---
 
-## Add an embargo without proposing it
+## Activate settled terms without waiting
 
-Send `Add(Event)` with no `inReplyTo`, then `Announce(Event)`.
+There is no way to put an embargo on a case except by proposing it: adding an embargo to the case is what proposing does.
+When the terms need no negotiation, propose them as Case Owner and activate them at once, without waiting for any answer.
 
-This is the same wire form as step 3 above, and `inReplyTo` is the only thing that separates them: both dispatch to the same pattern, so a receiver distinguishes "activate the embargo we agreed" from "impose these terms directly" by whether the `Add` answers an earlier `Invite(Event)`.
-
-The formal message set has a single name, Embargo Proposal (EP), covering the proposal, the attachment and the announcement alike.
-ActivityStreams gives each its own activity, so no one formal name identifies which of the three you are sending.
+1. Send `Invite(Event)` as above.
+   Proposing the terms records your consent to them.
+2. Send `Accept(Event)` with the case as its `target`.
+3. Send `Announce(Event)`.
 
 Use this route when the terms need no negotiation:
 
 - no other participant has joined the case yet, or
 - your published `EmbargoPolicy` applies and nobody has proposed anything to the contrary.
 
-Actors invited later decide for themselves whether to accept the embargo, so adding it outright does not bind anyone who was absent.
+The other participants still receive the Invite and answer it, and only those that agree are bound, so activating at once binds nobody who did not agree.
 
 !!! note "A new case may already be embargoed"
 
@@ -120,7 +120,8 @@ Actors invited later decide for themselves whether to accept the embargo, so add
 |---|---|
 | `Invite(Event)` | The case `em_state` is `PROPOSED`. |
 | `Accept(Invite(Event))` | Your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) row for the embargo is `ACCEPTED` (you are a signatory), as [§9 Participant Embargo Consent (PEC) State Machine in the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) defines it. |
-| `Add(Event)`, with or without `inReplyTo` | The case `em_state` is `ACTIVE` and the case names one active embargo. |
+| `Accept(Event)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE`, the case names one active embargo, and your consent row for it is `ACCEPTED`. |
+| `Reject(Event)` with the case as `target`, as Case Owner | The case `em_state` is `NONE` and no participant's consent row changed. |
 | `Announce(Event)` | Every participant's replica carries the same active embargo ID. |
 
 ---

@@ -26,14 +26,16 @@ from vultron.core.behaviors.case.nodes.invite_actor_emit import (
 )
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
-    add_embargo_to_case_tree,
     invite_to_embargo_on_case_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
+    ActivateEmbargoLifecycleNode,
     CaptureActiveEmbargoNode,
     IndexReceivedEmbargoProposalNode,
     SendEmbargoEndingNoticesNode,
-    SetEmbargoActiveNode,
+)
+from vultron.core.behaviors.embargo.owner_decision_tree import (
+    activate_embargo_on_case_tree,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
@@ -88,21 +90,21 @@ def test_invite_tree_indexes_once_per_arm() -> None:
 
 
 @pytest.mark.spec("BT-17-008")
-def test_add_embargo_backfill_is_the_factory_gate() -> None:
-    tree = add_embargo_to_case_tree(
+def test_activate_embargo_backfill_is_the_factory_gate() -> None:
+    tree = activate_embargo_on_case_tree(
         case_id=CASE_ID, embargo_id=EMBARGO_ID, sender_actor_id=ACTOR_ID
     )
 
     gate = tree.children[-1]
     assert isinstance(gate, CaseManagerGate)
-    assert gate.name == "ActivateEmbargoAndBackfillIfCaseManager"
-    # RSH-08-003 (#3814): the activation write is gated too, so the whole
-    # body is CASE_MANAGER-only: capture the embargo in force, set the new one
-    # active, send the CM-31-009 notices, backfill what the activation
+    assert gate.name == "ActivateEmbargoOnCaseBTIfCaseManager"
+    # The owner's activation is gated to the CASE_MANAGER (RSH-08-003): capture
+    # the signatories bound before the write, run the ACTIVATE through the
+    # lifecycle, send the CM-31-009 notices, backfill what the activation
     # admitted, then re-issue stale stub Invites (CM-11-016).
     assert [type(n) for n in gate.gated_branch.children] == [
         CaptureActiveEmbargoNode,
-        SetEmbargoActiveNode,
+        ActivateEmbargoLifecycleNode,
         SendEmbargoEndingNoticesNode,
         BackfillAdmittedParticipantsNode,
         ReissueStubInvitesNode,

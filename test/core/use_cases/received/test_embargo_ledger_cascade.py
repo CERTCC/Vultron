@@ -14,6 +14,8 @@
 
 from typing import cast
 
+import pytest
+
 from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -22,47 +24,66 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
-    AddEmbargoEventToCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
+    RejectEmbargoProposalOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
-    add_embargo_to_case_activity,
+    activate_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
+    reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-from .conftest import make_embargo_case_with_actor
+from .conftest import grant_case_owner_role, make_embargo_case_with_actor
 
 
 class TestEmbargoLogEntryCascade:
     """CaseLedgerEntry cascade for each embargo received-side handler (AC-3)."""
 
-    def test_add_embargo_event_commits_log_entry(self, make_payload):
-        """AddEmbargoEventToCaseReceivedUseCase commits a CaseLedgerEntry."""
+    @pytest.mark.spec("CLP-10-006", "EP-09-007")
+    @pytest.mark.parametrize(
+        "factory, use_case, event_type",
+        [
+            (
+                activate_embargo_activity,
+                ActivateEmbargoOnCaseReceivedUseCase,
+                "activate_embargo_on_case",
+            ),
+            (
+                reject_embargo_proposal_activity,
+                RejectEmbargoProposalOnCaseReceivedUseCase,
+                "reject_embargo_proposal_on_case",
+            ),
+        ],
+    )
+    def test_owner_decision_commits_log_entry(
+        self, make_payload, factory, use_case, event_type
+    ):
+        """The owner's Accept/Reject(EmbargoEvent) commits one CaseLedgerEntry."""
         author_id = "https://example.org/users/coord"
-        case_id = "https://example.org/cases/em_cas_add"
+        case_id = "https://example.org/cases/em_cas_decide"
         dl, _case_actor, case, embargo = make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
+        grant_case_owner_role(dl, case_id, author_id)
         case_read = cast(VulnerabilityCase, dl.read(case.id_))
         assert case_read is not None
         propose(case_read, embargo.id_)
         dl.save(case_read)
 
         case_ref = as_VulnerabilityCase(id_=case_id)
-        activity = add_embargo_to_case_activity(
-            embargo, target=case_ref, actor=author_id
-        )
+        activity = factory(embargo, target=case_ref, actor=author_id)
         event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)
-        AddEmbargoEventToCaseReceivedUseCase(
+        use_case(
             dl,
             event,
             sync_port=sync_port,
@@ -76,9 +97,7 @@ class TestEmbargoLogEntryCascade:
             and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(CaseLedgerEntry, entries[0]).event_type == (
-            "add_embargo_event_to_case"
-        )
+        assert cast(CaseLedgerEntry, entries[0]).event_type == event_type
 
     def test_remove_embargo_event_commits_log_entry(self, make_payload):
         """RemoveEmbargoEventFromCaseReceivedUseCase commits a CaseLedgerEntry."""

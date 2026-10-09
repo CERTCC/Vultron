@@ -44,8 +44,10 @@ into :class:`EmbargoLifecycle` in ``service.py``:
 - ``pec.py``        — participant-consent side effects of EM transitions,
   including the shorter-revision carry-over (EP-05-001)
 - ``proposals.py``  — ``propose_embargo``
-- ``answers.py``    — ``accept_embargo_invite``, ``reject_embargo_invite``
+- ``answers.py``    — ``accept_embargo_invite`` (a sender's consent),
+  ``reject_embargo_proposal`` (the case owner's decision, ADR-0122)
 - ``activation.py`` — ``terminate_active_embargo``, ``activate_embargo``
+  (the case owner's decision, ADR-0122)
 - ``creation.py``   — ``initialize_creation_embargo`` (EP-04-002), which
   commits through ``staged_persistence.py``'s ``StagedCasePersistence``
 - ``consent.py``    — ``record_participant_consent``,
@@ -56,6 +58,9 @@ Tracked in: https://github.com/CERTCC/Vultron/issues/538
 Scaffold (#746); full operations (#747)
 """
 
+from vultron.core.services.embargo_lifecycle.pec import (
+    owner_declined_embargo,
+)
 from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
     ParticipantConsentChange,
@@ -65,6 +70,7 @@ from vultron.core.services.embargo_lifecycle.service import EmbargoLifecycle
 
 __all__ = [
     "EmbargoLifecycle",
+    "owner_declined_embargo",
     "EmbargoLifecycleResult",
     "ParticipantConsentChange",
     "TransitionMode",

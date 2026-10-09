@@ -106,8 +106,10 @@ def _answer_relayed_invite(
 
     The delivered Invite is the cause of the answer, so the answer nests inside
     the gate: a timeout skips it instead of answering a proposal the actor never
-    received (EDF-06-005, ADR-0058).  The answer records consent — and, for the
-    case owner, activates the embargo — once the CASE_MANAGER commits it.
+    received (EDF-06-005, ADR-0058).  A participant's answer records its
+    consent; the case owner's is its decision for the case,
+    Accept(EmbargoEvent, target=Case), which activates the embargo
+    (ADR-0122) — either once the CASE_MANAGER commits it.
     The answer names no ``proposal_id``: the earliest-expiring open proposal
     is answered (EP-08-002), and only one is open while a demo helper runs.
 
@@ -264,7 +266,8 @@ def demo_propose_and_activate_embargo(
     vendor and the coordinator each poll their own replica for the
     ``Invite(EmbargoEvent)`` the CASE_MANAGER relays to them and post
     ``accept-embargo`` — the vendor's records its consent, the coordinator's,
-    as case owner, activates the embargo.  The helper then checks every replica
+    as case owner, is sent as Accept(EmbargoEvent, target=Case) and
+    activates the embargo (ADR-0122).  The helper then checks every replica
     for ``EM.ACTIVE`` and the coordinator's replica for an ``ACCEPTED`` consent row on all
     three participants (DEMOMA-20-002, DEMOMA-20-009).
 
@@ -333,9 +336,9 @@ def demo_propose_embargo_revision(
     (canonical ``EM.ACTIVE`` to ``EM.REVISE``); *accepting* polls its own
     replica for the relayed ``Invite(EmbargoEvent)`` and posts
     ``accept-embargo``, which records its consent and moves no EM state;
-    *owner* posts ``accept-embargo``, which as the case owner's answer
-    activates the revision (canonical ``EM.REVISE`` to ``EM.ACTIVE``).  The
-    helper then checks the CASE_MANAGER's canonical case and every replica for
+    *owner* posts ``accept-embargo``, which as the case owner's decision —
+    Accept(EmbargoEvent, target=Case), ADR-0122 — activates the revision
+    (canonical ``EM.REVISE`` to ``EM.ACTIVE``).  The helper then checks the CASE_MANAGER's canonical case and every replica for
     ``EM.ACTIVE`` with the revision as the active embargo (DEMOMA-21-002,
     DEMOMA-21-010).
 

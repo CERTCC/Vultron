@@ -31,16 +31,6 @@ CreateEmbargoEventPattern = ActivityPattern(
     # embargo is about (VAM-05-001, EP-04-009, ADR-0096).
     context_=(VOtype.VULNERABILITY_CASE, VOtype.VULNERABILITY_REPORT),
 )
-AddEmbargoEventToCasePattern = ActivityPattern(
-    description=(
-        "Add an embargo event to a vulnerability case. This is typically "
-        "observed as an ADD activity where the object is an EVENT and the "
-        "target is a VULNERABILITY_CASE."
-    ),
-    activity_=TAtype.ADD,
-    object_=AOtype.EVENT,
-    target_=VOtype.VULNERABILITY_CASE,
-)
 RemoveEmbargoEventFromCasePattern = ActivityPattern(
     description=(
         "Remove an embargo event from a vulnerability case. This is typically "
@@ -81,6 +71,35 @@ RejectInviteToEmbargoOnCasePattern = ActivityPattern(
     description="Reject an invitation to an embargo on a vulnerability case.",
     activity_=TAtype.REJECT,
     object_=InviteToEmbargoOnCasePattern,
+)
+ActivateEmbargoOnCasePattern = ActivityPattern(
+    description=(
+        "The case owner activates a proposed embargo on a vulnerability "
+        "case: an ACCEPT whose object is the EmbargoEvent itself (not the "
+        "Invite that proposed it) and whose target is the VulnerabilityCase "
+        "(ADR-0122)."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=AOtype.EVENT,
+    target_=VOtype.VULNERABILITY_CASE,
+    # Not strict: ``ActivityPattern.strict`` governs object_ AND target_
+    # together, but the case target is a bare URI by design (the recipient
+    # holds the case, so ``case_target_ref`` reduces it, MV-10-001). The
+    # ACCEPT verb + EVENT object + case target discriminate this activity from
+    # ``Accept(Invite(...))`` (object is an Invite activity, not an EVENT);
+    # a malformed bare-URI object is caught by ``IsOpenEmbargoProposalNode``.
+)
+RejectEmbargoProposalOnCasePattern = ActivityPattern(
+    description=(
+        "The case owner rejects a proposed embargo on a vulnerability case: "
+        "a REJECT whose object is the EmbargoEvent itself (not the Invite "
+        "that proposed it) and whose target is the VulnerabilityCase "
+        "(ADR-0122)."
+    ),
+    activity_=TAtype.REJECT,
+    object_=AOtype.EVENT,
+    target_=VOtype.VULNERABILITY_CASE,
+    # Not strict, for the same reason as the activation pattern above.
 )
 
 # ---------------------------------------------------------------------------

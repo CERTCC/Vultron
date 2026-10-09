@@ -455,8 +455,9 @@ Admission is caught at two points:
   `BackfillAdmittedParticipantsNode`, behind the CASE_MANAGER gate
   (`embargo_admission_backfill_tree()`), runs after the effect: in the
   accepted-Invite tree, in the Remove(EmbargoEvent) teardown, after an
-  honored late Accept (EMB-17-001), and after a received Add(EmbargoEvent)
-  activates a revision that a paused participant had already accepted.
+  honored late Accept (EMB-17-001), and after the case owner's received
+  `Accept(EmbargoEvent, target=Case)` activates a revision that a paused
+  participant had already accepted.
 
 An admitted peer's own Reject clears the pause too. Its replay resends
 everything past the contiguous prefix it reports (SYNC-10-004), so whatever

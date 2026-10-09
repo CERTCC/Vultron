@@ -14,7 +14,6 @@
 compatibility (#2213)."""
 
 import json
-import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 
@@ -47,6 +46,7 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
     resolve_invitee_id,
@@ -56,6 +56,7 @@ from vultron.errors import (
     VultronProtocolViolationError,
 )
 from vultron.wire.as2.factories import (
+    activate_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
@@ -1062,15 +1063,16 @@ class TestInviteeIsTheAddressee:
         assert case_after.proposed_embargo_ids == [revision.id_]
 
     @pytest.mark.spec("MSM-07-004")
-    def test_owner_reject_of_a_revision_changes_no_record_on_receipt(
+    def test_owner_reject_of_an_invite_is_only_its_own_consent(
         self, make_payload
     ):
-        """The owner's EJ received here decides the proposal and moves no consent.
+        """The owner's Reject(Invite) declines its own row and decides nothing.
 
-        The coordinator owns the case (``attributed_to``): its Reject of
-        proposed B prunes B from the open-proposal records, returns EM
-        ``REVISE → ACTIVE`` (EJ), and leaves every participant's state and
-        list as they were — the owner's included.
+        The coordinator owns the case (``attributed_to``), but
+        ``Reject(Invite(EmbargoEvent))`` is always the sender's consent
+        (ADR-0122): its row for proposed B becomes DECLINED, its row for the
+        embargo in force is untouched, and B stays open — rejecting it for
+        the case is ``Reject(EmbargoEvent, target=Case)``.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee11"
@@ -1122,11 +1124,8 @@ class TestInviteeIsTheAddressee:
 
         assert result.disposition is HandlerDisposition.APPLIED
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consents == [
-            EmbargoConsent(
-                embargo_id=active_id, state=EmbargoConsentState.ACCEPTED
-            )
-        ]
+        assert coord.consent_for(active_id) == EmbargoConsentState.ACCEPTED
+        assert coord.consent_for(revision.id_) == EmbargoConsentState.DECLINED
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consents == [
             EmbargoConsent(
@@ -1134,11 +1133,9 @@ class TestInviteeIsTheAddressee:
             )
         ]
         case_after = cast(VulnerabilityCase, dl.read(case_id))
-        assert case_after.proposed_embargo_ids == []
-        assert case_after.pending_embargo_proposal_index == {}
+        assert case_after.proposed_embargo_ids == [revision.id_]
         assert case_after.active_embargo_id == active_id
-        # EJ: the owner keeps the prior terms (MSM-07-004).
-        assert case_after.current_status.em.state == EM.ACTIVE
+        assert case_after.current_status.em.state == EM.REVISE
 
     def test_reject_naming_an_unknown_embargo_is_refused(self, make_payload):
         """A Reject of an embargo the case has never seen is a protocol error.
@@ -1416,21 +1413,19 @@ def _make_accept_event(proposal, case, accepting_actor_id: str, make_payload):
     return make_payload(accept, receiving_actor_id=_COORD)
 
 
-class TestAcceptWhenTheReplacedEmbargoIsUnreadable:
-    """A store missing embargo A breaks EMB-18-003: the Accept is refused."""
+class TestActivationWhenTheReplacedEmbargoIsUnreadable:
+    """A store missing embargo A breaks EMB-18-003: the activation is refused."""
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("EMB-18-003")
     @pytest.mark.spec("EP-05-001")
-    def test_owner_accept_of_a_revision_is_refused_as_an_invariant_violation(
-        self, make_payload, caplog: pytest.LogCaptureFixture
-    ):
+    def test_owner_activation_of_a_revision_is_refused(self, make_payload):
         """No path may leave a case naming an unreadable embargo (EMB-18-003).
 
-        Nothing would re-drive a parked Accept, so the handler refuses it
-        (never DEFERRED), the node logs the broken invariant at ERROR naming
-        the case and the missing embargo, and EM and the active embargo are
-        left as they were.
+        The owner's ``Accept(EmbargoEvent, target=Case)`` must read the
+        embargo it replaces to settle consent (EP-05-001); the read fails
+        closed, so the handler refuses (never DEFERRED) and EM and the active
+        embargo are left as they were.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea-gap"
@@ -1449,7 +1444,7 @@ class TestAcceptWhenTheReplacedEmbargoIsUnreadable:
             attributed_to=_COORD,
             context=case_id,
             embargo_consents=_rows({missing_id: EmbargoConsentState.ACCEPTED}),
-            case_roles=[CVDRole.CASE_MANAGER],
+            case_roles=[CVDRole.CASE_MANAGER, CVDRole.CASE_OWNER],
         )
         dl.create(case)
         dl.create(revision)
@@ -1457,35 +1452,20 @@ class TestAcceptWhenTheReplacedEmbargoIsUnreadable:
         case.actor_participant_index[_COORD] = coord_cp.id_
         dl.save(case)
 
-        proposal = em_propose_embargo_activity(
-            embargo=revision,
-            context=case_id,
-            actor=_INVITEE,
-            to=[_COORD],
-            id_=f"{case_id}/proposals/p2",
+        activation = activate_embargo_activity(
+            revision, target=case_id, actor=_COORD, to=[_COORD]
         )
-        dl.create(proposal)
-        event = _make_accept_event(proposal, case, _COORD, make_payload)
+        event = make_payload(activation, receiving_actor_id=_COORD)
 
-        with caplog.at_level(logging.ERROR):
-            result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
+        result = ActivateEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert "Invariant violation" in (result.reason or "")
-        errors = [
-            r.getMessage()
-            for r in caplog.records
-            if r.levelno == logging.ERROR
-            and "Invariant violation" in r.getMessage()
-        ]
-        assert len(errors) == 1
-        assert case_id in errors[0]
-        assert missing_id in errors[0]
+        assert missing_id in (result.reason or "")
         fresh = cast(CoreCase, dl.read(case_id))
         assert fresh.current_status.em.state == EM.REVISE
         assert fresh.active_embargo_id == missing_id
@@ -2180,10 +2160,14 @@ class TestLateAcceptHandling:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        # Normal path: coordinator accepted → EM ACTIVE
+        # Normal path: the coordinator's consent is recorded; its Accept of
+        # the Invite decides nothing for the case (ADR-0122).
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
-        assert fresh_case.current_status.em.state == EM.ACTIVE
+        assert fresh_case.current_status.em.state == EM.PROPOSED
+        coord = dl.read(fresh_case.actor_participant_index[_COORD])
+        assert isinstance(coord, CaseParticipant)
+        assert coord.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
 
     def test_accept_no_deadline_uses_normal_path(self, make_payload):
         """Accept with no deadline → policy window fallback, normal path."""
@@ -2235,10 +2219,14 @@ class TestLateAcceptHandling:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        # Normal path: no expiry, acceptance proceeds
+        # Normal path: the coordinator's consent is recorded; its Accept of
+        # the Invite decides nothing for the case (ADR-0122).
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
-        assert fresh_case.current_status.em.state == EM.ACTIVE
+        assert fresh_case.current_status.em.state == EM.PROPOSED
+        coord = dl.read(fresh_case.actor_participant_index[_COORD])
+        assert isinstance(coord, CaseParticipant)
+        assert coord.consent_for(embargo_id) == EmbargoConsentState.ACCEPTED
 
     def test_expiry_creates_distinct_ledger_entry(self, make_payload):
         """Late Accept after expiry creates a ledger entry distinct from Reject (CM-28-009)."""
@@ -2733,3 +2721,50 @@ class TestOwnerAnswerToRelayedInvite:
 
         assert result.disposition is HandlerDisposition.APPLIED
         assert _answers_in_outbox(dl, _INVITEE) == answers
+
+    @pytest.mark.parametrize(
+        ("roles", "object_type", "has_target"),
+        [
+            ([CVDRole.CASE_OWNER], "EmbargoEvent", True),
+            ([CVDRole.VENDOR], "Invite", False),
+        ],
+        ids=["owner-sends-its-decision", "participant-sends-its-consent"],
+    )
+    @pytest.mark.spec("EP-09-005", "MSM-07-003")
+    def test_the_owners_auto_answer_is_its_decision_for_the_case(
+        self, make_payload, roles, object_type, has_target
+    ):
+        """The owner accepts the embargo itself; a participant, the Invite.
+
+        ADR-0122: the owner's answer decides the proposal, so it is
+        ``Accept(EmbargoEvent, target=Case)``; anyone else's is
+        ``Accept(Invite(EmbargoEvent))``, its own consent.
+        """
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        dl = _make_dl(actor_id=_INVITEE)
+        case, embargo = self._seed(
+            dl,
+            "https://example.org/cases/owner-answer-shape",
+            em_state=EM.NONE,
+            roles=roles,
+            proposal_days=10,
+            policy_days=30,
+        )
+
+        result = self._deliver(dl, case, embargo, make_payload)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        (answer_id,) = [
+            activity_id
+            for activity_id in dl.outbox_list()
+            if getattr(dl.read(activity_id), "type_", None) == "Accept"
+        ]
+        body = read_sealed_body_dict(dl, answer_id)
+        assert body is not None
+        assert body["object"]["type"] == object_type
+        if has_target:
+            assert body["object"]["id"] == embargo.id_
+            assert body["target"] == case.id_
+        else:
+            assert body["object"]["object"]["id"] == embargo.id_

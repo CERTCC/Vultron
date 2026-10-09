@@ -45,7 +45,7 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
-    AddEmbargoEventToCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
@@ -53,14 +53,14 @@ from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
 from vultron.wire.as2.factories import (
-    add_embargo_to_case_activity,
+    activate_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-from .conftest import make_embargo_case_with_actor
+from .conftest import grant_case_owner_role, make_embargo_case_with_actor
 
 MANAGER_ID = "https://example.org/actors/coordinator"
 SIGNATORY_IDS = (
@@ -137,7 +137,7 @@ class _GateScenario:
 
         The case is in REVISE with the revision proposed, and *actor_id*'s
         participant lists the revision, so the CASE_MANAGER's receipt of the
-        owner's ``Add(EmbargoEvent)`` admits it (CM-10-004). The revision ends
+        owner's ``Accept(EmbargoEvent, target=Case)`` admits it (CM-10-004). The revision ends
         sooner than the active terms, so the signatories (ACCEPTED rows for the
         active terms) carry over by containment and stay admitted (EP-05-001).
         """
@@ -159,10 +159,12 @@ class _GateScenario:
         participant.apply_pec_transition(revision.id_, PEC_Trigger.ACCEPT)
         self.dl.save(participant)
 
-        activation = add_embargo_to_case_activity(
+        # The coordinator is the case owner here as well as its manager.
+        grant_case_owner_role(self.dl, CASE_ID, MANAGER_ID)
+        activation = activate_embargo_activity(
             revision, target=CASE_ID, actor=MANAGER_ID
         )
-        AddEmbargoEventToCaseReceivedUseCase(
+        ActivateEmbargoOnCaseReceivedUseCase(
             self.dl,
             self._make_payload(activation, receiving_actor_id=MANAGER_ID),
             sync_port=SyncActivityAdapter(self.dl),

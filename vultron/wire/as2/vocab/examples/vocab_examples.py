@@ -85,11 +85,11 @@ from vultron.wire.as2.vocab.examples.embargo import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.embargo import (
     accept_embargo,
     activate_embargo,
-    add_embargo_to_case,
     announce_embargo,
     embargo_event,
     propose_embargo,
     reject_embargo,
+    reject_embargo_proposal,
     remove_embargo,
 )
 from vultron.wire.as2.vocab.examples.note import *  # noqa: F403
@@ -325,11 +325,13 @@ def main(outdir=None):
     _reject_embargo = reject_embargo()
     obj_to_file(_reject_embargo, f"{outdir}/reject_embargo.json")
 
-    _add_embargo_to_case = add_embargo_to_case()
-    obj_to_file(_add_embargo_to_case, f"{outdir}/add_embargo_to_case.json")
-
     _activate_embargo = activate_embargo()
     obj_to_file(_activate_embargo, f"{outdir}/activate_embargo.json")
+
+    _reject_embargo_proposal = reject_embargo_proposal()
+    obj_to_file(
+        _reject_embargo_proposal, f"{outdir}/reject_embargo_proposal.json"
+    )
 
     _announce_embargo = announce_embargo()
     obj_to_file(_announce_embargo, f"{outdir}/announce_embargo.json")

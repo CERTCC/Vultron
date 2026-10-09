@@ -448,7 +448,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             embargo_id=embargo_id,
             accepting_actor_id=accepting_actor_id,
             invite_id=invite_id,
-            actor_config=self._actor_config,
         )
         bridge = BTBridge(
             datalayer=self._dl,

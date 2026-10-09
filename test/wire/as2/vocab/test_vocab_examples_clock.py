@@ -36,8 +36,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     "builder",
     [
         examples.propose_embargo,
-        examples.add_embargo_to_case,
         examples.activate_embargo,
+        examples.reject_embargo_proposal,
         examples.announce_embargo,
     ],
     ids=lambda f: f.__name__,

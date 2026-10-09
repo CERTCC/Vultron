@@ -241,10 +241,14 @@ def test_record_embargo_rejection_of_a_proposed_revision_keeps_a_signatory(
 
 
 @pytest.mark.spec("MSM-07-004")
-def test_record_embargo_rejection_by_the_owner_of_a_revision_changes_nothing(
+def test_record_embargo_rejection_by_the_owner_declines_its_own_row(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """EJ on the received side: the owner keeps A; no record moves."""
+    """The owner's Reject(Invite) of a revision is its consent (ADR-0122).
+
+    It declines row(B) like anyone's; the owner stays a signatory of A, and
+    B stays open — the owner's decision is ``reject_embargo_proposal``.
+    """
     owner, dl = owner_and_dl
     case, _finder, owner_p, _finder_p, active_id, rev = _active_with_revision(
         dl, owner
@@ -254,9 +258,17 @@ def test_record_embargo_rejection_by_the_owner_of_a_revision_changes_nothing(
         case_id=case.id_, actor_id=owner.id_, embargo_id=rev
     )
 
-    assert result.participant_changes == []
-    assert _consents_of(dl, owner_p) == {active_id: "ACCEPTED"}
+    assert [
+        (c.embargo_id, c.consent_after) for c in result.participant_changes
+    ] == [(rev, "DECLINED")]
+    assert _consents_of(dl, owner_p) == {
+        active_id: "ACCEPTED",
+        rev: "DECLINED",
+    }
     assert _is_signatory(dl, case.id_, owner_p)
+    assert cast(VulnerabilityCase, dl.read(case.id_)).proposed_embargo_ids == [
+        rev
+    ]
 
 
 def test_record_embargo_rejection_of_an_unknown_embargo_raises(
