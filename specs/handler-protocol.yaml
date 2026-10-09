@@ -212,6 +212,64 @@ groups:
       spec_id: HP-01-006
     adr:
     - ADR-0115
+  - id: HP-01-008
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A declared sender entitlement MUST state the full rule the receiver applies: it MUST
+      be composed of entitlement kinds, MAY require any one of several kinds, and MUST state
+      the standing required for each addressee the activity is sent to: the CASE_MANAGER, a
+      participant, or, for an activity sent before a case exists, an actor outside any
+      case. The
+      receive-tree factory MUST compose the guard from the declaration alone, and a tree
+      MUST NOT add a sender check narrower than its declaration.
+    rationale: >-
+      When this was written, `Remove(Note)` declared "an active participant" while CM-30-001
+      entitles only the note's author or the Case Owner, and the embargo Invite declared one
+      kind while its check is two-sided; the full rules lived inside the trees. A
+      declaration that is only a floor is a second sender predicate in disguise, and
+      anything derived from it, such as the occasion table's "Sent by" (MSM-08-005),
+      understates who may send. See ADR-0129.
+    verification: >-
+      A unit test composes a guard from an any-of declaration and from a two-sided
+      declaration and asserts each side admits exactly its kinds. The HP-01-007 ratchet also
+      fails on a sender-entitlement condition node composed inside a tree rather than by the
+      factory from the declaration.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-007
+    adr:
+    - ADR-0115
+    - ADR-0129
+  - id: HP-01-009
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The entitlement kinds MUST be the closed vocabulary of sender standings, covering both
+      roles a participant holds and positions held within one exchange (such as the invitee,
+      the addressee of a request and the author of an object). A position MUST NOT be added
+      to `CVDRole`, and a position a new rule needs MUST be added as an entitlement kind.
+      The addressee of a request MUST be one kind whatever the request.
+    rationale: >-
+      A `CVDRole` value is a durable fact stored on a participant record, while a position
+      is held relative to one exchange; the same coordinator receives one report and sends
+      the next, and a report precedes any case. Keeping positions as kinds means a position
+      named in the docs is always one a receiver enforces. One addressee kind keeps one
+      guard per check mechanism; the request it names is supplied when it is worded
+      (MSM-08-010). See ADR-0129.
+    verification: >-
+      Review of the entitlement kind enumeration against the sender clauses of the received
+      use cases, confirming every position a clause names is a kind and none is a `CVDRole`
+      member.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-007
+    adr:
+    - ADR-0129
 - id: HP-02
   title: Semantic Verification
   specs:

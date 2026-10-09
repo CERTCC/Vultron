@@ -1152,28 +1152,33 @@ groups:
   - id: MSM-08-005
     priority: MUST
     kind: process
-    statement: The lookup table's "Sent by" value MUST state the sender entitlement that
-      the occasion's received use case declares (HP-01-007), and MUST state an exempt
-      use case as not yet checked. An occasion MAY add the CVD roles that usually send
-      it, which MUST be values of `CVDRole`.
+    statement: The lookup table's "Sent by" value MUST be derived from the side of the
+      sender entitlement that the occasion's received use case declares (HP-01-007,
+      HP-01-008) matching the occasion's addressee (MSM-08-009), worded from that side's
+      entitlement kinds (MSM-08-010), and MUST state an exempt use case as not yet
+      checked. An occasion MAY add the CVD roles that usually send it, which MUST be
+      values of `CVDRole`.
     rationale: 'The entitlement is the rule a receiver applies, so it is what another
       implementation must satisfy, and deriving it means it cannot drift from the code.
       It is often broader than the CVD convention: any active participant may announce
       that a fix is ready, though in practice a vendor does. The usual-role note gives
-      the convention without replacing the rule. Positions within one exchange, such as
-      the receiver of a report, are not CVD roles and stay in the description.'
+      the convention without replacing the rule. Positions such as the invitee are
+      entitlement kinds (HP-01-009), so they appear in the derived value.'
     verification: >-
-      A test asserts that each rendered "Sent by" value equals the wording for the
-      use case's declared entitlement kind, or the not-yet-checked wording for an
-      exemption, and that every usual-role value is a `CVDRole` member.
+      A test asserts that each rendered "Sent by" value equals the wording of the kinds on
+      the declared rule's side for the occasion's addressee, or the not-yet-checked wording
+      for an exemption, and that every usual-role value is a `CVDRole` member.
     lint_suppress:
     - phantom_path_ref
     relationships:
     - rel_type: depends_on
       spec_id: HP-01-007
+    - rel_type: depends_on
+      spec_id: HP-01-008
     adr:
     - ADR-0115
     - ADR-0128
+    - ADR-0129
   - id: MSM-08-006
     priority: MUST
     kind: process
@@ -1248,3 +1253,51 @@ groups:
       spec_id: DF-09-010
     adr:
     - ADR-0128
+  - id: MSM-08-009
+    priority: MUST
+    kind: process
+    statement: Each occasion MUST declare its addressee as one of the sides a sender
+      entitlement can have (the CASE_MANAGER, a participant, or an actor outside any case
+      for an activity sent before a case exists), and the lookup table MUST
+      render it as the row's "Send to" value. An occasion whose addressee is not a side of
+      its use case's declared rule MUST fail.
+    rationale: 'An emitter looks up its own situation. One wire activity can carry two
+      occasions with different senders: a participant proposing an embargo sends
+      `Invite(Event)` to the CASE_MANAGER, and the CASE_MANAGER asking a participant about
+      a proposal sends `Invite(Event)` to that participant. Both match one registry entry
+      and one use case, so only the addressee tells the two rows which side of the rule
+      gives their sender. See ADR-0129.'
+    verification: >-
+      A test over every non-exempt occasion asserts that its addressee is a side of its use
+      case's declared rule and that the rendered "Send to" value names it, and a unit test
+      asserts that an occasion naming a side its rule lacks fails.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-008
+    adr:
+    - ADR-0129
+  - id: MSM-08-010
+    priority: MUST
+    kind: process
+    statement: Each entitlement kind MUST declare the wording a "Sent by" value uses for it
+      and the glossary term that defines it, and that term MUST exist in the glossary. The
+      addressee kind's wording MUST name the request from the object type of the activity
+      being answered.
+    rationale: A wording table kept apart from the kinds is a second copy that drifts when
+      a kind is added. Declaring the wording on the kind makes a new kind incomplete until
+      it can be rendered and defined. The addressee kind serves every request type, so its
+      wording takes the request from the pattern to stay identified ("the addressee of the
+      case proposal") without a kind per request. See ADR-0129.
+    verification: >-
+      A test asserts that every entitlement kind has non-empty wording and a glossary term
+      present in `docs/reference/glossary.md`, and that the addressee wording for the case
+      proposal answers names the case proposal.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-009
+    adr:
+    - ADR-0129
