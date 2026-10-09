@@ -9,6 +9,7 @@ related_specs:
 related_notes:
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-registry.md
+  - notes/demo-ci-invariants.md
   - notes/case-joining.md
 ---
 
@@ -245,6 +246,10 @@ rule (DEMOCI-11-008), which is why the exemption is keyed on this heading.
 - PR #3464 (ISSUE-3450) made the matrix a generated projection of the scenario
   registry, so the entries are no longer hand-maintained here or in the
   workflow (ADR-0098).
+- PR #4397 (ISSUE-2073, ISSUE-2074) ran the DEMOCI-07-003 follow-up analysis
+  after both embargo scenarios were passing in CI. The PR set needed no new
+  member; DEMOCI-06-002 was amended to list `activate_embargo_on_case` among
+  the event types it covers and to explain the two embargo members.
 
 ## RM State-Transition Path Coverage
 
