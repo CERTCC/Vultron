@@ -1078,7 +1078,7 @@ groups:
     statement: Every `SEMANTIC_REGISTRY` entry outside the dispatcher-fallback exemptions
       (MSM-06-002) MUST declare at least one occasion, and each occasion MUST state when
       it applies, a stable anchor ID, a description and the example that renders it.
-      Construction of an entry with no occasion MUST fail.
+      Construction of a non-exempt entry with no occasion MUST fail.
     rationale: The lookup table is complete only if every wire activity has a row. A
       construction-time failure makes a new registry entry without an occasion
       impossible, not merely detectable, so completeness does not depend on a ratchet
@@ -1115,13 +1115,15 @@ groups:
     priority: MUST
     kind: process
     statement: Each occasion's example MUST dispatch to the occasion's own
-      `SEMANTIC_REGISTRY` entry, and an occasion with a distinguisher MUST have an
-      example that carries the distinguishing value.
+      `SEMANTIC_REGISTRY` entry, and an occasion whose distinguisher is a field value
+      MUST have an example that carries that field value.
     rationale: Dispatch alone does not tell occasions of one entry apart. When this
-      group was planned, the vendor awareness and fix readiness sections rendered the
-      same example, which dispatches correctly and shows neither situation's
-      `vf_state`. Each occasion needs an example that shows what makes it that
-      occasion.
+      group was planned, the vendor awareness, fix readiness and fix deployed sections
+      rendered the same example, which dispatches correctly and carries the vendor
+      awareness `vf_state`, so the other two showed a value that is not theirs. Each
+      occasion needs an example that shows what makes it that occasion. A state
+      context is the receiver's state, not part of the payload, so no example can
+      carry it.
     verification: >-
       A parametrized test over every occasion asserts that its example matches exactly
       the occasion's own entry pattern and, for an occasion with a field-value
@@ -1183,9 +1185,12 @@ groups:
       `Announce(Event)`, where MSM-02-001 maps it to `Invite(Event)` alone. An evolved
       mechanism has no shorthand to count, so it alone is declared.'
     verification: >-
-      A unit test builds entries with one shorthand on one occasion, several occasions
-      on one entry, and one shorthand on several entries, and asserts the derived
-      status is direct, collapse and expansion respectively.
+      A unit test builds an entry whose occasions carry one shorthand, an entry whose
+      occasions carry several distinct shorthands, one shorthand spread across several
+      entries, an entry with no shorthand, and an occasion that declares an evolved
+      mechanism, and asserts the derived status is direct, collapse, expansion, none
+      and evolved respectively. Several occasions sharing one shorthand on one entry
+      derive direct, not collapse.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -1213,7 +1218,7 @@ groups:
     lint_suppress:
     - phantom_path_ref
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: DF-09-001
     - rel_type: depends_on
       spec_id: DF-09-008
@@ -1223,15 +1228,19 @@ groups:
     priority: MUST
     kind: process
     statement: A lookup-table row's details link MUST name the formal protocol message
-      and its shorthand when the occasion has one, and otherwise the plain-English
-      heading of the occasion's section.
+      and its shorthand when the occasion has a shorthand that expands to no other
+      entry, and otherwise the plain-English heading of the occasion's section.
     rationale: DF-09-010 requires reader-facing docs to name a protocol activity by its
       formal name and code paired with its wire form. The row supplies the wire form in
       "Send", so the link text supplies the name, for example "Fix Readiness (CF)".
+      Where one shorthand expands across several entries, as `GI` does, DF-09-010 lets
+      the plain-English heading stand in, since the formal name would label every row
+      of the expansion alike.
     verification: >-
       A test over the generated table asserts that each details link text equals the
-      formal message name and shorthand for occasions with a shorthand, and the section
-      heading otherwise.
+      formal message name and shorthand for an occasion whose shorthand expands to no
+      other entry, and the section heading for an expansion or an occasion with no
+      shorthand.
     lint_suppress:
     - phantom_path_ref
     relationships:

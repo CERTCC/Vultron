@@ -375,9 +375,10 @@ participant (usually: vendor)" (MSM-08-005). The wording per kind:
 
 Two cautions. About half the received use cases are exempt today, so the
 column fills in only as the exemptions close; do not paper over that with
-hand-written values. And a kind names the entitlement at the CASE_MANAGER: a
-replica other than the CASE_MANAGER accepts an embargo message only from the
-CASE_MANAGER (PCR-03-001), whatever the kind says.
+hand-written values. And a kind names the entitlement at the CASE_MANAGER, where
+the assertion is adjudicated. For the embargo messages only, a replica other than
+the CASE_MANAGER accepts the message only from the CASE_MANAGER (PCR-03-001),
+whatever the kind says (`sender_entitlement.py` module docstring).
 
 **Exchange positions are not roles.** "The receiver of a report" or "the
 invitee" holds that position only relative to one exchange; the same
@@ -398,13 +399,17 @@ in Python but render on reference pages *and* in how-to guides, so a fragment
 must satisfy both hosts (DF-09-008): style guide sentence rules, glossary terms,
 and no "you" (MSM-08-007). The details link names the formal message and code,
 "Fix Readiness (CF)", because the row's "Send" cell already gives the wire form
-and DF-09-010 wants the pair (MSM-08-008).
+and DF-09-010 wants the pair (MSM-08-008). An expansion is the exception: the
+`GI` rows link by section heading, because "General Inquiry (GI)" would label
+every row of the expansion alike, and DF-09-010 lets the heading stand in.
 
-**Each occasion's example shows its own distinguisher.** Today the CV and CF
+**Each occasion's example shows its own distinguisher.** Today the CV, CF and CD
 sections of `cs.md` render the same `add_status_to_participant()` example, which
-dispatches correctly and shows neither occasion's `vf_state`. A dispatch check
-alone passes that, so MSM-08-003 also requires the example to carry the
-distinguishing value.
+dispatches correctly and carries `vf_state` `Vf`, the vendor awareness value, so
+the CF and CD sections show a value that is not theirs. A dispatch check alone
+passes that, so MSM-08-003 also requires the example to carry a field-value
+distinguisher. A state context is the receiver's state, not payload, so no
+example carries it.
 
 **A distinguisher is typed.** Either a field value checked against the field's
 enum (`vf_state` = `VF`), or a state context naming a state machine and its
