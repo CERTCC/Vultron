@@ -2,12 +2,12 @@
 status: proposed
 date: 2026-10-06
 created: 2026-10-06
-updated: 2026-10-07
-revision: 2
+updated: 2026-10-09
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
   Claude Sonnet 5.5; Claude Opus 5.5; Issue #4178, Concern #4284, Concern #3884,
-  Issue #4153, PR #4002, PR #4267; ADR-0048, ADR-0056, ADR-0091, ADR-0093,
+  Issue #4153, Concern #4322, PR #4002, PR #4267, PR #4372; ADR-0048, ADR-0056, ADR-0091, ADR-0093,
   ADR-0113, ADR-0118, ADR-0124; specs/case-management.yaml CM-10, CM-18;
   specs/message-semantics-mapping.yaml MSM-07; specs/embargo-policy.yaml EP-05,
   EP-08, EP-09; specs/em-behavior.yaml EMB-11, EMB-16, EMB-17
@@ -181,7 +181,8 @@ Each change above is caused by one committed protocol message, and replay derive
 | case initialization seeding (CM-14-003, CM-14-005) | — | the case owner and the reporter `AGREE` on the `ACTIVE` entry |
 | `Accept` of the full-case Invite (ADR-0121) | — | the joiner `AGREE` on the `ACTIVE` entry |
 | `Accept(Invite(EmbargoEvent))`, from any participant, the owner included | — | the sender `AGREE` |
-| `Reject(Invite(EmbargoEvent))` | — | the sender `DECLINE`; on the `ACTIVE` entry this is withdrawal, which also declines each open proposal the sender had agreed to |
+| `Reject(Invite(EmbargoEvent))` | — | the sender `DECLINE`; refused from an `AGREED` row on the `ACTIVE` entry, because leaving an embargo one is bound by is withdrawal, not an answer |
+| `Leave(EmbargoEvent)` naming the `ACTIVE` entry, from any participant but the case owner | — | withdrawal: the sender `DECLINE` on its `AGREED` row for the `ACTIVE` entry, and on each open proposal's row it had agreed to; refused from any other row |
 | `Accept(EmbargoEvent, target=Case)`, the case owner only | `ACTIVATE`, and `SUPERSEDE` of any `ACTIVE` entry | the owner `AGREE` unless its row is already `AGREED`; `CARRY_OVER` when the revision ends no later than the one it replaces |
 | `Reject(EmbargoEvent, target=Case)`, the case owner only | `REJECT` | — |
 | `Remove(EmbargoEvent, target=Case)`, from the case owner, or from the CASE_MANAGER when delegated (ADR-0118, EMB-03-003) | `TERMINATE`, and `CANCEL` of each `PROPOSED` entry | — |
@@ -192,6 +193,10 @@ An owner whose row for the proposal is `DECLINED` cannot activate it: `AGREE` re
 The RSVP deadline belongs to one invitation (CM-28-001, CM-28-012), so its deadline is stored on that invitation's `INVITED` row, and a deadline passing times out only that row, never the participant's other `INVITED` rows.
 
 The two-audience rule (MSM-07-003, MSM-07-004) is retired: the owner's decision for the case has its own activities, and `Accept`/`Reject(Invite(EmbargoEvent))` is always the sender's own consent.
+Withdrawal has its own activity too, so `Accept` and `Reject` only ever answer an Invite or an offer.
+`Leave(EmbargoEvent)` is to the embargo what `Leave(VulnerabilityCase)` is to the case.
+It needs no Invite, so it serves every signatory, including the reporter (CM-14-005) and a joiner (CM-11-001), who became signatories without answering one.
+The case owner does not leave an embargo; it ends one with `Remove(EmbargoEvent, target=Case)`.
 The direct activation by `Add(EmbargoEvent, target=Case)` is retired, because adding an embargo to the case is what proposing does.
 
 A termination `Remove` carries its reason in `content` as exactly `END_TIME_REACHED` or `EARLY`, checked at the parse edge; anything else is refused.
@@ -211,6 +216,7 @@ The termination runs the full cascade: `TERMINATED` with its reason, every open 
 - Good, because the case keeps its whole embargo history, including rejected and cancelled proposals and the consent given to them.
 - Good, because the owner's decisions for the case and each participant's own consent are different messages, so no handler branches on the sender to know what a message means.
 - Good, because rejecting one of two open proposals no longer resets EM.
+- Good, because a `Reject` never has to be read against the case's state to tell a refusal from a withdrawal: withdrawal is `Leave(EmbargoEvent)`.
 - Good, because an embargo that reaches its end time is recorded as ended, so the content gate stops withholding content under an embargo that has expired.
 - Bad, because rows grow to participants × register entries per case and are never pruned; at the expected scale (up to hundreds of participants, a handful of embargoes per case) this is small.
 - Bad, because the wire format changes: the consent row states, the owner's activation and rejection activities, and the termination `content` value.
@@ -223,7 +229,7 @@ The termination runs the full cascade: `TERMINATED` with its reason, every open 
 - ADR-0056 (`embargo_adherence` computed from PEC) is superseded: there is no scalar to derive it from.
 - ADR-0048 (absence of embargo is not pre-consent) stands, now as `UNINVITED`.
 - ADR-0091 (`NO_EMBARGO` → `UNBOUND`) is overtaken: `UNBOUND` is no longer a state.
-- ADR-0093 (`DECLINE` legal from `SIGNATORY`) stands as `DECLINE` from an `AGREED` row; its "lapse at activation, never at proposal" rule stands as the lapsed read.
+- ADR-0093 (`DECLINE` legal from `SIGNATORY`) stands as `DECLINE` from an `AGREED` row, caused by `Leave(EmbargoEvent)` rather than a `Reject` of the active embargo; its "lapse at activation, never at proposal" rule stands as the lapsed read.
 - ADR-0118 is superseded in its `UNBOUND_EXITED` half (termination is the register's fact); its `EXPIRED` half stands as `TIMED_OUT`, as do its decisions 3 and 4.
 - ADR-0113 (relay through the CASE_MANAGER) is unchanged; its consent references now mean rows.
 - ADR-0124 states the rule this ADR's changes rely on: every change is caused by a committed message, and the case is the replay of its ledger.
@@ -259,6 +265,23 @@ The termination runs the full cascade: `TERMINATED` with its reason, every open 
 - Good, because each answer, including refusals, time-outs and never-asked, is stated once and written.
 - Good, because EM, "signatory" and "lapsed" are reads over the register and the rows.
 - Bad, because every reader of the former scalar, of EM and of `EMAdapter` must be revisited.
+
+### Withdrawal from the embargo in force
+
+Four wire forms were weighed for a signatory leaving the embargo it is bound by.
+
+- `Reject(Invite(EmbargoEvent))` of the `ACTIVE` entry.
+  Good, because it needs no new activity.
+  Bad, because the same `Reject` would mean refusal or withdrawal depending on the case's state, and because the reporter and a joiner hold no `Invite(EmbargoEvent)` to reject.
+- `Undo(Accept(Invite(EmbargoEvent)))`.
+  Good, because it explicitly retracts one earlier `Accept`.
+  Bad, because undoing an `Accept` reads as "not answered" (`INVITED`), while withdrawal must leave the participant not bound (`DECLINED`); because a signatory made by seeding or by joining has no embargo `Accept` to undo; and because it would be the protocol's first retraction message (ADR-0114).
+- `Reject(EmbargoEvent)`.
+  Good, because every participant holds the embargo itself.
+  Bad, because the owner's rejection of a proposal already uses `Reject(EmbargoEvent, target=Case)`, so it would carry two meanings.
+- `Leave(EmbargoEvent)` (chosen).
+  Good, because it has one meaning, needs no Invite, and parallels `Leave(VulnerabilityCase)`.
+  Bad, because it is a new message type to specify, extract and test.
 
 ## More Information
 
