@@ -4,7 +4,6 @@ date: 2026-02-19
 created: 2026-02-19
 updated: 2026-02-19
 revision: 1
-partially_supersedes: 0003-build-custom-python-bt-engine.md
 deciders:
   - vultron maintainers
 consulted:

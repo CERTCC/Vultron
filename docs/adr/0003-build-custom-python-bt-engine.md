@@ -88,12 +88,12 @@ Neutral-to-bad, because:
 ## Amendment — 2026-10-09
 
 The decision stands for the legacy simulator only.
-The custom engine in `vultron/bt/` still runs the protocol simulation, the vultrabot demos, and the tests under `test/bt/`.
+The custom engine in `vultron/bt/` still runs the legacy protocol simulator, the vultrabot demos, and the tests under `test/bt/`.
 
-All other behavior-tree execution uses `py_trees` (ADR-0008), and its nodes declare their blackboard contracts as typed ports (ADR-0044).
-New behavior-tree code goes under `vultron/core/behaviors/` on `py_trees`, not on this engine, and does not extend `vultron/bt/` (ADR-0008).
+ADR-0008 chose `py_trees` for handler behavior-tree execution, and kept this engine for the simulator.
+ADR-0044 later adopted typed blackboard ports for the `py_trees` nodes under `vultron/core/behaviors/`.
+The rules that new code must follow are specified elsewhere, not in this record: BT-02-001 requires handler trees to use a standard library, BT-02-002 freezes `vultron/bt/`, and BT-16-001 places the `py_trees` fuzzer nodes under `vultron/demo/fuzzer/`.
 
-The revisit condition above was met for handler execution, which is why ADR-0008 chose `py_trees` there.
 The ROS concern in the original reasoning did not hold: `py_trees` runs without ROS.
 
 - Source: #4391

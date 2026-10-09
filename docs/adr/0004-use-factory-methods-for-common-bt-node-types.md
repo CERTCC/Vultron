@@ -64,7 +64,7 @@ Bad because:
 ## Amendment — 2026-10-09
 
 This decision covers the node factories of the legacy custom engine in `vultron.bt.base` (ADR-0003).
-It does not govern `py_trees` nodes under `vultron/core/behaviors/` (ADR-0008); BTND-06 sets their construction patterns.
+It does not govern `py_trees` nodes (ADR-0008); the BTND requirements set how those are built.
 
 - Source: #4391
 

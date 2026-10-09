@@ -54,11 +54,12 @@ the same problem, since they are the same vintage and concern the same subsystem
 - ADR-0043 — ADR status as confidence signal (why `accepted` is load-bearing here)
 - ADR-0120 — ADR lifecycle epochs and edit tiers
 
-Where: docs/adr/0003-build-our-own-behavior-tree-engine-in-python.md
+Where: docs/adr/0003-build-custom-python-bt-engine.md
 
 **Resolved**: 2026-10-09 — resolved fully in the docs PR; no implementation issues.
 The premise was half right: `vultron/bt/` (legacy simulator, vultrabot demos, `test/bt/`) still runs on the custom engine, and ADR-0008 already scoped `py_trees` to handler execution.
-ADR-0003 was marked `partially_superseded_by` ADR-0008 with a dated amendment narrowing it to the simulator; ADR-0008 got the reciprocal `partially_supersedes`; ADR-0004 got an amendment scoping it to `vultron.bt.base`.
+ADR-0003 was marked `partially_superseded_by` ADR-0008 with a dated amendment narrowing it to the simulator and pointing to BT-02-001, BT-02-002 and BT-16-001 for the rules on new code; ADR-0004 got an amendment scoping it to `vultron.bt.base`.
+ADR-0008 got no reverse `partially_supersedes` pointer: `AdrFrontmatter` does not declare that field yet, so the loader would drop it silently, and no one-sided pair fails today. Adding the reverse pointers is part of the MS-14-011 work (#3848).
 ADR-0002 and ADR-0007 were checked and still hold.
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/4421>.
