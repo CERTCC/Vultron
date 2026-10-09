@@ -439,6 +439,11 @@ groups:
       See also `notes/activitystreams-state-update.md` § "Target-Field Discriminators".
       `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole, context=VulnerabilityCase)`)
       is the canonical example of applying this principle, introduced by ADR-0039.
+      A CASE_MANAGER that receives one records it as a canonical ledger assertion
+      (`("Offer", "CaseParticipantRole")` in `_CANONICAL_PAYLOAD_SIGNATURES`,
+      CLP-07-001/CLP-07-005), with no replica state effect — a role offer is a
+      proposal, not the grant, like `Offer(CaseParticipant)` (#3764); whether its
+      acceptance mutates participant roles is tracked by #4404.
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
