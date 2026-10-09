@@ -46,7 +46,14 @@ is never mistaken for a clean one. The command does not fetch: run
 
 **The branch diff is the key** (PAD-18-003): the merge base with ``--base``
 against the working tree, so a fix commit landing on top of an earlier
-``conftest.py`` change still escalates, and uncommitted work counts.
+``conftest.py`` change still escalates, and uncommitted and untracked work
+counts. Overlap mode reads the same branch side on purpose: the gate runs
+before a push, so work not yet committed is about to be part of the PR.
+
+Escalation matches PAD-18-003's paths literally, by prefix: a docs-only edit
+under ``vultron/adapters/`` still escalates. "Full" means the pytest suite with
+every marker enabled; the docker-driven scripts under ``integration_tests/``
+are not pytest tests and stay CI's to run.
 
 **Hub and monolith demotion do not apply.** ``spec-backstop`` demotes a symbol
 imported by more than ``HUB_THRESHOLD`` test files, and a test file marking
@@ -84,6 +91,7 @@ from vultron.metadata.specs.backstop import (
     TestFile,
     base_changed_paths,
     build_test_index,
+    changed_nodes,
     changed_paths,
     changed_symbols,
     collect_git_changes,
@@ -196,25 +204,61 @@ def _imports_module_object(test: TestFile, module: str) -> bool:
     """
     for owner in owner_modules(module):
         parent, _, leaf = owner.rpartition(".")
-        if (parent, leaf) in test.names:
-            return True
-        from_imports = any(m == owner for m, _ in test.names)
-        if owner in test.modules and not from_imports:
+        if (parent, leaf) in test.names or owner in test.plain_imports:
             return True
     return False
+
+
+def _imports_anything_from(test: TestFile, module: str) -> bool:
+    """Whether *test* imports any name from *module* or a re-exporting package."""
+    owners = owner_modules(module)
+    return _imports_module_object(test, module) or any(
+        m in owners for m, _ in test.names
+    )
+
+
+def _module_level_change(
+    tree: ast.Module, lines: Iterable[int] | None
+) -> bool:
+    """Whether *lines* touch a top-level statement that defines no symbol.
+
+    An import, a re-export, a registration call or an ``if TYPE_CHECKING:``
+    block can break or change every importer of the module, not just the
+    importers of one name. The module docstring is not such a statement.
+    """
+    if lines is None:
+        return True
+    symbols = {id(n) for n in changed_nodes(tree, None)}
+    spans = [
+        range(node.lineno, (node.end_lineno or node.lineno) + 1)
+        for i, node in enumerate(tree.body)
+        if id(node) not in symbols and not (i == 0 and _is_docstring(node))
+    ]
+    return any(n in span for n in lines for span in spans)
+
+
+def _is_docstring(node: ast.stmt) -> bool:
+    return (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    )
 
 
 def importers(change: FileChange, tests: dict[str, TestFile]) -> list[str]:
     """Test files that import a symbol *change* touched (PAD-18-002).
 
     A test that imports the module object is selected for any change to it.
-    A module that no longer parses selects every test importing anything
-    from it, since every one of them now fails to import.
+    A change outside every top-level symbol (an import line, a re-export),
+    a whole-file change (new or deleted module), or a module that no longer
+    parses selects every test importing anything from it.
     """
     module = module_name(change.path)
     tree = _parse(change.source)
-    if tree is None:
-        return sorted(p for p, t in tests.items() if module in t.modules)
+    if tree is None or _module_level_change(tree, change.lines):
+        return sorted(
+            p for p, t in tests.items() if _imports_anything_from(t, module)
+        )
     symbols = changed_symbols(tree, change.lines)
     return sorted(
         path
@@ -277,7 +321,9 @@ def select_tests(
         p
         for p in paths
         if p not in mapped
-        and not (p.startswith(TEST_PREFIX) and p.endswith(".md"))
+        and not (
+            p.startswith(TEST_PREFIX) and p.endswith(_INERT_TEST_SUFFIXES)
+        )
         and not p.startswith(ARCHITECTURE_TESTS)
     ]
     return selection
@@ -360,9 +406,12 @@ def _render_selection(selection: Selection, args: argparse.Namespace) -> str:
 
 def _run_selection(args: argparse.Namespace, root: Path) -> int:
     git = run_git(root)
+    # One merge base for both reads, so a fetch between them cannot split
+    # the diff across two starting points.
+    start = merge_base(git, args.base)
     selection = select_tests(
-        changed_paths(git, args.base),
-        collect_git_changes(git, root, args.base),
+        changed_paths(git, start),
+        collect_git_changes(git, root, start),
         build_test_index(root),
         lambda p: (root / p).is_file(),
     )
@@ -387,7 +436,7 @@ def _run_overlap(args: argparse.Namespace, root: Path) -> int:
     git = run_git(root)
     start = merge_base(git, args.base)
     both = overlap(
-        changed_paths(git, args.base), base_changed_paths(git, args.base)
+        changed_paths(git, start), base_changed_paths(git, start, args.base)
     )
     if args.json:
         payload = {"base": args.base, "merge_base": start, "overlap": both}

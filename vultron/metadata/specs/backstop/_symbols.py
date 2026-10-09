@@ -139,11 +139,13 @@ def _is_vultron(module: str | None) -> bool:
 
 def _vultron_imports(
     tree: ast.Module,
-) -> tuple[set[str], set[tuple[str, str]]]:
+) -> tuple[set[str], set[tuple[str, str]], set[str]]:
     modules: set[str] = set()
     names: set[tuple[str, str]] = set()
+    plain: set[str] = set()
     for node in _statements(tree.body):
         if isinstance(node, ast.Import):
+            plain.update(a.name for a in node.names if _is_vultron(a.name))
             modules.update(a.name for a in node.names if _is_vultron(a.name))
         elif (
             isinstance(node, ast.ImportFrom)
@@ -155,7 +157,7 @@ def _vultron_imports(
             for alias in node.names:
                 names.add((node.module, alias.name))
                 modules.add(f"{node.module}.{alias.name}")
-    return modules, names
+    return modules, names, plain
 
 
 def index_test_file(path: str, source: str) -> TestFile | None:
@@ -164,12 +166,13 @@ def index_test_file(path: str, source: str) -> TestFile | None:
         tree = ast.parse(source)
     except SyntaxError:
         return None
-    modules, names = _vultron_imports(tree)
+    modules, names, plain = _vultron_imports(tree)
     return TestFile(
         path,
         frozenset(modules),
         frozenset(names),
         frozenset(spec_ids_in(tree.body)),
+        frozenset(plain),
     )
 
 

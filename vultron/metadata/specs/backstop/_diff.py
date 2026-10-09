@@ -102,21 +102,19 @@ def _untracked(git: GitRunner, *pathspec: str) -> list[str]:
     return listing.splitlines()
 
 
-def changed_paths(git: GitRunner, base: str) -> list[str]:
-    """Every path the branch changes, of any file type.
+def changed_paths(git: GitRunner, start: str) -> list[str]:
+    """Every path the branch changes since *start*, of any file type.
 
-    The branch diff is the merge base with *base* against the working tree,
-    so committed, uncommitted, and untracked changes all count, and a deleted
-    or renamed-away path is listed under its old name (``--no-renames``).
+    *start* is the :func:`merge_base`. The branch diff runs from it to the
+    working tree, so committed, uncommitted, and untracked changes all count,
+    and a renamed path is listed under both names (``--no-renames``).
     """
-    start = merge_base(git, base)
     diff = git(["diff", "--name-only", "--no-renames", start, "--"])
     return sorted(set(diff.splitlines()) | set(_untracked(git)))
 
 
-def base_changed_paths(git: GitRunner, base: str) -> list[str]:
-    """Paths *base* changed since its merge base with ``HEAD``."""
-    start = merge_base(git, base)
+def base_changed_paths(git: GitRunner, start: str, base: str) -> list[str]:
+    """Paths *base* changed since *start*, its merge base with ``HEAD``."""
     diff = git(["diff", "--name-only", "--no-renames", start, base, "--"])
     return sorted(set(diff.splitlines()))
 

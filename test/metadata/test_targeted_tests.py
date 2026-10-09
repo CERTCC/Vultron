@@ -6,13 +6,12 @@ PAD-18-004.
 
 import json
 import shlex
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+from test.support.git_repo import git, init_git_repo
 from vultron.metadata.planning import targeted_tests
 from vultron.metadata.planning.targeted_tests import (
     ARCHITECTURE_TESTS,
@@ -56,6 +55,9 @@ TESTS = _index(
         "test/x/test_reexport.py": "from vultron.a import changed_fn\n",
         "test/x/test_module_object.py": "from vultron.a import mod\n",
         "test/x/test_plain_import.py": "import vultron.a.mod\n",
+        "test/x/test_plain_and_from.py": (
+            "import vultron.a.mod\nfrom vultron.a.mod import other_fn\n"
+        ),
         "test/x/test_unrelated.py": "from vultron.b import thing\n",
         "test/a/test_mod.py": "from vultron.a.mod import changed_fn\n",
         "test/architecture/test_layers.py": "import ast\n",
@@ -89,6 +91,7 @@ def test_selects_importers_mirror_and_architecture():
         ARCHITECTURE_TESTS,
         "test/a/test_mod.py",
         "test/x/test_module_object.py",
+        "test/x/test_plain_and_from.py",
         "test/x/test_plain_import.py",
         "test/x/test_reexport.py",
         "test/x/test_uses_changed.py",
@@ -175,6 +178,65 @@ def test_unparseable_module_selects_every_importer():
 
 
 @pytest.mark.spec("PAD-18-002")
+def test_unparseable_module_reaches_reexport_importers():
+    broken = _change(source="def broken(:\n", lines=frozenset({1}))
+    assert "test/x/test_reexport.py" in _select([broken.path], [broken]).tests
+
+
+MODULE_WITH_IMPORTS = '''\
+"""Module docstring."""
+
+import os
+
+
+def changed_fn():
+    return os.sep
+
+
+def other_fn():
+    return 2
+'''
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_import_line_change_selects_every_importer():
+    """A broken import fails every importer, not just one name's."""
+    change = _change(source=MODULE_WITH_IMPORTS, lines=frozenset({3}))
+    selection = _select([change.path], [change])
+    assert "test/x/test_uses_other.py" in selection.tests
+    assert "test/x/test_uses_changed.py" in selection.tests
+    assert "test/x/test_unrelated.py" not in selection.tests
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_docstring_change_is_not_a_module_level_change():
+    change = _change(source=MODULE_WITH_IMPORTS, lines=frozenset({1}))
+    assert (
+        "test/x/test_uses_other.py"
+        not in _select([change.path], [change]).tests
+    )
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_reexport_change_in_package_init_selects_its_importers():
+    tests = _index({"test/x/test_bar.py": "from vultron.a import bar\n"})
+    change = _change(
+        path="vultron/a/__init__.py",
+        source="from vultron.a.mod import changed_fn as bar\n",
+        lines=frozenset({1}),
+    )
+    selection = _select([change.path], [change], tests)
+    assert "test/x/test_bar.py" in selection.tests
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_plain_import_beside_a_from_import_still_selects():
+    """``import vultron.a.mod`` reaches every symbol by attribute access."""
+    selection = _select(["vultron/a/mod.py"], [_change()])
+    assert "test/x/test_plain_and_from.py" in selection.tests
+
+
+@pytest.mark.spec("PAD-18-002")
 def test_hub_threshold_does_not_demote_importers():
     """Selection needs every importer; spec-backstop's hub cut is precision."""
     count = HUB_THRESHOLD + 5
@@ -240,9 +302,10 @@ def test_shared_infrastructure_and_integration_paths_escalate(path):
 
 
 @pytest.mark.spec("PAD-18-003")
-def test_every_integration_prefix_escalates():
+def test_full_paths_cover_every_integration_prefix():
+    """Each PAD-18-003 prefix is exercised by a real path above."""
     for prefix in INTEGRATION_PREFIXES:
-        assert full_suite_trigger(f"{prefix}x.py") is not None, prefix
+        assert any(p.startswith(prefix) for p in FULL_PATHS), prefix
 
 
 @pytest.mark.spec("PAD-18-003")
@@ -285,19 +348,8 @@ def test_overlap_is_the_intersection():
 # ---------------------------------------------------------------------------
 
 
-def _git(root: Path, *args: str) -> None:
-    subprocess.run(
-        ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
-        cwd=root,
-        check=True,
-        capture_output=True,
-    )
-
-
 @pytest.fixture
 def git_repo(tmp_path, monkeypatch):
-    if shutil.which("git") is None:
-        pytest.skip("git not available")
     (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
     (tmp_path / "vultron" / "a").mkdir(parents=True)
     (tmp_path / "vultron" / "a" / "mod.py").write_text(SOURCE)
@@ -311,10 +363,8 @@ def git_repo(tmp_path, monkeypatch):
     )
     (tmp_path / "docs").mkdir()
     (tmp_path / "docs" / "index.md").write_text("# x\n")
-    _git(tmp_path, "init", "-q", "-b", "main")
-    _git(tmp_path, "add", ".")
-    _git(tmp_path, "commit", "-q", "-m", "init")
-    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    init_git_repo(tmp_path, monkeypatch)
+    git(tmp_path, "checkout", "-q", "-b", "feature")
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
@@ -347,8 +397,8 @@ def test_cli_non_python_diff_names_unmapped(git_repo, monkeypatch, capsys):
 
 @pytest.mark.spec("PAD-18-002")
 def test_cli_deleted_module(git_repo, monkeypatch, capsys):
-    _git(git_repo, "rm", "-q", "vultron/a/mod.py")
-    _git(git_repo, "commit", "-q", "-m", "delete")
+    git(git_repo, "rm", "-q", "vultron/a/mod.py")
+    git(git_repo, "commit", "-q", "-m", "delete")
     assert _main(monkeypatch, "--base", "main") == 0
     out = capsys.readouterr().out.splitlines()
     assert out == [
@@ -390,16 +440,16 @@ def test_cli_escalation_is_keyed_on_the_branch_diff(
 ):
     """A fix commit on top of a conftest.py change still escalates."""
     (git_repo / "test" / "conftest.py").write_text("import pytest\n")
-    _git(git_repo, "add", ".")
-    _git(git_repo, "commit", "-q", "-m", "conftest")
+    git(git_repo, "add", ".")
+    git(git_repo, "commit", "-q", "-m", "conftest")
     _edit(git_repo / "vultron" / "a" / "mod.py", "return 1", "return 3")
-    _git(git_repo, "commit", "-q", "-am", "fix")
+    git(git_repo, "commit", "-q", "-am", "fix")
     assert _main(monkeypatch, "--base", "main", "--json") == 0
     data = json.loads(capsys.readouterr().out)
     assert data["mode"] == "full"
     assert data["triggers"][0]["path"] == "test/conftest.py"
     assert data["tests"] == []
-    assert "" in data["pytest"]
+    assert data["pytest"][-2:] == ["-m", ""]
 
 
 @pytest.mark.spec("PAD-18-003")
@@ -416,12 +466,12 @@ def test_cli_pytest_full_names_trigger_on_stderr(
 @pytest.mark.spec("PAD-18-004")
 def test_cli_overlap_exits_1_on_shared_file(git_repo, monkeypatch, capsys):
     _edit(git_repo / "vultron" / "a" / "mod.py", "return 1", "return 3")
-    _git(git_repo, "commit", "-q", "-am", "branch edit")
-    _git(git_repo, "checkout", "-q", "main")
+    git(git_repo, "commit", "-q", "-am", "branch edit")
+    git(git_repo, "checkout", "-q", "main")
     _edit(git_repo / "vultron" / "a" / "mod.py", "return 2", "return 4")
     (git_repo / "docs" / "index.md").write_text("# main\n")
-    _git(git_repo, "commit", "-q", "-am", "main edit")
-    _git(git_repo, "checkout", "-q", "feature")
+    git(git_repo, "commit", "-q", "-am", "main edit")
+    git(git_repo, "checkout", "-q", "feature")
     assert _main(monkeypatch, "--base", "main", "--overlap") == 1
     captured = capsys.readouterr()
     assert captured.out.splitlines() == ["vultron/a/mod.py"]
@@ -431,22 +481,24 @@ def test_cli_overlap_exits_1_on_shared_file(git_repo, monkeypatch, capsys):
 @pytest.mark.spec("PAD-18-004")
 def test_cli_overlap_exits_0_when_disjoint(git_repo, monkeypatch, capsys):
     _edit(git_repo / "vultron" / "a" / "mod.py", "return 1", "return 3")
-    _git(git_repo, "commit", "-q", "-am", "branch edit")
-    _git(git_repo, "checkout", "-q", "main")
+    git(git_repo, "commit", "-q", "-am", "branch edit")
+    git(git_repo, "checkout", "-q", "main")
     (git_repo / "docs" / "index.md").write_text("# main\n")
-    _git(git_repo, "commit", "-q", "-am", "main edit")
-    _git(git_repo, "checkout", "-q", "feature")
+    git(git_repo, "commit", "-q", "-am", "main edit")
+    git(git_repo, "checkout", "-q", "feature")
     assert _main(monkeypatch, "--base", "main", "--overlap", "--json") == 0
     data = json.loads(capsys.readouterr().out)
     assert data["overlap"] == []
     assert data["base"] == "main"
 
 
+@pytest.mark.spec("PAD-18-002")
 def test_cli_bad_base_exits_2(git_repo, monkeypatch, capsys):
     assert _main(monkeypatch, "--base", "no-such-ref") == 2
     assert "no-such-ref" in capsys.readouterr().err
 
 
+@pytest.mark.spec("PAD-18-004")
 def test_cli_pytest_with_overlap_is_a_usage_error(git_repo, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         _main(monkeypatch, "--overlap", "--pytest")

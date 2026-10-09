@@ -61,6 +61,8 @@ class TestFile:
     modules: frozenset[str]
     names: frozenset[tuple[str, str]]
     spec_ids: frozenset[str]
+    #: Modules bound by a plain ``import vultron.x.y`` statement.
+    plain_imports: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
