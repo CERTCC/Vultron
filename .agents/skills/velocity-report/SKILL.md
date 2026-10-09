@@ -109,6 +109,105 @@ cross-checked at weekly granularity, especially for:
 If the script does not yet produce weekly buckets, note this limitation
 explicitly in the narrative and flag it as a future improvement.
 
+### 8. Pipeline cost (`pipeline_cost`)
+
+The `pipeline_cost` section is the empirical check for ADR-0126.
+It is absent when the script ran with `--no-pipeline-cost`.
+It has three sub-keys:
+
+- `per_pr` — one record per merged PR with: `open_to_merge_hours`,
+  `ci_runs`, `failed_ci_runs`, `merges_from_main`, `full_suite_runs`,
+  `targeted_suite_runs` (last two `null` until #4358 populates the
+  `Suite runs:` line in pr-execute's summary review).
+- `weekly_pr_cost` — weekly median and total for each numeric field,
+  plus `total_full_suite_runs` and `total_targeted_suite_runs`.
+- `weekly_main_failures` — failed CI runs on `main` per week.
+
+**What a "CI run" is.** One CI run is one pushed head commit: the set of
+workflow runs GitHub started for it. A push that starts seven workflows is one
+CI run, not seven. A commit whose runs were all cancelled or skipped is not
+counted. A CI run failed when any of its workflows concluded `failure`,
+`timed_out`, or `startup_failure`. The same definition applies on `main`: a
+bad merge that breaks three workflows is one failed CI run on `main`.
+
+**Analysis lenses for pipeline cost:**
+
+**Open-to-merge time trend** (`open_to_merge_hours`)
+
+- Is the median falling week-over-week since ADR-0126 was put in effect?
+- A sustained drop with no corresponding rise in `failed_ci_runs_on_main`
+  is the primary positive signal the decision targeted.
+- A flat or rising median despite fewer local reruns suggests the bottleneck
+  has moved elsewhere (e.g., review latency, PR queue depth).
+- `total_open_to_merge_hours` is a sum of durations; read the median, not
+  the total.
+
+**CI runs per PR** (`ci_runs`, `failed_ci_runs`)
+
+- `ci_runs` counts pushes that reached CI, so it measures iterations:
+  the first push, pr-execute fix commits, and merges from main.
+- A high `median_ci_runs` (e.g., > 5) with a low failure share
+  suggests the suite is green but PRs required many iterations.
+- Compute the failure share as `total_failed_ci_runs / total_ci_runs`
+  per week; no field holds the ratio. A rising share signals flaky tests
+  or systemic breakage reaching CI, not just local runs.
+
+**Merges from main** (`merges_from_main`)
+
+- Counts merge commits (two or more parents) in the PR whose headline
+  names `main`.
+- Under ADR-0126 (PAD-18-004), syncs happen only on conflict or file overlap,
+  so a `median_merges_from_main` near zero is the expected outcome.
+- Any week where `median_merges_from_main` is 2 or more suggests the
+  conflict-driven sync rule is triggering often, which is worth investigating.
+- This field cannot see the old policy's sync cost. Under PAD-11-002 the
+  branch was rebased, and `create-pr` cherry-picks onto a fresh base; neither
+  leaves a merge commit, and a force-push replaces the PR's commit list.
+  Do not compare post-ADR-0126 values to a pre-ADR-0126 `merges_from_main`
+  baseline; read it as a trend from ADR-0126 onward.
+
+**Suite runs** (`total_full_suite_runs`, `total_targeted_suite_runs`)
+
+- These fields are `null` until #4358 populates the `Suite runs:` line in
+  pr-execute's summary. Do not treat `null` as zero — say the data is absent.
+- The script takes the line from the PR's latest summary, since the count is
+  cumulative (PAD-18-006).
+- Once populated: the ratio of `full_suite_runs` to `targeted_suite_runs`
+  shows whether the targeted-tests gate (PAD-18-002) is doing its job.
+  A high full/targeted ratio means most fix commits still run the full suite,
+  which defeats the cost reduction.
+
+**Failed CI runs on main** (`failed_ci_runs_on_main` in `weekly_main_failures`)
+
+This is the field that **falsifies ADR-0126**.
+A material rise in `failed_ci_runs_on_main` alongside a fall in
+`open_to_merge_hours` means the time was saved by moving failures onto `main`
+rather than catching them pre-merge — the trade was mispriced.
+"Material rise" has no fixed threshold yet; report the absolute numbers and
+flag any week with more than one failure on `main` for human review.
+Every workflow on `main` counts, including non-test ones such as the docs
+deploy; before attributing a failure to a semantic conflict, check which
+workflow failed.
+Once three months of data exist, set a rolling-average baseline.
+
+#### Integrated read: the ADR-0126 trade
+
+The decision accepted rare semantic-conflict failures on `main` in exchange for
+eliminating per-PR full reruns and merge-from-main loops.
+The data supports the decision when all of the following hold:
+
+1. `median_open_to_merge_hours` is falling.
+2. `failed_ci_runs_on_main` stays near zero week over week.
+3. `median_merges_from_main` stays low and is not rising from ADR-0126 onward.
+   The pre-ADR-0126 sync cost (captured in Concern #4015 at
+   `plan/history/2610/learning/CONCERN-4015.md`) was paid in rebases, which
+   this field cannot see; compare against that write-up, not against this
+   field's pre-ADR values.
+
+If `failed_ci_runs_on_main` rises materially while `open_to_merge_hours`
+falls, report this explicitly: "The time saving appears real, but the
+semantic-conflict risk is materializing — consider the merge queue (Idea #1863)."
+
 ## Synthesis
 
 After working through the lenses, write a narrative with:

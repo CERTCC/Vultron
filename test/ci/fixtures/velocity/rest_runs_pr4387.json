@@ -1,0 +1,173 @@
+{
+  "total_count": 14,
+  "workflow_runs": [
+    {
+      "id": 37947951979,
+      "name": "Python application",
+      "path": ".github/workflows/python-app.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "91eacc44fc9fb9aaee60afc3f42c42d3b41d78ab",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:56:32Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37947951993,
+      "name": "Demo Integration",
+      "path": ".github/workflows/demo-integration.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "91eacc44fc9fb9aaee60afc3f42c42d3b41d78ab",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:56:32Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37947952065,
+      "name": "PR size label",
+      "path": ".github/workflows/pr-size-label.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "91eacc44fc9fb9aaee60afc3f42c42d3b41d78ab",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:56:32Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37947952054,
+      "name": "Lint Markdown",
+      "path": ".github/workflows/lint_md_all.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "91eacc44fc9fb9aaee60afc3f42c42d3b41d78ab",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:56:32Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37947952039,
+      "name": "Verification Debt Owners",
+      "path": ".github/workflows/verification-debt-owners.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "91eacc44fc9fb9aaee60afc3f42c42d3b41d78ab",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:56:32Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37947951902,
+      "name": "Spec Check",
+      "path": ".github/workflows/spec-check.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "91eacc44fc9fb9aaee60afc3f42c42d3b41d78ab",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:56:32Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37947951957,
+      "name": "Docs Build and Link Check",
+      "path": ".github/workflows/docs-build-check.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "91eacc44fc9fb9aaee60afc3f42c42d3b41d78ab",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:56:32Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37943269188,
+      "name": "Verification Debt Owners",
+      "path": ".github/workflows/verification-debt-owners.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "317ce331cedca28b9709f01758b2f15a6f931191",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:19:07Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37939911758,
+      "name": "Docs Build and Link Check",
+      "path": ".github/workflows/docs-build-check.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "317ce331cedca28b9709f01758b2f15a6f931191",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T13:51:53Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37939911484,
+      "name": "Verification Debt Owners",
+      "path": ".github/workflows/verification-debt-owners.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "317ce331cedca28b9709f01758b2f15a6f931191",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T13:51:53Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37939911586,
+      "name": "PR size label",
+      "path": ".github/workflows/pr-size-label.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "317ce331cedca28b9709f01758b2f15a6f931191",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T13:51:53Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37939911619,
+      "name": "Lint Markdown",
+      "path": ".github/workflows/lint_md_all.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "317ce331cedca28b9709f01758b2f15a6f931191",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T13:51:53Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37939911526,
+      "name": "Python application",
+      "path": ".github/workflows/python-app.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "317ce331cedca28b9709f01758b2f15a6f931191",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T13:51:53Z",
+      "pull_requests": []
+    },
+    {
+      "id": 37939911672,
+      "name": "Demo Integration",
+      "path": ".github/workflows/demo-integration.yml",
+      "event": "pull_request",
+      "head_branch": "bug/3825-close-case-decline-gate",
+      "head_sha": "317ce331cedca28b9709f01758b2f15a6f931191",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T13:51:53Z",
+      "pull_requests": []
+    }
+  ]
+}
