@@ -4,7 +4,12 @@ from collections.abc import Generator
 
 import pytest
 
-from test.support.embargo_register import activate, propose, terminate
+from test.support.embargo_register import (
+    activate,
+    propose,
+    terminate,
+    write_consent_rows,
+)
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -52,7 +57,7 @@ def _build_active_embargo_case(
         context=case.id_,
         embargo_consents=[
             EmbargoConsent(
-                embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
             )
         ],
     )
@@ -79,6 +84,7 @@ def _build_active_embargo_case(
     dl.create(proposal)
     dl.create(owner_participant)
     dl.create(participant)
+    write_consent_rows(dl, case)
 
     return case, proposal, participant.id_
 
@@ -109,7 +115,7 @@ def _build_proposed_embargo_case_no_owner_attribution(
         context=case.id_,
         embargo_consents=[
             EmbargoConsent(
-                embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
             )
         ],
     )
@@ -141,6 +147,7 @@ def _build_proposed_embargo_case_no_owner_attribution(
     dl.create(proposal)
     dl.create(case_manager_participant)
     dl.create(actor_participant)
+    write_consent_rows(dl, case)
 
     return case, proposal, actor_participant.id_
 
@@ -165,6 +172,7 @@ def _build_exited_case(
     terminate(case)
     dl.create(case)
     dl.create(owner_participant)
+    write_consent_rows(dl, case)
     return case
 
 
@@ -202,7 +210,7 @@ def _build_active_embargo_case_with_case_manager(
         context=case.id_,
         embargo_consents=[
             EmbargoConsent(
-                embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
             )
         ],
     )
@@ -215,6 +223,7 @@ def _build_active_embargo_case_with_case_manager(
     dl.create(case)
     dl.create(embargo)
     dl.create(owner_participant)
+    write_consent_rows(dl, case)
     return case
 
 
@@ -304,11 +313,11 @@ def _add_participant(
     dl: SqliteDataLayer,
     case_id: str,
     actor_id: str,
-    consent: EmbargoConsentState | None = EmbargoConsentState.ACCEPTED,
+    consent: EmbargoConsentState | None = EmbargoConsentState.AGREED,
 ) -> str:
     """Add a finder participant for *actor_id* to a stored case; return its id.
 
-    Its row for the embargo in force is ``ACCEPTED`` by default, so a case-content send reaches it while the
+    Its row for the embargo in force is ``AGREED`` by default, so a case-content send reaches it while the
     embargo is in force (CM-10-004).
     """
     from typing import cast
@@ -323,6 +332,10 @@ def _add_participant(
         attributed_to=actor_id,
         context=case_id,
         embargo_consents=rows,
+    )
+    # A row for every register entry (ADR-0122); the explicit one is kept.
+    participant.write_uninvited_rows(
+        e.embargo_id for e in case.embargo_register
     )
     dl.create(participant)
     case.case_participants = [*case.case_participants, participant.id_]
@@ -348,6 +361,7 @@ def _case_with_open_proposal(
     propose(case, embargo.id_)
     case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     dl.save(case)
+    write_consent_rows(dl, case)
     return case, proposal.id_
 
 
@@ -380,6 +394,7 @@ def _open_revision(
     dl.create(revision)
     dl.create(proposal)
     dl.save(case)
+    write_consent_rows(dl, case)
     dl.save(participant)
     return proposal, revision.id_
 
@@ -411,7 +426,14 @@ def _case_owned_by_non_manager(
     )
     owner_participant.add_role(CVDRole.CASE_OWNER)
     manager_participant = VendorParticipant(
-        attributed_to=manager_id, context=case.id_
+        attributed_to=manager_id,
+        context=case.id_,
+        # The row the proposal writes for every participant (ADR-0122).
+        embargo_consents=[
+            EmbargoConsent(
+                embargo_id=embargo.id_, state=EmbargoConsentState.UNINVITED
+            )
+        ],
     )
     manager_participant.add_role(CVDRole.CASE_MANAGER)
     case.case_participants = [owner_participant.id_, manager_participant.id_]

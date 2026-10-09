@@ -118,6 +118,9 @@ class TestEngageDeferCaseBTFailureReason:
             attributed_to=actor_id,
             context=case_id,
         )
+        # The sender's participant carries a row for every register entry
+        # (ADR-0122).
+        participant.write_uninvited_rows([f"{case_id}/embargo_events/unheld"])
         case = VulnerabilityCase(
             id_=case_id,
             name="engage snapshot",
@@ -315,10 +318,13 @@ class TestEngageCaseStoresEmbeddedParticipants:
         self, dl, case_with_inline_participant
     ):
         """A case naming an embargo this store cannot read stores nothing."""
-        activate(
-            case_with_inline_participant,
-            f"{self._CASE_ID}/embargo_events/unheld",
-        )
+        unheld_id = f"{self._CASE_ID}/embargo_events/unheld"
+        # The sender's inline participants carry a row for every register
+        # entry (ADR-0122), so they hold it before the entry is added.
+        for participant in case_with_inline_participant.case_participants:
+            if isinstance(participant, CaseParticipant):
+                participant.write_uninvited_rows([unheld_id])
+        activate(case_with_inline_participant, unheld_id)
         event = EngageCaseReceivedEvent(
             activity_id="https://example.org/activities/engage-4032",
             actor_id=self._ACTOR_ID,

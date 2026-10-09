@@ -234,14 +234,14 @@ class TestResetEmbargoConsentWithInlineParticipants:
         dl.create(embargo)
 
         # Build a participant and store it — it also appears inline in case.
-        # Receiver-side, the participant holds an ACCEPTED row for the embargo.
+        # Receiver-side, the participant holds an AGREED row for the embargo.
         participant = as_CaseParticipant(
             id_=participant_id,
             context=case_id,
             attributed_to=actor_id,
             embargo_consents=[
                 EmbargoConsent(
-                    embargo_id=embargo.id_, state=EmbargoConsentState.ACCEPTED
+                    embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
                 )
             ],
         )

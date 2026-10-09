@@ -308,7 +308,7 @@ groups:
     verification: >-
       The `initialize_creation_embargo` service tests confirm that the creation-time operation
       hands the store one commit (`save_many`) holding the case at `EM.ACTIVE` with the embargo
-      attached, the participant consent records, the case owner's SIGNATORY seed and, for a
+      attached, the participant consent records, the case owner's signatory seed and, for a
       contested creation, the revision's `EmbargoEvent` with the case at `EM.REVISE`; that a
       refused P/X/A check, an unheld embargo, a missing owner record or a case that has left
       `EM.NONE` writes nothing; and that a failed commit writes nothing and a rerun completes.
@@ -705,20 +705,24 @@ groups:
       When the case owner activates a revised embargo that ends later than the embargo
       it replaces (`REVISE → ACTIVE`), the CASE_MANAGER MUST NOT carry any participant's
       consent over to it: a participant is bound by the revised embargo only through an
-      `ACCEPTED` consent row for it, so each signatory to the replaced embargo that has
-      not accepted the revised one has lapsed (CM-18-001). A revised embargo that ends
+      `AGREED` consent row for it, so each signatory to the replaced embargo that has
+      not agreed to the revised one has lapsed (CM-18-001). A revised embargo that ends
       no later than the one it replaces MUST carry every existing signatory over: the
-      CASE_MANAGER marks the revised embargo's row `ACCEPTED` for every participant whose
-      row for the replaced embargo is `ACCEPTED` (CM-10-001, MSM-07-005). No activation
-      advances anyone: a participant holding an `ACCEPTED` row for the embargo now in
-      force is its signatory by lookup.
+      CASE_MANAGER applies `CARRY_OVER` to the revised embargo's row for every
+      participant whose row for the replaced embargo is `AGREED`, including one whose
+      row for the revision is `DECLINED` (CM-10-001, CM-18-003, MSM-07-005). Apart from
+      the case owner's own agreement, no activation advances anyone: a participant
+      holding an `AGREED` row for the embargo now in force is its signatory by lookup.
     rationale: >-
       A participant who signed for terms `T1` has not consented to longer terms `T2`;
       treating them as a signatory once `T2` is in force would imply consent they never
       gave, and because consent is per embargo the lookup already says so — no write is
       needed to lapse them. Shorter terms ask nothing new: agreeing to N days is agreeing
       to every shorter period, the same containment that makes shortest-wins (EP-04-003)
-      safe without asking anyone, so their acceptance is carried over by writing the row.
+      safe without asking anyone, so their agreement is carried over by writing the row.
+      That holds for a participant that declined the shorter revision too: its decline
+      objected to losing time, not to keeping the embargo, and the decline stays in the
+      ledger (ADR-0122).
       The rule applies at activation rather than at proposal because the participant
       remains bound by `T1` for as long as `T1` is the active embargo (ADR-0093, ADR-0122).
     verification: >-
@@ -726,9 +730,10 @@ groups:
       `test_activation.py` assert that the owner's acceptance of a revision ending later
       than the active embargo writes no row for any signatory and leaves those lacking
       the revised row lapsed and outside the content gate, that acceptance of a revision
-      ending no later than it marks the revised row `ACCEPTED` for every signatory to the
-      replaced embargo, and that a participant already holding an `ACCEPTED` row for the
-      newly active embargo is its signatory with no further write.
+      ending no later than it applies `CARRY_OVER` to the revised row of every signatory
+      to the replaced embargo, a `DECLINED` revision row included, and that a participant
+      already holding an `AGREED` row for the newly active embargo is its signatory with
+      no further write.
     relationships:
     - rel_type: implements
       spec_id: CM-18-001
@@ -744,8 +749,9 @@ groups:
     statement: >-
       A revision proposal (`ACTIVE → REVISE`) and any further counter-revision
       (`REVISE → REVISE`) MUST NOT change any participant's consent to the embargo in
-      force. The proposer's row for the proposed embargo is marked `ACCEPTED`
-      (MSM-07-005); every other row is left as it is until the case owner activates a
+      force. The proposer's row for the proposed embargo is marked `AGREED`
+      (MSM-07-005) and every other participant gets an `UNINVITED` row for it
+      (CM-18-001); every other row is left as it is until the case owner activates a
       revision (EP-05-001), and until then the prior embargo is in force and every
       signatory to it remains one.
     rationale: >-
@@ -753,7 +759,7 @@ groups:
       agreed to. Lapsing on proposal stranded signatories when the revision was rejected,
       left participants still bound and still receiving embargoed content reported as not
       bound, and lapsed the proposer of the revision (ADR-0093, Concern #3884). With
-      per-embargo rows a proposal only ever adds a row for the proposed embargo.
+      per-embargo rows a proposal only ever adds rows for the proposed embargo.
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
       `propose_embargo()` from `ACTIVE` and from `REVISE` leaves every participant's row
@@ -773,11 +779,11 @@ groups:
     verification_debt: '#3612'
     statement: >-
       An idempotent retry or re-processing of a participant add-or-update MUST NOT
-      remove or downgrade a consent row. Once a participant has a row for an embargo
-      (`INVITED`, `ACCEPTED`, `DECLINED` or `EXPIRED`), that row MUST be preserved
-      across retries.
+      remove or downgrade a consent row. Once a participant's row for an embargo has
+      left `UNINVITED` (`INVITED`, `AGREED`, `DECLINED` or `TIMED_OUT`), that row MUST
+      be preserved across retries.
     rationale: >-
-      Dropping an `ACCEPTED` or `DECLINED` row on retry silently
+      Dropping an `AGREED` or `DECLINED` row on retry silently
       revokes or erases consent that was already given. The positive-path idempotency
       rule (don't double-add) is covered by CM-13-005; this rule covers the negative
       path (don't downgrade).
@@ -1229,10 +1235,10 @@ groups:
       proposer's ID (CM-24-001, CM-24-002), and MUST commit each emission as a ledger
       entry. The CASE_MANAGER MUST NOT invite the proposer or itself. Instead of an
       Invite, the CASE_MANAGER MUST write consent rows at the same commit: the
-      proposer's row for the proposed embargo `ACCEPTED` (proposing is consenting), and,
+      proposer's row for the proposed embargo `AGREED` (proposing is consenting), and,
       when the actor holding the role is also a participant with an embargo stake of its
       own (a role beyond `CVDRole.CASE_MANAGER` and `CVDRole.COORDINATOR`), its own row
-      for that embargo — `ACCEPTED` when it is the proposer, otherwise `ACCEPTED` or
+      for that embargo — `AGREED` when it is the proposer, otherwise `AGREED` or
       `DECLINED` as its embargo-proposal policy call-out decides (EMB-15-001). The
       CASE_MANAGER role alone carries no embargo stake: no consent is solicited or
       recorded for a bare container, and when the actor holding the role also holds
@@ -1264,11 +1270,11 @@ groups:
       `TestRelayEmbargoInviteToEachNode::test_each_emission_is_committed_as_a_canonical_entry`
       in the same node test file asserts each emission is committed;
       `test/core/use_cases/received/test_embargo_manager_consent.py` asserts the
-      proposer's row is `ACCEPTED` after the commit, that a stakeholder manager (and a
-      manager that is the proposer) holds an `ACCEPTED` row with no Invite addressed to
+      proposer's row is `AGREED` after the commit, that a stakeholder manager (and a
+      manager that is the proposer) holds an `AGREED` row with no Invite addressed to
       it, and that a bare container writes none; and
       `test/core/behaviors/embargo/nodes/test_manager_consent.py` pins the policy
-      call-out (`ACCEPTED` or `DECLINED`) and the owner, proposer and existing-row skips.
+      call-out (`AGREED` or `DECLINED`) and the owner, proposer and existing-row skips.
     relationships:
     - rel_type: refines
       spec_id: CM-24-001
@@ -1325,8 +1331,9 @@ groups:
     statement: >-
       A revision `Invite(EmbargoEvent)` MUST NOT change the consent of a participant that is
       already a signatory to the active embargo. The PEC `INVITE` trigger is applied to the
-      participant's row for the *revision* (CM-18-003), so a signatory gains an `INVITED` row
-      for the revision and keeps its `ACCEPTED` row for the active embargo; its answer to the
+      participant's row for the *revision* (CM-18-003), so a signatory's row for the revision
+      moves from `UNINVITED` to `INVITED` and it keeps its `AGREED` row for the active
+      embargo; its answer to the
       revision is recorded on the revision's row and binds it to nothing new until the owner
       activates the revision (EP-05-001, EP-05-002).
     rationale: >-
@@ -1338,8 +1345,9 @@ groups:
     verification: >-
       A test delivers a revision Invite for a participant already a signatory and asserts the
       receive tree succeeds, the participant has an `INVITED` row for the revision, and its
-      row for the active embargo is still `ACCEPTED`. Until the implementation lands the test
-      is a strict `xfail` naming its tracking issue.
+      row for the active embargo is still `AGREED`; a second asserts the consent write
+      alone keeps the `AGREED` row for the active embargo and adds the revision's
+      `INVITED` row.
     relationships:
     - rel_type: refines
       spec_id: EP-05-002
@@ -1584,15 +1592,15 @@ groups:
     rationale: >-
       A joiner is seated after the relay of a proposal (EP-09-002), so it was never on the
       roster when the Invite went out, and nothing else would ask it. A new participant
-      becomes signatory to the embargo in effect when it joins, and is asked about a
+      becomes a signatory to the embargo in effect when it joins, and is asked about a
       revision on the table exactly like the participants who were present when it was
       proposed.
     verification: >-
       `test/core/use_cases/received/test_joiner_revision_relay.py` accepts a stub Invite
       as the CASE_MANAGER at `EM.REVISE` and asserts one committed, outbox-queued Invite
       per open proposal, attributed to the proposer, with the joiner's row for the
-      revision `INVITED` and the row for the active embargo `ACCEPTED`; a follow-up
-      accept leaves it with an `ACCEPTED` row for the revision, which binds it at activation.
+      revision `INVITED` and the row for the active embargo `AGREED`; a follow-up
+      accept leaves it with an `AGREED` row for the revision, which binds it at activation.
     relationships:
     - rel_type: refines
       spec_id: EP-09-002
@@ -1610,7 +1618,7 @@ groups:
     statement: >-
       The accept and reject embargo triggers MUST let a participant answer the embargo
       in force when the caller names the `Invite(EmbargoEvent)` to answer and the
-      participant's consent row for that Invite's embargo is `INVITED` or `EXPIRED`
+      participant's consent row for that Invite's embargo is `INVITED` or `TIMED_OUT`
       (CM-18-001). The trigger MUST resolve the named Invite from the participant's own
       record of the Invite it received, not from the record of open proposals, and MUST
       raise a not-found error when the participant holds no such Invite or its row is in
@@ -1629,13 +1637,13 @@ groups:
       (ADR-0122), not the full-case Invite, whose replies move only the RM state
       (CM-11-011). A joiner whose `INVITED` row for the embargo in force comes from the
       stub Invite (CM-11-006) holds no `Invite(EmbargoEvent)` to name; accepting the
-      stub makes it `ACCEPTED` (CM-11-001), so it needs no trigger. Withdrawing from the
-      embargo in force from an `ACCEPTED` row is not an answer and has its own trigger
+      stub makes it `AGREED` (CM-11-001), so it needs no trigger. Withdrawing from the
+      embargo in force from an `AGREED` row is not an answer and has its own trigger
       (EP-09-013).
     verification: >-
       Trigger tests under `test/core/use_cases/triggers/embargo/` answer the embargo in
-      force by Invite id with an `INVITED` row and with an `EXPIRED` row (accept and
-      reject), and assert the not-found error for an `ACCEPTED` row, a `DECLINED` row,
+      force by Invite id with an `INVITED` row and with a `TIMED_OUT` row (accept and
+      reject), and assert the not-found error for an `AGREED` row, a `DECLINED` row,
       and an unknown Invite id. A no-name call when no proposal is open raises the
       not-found error even though the participant holds an `INVITED` row and the
       received Invite for the embargo in force, so a fallback would fail the test.
@@ -1655,12 +1663,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant whose consent row for the embargo in force is `ACCEPTED` MUST be
+      A participant whose consent row for the embargo in force is `AGREED` MUST be
       able to withdraw from that embargo by a trigger that sends `Leave(EmbargoEvent)`
       naming the embargo in force to the CASE_MANAGER (MSM-07-010, PCR-08). The trigger
       needs no Invite: it MUST resolve the embargo from the case's active embargo, and
       MUST refuse with a reported reason when no embargo is in force, when the
-      participant's row for it is not `ACCEPTED`, or when the participant is the case
+      participant's row for it is not `AGREED`, or when the participant is the case
       owner. Neither the accept nor the reject embargo trigger MUST withdraw from the
       embargo in force.
     rationale: >-
@@ -1672,11 +1680,11 @@ groups:
       withdraws a signatory.
     verification: >-
       Trigger tests under `test/core/use_cases/triggers/embargo/` withdraw a signatory
-      with an `ACCEPTED` row on the embargo in force, including one seeded with no
+      with an `AGREED` row on the embargo in force, including one seeded with no
       Invite, and assert the Leave names the active embargo and is addressed to the
       CASE_MANAGER; they assert the refusal with no embargo in force, with an `INVITED`
       row, and for the case owner, and that a no-name reject with a revision open
-      refuses the revision and leaves the row for the embargo in force `ACCEPTED`.
+      refuses the revision and leaves the row for the embargo in force `AGREED`.
     relationships:
     - rel_type: depends_on
       spec_id: MSM-07-010

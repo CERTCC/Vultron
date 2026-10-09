@@ -21,6 +21,7 @@ from test.support.embargo_register import (
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -29,12 +30,16 @@ from vultron.core.models.embargo_register import (
     RegisterChange,
     apply_register_step,
     carry_embargo_inline,
+    register_step_is_legal,
 )
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     RegisterTrigger,
     TerminationReason,
+)
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
 )
 from vultron.errors import (
     VultronInvalidStateTransitionError,
@@ -200,6 +205,18 @@ def test_refused_step_raises(case: str) -> None:
     assert rule in str(excinfo.value)
 
 
+@pytest.mark.parametrize("case", list(REFUSED), ids=list(REFUSED))
+def test_legality_check_agrees_with_the_refusal(case: str) -> None:
+    before, changes, _ = REFUSED[case]
+    assert register_step_is_legal(before, changes) is False
+
+
+def test_legality_check_accepts_a_legal_step_and_writes_nothing() -> None:
+    before = [_entry(A, S.PROPOSED)]
+    assert register_step_is_legal(before, [_change(A, T.REJECT)]) is True
+    assert before == [_entry(A, S.PROPOSED)]
+
+
 def test_threat_cancel_is_refused_while_an_embargo_is_active() -> None:
     with pytest.raises(VultronInvalidStateTransitionError, match="CANCEL"):
         apply_register_step(
@@ -332,6 +349,40 @@ def test_a_refused_step_leaves_the_case_untouched() -> None:
     assert case.model_dump() == before
 
 
+def test_a_proposal_writes_the_rows_of_inline_participants() -> None:
+    """An inline participant gains its UNINVITED row with the proposal.
+
+    The case refuses an inline participant missing a row for any register
+    entry, and that check runs on assignment too, so the step writes the new
+    entry's row before the register is assigned (CM-18-001, ADR-0122).
+    """
+    participant = CaseParticipant(
+        id_=f"{CASE_ID}/participants/p1", attributed_to=OWNER, context=CASE_ID
+    )
+    case = _case(case_participants=[participant])
+    propose(case, A)
+    held = case.case_participants[0]
+    assert isinstance(held, CaseParticipant)
+    assert [(r.embargo_id, r.state) for r in held.embargo_consents] == [
+        (A, EmbargoConsentState.UNINVITED)
+    ]
+
+
+def test_a_refused_step_writes_no_inline_participant_row() -> None:
+    """A refused step leaves inline participants without the refused rows."""
+    participant = CaseParticipant(
+        id_=f"{CASE_ID}/participants/p1", attributed_to=OWNER, context=CASE_ID
+    )
+    case = _case(case_participants=[participant])
+    activate(case, A)
+    terminate(case)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        propose(case, B)
+    held = case.case_participants[0]
+    assert isinstance(held, CaseParticipant)
+    assert [r.embargo_id for r in held.embargo_consents] == [A]
+
+
 def test_a_decided_proposal_leaves_the_relay_index() -> None:
     """EP-08-003: the relay record leaves with the proposal."""
     case = _case()
@@ -399,8 +450,20 @@ def test_construction_stamps_the_register_em_onto_the_status() -> None:
         [_entry(A, S.ACTIVE), _entry(B, S.ACTIVE)],
         [_entry(A, S.TERMINATED), _entry(B, S.PROPOSED)],
         [_entry(A, S.PROPOSED), _entry(A, S.PROPOSED)],
+        [_entry(B, S.ACTIVE, replaces=A)],
+        [
+            _entry(C, S.ACTIVE, replaces=B),
+            _entry(B, S.SUPERSEDED, replaces=A),
+            _entry(A, S.SUPERSEDED, replaces=B),
+        ],
     ],
-    ids=["two-active", "proposed-after-terminated", "repeated-id"],
+    ids=[
+        "two-active",
+        "proposed-after-terminated",
+        "repeated-id",
+        "dangling-replaces",
+        "looping-replaces",
+    ],
 )
 def test_construction_refuses_an_impossible_register(
     entries: list[EmbargoRegisterEntry],

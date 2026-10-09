@@ -5,7 +5,10 @@ from typing import cast
 
 import pytest
 
-from test.support.embargo_register import propose
+from test.support.embargo_register import (
+    propose,
+    write_consent_rows,
+)
 from test.support.ledger import committed_event_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -165,6 +168,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     # An earlier revision is already open, so EM is REVISE before the trigger.
     propose(case, f"{case.id_}/embargo_events/earlier-revision")
     dl.save(case)
+    write_consent_rows(dl, case)
 
     participant_id = case.actor_participant_index[actor.id_]
     participant_before = cast(as_CaseParticipant, dl.read(participant_id))
@@ -191,7 +195,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
 
     participant_after = cast(as_CaseParticipant, dl.read(participant_id))
     # The proposer's row for the embargo in force is untouched; proposing adds
-    # only an ACCEPTED row for the proposed revision (ADR-0122).
+    # only an AGREED row for the proposed revision (ADR-0122).
     proposed_id = updated_case.proposed_embargo_ids[-1]
     assert [
         r
@@ -200,5 +204,5 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     ] == consents_before
     assert (
         participant_after.consent_for(proposed_id)
-        == EmbargoConsentState.ACCEPTED
+        == EmbargoConsentState.AGREED
     )

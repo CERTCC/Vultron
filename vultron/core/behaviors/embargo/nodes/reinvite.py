@@ -150,7 +150,7 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
     Which embargo, which actor, and whether any Invite is owed are read at
     tick time: the invitee is the actor the stored record belongs to, and
     nothing is sent when no embargo is active or the participant is already
-    ``SIGNATORY`` to it, since it is then active and was backfilled.
+    a signatory to it, since it is then active and was backfilled.
     ``FAILURE`` when the record is gone or names no actor: the guards found
     it moments earlier in the CASE_MANAGER's own store (Regime 1, ADR-0087),
     so the handler reads it as an internal fault.
@@ -197,7 +197,7 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
             return False
         if record.is_signatory(embargo_id):
             self.feedback_message = (
-                f"'{invitee_id}' is SIGNATORY to embargo '{embargo_id}';"
+                f"'{invitee_id}' is a signatory to embargo '{embargo_id}';"
                 " no Invite owed"
             )
             return False

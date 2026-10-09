@@ -509,7 +509,7 @@ class TestWriteCreateCaseMarkerNode:
 
         The ``Create(VulnerabilityCase)`` copy is case content, so its
         REPORTER/FINDER addressees come from the shared active selection
-        (#4046 AC-2): a FINDER with no ACCEPTED row for the embargo is left out.
+        (#4046 AC-2): a FINDER with no AGREED row for the embargo is left out.
         """
         from vultron.core.models._helpers import days_from_now_utc
         from vultron.core.models.case_participant import CaseParticipant
@@ -542,7 +542,7 @@ class TestWriteCreateCaseMarkerNode:
                 [
                     EmbargoConsent(
                         embargo_id=embargo.id_,
-                        state=EmbargoConsentState.ACCEPTED,
+                        state=EmbargoConsentState.AGREED,
                     )
                 ],
             ),
@@ -555,8 +555,8 @@ class TestWriteCreateCaseMarkerNode:
                 case_roles=[role],
                 embargo_consents=rows,
             )
-            dl.save(participant)
             case.add_participant(participant)
+            dl.save(participant)
         dl.save(case)
 
         status = self._run_node(
@@ -1387,7 +1387,11 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         assert isinstance(stored, VulnerabilityCase)
         record = dl.read(stored.actor_participant_index[decliner])
         assert isinstance(record, CaseParticipant)
-        record.apply_pec_transition(revision_id, PEC_Trigger.DECLINE)
+        record.apply_pec_transition(
+            revision_id,
+            PEC_Trigger.DECLINE,
+            entry_status=stored.embargo_register_status(revision_id),
+        )
         dl.save(record)
         scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
 
@@ -1899,7 +1903,7 @@ class TestADR0041EmbargoInit:
         vendor_participant = dl.read(vendor_pid)
         assert isinstance(vendor_participant, CaseParticipant)
         assert vendor_participant.is_signatory(case.active_embargo_id), (
-            "Vendor (CASE_OWNER) must be seeded with an ACCEPTED row for the"
+            "Vendor (CASE_OWNER) must be seeded with an AGREED row for the"
             " active embargo at case creation (CM-13)"
         )
 
@@ -1936,13 +1940,13 @@ class TestCM14005ReporterSignatory:
         participant, case = self._get_reporter_participant(dl)
         assert participant is not None, "Reporter participant must exist"
         assert participant.is_signatory(case.active_embargo_id), (
-            "Reporter must be seeded with an ACCEPTED row for the active"
+            "Reporter must be seeded with an AGREED row for the active"
             f" embargo at case initialization (CM-14-005), got"
             f" {participant.embargo_consents!r}"
         )
 
-    def test_reporter_has_accepted_row_for_active_embargo(self, make_payload):
-        """AC-2: reporter holds an ACCEPTED row for the active embargo."""
+    def test_reporter_has_agreed_row_for_active_embargo(self, make_payload):
+        """AC-2: reporter holds an AGREED row for the active embargo."""
         from vultron.core.states.participant_embargo_consent import (
             EmbargoConsentState,
         )
@@ -1959,9 +1963,9 @@ class TestCM14005ReporterSignatory:
         assert case.active_embargo_id is not None
         assert (
             participant.consent_for(case.active_embargo_id)
-            == EmbargoConsentState.ACCEPTED
+            == EmbargoConsentState.AGREED
         ), (
-            "Reporter must hold an ACCEPTED row for the active embargo"
+            "Reporter must hold an AGREED row for the active embargo"
             " (CM-14-005 AC-2)"
         )
 
@@ -3605,7 +3609,7 @@ class TestEP04SenderProposalAtCaseCreation:
             for entry in recorded_entries_for_case(case_id=case.id_, dl=dl)
         }
         # A signatory asked about a revision gets an INVITED row for the
-        # revision and keeps its ACCEPTED row for the active terms
+        # revision and keeps its AGREED row for the active terms
         # (EP-09-004, ADR-0122).
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.states.participant_embargo_consent import (
@@ -3622,14 +3626,14 @@ class TestEP04SenderProposalAtCaseCreation:
         # the executing CaseActor and the winner record nothing (#4152).
         proposer = dl.read(stored.actor_participant_index[loser])
         assert isinstance(proposer, CaseParticipant)
-        assert (
-            proposer.consent_for(revision_id) == EmbargoConsentState.ACCEPTED
-        )
+        assert proposer.consent_for(revision_id) == EmbargoConsentState.AGREED
         case_actor_record = stored.actor_participant_index.get(_CASE_ACTOR_URI)
         assert case_actor_record is not None, "the CaseActor is a participant"
         executor = dl.read(case_actor_record)
         assert isinstance(executor, CaseParticipant)
-        assert executor.consent_for(revision_id) is None
+        assert executor.consent_for(revision_id) is (
+            EmbargoConsentState.UNINVITED
+        )
         # The invitee holds the case before an Invite about it (CP-09-003,
         # CM-14-011): the relay is queued after Create(VulnerabilityCase).
         labels = _outbox_labels(dl)
@@ -3992,7 +3996,7 @@ class TestEP04SenderProposalAtCaseCreation:
         self, make_payload
     ):
         """Consent is seeded to the active terms even though a revision is
-        pending: CM-14-005 seeds an ACCEPTED row for the *active* embargo, and the
+        pending: CM-14-005 seeds an AGREED row for the *active* embargo, and the
         revision registered inside ``InitializeDefaultEmbargoNode`` precedes
         those seeds (see notes/embargo-default-semantics.md)."""
         from vultron.core.models.case_participant import CaseParticipant

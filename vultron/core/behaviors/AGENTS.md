@@ -80,15 +80,15 @@ Mechanism, the silent node-shadowing variant, and the full rules:
 
 ```python
 # WRONG — skips the transition table
-participant.embargo_consents = [EmbargoConsent(embargo_id=e, state=ACCEPTED)]
-# CORRECT — validates the trigger against this embargo's row, then persist
-participant.apply_pec_transition(embargo_id, PEC_Trigger.ACCEPT)
+participant.embargo_consents = [EmbargoConsent(embargo_id=e, state=AGREED)]
+# CORRECT — checks the table and the entry's register status, then persist
+participant.apply_pec_transition(e, PEC_Trigger.AGREE, entry_status=status)
 dl.save(participant)
 ```
 
-"Signatory" and "lapsed" are reads (`is_signatory`, `has_lapsed`), never
-writes: a node that writes a row to record a lapse, advance or exit re-creates
-the second record ADR-0122 removed. See `notes/participant-embargo-consent.md`.
+Every row is written (`UNINVITED` first), so attach a new participant *before*
+storing it. "Signatory" and "lapsed" are reads, never writes (ADR-0122); see
+`notes/participant-embargo-consent.md`.
 
 ---
 

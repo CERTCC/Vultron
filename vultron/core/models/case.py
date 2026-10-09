@@ -41,6 +41,7 @@ from vultron.core.models.embargo_register import (
     RegisterChange,
     apply_register_step,
     repeated_ids,
+    replaces_violations,
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.wire_keys import wire_key
@@ -50,7 +51,7 @@ from vultron.core.states.embargo_register import (
     derive_em,
     register_invariant_violations,
 )
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -300,23 +301,51 @@ class VulnerabilityCase(CoreObject):
 
     @model_validator(mode="after")
     def _register_keeps_invariants(self) -> VulnerabilityCase:
-        """Refuse a register that breaks ADR-0122's invariants or repeats an id.
+        """Refuse a register that breaks ADR-0122's invariants, repeats an id or has a bad ``replaces``.
 
         Fail-fast at construction (ARCH-10-001): a received or stored case
         whose register no step could have produced is refused, rather than
         derived into an EM state the table does not define.
         """
-        ids = [entry.embargo_id for entry in self.embargo_register]
+        ids = self.register_embargo_ids
         problems = register_invariant_violations(
             entry.status for entry in self.embargo_register
         )
         repeated = repeated_ids(ids)
         if repeated:
             problems.append(f"embargoes {repeated} have more than one entry")
+        problems.extend(replaces_violations(self.embargo_register))
         if problems:
             raise ValueError(
                 f"VulnerabilityCase '{self.id_}' embargo register: "
                 + "; ".join(problems)
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _inline_participants_hold_every_row(self) -> VulnerabilityCase:
+        """Refuse an inline participant missing a row for a register entry.
+
+        Every participant holds one consent row per register entry (ADR-0122),
+        and the content gate reads them; a received case that breaks this is
+        refused here, at the edge, rather than faulting later when
+        ``active_participants`` reads a row that is not there.  A bare
+        participant reference carries no rows to check.
+        """
+        embargo_ids = self.register_embargo_ids
+        problems: list[str] = []
+        for participant in self.case_participants:
+            if not isinstance(participant, CaseParticipant):
+                continue
+            missing = participant.missing_rows(embargo_ids)
+            if missing:
+                problems.append(
+                    f"participant '{participant.id_}' has no consent row for"
+                    f" {missing}"
+                )
+        if problems:
+            raise ValueError(
+                f"VulnerabilityCase '{self.id_}': " + "; ".join(problems)
             )
         return self
 
@@ -344,17 +373,29 @@ class VulnerabilityCase(CoreObject):
         """
         self.vulnerability_reports.append(report_id)
 
-    def add_participant(self, participant: CaseParticipant) -> None:
+    def add_participant(self, participant: CaseParticipant) -> bool:
         """Add a participant and update the actor→participant index.
 
         The participant's ``attributed_to`` actor URI is recorded in
         ``actor_participant_index`` so callers can quickly look up a
-        participant by actor ID.
+        participant by actor ID.  The participant also gets an
+        ``UNINVITED`` consent row for every entry already in the embargo
+        register (ADR-0122), so it holds a row for each embargo the case has
+        ever had; rows it already holds are kept.  This writes to
+        *participant* too, so the caller persists both records — the
+        participant after this call.
 
         Args:
             participant: A full :class:`CaseParticipant` object (full object
                 required to update the index).
+
+        Returns:
+            ``True`` when *participant* gained a consent row, so the caller
+            knows the record needs saving.
         """
+        wrote_rows = participant.write_uninvited_rows(
+            self.register_embargo_ids
+        )
         participant_id = participant.id_
         existing_ids = {
             p.id_ if isinstance(p, CaseParticipant) else str(p)
@@ -370,7 +411,7 @@ class VulnerabilityCase(CoreObject):
             else getattr(actor_ref, "id_", None)
         )
         if actor_id is None:
-            return
+            return wrote_rows
 
         existing_mapping = self.actor_participant_index.get(actor_id)
         if existing_mapping is not None and existing_mapping != participant_id:
@@ -380,6 +421,7 @@ class VulnerabilityCase(CoreObject):
                 f"but add_participant received '{participant_id}'."
             )
         self.actor_participant_index[actor_id] = participant_id
+        return wrote_rows
 
     def add_case_status(self, status: CaseStatus) -> None:
         """Append a CaseStatus to this case's history.
@@ -481,9 +523,18 @@ class VulnerabilityCase(CoreObject):
             VultronInvalidStateTransitionError: the step breaks a register
                 rule or invariant.
         """
-        self.embargo_register = apply_register_step(
+        register = apply_register_step(
             self.embargo_register, changes, threat_signal=threat_signal
         )
+        # A participant held inline must already hold the new entries' rows
+        # when the register is assigned, or the row check refuses the
+        # assignment (validate_assignment).  Stored participants get theirs
+        # from the lifecycle service, which persists them (ADR-0122).
+        embargo_ids = [entry.embargo_id for entry in register]
+        for participant in self.case_participants:
+            if isinstance(participant, CaseParticipant):
+                participant.write_uninvited_rows(embargo_ids)
+        self.embargo_register = register
         if not all(
             self.proposal_is_undecided(i)
             for i in self.pending_embargo_proposal_index
@@ -544,6 +595,11 @@ class VulnerabilityCase(CoreObject):
         if statuses is not None:
             object.__setattr__(self, "case_statuses", statuses)
 
+    @property
+    def register_embargo_ids(self) -> list[str]:
+        """The embargo id of every register entry, in register order."""
+        return [entry.embargo_id for entry in self.embargo_register]
+
     def embargo_register_entry(
         self, embargo_id: str
     ) -> EmbargoRegisterEntry | None:
@@ -552,6 +608,22 @@ class VulnerabilityCase(CoreObject):
             (e for e in self.embargo_register if e.embargo_id == embargo_id),
             None,
         )
+
+    def embargo_register_status(
+        self, embargo_id: str
+    ) -> EmbargoRegisterStatus:
+        """The register status of *embargo_id*, the input every consent write needs.
+
+        Raises:
+            VultronNotFoundError: the register has no entry for *embargo_id*;
+                a consent row exists only for a register entry (ADR-0122).
+        """
+        entry = self.embargo_register_entry(embargo_id)
+        if entry is None:
+            raise VultronNotFoundError(
+                "EmbargoRegisterEntry", f"{embargo_id} on case {self.id_}"
+            )
+        return entry.status
 
     @property
     def em_state(self) -> EM:
@@ -643,7 +715,7 @@ class VulnerabilityCase(CoreObject):
            sequence or accepted its stub Invite (``participant.joined``);
         2. it has not been removed (``participant.removed``, CM-31-001);
         3. when this case has an active embargo (:attr:`embargo_in_force`),
-           its consent row for the active embargo is ``ACCEPTED``
+           its consent row for the active embargo is ``AGREED``
            (:meth:`CaseParticipant.is_signatory`, CM-18-001).
 
         Every other participant is **inert**.  A removed participant is inert
