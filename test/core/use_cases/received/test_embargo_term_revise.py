@@ -20,6 +20,9 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -37,8 +40,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-# The CASE_MANAGER is not the receiving store's owner, so the receiver is a
-# participant replica and the sender is the CASE_MANAGER (ADR-0115).
+# RSH-08-003 (#3814): the embargo activation/teardown writes run only at the
+# CASE_MANAGER, so these tests receive the Add/Remove(EmbargoEvent) in the
+# CASE_MANAGER's own store (its actor is the role holder and the entitled
+# sender); a replica would write nothing and take the change from the ledger.
 _CASE_MANAGER = "https://example.org/users/case-manager"
 _COORD = "https://example.org/users/coord"
 _OWNER = "https://example.org/users/vendor"
@@ -93,6 +98,7 @@ class TestEmbargoTermRevise:
             event,
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
@@ -148,7 +154,7 @@ class TestEmbargoTermRevise:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://example.org/users/coord",
+            actor_id=_CASE_MANAGER,
         )
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem1",
@@ -170,11 +176,15 @@ class TestEmbargoTermRevise:
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
         )
-        event = make_payload(
-            activity, receiving_actor_id="https://example.org/users/coord"
-        )
+        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
 
-        result = RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)
@@ -199,7 +209,7 @@ class TestEmbargoTermRevise:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://example.org/users/coord",
+            actor_id=_CASE_MANAGER,
         )
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem2",
@@ -214,6 +224,7 @@ class TestEmbargoTermRevise:
         activate(case, embargo.id_)
         seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
+        dl.create(embargo)
 
         activity = remove_embargo_from_case_activity(
             embargo,
@@ -221,11 +232,15 @@ class TestEmbargoTermRevise:
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
         )
-        event = make_payload(
-            activity, receiving_actor_id="https://example.org/users/coord"
-        )
+        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
 
-        result = RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)
@@ -253,7 +268,7 @@ class TestEmbargoTermRevise:
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://example.org/users/coord",
+            actor_id=_CASE_MANAGER,
         )
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem3",
@@ -271,6 +286,7 @@ class TestEmbargoTermRevise:
         assert case.em_state == EM.REVISE
         seed_case_manager_participant(dl, case, _CASE_MANAGER)
         dl.create(case)
+        dl.create(embargo)
 
         activity = remove_embargo_from_case_activity(
             embargo,
@@ -278,11 +294,15 @@ class TestEmbargoTermRevise:
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
         )
-        event = make_payload(
-            activity, receiving_actor_id="https://example.org/users/coord"
-        )
+        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
 
-        result = RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+        result = RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
         updated = dl.read(case.id_)

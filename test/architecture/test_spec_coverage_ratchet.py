@@ -55,12 +55,32 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # the protocol tier. That relabel removes one uncovered protocol spec, pulling the
 # live count back down to the pinned 703 after it had drifted to 704 (a concurrent
 # count-pin race, #3984) — so the pin is unchanged but once again tight.
+# Lowered to 702 — the live count — when #4371 restored CP-04-001's lost marker.
+# CP-04-001 (a wire-observable protocol obligation: the report receiver sends
+# Create(as_CaseProposal) with its own URI as actor) is verified by
+# test/demo/test_case_proposal_round_trip.py — exactly the test its verification:
+# field names — but #4355 deleted the dead-code create_create_case_tree test that
+# had carried its only @pytest.mark.spec marker, dropping it into the uncovered
+# set. #4346's BTND-05-003 relabel masked the net count but not the regression;
+# restoring the marker on the test that actually verifies CP-04-001 removes it
+# from the uncovered population for real.
+# Held at 702 through #4353 (deleted ~17 orphaned case-construction nodes and
+# their dead-code unit tests). Those tests had carried the only markers for four
+# protocol specs — CM-02-004, CM-06-003, CM-12-003, CM-14-009 — but each
+# obligation still lives in a surviving tree and is verified by a live test, so
+# the markers were restored there rather than raising the ceiling (the exact
+# #4371 lesson): CM-02-004 on the round-trip's attributed_to==owner assertion,
+# CM-14-009 on TestADR0041OwnerParticipant (CASE_OWNER + RM.RECEIVED), CM-12-003
+# on the queued Create(Case) whose `to` carries the reporter, and CM-06-003 on
+# the case-update Announce whose actor is the CASE_MANAGER's URL. (CM-06-001 was
+# already covered by test_update*.py and never regressed.) A dead-code deletion
+# must not drop protocol coverage; the live count stays 702.
 # Lower this constant as more @pytest.mark.spec markers are added;
 # never raise it to hide regressions in your own PR. Keep it pinned to the
 # actual count — slack between the two is room for uncovered specs to grow
 # unnoticed, which is the regression this ratchet exists to prevent.
 # ---------------------------------------------------------------------------
-MAX_UNCOVERED_PROTOCOL_SPECS = 703
+MAX_UNCOVERED_PROTOCOL_SPECS = 702
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"

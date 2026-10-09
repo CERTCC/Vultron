@@ -1347,6 +1347,38 @@ groups:
       spec_id: CM-11-007
     adr:
     - ADR-0114
+  - id: CM-11-021
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER receives `Accept(Invite(Actor,
+      VulnerabilityCaseStub))` and holds no participant record for the invitee,
+      it MUST refuse the accept with a reported reason, and MUST NOT create a
+      participant record, commit a ledger entry or send any activity. An
+      Accept never creates a participant: the record exists from the stub
+      Invite (CM-11-006).
+    rationale: >-
+      The participant record created at invite-send time (CM-11-006) is the
+      evidence that the CASE_MANAGER sent the stub Invite, and CM-11-017 ties
+      every reply to a recorded Invite. An Accept that finds no record would
+      otherwise rebuild one on acceptance, which is the old join model
+      (participant created on `Accept(Invite)`) and would admit an actor whose
+      Invite the CASE_MANAGER's roster no longer vouches for. This is the
+      Accept counterpart of CM-11-018.
+    verification: >-
+      A test marked `CM-11-021` delivers an Accept of a recorded stub Invite to
+      the CASE_MANAGER when no participant record for the invitee exists, and
+      asserts `REFUSED` with a reason naming the missing participant record,
+      no participant created, no ledger entry committed and nothing queued.
+    stories:
+    - story_2022_052
+    relationships:
+    - rel_type: refines
+      spec_id: CM-11-017
+    - rel_type: refines
+      spec_id: CM-11-001
+    adr:
+    - ADR-0114
   - id: CM-11-019
     priority: MUST
     kind: protocol
@@ -1355,7 +1387,9 @@ groups:
       CASE_MANAGER MUST refuse to emit a stub Invite with an empty role list
       and MUST NOT create a participant record with an empty `case_roles` list.
       The CASE_MANAGER MUST NOT substitute a default role (such as VENDOR)
-      when the inviter provides no roles.
+      when the inviter provides no roles. This applies to the case owner's own
+      stub Invite, where the owner names the roles and no role is guessed; the
+      default role list for a suggested actor is a separate flow (CM-16-003).
     rationale: >-
       A participant with no roles cannot be routed to the right recipients or
       granted the right access. Defaulting to VENDOR would silently assign a
@@ -1878,7 +1912,9 @@ groups:
     statement: >-
       After recording the received `Offer(Actor)`, the CASE_MANAGER MUST assign a non-empty
       default role list for the suggested actor via an Evaluator BT node (ADR-0024 shape:
-      Evaluator).
+      Evaluator). This applies to a suggested actor, where the CASE_MANAGER chooses the
+      roles through its policy hook; the case owner's own stub Invite names its roles and
+      guesses none (CM-11-019).
     verification: Inspection of `vultron/core/` confirms that an Evaluator BT node assigns a
       non-empty default role list for a suggested actor before the downstream consumer node
       processes the offer.
@@ -4906,8 +4942,9 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT emit `Add(CaseParticipant)`, or commit an `add_case_participant` ledger
-      entry, as a consequence of an invitee accepting the stub Invite. Replicas learn of the new
-      member from the `Accept(Invite)` entry.
+      entry, as a consequence of an invitee accepting the stub Invite. A replica creates the
+      invitee's inert record from the stub Invite's ledger entry (CM-11-006) and marks it joined
+      from the `Accept(Invite)` entry.
     rationale: >-
       CM-17-004 does not call for it, the `Accept(Invite)` entry already carries the change, and a
       replica usually refuses the direct message for want of the participant record it names. It also

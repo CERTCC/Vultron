@@ -33,9 +33,6 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
 )
-from vultron.core.behaviors.case.nodes.participant.owner import (
-    _effective_case_roles,
-)
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
@@ -46,6 +43,17 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
+
+
+def _effective_case_roles(actor_config: ActorConfig | None) -> list[CVDRole]:
+    """Return the effective case roles for the case owner participant.
+
+    Prepends any ``default_case_roles`` from *actor_config* to ``CASE_OWNER``,
+    deduplicating while preserving order.  Moved here from the deleted
+    ``participant.owner`` module in issue #4353.
+    """
+    base_roles = actor_config.default_case_roles if actor_config else []
+    return list(dict.fromkeys([*base_roles, CVDRole.CASE_OWNER]))
 
 
 class AddCaseActorParticipantNode(DataLayerActionWithPorts, StateWriteCapable):

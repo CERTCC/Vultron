@@ -176,10 +176,6 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # R3 — optional addressing / stub enrichment; factory tolerates None.
         (f"{_NODES}/invite_actor_emit.py", "emit_stub_invite"),
         (
-            f"{_NODES}/communication.py",
-            "CollectCaseAddresseesNode.update",
-        ),
-        (
             f"{_NODES}/ownership_transfer.py",
             "EmitOfferCaseOwnershipTransferNode._call_factory",
         ),

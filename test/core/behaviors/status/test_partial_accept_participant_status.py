@@ -347,7 +347,9 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
         The status is appended with the participant's current ``rm`` carried
         forward and the two forward dimensions applied (RSH-05).
         """
-        dl = store_for(ACTOR_ID)
+        dl = store_for(
+            CASE_MANAGER_ID
+        )  # RSH-08-003 #3814: adoption runs at the CASE_MANAGER
         # rm=ACCEPTED, not VALID: a ready fix (vf=VF) entails an accepted
         # report, so pairing VF with a pre-acceptance rm would describe a state
         # no sequence of events can produce and be refused on entailment
@@ -356,7 +358,7 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
         asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.Pxa)
         _seed_case(dl, current, asserted)
 
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
         assert result.status == Status.SUCCESS, (
             "a refused rm dimension must not abort the whole update"
             f" (feedback: {result.feedback_message})"
@@ -390,7 +392,9 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
         """
         from vultron.core.models.case import VulnerabilityCase as CoreCase
 
-        dl = store_for(ACTOR_ID)
+        dl = store_for(
+            CASE_MANAGER_ID
+        )  # RSH-08-003 #3814: adoption runs at the CASE_MANAGER
         # rm=ACCEPTED, not VALID: a ready fix (vf=VF) entails an accepted
         # report, so pairing VF with a pre-acceptance rm would describe a state
         # no sequence of events can produce and be refused on entailment
@@ -406,7 +410,7 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
             else 0
         )
 
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
         assert result.status == Status.SUCCESS
 
         # RSH-01-003, RSH-04-004: EmitCaseStatusUpdateNode must commit a new
@@ -590,7 +594,9 @@ class TestOmittedCaseStatusIsNotAnAssertion:
         self, store_for, make_payload
     ):
         """vfd advances; the receiver's own ``case_status`` carries forward."""
-        dl = store_for(ACTOR_ID)
+        dl = store_for(
+            CASE_MANAGER_ID
+        )  # RSH-08-003 #3814: adoption runs at the CASE_MANAGER
         # rm=ACCEPTED so the asserted vf=VF is not refused on entailment
         # grounds; this test is about the omitted case_status (#2906).
         current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pXa)
@@ -598,7 +604,7 @@ class TestOmittedCaseStatusIsNotAnAssertion:
         assert asserted.case_status is None
         _seed_case(dl, current, asserted)
 
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
         assert result.status == Status.SUCCESS, (
             "an omitted case_status is not a refusal"
             f" (feedback: {result.feedback_message})"
@@ -655,12 +661,14 @@ class TestTerminalClosedParticipant:
 
         ``rm`` stays CLOSED (terminal); ``vfd`` advances Vfd → VFd.
         """
-        dl = store_for(ACTOR_ID)
+        dl = store_for(
+            CASE_MANAGER_ID
+        )  # RSH-08-003 #3814: adoption runs at the CASE_MANAGER
         current = _current_status(RM.CLOSED, CS_vf.Vf, CS_pxa.pxa)
         asserted = _asserted_status(RM.CLOSED, CS_vf.VF, CS_pxa.pxa)
         _seed_case(dl, current, asserted)
 
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
         assert result.status == Status.SUCCESS, (
             "a CLOSED participant may still report vfd/pxa progress"
             f" (feedback: {result.feedback_message})"

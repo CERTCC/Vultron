@@ -37,16 +37,23 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
     │   ├─ Sequence("SkipIfNotCaseManager")
     │   │   └─ Inverter(CheckIsCaseManagerNode)
     │   └─ CommitCaseLedgerEntryNode
-    ├─ AppendParticipantStatusNode            # Step 2: append status to participant record
-    ├─ StatusAdoptionGate (Selector)           # StatusAdoptionGate authorization (RSH-01-002)
-    │   ├─ CheckIsCaseOwnerNode               # Hard bypass: CASE_OWNER gospel (RSH-01-002)
-    │   └─ CaseOwnerApprovesStatusUpdate      # Call-out: non-owners need approval
-    ├─ EmitCaseStatusUpdateNode               # Direct ledger write (RSH-04-004, RSH-01-003)
-    ├─ TeardownEffectsOrSkip (FailureIsSuccess)
-    │   └─ TeardownEffects (Sequence)
-    │       ├─ EmbargoTeardownAuthorizationGate  # Call-out gate (RSH-02-001)
-    │       └─ ThreatTerminationBranchNode       # Embargo teardown on P/X/A (RSH-03-001)
-    └─ EmitRMGapNoteNode                      # Emit Add(Note,Case) on RM anomaly (RSH-06-004)
+    └─ AdoptParticipantStatusIfCaseManager (CaseManagerGate, from the factory)  # RSH-08-003
+        └─ Body (Sequence)                     # CASE_MANAGER only (#3814)
+            ├─ AppendParticipantStatusNode     # Step 2: append status to participant record
+            ├─ StatusAdoptionGate (Selector)    # StatusAdoptionGate authorization (RSH-01-002)
+            │   ├─ CheckIsCaseOwnerNode        # Hard bypass: CASE_OWNER gospel (RSH-01-002)
+            │   └─ CaseOwnerApprovesStatusUpdate  # Call-out: non-owners need approval
+            ├─ EmitCaseStatusUpdateNode        # Direct ledger write (RSH-04-004, RSH-01-003)
+            ├─ TeardownEffectsOrSkip (FailureIsSuccess)
+            │   └─ TeardownEffects (Sequence)
+            │       ├─ EmbargoTeardownAuthorizationGate  # Call-out gate (RSH-02-001)
+            │       └─ ThreatTerminationBranchNode       # Embargo teardown on P/X/A (RSH-03-001)
+            └─ EmitRMGapNoteNode               # Emit Add(Note,Case) on RM anomaly (RSH-06-004)
+
+    A replica cc'd on the ``Add(ParticipantStatus)`` writes nothing: the whole
+    adoption body runs only at the CASE_MANAGER, and the replica takes the move
+    from the committed ``add_participant_status_to_participant`` ledger entry
+    (RSH-08-003, PCR-03-001).
 
 ``FilterParticipantStatusDimensionsNode`` adjudicates ``rm``, ``vfd`` and
 ``pxa`` independently before the commit, so an unacceptable value in one
@@ -78,7 +85,6 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
-from vultron.core.behaviors.replica_emit_exemptions import RSH_STATUS
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsActiveParticipantNode,
     SenderIsCaseOwnerNode,
@@ -202,7 +208,16 @@ def add_participant_status_tree(
                 status_obj_fallback=status_obj,
             ),
         ],
-        replica_effects=[
+        # RSH-08-003: the two-seam adoption pipeline — append the raw peer
+        # status, decide adoption, write the canonical ``CaseStatus``, run the
+        # teardown side-effects, and post the RSH-06-004 gap note — is all the
+        # CASE_MANAGER's work.  ``add_participant_status_to_participant`` is
+        # committed and replayed (ParticipantStatus slot), so a replica cc'd on
+        # the ``Add(ParticipantStatus)`` writes nothing and takes the move from
+        # the ledger fan-out (#3814).  The pipeline is ordered (adoption gates
+        # the emit, teardown reads the emitted status), so it moves under the
+        # gate as one unit.
+        manager_effects=[
             append_participant_status_tree(
                 status_id=status_id,
                 participant_id=participant_id,
@@ -241,8 +256,13 @@ def add_participant_status_tree(
                 ),
             ),
             rm_gap_note(actor_id, tree_case_id),
-        ],
-        replica_emit_exemption=RSH_STATUS,
+        ]
+        if tree_case_id
+        else None,
+        manager_case_id=tree_case_id if tree_case_id else None,
+        manager_gate_name=(
+            "AdoptParticipantStatusIfCaseManager" if tree_case_id else None
+        ),
         # A wholly refused regression owes the sender the same note
         # (RSH-06-004); the factory runs it only on the refusal, at the
         # CASE_MANAGER, once per received activity (CLP-10-022).

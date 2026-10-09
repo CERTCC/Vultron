@@ -20,19 +20,21 @@ handed the ledger broadcast and nothing else the CASE_MANAGER sends — not the
 ``Announce(VulnerabilityCase)`` an engage also triggers — so the state it
 reaches can only have come from the ledger.
 
-The half of AC-6 that a replica receiving the act directly writes nothing
-lands with the gating change (RSH-08-003).  ``TentativeReject(Offer(Report))``
-is replayed (``ApplyRmVerdictFromLedgerNode``) but not yet committed (#4304),
-so it has no end-to-end case here.  Every activity-typed RM move replays
-through that one slot, keyed by ``RM_VERDICT_TARGETS``; engage and defer
-exercise it end to end, and ``test_rm_verdict_effect.py`` pins each other
-type's target state against its use case.
+The other half of AC-6 — that a replica receiving the act *directly* writes
+nothing before the fan-out — lands with the gating change (RSH-08-003, #3814)
+and is exercised below by ``test_*_writes_nothing_at_a_replica``: the activity
+is delivered straight to a replica's store, which must change no state because
+the state-writing effect now runs only inside the CASE_MANAGER gate.  Every
+activity-typed RM move replays through one slot, keyed by ``RM_VERDICT_TARGETS``;
+engage and defer exercise it end to end, and ``test_rm_verdict_effect.py`` pins
+each other type's target state against its use case.
 """
 
 import json
 from typing import Any, cast
 
 import pytest
+from pydantic import BaseModel
 
 from test.support.embargo_register import propose
 from vultron.adapters.outbox_sealed_body import (
@@ -411,3 +413,106 @@ def test_a_replica_follows_a_participants_engagement_decision(
         # replica's own participant does not move.
         assert _rm(net, store_of, BYSTANDER) == target, store_of
         assert _rm(net, store_of, OWNER) == owner_before[store_of], store_of
+
+
+# ---------------------------------------------------------------------------
+# AC-6, "writes nothing" half (RSH-08-003, #3814): an activity delivered
+# straight to a replica — not the CASE_MANAGER — changes no participant or
+# case state.  The replica archives it and takes the move from the ledger.
+# ---------------------------------------------------------------------------
+def _deliver_direct(
+    net: LedgerNetwork, replica: str, activity: BaseModel
+) -> None:
+    """Deliver *activity* straight into *replica*'s store (never the manager)."""
+    net.receive(replica, json.loads(dump_outbound_body(activity)))
+
+
+@pytest.mark.spec("RSH-08-003")
+@pytest.mark.spec("TB-06-007")
+def test_embargo_activation_writes_nothing_at_a_replica():
+    """Accept(EmbargoEvent) delivered straight to a replica leaves EM untouched.
+
+    The owner's activation writes EM state only at the CASE_MANAGER
+    (RSH-08-003); a replica takes the change from the ledger, so the same
+    activity delivered direct to a replica changes nothing.
+    """
+    net = _owned(
+        LedgerNetwork(
+            "https://example.org/cases/writes-nothing-activation",
+            em_state=EM.PROPOSED,
+        )
+    )
+    before = net.case(BYSTANDER).current_status.em.state
+    _deliver_direct(
+        net,
+        BYSTANDER,
+        activate_embargo_activity(
+            _embargo(net), target=net.case_id, actor=OWNER, to=[BYSTANDER]
+        ),
+    )
+
+    case = net.case(BYSTANDER)
+    assert case.current_status.em.state == before
+    assert case.active_embargo_id is None
+
+
+@pytest.mark.spec("RSH-08-003")
+@pytest.mark.spec("CM-31-010")
+@pytest.mark.spec("TB-06-007")
+def test_embargo_removal_writes_nothing_at_an_active_replica():
+    """Remove(EmbargoEvent) delivered straight to an active (non-paused) replica
+    leaves the embargo in force: it is not awaiting an ending notice, so it
+    takes the teardown from the ledger (CM-31-010)."""
+    net = _owned(
+        LedgerNetwork("https://example.org/cases/writes-nothing-removal")
+    )
+    before = net.case(BYSTANDER).current_status.em.state
+    assert before == EM.ACTIVE
+    _deliver_direct(
+        net,
+        BYSTANDER,
+        remove_embargo_from_case_activity(
+            _embargo(net), origin=net.case_id, actor=MANAGER, to=[BYSTANDER]
+        ),
+    )
+
+    case = net.case(BYSTANDER)
+    assert case.current_status.em.state == EM.ACTIVE
+    assert case.active_embargo_id == net.initial_embargo_id
+
+
+@pytest.mark.spec("RSH-08-003")
+@pytest.mark.spec("RSH-05-019")
+@pytest.mark.spec("TB-06-007")
+def test_case_status_writes_nothing_at_a_replica():
+    """Add(CaseStatus) delivered straight to a replica appends no status."""
+    net = LedgerNetwork(
+        "https://example.org/cases/writes-nothing-case-status",
+        em_state=EM.NONE,
+    )
+    before = [_as_id(s) for s in net.case(OWNER).case_statuses]
+    status = CaseStatus(
+        context=net.case_id,
+        attributed_to=BYSTANDER,
+        em=EmDimension(state=EM.NONE),
+        pxa=PxaDimension(state=CS_pxa.Pxa),
+    )
+    _deliver_direct(
+        net,
+        OWNER,
+        add_status_to_case_activity(
+            status, target=net.case_id, actor=BYSTANDER, to=[OWNER]
+        ),
+    )
+
+    assert [_as_id(s) for s in net.case(OWNER).case_statuses] == before
+
+
+# The report-verdict "writes nothing at a replica" half of AC-6
+# (TentativeReject / Reject(Offer(Report))) is exercised in
+# ``test/core/behaviors/report/test_received_report_trees.py`` (a
+# non-CASE_MANAGER receiver archives the activity but the RM write is gated
+# out), with the manager-path transition and sender-as-subject covered by
+# ``test_report_routing_guard.py`` and ``test_receive_tree_ledger_commit.py``;
+# #4304 made those verdicts committed and replayed, so gating them is safe
+# (RSH-08-003).

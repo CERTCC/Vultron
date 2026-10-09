@@ -293,7 +293,7 @@ class AdvanceInviteeVFToVendorAwareNode(
 
         # Run as the receiving actor (case manager), not the invitee —
         # _store_for_actor resolves the DL from the actor_id and the invitee
-        # has no store here (same pattern as AdvanceInviteeToReceivedNode).
+        # has no store here (the CASE_MANAGER's own store).
         result = BTBridge(datalayer=self.datalayer).execute_with_setup(
             self._vf_node,
             actor_id=self.actor_id,
@@ -382,7 +382,7 @@ class ApplyInviteRejectToParticipantNode(
         # RM RECEIVED → CLOSED (+ VF Vf for VENDOR) via the status writer.
         # Run as the receiving actor (case manager), not the invitee —
         # _store_for_actor resolves the DL from actor_id, and the invitee
-        # has no store here (same pattern as AdvanceInviteeToReceivedNode).
+        # has no store here (the CASE_MANAGER's own store).
         result = BTBridge(datalayer=self.datalayer).execute_with_setup(
             close_node,
             actor_id=self.actor_id,

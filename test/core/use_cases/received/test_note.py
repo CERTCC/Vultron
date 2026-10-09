@@ -21,6 +21,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
     seed_case_participant,
+    seed_store_owner_as_case_manager,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -120,6 +121,9 @@ class TestNoteUseCases:
             id_="https://example.org/cases/case_cn1",
             name="Context Case",
         )
+        # RSH-08-003/#3814: attaching the note to the case is now
+        # CASE_MANAGER-gated, so the store's own actor must hold the role.
+        seed_store_owner_as_case_manager(dl, case)
         dl.create(case)
 
         note = as_Note(
@@ -581,8 +585,15 @@ class TestNoteUseCases:
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     @pytest.mark.spec("HP-01-003")
-    def test_create_note_for_unknown_case_is_refused(self, make_payload):
-        """A note whose context names a case this actor lacks is refused."""
+    def test_create_note_for_unknown_case_writes_no_attachment(
+        self, make_payload
+    ):
+        """A Create(Note) whose context names a case this actor lacks attaches
+        nothing: the receiver is not that case's CASE_MANAGER (and does not
+        even hold it), so the attach is gated out (RSH-08-003, #3814).  The
+        Note object is still archived; the attachment, if any, arrives through
+        the case's ledger.  No Regime-1 anomaly is logged for the absent case
+        (manager_case_may_be_absent, ADR-0087 Regime 3)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -604,7 +615,10 @@ class TestNoteUseCases:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        assert result.disposition == HandlerDisposition.REFUSED
+        # Nothing was attached (the case is absent and the actor is not its
+        # CASE_MANAGER); the tree still succeeds, writing no case state.
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert dl.read("https://example.org/cases/no-such-case") is None
 
     @pytest.mark.spec("HP-01-003")
     def test_add_note_to_unknown_case_is_refused(self, make_payload):

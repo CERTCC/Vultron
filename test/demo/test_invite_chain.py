@@ -32,6 +32,12 @@ def stub_summary_seed():
     yield
 
 
+@pytest.fixture(autouse=True)
+def stub_full_case_reply():
+    """Override the conftest stub: these tests exercise the real reply."""
+    yield
+
+
 @pytest.fixture
 def chain_mocks():
     """Stub every collaborator the chain calls; yield them by name."""
@@ -50,6 +56,15 @@ def chain_mocks():
         ) as find,
         patch.object(invite_chain, "assert_received_from") as received,
         patch.object(invite_chain, "wait_for_case_on_container") as replica,
+        patch.object(
+            invite_chain,
+            "find_full_case_invite_for_actor",
+            return_value="urn:t:full-invite",
+        ) as full_invite,
+        patch.object(
+            invite_chain, "wait_for_replica_ledger_coverage"
+        ) as coverage,
+        patch.object(ActorSession, "accept_full_case_invite") as full_reply,
     ):
         yield SimpleNamespace(
             invite=invite,
@@ -58,6 +73,9 @@ def chain_mocks():
             find=find,
             received=received,
             replica=replica,
+            full_invite=full_invite,
+            coverage=coverage,
+            full_reply=full_reply,
         )
 
 
@@ -91,8 +109,91 @@ def test_accept_path_invites_finds_accepts_and_waits_for_replica(chain_mocks):
     chain_mocks.accept.assert_called_once_with(invite_id="urn:t:invite")
     chain_mocks.reject.assert_not_called()
     chain_mocks.replica.assert_called_once()
+    chain_mocks.full_invite.assert_called_once()
+    assert (
+        chain_mocks.full_invite.call_args.kwargs["invitee_id"]
+        == "urn:t:vendor"
+    )
+    chain_mocks.full_reply.assert_called_once_with(
+        invite_id="urn:t:full-invite"
+    )
     assert ran == [True]
     assert demo_utils._demo_failures == []
+
+
+@pytest.mark.spec("CM-11-011")
+@pytest.mark.parametrize(
+    "role",
+    [CVDRole.VENDOR, CVDRole.COORDINATOR, CVDRole.OBSERVER],
+)
+def test_every_invitee_replies_to_the_full_case_invite(chain_mocks, role):
+    """Whatever its role, a joined invitee judges the case by replying."""
+    _run(
+        inviter=CaseInviter(
+            name="Coordinator",
+            client=MagicMock(),
+            actor=mock_actor("urn:t:coord"),
+            role=role,
+        )
+    )
+
+    chain_mocks.full_reply.assert_called_once_with(
+        invite_id="urn:t:full-invite"
+    )
+    assert demo_utils._demo_failures == []
+
+
+@pytest.mark.spec("SYNC-10-004")
+def test_reply_waits_for_ledger_coverage_against_the_inviters_container(
+    chain_mocks,
+):
+    """The reply trigger fails closed below the floor, so coverage comes first."""
+    order: list[str] = []
+    chain_mocks.coverage.side_effect = lambda *a, **k: order.append("coverage")
+    chain_mocks.full_reply.side_effect = lambda **k: order.append("reply")
+    inviter_client = MagicMock()
+
+    _run(
+        inviter=CaseInviter(
+            name="Coordinator",
+            client=inviter_client,
+            actor=mock_actor("urn:t:coord"),
+            role=CVDRole.COORDINATOR,
+        )
+    )
+
+    assert order == ["coverage", "reply"]
+    assert chain_mocks.coverage.call_args.args[0] is inviter_client
+
+
+@pytest.mark.spec("SYNC-10-004")
+def test_recommend_path_waits_for_coverage_on_the_ledger_client(chain_mocks):
+    """With no inviter (ADR-0026) the coverage wait still runs, never skipped."""
+    ledger_client = MagicMock()
+
+    _run(inviter=None, ledger_client=ledger_client)
+
+    assert chain_mocks.coverage.call_args.args[0] is ledger_client
+    chain_mocks.full_reply.assert_called_once()
+
+
+@pytest.mark.spec("SYNC-10-004")
+def test_accepting_chain_without_any_ledger_client_is_refused(chain_mocks):
+    """A skipped coverage wait would race the fail-closed reply trigger."""
+    with pytest.raises(ValueError, match="ledger coverage"):
+        _run(inviter=None)
+
+    chain_mocks.accept.assert_not_called()
+    chain_mocks.full_reply.assert_not_called()
+
+
+def test_undelivered_full_case_invite_skips_the_reply(chain_mocks):
+    chain_mocks.full_invite.side_effect = AssertionError("timed out")
+
+    _run()
+
+    chain_mocks.full_reply.assert_not_called()
+    assert len(demo_utils._demo_failures) == 1
 
 
 def test_reject_path_rejects_and_awaits_no_replica(chain_mocks):
@@ -101,11 +202,13 @@ def test_reject_path_rejects_and_awaits_no_replica(chain_mocks):
     chain_mocks.reject.assert_called_once_with(invite_id="urn:t:invite")
     chain_mocks.accept.assert_not_called()
     chain_mocks.replica.assert_not_called()
+    chain_mocks.full_invite.assert_not_called()
+    chain_mocks.full_reply.assert_not_called()
     assert demo_utils._demo_failures == []
 
 
 def test_recommend_path_has_no_inviter_and_triggers_no_invite(chain_mocks):
-    _run(inviter=None)
+    _run(inviter=None, ledger_client=MagicMock())
 
     chain_mocks.invite.assert_not_called()
     chain_mocks.find.assert_called_once()
@@ -241,6 +344,8 @@ def test_step_and_gate_labels_are_pinned(chain_mocks):
         "Vendor invite was emitted as the CaseActor (PCR-08-008)",
         "Vendor accepts the case invitation",
         "Vendor's DataLayer received case replica",
+        "Vendor received the full-case Invite",
+        "Vendor accepts the full-case Invite",
     ]
 
 

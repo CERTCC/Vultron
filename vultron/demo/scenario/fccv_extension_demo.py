@@ -454,6 +454,8 @@ def _phase_c2_suggests_vendor(
         invitee_in_own_container=vendor_in_vendor,
         invite_timeout=20.0,
         replica_timeout=20.0,
+        ledger_client=c1_client,
+        reply_timeout=20.0,
     )
 
     # All 5 participants (Finder + C1 + C2 + Vendor + CaseActor) present is the

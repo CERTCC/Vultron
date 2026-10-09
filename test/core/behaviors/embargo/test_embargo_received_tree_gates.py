@@ -97,9 +97,11 @@ def test_activate_embargo_backfill_is_the_factory_gate() -> None:
 
     gate = tree.children[-1]
     assert isinstance(gate, CaseManagerGate)
-    # Capture the signatories, activate, then the CM-31-009 notices, the
-    # backfill of what the activation admitted, and the re-issue of stale
-    # stub Invites (CM-11-016).
+    assert gate.name == "ActivateEmbargoOnCaseBTIfCaseManager"
+    # The owner's activation is gated to the CASE_MANAGER (RSH-08-003): capture
+    # the signatories bound before the write, run the ACTIVATE through the
+    # lifecycle, send the CM-31-009 notices, backfill what the activation
+    # admitted, then re-issue stale stub Invites (CM-11-016).
     assert [type(n) for n in gate.gated_branch.children] == [
         CaptureActiveEmbargoNode,
         ActivateEmbargoLifecycleNode,

@@ -34,14 +34,15 @@ The checks:
    sees nodes a factory reaches through helpers, locals and nested factories,
    and descends into the participant-replica gate, which runs everywhere but
    the CASE_MANAGER.
-2. **Ratchet** :data:`KNOWN_UNGATED_STATE_WRITES` — ungated writes awaiting
-   the gating fix, one owner per tree.  Terminal value: empty; its strict
-   ``xfail`` goal test fails the build when it empties without being deleted.
-3. **Pinned exemption set** :data:`REPLICA_STATE_WRITES` — trees whose
-   ungated writes are the design: the ledger replay itself, and the
-   bootstrap trees that mint a case or seed a replica before any
-   CASE_MANAGER gate could pass.
-4. Every behaviors class that reaches a state-write seam carries the marker,
+2. **Pinned exemption set** :data:`REPLICA_STATE_WRITES` — trees whose
+   ungated writes are the design: the ledger replay itself, the bootstrap
+   trees that mint a case or seed a replica before any CASE_MANAGER gate could
+   pass, the Engage carried-snapshot seed, and the paused-signatory embargo
+   teardown the CASE_MANAGER's direct notice carries (CM-31-010).  Every other
+   received-side state write is now CASE_MANAGER-gated (#3814): the
+   ``KNOWN_UNGATED_STATE_WRITES`` ratchet drove to empty and was deleted with
+   its strict-``xfail`` goal test, per #3815's design.
+3. Every behaviors class that reaches a state-write seam carries the marker,
    or is in the **pinned exemption set** :data:`WRITES_NO_CASE_STATE` with
    its reason — so the marker, not a name list, decides what the walk finds.
 
@@ -104,122 +105,7 @@ _STATE_WRITE_METHODS = frozenset(
 )
 
 # ---------------------------------------------------------------------------
-# 2. Received trees whose state writes still run on every replica.  Each row
-#    leaves when its tree moves the write into manager_effects — after the
-#    write's replay slot exists (RSH-08-004) — in the same commit
-#    (ARCH-18-002).
-# ---------------------------------------------------------------------------
-# owner: #3814 (every entry; the RSH-08-003 gating half of that issue)
-KNOWN_UNGATED_STATE_WRITES: frozenset[_Write] = frozenset(
-    {
-        # owner: #3814
-        (
-            f"{_C}/receive_close_case_tree.py",
-            "create_close_case_received_tree",
-            "AdvanceCaseActorToRMClosedNode",
-        ),
-        # owner: #3814
-        (
-            f"{_C}/receive_close_case_tree.py",
-            "create_close_case_received_tree",
-            "AdvanceParticipantToRMClosedNode",
-        ),
-        # owner: #3814
-        (
-            f"{_C}/ownership_transfer_tree.py",
-            "create_accept_ownership_transfer_tree",
-            "AcceptCaseOwnershipTransferNode",
-        ),
-        # owner: #3814
-        (
-            f"{_C}/update_tree.py",
-            "create_update_case_received_tree",
-            "ApplyCaseUpdateNode",
-        ),
-        # owner: #3814 — CM-31-010's paused-stream exception is decided here
-        (
-            f"{_E}/announce_teardown_tree.py",
-            "remove_embargo_from_case_tree",
-            "ClearActiveEmbargoNode",
-        ),
-        # owner: #3814
-        (
-            f"{_N}/create_note_tree.py",
-            "create_note_tree",
-            "AttachNoteToCaseNode",
-        ),
-        # owner: #3814
-        (
-            f"{_R}/prioritize_tree.py",
-            "create_defer_case_tree",
-            "CreateParticipantStatusNode",
-        ),
-        # owner: #3814
-        (
-            f"{_R}/prioritize_tree.py",
-            "create_engage_case_tree",
-            "CreateParticipantStatusNode",
-        ),
-        # owner: #3814 — the Engage's carried snapshot is written by every
-        # receiver, from a participant sender, before the commit
-        (
-            f"{_R}/prioritize_tree.py",
-            "create_engage_case_tree",
-            "HoldCarriedEmbargoNode",
-        ),
-        # owner: #3814 — as above
-        (
-            f"{_R}/prioritize_tree.py",
-            "create_engage_case_tree",
-            "StoreEmbeddedParticipantsNode",
-        ),
-        # owner: #3814 — gate after #4304 makes the commit canonical
-        (
-            f"{_R}/received_report_trees.py",
-            "create_close_report_received_tree",
-            "CreateParticipantStatusNode",
-        ),
-        # owner: #3814 — gate after #4304 makes the commit canonical
-        (
-            f"{_R}/received_report_trees.py",
-            "create_invalidate_report_received_tree",
-            "CreateParticipantStatusNode",
-        ),
-        # owner: #3814
-        (
-            f"{_R}/received_report_trees.py",
-            "create_validate_report_received_tree",
-            "TransitionRMtoValid",
-        ),
-        # owner: #3814
-        (
-            f"{_S}/add_case_status_tree.py",
-            "add_case_status_tree",
-            "AppendCaseStatusToCaseNode",
-        ),
-        # owner: #3814
-        (
-            f"{_S}/add_participant_status_tree.py",
-            "add_participant_status_tree",
-            "AppendStatusAndSaveParticipantNode",
-        ),
-        # owner: #3814
-        (
-            f"{_S}/add_participant_status_tree.py",
-            "add_participant_status_tree",
-            "EmitCaseStatusUpdateNode",
-        ),
-        # owner: #3814
-        (
-            f"{_S}/add_participant_status_tree.py",
-            "add_participant_status_tree",
-            "ResolveAndPersistStatusObjectNode",
-        ),
-    }
-)
-
-# ---------------------------------------------------------------------------
-# 3. Received trees whose ungated writes are the design, with the reason.
+# 2. Received trees whose ungated writes are the design, with the reason.
 #    A replica must write the state the ledger carries, and a tree that mints
 #    a case or seeds a replica runs before a CASE_MANAGER exists to gate on.
 # ---------------------------------------------------------------------------
@@ -241,6 +127,13 @@ _ENDING_NOTICE = (
     " direct embargo-ending notice, its only channel; the sender guard admits"
     " only the CASE_MANAGER (CM-31-010, PCR-03-001)"
 )
+_CARRIED_SNAPSHOT = (
+    "stores the embargo and inline participants an Engage carried, before the"
+    " sender guard can find a sender whose participant is only in that"
+    " snapshot; idempotent and non-regressing, the same neutral seeding the"
+    " announce-case path uses, not a replica adopting adjudicated state from a"
+    " peer (CBT-05-005, EMB-18-003, BT-22-005)"
+)
 # permanent: RSH-08-003 (replay and bootstrap writes; see each reason)
 REPLICA_STATE_WRITES: dict[_Write, str] = {
     (
@@ -248,6 +141,25 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
         "announce_embargo_received_tree",
         "ApplyAnnouncedEmbargoRevisionNode",
     ): _ENDING_NOTICE,
+    # The participant-replica arm's teardown now runs only for a paused
+    # signatory, gated by AwaitsEmbargoEndingNoticeNode (#3814): the direct
+    # Remove(EmbargoEvent) is that signatory's only channel (CM-31-010).
+    (
+        f"{_E}/announce_teardown_tree.py",
+        "remove_embargo_from_case_tree",
+        "ClearActiveEmbargoNode",
+    ): _ENDING_NOTICE,
+    **{
+        (
+            f"{_R}/prioritize_tree.py",
+            "create_engage_case_tree",
+            cls,
+        ): _CARRIED_SNAPSHOT
+        for cls in (
+            "HoldCarriedEmbargoNode",
+            "StoreEmbeddedParticipantsNode",
+        )
+    },
     **{
         (f"{_Y}/announce_tree.py", "create_announce_log_entry_tree", cls): (
             _REPLAY
@@ -315,7 +227,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Classes that reach a state-write seam but write no participant or case
+# 3. Classes that reach a state-write seam but write no participant or case
 #    state, so carry no StateWriteCapable marker.  Entries are
 #    (dotted module, class) → reason.
 # ---------------------------------------------------------------------------
@@ -344,10 +256,6 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         "RecordCaseActorAcceptanceNode",
     ): _LOCAL,
     (f"{_B}.case.nodes.case_setup", "EnsureCaseActorHostedNode"): _LOCAL,
-    (
-        f"{_B}.case.nodes.communication",
-        "CreateAndPersistCaseActivityNode",
-    ): _ARCHIVE,
     (f"{_B}.case.nodes.conditions", "WritePendingReportCaseLinkNode"): _LOCAL,
     (f"{_B}.case.nodes.embargo_resolution", "CaseNotEmbargoEligibleNode"): (
         "asks EmbargoLifecycle whether the case is eligible; writes nothing"
@@ -444,11 +352,7 @@ def _ungated_state_writes() -> frozenset[_Write]:
 def test_every_received_tree_factory_is_built() -> None:
     """Guard against a vacuous walk: the factories the ratchet names exist."""
     built = set(built_received_trees())
-    named = {
-        (rel, factory)
-        for rel, factory, _ in KNOWN_UNGATED_STATE_WRITES
-        | set(REPLICA_STATE_WRITES)
-    }
+    named = {(rel, factory) for rel, factory, _ in set(REPLICA_STATE_WRITES)}
     assert named <= built, sorted(named - built)
     assert (
         f"{_Y}/announce_tree.py",
@@ -459,26 +363,14 @@ def test_every_received_tree_factory_is_built() -> None:
 @pytest.mark.spec("RSH-08-003")
 @pytest.mark.spec("ARCH-18-001")
 def test_received_tree_state_writes_are_gated_or_known() -> None:
-    assert not KNOWN_UNGATED_STATE_WRITES & set(REPLICA_STATE_WRITES)
     _assert_pinned(
         "state write outside the CASE_MANAGER gate in a received tree",
         _ungated_state_writes(),
-        KNOWN_UNGATED_STATE_WRITES | frozenset(REPLICA_STATE_WRITES),
-        "pass it as manager_effects once its replay slot exists"
-        " (RSH-08-003, RSH-08-004); a replay or bootstrap write is"
-        " classified in REPLICA_STATE_WRITES with its reason",
+        frozenset(REPLICA_STATE_WRITES),
+        "pass it as manager_effects (RSH-08-003, RSH-08-004); a replay or"
+        " bootstrap write is classified in REPLICA_STATE_WRITES with its"
+        " reason",
     )
-
-
-@pytest.mark.spec("RSH-08-003")
-@pytest.mark.xfail(
-    strict=True,
-    reason="goal: every received-side state write is CASE_MANAGER-gated"
-    " (#3814); when KNOWN_UNGATED_STATE_WRITES empties this passes and"
-    " strict xfail fails the build — delete this test and the empty set",
-)
-def test_goal_no_received_state_write_is_ungated() -> None:
-    assert frozenset() == KNOWN_UNGATED_STATE_WRITES
 
 
 @pytest.mark.parametrize("write", sorted(REPLICA_STATE_WRITES))

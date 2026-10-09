@@ -503,6 +503,7 @@ class TestWriteCreateCaseMarkerNode:
         assert activity.actor == _CASE_ACTOR_URI
 
     @pytest.mark.spec("CM-10-004")
+    @pytest.mark.spec("CM-12-003")
     def test_bootstrap_addressees_withhold_an_inert_finder(self) -> None:
         """Under an active embargo only a signatory reporter is bootstrapped.
 
@@ -987,8 +988,15 @@ def _owner_roles(dl: SqliteDataLayer) -> list:
 
 @pytest.mark.spec("CP-09-001")
 @pytest.mark.spec("CP-09-002")
+@pytest.mark.spec("CM-14-009")
 class TestADR0041OwnerParticipant:
-    """ADR-0041 AC-1: report receiver added as CASE_OWNER at RM.RECEIVED."""
+    """ADR-0041 AC-1: report receiver added as CASE_OWNER at RM.RECEIVED.
+
+    Also the live home of CM-14-009 (case initialization step 2 creates the
+    case-owner ``CaseParticipant`` with ``RM.RECEIVED`` and
+    ``CVDRole.CASE_OWNER``) after #4353 deleted the orphaned
+    ``CreateCaseOwnerParticipant`` composite that formerly carried the marker.
+    """
 
     def test_owner_participant_created(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase

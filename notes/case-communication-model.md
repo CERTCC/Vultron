@@ -239,14 +239,14 @@ Adding a new participant to an active case uses `RmInviteToCaseActivity` /
 participant record, but the record is **inert** — it receives no case content
 (CM-10-004) — so the standard CASE_MANAGER → broadcast model cannot deliver the
 invite. The CASE_MANAGER MUST still be the authoritative actor in the exchange.
-The join model is ADR-0114 and ADR-0070; the full flow is in
+The join model is ADR-0114 and ADR-0121; the full flow is in
 [case-joining.md](case-joining.md).
 
 ### Correct Flow
 
-This is the target model (CM-11, ADR-0114, ADR-0070). The code still creates
-the participant on `Accept(Invite)`; the implementation issues spawned from
-issue #4006 move it.
+The model below is CM-11 (ADR-0114, ADR-0121): the stub Invite creates the
+participant, `Accept(Invite(stub))` joins it, and the full-case Invite asks it to
+judge the case.
 
 ```text
 Case Owner triggers SvcInviteActorToCaseUseCase
@@ -568,7 +568,7 @@ BTBridge(datalayer=dl).execute_with_setup(
 ```
 
 A reply to the full-case Invite is the participant's judgement of the case
-(RV/RI/RC, CM-11-011; ADR-0070). The CASE_MANAGER records it as a direct RM
+(RV/RI/RC, CM-11-011; ADR-0121). The CASE_MANAGER records it as a direct RM
 state update, without emitting a proxy activity on the participant's behalf
 (PCR-08-010). The stub `Accept` moves no RM state at all (CM-11-001).
 

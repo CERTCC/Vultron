@@ -410,6 +410,13 @@ is not an active participant gets `REFUSED` before replication state is
 written, so the replay and pre-seed gates are defence in depth behind it. Without the replay gate, the paused replica's forward-gap
 Reject (SYNC-14-002) would pull the withheld entries straight through.
 
+Answering a Reject is the CASE_MANAGER's act alone (SYNC-03-005): the
+replication state, the pre-seed and the replay all sit in the reject tree's
+`manager_effects`, in that order, behind the factory's gate (BT-17-008). Any
+other receiver sends and records nothing and reports `REFUSED`. A pre-seed
+whose embargo gate is undecidable fails the tree at the CASE_MANAGER before the
+replay, rather than reading as a skip (#4324).
+
 Only a joined participant that is not active is *paused*: one the active
 embargo withholds (not `SIGNATORY` to it), or one the Case Owner removed
 (CM-31-001, ADR-0116). `inactive_joined_participants()` names them, and the

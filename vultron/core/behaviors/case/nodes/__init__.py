@@ -22,14 +22,12 @@ continue to work without modification.
 
 Submodules:
 - ``actor``: Actor-participation invite/accept emit nodes
-- ``conditions``: Idempotency guard condition nodes
-- ``case_setup``: Case persistence, CaseActor identity and CaseActor
-  provisioning leaf action nodes
+- ``conditions``: Idempotency guard and role-check condition nodes
+- ``case_setup``: CaseActor provisioning leaf action node (EnsureCaseActorHostedNode)
 - ``participant``: Participant creation and attachment leaf action nodes
 - ``embargo``: Default embargo initialization action nodes
 - ``close_case_effect``: Ledger-apply of a ``close_case`` entry on a replica
   (ApplyCloseCaseFromLedgerNode; composes the participant-status writer)
-- ``communication``: Outbound activity emission action nodes
 - ``intake``: Intake node — archives the received activity as received,
   first in every received tree (ADR-0111)
 - ``lifecycle``: Case log entry commit action node
@@ -51,28 +49,18 @@ Import each composite from the ``*_tree.py`` module that defines it.
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
-    ProposeCaseToActorNode,
 )
 from vultron.core.behaviors.case.nodes.case_lookup import (
     RequireCaseForReport,
 )
 from vultron.core.behaviors.case.nodes.case_setup import (
     EnsureCaseActorHostedNode,
-    PersistCase,
-    RecordCaseCreatedEventNode,
-    RecordOfferReceivedEventNode,
-    SetCaseAttributedTo,
 )
 from vultron.core.behaviors.case.nodes.close_case_effect import (
     ApplyCloseCaseFromLedgerNode,
 )
-from vultron.core.behaviors.case.nodes.communication import (
-    CollectCaseAddresseesNode,
-    CreateAndPersistCaseActivityNode,
-)
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckAutoCaseCreationEnabledNode,
-    CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
     CheckIsCaseManagerNode,
     CheckProposalAlreadySentForReport,
@@ -113,11 +101,10 @@ from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
 )
 from vultron.core.behaviors.case.nodes.invite_participant import (
     CheckInviteeNotAlreadyParticipantNode,
-    CreateInviteeParticipantNode,
+    InviteeHasParticipantRecordNode,
 )
 from vultron.core.behaviors.case.nodes.invite_participant_persist import (
-    AdvanceInviteeToReceivedNode,
-    PersistInviteeParticipantNode,
+    ActivateInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.invite_response import (
     EmitAcceptCaseInviteNode,
@@ -137,7 +124,6 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 )
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
-    RecordOwnerJoinedEventNode,
     _create_and_attach_participant,
     resolve_participant_state_from_dl,
 )
@@ -224,11 +210,9 @@ __all__ = [
     "EmitInviteActorToCaseNode",
     "EmitAcceptCaseInviteNode",
     "EvaluateDefaultRolesNode",
-    "ProposeCaseToActorNode",
     "ProposeReportCaseToActorNode",
     # conditions
     "CheckAutoCaseCreationEnabledNode",
-    "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
     "CheckIsCaseManagerNode",
     "CheckProposalAlreadySentForReport",
@@ -236,13 +220,8 @@ __all__ = [
     "WritePendingReportCaseLinkNode",
     # case_setup (leaf nodes)
     "EnsureCaseActorHostedNode",
-    "PersistCase",
-    "SetCaseAttributedTo",
-    "RecordOfferReceivedEventNode",
-    "RecordCaseCreatedEventNode",
     # participant (leaf nodes)
     "CreateParticipantStatusNode",
-    "RecordOwnerJoinedEventNode",
     "_create_and_attach_participant",
     "resolve_participant_state_from_dl",
     # embargo (leaf nodes)
@@ -257,9 +236,6 @@ __all__ = [
     "EmitRejectCaseParticipantRoleNode",
     # close_case_effect (ledger-apply leaf node)
     "ApplyCloseCaseFromLedgerNode",
-    # communication (leaf nodes)
-    "CollectCaseAddresseesNode",
-    "CreateAndPersistCaseActivityNode",
     # lifecycle
     "CommitCaseLedgerEntryNode",
     # update
@@ -276,7 +252,7 @@ __all__ = [
     "create_participant_replica_gated_tree",
     # vfd_role_guards (condition nodes)
     "CheckNotSoleObserverVfdNode",
-    # on_behalf_guards (ADR-0084)
+    # on_behalf_guards (ADR-0121)
     "CheckOnBehalfAuthorizedNode",
     "CheckOnBehalfTargetIsParticipantNode",
     # suggest_actor (leaf nodes)
@@ -317,10 +293,9 @@ __all__ = [
     "CreateInertInviteeParticipantNode",
     # invite_participant (leaf nodes)
     "CheckInviteeNotAlreadyParticipantNode",
-    "CreateInviteeParticipantNode",
+    "InviteeHasParticipantRecordNode",
     # invite_participant_persist (leaf nodes)
-    "PersistInviteeParticipantNode",
-    "AdvanceInviteeToReceivedNode",
+    "ActivateInviteeParticipantNode",
     # invite_ledger_backfill (leaf nodes)
     "CapturePreCommitBackfillTargetNode",
     "BackfillCanonicalLedgerToInviteeNode",

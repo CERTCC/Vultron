@@ -397,7 +397,7 @@ class AddOnBehalfStatusRequest(CaseTriggerRequest):
 
     A Case Manager or Case Owner records a vendor's awareness (``v→V``,
     ``vf_state="Vf"``) or a deployer's deployment (``d→D``, ``d_state="D"``)
-    on behalf of an existing participant (ADR-0084; PRM-06-003, PRM-06-004).
+    on behalf of an existing participant (ADR-0121; PRM-06-003, PRM-06-004).
     A v→V target is typically an invitee that has not yet replied; a d→D
     target must be a deployer at RM ``ACCEPTED``, ``DEFERRED`` or
     ``CLOSED``.  ``target_actor_id`` names that participant; a
@@ -424,7 +424,7 @@ class AddOnBehalfStatusRequest(CaseTriggerRequest):
         if v is not None and v == CS_vf.VF:
             raise ValueError(
                 "f→F (CS_vf.VF) cannot be asserted on behalf of another actor"
-                " (ADR-0084, PRM-06-005)"
+                " (ADR-0121, PRM-06-005)"
             )
         if v is not None and v != CS_vf.Vf:
             raise ValueError(

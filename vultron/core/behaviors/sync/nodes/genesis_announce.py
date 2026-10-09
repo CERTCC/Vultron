@@ -48,10 +48,13 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
     producing an exponential reject-replay loop (SYNC-15-002).  This node
     fires first so the VulnerabilityCase arrives before the entry replay.
 
-    Returns SUCCESS unconditionally (missing trigger port is only a WARNING so
-    that the replay still runs in environments without a trigger port).
+    Returns SUCCESS when it queues the announce or has nothing to seed (a
+    missing trigger port is only a WARNING, so the replay still runs in
+    environments without one).  Returns FAILURE when the embargo gate is
+    undecidable, which fails the tree before the replay (BTND-07-005).
 
-    Authored as the executing actor, gated on CASE_MANAGER (ADR-0073).
+    Authored as the executing actor; runs only inside the reject tree's
+    CASE_MANAGER gate (ADR-0073, BT-17-008).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {

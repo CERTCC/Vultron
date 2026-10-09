@@ -36,7 +36,6 @@ from vultron.demo.helpers.polling import (
     case_actor_participant_id_in,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
-    find_full_case_invite_for_actor,
     find_ownership_transfer_offer_for_actor,
     resolve_case_actor_store_id,
     wait_for_initialized_case,
@@ -44,7 +43,6 @@ from vultron.demo.helpers.polling import (
     wait_for_report_submission_stored,
 )
 from vultron.demo.helpers.seeding import get_actor_by_id
-from vultron.demo.helpers.sync import wait_for_replica_ledger_coverage
 from vultron.demo.helpers.verification import _fetch_participant
 from vultron.demo.utils import (
     DataLayerClient,
@@ -307,38 +305,6 @@ def receiver_engages_case(
     return result
 
 
-def receiver_accepts_full_case_invite(
-    receiver_client: DataLayerClient,
-    receiver: as_Actor,
-    invite_id: str,
-) -> dict:
-    """A joined participant judges the case valid (RM → VALID, CM-11-011).
-
-    Sends ``Accept(Invite(Actor, VulnerabilityCase))`` for the CASE_MANAGER's
-    full-case Invite through the trigger endpoint.  The trigger fails closed
-    until the participant's own copy of the ledger has reached the Invite's
-    floor (SYNC-10-004), so the caller waits for ledger coverage first.
-
-    Args:
-        receiver_client: Client connected to the participant's container.
-        receiver: The joined participant's ``as_Actor``.
-        invite_id: ID of the full-case Invite, from
-            :func:`~vultron.demo.helpers.polling.find_full_case_invite_for_actor`.
-
-    Returns:
-        Response dict from the trigger endpoint.
-    """
-    result: dict = {}
-    with demo_step("Participant accepts the full-case Invite (judges valid)"):
-        result = (
-            ActorSession(client=receiver_client, actor=receiver)
-            .quiet()
-            .accept_full_case_invite(invite_id=invite_id)
-            .model_dump(exclude_none=True)
-        )
-    return result
-
-
 def run_invite_path_rm_triage(
     invited_client: DataLayerClient,
     invited_actor: as_Actor,
@@ -356,14 +322,14 @@ def run_invite_path_rm_triage(
     and receives the case, then the ledger replay, then the CASE_MANAGER's
     full-case Invite.  It never answers the reporter's
     ``Offer(VulnerabilityReport)``: it was not sent that Offer (CM-11-020,
-    ADR-0121).  It judges the case by replying to the full-case Invite.
+    ADR-0121).  It judges the case by replying to the full-case Invite, and
+    :func:`~vultron.demo.helpers.invite_chain.run_case_invite_chain` sends that
+    reply for every invitee before this runs.
 
     Steps:
-    1. Wait for the full-case Invite and the ledger up to its floor, then
-       trigger accept-full-case-invite (RM → VALID).
-    2. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
-    3. Trigger engage-case (RM → ACCEPTED).
-    4. Poll until CaseActor reflects RM.ACCEPTED.
+    1. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
+    2. Trigger engage-case (RM → ACCEPTED).
+    3. Poll until CaseActor reflects RM.ACCEPTED.
 
     Args:
         invited_client: Client for the invited actor's container.
@@ -380,27 +346,6 @@ def run_invite_path_rm_triage(
         invited_obj: The invited actor's top-level object (used for actor_id lookup).
         timeout_seconds: Polling timeout per wait call (default 20s).
     """
-    invite_id = find_full_case_invite_for_actor(
-        client=invited_client,
-        case_id=case.id_,
-        invitee_id=invited_actor.id_,
-        timeout_seconds=timeout_seconds,
-    )
-    # The reply trigger fails closed until the invitee's ledger copy reaches
-    # the Invite's floor (SYNC-10-004), so gate on coverage first (ADR-0058).
-    wait_for_replica_ledger_coverage(
-        auth_client,
-        [(invited_client, f"{invited_obj.id_} (full-case Invite floor)")],
-        case.id_,
-        default_timeout=timeout_seconds,
-        phase_label="before accepting the full-case Invite",
-    )
-    receiver_accepts_full_case_invite(
-        receiver_client=invited_client,
-        receiver=invited_actor,
-        invite_id=invite_id,
-    )
-
     # Read the CaseActor's own store, not the store of the actor that hosts it:
     # the CaseActor applies the participant RM transition to its own replica and
     # emits no add_participant_status_to_participant ledger entry for it, so the

@@ -153,12 +153,33 @@ def add_case_status_tree(
             FilterCsPxaDimensionNode(),
             FinalizeCsFilterNode(),
         ],
-        replica_effects=[
+        # RSH-08-003: appending the canonical ``CaseStatus`` moves PXA, which is
+        # case state only the CASE_MANAGER writes; ``add_case_status_to_case`` is
+        # committed and replayed (CaseStatus slot), so a replica cc'd on the
+        # ``Add(CaseStatus)`` writes nothing and takes the move from the ledger
+        # fan-out (#3814).  Only the append is gated.
+        manager_effects=[
             AppendCaseStatusToCaseNode(
                 case_id=case_id,
                 status_id=status_id,
                 status_obj_fallback=status_obj,
             ),
+        ]
+        if case_id
+        else None,
+        manager_case_id=case_id if case_id else None,
+        manager_gate_name=(
+            "AppendCaseStatusIfCaseManager" if case_id else None
+        ),
+        # The teardown side-effects and the CSB-18 diagnostic stay ungated
+        # (CASE_STATUS exemption): on the CASE_MANAGER they tear down after the
+        # adopted move; on a participant replica they do not write case state —
+        # the CSB-18 note skips a manager-declared status (RSH-03-004) and the
+        # threat teardown's terminate request only *asks* the CASE_MANAGER
+        # (RSH-03-001, EP-09-008).  They read the asserted ``status_obj`` and
+        # the register-derived EM, so their position ahead of the gated append
+        # does not matter (ADR-0122).
+        replica_effects=[
             py_trees.decorators.FailureIsSuccess(
                 name="TeardownEffectsOrSkip",
                 child=py_trees.composites.Sequence(

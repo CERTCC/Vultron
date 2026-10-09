@@ -27,6 +27,7 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
@@ -73,27 +74,35 @@ class TestUpdateCaseBTStructure:
 
         assert tree.name == "UpdateCaseBT"
         # Intake first (CLP-10-017, ADR-0111), then the sender-ownership guard,
-        # then the effects.  No commit stage: Update(VulnerabilityCase) is not
-        # a canonical payload signature (see create_update_case_received_tree).
-        assert [child.__class__ for child in tree.children[:4]] == [
+        # then the CASE_MANAGER-gated effects.  No commit stage:
+        # Update(VulnerabilityCase) is not a canonical payload signature (see
+        # create_update_case_received_tree).
+        assert [child.__class__ for child in tree.children[:3]] == [
             IntakeReceivedActivityNode,
             CheckCaseUpdateOwnerNode,
-            CaptureCaseUpdateBroadcastExclusionsNode,
-            ApplyCaseUpdateNode,
+            CaseManagerGate,
         ]
 
-        # The broadcast is role-gated: only the case's CASE_MANAGER may announce
-        # canonical case state (CM-06-001), mirroring CLP-09 for ledger commits.
-        # A non-manager skips rather than fails — applying the update to its own
-        # replica is correct.
-        guard = tree.children[4]
-        assert guard.name == "GuardedBroadcastCaseUpdateBT"
-        skip, broadcast = guard.children
+        # Apply, capture and broadcast are all role-gated: an
+        # Update(VulnerabilityCase) is not ledgered (ADR-0111), so only the
+        # case's CASE_MANAGER applies it and re-announces the canonical case
+        # state (CM-06-001, RSH-08-003, #3814); every other replica learns the
+        # new field values from that Announce (SeedAnnouncedCaseNode), never
+        # from the direct Update.  A non-manager skips the whole body rather
+        # than failing.
+        guard = tree.children[2]
+        assert guard.name == "ApplyAndBroadcastCaseUpdateBT"
+        skip, body = guard.children
         assert skip.name == "SkipIfNotCaseManager"
         inverter = skip.children[0]
         assert isinstance(inverter, py_trees.decorators.Inverter)
         assert isinstance(inverter.decorated, CheckIsCaseManagerNode)
-        assert isinstance(broadcast, BroadcastCaseUpdateNode)
+        assert body.name == "ApplyAndBroadcastCaseUpdateBTBody"
+        assert [child.__class__ for child in body.children] == [
+            CaptureCaseUpdateBroadcastExclusionsNode,
+            ApplyCaseUpdateNode,
+            BroadcastCaseUpdateNode,
+        ]
 
     def test_update_case_bt_executes_without_post_bt_broadcast(
         self, make_payload, monkeypatch
