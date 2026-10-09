@@ -4,8 +4,9 @@ status: active
 description: >-
   Design guidance for the consolidated per-message-type reference pages: why the
   formal message set and the AS2 wire vocabulary are different shapes, how the
-  many-to-many mapping is rendered, and where the fault and acknowledgement
-  mechanisms diverged from their specified form.
+  many-to-many mapping is rendered, where the fault and acknowledgement
+  mechanisms diverged from their specified form, and the planned occasion
+  lookup table that the pages will be generated from (ADR-0128).
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/vultron-as2-mapping.yaml
@@ -26,7 +27,9 @@ related_notes:
 
 # Message Type Reference: Formal Shorthands, AS2 Wire Forms, and the Mapping Between Them
 
-Source: IDEA-605. ADR: [ADR-0083](../docs/adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md).
+Source: IDEA-605. ADRs: [ADR-0083](../docs/adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md),
+[ADR-0128](../docs/adr/0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
+(occasions; generated pages).
 
 ## The core fact: the two message sets are different shapes
 
@@ -82,13 +85,20 @@ for `RA`, MSM-01-004 for `RD`).
 
 | Shorthand | Wire activities |
 |---|---|
-| `EP` | `create_embargo_event`, `add_embargo_event_to_case`, `invite_to_embargo_on_case`, `announce_embargo_event_to_case` |
 | `GI` | `create_note`, `add_note_to_case`, `remove_note_from_case`, and the actor-suggestion handshake (`offer_actor_to_case`, `offer_case_participant`, ±accept/reject) |
 
 `GI`'s example list in `messages.md` explicitly includes "suggesting a potential
 Participant to be added to a case", so actor suggestion is a `GI` expansion —
 **not** case management. Filing it under case management is a recurring
 mis-classification.
+
+**`EP` is not an expansion.** It is `Invite(Event)[context=VulnerabilityCase]` and
+nothing else (MSM-02-001). `Create(Event)` mints embargo terms, the same kind of step
+as `Create(VulnerabilityReport)` before `Offer`, and `Announce(Event)` tells
+participants which terms are in force; neither proposes anything, so neither carries
+a shorthand. Tagging them `EP` because they sit near a proposal in the process is the
+mis-classification to avoid. `_mapping.py`, `em.md` and `messages/index.md` still
+make it until #4419 lands.
 
 **Why `GI` expands at all, which nothing recorded before #3456.** `GI` was a
 *placeholder*, and it is defined negatively: messages that no formal state machine
@@ -269,7 +279,11 @@ each quadrant went to its own tree:
 The How-to half is not just the retitled remainder. Each guide now carries
 prerequisites, an ordered activity sequence with conditional branches, a table of
 what to verify, and links out to its Reference and Explanation counterparts — and
-nothing else. The wire examples left with the `_*.md` partials that rendered them.
+nothing else. The wire examples left with the `_*.md` partials that rendered them —
+copies of reference content, which is what made them a collapse. A how-to step may
+show the activity it sends again once that example is the *same* fragment the
+reference section renders (ADR-0128): one source rendered in two places, separated
+and linking to its canonical page, is DF-01-003's escape clause, not a collapse.
 
 `ledger_replication.md` was retired rather than reshaped, because every sentence
 on it described a pattern or a factory and none of it named an action a reader
@@ -309,18 +323,52 @@ So the reference pages are the Reference half of un-blurring an existing
 collapse. Treating them as a fourth parallel surface would deepen the collapse
 instead of resolving it.
 
+## Occasions: the unit of the lookup table (planned, ADR-0128, #4418)
+
+A builder's question runs the other way from the mapping tables: not "what wire
+form does `CF` take?" but "a fix is ready — what do I send?" ADR-0128 answers it
+with one table keyed by **occasion**: a situation in a case that a sender conveys
+with a wire activity, sometimes narrowed by a distinguishing field value or state
+context (glossary, Messaging and Protocol). One semantic type has one or more
+occasions —
+`Add(CaseStatus)` has three — so the table has one row per (occasion, wire activity)
+pair: When… | Send | Sent by | Distinguished by | Details. The formal shorthand is
+only the Details link text; the formal protocol is linked, not leading.
+
+Where each fact will live, so nothing derivable is typed by hand:
+
+| Fact | Owner |
+|---|---|
+| when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes | `SemanticEntry.occasions` |
+| wire summary | the entry's `ActivityPattern`, rendered as today |
+| sent by | the received use case's `sender_entitlement` (ADR-0115) |
+| page | a new `SemanticEntry.page` field, moved from `RowSpec.page` |
+| `MappingStatus`, discriminator | derived from the occasions (`evolved` declared on its occasion), no longer entered in `_mapping.py` |
+| "Seen in" | the include directives on workflow pages |
+
+The YAML file and the `include-markdown` fragments (the whole table, a slice per
+page, one per occasion) are generated, committed, and gated by a `--check` hook;
+`_mapping.py` becomes their loader and validator. That replaces MSM-06-001's
+build-time rendering, so the implementation revises MSM-06-001. Until it lands, the
+pages render as described below.
+
 ## Examples are rendered at build time
 
-Use `markdown_exec` blocks calling `vultron.wire.as2.vocab.examples.vocab_examples`.
-Build-time rendering cannot go stale.
+Today the pages use `markdown_exec` blocks calling
+`vultron.wire.as2.vocab.examples.vocab_examples`. Build-time rendering cannot go
+stale. ADR-0128 moves generated content to committed `include-markdown` fragments
+instead, because MkDocs does not rewrite a `.md` link printed from an exec block
+(`vultron/metadata/AGENTS.md`, Generate vs. Check) — and a lookup table is mostly
+links.
 
 Two patterns are easy to confuse. `docs/reference/specs/protocol.md` is the
 exemplar for the **mapping tables** — a thin `markdown_exec` shell over
 `vultron.metadata.specs.docs_render.render_for_kind`. It does *not* render wire
 examples. For the **examples** themselves, follow `docs/reference/messages/*.md`
 and `docs/reference/activitypub/objects.md`, which are the pages that call
-`vocab_examples`. Since #3003 they are the only ones that do — a rendered wire
-example in the how-to tree is a collapse re-forming.
+`vocab_examples`. A wire example *copied* into the how-to tree is a collapse
+re-forming; one *included* from the occasion's fragment is not (see the Diátaxis
+section above).
 
 A new example function needs a matching `obj_to_file` call in
 `vocab_examples.main()` or `test_vocab_examples_current.py` fails on the file-list
