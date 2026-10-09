@@ -9,6 +9,7 @@ its own fields outside it.
 from __future__ import annotations
 
 import pytest
+import yaml
 
 from vultron.metadata.specs.yaml_items import (
     SpecItem,
@@ -246,3 +247,108 @@ def test_add_lint_suppression_reports_a_present_code(text):
     lines, added = add_lint_suppression(_item(text), "phantom_path_ref")
     assert not added
     assert "".join(lines) == text
+
+
+def test_append_list_field_keeps_a_block_scalar_ending_in_a_hash_line():
+    """A ``#`` line deeper than the fields is scalar text, not a comment.
+
+    UCORG-01-003's ``rationale: >-`` ends with the line ``#3377.``; treating
+    it as a trailing comment put the new list inside the scalar and cut it.
+    """
+    text = (
+        "- id: TST-01-001\n"
+        "  statement: x\n"
+        "  rationale: >-\n"
+        "    Kept for history. See\n"
+        "    #3377.\n"
+        "  # comment introducing the next item\n"
+    )
+    lines = append_list_field(_item(text), "stories", ["s1"])
+    data = yaml.safe_load("".join(lines))
+    assert data == [
+        {
+            "id": "TST-01-001",
+            "statement": "x",
+            "rationale": "Kept for history. See #3377.",
+            "stories": ["s1"],
+        }
+    ]
+    assert "".join(lines).endswith(
+        "  stories:\n  - s1\n  # comment introducing the next item\n"
+    )
+
+
+def test_append_list_field_refuses_duplicate_values():
+    with pytest.raises(ValueError, match="duplicate values"):
+        append_list_field(_item(_PLAIN), "stories", ["s1", "s1"])
+
+
+def test_inserted_lines_copy_a_crlf_line_ending():
+    text = _PLAIN.replace("\n", "\r\n")
+    lines = append_list_field(_item(text), "stories", ["s1"])
+    assert all(line.endswith("\r\n") for line in lines)
+    flow = "- id: TST-01-001\r\n  lint_suppress: [a_code]\r\n"
+    for added_lines in (
+        add_lint_suppression(_item(flow), "x_code")[0],
+        remove_lint_suppression(
+            _item(flow.replace("[a_code]", "[a_code, x_code]")), "x_code"
+        )[0],
+    ):
+        assert all(line.endswith("\r\n") for line in added_lines)
+
+
+def test_add_lint_suppression_refuses_an_unparseable_block_entry():
+    """Stopping at the bad entry would insert mid-list and miss later codes."""
+    text = "- id: TST-01-001\n  lint_suppress:\n  - a-code\n  - b_code\n"
+    with pytest.raises(ValueError, match="unparseable lint_suppress entry"):
+        add_lint_suppression(_item(text), "x_code")
+
+
+_COMMENTED_HEADER = (
+    "- id: TST-01-001\n  lint_suppress:  # why\n  - a_code\n  statement: x\n"
+)
+
+
+def test_add_lint_suppression_handles_a_commented_block_header():
+    lines, added = add_lint_suppression(_item(_COMMENTED_HEADER), "x_code")
+    assert added
+    assert "".join(lines) == _COMMENTED_HEADER.replace(
+        "  - a_code\n", "  - a_code\n  - x_code\n"
+    )
+
+
+def test_remove_lint_suppression_handles_a_commented_block_header():
+    lines, removed = remove_lint_suppression(
+        _item(_COMMENTED_HEADER), "a_code"
+    )
+    assert removed
+    assert "".join(lines) == "- id: TST-01-001\n  statement: x\n"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            "- id: TST-01-001\n  lint_suppress: []\n",
+            "- id: TST-01-001\n  lint_suppress: [x_code]\n",
+        ),
+        (
+            "- id: TST-01-001\n  lint_suppress: ['a_code']  # n\n",
+            "- id: TST-01-001\n  lint_suppress: ['a_code', x_code]  # n\n",
+        ),
+        (
+            "- id: TST-01-001\n  lint_suppress:\n  statement: x\n",
+            "- id: TST-01-001\n  lint_suppress:\n  - x_code\n  statement: x\n",
+        ),
+        (
+            "- id: TST-01-001\n  lint_suppress:\n    - a_code\n",
+            "- id: TST-01-001\n  lint_suppress:\n    - a_code\n    - x_code\n",
+        ),
+    ],
+    ids=["empty-flow", "quoted-flow-comment", "empty-block", "deep-block"],
+)
+def test_add_lint_suppression_list_shapes(text, expected):
+    lines, added = add_lint_suppression(_item(text), "x_code")
+    assert added
+    assert "".join(lines) == expected
+    assert yaml.safe_load(expected)[0]["lint_suppress"][-1] == "x_code"

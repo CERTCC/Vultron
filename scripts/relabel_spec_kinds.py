@@ -79,6 +79,8 @@ def _parse_instruction(spec_id: str, value: object) -> _Instruction:
         isinstance(story, str) and story for story in stories
     ):
         raise ValueError(f"{spec_id}: stories must be a list of story IDs")
+    if len(set(stories)) != len(stories):
+        raise ValueError(f"{spec_id}: stories repeats a story ID")
     if not isinstance(suppress, bool):
         raise TypeError(f"{spec_id}: suppress must be true or false")
     if stories and suppress:
@@ -157,8 +159,12 @@ def _rewrite_item(
     return out
 
 
-def relabel_file(yaml_path: Path, tally: _RunTally, dry_run: bool) -> bool:
-    """Rewrite one spec file. Returns True when the file changed."""
+def relabel_text(yaml_path: Path, tally: _RunTally) -> str | None:
+    """Return one spec file's rewritten text, or ``None`` when it is unchanged.
+
+    Writes nothing, so :func:`main` can compute every file before touching
+    any: a ``ValueError`` from one item leaves the whole corpus as it was.
+    """
     lines = yaml_path.read_text(encoding="utf-8").splitlines(keepends=True)
     result: list[str] = []
     for block in iter_blocks(lines):
@@ -172,10 +178,7 @@ def relabel_file(yaml_path: Path, tally: _RunTally, dry_run: bool) -> bool:
         result.extend(_rewrite_item(block, instruction, tally))
 
     new_text = "".join(result)
-    changed = new_text != "".join(lines)
-    if changed and not dry_run:
-        yaml_path.write_text(new_text, encoding="utf-8")
-    return changed
+    return None if new_text == "".join(lines) else new_text
 
 
 def _report(tally: _RunTally) -> bool:
@@ -218,6 +221,38 @@ def _report(tally: _RunTally) -> bool:
     return failed
 
 
+def _load_mapping(path: Path) -> dict[str, _Instruction] | None:
+    """Parse the JSON mapping; print why and return ``None`` when it is invalid."""
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        print(
+            "invalid mapping: expected a JSON object of spec IDs",
+            file=sys.stderr,
+        )
+        return None
+    try:
+        return {
+            spec_id: _parse_instruction(spec_id, value)
+            for spec_id, value in raw.items()
+        }
+    except (TypeError, ValueError) as exc:
+        print(f"invalid mapping: {exc}", file=sys.stderr)
+        return None
+
+
+def _compute_rewrites(specs_dir: Path, tally: _RunTally) -> dict[Path, str]:
+    """Return every changed file's new text, writing nothing.
+
+    A ``ValueError`` from any item propagates before a single file is written.
+    """
+    rewrites: dict[Path, str] = {}
+    for yaml_path in sorted(specs_dir.glob("*.yaml")):
+        new_text = relabel_text(yaml_path, tally)
+        if new_text is not None:
+            rewrites[yaml_path] = new_text
+    return rewrites
+
+
 def main(argv: list[str]) -> int:
     specs_dir = _SPECS_DIR
     if "--specs-dir" in argv:
@@ -233,25 +268,25 @@ def main(argv: list[str]) -> int:
         print(__doc__, file=sys.stderr)
         return 2
     dry_run = "--dry-run" in argv
-    raw = json.loads(Path(args[0]).read_text(encoding="utf-8"))
-    try:
-        mapping = {
-            spec_id: _parse_instruction(spec_id, value)
-            for spec_id, value in raw.items()
-        }
-    except (TypeError, ValueError) as exc:
-        print(f"invalid mapping: {exc}", file=sys.stderr)
+    mapping = _load_mapping(Path(args[0]))
+    if mapping is None:
         return 2
     tally = _RunTally(mapping)
+    try:
+        rewrites = _compute_rewrites(specs_dir, tally)
+    except ValueError as exc:
+        print(f"no file changed: {exc}", file=sys.stderr)
+        return 2
 
-    for yaml_path in sorted(specs_dir.glob("*.yaml")):
-        if relabel_file(yaml_path, tally, dry_run):
-            shown = (
-                yaml_path.relative_to(_REPO_ROOT)
-                if yaml_path.is_relative_to(_REPO_ROOT)
-                else yaml_path
-            )
-            print(f"{'(dry-run) ' if dry_run else ''}{shown}")
+    for yaml_path, new_text in rewrites.items():
+        if not dry_run:
+            yaml_path.write_text(new_text, encoding="utf-8")
+        shown = (
+            yaml_path.relative_to(_REPO_ROOT)
+            if yaml_path.is_relative_to(_REPO_ROOT)
+            else yaml_path
+        )
+        print(f"{'(dry-run) ' if dry_run else ''}{shown}")
 
     return 1 if _report(tally) else 0
 

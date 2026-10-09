@@ -239,11 +239,25 @@ def test_no_semantics_or_registry_entry_is_named_for_a_pec_transition():
     wire activity that applies it (MSM-07-002), not a PEC-only value.
     """
     pec_tokens = tuple(
-        {t.name for t in PEC_Trigger if t is not PEC_Trigger.INVITE}
-        | {s.name for s in EmbargoConsentState}
-        | {"CONSENT", "PEC"}
+        sorted(
+            {t.name for t in PEC_Trigger if t is not PEC_Trigger.INVITE}
+            | {s.name for s in EmbargoConsentState}
+            | {"CONSENT", "PEC"}
+        )
     )
     assert _members_matching(pec_tokens) == frozenset()
+    # No registry entry is named for a PEC transition either: no entry's
+    # semantics, event class or use-case class carries a PEC token.
+    for entry in SEMANTIC_REGISTRY:
+        names = (
+            entry.semantics.name,
+            getattr(entry.event_class, "__name__", ""),
+            getattr(entry.use_case_class, "__name__", ""),
+        )
+        named_pec = [
+            n for n in names if any(t in n.upper() for t in pec_tokens)
+        ]
+        assert not named_pec, entry.semantics
 
 
 # ---------------------------------------------------------------------------

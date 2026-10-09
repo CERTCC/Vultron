@@ -164,8 +164,6 @@ class TestDeliveryRetry:
 
     @pytest.mark.spec("SYNC-05-001")
     def test_exponential_backoff_delay_sequence(self):
-        import pytest
-
         adapter = HttpDeliveryAdapter(
             max_retries=3,
             initial_delay=1.0,
@@ -192,8 +190,6 @@ class TestDeliveryRetry:
         assert sleep_calls == [1.0, 2.0, 4.0]
 
     def test_delay_capped_at_max_delay(self):
-        import pytest
-
         adapter = HttpDeliveryAdapter(
             max_retries=5,
             initial_delay=10.0,
@@ -221,8 +217,6 @@ class TestDeliveryRetry:
             assert delay <= 30.0
 
     def test_exhaust_retries_logs_error(self, caplog):
-        import pytest
-
         adapter = HttpDeliveryAdapter(
             max_retries=1, initial_delay=0.0, backoff_multiplier=1.0
         )
@@ -242,8 +236,6 @@ class TestDeliveryRetry:
 
     def test_one_failed_recipient_does_not_block_others(self):
         """Delivery failure for one recipient does not abort others; raises after all attempted."""
-        import pytest
-
         adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
 
         delivered: list[str] = []
@@ -272,8 +264,6 @@ class TestDeliveryRetry:
 
     def test_exhaust_retries_raises(self):
         """emit() raises after all retries are exhausted so outbox_handler can requeue (OX-05-002)."""
-        import pytest
-
         adapter = HttpDeliveryAdapter(
             max_retries=1, initial_delay=0.0, backoff_multiplier=1.0
         )
@@ -290,8 +280,6 @@ class TestDeliveryRetry:
 
     def test_4xx_raises_delivery_error_immediately_without_retry(self):
         """HTTP 4xx is terminal: DeliveryError raised on first attempt, no retries, no sleep (OX-13-005 AC-2/AC-4)."""
-        import pytest
-
         adapter = HttpDeliveryAdapter(max_retries=3, initial_delay=0.0)
         call_count = 0
 
@@ -319,8 +307,6 @@ class TestDeliveryRetry:
 
     def test_5xx_retries_up_to_max_retries(self):
         """HTTP 5xx is retryable: exhausts all retry slots (OX-13-005 AC-4)."""
-        import pytest
-
         adapter = HttpDeliveryAdapter(
             max_retries=2, initial_delay=0.0, backoff_multiplier=1.0
         )

@@ -263,7 +263,9 @@ def test_null_lint_suppress_header_is_left_alone(tmp_path):
     assert out == text.replace("kind: protocol", "kind: project")
 
 
-def test_unparseable_list_entry_raises_instead_of_orphaning_it(tmp_path):
+def test_unparseable_list_entry_fails_the_run_instead_of_orphaning_it(
+    tmp_path, capsys
+):
     text = _HEADER + (
         "  - id: TST-01-001\n"
         "    priority: MUST\n"
@@ -272,8 +274,10 @@ def test_unparseable_list_entry_raises_instead_of_orphaning_it(tmp_path):
         "    lint_suppress:\n"
         "    - {code: missing_story_reference}\n"
     )
-    with pytest.raises(ValueError, match="unparseable lint_suppress entry"):
-        _run(tmp_path, {"TST-01-001": "project"}, text=text)
+    rc, out = _run(tmp_path, {"TST-01-001": "project"}, text=text)
+    assert rc == 2
+    assert "unparseable lint_suppress entry" in capsys.readouterr().err
+    assert out == text
 
 
 def test_missing_kind_line_is_reported_and_fails_the_run(tmp_path, capsys):
@@ -402,26 +406,72 @@ def test_suppressing_an_already_suppressed_item_is_reported(tmp_path, capsys):
     )
 
 
-def test_stories_on_an_item_that_has_them_raises(tmp_path):
-    text = _HEADER + (
-        "  - id: TST-01-001\n"
-        "    priority: MUST\n"
-        "    kind: project\n"
-        "    statement: TST-01-001 MUST do the thing\n"
-        "    stories:\n"
-        "    - story_2022_001\n"
+_STORIED = _HEADER + (
+    "  - id: TST-01-001\n"
+    "    priority: MUST\n"
+    "    kind: project\n"
+    "    statement: TST-01-001 MUST do the thing\n"
+    "    stories:\n"
+    "    - story_2022_001\n"
+)
+
+
+def test_stories_on_an_item_that_has_them_fails_the_run(tmp_path, capsys):
+    rc, out = _run(
+        tmp_path,
+        {"TST-01-001": {"kind": "protocol", "stories": ["story_2022_045"]}},
+        text=_STORIED,
     )
-    with pytest.raises(ValueError, match="already has a stories: field"):
-        _run(
-            tmp_path,
+    assert rc == 2
+    assert "already has a stories: field" in capsys.readouterr().err
+    assert out == _STORIED
+
+
+def test_a_failing_item_leaves_every_file_unwritten(tmp_path, capsys):
+    """Files are all computed before any is written, so no run half-applies.
+
+    ``a.yaml`` sorts first and would be rewritten; ``b.yaml``'s item already
+    has ``stories:`` and fails, so ``a.yaml`` must come back byte for byte.
+    """
+    specs_dir = tmp_path / "specs"
+    specs_dir.mkdir()
+    first = _FIXTURE
+    second = _STORIED.replace("TST-01-001", "TST-02-001")
+    (specs_dir / "a.yaml").write_text(first, encoding="utf-8")
+    (specs_dir / "b.yaml").write_text(second, encoding="utf-8")
+    mapping_path = tmp_path / "mapping.json"
+    mapping_path.write_text(
+        json.dumps(
             {
-                "TST-01-001": {
+                "TST-01-001": "project",
+                "TST-02-001": {
                     "kind": "protocol",
                     "stories": ["story_2022_045"],
-                }
-            },
-            text=text,
-        )
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    rc = relabel.main([str(mapping_path), "--specs-dir", str(specs_dir)])
+    assert rc == 2
+    assert "no file changed" in capsys.readouterr().err
+    assert (specs_dir / "a.yaml").read_text(encoding="utf-8") == first
+    assert (specs_dir / "b.yaml").read_text(encoding="utf-8") == second
+
+
+@pytest.mark.parametrize("raw", [["TST-01-001"], "TST-01-001", 3])
+def test_a_mapping_that_is_not_an_object_is_a_usage_error(
+    tmp_path, capsys, raw
+):
+    specs_dir = tmp_path / "specs"
+    specs_dir.mkdir()
+    (specs_dir / "tst.yaml").write_text(_FIXTURE, encoding="utf-8")
+    mapping_path = tmp_path / "mapping.json"
+    mapping_path.write_text(json.dumps(raw), encoding="utf-8")
+    rc = relabel.main([str(mapping_path), "--specs-dir", str(specs_dir)])
+    assert rc == 2
+    assert "expected a JSON object" in capsys.readouterr().err
+    assert (specs_dir / "tst.yaml").read_text(encoding="utf-8") == _FIXTURE
 
 
 @pytest.mark.parametrize(
@@ -432,6 +482,7 @@ def test_stories_on_an_item_that_has_them_raises(tmp_path):
         {"kind": 3},
         {"kind": "protocol", "stories": "story_2022_045"},
         {"kind": "protocol", "stories": [""]},
+        {"kind": "protocol", "stories": ["story_2022_045"] * 2},
         {"kind": "protocol", "suppress": "yes"},
         ["protocol"],
     ],

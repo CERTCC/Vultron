@@ -826,6 +826,19 @@ def test_full_deploy_arm_completes_and_emits_cd(
     # EmitCDActivity queued a CD activity to the deployer's outbox.
     outbox = bt_scenario.dl.outbox_list()
     assert len(outbox) == 1
+    # CSB-11-002: the queued activity is the CD announcement — an Add of the
+    # new D status — routed to the other participants through the
+    # CASE_MANAGER (PCR-08).
+    activity = bt_scenario.dl.read(outbox[0])
+    assert activity is not None
+    assert activity.type_ == "Add"
+    # PersistableModel declares neither ``to`` nor ``object_``; the stored
+    # activity carries both.
+    assert getattr(activity, "to", None) == [CASE_MANAGER_ACTOR_ID]
+    announced = getattr(activity, "object_", None)
+    assert isinstance(announced, ParticipantStatus)
+    assert announced.id_ == last_status.id_
+    assert announced.d is not None and announced.d.state == CS_d.D
 
 
 def test_deploy_arm_falls_through_to_monitor_when_deployfix_fails(
