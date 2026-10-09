@@ -11,6 +11,7 @@ related_notes:
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-authoring.md
   - notes/demo-scenario-registry.md
+  - notes/demo-ci-scenario-coverage.md
 ---
 
 # Demo CI Invariant Harness Design
