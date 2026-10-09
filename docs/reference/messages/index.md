@@ -67,8 +67,8 @@ Reading the many-to-many relationship from a table:
 
 - **Multiple shorthands in one row** is a collapse — for example `CP CX CA`
   ride a single `Add(CaseStatus)`, discriminated by `pxa_state`.
-- **One shorthand across multiple rows** is an expansion — for example `EP`
-  spans four embargo wire activities.
+- **One shorthand across multiple rows** is an expansion — for example `GI`
+  spans the note lifecycle and the actor-suggestion exchange.
 
 The `evolved` shorthands (`RE`, `EE`, `CE`, `GE`, `EK`, `CK`, `GK`) have no
 dedicated wire activity. Faults are conveyed by `Create(ProcessingFault)`,
