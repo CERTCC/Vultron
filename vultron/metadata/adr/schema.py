@@ -25,6 +25,17 @@ from vultron.metadata.specs.schema import AdrStatus
 PersonField = NonEmptyStr | list[NonEmptyStr]
 
 
+# The four supersession pointer fields (MS-14-011). Each forward field
+# (retired side) pairs with the successor-side field on the ADR it names.
+SUPERSESSION_PAIRS: tuple[tuple[str, str], ...] = (
+    ("superseded_by", "supersedes"),
+    ("partially_superseded_by", "partially_supersedes"),
+)
+SUPERSESSION_FIELDS: tuple[str, ...] = tuple(
+    field for pair in SUPERSESSION_PAIRS for field in pair
+)
+
+
 class AdrLintSuppressCode(StrEnum):
     """Named ADR lint warnings suppressible via ``lint_suppress`` (MS-14-002).
 
@@ -60,6 +71,13 @@ class AdrFrontmatter(BaseModel):
     made the marker inert: no index annotation and no check that its target
     resolves.
 
+    The four supersession fields (``superseded_by``, ``partially_superseded_by``
+    and their successor-side twins ``supersedes`` and ``partially_supersedes``)
+    each hold a list of ADR pointers, and a single pointer is accepted as a
+    one-item list (MS-14-011). A successor can retire several ADRs, as ADR-0099
+    retired ADR-0017 and ADR-0082. That every link is recorded on both ADRs is
+    a corpus property, so the loader checks it, not this model.
+
     ``stakeholder_type`` is declared for the same reason. A decision record is
     project working record, so it declares ``[project-contributor]`` and no
     ``level`` (DF-11-012), and the value is checked by the same rule
@@ -79,9 +97,10 @@ class AdrFrontmatter(BaseModel):
     deciders: PersonField | None = None
     consulted: PersonField | None = None
     informed: PersonField | None = None
-    superseded_by: NonEmptyStr | None = None
-    partially_superseded_by: NonEmptyStr | None = None
-    supersedes: NonEmptyStr | None = None
+    superseded_by: list[NonEmptyStr] = []
+    partially_superseded_by: list[NonEmptyStr] = []
+    supersedes: list[NonEmptyStr] = []
+    partially_supersedes: list[NonEmptyStr] = []
     amended: NonEmptyStr | None = None
     lint_suppress: list[AdrLintSuppressCode] | None = None
     stakeholder_type: WorkingRecordStakeholderTypes | None = None
@@ -109,6 +128,19 @@ class AdrFrontmatter(BaseModel):
                     if link:
                         data["superseded_by"] = link
         return data
+
+    @field_validator(*SUPERSESSION_FIELDS, mode="before")
+    @classmethod
+    def scalar_pointer_is_a_one_item_list(cls, v: object) -> object:
+        """Accept a single ADR pointer as a one-item list (MS-14-011).
+
+        Most retirements name one ADR, and the corpus was written with the
+        scalar form, so it stays valid; a successor that retires several ADRs
+        lists them.
+        """
+        if isinstance(v, str):
+            return [v]
+        return v
 
     @field_validator("lint_suppress", mode="before")
     @classmethod
