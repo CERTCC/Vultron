@@ -1514,9 +1514,11 @@ class TestADR0041ReporterParticipant:
             "Reporter must be in actor_participant_index (AC-2)"
         )
 
+    @pytest.mark.spec("CM-14-012")
     def test_reporter_participant_rm_accepted(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -1539,6 +1541,9 @@ class TestADR0041ReporterParticipant:
         rm_state = statuses[0].rm.state
         assert rm_state == RM.ACCEPTED, (
             f"Reporter must be at RM.ACCEPTED, got {rm_state}"
+        )
+        assert CVDRole.REPORTER in getattr(participant, "case_roles", []), (
+            "Reporter must carry the REPORTER role (CM-14-012)"
         )
 
     def test_no_reporter_when_report_absent(self, make_payload):
@@ -1915,6 +1920,7 @@ class TestCM14005ReporterSignatory:
         assert isinstance(participant, CaseParticipant)
         return participant, case
 
+    @pytest.mark.spec("CM-14-012")
     def test_reporter_seeded_as_signatory(self, make_payload):
         """AC-1: reporter is a signatory after initialization."""
 

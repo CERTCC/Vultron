@@ -41,6 +41,9 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.participant.common import (
+    _create_and_attach_participant,
+)
 from vultron.core.behaviors.case.nodes.participant.roles import (
     suggested_roles_key,
 )
@@ -82,6 +85,13 @@ class CreateInertInviteeParticipantNode(
 
     PRM-06-001: only a single status is written (the birth status at
     RM ``RECEIVED``).
+
+    The record is built and attached through the shared
+    ``_create_and_attach_participant`` helper (BTND-05-003); this node
+    supplies only the seating policy (roles, birth status, consent row).
+    The helper's rule that an existing record wins also covers an invitee
+    that already has an inert record: it is kept, not reset (the re-invite
+    keeps the same record, CM-11-015).
     """
 
     def __init__(
@@ -166,7 +176,9 @@ class CreateInertInviteeParticipantNode(
         if failure is not None:
             return failure
 
-        # Idempotency: if participant already exists and is joined, skip
+        # A joined participant is never re-seated: skip before the role
+        # check, so a re-run without roles still succeeds.  Any other existing
+        # record is kept by the helper below ("existing record wins").
         existing_id = case.actor_participant_index.get(self.invitee_id)
         if existing_id is not None:
             existing = self.datalayer.read(existing_id)
@@ -222,12 +234,23 @@ class CreateInertInviteeParticipantNode(
                 active_embargo_id,
             )
 
-        self.datalayer.create(participant)
-        case.add_participant(participant)
-        self.datalayer.save(case)
+        updated_case = _create_and_attach_participant(
+            self.datalayer,
+            participant,
+            case_id=self.case_id,
+            actor_id_for_index=self.invitee_id,
+            logger=self.logger,
+        )
+        if updated_case is None:
+            self.feedback_message = (
+                f"{self.name}: case '{self.case_id}' vanished before the"
+                f" invitee '{self.invitee_id}' could be attached"
+            )
+            return Status.FAILURE
+        self.datalayer.save(updated_case)
 
         self.logger.info(
-            "%s: created inert participant '%s' for invitee '%s' in case '%s'"
+            "%s: seated inert participant '%s' for invitee '%s' in case '%s'"
             " (RM.RECEIVED, joined=False, CM-11-006)",
             self.name,
             participant_id,
