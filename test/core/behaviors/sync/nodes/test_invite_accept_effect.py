@@ -159,7 +159,7 @@ def test_accept_signs_the_embargo_in_force_for_every_role(
     assert _apply(bridge, case_actor).status == Status.SUCCESS
 
     after = _stored(datalayer, record)
-    assert after.consent_for(EMBARGO_ID) == EmbargoConsentState.ACCEPTED
+    assert after.consent_for(EMBARGO_ID) == EmbargoConsentState.AGREED
     assert after.is_signatory(EMBARGO_ID)
 
 

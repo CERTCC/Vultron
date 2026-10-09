@@ -223,7 +223,7 @@ def test_replicas_hold_the_managers_whole_record_after_invite_and_accept(
         assert vfs == []
     if em_state is EM.ACTIVE:
         rows = {c.embargo_id: c.state for c in manager.embargo_consents}
-        assert rows == {net.initial_embargo_id: EmbargoConsentState.ACCEPTED}
+        assert rows == {net.initial_embargo_id: EmbargoConsentState.AGREED}
     else:
         assert manager.embargo_consents == []
 
