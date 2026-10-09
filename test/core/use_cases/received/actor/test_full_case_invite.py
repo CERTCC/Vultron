@@ -13,7 +13,7 @@
 """The full-case Invite: emission order, position content, and the floor check.
 
 Builds on the ``joining_case`` fixture (CM-11-006 state) of
-``test_case_joining_planned``; see ``notes/case-joining.md``.
+``test_case_joining_replies``; see ``notes/case-joining.md``.
 """
 
 import json
@@ -21,7 +21,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from test.core.use_cases.received.actor.test_case_joining_planned import (  # noqa: F401
+from test.core.use_cases.received.actor.test_case_joining_replies import (  # noqa: F401
     _full_case_invite_at,
     _full_case_reply_at,
     _ledger_tail,

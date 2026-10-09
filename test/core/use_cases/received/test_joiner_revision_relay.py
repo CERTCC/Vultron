@@ -23,6 +23,7 @@ from typing import cast
 
 import pytest
 
+from test.core.use_cases.received.conftest import seed_inert_invitee
 from test.core.use_cases.received.test_embargo_revision_relay import (
     MANAGER,
     PROPOSER,
@@ -95,6 +96,12 @@ def _join(dl: SqliteDataLayer, case_id: str, make_payload):
         id_=f"{case_id}/invitations/joiner",
     )
     dl.create(invite)
+    # The stub Invite left the joiner's inert record; the Accept activates it
+    # (CM-11-006, CM-11-021).
+    case = dl.read(case_id)
+    assert isinstance(case, VulnerabilityCase)
+    seed_inert_invitee(dl, case, JOINER)
+    dl.save(case)
     event = make_payload(
         rm_accept_invite_to_case_activity(invite, actor=JOINER)
     )

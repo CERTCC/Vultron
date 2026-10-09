@@ -32,7 +32,7 @@ Note: ``CheckIsCaseOwnerNode`` has been consolidated into
 ``SenderIsCaseOwnerNode`` in
 ``vultron.core.behaviors.sender_entitlement`` (ADR-0115, AC-2).
 
-On-behalf assertion guards (ADR-0084) live in :mod:`on_behalf_guards` and are
+On-behalf assertion guards (ADR-0121) live in :mod:`on_behalf_guards` and are
 re-exported here for backward compatibility.
 """
 

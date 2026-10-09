@@ -43,7 +43,7 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase[StatusResult]):
     awareness or deployment state is being recorded.
 
     Only ``CS_vf.Vf`` (v→V) and ``CS_d.D`` (d→D) may be asserted on behalf;
-    ``CS_vf.VF`` (f→F) is rejected at the request layer (ADR-0084, PRM-06-005).
+    ``CS_vf.VF`` (f→F) is rejected at the request layer (ADR-0121, PRM-06-005).
 
     The target MUST already be a participant holding the asserted dimension's
     role; otherwise the trigger is refused before any write and no participant

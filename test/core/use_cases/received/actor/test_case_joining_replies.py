@@ -10,10 +10,9 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Planned CASE_MANAGER handling of stub- and full-case-Invite replies.
+"""CASE_MANAGER handling of stub- and full-case-Invite replies.
 
-Tests for the case-joining requirements of ADR-0114 and ADR-0070, planned
-under #4006 (the full-case Invite ones were strict-``xfail`` until #4050).
+Tests for the case-joining requirements of ADR-0114 and ADR-0121 (CONCERN-4006).
 Every test starts where CM-11-006 leaves the
 case: the invitee already holds an *inert* participant record at RM
 ``RECEIVED`` (VF ``v`` for a vendor), created when the stub Invite was sent.
@@ -542,7 +541,7 @@ def test_full_case_invite_reply_moves_rm_from_received(
 def test_full_case_invite_reply_position_is_checked_against_the_floor(
     joining_case, floor: int, reply_at: int, forge_hash: bool, refused: bool
 ) -> None:
-    """The Invite's position is a floor, not a pin (ADR-0070).
+    """The Invite's position is a floor, not a pin (ADR-0121).
 
     A reply behind it is refused, as is one naming a hash the CASE_MANAGER's
     ledger does not hold at that index; a reply beyond it is better informed

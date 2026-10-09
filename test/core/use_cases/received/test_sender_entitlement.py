@@ -43,6 +43,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
     seed_case_participant,
+    seed_inert_invitee,
     seed_store_owner_as_case_manager,
 )
 from test.core.use_cases.received.test_case_proposal import (
@@ -267,6 +268,8 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
     """The invitee's reply embeds a copy of its Invite with a forged role."""
     invitee_id = "https://example.org/actors/invitee"
     invite_id = f"{owned_case.id_}/invitations/recorded"
+    # The recorded Invite's roles are on the inert record it created.
+    seed_inert_invitee(cm_store, owned_case, invitee_id, [CVDRole.VENDOR])
     cm_store.create(owned_case)
     cm_store.create(
         rm_invite_to_case_activity(
@@ -300,6 +303,7 @@ def test_accept_of_invite_takes_roles_from_recorded_invite(
     participant = cm_store.read(case.actor_participant_index[invitee_id])
     assert isinstance(participant, CaseParticipant)
     assert CVDRole.CASE_OWNER not in participant.case_roles
+    assert participant.case_roles == [CVDRole.VENDOR]
 
 
 _INVITEE_ID = "https://example.org/actors/invitee"

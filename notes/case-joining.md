@@ -3,8 +3,7 @@ title: Joining a Case — Stub Invite, Inert Participant, Full-Case Invite
 status: active
 description: >
   How an actor goes from invited to participating, what the case records at
-  each step, what an inert participant may receive, and what the old model got
-  wrong; how removal and reinstatement withdraw and restore entitlement without
+  each step, what an inert participant may receive; how removal and reinstatement withdraw and restore entitlement without
   touching membership (ADR-0116). Sources: CONCERN-4006 and CONCERN-2257
   planning sessions (2026-10-01).
 related_specs:
@@ -48,10 +47,7 @@ relevant_packages:
 
 The decisions are ADR-0114 (joining, inert participants, the stub type, the
 `R → C` transition), ADR-0121 (judging the case) and ADR-0116 (removal and
-reinstatement). This note keeps the flow in
-one place and records what the earlier model got wrong, because each piece of that model
-was internally consistent and the error only showed once all of them were laid
-side by side.
+reinstatement). This note keeps the flow in one place.
 
 ## The flow
 
@@ -79,7 +75,7 @@ no active embargo: one not yet established, or one already exited.
 
 One predicate decides it: `VulnerabilityCase.is_active_participant()`, read
 from the replicated `CaseParticipant` record (`joined`,
-its consent rows for the active embargo, and the removal fact once #4079 lands) and the case's
+its consent rows for the active embargo, and the removal fact) and the case's
 `active_embargo`, so a replica reaches the same answer as the CASE_MANAGER.
 Being active is computed, never stored (CM-31-002): whether an embargo is
 active is case state the record cannot see, and a participant-level "joined"
@@ -87,7 +83,7 @@ property would read as "active" at a send site. Every case-content send picks
 recipients through `vultron/core/participants/recipients.py`:
 `case_content_recipients()` for case content, `invitation_recipients()` for the
 stub and embargo Invites (inert participants included, RM `CLOSED` excluded,
-and removed participants excluded once #4084 lands). A roster entry whose
+and removed participants excluded). A roster entry whose
 record cannot be read gets nothing (CM-10-007).
 
 RM `CLOSED` is not part of "active", but it ends content delivery all the same
@@ -148,6 +144,13 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
   supersede rule below, not by refusing late replies. A strict mode that
   refuses after expiry is a possible later addition and is not built.
   "All participants closed" counts only participants that joined.
+- **Refusals.** The CASE_MANAGER refuses, and writes nothing for: a stub Invite
+  with no roles or without a stub summary (CM-11-019, CM-17-010); a
+  `Reject` or `Accept` of a stub Invite from an invitee with no participant
+  record (CM-11-018, CM-11-021), which is never a silent no-op and never
+  creates a participant; and a reply to the full-case
+  Invite from an inert participant that has not joined (CM-11-012). Expiry
+  writes no participant state and no ledger entry (CM-11-014).
 - **Re-invite.** Same record, fresh stub Invite, new deadline, with `inReplyTo`
   set to the earlier stub so the invitee has one live stub. Refused for a
   participant at `CLOSED` — terminal, no rejoin (CM-11-015, ADR-0085). The
@@ -291,55 +294,6 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   skips RM `CLOSED` participants (CM-23-004). Until #4212 lands, a closed
   signatory still receives fan-out and so gets both the entry and the notice;
   both apply idempotently.
-
-## What the old model got wrong
-
-**The participant record came after the reply.** `CaseParticipant` was created
-when the CASE_MANAGER processed `Accept(Invite)`. The case therefore held no
-record of an invitee that had not answered — or that declined — which is
-exactly what the CASE_MANAGER needs to track. The embargo-consent model's
-`INVITED` state already assumed a pre-reply record.
-
-**Roster membership was doing the job of the consent check.** `case_addressees`
-returned the whole roster, and nearly every case-content send used it. CM-10-004
-and VP-08-006 (no case content before embargo acceptance) held only because a
-non-accepted actor was not in the roster. Putting invitees in the roster without
-the filter would have leaked every ledger entry to them. The filter now lives in
-the shared recipient selection, not at each send site, and `case_addressees` is
-gone (#4046).
-
-**An invitee validated a report it was never offered.** ADR-0121 originally had
-the invitee recover the reporter's `Offer(VulnerabilityReport)` from the ledger
-replay and answer it with the standard `validate-report`. Two things are wrong
-with that. A reply must answer a message sent to the replier. And the joiner
-judges the *case* — for a late joiner, the report plus everything that built up
-during coordination — not the original submission, which may have been far
-sparser.
-
-**`Accept(Invite)` was read as joining only, while the wire factories labelled
-it RV.** CM-11-001 said `Accept(Invite)` leaves RM at `RECEIVED`; the factory
-docstrings called it the RV message and `Reject(Invite)` the RI message. Both
-were half right: there are two Invites. Accepting the stub is joining (no RM
-move); accepting the full-case Invite is RV.
-
-**Status updates created participants.** The original ADR-0084 scoped
-on-behalf `v→V` to a vendor "not yet — or never — a participant", so the on-behalf tree minted a
-participant for an absent target, saved it, and then — for `d→D` — had the RM↔D
-entailment refuse the write, leaving a stray record behind. A status update is
-never a way into a case.
-
-**The stub and the case were the same thing on the wire.** Same `type`, same
-ID; a stub differed only in which fields it carried, so no message could be
-about the stub as distinct from the case. Fixed in #4045: the stub is
-`VulnerabilityCaseStub` with ID `<case-id>/stub` and a `caseId` naming the case
-(CM-11-013), and it carries only that plus the embargo terms (CM-17-010).
-
-**The RM model could not say "no" from *Received*.** `R → C` did not exist, yet
-two paths already closed from other rungs by bypassing the transition table:
-`Leave(Case)` through `force_rm_state`, and the report hard-reject. ADR-0114
-adds `R → C` only. `V → C` stays out: VP-02-004 forbids closing from *Valid*,
-so a `Leave` from `VALID` is recorded as `V → D → C`. Both landed in #4044, which
-also retired the closure uses of `force_rm_state` and guarded the hard-reject.
 
 ## Vocabulary: `Offer` versus `Invite`
 

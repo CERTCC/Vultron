@@ -205,14 +205,12 @@ actor. Each activity hits the inbox of a **different** actor:
 | `Accept(object=Invite)` | Target Actor | CASE_MANAGER | `accept_invite_actor_to_case` — activates the existing `CaseParticipant` |
 | `Reject(object=Invite)` | Target Actor | CASE_MANAGER | `reject_invite_actor_to_case` — closes the kept record (`R → C`) |
 
-**Consequence for implementation**: the target model (ADR-0114, CM-11-006)
+**Consequence for implementation**: the join model (ADR-0114, CM-11-006)
 creates the invitee's `CaseParticipant` on the *sending* side, when the
 CASE_MANAGER issues the stub Invite — inert, at `RM.RECEIVED` — and the
 CASE_MANAGER's reply handlers update that record. The target actor's
 `invite_actor_to_case` handler never creates it: each actor only processes its
-own inbox, and the invitee does not own the case's roster. (The code still
-creates the participant in `accept_invite_actor_to_case`; the #4006
-implementation issues move it.)
+own inbox, and the invitee does not own the case's roster.
 
 This asymmetry is easy to miss. It reflects the ActivityPub convention that
 responses are addressed to the original sender, and the work triggered by the

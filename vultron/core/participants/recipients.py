@@ -368,8 +368,7 @@ def is_case_content_recipient(
     For a send addressed to one actor named by the triggering message rather
     than chosen from the roster: the ledger replay a
     ``Reject(CaseLedgerEntry)`` asks for and the genesis case seed (#4042).
-    The joiner's case copy and ledger backfill (#4048) gate on it too once
-    that lands.
+    The joiner's case copy and ledger backfill (#4048) gate on it too.
     """
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id is None:

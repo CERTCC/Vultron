@@ -169,7 +169,11 @@ invite → deliver → answer → replica chain in every scenario and skipped th
 because the variants "do not extract into one helper without a flag per
 variant". That is a design task, not a skip reason: `run_case_invite_chain` in
 `helpers/invite_chain.py` takes the variants as parameters (who asks, accept or
-reject, the sender check, timeouts) and a `then` callback for what follows. A
+reject, the sender check, timeouts) and a `then` callback for what follows. On
+an accept it carries the whole join sequence for every invitee, whatever its
+role: stub Invite, stub Accept, `Announce` and replay, the full-case Invite, and
+the invitee's reply to it (CM-11-010, CM-11-011); the CI invariants'
+`joined_invitees` count pins one full-case Invite and one reply per invitee. A
 callback, not a `with` block, because `demo_gate` suppresses an exception
 before a generator-based context manager could yield. The ratchet
 `test_demo_scenarios_use_invite_chain_helper.py` fails on a scenario that calls

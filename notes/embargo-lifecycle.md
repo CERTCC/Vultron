@@ -36,6 +36,7 @@ related_specs:
   - specs/handler-protocol.yaml
   - specs/case-ledger-processing.yaml
   - specs/idempotency.yaml
+  - specs/status-dimension-objects.yaml
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/bt-integration.md
@@ -142,6 +143,9 @@ construction, at every register step and in `add_case_status`.
 `append_case_status(em_state=...)` is refused, and a received `Add(CaseStatus)`
 whose EM differs from `case.em_state` has its EM refused and the case's carried
 forward (RSH-05-023). Core code reads `case.em_state`, never the status copy.
+The copy is immutable (SDO-03-006, #4375): `EmDimension` is frozen and
+`CaseStatus.em` a frozen field, so an in-place write raises. A status with a
+different EM is built by construction or `model_copy(update=...)`.
 
 **The termination reason** (`END_TIME_REACHED`, `EARLY`, `THREAT_SIGNAL`) is
 required on every `TERMINATE` — `terminate_active_embargo(reason=...)`,

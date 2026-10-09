@@ -289,7 +289,7 @@ class TestRoleGates:
 
         The converse of the gate above.  That one refuses a non-vendor claiming
         awareness; this one refuses a vendor disclaiming it — holding the VENDOR
-        role *is* awareness of the case (ADR-0084).
+        role *is* awareness of the case (ADR-0121).
         """
         (violation,) = _violations(
             current_vf=CS_vf.vf,

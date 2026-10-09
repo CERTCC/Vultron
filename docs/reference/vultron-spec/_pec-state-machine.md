@@ -223,8 +223,8 @@ recipient:
 
 !!! warning "The gate is admission plus consent — not completed triage"
     It is tempting to read condition 1 as `RM.ACCEPTED`. That reading is wrong
-    and self-defeating: an invitee is recorded at `RM.RECEIVED` on
-    `Accept(Invite)`, and reaches `ACCEPTED` only *after* receiving the full case
+    and self-defeating: an invitee is at `RM.RECEIVED` from the stub
+    Invite and stays there after `Accept(Invite)`, and reaches `ACCEPTED` only *after* receiving the full case
     and running its triage cycle ([§6.3 Per-Participant RM Tracking](tracking-models.md#63-per-participant-rm-tracking)). Requiring `ACCEPTED` before delivery
     would mean a participant could never obtain the case it needs in order to
     reach the state that gates it.
