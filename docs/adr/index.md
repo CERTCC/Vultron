@@ -104,7 +104,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0000 Record architecture decisions](0000-record-architecture-decisions.md)
 - [ADR-0001 Use Markdown Any Decision Records](0001-use-markdown-any-decision-records.md)
 - [ADR-0002 Model Processes with Behavior Trees](0002-model-processes-with-behavior-trees.md)
-- [ADR-0003 Build our own Behavior Tree engine in Python](0003-build-custom-python-bt-engine.md)
+- [ADR-0003 Build our own Behavior Tree engine in Python](0003-build-custom-python-bt-engine.md) — partially superseded by 0008-use-py-trees-for-handler-bt-integration.md
 - [ADR-0004 Use factory methods for common BT node types](0004-use-factory-methods-for-common-bt-node-types.md)
 - [ADR-0005 Use ActivityStreams Vocabulary as the basis for Vultron Message Formats](0005-activitystreams-vocabulary-as-vultron-message-format.md)
 - [ADR-0006 Vultron Release Versioning](0006-use-calver-for-project-versioning.md)
