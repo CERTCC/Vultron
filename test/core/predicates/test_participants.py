@@ -181,7 +181,7 @@ class TestAllParticipantsRmClosed:
 
 
 class TestVendorVfInvariantOk:
-    """vendor_vf_invariant_ok: VENDOR participant cannot hold CS_vf.vf (ADR-0084, PRM-06-002)."""
+    """vendor_vf_invariant_ok: VENDOR participant cannot hold CS_vf.vf (ADR-0121, PRM-06-002)."""
 
     def test_none_vf_state_always_ok(self):
         assert vendor_vf_invariant_ok([CVDRole.VENDOR], None) is True

@@ -67,7 +67,7 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
         # Pre-build the status writers (BTND-10-004: no construction in
         # update()); update() supplies the runtime departing actor to
         # close().  The departing actor's self-declaratory
-        # Leave (ADR-0084) is replicated as ordinary RM transitions, so a Leave
+        # Leave (PRM-06-001, ADR-0121) is replicated as ordinary RM transitions, so a Leave
         # from VALID is V -> D -> C on every replica (RMB-14-005, CM-23-012).
         # The path starts from this replica's own view of the actor's RM state,
         # so a lagging replica may write a rung the manager never saw; the

@@ -157,6 +157,43 @@ def seed_store_owner_as_case_manager(
     return seed_case_manager_participant(dl, case, owner)
 
 
+def seed_inert_invitee(
+    dl: SqliteDataLayer,
+    case: as_VulnerabilityCase,
+    invitee_id: str,
+    roles: list[CVDRole] | None = None,
+) -> CaseParticipant:
+    """Seed the inert record a stub Invite leaves for *invitee_id* (CM-11-006).
+
+    An ``Accept`` of a stub Invite activates this record and never creates one
+    (CM-11-021), so every test that drives an Accept seeds it first.  Call it
+    before ``dl.create(case)``: it attaches the record to *case*.
+    """
+    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.rm import RM
+
+    participant = CaseParticipant(
+        id_=f"{case.id_}/participants/{invitee_id.rstrip('/').split('/')[-1]}",
+        attributed_to=invitee_id,
+        context=case.id_,
+        case_roles=roles or [CVDRole.VENDOR],
+        participant_statuses=[
+            ParticipantStatus(
+                context=case.id_,
+                attributed_to=invitee_id,
+                rm=RmDimension(state=RM.RECEIVED),
+                cvd_role=roles or [CVDRole.VENDOR],
+            )
+        ],
+        joined=False,
+    )
+    dl.create(participant)
+    case.case_participants.append(participant.id_)
+    case.actor_participant_index[invitee_id] = participant.id_
+    return participant
+
+
 @pytest.fixture
 def seed_case_manager() -> Callable[
     [SqliteDataLayer, as_VulnerabilityCase, str], CaseParticipant

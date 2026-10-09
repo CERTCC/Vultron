@@ -15,14 +15,14 @@
 
 """On-behalf assertion guard nodes for the add-on-behalf-status trigger.
 
-Implements the narrow externally-evidenced on-behalf exceptions from ADR-0084:
+Implements the narrow externally-evidenced on-behalf exceptions from ADR-0121:
 
 - :class:`CheckOnBehalfAuthorizedNode` — on-behalf assertion gate:
   asserting actor MUST hold ``CVDRole.CASE_MANAGER`` or ``CVDRole.CASE_OWNER``
-  (ADR-0084, PRM-06-003/004)
+  (ADR-0121, PRM-06-003/004)
 - :class:`CheckOnBehalfTargetIsParticipantNode` — the target actor MUST
   already be a participant holding the asserted dimension's role; an
-  on-behalf assertion never creates a participant (ADR-0084, PRM-06-006)
+  on-behalf assertion never creates a participant (ADR-0121, PRM-06-006)
 """
 
 import logging
@@ -58,7 +58,7 @@ class _OnBehalfGuardNode(DataLayerConditionWithPorts):
 class CheckOnBehalfAuthorizedNode(_OnBehalfGuardNode):
     """Gate on-behalf assertions: asserting actor MUST hold CASE_MANAGER or CASE_OWNER.
 
-    Used as the first guard in the on-behalf status trigger tree (ADR-0084,
+    Used as the first guard in the on-behalf status trigger tree (ADR-0121,
     PRM-06-003/004).  Returns ``SUCCESS`` when the actor holds either
     management role; ``FAILURE`` otherwise.
     """
@@ -92,7 +92,7 @@ class CheckOnBehalfAuthorizedNode(_OnBehalfGuardNode):
             return self._refuse(
                 f"Actor '{self._asserting_actor_id}' does not hold"
                 f" CASE_MANAGER or CASE_OWNER in case '{self._case_id}'"
-                f" — on-behalf assertion blocked (PRM-06-003, ADR-0084)"
+                f" — on-behalf assertion blocked (PRM-06-003, ADR-0121)"
                 f" (roles={roles!r})"
             )
 
@@ -109,7 +109,7 @@ class CheckOnBehalfTargetIsParticipantNode(_OnBehalfGuardNode):
     """Gate on-behalf assertions: the target MUST already be a participant.
 
     An on-behalf ``v→V`` or ``d→D`` records a status *about* an existing
-    participant; it is never a way into a case (PRM-06-006, ADR-0084,
+    participant; it is never a way into a case (PRM-06-006, ADR-0121,
     ADR-0114).  Joining is the Invite flow.  This node is a pure read: it
     writes nothing, so it can sit ahead of every write in the on-behalf tree.
 
@@ -159,7 +159,7 @@ class CheckOnBehalfTargetIsParticipantNode(_OnBehalfGuardNode):
                 f"On-behalf target '{self._target_actor_id}' is not a"
                 f" participant in case '{self._case_id}' — an on-behalf"
                 f" status assertion never creates a participant; invite the"
-                f" actor to the case first (PRM-06-006, ADR-0084)"
+                f" actor to the case first (PRM-06-006, ADR-0121)"
             )
         except ParticipantRecordUnreadableError as exc:
             return self._refuse(

@@ -14,22 +14,20 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""Invitee idempotency-guard and participant-construction leaf nodes.
+"""Invitee idempotency and record-exists guard nodes.
 
-Guards a duplicate ``Accept(Invite(actor, case))`` and constructs the
-invitee ``CaseParticipant`` at RM.START (ADR-0089 birth step 1). The
-persist/advance steps live in ``invite_participant_persist.py``. Composed by
+Guards a duplicate ``Accept(Invite(actor, case))`` and refuses an Accept whose
+invitee has no participant record (CM-11-021): the record is created when the
+stub Invite is sent (CM-11-006), never on the Accept.  The activation step
+lives in ``invite_participant_persist.py``. Composed by
 ``create_accept_invite_actor_to_case_tree`` (BTND-07-003).
 """
 
 import logging
-from typing import cast
 
 from py_trees.common import Status
-from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
     PortInformation,
 )
@@ -37,7 +35,6 @@ from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.enums.roles import validate_roles
 
 logger = logging.getLogger(__name__)
 
@@ -59,14 +56,15 @@ class CheckInviteeNotAlreadyParticipantNode(
 
     Four paths:
 
-    1. **Fresh invite**: invitee not yet in index → SUCCESS (tree runs in full,
-       ``invitee_already_participant=False``, ``invitee_joined=False``).
+    1. **No record**: invitee not yet in index → SUCCESS
+       (``invitee_already_participant=False``, ``invitee_joined=False``).
+       ``InviteeHasParticipantRecordNode`` refuses it next, before any write:
+       an Accept never creates a participant (CM-11-021).
     2. **Inert record** (ADR-0114, CM-11-006): invitee in index but
        ``joined=False``, no backfill marker yet → SUCCESS with
        ``invitee_already_participant=True``, ``invitee_joined=False``.
-       Downstream nodes load the existing record instead of creating a new one,
-       and the backfill uses the *fresh* path (fan-out doesn't reach an inert
-       invitee).
+       Downstream nodes activate the existing record, and the backfill uses
+       the *fresh* path (fan-out doesn't reach an inert invitee).
     3. **Backfill-incomplete resume**: invitee in index, ``joined=True``, but
        backfill is still in progress → SUCCESS with
        ``invitee_already_participant=True``, ``invitee_joined=True``.
@@ -224,46 +222,25 @@ class CheckInviteeNotAlreadyParticipantNode(
         return None
 
 
-class CreateInviteeParticipantNode(DataLayerActionWithPorts):
-    """Construct a ``CaseParticipant`` record for the invitee, at RM.START.
+class InviteeHasParticipantRecordNode(DataLayerConditionWithPorts):
+    """Guard: the invitee already has a participant record (CM-11-021).
 
-    Under ADR-0089 birth is three steps and RM advances only through the sole
-    writer.  This node performs step 1 (*construct*): it builds the participant
-    auto-seeded at ``RM.START`` (by ``_init_participant_status_if_empty``) and
-    writes it to the blackboard.  :class:`PersistInviteeParticipantNode`
-    attaches and saves it (step 2), then
-    :class:`AdvanceInviteeToReceivedNode` advances it to ``RM.RECEIVED``
-    through :class:`CreateParticipantStatusNode` (step 3).  Handing a detached
-    participant *already* at ``RM.RECEIVED`` onto the blackboard was the
-    pattern ADR-0089 removes.
+    The CASE_MANAGER creates the record when it sends the stub Invite
+    (CM-11-006), so an ``Accept(Invite(Actor, VulnerabilityCaseStub))`` finds
+    it; an Accept never creates one.  FAILURE, with the reason as
+    ``feedback_message``, when the case holds no record for the invitee.  The
+    guard runs before the tree commits anything, so a refused Accept writes
+    nothing.
 
-    Per CM-11-001, ``Accept(Invite)`` records ``RM.RECEIVED`` only; the full
-    triage cycle (VALID/ACCEPTED) is a distinct subsequent step run by the
-    invitee after the case replica has been delivered (PCR-08-010).
-
-    Writes ``new_invite_participant`` to the blackboard.
+    Writes the record to ``new_invite_participant`` for the downstream nodes.
     """
 
     def __init__(
-        self,
-        case_id: str,
-        invitee_id: str,
-        name: str | None = None,
-        *,
-        invite_id: str,
+        self, case_id: str, invitee_id: str, name: str | None = None
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.invitee_id = invitee_id
-        self.invite_id = invite_id
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "invitee_already_participant": PortInformation(
-            data_type=object, required=True
-        ),
-        "invitee_case": PortInformation(data_type=object, required=True),
-    }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "new_invite_participant": PortInformation(
@@ -273,140 +250,33 @@ class CreateInviteeParticipantNode(DataLayerActionWithPorts):
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "invitee_already_participant": "/invitee_already_participant",
-            "invitee_case": "/invitee_case",
-            "new_invite_participant": "/new_invite_participant",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        try:
-            self._invitee_case_bb = self.get_input("invitee_case")
-        except (NoDataAvailable, NotImplementedError):
-            self._invitee_case_bb = None
-        try:
-            self._already_participant_bb = self.get_input(
-                "invitee_already_participant"
-            )
-        except (NoDataAvailable, NotImplementedError):
-            self._already_participant_bb = False
-
-    def _read_invite_roles(self) -> list:
-        """Read roles from the stub Invite this store recorded (CM-11-017).
-
-        The CASE_MANAGER recorded the Invite when it sent it; that record, not
-        the copy the invitee's ``Accept`` embeds (which the sender wrote),
-        names the roles the participant takes (CM-17-003).
-
-        Returns an empty list when the record is absent or carries no roles.
-        """
-        assert self.datalayer is not None
-        invite = self.datalayer.read(self.invite_id)
-        if invite is None:
-            self.logger.warning(
-                "%s: no recorded Invite '%s' to read roles from [invitee=%s]",
-                self.name,
-                self.invite_id,
-                self.invitee_id,
-            )
-            return []
-        raw_roles = getattr(invite, "roles", None)
-        if not raw_roles:
-            return []
-        try:
-            return validate_roles(raw_roles)
-        except (TypeError, ValueError, KeyError):
-            self.logger.warning(
-                "%s: could not coerce invite roles %r — ignoring",
-                self.name,
-                raw_roles,
-            )
-            return []
+        return {"new_invite_participant": "/new_invite_participant"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        case = self._invitee_case_bb
-        if case is None:
-            self.logger.error(
-                "%s: invitee_case not found in blackboard", self.name
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
-        if self._already_participant_bb:
-            participant_id = case.actor_participant_index.get(self.invitee_id)
-            if participant_id is None:
-                self.logger.error(
-                    "%s: invitee marked as existing but no participant ID"
-                    " found for actor '%s'",
-                    self.name,
-                    self.invitee_id,
-                )
-                return Status.FAILURE
-            existing = self.datalayer.read(participant_id)
-            if not isinstance(existing, CaseParticipant):
-                self.logger.error(
-                    "%s: expected existing participant '%s'",
-                    self.name,
-                    participant_id,
-                )
-                return Status.FAILURE
-            self._set_output(
-                "new_invite_participant", cast(CaseParticipant, existing)
-            )
-            self.logger.info(
-                "%s: reusing existing participant '%s' for backfill resume",
-                self.name,
-                participant_id,
-            )
-            return Status.SUCCESS
-
-        roles = self._read_invite_roles()
-        if not roles:
-            # CM-11-019: never create a participant with an empty role list.
-            # The Invite should have been refused at send time, but guard here
-            # too in case a malformed Invite arrives (defence in depth).
+        participant_id = case.actor_participant_index.get(self.invitee_id)
+        record = (
+            self.datalayer.read(participant_id) if participant_id else None
+        )
+        if not isinstance(record, CaseParticipant):
             self.feedback_message = (
-                f"{self.name}: no roles in Accept(Invite) for invitee"
-                f" '{self.invitee_id}' — invite must carry roles (CM-11-019)"
+                f"no participant record for '{self.invitee_id}' in case"
+                f" '{self.case_id}' — Accept refused (CM-11-021)"
             )
-            self.logger.error(
-                "%s: no roles in invite for invitee '%s' in case '%s'"
-                " — refusing participant creation (CM-11-019)",
+            self.logger.warning(
+                "%s: no participant record for invitee '%s' in case '%s'"
+                " — refusing Accept(Invite) (CM-11-021)",
                 self.name,
                 self.invitee_id,
                 self.case_id,
             )
             return Status.FAILURE
-        # ADR-0089 birth step 1 (construct): build the participant auto-seeded
-        # at RM.START. PersistInviteeParticipantNode attaches it and
-        # AdvanceInviteeToReceivedNode advances it to RM.RECEIVED through the
-        # sole writer. CM-11-001: Accept(Invite) records RM.RECEIVED only; the
-        # full triage cycle is a later step (PCR-08-010).
-        participant = CaseParticipant(
-            id_=(
-                f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}"
-            ),
-            attributed_to=self.invitee_id,
-            context=self.case_id,
-            case_roles=roles,
-        )
-        if roles:
-            self.logger.info(
-                "%s: set case_roles %s on participant '%s' from invite"
-                " (CM-17-003)",
-                self.name,
-                roles,
-                self.invitee_id,
-            )
-        self._set_output("new_invite_participant", participant)
-        self.logger.info(
-            "%s: constructed participant object for invitee '%s' at RM.START;"
-            " to be advanced to RM.RECEIVED through the writer (CM-11-001)",
-            self.name,
-            self.invitee_id,
-        )
+        self._set_output("new_invite_participant", record)
         return Status.SUCCESS

@@ -102,6 +102,7 @@ globals().update(
         chain_actors=_CHAIN_ACTORS,
         expected_event_types=_FCCV_EXTENSION_EXPECTED_EVENT_TYPES,
         narrative_path="docs/topics/scenarios/fccv-extension.md",
+        joined_invitees=2,
     )
 )
 

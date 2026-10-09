@@ -101,11 +101,10 @@ from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
 )
 from vultron.core.behaviors.case.nodes.invite_participant import (
     CheckInviteeNotAlreadyParticipantNode,
-    CreateInviteeParticipantNode,
+    InviteeHasParticipantRecordNode,
 )
 from vultron.core.behaviors.case.nodes.invite_participant_persist import (
-    AdvanceInviteeToReceivedNode,
-    PersistInviteeParticipantNode,
+    ActivateInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.invite_response import (
     EmitAcceptCaseInviteNode,
@@ -253,7 +252,7 @@ __all__ = [
     "create_participant_replica_gated_tree",
     # vfd_role_guards (condition nodes)
     "CheckNotSoleObserverVfdNode",
-    # on_behalf_guards (ADR-0084)
+    # on_behalf_guards (ADR-0121)
     "CheckOnBehalfAuthorizedNode",
     "CheckOnBehalfTargetIsParticipantNode",
     # suggest_actor (leaf nodes)
@@ -294,10 +293,9 @@ __all__ = [
     "CreateInertInviteeParticipantNode",
     # invite_participant (leaf nodes)
     "CheckInviteeNotAlreadyParticipantNode",
-    "CreateInviteeParticipantNode",
+    "InviteeHasParticipantRecordNode",
     # invite_participant_persist (leaf nodes)
-    "PersistInviteeParticipantNode",
-    "AdvanceInviteeToReceivedNode",
+    "ActivateInviteeParticipantNode",
     # invite_ledger_backfill (leaf nodes)
     "CapturePreCommitBackfillTargetNode",
     "BackfillCanonicalLedgerToInviteeNode",

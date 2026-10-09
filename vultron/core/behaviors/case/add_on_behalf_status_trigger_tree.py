@@ -19,12 +19,12 @@ The asserting actor (Case Manager or Case Owner) records vendor-awareness
 or deployer-fix-deployment on behalf of an existing participant — for v→V
 typically an inert invitee that has not yet replied to its stub Invite.  The tree never
 creates or attaches a ``CaseParticipant``: an on-behalf assertion whose target
-is not a participant is refused before any write (PRM-06-006, ADR-0084,
+is not a participant is refused before any write (PRM-06-006, ADR-0121,
 ADR-0114).  The tree runs these steps in sequence; every guard precedes the
 only write (step 4):
 
 1. **CheckOnBehalfAuthorizedNode** — verify the asserting actor holds
-   CASE_MANAGER or CASE_OWNER (ADR-0084, PRM-06-003/004).
+   CASE_MANAGER or CASE_OWNER (ADR-0121, PRM-06-003/004).
 2. **CheckOnBehalfTargetIsParticipantNode** — refuse, naming the target,
    when the target is not in ``actor_participant_index`` or lacks the
    asserted dimension's role (PRM-06-003/004/006).

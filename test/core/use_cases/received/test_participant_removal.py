@@ -25,7 +25,7 @@ from typing import Any
 import pytest
 from py_trees.common import Status
 
-from test.core.use_cases.received.actor.test_case_joining_planned import (
+from test.core.use_cases.received.actor.test_case_joining_replies import (
     route_received,
 )
 from test.core.use_cases.received.test_participant_removal_planned import (
