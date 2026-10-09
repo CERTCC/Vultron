@@ -56,6 +56,7 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.case.case_participant_received_tree import (
     create_add_case_participant_received_tree,
 )
@@ -73,6 +74,7 @@ from vultron.core.behaviors.embargo.nodes.reinvite import (
     InviteReinstatedParticipantToEmbargoNode,
     ReinviteStaleAccepterNode,
 )
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -643,6 +645,17 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
     seed_inert_invitee(case.dl, manager_case, NEWBIE)
     case.dl.save(manager_case)
     replica = _replica(case, OTHER)
+    # The stub Invite's own ledger entry is what seats the inert record on a
+    # replica (CM-11-006); the manager commits it as it sends the Invite.
+    commit_emitted_activity(
+        datalayer=case.dl,
+        actor_id=MANAGER,
+        case_id=CASE_ID,
+        activity_id=stub_invite.id_,
+        activity_blob=dump_outbound_body(stub_invite),
+        event_type="invite_actor_to_case",
+        sync_port=SyncActivityAdapter(case.dl),
+    )
 
     result = case.route(
         rm_accept_invite_to_case_activity(
@@ -664,6 +677,9 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
     seated = replica.read(CASE_ID)
     assert isinstance(seated, as_VulnerabilityCase)
     assert NEWBIE in seated.actor_participant_index
+    record = replica.read(seated.actor_participant_index[NEWBIE])
+    assert isinstance(record, CaseParticipant)
+    assert record.joined is True
 
 
 # ---------------------------------------------------------------------------
