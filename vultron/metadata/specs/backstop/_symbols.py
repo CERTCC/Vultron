@@ -32,7 +32,8 @@ _BLOCK_FIELDS = ("body", "orelse", "finalbody", "handlers", "cases")
 BOILERPLATE_SYMBOLS = frozenset({"logger", "log", "LOGGER", "LOG"})
 
 
-def _symbol_names(node: ast.stmt) -> list[str]:
+def symbol_names(node: ast.stmt) -> list[str]:
+    """The API names a top-level statement defines (dunders and loggers excluded)."""
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
         names = [node.name]
     elif isinstance(node, ast.Assign):
@@ -62,7 +63,7 @@ def changed_nodes(
     return [
         node
         for node in tree.body
-        if _symbol_names(node)
+        if symbol_names(node)
         and (lines is None or any(n in lines for n in _span(node)))
     ]
 
@@ -72,7 +73,7 @@ def changed_symbols(
 ) -> set[str]:
     """Names of the top-level symbols changed by *lines* (SR-12-002)."""
     return {
-        n for node in changed_nodes(tree, lines) for n in _symbol_names(node)
+        n for node in changed_nodes(tree, lines) for n in symbol_names(node)
     }
 
 
@@ -137,27 +138,41 @@ def _is_vultron(module: str | None) -> bool:
     )
 
 
+def _is_test_module(module: str | None) -> bool:
+    return module is not None and (
+        module == "test" or module.startswith("test.")
+    )
+
+
 def _vultron_imports(
     tree: ast.Module,
-) -> tuple[set[str], set[tuple[str, str]], set[str]]:
+) -> tuple[set[str], set[tuple[str, str]], set[str], set[str]]:
     modules: set[str] = set()
     names: set[tuple[str, str]] = set()
     plain: set[str] = set()
+    test_modules: set[str] = set()
     for node in _statements(tree.body):
         if isinstance(node, ast.Import):
             plain.update(a.name for a in node.names if _is_vultron(a.name))
             modules.update(a.name for a in node.names if _is_vultron(a.name))
+            test_modules.update(
+                a.name for a in node.names if _is_test_module(a.name)
+            )
         elif (
-            isinstance(node, ast.ImportFrom)
-            and node.level == 0
-            and node.module is not None
-            and _is_vultron(node.module)
+            not isinstance(node, ast.ImportFrom)
+            or node.level != 0
+            or node.module is None
         ):
+            continue
+        elif _is_vultron(node.module):
             modules.add(node.module)
             for alias in node.names:
                 names.add((node.module, alias.name))
                 modules.add(f"{node.module}.{alias.name}")
-    return modules, names, plain
+        elif _is_test_module(node.module):
+            test_modules.add(node.module)
+            test_modules.update(f"{node.module}.{a.name}" for a in node.names)
+    return modules, names, plain, test_modules
 
 
 def index_test_file(path: str, source: str) -> TestFile | None:
@@ -166,13 +181,14 @@ def index_test_file(path: str, source: str) -> TestFile | None:
         tree = ast.parse(source)
     except SyntaxError:
         return None
-    modules, names, plain = _vultron_imports(tree)
+    modules, names, plain, test_modules = _vultron_imports(tree)
     return TestFile(
         path,
         frozenset(modules),
         frozenset(names),
         frozenset(spec_ids_in(tree.body)),
         frozenset(plain),
+        frozenset(test_modules),
     )
 
 

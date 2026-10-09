@@ -78,6 +78,7 @@ from vultron.metadata.specs.backstop._symbols import (
     module_name,
     owner_modules,
     spec_ids_in,
+    symbol_names,
 )
 
 __all__ = [
@@ -120,5 +121,6 @@ __all__ = [
     "render_text",
     "run_git",
     "spec_ids_in",
+    "symbol_names",
     "unresolved_groups",
 ]

@@ -16,15 +16,18 @@ from vultron.metadata.planning import targeted_tests
 from vultron.metadata.planning.targeted_tests import (
     ARCHITECTURE_TESTS,
     INTEGRATION_PREFIXES,
+    build_index,
     full_suite_trigger,
     overlap,
     pytest_argv,
     select_tests,
+    widen_index,
 )
 from vultron.metadata.specs.backstop import (
     HUB_THRESHOLD,
     FileChange,
     index_test_file,
+    module_name,
 )
 
 SOURCE = """\
@@ -55,6 +58,8 @@ TESTS = _index(
         "test/x/test_reexport.py": "from vultron.a import changed_fn\n",
         "test/x/test_module_object.py": "from vultron.a import mod\n",
         "test/x/test_plain_import.py": "import vultron.a.mod\n",
+        "test/x/test_plain_alias.py": "import vultron.a.mod as m\n",
+        "test/x/test_star.py": "from vultron.a.mod import *\n",
         "test/x/test_plain_and_from.py": (
             "import vultron.a.mod\nfrom vultron.a.mod import other_fn\n"
         ),
@@ -63,6 +68,11 @@ TESTS = _index(
         "test/architecture/test_layers.py": "import ast\n",
     }
 )
+
+
+def _helpers(files: dict[str, str]):
+    """Index test-side modules by dotted name, as :func:`build_index` does."""
+    return {module_name(p): t for p, t in _index(files).items()}
 
 
 def _change(
@@ -74,8 +84,11 @@ def _change(
     return FileChange(path, source, lines)
 
 
-def _select(paths, changes, tests=TESTS, exists=lambda p: True):
-    return select_tests(paths, changes, tests, exists)
+def _select(
+    paths, changes, tests=TESTS, exists=lambda p: True, old_source=None
+):
+    history = old_source or {}
+    return select_tests(paths, changes, tests, exists, history.get)
 
 
 # ---------------------------------------------------------------------------
@@ -91,9 +104,11 @@ def test_selects_importers_mirror_and_architecture():
         ARCHITECTURE_TESTS,
         "test/a/test_mod.py",
         "test/x/test_module_object.py",
+        "test/x/test_plain_alias.py",
         "test/x/test_plain_and_from.py",
         "test/x/test_plain_import.py",
         "test/x/test_reexport.py",
+        "test/x/test_star.py",
         "test/x/test_uses_changed.py",
     ]
     assert selection.unmapped == []
@@ -236,6 +251,162 @@ def test_plain_import_beside_a_from_import_still_selects():
     assert "test/x/test_plain_and_from.py" in selection.tests
 
 
+DELETED_FN = """\
+def other_fn():
+    return 2
+"""
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_deleted_function_selects_its_importers():
+    """A pure-deletion hunk marks only the line it followed (here line 1)."""
+    change = _change(source=DELETED_FN, lines=frozenset({1}))
+    selection = _select(
+        [change.path], [change], old_source={change.path: SOURCE}
+    )
+    assert "test/x/test_uses_changed.py" in selection.tests
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_renamed_function_selects_importers_of_the_old_name():
+    renamed = SOURCE.replace("def changed_fn", "def fresh_fn")
+    change = _change(source=renamed, lines=frozenset({1}))
+    selection = _select(
+        [change.path], [change], old_source={change.path: SOURCE}
+    )
+    assert "test/x/test_uses_changed.py" in selection.tests
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_removed_reexport_selects_its_importers():
+    tests = _index({"test/x/test_bar.py": "from vultron.a import bar\n"})
+    old = '"""Package."""\nfrom vultron.a.mod import changed_fn as bar\n'
+    change = _change(
+        path="vultron/a/__init__.py",
+        source='"""Package."""\n',
+        lines=frozenset({1}),
+    )
+    selection = _select(
+        [change.path], [change], tests, old_source={change.path: old}
+    )
+    assert "test/x/test_bar.py" in selection.tests
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_unchanged_history_adds_nothing():
+    """The old-side comparison widens only by what actually differs."""
+    selection = _select(
+        ["vultron/a/mod.py"],
+        [_change()],
+        old_source={"vultron/a/mod.py": SOURCE},
+    )
+    assert "test/x/test_uses_other.py" not in selection.tests
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_package_init_change_selects_submodule_importers():
+    """Importing ``vultron.a.mod.sub`` runs ``vultron/a/mod/__init__.py``."""
+    tests = _index(
+        {
+            "test/x/test_sub_from.py": "from vultron.a.mod.sub import X\n",
+            "test/x/test_sub_plain.py": "import vultron.a.mod.sub\n",
+            "test/x/test_sibling.py": "from vultron.a.other import Y\n",
+        }
+    )
+    change = _change(
+        path="vultron/a/mod/__init__.py",
+        source="import os\n",
+        lines=frozenset({1}),
+    )
+    selection = _select([change.path], [change], tests)
+    assert selection.tests == [
+        ARCHITECTURE_TESTS,
+        "test/x/test_sub_from.py",
+        "test/x/test_sub_plain.py",
+    ]
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_changed_test_module_selects_the_tests_importing_it():
+    tests = _index(
+        {
+            "test/x/test_base.py": "import ast\n",
+            "test/x/test_derived.py": "from test.x.test_base import Case\n",
+        }
+    )
+    change = _change(path="test/x/test_base.py", source="", lines=None)
+    selection = _select([change.path], [change], tests)
+    assert selection.tests == [
+        ARCHITECTURE_TESTS,
+        "test/x/test_base.py",
+        "test/x/test_derived.py",
+    ]
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_architecture_helper_selects_importers_outside_the_directory():
+    tests = _index(
+        {"test/y/test_corpus_user.py": "import test.architecture._corpus\n"}
+    )
+    change = _change(
+        path="test/architecture/_corpus.py", source="", lines=None
+    )
+    selection = _select([change.path], [change], tests)
+    assert not selection.full
+    assert selection.tests == [
+        ARCHITECTURE_TESTS,
+        "test/y/test_corpus_user.py",
+    ]
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_widened_index_follows_helpers_transitively():
+    """A test reaching ``vultron`` only through helpers is still selected."""
+    tests = _index(
+        {"test/x/test_via.py": "from test.support.outer import f\n"}
+    )
+    helpers = _helpers(
+        {
+            "test/support/outer.py": "from test.support.inner import g\n",
+            "test/support/inner.py": "from vultron.a.mod import changed_fn\n",
+        }
+    )
+    widened = widen_index(tests, helpers)
+    selection = _select(["vultron/a/mod.py"], [_change()], widened)
+    assert "test/x/test_via.py" in selection.tests
+    assert "test.support.inner" in widened["test/x/test_via.py"].test_imports
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_widen_index_survives_an_import_cycle():
+    tests = _index({"test/x/test_c.py": "import test.support.a\n"})
+    helpers = _helpers(
+        {
+            "test/support/a.py": "import test.support.b\n",
+            "test/support/b.py": (
+                "import test.support.a\nfrom vultron.a.mod import changed_fn\n"
+            ),
+        }
+    )
+    widened = widen_index(tests, helpers)
+    assert ("vultron.a.mod", "changed_fn") in widened["test/x/test_c.py"].names
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_build_index_reads_helpers_from_disk(tmp_path):
+    (tmp_path / "test" / "support").mkdir(parents=True)
+    (tmp_path / "test" / "support" / "ledger.py").write_text(
+        "from vultron.a.mod import changed_fn\n"
+    )
+    (tmp_path / "test" / "test_uses_ledger.py").write_text(
+        "from test.support.ledger import changed_fn\n"
+    )
+    index = build_index(tmp_path)
+    assert list(index) == ["test/test_uses_ledger.py"]
+    selection = _select(["vultron/a/mod.py"], [_change()], index)
+    assert selection.tests == [ARCHITECTURE_TESTS, "test/test_uses_ledger.py"]
+
+
 @pytest.mark.spec("PAD-18-002")
 def test_hub_threshold_does_not_demote_importers():
     """Selection needs every importer; spec-backstop's hub cut is precision."""
@@ -279,6 +450,7 @@ FULL_PATHS = [
     "test/architecture/conftest.py",
     "pyproject.toml",
     "uv.lock",
+    "vultron/__init__.py",
     "test/support/clock.py",
     "test/metadata/specs/_helpers.py",
     "test/core/behaviors/case/nodes/revision_relay_fixtures.py",
@@ -414,6 +586,54 @@ def test_cli_changed_test_file_only(git_repo, monkeypatch, capsys):
     assert _main(monkeypatch, "--base", "main") == 0
     out = capsys.readouterr().out.splitlines()
     assert out == [ARCHITECTURE_TESTS, "test/a/test_other.py"]
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_cli_deleted_function_selects_its_importers(
+    git_repo, monkeypatch, capsys
+):
+    """Read from the merge base: the diff alone names no changed symbol."""
+    _edit(
+        git_repo / "vultron" / "a" / "mod.py",
+        "\n\ndef other_fn():\n    return 2\n",
+        "",
+    )
+    git(git_repo, "commit", "-q", "-am", "drop other_fn")
+    assert _main(monkeypatch, "--base", "main") == 0
+    out = capsys.readouterr().out.splitlines()
+    # test_mod.py is the mirror test; test_other.py imported the deleted name.
+    assert out == [
+        ARCHITECTURE_TESTS,
+        "test/a/test_mod.py",
+        "test/a/test_other.py",
+    ]
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_cli_untracked_module_and_test_count(git_repo, monkeypatch, capsys):
+    (git_repo / "vultron" / "a" / "fresh.py").write_text("def f(): pass\n")
+    (git_repo / "test" / "a" / "test_fresh.py").write_text(
+        "from vultron.a.fresh import f\n"
+    )
+    assert _main(monkeypatch, "--base", "main") == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out == [ARCHITECTURE_TESTS, "test/a/test_fresh.py"]
+
+
+@pytest.mark.spec("PAD-18-002")
+def test_cli_renamed_module_selects_importers_of_the_old_path(
+    git_repo, monkeypatch, capsys
+):
+    git(git_repo, "mv", "vultron/a/mod.py", "vultron/a/renamed.py")
+    git(git_repo, "commit", "-q", "-m", "rename")
+    assert _main(monkeypatch, "--base", "main", "--json") == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["tests"] == [
+        ARCHITECTURE_TESTS,
+        "test/a/test_mod.py",
+        "test/a/test_other.py",
+    ]
+    assert data["unmapped"] == ["vultron/a/renamed.py"]
 
 
 @pytest.mark.spec("PAD-18-002")

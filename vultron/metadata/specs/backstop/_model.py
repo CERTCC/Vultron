@@ -63,6 +63,10 @@ class TestFile:
     spec_ids: frozenset[str]
     #: Modules bound by a plain ``import vultron.x.y`` statement.
     plain_imports: frozenset[str] = frozenset()
+    #: Test-side modules (``test`` or ``test.*``) the file imports, recorded
+    #: like :attr:`modules`. Unused by spec inference; ``targeted-tests``
+    #: follows them to helpers and to other test files.
+    test_imports: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
