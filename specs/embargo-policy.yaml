@@ -1663,12 +1663,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant whose consent row for the embargo in force is `ACCEPTED` MUST be
+      A participant whose consent row for the embargo in force is `AGREED` MUST be
       able to withdraw from that embargo by a trigger that sends `Leave(EmbargoEvent)`
       naming the embargo in force to the CASE_MANAGER (MSM-07-010, PCR-08). The trigger
       needs no Invite: it MUST resolve the embargo from the case's active embargo, and
       MUST refuse with a reported reason when no embargo is in force, when the
-      participant's row for it is not `ACCEPTED`, or when the participant is the case
+      participant's row for it is not `AGREED`, or when the participant is the case
       owner. Neither the accept nor the reject embargo trigger MUST withdraw from the
       embargo in force.
     rationale: >-
@@ -1680,11 +1680,11 @@ groups:
       withdraws a signatory.
     verification: >-
       Trigger tests under `test/core/use_cases/triggers/embargo/` withdraw a signatory
-      with an `ACCEPTED` row on the embargo in force, including one seeded with no
+      with an `AGREED` row on the embargo in force, including one seeded with no
       Invite, and assert the Leave names the active embargo and is addressed to the
       CASE_MANAGER; they assert the refusal with no embargo in force, with an `INVITED`
       row, and for the case owner, and that a no-name reject with a revision open
-      refuses the revision and leaves the row for the embargo in force `ACCEPTED`.
+      refuses the revision and leaves the row for the embargo in force `AGREED`.
     relationships:
     - rel_type: depends_on
       spec_id: MSM-07-010

@@ -836,7 +836,7 @@ groups:
       vultron/core/services/embargo_lifecycle/consent.py confirms
       RejectInviteToEmbargoOnCaseReceivedUseCase applies
       EmbargoLifecycle.record_embargo_rejection, which declines the rejecting actor's row for
-      the rejected embargo, refuses a Reject of the active embargo from an ACCEPTED row,
+      the rejected embargo, refuses a Reject of the active embargo from an AGREED row,
       applies the same rule to the case owner, and moves no
       register entry.
     relationships:
@@ -1035,13 +1035,13 @@ groups:
     statement: >-
       The wire activity `Leave(EmbargoEvent)[context=VulnerabilityCase]` is a
       participant's withdrawal of its consent to the case's *active* embargo. For a
-      sender whose row for that embargo is ACCEPTED, the receiver MUST apply the PEC
+      sender whose row for that embargo is AGREED, the receiver MUST apply the PEC
       DECLINE trigger to that row and MUST also decline every open proposal's row the
-      sender had ACCEPTED: every open proposal is a revision of the embargo withdrawn
-      from (EP-08-004), and a DECLINED participant MUST NOT hold an ACCEPTED row for an
+      sender had AGREED to: every open proposal is a revision of the embargo withdrawn
+      from (EP-08-004), and a DECLINED participant MUST NOT hold an AGREED row for an
       embargo that can become active without re-invitation. The receiver MUST refuse
       with a reported reason a Leave whose embargo is not the active one, whose sender's
-      row for it is not ACCEPTED, or whose sender is the case owner, which ends an
+      row for it is not AGREED, or whose sender is the case owner, which ends an
       embargo by terminating it (CM-02-005). A Leave changes no register entry.
     rationale: >-
       Accept and Reject answer an Invite; leaving an embargo one is bound by is a
@@ -1051,7 +1051,7 @@ groups:
       the state of the case. The rejected alternatives are recorded in ADR-0122.
     verification: >-
       Inspection of the received-side handler for `Leave(EmbargoEvent)` confirms it
-      declines the sender's ACCEPTED row for the active embargo and its accepted open
+      declines the sender's AGREED row for the active embargo and its agreed open
       proposals, refuses the three cases named in the statement with a reported reason,
       and changes no register entry.
     relationships:
