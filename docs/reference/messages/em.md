@@ -27,7 +27,8 @@ print(render_page("em", heading=False))
 
 - **Protocol role:** Mints the embargo event that carries the proposed terms. No formal shorthand; it precedes the `Invite` that proposes those terms.
 - **Triggering transition:** none (object construction).
-- **Wire activity:** `Create(Event)`.
+- **Wire activity:** `Create(Event)[context=VulnerabilityCase|VulnerabilityReport]` (VAM-05-001).
+- **How-to:** [How to Establish an Embargo](../../howto/activitypub/activities/establish_embargo.md).
 
 ## EP — Embargo Proposal
 
