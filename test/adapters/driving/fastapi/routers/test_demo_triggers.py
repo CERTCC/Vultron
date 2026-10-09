@@ -21,17 +21,30 @@ Tests for the demo-only trigger endpoints
 Verifies TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 """
 
+import json
+import threading
+
 import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driving.fastapi.deps import get_trigger_dl
+from test.adapters.driving.fastapi.sse_helpers import (
+    parse_sse_body,
+    save_ledger_entry,
+)
+from vultron.adapters.driving.fastapi.app import create_app
+from vultron.adapters.driving.fastapi.deps import (
+    get_ledger_stream_shutdown,
+    get_trigger_dl,
+)
 from vultron.adapters.driving.fastapi.routers import (
     demo_triggers as demo_triggers_router,
     trigger_case as trigger_case_router,
 )
 from vultron.adapters.utils import strip_id_prefix
+from vultron.config import config_override
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronWiringError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -108,6 +121,13 @@ def client_demo(dl):
     app = FastAPI()
     app.include_router(demo_triggers_router.router)
     app.dependency_overrides[get_trigger_dl] = lambda: dl
+    # Already set, so a ledger stream replays what is stored, sends its
+    # terminal close event and ends — TestClient reads a response to its end.
+    already_shut_down = threading.Event()
+    already_shut_down.set()
+    app.dependency_overrides[get_ledger_stream_shutdown] = lambda: (
+        already_shut_down
+    )
     mock_emitter = AsyncMock()
     with patch(
         "vultron.adapters.driving.fastapi.outbox_handler.get_default_emitter",
@@ -522,18 +542,7 @@ class TestDemoSyncLogEntry:
 # ---------------------------------------------------------------------------
 
 
-def _make_log_entry(dl, case_id: str, log_index: int) -> object:
-    """Create and save a CaseLedgerEntry directly to the DataLayer."""
-    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
-    entry = CaseLedgerEntry(
-        case_id=case_id,
-        log_index=log_index,
-        log_object_id=f"{case_id}/objects/{log_index}",
-        event_type=f"test_event_{log_index}",
-    )
-    dl.save(entry)
-    return entry
+_make_log_entry = save_ledger_entry
 
 
 # ---------------------------------------------------------------------------
@@ -737,6 +746,184 @@ class TestDemoGetCaseLedgerEntry:
         assert "caseId" in data
         assert "log_object_id" not in data
         assert "event_type" not in data
+
+
+# ---------------------------------------------------------------------------
+# Tests: GET /actors/{actor_id}/demo/cases/{case_id}/log/stream (ADR-0104)
+# ---------------------------------------------------------------------------
+
+_STREAM_PATH = "/actors/{actor_id}/demo/cases/{case_id}/log/stream"
+
+
+class TestDemoStreamCaseLedger:
+    """Tests for the prototype-only SSE ledger stream (#3641).
+
+    ``client_demo`` hands the route an already-set shutdown event, so every
+    response replays the stored entries, ends with ``event: close`` and
+    completes.  Live following is covered by ``test_ledger_stream.py`` and the
+    integration test in ``test_ledger_stream_live.py``.
+    """
+
+    def _url(self, actor, case_id: str) -> str:
+        return _STREAM_PATH.format(
+            actor_id=actor.id_, case_id=_route_key(case_id)
+        )
+
+    def test_route_is_reachable_not_parsed_as_an_index(
+        self, client_demo: TestClient, actor, case_with_actor
+    ):
+        """Declared after ``…/log/{index}``, ``stream`` would 422 as an int."""
+        response = client_demo.get(self._url(actor, case_with_actor.id_))
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.headers["content-type"].startswith("text/event-stream")
+        assert response.headers["cache-control"] == "no-cache"
+
+    def test_replays_entries_serialized_exactly_like_the_list(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        for i in (1, 0, 2):
+            _make_log_entry(dl, case_with_actor.id_, log_index=i)
+        listed = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/"
+            f"{_route_key(case_with_actor.id_)}/log"
+        ).json()
+
+        events = parse_sse_body(
+            client_demo.get(self._url(actor, case_with_actor.id_)).text
+        )
+
+        entry_events, close = events[:-1], events[-1]
+        assert [e["id"] for e in entry_events] == ["0", "1", "2"]
+        assert [json.loads(e["data"]) for e in entry_events] == listed
+        assert close == {"event": "close", "data": ""}
+
+    def test_only_streams_the_requested_case(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        other = as_VulnerabilityCase(name="OTHER-STREAM-CASE")
+        dl.create(other)
+        _make_log_entry(dl, case_with_actor.id_, log_index=0)
+        _make_log_entry(dl, other.id_, log_index=0)
+        events = parse_sse_body(
+            client_demo.get(self._url(actor, case_with_actor.id_)).text
+        )
+        assert [json.loads(e["data"])["caseId"] for e in events[:-1]] == [
+            case_with_actor.id_
+        ]
+
+    def test_since_skips_entries_at_or_below_it(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        for i in range(4):
+            _make_log_entry(dl, case_with_actor.id_, log_index=i)
+        events = parse_sse_body(
+            client_demo.get(
+                self._url(actor, case_with_actor.id_), params={"since": 1}
+            ).text
+        )
+        assert [e.get("id") for e in events[:-1]] == ["2", "3"]
+
+    def test_last_event_id_skips_entries_at_or_below_it(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        for i in range(4):
+            _make_log_entry(dl, case_with_actor.id_, log_index=i)
+        events = parse_sse_body(
+            client_demo.get(
+                self._url(actor, case_with_actor.id_),
+                headers={"Last-Event-ID": "2"},
+            ).text
+        )
+        assert [e.get("id") for e in events[:-1]] == ["3"]
+
+    def test_reconnect_resumes_from_the_later_of_since_and_last_event_id(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        for i in range(4):
+            _make_log_entry(dl, case_with_actor.id_, log_index=i)
+        events = parse_sse_body(
+            client_demo.get(
+                self._url(actor, case_with_actor.id_),
+                params={"since": 0},
+                headers={"Last-Event-ID": "2"},
+            ).text
+        )
+        assert [e.get("id") for e in events[:-1]] == ["3"]
+
+    def test_http_url_case_id_surrogate_key(
+        self, client_demo: TestClient, actor, dl
+    ):
+        http_case_id = "https://example.org/cases/demo/stream"
+        dl.create(as_VulnerabilityCase(id_=http_case_id, name="HTTP Case"))
+        _make_log_entry(dl, http_case_id, log_index=0)
+        events = parse_sse_body(
+            client_demo.get(self._url(actor, http_case_id)).text
+        )
+        assert json.loads(events[0]["data"])["caseId"] == http_case_id
+
+    def test_unknown_case_returns_404(self, client_demo: TestClient, actor):
+        response = client_demo.get(
+            _STREAM_PATH.format(actor_id=actor.id_, case_id="no-such-case")
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.json()["detail"] == "Case not found."
+
+    def test_negative_since_returns_422(
+        self, client_demo: TestClient, actor, case_with_actor
+    ):
+        response = client_demo.get(
+            self._url(actor, case_with_actor.id_), params={"since": -1}
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_malformed_last_event_id_returns_422(
+        self, client_demo: TestClient, actor, case_with_actor
+    ):
+        response = client_demo.get(
+            self._url(actor, case_with_actor.id_),
+            headers={"Last-Event-ID": "not-an-index"},
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert "Last-Event-ID" in response.json()["detail"]
+
+    def test_app_without_a_lifespan_refuses_to_start_a_stream(
+        self, dl, actor, case_with_actor
+    ):
+        """No shutdown event means a stream that could hold the server open."""
+        app = FastAPI()
+        app.include_router(demo_triggers_router.router)
+        app.dependency_overrides[get_trigger_dl] = lambda: dl
+        with pytest.raises(VultronWiringError, match="lifespan"):
+            TestClient(app).get(self._url(actor, case_with_actor.id_))
+
+
+class TestDemoStreamCaseLedgerMounting:
+    """The stream route exists only in ``RunMode.PROTOTYPE`` (TRIG-09-002/003)."""
+
+    _PATH = "/api/v2" + _STREAM_PATH
+
+    @staticmethod
+    def _route_paths(app: FastAPI) -> set[str]:
+        return set(app.openapi()["paths"])
+
+    @pytest.mark.spec("TRIG-09-002")
+    def test_mounted_in_prototype(self):
+        with config_override(VULTRON_MODE="prototype"):
+            app = create_app(docs_url=None, openapi_url=None)
+        assert self._PATH in self._route_paths(app)
+
+    @pytest.mark.spec("TRIG-09-003")
+    def test_absent_in_prod_and_answers_404(self):
+        with config_override(VULTRON_MODE="prod"):
+            app = create_app(docs_url=None, openapi_url=None)
+        assert self._PATH not in self._route_paths(app)
+        with TestClient(app) as client:
+            response = client.get(
+                self._PATH.format(actor_id="vendor", case_id="any-case")
+            )
+        # With the demo route absent, the general ``/actors/{actor_id:path}``
+        # profile route is what answers — and it finds no such actor.
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 # ---------------------------------------------------------------------------

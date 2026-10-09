@@ -15,6 +15,7 @@ relevant_packages:
   - vultron/core
 related_notes:
   - notes/case-ledger-authority.md
+  - notes/demo-interactive-ui.md
   - notes/embargo-default-semantics.md
   - notes/testing-pitfalls.md
 ---
@@ -242,6 +243,7 @@ actor-policy defaults used by BT nodes and the production adapter:
 | `VULTRON_CONFIG` | path to config.yaml | `config.yaml` |
 | `VULTRON_SERVER__BASE_URL` | `server.base_url` | `http://localhost:7999` |
 | `VULTRON_SERVER__LOG_LEVEL` | `server.log_level` | `INFO` |
+| `VULTRON_SERVER__LEDGER_STREAM_POLL_SECONDS` | `server.ledger_stream_poll_seconds` | `0.25` |
 | `VULTRON_DATABASE__DB_URL` | `database.db_url` | `sqlite:///vultron.db` |
 | `VULTRON_ACTOR__AUTO_CREATE_CASE` | `actor.auto_create_case` | `true` |
 | `VULTRON_ACTOR__DEFAULT_CASE_ROLES` | `actor.default_case_roles` | `[]` |
