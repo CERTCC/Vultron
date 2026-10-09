@@ -232,7 +232,12 @@ validated. Choose the value deliberately, not by habit.
 
 2. Has a later ADR replaced this one?
    YES → status: superseded, plus a superseded_by: <successor filename> field.
+         Add this ADR to the successor's supersedes: list (MS-14-011).
          Move newly-retired files to docs/adr/archived/ (see ADR-0043).
+   ONLY ONE DECISION IN IT → keep the status; add partially_superseded_by:
+         <successor filename> here and this ADR to the successor's
+         partially_supersedes: list. Do not archive it.
+   The loader fails a link recorded on only one of the two ADRs.
 
 3. Is the approach no longer recommended but not yet replaced?
    YES → deprecated.
