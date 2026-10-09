@@ -141,7 +141,7 @@ To examine the logs of one container after a run:
 docker compose -f docker/docker-compose-multi-actor.yml logs vendor
 ```
 
-To watch one actor's case ledger while a scenario runs, tail its ledger stream.
+To watch one actor's [case ledger](../reference/vultron-spec/introduction.md#23-protocol-objects-and-messages) while a scenario runs, tail its ledger stream.
 Look up the host port Docker assigned to the actor's container, then open the stream with the case's id:
 
 ```bash
@@ -150,7 +150,7 @@ curl -N "http://localhost:<port>/api/v2/actors/vendor/demo/cases/<case-id>/log/s
 ```
 
 The stream first replays every ledger entry the actor holds for that case, then sends each new entry as the actor records it.
-Each event's `id:` is the entry's `logIndex`, and its `data:` is the entry as JSON, the same form `…/log` returns.
+Each event's `id:` is the entry's `logIndex`, and its `data:` is the entry as JavaScript Object Notation (JSON), the same form `…/log` returns.
 Add `?since=<logIndex>` to skip the entries you have already seen.
 When the server shuts down, the stream sends a final `event: close`.
 The stream and the `…/log` endpoints exist only in prototype mode, and they are demo tooling: participants never use them to replicate a ledger.
