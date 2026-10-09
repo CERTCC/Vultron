@@ -6,15 +6,13 @@ Requirements: specs/spec-registry.yaml SR-12-001 through SR-12-008.
 import ast
 import io
 import json
-import shutil
-import subprocess
 import sys
 import textwrap
-from pathlib import Path
 
 import pytest
 import yaml
 
+from test.support.git_repo import git, init_git_repo
 from vultron.metadata.specs import backstop
 from vultron.metadata.specs.backstop import (
     FileChange,
@@ -502,23 +500,9 @@ def test_cli_missing_manifest_exits_2(repo, monkeypatch, capsys):
     assert "nope.txt" in capsys.readouterr().err
 
 
-def _git(root: Path, *args: str) -> None:
-    subprocess.run(
-        ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
-        cwd=root,
-        check=True,
-        capture_output=True,
-    )
-
-
 @pytest.fixture
-def git_repo(repo):
-    if shutil.which("git") is None:
-        pytest.skip("git not available")
-    _git(repo, "init", "-q", "-b", "main")
-    _git(repo, "add", ".")
-    _git(repo, "commit", "-q", "-m", "init")
-    return repo
+def git_repo(repo, monkeypatch):
+    return init_git_repo(repo, monkeypatch)
 
 
 @pytest.mark.spec("SR-12-008")
@@ -529,10 +513,10 @@ def test_cli_bad_base_exits_2(git_repo, monkeypatch, capsys):
 
 @pytest.mark.spec("SR-12-001")
 def test_cli_git_mode_collects_all_change_kinds(git_repo, monkeypatch, capsys):
-    _git(git_repo, "checkout", "-q", "-b", "feature")
+    git(git_repo, "checkout", "-q", "-b", "feature")
     mod = git_repo / "vultron" / "a" / "mod.py"
     mod.write_text(mod.read_text().replace("return 2", "return 3"))
-    _git(git_repo, "commit", "-q", "-am", "edit")
+    git(git_repo, "commit", "-q", "-am", "edit")
     (git_repo / "vultron" / "z.py").write_text("def lonely_fn(): return 1\n")
     (git_repo / "vultron" / "new.py").write_text("def fresh(): pass\n")
     assert _main(monkeypatch, "--base", "main", "--json") == 0
@@ -660,11 +644,11 @@ def test_git_config_cannot_rename_the_diff_prefixes(
     git_repo, monkeypatch, capsys, config
 ):
     """Renamed prefixes parsed as no changes at all: exit 0 on any manifest."""
-    _git(git_repo, "config", *config.split("="))
-    _git(git_repo, "checkout", "-q", "-b", "feature")
+    git(git_repo, "config", *config.split("="))
+    git(git_repo, "checkout", "-q", "-b", "feature")
     mod = git_repo / "vultron" / "a" / "mod.py"
     mod.write_text(mod.read_text().replace("return 2", "return 3"))
-    _git(git_repo, "commit", "-q", "-am", "edit")
+    git(git_repo, "commit", "-q", "-am", "edit")
     assert _main(monkeypatch, "--base", "main", "--json") == 0
     data = json.loads(capsys.readouterr().out)
     assert [c["path"] for c in data["changed"]] == ["vultron/a/mod.py"]
