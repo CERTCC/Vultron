@@ -129,7 +129,8 @@ class _ActivationOperationsMixin(_PecActivationMixin):
 
         ``Accept(EmbargoEvent, target=Case)`` (ADR-0122): ``ACTIVATE``
         *embargo_id*'s register entry and ``SUPERSEDE`` any ``ACTIVE`` one in
-        the same step, so EM derives ``ACTIVE``.  In ``STRICT`` mode the entry
+        the same step, so EM derives ``ACTIVE``, or ``REVISE`` while another
+        proposal stays open as a revision (ADR-0130).  In ``STRICT`` mode the entry
         must be an open proposal and P/X/A must be clear (EMB-02-002).  In
         ``OBSERVED`` mode a replica that never saw the proposal records it
         first, and a step the register refuses is skipped (EP-09-007).
