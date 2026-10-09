@@ -340,7 +340,7 @@ Consent-write sites (every one routes through `apply_pec_transition()` or
 | Site | Entry point |
 |---|---|
 | `case/nodes/proposal_consent.py` | `sign_embargo()` |
-| `case/nodes/participant/participant_add.py` | `sign_embargo()` |
+| `case/nodes/invite_inert_participant.py` | `apply_pec_transition()` (`INVITE` at seating, `DECLINE` on Reject) |
 | `case/nodes/invite_embargo_consent.py` | `sign_embargo()` |
 | `embargo/nodes/relay.py`, `relay_effect.py`, `reinvite.py` | `record_embargo_invite()` |
 | `embargo/nodes/proposal.py` | `record_embargo_rejection()` |

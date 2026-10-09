@@ -75,6 +75,11 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # the case-update Announce whose actor is the CASE_MANAGER's URL. (CM-06-001 was
 # already covered by test_update*.py and never regressed.) A dead-code deletion
 # must not drop protocol coverage; the live count stays 702.
+# Held at 702 through #4367 (deleted the dead CreateCaseParticipantNode chain
+# and its test). That test had carried the only marker for CM-14-012 (reporter
+# seated at RM.ACCEPTED as REPORTER and seeded SIGNATORY); the live seating is
+# AddReporterParticipantNode, so the marker moved to the reporter tests in
+# test_case_proposal_received_tree.py that assert exactly that.
 # Lower this constant as more @pytest.mark.spec markers are added;
 # never raise it to hide regressions in your own PR. Keep it pinned to the
 # actual count — slack between the two is room for uncovered specs to grow

@@ -630,6 +630,75 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             "recommender lookup must read from core state (recommendation_recommender_index)"
         )
 
+    @pytest.mark.spec("CM-11-015")
+    @pytest.mark.parametrize("joined", [False, True])
+    def test_closed_invitee_is_refused_before_anything_is_sent(self, joined):
+        """An invitee already at RM.CLOSED is never re-invited (CM-11-015).
+
+        The refusal comes before the emits, so neither the Invite nor the
+        recommender notification is queued (only the ledger sync of the
+        committed receipt is), and the record is left as it was.
+        """
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.dimensions import RmDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
+
+        dl, _ = _seed_dl_for_case_actor()
+        closed_id = f"{CASE_ID}/participants/closed-invitee"
+        closed = CaseParticipant(
+            id_=closed_id,
+            attributed_to=RECOMMENDED_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.VENDOR],
+            participant_statuses=[
+                ParticipantStatus(
+                    context=CASE_ID,
+                    attributed_to=RECOMMENDED_ID,
+                    rm=RmDimension(state=RM.CLOSED),
+                    cvd_role=[CVDRole.VENDOR],
+                )
+            ],
+            joined=joined,
+        )
+        dl.create(closed)
+        case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        case.add_participant(closed)
+        dl.save(case)
+        event = self._event_with_stored_offer(dl)
+
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is not HandlerDisposition.APPLIED
+        assert result.reason is not None
+        assert "CM-11-015" in result.reason
+        # Only the ledger sync of the committed receipt is queued; no Invite
+        # and no AcceptActorRecommendation.
+        queued = [dl.read(act_id) for act_id in dl.outbox_list()]
+        assert all(
+            getattr(act, "type_", None) == "Announce" for act in queued
+        ), (
+            "a closed invitee must be sent no Invite and the recommender no"
+            " acceptance (CM-11-015)"
+        )
+        assert not any(
+            RECOMMENDER_ID in (getattr(act, "to", None) or [])
+            for act in queued
+        )
+        stored = dl.read(closed_id)
+        assert isinstance(stored, CaseParticipant)
+        assert stored.rm_closed
+        assert stored.joined is joined
+        assert len(stored.participant_statuses) == 1
+
 
 # ---------------------------------------------------------------------------
 # RejectOfferCaseParticipantReceivedUseCase (CaseActor inbox)
