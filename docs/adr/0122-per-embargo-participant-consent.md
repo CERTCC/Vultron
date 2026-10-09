@@ -3,12 +3,12 @@ status: proposed
 date: 2026-10-06
 created: 2026-10-06
 updated: 2026-10-09
-revision: 3
+revision: 4
 deciders: Allen D. Householder
 consulted: >-
   Claude Sonnet 5.5; Claude Opus 5.5; Issue #4178, Concern #4284, Concern #3884,
   Issue #4153, Concern #4322, PR #4002, PR #4267, PR #4372; ADR-0048, ADR-0056, ADR-0091, ADR-0093,
-  ADR-0113, ADR-0118, ADR-0124; specs/case-management.yaml CM-10, CM-18;
+  ADR-0113, ADR-0118, ADR-0124, ADR-0130; specs/case-management.yaml CM-10, CM-18;
   specs/message-semantics-mapping.yaml MSM-07; specs/embargo-policy.yaml EP-05,
   EP-08, EP-09; specs/em-behavior.yaml EMB-11, EMB-16, EMB-17
 informed: []
@@ -101,8 +101,9 @@ The EM states use the same words for an aggregate over the whole register, so pr
 
 ### EM is derived from the register
 
-EM has no transition table of its own.
-The EM transition table and `EMAdapter` are retired; their callers move to register triggers.
+EM is never set directly: it is computed from the register, and its callers move to register triggers.
+`EMAdapter` is retired.
+EM's own transition table is not retired: it stays the rule every register step's EM move must obey (ADR-0130, which amends revision 3 of this ADR).
 `CaseStatus` keeps its EM field as a copy that the case stamps from the register: at construction, at every register change and when a status is appended.
 A received status can report EM but never move it: an asserted EM that differs from the register's is refused and the case's carried forward.
 
@@ -114,8 +115,8 @@ A received status can report EM but never move it: an asserted EM that differs f
 | 1 | ≥1 | 0 | `REVISE` |
 | 0 | 0 | 1 | `EXITED` |
 
-Every former EM transition is a register change: propose adds a `PROPOSED` entry, accept is `ACTIVATE` (with `SUPERSEDE` of any current `ACTIVE`), reject is `REJECT`, and terminate is `TERMINATE` with every open proposal `CANCELLED`.
-Rejecting one of two open proposals leaves EM `PROPOSED` (or `REVISE`), because the other is still open.
+Every EM transition is caused by a register change: propose adds a `PROPOSED` entry, accept is `ACTIVATE` (with `SUPERSEDE` of any current `ACTIVE`), reject is `REJECT`, and terminate is `TERMINATE` with every open proposal `CANCELLED`.
+Rejecting one of two open proposals leaves EM `PROPOSED` (or `REVISE`), because the other is still open; activating one leaves the other open as a revision, so EM is `REVISE` (ADR-0130).
 An `ACTIVE` entry leaves that status only by `SUPERSEDE`, in the step that activates another entry, or by `TERMINATE`, after which invariant 4 allows no change.
 So a case that has had an embargo in force never returns to `NONE` or `PROPOSED`.
 
@@ -212,7 +213,7 @@ The termination runs the full cascade: `TERMINATED` with its reason, every open 
 ### Consequences
 
 - Good, because every state is named and written: no machine starts from an absent record, and nothing that is only a read is drawn as a state.
-- Good, because consent, the register and EM each have one record or one derivation, so "bound", "lapsed" and EM cannot disagree with what they read; the reconciliation rules, the MSM-07-003 special case and the EM transition table are deleted.
+- Good, because consent, the register and EM each have one record or one derivation, so "bound", "lapsed" and EM cannot disagree with what they read; the reconciliation rules and the MSM-07-003 special case are deleted, and the EM transition table constrains the derivation instead of being a second record of EM (ADR-0130).
 - Good, because the case keeps its whole embargo history, including rejected and cancelled proposals and the consent given to them.
 - Good, because the owner's decisions for the case and each participant's own consent are different messages, so no handler branches on the sender to know what a message means.
 - Good, because rejecting one of two open proposals no longer resets EM.
@@ -286,6 +287,7 @@ Four wire forms were weighed for a signatory leaving the embargo it is bound by.
 ## More Information
 
 Decided in the maintainer's design session of 2026-10-07, recorded in Concern #4284; implementation is tracked under epic #4283.
+Revision 4 (2026-10-09) withdrew revision 3's retirement of the EM transition table: EM stays computed from the register, under the table (ADR-0130).
 Revision 1 (2026-10-06) introduced the per-embargo rows with `INVITED`, `ACCEPTED`, `DECLINED` and `EXPIRED`, and left EM, the case's embargo history and the owner's activation as they were.
 
 Generated spec requirements: `case-management.yaml` CM-18 and CM-10-001; `message-semantics-mapping.yaml` MSM-07; `embargo-policy.yaml` EP-05, EP-08, EP-09; `em-behavior.yaml` EMB-11, EMB-16, EMB-17 (updated by the implementation issues under #4283).

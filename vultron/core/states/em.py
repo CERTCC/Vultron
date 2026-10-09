@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 """This module defines the Embargo Management states for the Vultron protocol.
 
-EM has no transition table of its own: a case's EM state is derived from its
-embargo register (ADR-0122,
-:func:`vultron.core.states.embargo_register.derive_em`).
+A case's EM state is never set directly: it is derived from its embargo
+register (ADR-0122, :func:`vultron.core.states.embargo_register.derive_em`).
+The EM state machine still governs it: every register step must move EM along
+one of the EM transitions (ADR-0130, EMB-18-005).  The table is not yet
+declared here (#4449).
 """
 
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.

@@ -4,7 +4,8 @@ status: active
 description: >
   Target architecture for EM state management; the embargo register on the
   case, from which EM is derived and which only EmbargoLifecycle changes,
-  one checked step at a time (ADR-0122); P/X/A embargo-eligibility
+  one checked step at a time (ADR-0122), each step moving EM along an EM
+  transition (ADR-0130); P/X/A embargo-eligibility
   precondition guards in EmbargoLifecycle; the earliest-expiration resolution
   order for multiple open proposals (EP-08); and the fragmentation concern that
   motivates the EmbargoLifecycle service (see #538); and the revision relay
@@ -133,9 +134,21 @@ current `CaseStatus`.
 entry is `NONE`; `PROPOSED` only is `PROPOSED`; `ACTIVE` is `ACTIVE`, or
 `REVISE` with a `PROPOSED` beside it; `TERMINATED` is `EXITED`. So rejecting
 one of two open proposals leaves EM `PROPOSED` (or `REVISE`), and a case that
-has had an embargo in force never returns to `NONE` or `PROPOSED`. EM has no
-transition table of its own: the EM machine, `EMAdapter` and
-`is_valid_em_transition()` are deleted.
+has had an embargo in force never returns to `NONE` or `PROPOSED`.
+
+**The EM state machine still governs EM (ADR-0130).** The register is a layer
+under the EM machine, not a replacement for it. Each step names an EM trigger
+(`PROPOSE` → `propose`, `ACTIVATE` → `accept`, `REJECT` or a threat-signal
+`CANCEL` → `reject`, `TERMINATE` → `terminate`), and EM before and after the
+step MUST be one of that trigger's EM transitions (EMB-18-005). With several
+proposals open, EM leaves `PROPOSED` or `REVISE` only when the last one is off
+the table, so `reject` and `accept` have self-loops there, and activating one
+proposal leaves the others open as revisions (`accept: PROPOSED → REVISE`).
+Issue #4290 deleted the table with `EMAdapter` and `is_valid_em_transition()`.
+Issue #4449 restores it as data in `vultron/core/states/em.py` and refuses a
+step whose EM move is not in it (EMB-18-006). Until then
+`test/core/states/test_em_transition_table.py` holds the table and shows the
+register makes exactly its moves.
 
 **`CaseStatus.em` is a stamped copy.** The status still carries EM on the wire
 and inside `ParticipantStatus`, but the case writes it from the register: at

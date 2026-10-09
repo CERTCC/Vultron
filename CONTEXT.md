@@ -54,6 +54,18 @@ A time-limited agreement among case participants to withhold public disclosure o
 vulnerability until a specified date or condition.
 *Avoid*: NDA, hold
 
+**Embargo Register**:
+The case's append-only list of every embargo ever proposed on it, each with its own
+status (proposed, active, rejected, superseded, cancelled, terminated).
+*Avoid*: embargo history (it is a record of status, not a log of events)
+
+**Embargo Management (EM) state**:
+The case-level embargo position (`NONE`, `PROPOSED`, `ACTIVE`, `REVISE`, `EXITED`). It is
+computed from the Embargo Register, never set directly, and every change to it must
+still be one of the EM state machine's transitions. Computing EM from the register adds
+a layer under the EM state machine; it does not replace the machine.
+*Avoid*: "EM has no transition table", "EM is just a view"
+
 ---
 
 ## Messages

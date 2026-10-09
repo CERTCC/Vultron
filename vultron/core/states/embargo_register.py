@@ -22,8 +22,8 @@ CANCEL    : PROPOSED → CANCELLED  (with a TERMINATE, or on a threat signal
                                    while no entry is ACTIVE)
 
 ``REJECTED``, ``SUPERSEDED``, ``CANCELLED`` and ``TERMINATED`` are final.
-EM has no transition table of its own: it is :func:`derive_em` over the
-register's statuses.  The step rules (which triggers may share a step, and
+EM is :func:`derive_em` over the register's statuses, never set directly, and
+each step must move it along an EM transition (ADR-0130).  The step rules (which triggers may share a step, and
 invariant 4) live with the step itself in
 :mod:`vultron.core.models.embargo_register`; this module holds what can be
 checked on one set of statuses.

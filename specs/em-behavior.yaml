@@ -731,7 +731,9 @@ groups:
     kind: protocol
     statement: >-
       A Participant in EM Proposed (q^em ∈ P) receiving ER MUST transition their
-      EM state back to None (q^em P → N) and emit EK to acknowledge receipt.
+      EM state back to None (q^em P → N) when the rejected proposal was the last
+      one open, MUST remain in Proposed (q^em P → P) while another proposal is
+      open (EMB-18-005), and MUST emit EK to acknowledge receipt.
     rationale: >-
       ER signals that a proposed embargo has been rejected. The embargo returns
       to None state (no embargo in effect). The EK acknowledges the rejection.
@@ -2337,6 +2339,61 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EMB-18-003
+  - id: EMB-18-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Every change to a case's embargo register MUST move the case's EM state
+      only along an EM transition for the change's EM trigger: a proposal is
+      `propose`, an activation is `accept`, a rejection, or the cancellation of
+      open proposals with no embargo in force, is `reject`, and a termination is
+      `terminate`. The EM transitions are `propose`: N→P, P→P, A→R, R→R;
+      `reject`: P→N, P→P, R→A, R→R; `accept`: P→A, P→R, R→A, R→R; and
+      `terminate`: A→X, R→X. EM leaves Proposed or Revise only when no
+      proposal remains open.
+    rationale: >-
+      EM is computed from the embargo register (ADR-0122), not replaced by it:
+      the EM state machine remains the protocol's model, and the register is a
+      layer beneath it. With several proposals open, rejecting or activating one
+      leaves the others open, so EM stays in Proposed or Revise until the last
+      one is off the table (ADR-0130).
+    verification: >-
+      A property test enumerates register states, applies every legal register
+      step, and asserts each (trigger, EM before, EM after) is one of these
+      transitions: `test_every_register_step_moves_em_along_an_em_transition`
+      in `test/core/states/test_em_transition_table.py`.
+    adr:
+    - ADR-0130
+    stories:
+    - story_2022_014
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-001
+  - id: EMB-18-006
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The EM transitions of EMB-18-005 MUST be held as one declarative table,
+      and applying an embargo register step MUST refuse, with no write, a step
+      whose EM move is not in it. The CASE_MANAGER and every replica MUST
+      apply the same check, as part of the one replay function (ADR-0124).
+    rationale: >-
+      A check only in tests protects only the register states a test reaches.
+      Refusing at the step makes a register defect fail when it happens, on
+      every node, and gives tools that draw or export the EM machine one table
+      to read (ADR-0130).
+    verification: >-
+      `test_em_transition_table_is_declared_and_enforced` in
+      `test/core/states/test_em_transition_table.py` asserts the table is
+      declared and a step whose EM move is not in it is refused; it is a strict
+      `xfail` until #4449 lands.
+    adr:
+    - ADR-0130
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-005
 
 - id: EMB-19
   title: Embargo Teardown Announcement
