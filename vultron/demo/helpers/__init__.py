@@ -57,13 +57,21 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,
-  ``verify_publicly_disclosed``, ``verify_case_closed``).
+  ``verify_publicly_disclosed``, ``verify_case_closed``,
+  ``verify_case_closure_recorded``).
+- :mod:`~vultron.demo.helpers.closure` — ``close_case_owner_last`` and
+  ``CaseLeaver``: the closure phase every scenario shares, the Case Owner
+  leaving last (CM-23-015).
 """
 
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
     role_kwarg_names,
     role_map,
+)
+from vultron.demo.helpers.closure import (
+    CaseLeaver,
+    close_case_owner_last,
 )
 from vultron.demo.helpers.embargo import (
     make_embargo_event,
@@ -92,6 +100,7 @@ from vultron.demo.helpers.ledger_commit import (
 from vultron.demo.helpers.milestones import (
     verify_case_active,
     verify_case_closed,
+    verify_case_closure_recorded,
     verify_fix_deployed,
     verify_fix_ready,
     verify_publicly_disclosed,

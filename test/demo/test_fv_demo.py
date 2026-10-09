@@ -38,6 +38,7 @@ from test.demo._helpers import (
     make_client,
     make_testclient_call,
     seed_replicas_for_case_participants,
+    stub_closure_gate,
 )
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.rm import RM
@@ -2312,6 +2313,7 @@ class TestFvMilestoneAssertions:
         with (
             patch.object(ActorSession, "close_case"),
             patch.object(demo, "wait_for_all_participants_rm_closed"),
+            stub_closure_gate(),
             patch.object(demo, "verify_case_closed") as mock_m7,
             patch.object(demo, "wait_for_event_type_in_ledger"),
             patch.object(demo, "wait_for_replica_ledger_coverage"),
@@ -2334,11 +2336,6 @@ class TestFvMilestoneAssertions:
             )
         mock_m7.assert_called()
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="CM-23-015: the FV closure phase closes the Case Owner (Vendor)"
-        " before the Finder. Tracked by #4163.",
-    )
     @pytest.mark.spec("CM-23-015")
     def test_phase_case_closure_closes_the_case_owner_last(self):
         """The Case Owner leaves after every other participant (CM-23-015).
@@ -2364,6 +2361,7 @@ class TestFvMilestoneAssertions:
                 side_effect=record_close,
             ),
             patch.object(demo, "wait_for_all_participants_rm_closed"),
+            stub_closure_gate(),
             patch.object(demo, "verify_case_closed"),
             patch.object(demo, "wait_for_event_type_in_ledger"),
             patch.object(demo, "wait_for_replica_ledger_coverage"),
@@ -2497,6 +2495,7 @@ class TestFvCausalGates:
         with (
             patch.object(ActorSession, "close_case"),
             patch.object(demo, "wait_for_all_participants_rm_closed"),
+            stub_closure_gate(),
             patch.object(demo, "verify_case_closed"),
             patch.object(
                 demo,

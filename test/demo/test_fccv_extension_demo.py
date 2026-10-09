@@ -39,6 +39,7 @@ from test.demo._helpers import (
     mock_case,
     patch_chain_shared,
     patched_report_submission,
+    stub_closure_gate,
 )
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
@@ -368,6 +369,7 @@ class TestFccvExtensionMilestoneAssertions:
         with (
             patch.object(ActorSession, "close_case"),
             patch.object(demo, "wait_for_all_participants_rm_closed"),
+            stub_closure_gate(),
             patch.object(demo, "verify_case_closed") as mock_m8,
             patch.object(demo, "wait_for_event_type_in_ledger"),
             patch.object(demo, "wait_for_replica_ledger_coverage"),

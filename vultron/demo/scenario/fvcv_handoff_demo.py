@@ -30,6 +30,7 @@ from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
@@ -961,28 +962,28 @@ def _phase_case_closure(
     coordinator_in_coordinator: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Close the case from all four participants and verify terminal state."""
+    """Close the case from all four participants and verify terminal state.
+
+    Vendor1, Vendor2 and the Finder leave first; the Coordinator, the Case
+    Owner since the handoff, leaves last, once their departures are recorded
+    (CM-23-015).  The CASE_MANAGER stays on Vendor1's container.
+    """
     logger.info("─" * 80)
     logger.info("Phase 7: Case closure — all participants RM.CLOSED")
     logger.info("─" * 80)
 
-    with demo_step(f"Actor {ref_id(vendor_in_vendor)} closes case"):
-        ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
-            case
-        ).quiet().close_case()
-    with demo_step(f"Actor {ref_id(vendor2_in_vendor2)} closes case"):
-        ActorSession(
-            client=vendor2_client, actor=vendor2_in_vendor2
-        ).with_case(case).quiet().close_case()
-    with demo_step(f"Actor {ref_id(finder_in_finder)} closes case"):
-        ActorSession(client=finder_client, actor=finder_in_finder).with_case(
-            case
-        ).quiet().close_case()
-    # Coordinator is the case owner and closes last (case owner closes last).
-    with demo_step(f"Actor {ref_id(coordinator_in_coordinator)} closes case"):
-        ActorSession(
+    close_case_owner_last(
+        case=case,
+        authority_client=vendor_client,
+        others=[
+            CaseLeaver(client=vendor_client, actor=vendor_in_vendor),
+            CaseLeaver(client=vendor2_client, actor=vendor2_in_vendor2),
+            CaseLeaver(client=finder_client, actor=finder_in_finder),
+        ],
+        owner=CaseLeaver(
             client=coordinator_client, actor=coordinator_in_coordinator
-        ).with_case(case).quiet().close_case()
+        ),
+    )
 
     with demo_check("All participants RM.CLOSED on all replicas"):
         wait_for_all_participants_rm_closed(

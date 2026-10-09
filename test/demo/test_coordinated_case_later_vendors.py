@@ -23,6 +23,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import vultron.demo.helpers.coordinated_case as cc
+from test.demo._helpers import stub_closure_gate
+from vultron.demo.helpers import closure
 from vultron.demo.utils import _demo_failures, reset_demo_failures
 
 
@@ -99,8 +101,9 @@ class TestEveryoneClosesCase:
         vendor2_client = _client("vendor2")
         vendor2 = _actor("vendor2")
         with (
-            patch.object(cc, "ActorSession") as session_cls,
+            patch.object(closure, "ActorSession") as session_cls,
             patch.object(cc, "wait_for_all_participants_rm_closed"),
+            stub_closure_gate(),
             patch.object(cc, "verify_case_closed"),
             patch.object(cc, "wait_for_event_type_in_ledger"),
             patch.object(cc, "wait_for_replica_ledger_coverage") as coverage,
@@ -124,8 +127,9 @@ class TestEveryoneClosesCase:
 
     def test_no_later_vendors_changes_nothing(self, case):
         with (
-            patch.object(cc, "ActorSession") as session_cls,
+            patch.object(closure, "ActorSession") as session_cls,
             patch.object(cc, "wait_for_all_participants_rm_closed"),
+            stub_closure_gate(),
             patch.object(cc, "verify_case_closed"),
             patch.object(cc, "wait_for_event_type_in_ledger"),
             patch.object(cc, "wait_for_replica_ledger_coverage") as coverage,
@@ -142,6 +146,49 @@ class TestEveryoneClosesCase:
 
         assert session_cls.call_count == 3
         assert len(coverage.call_args.kwargs["replicas"]) == 2
+
+    @pytest.mark.spec("CM-23-015")
+    def test_coordinator_case_owner_leaves_last(self, case):
+        """Every other participant leaves before the Coordinator (CM-23-015).
+
+        The Coordinator owns the case in ``fcv``, ``rcv-embargo`` and
+        ``rcvv-embargo``; a ``Leave`` sent after its owner close is not
+        recorded (CM-23-013).  The owner's ``Leave`` waits on each earlier
+        departure being ``RM.CLOSED`` in the CASE_MANAGER's store, and the
+        ledger check is handed every departure in the order it was sent.
+        """
+        coordinator, vendor, reporter, vendor2 = (
+            _actor("coordinator"),
+            _actor("vendor"),
+            _actor("reporter"),
+            _actor("vendor2"),
+        )
+        with (
+            patch.object(closure, "ActorSession") as session_cls,
+            patch.object(cc, "wait_for_all_participants_rm_closed"),
+            stub_closure_gate() as gate_wait,
+            patch.object(closure, "verify_case_closure_recorded") as recorded,
+            patch.object(cc, "verify_case_closed"),
+            patch.object(cc, "wait_for_event_type_in_ledger"),
+            patch.object(cc, "wait_for_replica_ledger_coverage"),
+        ):
+            cc.everyone_closes_case(
+                reporter_client=_client("reporter"),
+                coordinator_client=_client("coordinator"),
+                vendor_client=_client("vendor"),
+                reporter_in_reporter=reporter,
+                coordinator_in_coordinator=coordinator,
+                vendor_in_vendor=vendor,
+                case=case,
+                later_vendors=[("Vendor2", _client("vendor2"), vendor2)],
+            )
+
+        order = [vendor.id_, reporter.id_, vendor2.id_, coordinator.id_]
+        closed_by = [c.kwargs["actor"].id_ for c in session_cls.call_args_list]
+        assert closed_by == order
+        waited_on = [c.kwargs["actor_id"] for c in gate_wait.call_args_list]
+        assert waited_on == order[:-1]
+        assert recorded.call_args.kwargs["departed_actor_ids"] == order
 
 
 class TestDump:
