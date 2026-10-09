@@ -58,6 +58,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
     wait_for_case_participants,
     wait_for_event_type_in_ledger,
+    wait_for_participant_rm_state,
 )
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
@@ -375,6 +376,21 @@ def _phase_invite_vendor_reject(
         # Read from the CaseActor's authoritative store (not coordinator's
         # replica): the reject tree has no emit node to propagate the
         # participant state change to replicas (ADR-0073).
+        #
+        # The reject tree commits the ledger entry (the gate above) BEFORE its
+        # ApplyInviteRejectToParticipantNode effect writes RM.CLOSED, so the
+        # committed-entry gate is a proxy that proves the handler started, not
+        # that the RM close landed (EDF-06-002, EDF-06-003).  Wait on the
+        # committed effect itself before the one-shot check.
+        wait_for_participant_rm_state(
+            client=coordinator_client,
+            case_id=str(case.id_),
+            actor_id=str(vendor.id_),
+            expected_states={RM.CLOSED},
+            dl_actor_id=resolve_case_actor_store_id(
+                coordinator_client, str(case.id_)
+            ),
+        )
         with demo_check(
             "Vendor participant at RM.CLOSED after rejection (never active, DEMOMA-27-002)"
         ):
