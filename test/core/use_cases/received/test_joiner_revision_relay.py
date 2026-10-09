@@ -334,9 +334,181 @@ def test_every_participant_holds_one_row_per_register_entry_after_a_join(
     rows = _rows_by_participant(dl, case_id)
     assert JOINER in case.actor_participant_index
     assert len(rows) >= 3
+    _assert_one_row_per_entry(rows, register_ids)
+    assert _joiner_rows(dl, case) == sorted(
+        [
+            (_active_id(dl, case_id), EmbargoConsentState.AGREED),
+            (revision.id_, EmbargoConsentState.INVITED),
+        ]
+    )
+
+
+def _assert_one_row_per_entry(
+    rows: dict[str, list[str]], register_ids: list[str]
+) -> None:
+    """Each participant's row ids are the register's ids, each exactly once.
+
+    Compares sorted lists, not sets, so a duplicate row for one entry fails.
+    """
     for participant_id, embargo_ids in rows.items():
         assert sorted(embargo_ids) == sorted(register_ids), participant_id
-    assert {e: _consent_of(dl, case_id, JOINER, e) for e in register_ids} == {
-        _active_id(dl, case_id): EmbargoConsentState.AGREED,
-        revision.id_: EmbargoConsentState.INVITED,
-    }
+
+
+def _joiner_rows(
+    dl: SqliteDataLayer, case: VulnerabilityCase
+) -> list[tuple[str, EmbargoConsentState]]:
+    """The joiner's ``(embargo_id, state)`` rows, sorted, duplicates kept."""
+    record = cast(
+        CaseParticipant, dl.read(case.actor_participant_index[JOINER])
+    )
+    return sorted((r.embargo_id, r.state) for r in record.embargo_consents)
+
+
+def _full_case_invite_to_joiner(dl: SqliteDataLayer) -> VultronActivity:
+    """The full-case Invite (CM-11-010) the CASE_MANAGER sent the joiner."""
+    (invite,) = [
+        a
+        for a in (cast(VultronActivity, dl.read(i)) for i in dl.outbox_list())
+        if a.type_ == "Invite"
+        and (a.to or []) == [JOINER]
+        and "logIndex" in str(a.content or "")
+    ]
+    return invite
+
+
+@pytest.mark.spec("CM-18-001")
+@pytest.mark.spec("CM-11-011")
+def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invite(
+    make_payload,
+):
+    """AC-2 of #4291 on the full-case Invite path (CM-11-010, CM-11-011).
+
+    The stub Accept seats the joiner and the CASE_MANAGER sends it the
+    full-case Invite; the joiner's Accept of that Invite reaches the
+    CASE_MANAGER.  After that reply every roster record still holds exactly
+    one row per register entry, and the joiner's rows are unchanged.
+    """
+    from vultron.core.models.events.actor import (
+        AcceptInviteActorToFullCaseReceivedEvent,
+    )
+    from vultron.core.sync_helpers import ledger_tail_position
+    from vultron.core.use_cases.received.actor.full_case_invite import (
+        AcceptInviteActorToFullCaseReceivedUseCase,
+    )
+    from vultron.semantic_registry import extract_event
+    from vultron.wire.as2.factories import rm_accept_full_case_invite_activity
+
+    case_id = "https://example.org/cases/joiner-full-case-rows"
+    dl, revision = _open_revision(case_id, make_payload)
+    _join(dl, case_id, make_payload)
+    invite = as_Invite.model_validate(
+        _full_case_invite_to_joiner(dl).model_dump(by_alias=True)
+    )
+
+    reply = rm_accept_full_case_invite_activity(
+        invite, ledger_tail_position(case_id, dl), actor=JOINER
+    )
+    event = extract_event(reply).model_copy(
+        update={"receiving_actor_id": MANAGER}
+    )
+    assert isinstance(event, AcceptInviteActorToFullCaseReceivedEvent)
+    result = AcceptInviteActorToFullCaseReceivedUseCase(
+        dl,
+        event,
+        sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    case = cast(VulnerabilityCase, dl.read_case(case_id))
+    register_ids = [e.embargo_id for e in case.embargo_register]
+    assert len(register_ids) == 2
+    rows = _rows_by_participant(dl, case_id)
+    assert len(rows) >= 3
+    _assert_one_row_per_entry(rows, register_ids)
+    assert _joiner_rows(dl, case) == sorted(
+        [
+            (_active_id(dl, case_id), EmbargoConsentState.AGREED),
+            (revision.id_, EmbargoConsentState.INVITED),
+        ]
+    )
+
+
+@pytest.mark.spec("CM-18-001")
+@pytest.mark.spec("EP-09-011")
+def test_a_late_joiner_holds_an_uninvited_row_for_every_final_entry(
+    make_payload,
+):
+    """AC-3 of #4291: a joiner gets a row for every entry, final ones included.
+
+    The register holds embargo A ``SUPERSEDED`` by D1 (``ACTIVE``), D2
+    ``REJECTED`` and the received revision D3 ``PROPOSED``.  The joiner signs
+    D1, is asked about D3 by the relay, and holds an ``UNINVITED`` row for
+    each final entry — it was never asked about those.
+    """
+    from test.support.embargo_register import activate, reject
+    from vultron.core.states.embargo_register import EmbargoRegisterStatus
+
+    case_id = "https://example.org/cases/joiner-final-entries"
+    dl, revision = _active_case_with_revision(
+        case_id, store_actor=MANAGER, participants=[PROPOSER]
+    )
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    superseded = _active_id(dl, case_id)
+    d1, d2 = (
+        as_EmbargoEvent(
+            id_=f"{case_id}/embargo_events/{name}",
+            content=f"Terms {name}",
+            context=case_id,
+            end_time=days_from_now_utc(days),
+        )
+        for name, days in (("d1", 60), ("d2", 75))
+    )
+    for embargo in (d1, d2):
+        dl.create(embargo)
+    activate(case, d1.id_)
+    propose(case, d2.id_)
+    reject(case, d2.id_)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    # Only a signatory's proposal is acted on under an active embargo.
+    proposer = cast(
+        CaseParticipant, dl.read(case.actor_participant_index[PROPOSER])
+    )
+    proposer.sign_embargo(d1.id_)
+    dl.save(proposer)
+    proposal = em_propose_embargo_activity(
+        revision,
+        context=case_id,
+        actor=PROPOSER,
+        to=[MANAGER],
+        id_=f"{case_id}/embargo_proposals/revision",
+    )
+    _deliver(dl, proposal, make_payload, receiving_actor_id=MANAGER)
+    case = cast(VulnerabilityCase, dl.read_case(case_id))
+    assert [(e.embargo_id, e.status) for e in case.embargo_register] == [
+        (superseded, EmbargoRegisterStatus.SUPERSEDED),
+        (d1.id_, EmbargoRegisterStatus.ACTIVE),
+        (d2.id_, EmbargoRegisterStatus.REJECTED),
+        (revision.id_, EmbargoRegisterStatus.PROPOSED),
+    ]
+
+    result = _join(dl, case_id, make_payload)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    case = cast(VulnerabilityCase, dl.read_case(case_id))
+    assert _joiner_rows(dl, case) == sorted(
+        [
+            (superseded, EmbargoConsentState.UNINVITED),
+            (d1.id_, EmbargoConsentState.AGREED),
+            (d2.id_, EmbargoConsentState.UNINVITED),
+            (revision.id_, EmbargoConsentState.INVITED),
+        ]
+    )
+    _assert_one_row_per_entry(
+        _rows_by_participant(dl, case_id),
+        [e.embargo_id for e in case.embargo_register],
+    )
+    (relayed,) = _relayed_to(dl, JOINER)
+    assert relayed.attributed_to == PROPOSER

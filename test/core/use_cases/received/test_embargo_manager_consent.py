@@ -63,7 +63,7 @@ def _proposal(revision, case_id: str, proposer: str):
 
 
 @pytest.mark.spec("EP-09-002")
-def test_committing_a_proposal_records_the_proposers_row_accepted(
+def test_committing_a_proposal_records_the_proposers_row_agreed(
     make_payload,
 ):
     case_id = "https://example.org/cases/mc-proposer"
@@ -114,7 +114,7 @@ def test_a_stakeholder_manager_records_its_own_row_with_no_invite(
 
 
 @pytest.mark.spec("EP-09-002")
-def test_a_manager_that_is_the_proposer_is_recorded_accepted(make_payload):
+def test_a_manager_that_is_the_proposer_is_recorded_agreed(make_payload):
     case_id = "https://example.org/cases/mc-manager-proposer"
     dl, revision = _active_case_with_revision(
         case_id, store_actor=MANAGER, participants=[PROPOSER, OTHER_A]

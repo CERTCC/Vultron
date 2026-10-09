@@ -137,6 +137,38 @@ def repeated_ids(ids: Sequence[str]) -> list[str]:
     return sorted({i for i in ids if ids.count(i) > 1})
 
 
+def replaces_violations(entries: Sequence[EmbargoRegisterEntry]) -> list[str]:
+    """Every ``replaces`` link in *entries* that names no entry or loops.
+
+    Reading lapsed (ADR-0122) follows ``replaces`` back from the ``ACTIVE``
+    entry, so each link must name an entry the register holds, and the
+    chain from any entry must end rather than come back on itself.
+    """
+    by_id = {entry.embargo_id: entry for entry in entries}
+    violations: list[str] = []
+    for entry in entries:
+        if entry.replaces is not None and entry.replaces not in by_id:
+            violations.append(
+                f"'{entry.embargo_id}' replaces '{entry.replaces}', which the"
+                " register holds no entry for"
+            )
+    looped: set[str] = set()
+    for entry in entries:
+        seen = {entry.embargo_id}
+        replaced_id = entry.replaces
+        while replaced_id is not None and replaced_id in by_id:
+            if replaced_id in seen:
+                looped.add(entry.embargo_id)
+                break
+            seen.add(replaced_id)
+            replaced_id = by_id[replaced_id].replaces
+    if looped:
+        violations.append(
+            f"the replaces chain from {sorted(looped)} comes back on itself"
+        )
+    return violations
+
+
 def _step_violations(
     entries: Sequence[EmbargoRegisterEntry],
     changes: Sequence[RegisterChange],

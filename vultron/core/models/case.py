@@ -41,6 +41,7 @@ from vultron.core.models.embargo_register import (
     RegisterChange,
     apply_register_step,
     repeated_ids,
+    replaces_violations,
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.wire_keys import wire_key
@@ -300,19 +301,20 @@ class VulnerabilityCase(CoreObject):
 
     @model_validator(mode="after")
     def _register_keeps_invariants(self) -> VulnerabilityCase:
-        """Refuse a register that breaks ADR-0122's invariants or repeats an id.
+        """Refuse a register that breaks ADR-0122's invariants, repeats an id or has a bad ``replaces``.
 
         Fail-fast at construction (ARCH-10-001): a received or stored case
         whose register no step could have produced is refused, rather than
         derived into an EM state the table does not define.
         """
-        ids = [entry.embargo_id for entry in self.embargo_register]
+        ids = self.register_embargo_ids
         problems = register_invariant_violations(
             entry.status for entry in self.embargo_register
         )
         repeated = repeated_ids(ids)
         if repeated:
             problems.append(f"embargoes {repeated} have more than one entry")
+        problems.extend(replaces_violations(self.embargo_register))
         if problems:
             raise ValueError(
                 f"VulnerabilityCase '{self.id_}' embargo register: "
@@ -330,13 +332,12 @@ class VulnerabilityCase(CoreObject):
         ``active_participants`` reads a row that is not there.  A bare
         participant reference carries no rows to check.
         """
-        embargo_ids = [entry.embargo_id for entry in self.embargo_register]
+        embargo_ids = self.register_embargo_ids
         problems: list[str] = []
         for participant in self.case_participants:
             if not isinstance(participant, CaseParticipant):
                 continue
-            held = {row.embargo_id for row in participant.embargo_consents}
-            missing = [i for i in embargo_ids if i not in held]
+            missing = participant.missing_rows(embargo_ids)
             if missing:
                 problems.append(
                     f"participant '{participant.id_}' has no consent row for"
@@ -393,7 +394,7 @@ class VulnerabilityCase(CoreObject):
             knows the record needs saving.
         """
         wrote_rows = participant.write_uninvited_rows(
-            entry.embargo_id for entry in self.embargo_register
+            self.register_embargo_ids
         )
         participant_id = participant.id_
         existing_ids = {
@@ -522,9 +523,18 @@ class VulnerabilityCase(CoreObject):
             VultronInvalidStateTransitionError: the step breaks a register
                 rule or invariant.
         """
-        self.embargo_register = apply_register_step(
+        register = apply_register_step(
             self.embargo_register, changes, threat_signal=threat_signal
         )
+        # A participant held inline must already hold the new entries' rows
+        # when the register is assigned, or the row check refuses the
+        # assignment (validate_assignment).  Stored participants get theirs
+        # from the lifecycle service, which persists them (ADR-0122).
+        embargo_ids = [entry.embargo_id for entry in register]
+        for participant in self.case_participants:
+            if isinstance(participant, CaseParticipant):
+                participant.write_uninvited_rows(embargo_ids)
+        self.embargo_register = register
         if not all(
             self.proposal_is_undecided(i)
             for i in self.pending_embargo_proposal_index
@@ -584,6 +594,11 @@ class VulnerabilityCase(CoreObject):
         statuses = self._em_stamped_statuses()
         if statuses is not None:
             object.__setattr__(self, "case_statuses", statuses)
+
+    @property
+    def register_embargo_ids(self) -> list[str]:
+        """The embargo id of every register entry, in register order."""
+        return [entry.embargo_id for entry in self.embargo_register]
 
     def embargo_register_entry(
         self, embargo_id: str

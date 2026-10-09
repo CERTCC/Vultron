@@ -1923,7 +1923,7 @@ class TestCM14005ReporterSignatory:
             f" {participant.embargo_consents!r}"
         )
 
-    def test_reporter_has_accepted_row_for_active_embargo(self, make_payload):
+    def test_reporter_has_agreed_row_for_active_embargo(self, make_payload):
         """AC-2: reporter holds an AGREED row for the active embargo."""
         from vultron.core.states.participant_embargo_consent import (
             EmbargoConsentState,

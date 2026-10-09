@@ -474,7 +474,7 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
     When the invitee's RSVP deadline has passed and the embargo is still
     active and matching, the CASE_MANAGER commits an expiry entry
     (``INVITED → TIMED_OUT``, CM-28-009) and then a honour entry
-    (``EXPIRED → ACCEPTED``, EMB-17-001, EMB-17-009).
+    (``TIMED_OUT → AGREED``, EMB-17-001, EMB-17-009).
     The replica replays both entries from the ledger broadcast without
     re-evaluating the deadline (RSH-08-004, ADR-0118).
 

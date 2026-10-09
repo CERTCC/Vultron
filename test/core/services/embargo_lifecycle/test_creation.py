@@ -201,7 +201,7 @@ def test_an_owner_already_signatory_stays_signatory(
 def test_a_declined_owner_records_nothing_until_re_invited(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """``ACCEPT`` is not legal from DECLINED, so the owner seed records
+    """``AGREE`` is not legal from DECLINED, so the owner seed records
     nothing: the case still activates, and the owner keeps its DECLINED row
     (so it is not a signatory) until it is re-invited (CM-18-003)."""
     owner, dl = owner_and_dl

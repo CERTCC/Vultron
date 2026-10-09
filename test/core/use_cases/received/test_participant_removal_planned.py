@@ -272,7 +272,7 @@ def test_case_publishes_active_participants_and_round_trips(
 ) -> None:
     """``activeParticipants`` is computed, published, and read back cleanly.
 
-    Every seeded vendor is active (joined and ``ACCEPTED`` for the embargo); that a
+    Every seeded vendor is active (joined and ``AGREED`` for the embargo); that a
     removed one leaves the view is CM-31-001's test.  The view is read from
     the case as it goes on the wire, carrying its participant records.
     """

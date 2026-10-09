@@ -79,7 +79,8 @@ def _create_and_attach_participant(
     # node fails loudly. Conformance allowlist: module-resolver category.
     stored_case = dl.read_case(case_id)
     if stored_case is None:
-        _create_participant_if_missing(dl, participant, logger)
+        # Nothing is stored: a record never attached to a case would hold no
+        # consent rows for its register (ADR-0122).
         logger.error("Case %s not found in DataLayer", case_id)
         return None
 
@@ -89,9 +90,10 @@ def _create_and_attach_participant(
     if existing_participant_id is not None:
         existing_participant = dl.read(existing_participant_id)
         if isinstance(existing_participant, CaseParticipant):
+            # The actor's existing record stays its record; *participant* is
+            # not stored beside it, unattached and without rows (ADR-0122).
             if stored_case.add_participant(existing_participant):
                 dl.save(existing_participant)
-            _create_participant_if_missing(dl, participant, logger)
             logger.debug(
                 "Participant already registered for actor '%s' in case '%s'",
                 actor_id_for_index,

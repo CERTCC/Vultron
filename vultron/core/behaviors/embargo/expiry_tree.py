@@ -132,7 +132,7 @@ def honour_late_accept_payload_snapshot(
 ) -> dict[str, Any]:
     """Snapshot for the honour-late-accept entry (EMB-17-001, ADR-0118).
 
-    Attributed to *accepting_actor_id*, so replicas can extract who became
+    Attributed to *accepting_actor_id*, so replicas can extract who
     agreed from the entry's ``actor`` field.
     """
     return {

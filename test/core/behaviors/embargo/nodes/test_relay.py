@@ -530,7 +530,7 @@ class TestRelayEmbargoInviteToEachNode:
     @pytest.mark.parametrize(
         "prior", [EmbargoConsentState.TIMED_OUT, EmbargoConsentState.DECLINED]
     )
-    def test_invite_re_invites_expired_and_declined(
+    def test_invite_re_invites_timed_out_and_declined(
         self, bt_scenario: BTTestScenario, prior: EmbargoConsentState
     ) -> None:
         _seed_case(bt_scenario, relayed=True, participants={OTHER_A: prior})

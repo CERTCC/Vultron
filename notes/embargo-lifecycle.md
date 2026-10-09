@@ -300,8 +300,11 @@ Reject decides the proposal through `DecideRejectedEmbargoProposalNode`, and the
 teardown replay runs `terminate_active_embargo(OBSERVED)`.
 
 **Late-Accept routing (EMB-17)**: when an inbound `Accept(Invite(EmbargoEvent))`
-arrives after the RSVP deadline, `AcceptInviteToEmbargoOnCaseReceivedUseCase`
-first commits a CASE_MANAGER-authored expiry entry (commit→effect,
+answers a closed invitation — its RSVP deadline passed, or its row is already
+`TIMED_OUT` or `DECLINED` (the row drops its deadline when it leaves `INVITED`,
+so the state is what says the invitation closed) —
+`AcceptInviteToEmbargoOnCaseReceivedUseCase` first commits a CASE_MANAGER-authored
+expiry entry when the row still needs `TIME_OUT` (commit→effect,
 `create_invite_expiry_tree`), then routes to one of three branches.
 Each branch commits a synthesised entry so replicas learn the outcome
 (RSH-08-004); all three factories in

@@ -173,7 +173,7 @@ class InitializeCreationEmbargoNode(
 
     One commit: ``EmbargoLifecycle.initialize_creation_embargo`` applies the
     PROPOSE and ACCEPT triggers together, attaches the embargo as
-    ``active_embargo``, records consent, seeds the case owner a signatory
+    ``active_embargo``, records consent, seeds the case owner as a signatory
     (CM-14-003), stores the ``EmbargoEvent`` ``CreateEmbargoEventNode`` built
     (no earlier node writes it, #4182) and registers the revision
     ``ResolveCreationTimeRevisionNode`` selected (``ACTIVE → REVISE``,

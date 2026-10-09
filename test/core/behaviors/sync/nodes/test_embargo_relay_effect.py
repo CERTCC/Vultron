@@ -447,6 +447,30 @@ def test_a_relayed_invite_for_an_unregistered_embargo_fails(
     assert _record(datalayer, PARTICIPANT_ACTOR_ID).embargo_consents == before
 
 
+@pytest.mark.spec("SYNC-12-001")
+def test_a_relayed_invite_to_an_invitee_whose_record_is_missing_skips(
+    bridge, datalayer, revision_registered
+):
+    """The roster names the invitee but its record has not arrived: skip.
+
+    A partial replica (Regime 2, ADR-0087) is not a replay gap, so the node
+    succeeds without writing a row rather than raising.
+    """
+    newcomer = "https://example.org/actors/newcomer"
+    revision_registered.actor_participant_index[newcomer] = (
+        f"{CASE_ID}/participants/not-yet-here"
+    )
+    datalayer.save(revision_registered)
+
+    result = _run(
+        bridge,
+        ApplyEmbargoInviteFromLedgerNode(name="Invite"),
+        _entry("invite_to_embargo_on_case", _invite_snapshot(to=[newcomer])),
+    )
+
+    assert result.status == Status.SUCCESS
+
+
 @pytest.mark.usefixtures("revision_registered")
 class TestApplyEmbargoInvite:
     @pytest.mark.spec("CM-28-013")

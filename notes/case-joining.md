@@ -268,7 +268,7 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   Invite is now the first effect that commits after the join, so it carries
   the #2898 ordering: after the case announce and the backfill.
 - **Where the embargo-ending notices live (#4083).** The recipients are
-  `embargo_ending_notice_recipients` (joined, `SIGNATORY` to the ending
+  `embargo_ending_notice_recipients` (joined, a signatory to the ending
   embargo, removed or RM `CLOSED`). The decision is `embargo_ending_notice`:
   a termination before the agreed end owes ET; a revision that ends no later
   (the EP-05-001 carry-over arm, ties included) owes `Announce(EmbargoEvent)`;

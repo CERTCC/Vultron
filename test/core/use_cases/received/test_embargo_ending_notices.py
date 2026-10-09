@@ -13,7 +13,7 @@
 """Embargo-ending notices to bound signatories the ledger no longer reaches.
 
 CM-31-009: when the active embargo is terminated or replaced by a revision
-that ends no later, the CASE_MANAGER sends each ``SIGNATORY`` it no longer
+that ends no later, the CASE_MANAGER sends each signatory it no longer
 fans the ledger out to — removed (CM-31-001), or at RM ``CLOSED``
 (CM-23-004) — a direct notice, outside the ledger stream.  CM-31-010: that
 participant's paused replica applies the notice when the CASE_MANAGER sent

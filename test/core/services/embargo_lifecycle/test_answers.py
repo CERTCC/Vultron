@@ -93,7 +93,7 @@ def test_accept_embargo_invite_owner_strict_valid(
     dl.save(case)
     write_consent_rows(dl, case)
 
-    # Seed owner's row to INVITED so ACCEPT transition is valid
+    # Seed owner's row to INVITED so the AGREE transition is valid
     _seed_consent(dl, owner_participant_id, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -127,7 +127,7 @@ def test_accept_embargo_invite_non_owner_strict(
     dl.save(case)
     write_consent_rows(dl, case)
 
-    # Seed finder's row to INVITED so ACCEPT transition is valid
+    # Seed finder's row to INVITED so the AGREE transition is valid
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
     _seed_consent(dl, finder_participant_id, embargo.id_, ECS.INVITED)
@@ -239,7 +239,7 @@ def test_accept_embargo_invite_idempotent(
     dl.save(case)
     write_consent_rows(dl, case)
 
-    # Seed as INVITED so first ACCEPT is valid
+    # Seed as INVITED so the first AGREE is valid
     _seed_consent(dl, owner_participant_id, embargo.id_, ECS.INVITED)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -1211,7 +1211,7 @@ def test_withdrawal_from_the_active_embargo_leaves_its_revisions_too(
 def test_declined_participant_accepting_records_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """ACCEPT is not legal from DECLINED, so no row changes (#4003)."""
+    """AGREE is not legal from DECLINED, so no row changes (#4003)."""
     owner, dl = owner_and_dl
     decliner = _make_actor(dl, "Decliner")
     case, (_owner_p, decliner_p) = _make_case(

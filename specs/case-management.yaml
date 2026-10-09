@@ -1797,8 +1797,8 @@ groups:
       (CM-14-011) so that the case object exists on the reporter's system before the
       fan-out of the ledger entry that records their participation.
     verification: Integration tests in `test/demo/` confirm that step 5 adds the reporter as a
-      `CaseParticipant` with `RM.ACCEPTED` and seeds them as `SIGNATORY` on any active
-      embargo.
+      `CaseParticipant` with `RM.ACCEPTED` and seeds them as a signatory (an `AGREED` row)
+      on any active embargo.
     stories:
     - story_2022_013
     - story_2022_063
@@ -4508,8 +4508,14 @@ groups:
       A test asserts the invitee's `INVITED` row for the embargo carries the deadline in the
       CASE_MANAGER's store
       when the Invite emission is committed and in a replica's store when the entry is
-      replayed, and is unset on a participant that received the Invite directly. Until the
-      implementation lands the tests are strict `xfail`s naming their tracking issue.
+      replayed, and is unset on a participant that received the Invite directly:
+      `test/core/behaviors/embargo/nodes/test_relay.py::TestRelayEmbargoInviteToEachNode`
+      (`test_each_invite_carries_the_managers_deadline_and_records_it`,
+      `test_the_committed_entry_carries_the_deadline_for_replay`),
+      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_records_invitee_deadline_from_relayed_invite_entry`,
+      and the deadline tests in `test/core/services/embargo_lifecycle/test_consent.py`
+      (`test_a_fresh_invite_restamps_an_invited_rows_deadline`,
+      `test_a_fresh_invite_without_a_deadline_drops_a_stale_one`).
     relationships:
     - rel_type: depends_on
       spec_id: CM-28-012
@@ -4537,8 +4543,11 @@ groups:
     verification: >-
       A test runs the late-`Accept` path as a non-manager and asserts no expiry entry is committed;
       a test replays an `invite_to_embargo_on_case_expired` entry into a replica and asserts the
-      participant reads `TIMED_OUT`. Until the implementation lands the tests are strict `xfail`s
-      naming their tracking issue.
+      participant reads `TIMED_OUT`:
+      `test/core/use_cases/received/test_embargo_invite_lapse.py::TestExpiryIsTheManagersAlone::test_non_manager_commits_no_expiry_entry`,
+      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
+      and
+      `test/core/behaviors/embargo/nodes/test_expiry.py::TestApplyInviteExpiryFromLedgerNode::test_a_replica_applies_time_out_without_a_deadline`.
     relationships:
     - rel_type: refines
       spec_id: CM-28-009

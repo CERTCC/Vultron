@@ -127,7 +127,7 @@ def _expiry_event(
 class TestApplyInviteExpiryFromLedgerNode:
     @pytest.mark.executes_as(INVITEE)
     @pytest.mark.spec("CM-28-014")
-    def test_a_replica_applies_expire_without_a_deadline(
+    def test_a_replica_applies_time_out_without_a_deadline(
         self, bt_scenario: BTTestScenario
     ) -> None:
         """No deadline on the replica's record: it applies, never computes."""
@@ -146,7 +146,7 @@ class TestApplyInviteExpiryFromLedgerNode:
 
     @pytest.mark.executes_as(INVITEE)
     @pytest.mark.spec("ADR-0118")
-    def test_already_expired_is_idempotent(
+    def test_already_timed_out_is_idempotent(
         self, bt_scenario: BTTestScenario
     ) -> None:
         """An already-TIMED_OUT row is left unchanged."""
@@ -255,10 +255,10 @@ class TestApplyHonourLateAcceptFromLedgerNode:
 
     @pytest.mark.executes_as(INVITEE)
     @pytest.mark.spec("EMB-17-001", "RSH-08-004", "ADR-0118")
-    def test_expired_participant_row_becomes_accepted_on_replica(
+    def test_timed_out_participant_row_becomes_agreed_on_replica(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """A replica applies EXPIRED → ACCEPTED from the honour entry."""
+        """A replica applies TIMED_OUT → AGREED from the honour entry."""
         from vultron.core.behaviors.embargo.nodes.expiry import (
             ApplyHonourLateAcceptFromLedgerNode,
         )
@@ -277,10 +277,10 @@ class TestApplyHonourLateAcceptFromLedgerNode:
 
     @pytest.mark.executes_as(INVITEE)
     @pytest.mark.spec("EMB-17-001", "CM-18-003", "ADR-0118")
-    def test_declined_participant_row_becomes_accepted_on_replica(
+    def test_declined_participant_row_becomes_agreed_on_replica(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """A replica applies DECLINED → INVITED → ACCEPTED from the honour entry."""
+        """A replica applies DECLINED → INVITED → AGREED from the honour entry."""
         from vultron.core.behaviors.embargo.nodes.expiry import (
             ApplyHonourLateAcceptFromLedgerNode,
         )
@@ -299,7 +299,7 @@ class TestApplyHonourLateAcceptFromLedgerNode:
 
     @pytest.mark.executes_as(INVITEE)
     @pytest.mark.spec("ADR-0118")
-    def test_already_accepted_is_idempotent(
+    def test_already_agreed_is_idempotent(
         self, bt_scenario: BTTestScenario
     ) -> None:
         """An AGREED row is not changed by replay (idempotent)."""

@@ -27,6 +27,7 @@ import pytest
 from test.support.embargo_register import (
     activate,
     propose,
+    terminate,
     write_consent_rows,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -653,3 +654,33 @@ def test_activate_embargo_is_refused_when_the_owner_declined_it(
     assert untouched.em_state == EM.PROPOSED
     assert untouched.proposed_embargo_ids == [embargo.id_]
     assert _consent_of(dl, owner_p.id_, embargo.id_) == "DECLINED"
+
+
+@pytest.mark.spec("CM-18-001", "EP-09-007")
+def test_a_refused_observed_activation_of_an_unrecorded_embargo_writes_no_row(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A replica refusing the activation saves no row for the embargo either.
+
+    Proposing the unrecorded embargo would save an ``UNINVITED`` row on every
+    participant, so both steps are checked before either lands: a refused
+    activation leaves no row for an entry the case never records (ADR-0122).
+    """
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    ended = _make_embargo(dl, case.id_)
+    activate(case, ended.id_)
+    terminate(case, TerminationReason.EARLY)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    unrecorded = _make_embargo(dl, case.id_, days=90)
+
+    result = EmbargoLifecycle(persistence=dl).activate_embargo(
+        case_id=case.id_,
+        embargo_id=unrecorded.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.case_changed is False
+    assert unrecorded.id_ not in _consents_of(dl, owner_p.id_)

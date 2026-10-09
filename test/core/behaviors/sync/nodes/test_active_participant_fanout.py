@@ -14,7 +14,7 @@
 
 A ``CaseLedgerEntry`` announcement is case content, so the CASE_MANAGER sends
 it only to *active* participants: seated directly or having accepted its stub
-Invite, and — while an embargo is active — ``SIGNATORY`` (ADR-0114).
+Invite, and — while an embargo is active — a signatory, its row ``AGREED`` (ADR-0114).
 See ``notes/case-joining.md`` and #4046.
 """
 

@@ -79,7 +79,7 @@ CONSENT_CHANGED_KEY = NEEDS_APPLY_KEY
 """Backward-compatible alias for :data:`NEEDS_APPLY_KEY`."""
 
 
-def _snapshot_embargo_id(snapshot: dict[str, Any]) -> str | None:
+def _snapshot_embargo_id(snapshot: dict[str, object]) -> str | None:
     """The embargo an expiry or honour entry's Invite names (``object.object``)."""
     invite = snapshot.get("object")
     if not isinstance(invite, dict):

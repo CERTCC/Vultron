@@ -268,7 +268,7 @@ def embargo_ending_notice_recipients(
     """Return the actor IDs owed a direct notice that *embargo_id* ended.
 
     A joined participant that is a signatory to *embargo_id* — its row
-    for it is ``ACCEPTED`` — and that the ledger fan-out no longer reaches:
+    for it is ``AGREED`` — and that the ledger fan-out no longer reaches:
     removed (CM-31-001), or at RM ``CLOSED`` (CM-23-004).  Such a
     participant stays bound (CM-31-008) and cannot learn from the ledger
     that the embargo was terminated or shortened, so the CASE_MANAGER tells
@@ -320,7 +320,7 @@ def awaits_embargo_ending_notice(
     """True when *actor_id* can be owed a CM-31-009 notice on *case*.
 
     Read in the participant's own replica, about itself (CM-31-010): it is
-    a joined a signatory of the embargo its replica has in force, and the
+    joined and a signatory of the embargo its replica has in force, and the
     ledger fan-out no longer reaches it (removed, or at RM ``CLOSED``).
     This is :func:`embargo_ending_notice_recipients` seen from the receiver,
     so a replica applies only a notice the CASE_MANAGER would send it.  A

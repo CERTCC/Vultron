@@ -318,7 +318,8 @@ class TestDetectAndApplyExpiry:
         """detect_and_apply_expiry changes nothing once DECLINED or TIMED_OUT.
 
         The deadline belongs to the INVITED row and leaves with it
-        (CM-28-013), so a settled row has no deadline left to pass.
+        (CM-28-013), but a settled row is a closed invitation all the same,
+        so the result still reads expired and EMB-17 routes a late Accept.
         """
         dl = _make_dl()
         case_id = "https://example.org/cases/lapse4"
@@ -339,9 +340,9 @@ class TestDetectAndApplyExpiry:
             now=_NOW,
         )
 
-        # The settled row carries no deadline, so nothing is judged expired
-        # and nothing moves.
-        assert result.is_expired is False
+        # The settled row's invitation is closed, so it reads expired for
+        # EMB-17 routing, and nothing moves.
+        assert result.is_expired is True
         assert result.participant_changes == []
 
     def test_expiry_no_background_task(self):
@@ -1625,15 +1626,19 @@ class TestAssessAndRecordInviteExpiry:
         assert is_expired is False
         assert needs_apply is False
 
-    @pytest.mark.spec("CLP-10-006", "BT-06-006", "ADR-0118")
-    def test_assess_reads_nothing_expired_on_a_timed_out_row(
-        self,
+    @pytest.mark.spec("CLP-10-006", "BT-06-006", "ADR-0118", "EMB-17-001")
+    @pytest.mark.parametrize(
+        "settled",
+        [EmbargoConsentState.DECLINED, EmbargoConsentState.TIMED_OUT],
+    )
+    def test_assess_reads_a_settled_row_as_expired_with_nothing_to_apply(
+        self, settled
     ):
-        """assess_invite_expiry returns (False, False) for a row already TIMED_OUT.
+        """assess_invite_expiry returns (True, False) for a TIMED_OUT or DECLINED row.
 
-        The deadline belongs to the INVITED row and is dropped when the row
-        times out (CM-28-013, ADR-0122), so there is no invitation left to
-        judge and nothing to apply.
+        The deadline is dropped when the row leaves INVITED (CM-28-013,
+        ADR-0122), but the invitation is closed, so a late Accept is routed by
+        EMB-17 and there is no TIME_OUT left to apply.
         """
         dl = _make_dl()
         case_id = "https://example.org/cases/assess3"
@@ -1642,7 +1647,7 @@ class TestAssessAndRecordInviteExpiry:
             dl,
             case_id,
             embargo_id,
-            invitee_consent=EmbargoConsentState.TIMED_OUT,
+            invitee_consent=settled,
             invitee_deadline=_PAST,
         )
         is_expired, needs_apply = EmbargoLifecycle(
@@ -1653,8 +1658,8 @@ class TestAssessAndRecordInviteExpiry:
             embargo_id=embargo_id,
             now=_NOW,
         )
-        assert is_expired is False
-        assert needs_apply is False  # already timed out, nothing to apply
+        assert is_expired is True
+        assert needs_apply is False  # already settled, nothing to apply
 
     @pytest.mark.spec("CLP-10-006", "BT-06-006")
     def test_record_invite_expiry_applies_after_assess(self):
@@ -1757,7 +1762,7 @@ class TestHonourLateAcceptService:
     """``honour_late_accept`` applies TIMED_OUT/DECLINED → AGREED via the service."""
 
     @pytest.mark.spec("EMB-17-001", "ADR-0118")
-    def test_expired_participant_becomes_signatory(self):
+    def test_timed_out_participant_becomes_signatory(self):
         """TIMED_OUT → AGREED in a single step; the invitee is then a signatory."""
         dl = _make_dl()
         case_id = "https://example.org/cases/honour-expired"
@@ -1881,17 +1886,23 @@ class TestLateAcceptHandling:
         "start, triggers",
         [
             (EmbargoConsentState.TIMED_OUT, [PEC_Trigger.AGREE]),
+            (
+                EmbargoConsentState.DECLINED,
+                [PEC_Trigger.INVITE, PEC_Trigger.AGREE],
+            ),
         ],
-        ids=["timed-out-agrees-directly"],
+        ids=["timed-out-agrees-directly", "declined-is-invited-first"],
     )
     def test_late_accept_reaches_signatory_by_the_legal_path(
         self, make_payload, monkeypatch, start, triggers
     ):
-        """A TIMED_OUT participant agrees directly, with no INVITE first.
+        """A late Accept of the current embargo reaches AGREED by a legal path.
 
-        ``AGREE`` is legal from ``TIMED_OUT`` (ADR-0118).  A ``DECLINED`` row
-        carries no outstanding invitation, so its Accept is not a late one;
-        see :meth:`test_accept_from_a_declined_row_records_nothing`.
+        ``AGREE`` is legal from ``TIMED_OUT`` (ADR-0118), so that row agrees
+        directly.  ``AGREE`` refuses ``DECLINED`` (CM-18-003), so a declined
+        participant is invited again first (``DECLINED → INVITED → AGREED``,
+        EMB-17-002).  Neither row keeps a deadline once it leaves ``INVITED``;
+        the row state itself closes the invitation.
         """
         from vultron.core.models.case_participant import (
             CaseParticipant as _CoreParticipant,
@@ -1944,49 +1955,6 @@ class TestLateAcceptHandling:
         assert [t for t in applied if t in triggers] == triggers
         if start is EmbargoConsentState.TIMED_OUT:
             assert PEC_Trigger.INVITE not in applied
-
-    @pytest.mark.spec("CM-18-003")
-    def test_accept_from_a_declined_row_records_nothing(self, make_payload):
-        """A participant that declined is invited again before it can agree.
-
-        ``AGREE`` refuses ``DECLINED`` (ADR-0122), and a declined row carries
-        no RSVP deadline, so its Accept is not routed as a late one (EMB-17):
-        the row stays ``DECLINED`` and the participant is not a signatory.
-        """
-        dl = _make_dl(actor_id=_COORD)
-        case_id = "https://example.org/cases/late-declined"
-        embargo_id = f"{case_id}/embargos/e1"
-        case, embargo, _ = _make_active_embargo_case(
-            dl,
-            case_id,
-            embargo_id,
-            invitee_consent=EmbargoConsentState.DECLINED,
-        )
-        proposal = em_propose_embargo_activity(
-            embargo=embargo,
-            context=case.id_,
-            actor=_COORD,
-            to=[_INVITEE],
-            id_=f"{case_id}/proposals/p1",
-        )
-        dl.create(proposal)
-
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            _make_accept_event(proposal, case, _INVITEE, make_payload),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-
-        fresh_case = cast(CoreCase, dl.read(case_id))
-        participant = cast(
-            CaseParticipant,
-            dl.read(fresh_case.actor_participant_index[_INVITEE]),
-        )
-        assert (
-            participant.consent_for(embargo_id) == EmbargoConsentState.DECLINED
-        )
-        assert not participant.is_signatory(fresh_case.active_embargo_id)
 
     @pytest.mark.spec("EMB-17-003")
     @pytest.mark.parametrize(
@@ -2645,7 +2613,7 @@ class TestLapseIsDerived:
     A signatory to embargo A that holds no AGREED row for the longer
     embargo B activated after it has lapsed: ``has_lapsed`` says so and the
     content gate (``is_active_participant``) excludes it.  Asking it again
-    (INVITE) and its acceptance (ACCEPT) make it a signatory to B.
+    (INVITE) and its agreement (AGREE) make it a signatory to B.
     """
 
     @staticmethod

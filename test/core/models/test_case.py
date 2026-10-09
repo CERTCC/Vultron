@@ -401,14 +401,47 @@ def test_add_participant_writes_an_uninvited_row_per_register_entry() -> None:
     participant = CaseParticipant(
         attributed_to="https://example.org/actors/joiner", context=case.id_
     )
-    case.add_participant(participant)
+    assert case.add_participant(participant) is True
     assert [(r.embargo_id, r.state) for r in participant.embargo_consents] == [
         (_E1, EmbargoConsentState.UNINVITED),
         (_E2, EmbargoConsentState.UNINVITED),
     ]
-    # Adding again is idempotent: one row per entry, never two.
-    case.add_participant(participant)
-    assert len(participant.embargo_consents) == 2
+    # Adding again is idempotent: one row per entry, never two, and it
+    # reports that nothing was written.
+    assert case.add_participant(participant) is False
+    assert [r.embargo_id for r in participant.embargo_consents] == [_E1, _E2]
+    assert case.case_participants == [participant.id_]
+
+
+def test_add_participant_returns_false_on_an_empty_register() -> None:
+    case = VulnerabilityCase(attributed_to="https://example.org/actors/owner")
+    participant = CaseParticipant(
+        attributed_to="https://example.org/actors/joiner", context=case.id_
+    )
+    # No register entry, so no row to write: the participant is still added
+    # and indexed, but the return value says its record gained nothing.
+    assert case.add_participant(participant) is False
+    assert participant.embargo_consents == []
+    assert case.case_participants == [participant.id_]
+    assert case.actor_participant_index == {
+        "https://example.org/actors/joiner": participant.id_
+    }
+
+
+def test_add_participant_reports_a_row_for_a_later_register_entry() -> None:
+    from test.support.embargo_register import propose
+
+    case = VulnerabilityCase(attributed_to="https://example.org/actors/owner")
+    activate(case, _E1)
+    participant = CaseParticipant(
+        attributed_to="https://example.org/actors/joiner", context=case.id_
+    )
+    assert case.add_participant(participant) is True
+    propose(case, _E2)
+    # Re-adding writes only the row for the new entry and reports it.
+    assert case.add_participant(participant) is True
+    assert [r.embargo_id for r in participant.embargo_consents] == [_E1, _E2]
+    assert case.case_participants == [participant.id_]
 
 
 def test_embargo_register_status_raises_for_an_unregistered_embargo() -> None:

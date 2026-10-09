@@ -23,6 +23,8 @@ related_notes:
   - notes/case-joining.md
   - notes/bt-integration.md
   - notes/domain-validation.md
+  - notes/case-ledger-authority.md
+  - notes/fv-demo.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management

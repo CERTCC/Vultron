@@ -194,6 +194,14 @@ class CaseParticipant(CoreObject):
         """The RSVP deadline of the invitation the row for *embargo_id* awaits."""
         return self._row(embargo_id).rsvp_deadline
 
+    def missing_rows(self, embargo_ids: Iterable[str]) -> list[str]:
+        """The ids among *embargo_ids* this participant holds no row for.
+
+        In first-seen order, without repeats.
+        """
+        held = {row.embargo_id for row in self.embargo_consents}
+        return [i for i in dict.fromkeys(embargo_ids) if i not in held]
+
     def write_uninvited_rows(self, embargo_ids: Iterable[str]) -> bool:
         """Write an ``UNINVITED`` row for each of *embargo_ids* it has none for.
 
@@ -206,8 +214,7 @@ class CaseParticipant(CoreObject):
         Returns:
             ``True`` when at least one row was written.
         """
-        held = {row.embargo_id for row in self.embargo_consents}
-        new_ids = [i for i in dict.fromkeys(embargo_ids) if i not in held]
+        new_ids = self.missing_rows(embargo_ids)
         if not new_ids:
             return False
         self.embargo_consents = [
@@ -382,7 +389,7 @@ class CaseParticipant(CoreObject):
 
         Raises:
             VultronValidationError: an entry on the chain names a ``replaces``
-                the register does not hold.
+                the register does not hold, or the chain loops.
             VultronNotFoundError: the participant has no row for an entry on
                 the chain.
         """
@@ -394,6 +401,7 @@ class CaseParticipant(CoreObject):
         answered = (EmbargoConsentState.AGREED, EmbargoConsentState.DECLINED)
         if active is None or self.consent_for(active.embargo_id) in answered:
             return False
+        seen = {active.embargo_id}
         replaced_id = active.replaces
         while replaced_id is not None:
             if replaced_id not in by_id:
@@ -401,6 +409,12 @@ class CaseParticipant(CoreObject):
                     f"Embargo register names '{replaced_id}' as replaced but"
                     " holds no entry for it; lapsed cannot be read."
                 )
+            if replaced_id in seen:
+                raise VultronValidationError(
+                    f"Embargo register's replaces chain comes back to"
+                    f" '{replaced_id}'; lapsed cannot be read."
+                )
+            seen.add(replaced_id)
             state = self.consent_for(replaced_id)
             if state in answered:
                 return state == EmbargoConsentState.AGREED

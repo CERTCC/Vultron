@@ -333,8 +333,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         else:
             # AC-4 of #2213: EM EXITED or NONE — ack no-op, no consent
             # change (EMB-17-004, ADR-0118).  In EXITED nothing can be consented
-            # to any more; in NONE an expired participant's row stays EXPIRED,
-            # which a later embargo may re-invite.
+            # to any more; in NONE the embargo register is empty, so there is
+            # no row to change — a timed-out participant's row for an earlier
+            # embargo stays TIMED_OUT, and a later embargo may invite it.
             logger.info(
                 "accept_invite_to_embargo_on_case: late Accept for case"
                 " '%s' with EM '%s' — ack no-op; actor '%s' stays in"

@@ -64,6 +64,7 @@ from vultron.core.behaviors.sync.nodes._helpers import (
 )
 from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -214,7 +215,12 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        if invitee_id not in case.actor_participant_index:
+        participant_id = case.actor_participant_index.get(invitee_id)
+        if participant_id is None or not isinstance(
+            self.datalayer.read(participant_id), CaseParticipant
+        ):
+            # Neither the roster entry nor the record it names has reached
+            # this replica yet (Regime 2, ADR-0087).
             self.feedback_message = (
                 f"no participant record for invitee '{invitee_id}' on case"
                 f" '{case.id_}' — skipping (partial replica)"

@@ -1233,10 +1233,10 @@ groups:
       proposer's ID (CM-24-001, CM-24-002), and MUST commit each emission as a ledger
       entry. The CASE_MANAGER MUST NOT invite the proposer or itself. Instead of an
       Invite, the CASE_MANAGER MUST write consent rows at the same commit: the
-      proposer's row for the proposed embargo `ACCEPTED` (proposing is consenting), and,
+      proposer's row for the proposed embargo `AGREED` (proposing is consenting), and,
       when the actor holding the role is also a participant with an embargo stake of its
       own (a role beyond `CVDRole.CASE_MANAGER` and `CVDRole.COORDINATOR`), its own row
-      for that embargo — `ACCEPTED` when it is the proposer, otherwise `ACCEPTED` or
+      for that embargo — `AGREED` when it is the proposer, otherwise `AGREED` or
       `DECLINED` as its embargo-proposal policy call-out decides (EMB-15-001). The
       CASE_MANAGER role alone carries no embargo stake: no consent is solicited or
       recorded for a bare container, and when the actor holding the role also holds
@@ -1268,11 +1268,11 @@ groups:
       `TestRelayEmbargoInviteToEachNode::test_each_emission_is_committed_as_a_canonical_entry`
       in the same node test file asserts each emission is committed;
       `test/core/use_cases/received/test_embargo_manager_consent.py` asserts the
-      proposer's row is `ACCEPTED` after the commit, that a stakeholder manager (and a
-      manager that is the proposer) holds an `ACCEPTED` row with no Invite addressed to
+      proposer's row is `AGREED` after the commit, that a stakeholder manager (and a
+      manager that is the proposer) holds an `AGREED` row with no Invite addressed to
       it, and that a bare container writes none; and
       `test/core/behaviors/embargo/nodes/test_manager_consent.py` pins the policy
-      call-out (`ACCEPTED` or `DECLINED`) and the owner, proposer and existing-row skips.
+      call-out (`AGREED` or `DECLINED`) and the owner, proposer and existing-row skips.
     relationships:
     - rel_type: refines
       spec_id: CM-24-001
@@ -1343,8 +1343,9 @@ groups:
     verification: >-
       A test delivers a revision Invite for a participant already a signatory and asserts the
       receive tree succeeds, the participant has an `INVITED` row for the revision, and its
-      row for the active embargo is still `AGREED`. Until the implementation lands the test
-      is a strict `xfail` naming its tracking issue.
+      row for the active embargo is still `AGREED`; a second asserts the consent write
+      alone keeps the `AGREED` row for the active embargo and adds the revision's
+      `INVITED` row.
     relationships:
     - rel_type: refines
       spec_id: EP-05-002
@@ -1591,15 +1592,15 @@ groups:
     rationale: >-
       A joiner is seated after the relay of a proposal (EP-09-002), so it was never on the
       roster when the Invite went out, and nothing else would ask it. A new participant
-      becomes signatory to the embargo in effect when it joins, and is asked about a
+      becomes a signatory to the embargo in effect when it joins, and is asked about a
       revision on the table exactly like the participants who were present when it was
       proposed.
     verification: >-
       `test/core/use_cases/received/test_joiner_revision_relay.py` accepts a stub Invite
       as the CASE_MANAGER at `EM.REVISE` and asserts one committed, outbox-queued Invite
       per open proposal, attributed to the proposer, with the joiner's row for the
-      revision `INVITED` and the row for the active embargo `ACCEPTED`; a follow-up
-      accept leaves it with an `ACCEPTED` row for the revision, which binds it at activation.
+      revision `INVITED` and the row for the active embargo `AGREED`; a follow-up
+      accept leaves it with an `AGREED` row for the revision, which binds it at activation.
     relationships:
     - rel_type: refines
       spec_id: EP-09-002

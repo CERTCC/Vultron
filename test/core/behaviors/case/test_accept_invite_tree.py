@@ -113,7 +113,7 @@ class TestSignEmbargoConsentLeafNode:
     def test_invitee_reaches_signatory_from_invited(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Invitee who was formally INVITED also reaches ACCEPTED."""
+        """Invitee who was formally INVITED also reaches AGREED."""
         status, participant = _run_sign_node(
             bt_scenario, EmbargoConsentState.INVITED
         )
@@ -149,10 +149,10 @@ class TestSignEmbargoConsentLeafNode:
     def test_already_signatory_is_idempotent(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """ACCEPTED: ACCEPT is skipped, node succeeds, no duplicate row.
+        """AGREED: AGREE is skipped, node succeeds, no duplicate row.
 
-        An AGREED row re-accepting is a no-op: the guard skips the illegal
-        ACCEPT trigger, and there is still exactly one row for the embargo
+        An AGREED row agreeing again is a no-op: the guard skips the illegal
+        AGREE trigger, and there is still exactly one row for the embargo
         (CM-18-005).
         """
         status, participant = _run_sign_node(
@@ -164,10 +164,10 @@ class TestSignEmbargoConsentLeafNode:
             _EMBARGO_ID
         ]
 
-    def test_declined_participant_accept_is_skipped(
+    def test_declined_participant_agree_is_skipped(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """DECLINED: ACCEPT is skipped (ACCEPT from DECLINED is invalid), SUCCESS.
+        """DECLINED: AGREE is skipped (AGREE from DECLINED is invalid), SUCCESS.
 
         Mirrors the service-layer guard in _record_actor_acceptance.
         A DECLINED participant reaching this node (e.g., out-of-order EA

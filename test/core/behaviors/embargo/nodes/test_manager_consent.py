@@ -14,7 +14,7 @@
 """The CASE_MANAGER's own consent row at the proposal commit (EP-09-002, #4180).
 
 The relay never invites the manager, so a manager that is also a stakeholder
-writes its own row when it adjudicates a proposal: ``ACCEPTED`` or
+writes its own row when it adjudicates a proposal: ``AGREED`` or
 ``DECLINED`` by its policy call-out, nothing when it is the proposer (the
 proposal already recorded it, ADR-0093), the case owner (EP-09-005), or a bare
 container with no stake.

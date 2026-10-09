@@ -822,3 +822,16 @@ def test_has_lapsed_refuses_a_replaces_the_register_does_not_hold():
     p = _with_rows(**{_D0: S.AGREED, _D1: S.UNINVITED})
     with pytest.raises(VultronValidationError):
         p.has_lapsed(register)
+
+
+@pytest.mark.spec("CM-18-001")
+def test_has_lapsed_refuses_a_replaces_chain_that_loops():
+    """A looping ``replaces`` chain is a broken register: it raises, never hangs."""
+    register = [
+        _entry(_D2, _ACTIVE, _D1),
+        _entry(_D1, EmbargoRegisterStatus.SUPERSEDED, _D0),
+        _entry(_D0, EmbargoRegisterStatus.SUPERSEDED, _D1),
+    ]
+    p = _with_rows(**{_D0: S.UNINVITED, _D1: S.UNINVITED, _D2: S.UNINVITED})
+    with pytest.raises(VultronValidationError):
+        p.has_lapsed(register)

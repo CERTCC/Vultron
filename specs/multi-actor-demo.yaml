@@ -3320,7 +3320,7 @@ groups:
     `ThreatTerminationBranchNode` which auto-terminates the embargo (EM→EXITED).
     This scenario is the first to exercise: (a) an embargo revision cycle
     (EV→ER/EJ arc), (b) a late-invitee V2 joining an active embargo (consent
-    row INVITED→ACCEPTED after EM.ACTIVE), (c) accidental embargo collapse via
+    row INVITED→AGREED after EM.ACTIVE), (c) accidental embargo collapse via
     external P-event rather than deliberate termination.
   specs:
   - id: DEMOMA-21-001

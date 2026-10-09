@@ -24,6 +24,7 @@ EP-04-008).
 import logging
 from datetime import datetime
 
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle.pec import (
     _consent_change,
     _PecEffectsMixin,
@@ -57,6 +58,33 @@ def _unchanged(
         participant_changes=participant_changes or [],
         is_expired=is_expired,
     )
+
+
+_ANSWERED_OR_TIMED_OUT = frozenset(
+    {EmbargoConsentState.DECLINED, EmbargoConsentState.TIMED_OUT}
+)
+"""Row states that close an invitation without a deadline left to read.
+
+A ``TIMED_OUT`` row's deadline passed; a ``DECLINED`` row was answered, and
+a participant that declined is invited again before it can agree (ADR-0122,
+EMB-17-002).  Both rows drop their deadline when they leave ``INVITED``, so
+the state itself is what says the invitation closed.
+"""
+
+
+def _invitation_has_closed(
+    participant: CaseParticipant, embargo_id: str, now: datetime
+) -> bool:
+    """Whether *participant*'s invitation to *embargo_id* has closed by *now*.
+
+    Closed means the row timed out or was declined, or is still ``INVITED``
+    with a deadline that has passed (CM-28-001).  An Accept of a closed
+    invitation is a late Accept, routed by EMB-17.
+    """
+    if participant.consent_for(embargo_id) in _ANSWERED_OR_TIMED_OUT:
+        return True
+    deadline = participant.rsvp_deadline_for(embargo_id)
+    return deadline is not None and now >= deadline
 
 
 class _ConsentOperationsMixin(_PecEffectsMixin):
@@ -272,8 +300,9 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         Returns a ``(is_expired, needs_apply)`` pair where:
 
         * ``is_expired`` — ``True`` when the invitation is closed — its
-          deadline has passed, or the embargo's register entry is final (the
-          terms are stale, EMB-17-003) — **and** the participant is not a
+          deadline has passed, its row already ``TIMED_OUT`` or
+          ``DECLINED``, or the embargo's register entry is final (the terms
+          are stale, EMB-17-003) — **and** the participant is not a
           signatory to the active embargo.  Used by EMB-17 routing.
         * ``needs_apply`` — ``True`` when the row for *embargo_id* is still
           ``INVITED`` **and** its deadline has passed.  When ``True``, the
@@ -296,7 +325,8 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
 
         Returns:
             ``(is_expired, needs_apply)`` — both ``False`` when the actor has
-            no participant record, the row has no deadline, or the deadline
+            no participant record, or the invitation is still open: the row
+            is not ``TIMED_OUT`` or ``DECLINED`` and its deadline, if any,
             has not yet passed.
         """
         case = self._read_case(case_id)
@@ -312,12 +342,15 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             # frozen, so there is nothing to time out (ADR-0122).  The
             # caller's EMB-17 routing answers with the current embargo.
             return is_expired, False
-        deadline = participant.rsvp_deadline_for(embargo_id)
-        if deadline is None or now < deadline:
+        if not _invitation_has_closed(participant, embargo_id, now):
             return False, False
         # Only an INVITED row carries a deadline (CM-28-013) and the entry is
-        # open, so the row times out.
-        return is_expired, True
+        # open, so an INVITED row whose deadline passed times out; a row
+        # already TIMED_OUT or DECLINED has nothing to apply.
+        needs_apply = (
+            participant.consent_for(embargo_id) == EmbargoConsentState.INVITED
+        )
+        return is_expired, needs_apply
 
     def record_invite_expiry(
         self,
@@ -501,7 +534,7 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         participant_id, participant = resolved
 
         deadline = participant.rsvp_deadline_for(embargo_id)
-        if deadline is None or now < deadline:
+        if not _invitation_has_closed(participant, embargo_id, now):
             return _unchanged(em_state)
 
         participant_changes = self._apply_where_legal(
