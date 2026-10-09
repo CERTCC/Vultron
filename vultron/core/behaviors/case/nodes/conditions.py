@@ -16,15 +16,14 @@
 """
 Condition nodes for case management behavior trees.
 
-Provides idempotency guard conditions for the create_case workflow.
+Provides idempotency guard and role-check condition nodes for case workflows.
 Per specs/idempotency.yaml ID-04-004.
 
-Note: ``ValidateCaseObject`` was removed in issue #716.  ``CoreRecord.id_``
+Note: ``ValidateCaseObject`` was removed in issue #716 and
+``CheckCaseAlreadyExists`` was removed in issue #4353.  ``CoreRecord.id_``
 is typed ``NonEmptyString`` with a ``default_factory=_new_urn``, so Pydantic
 rejects invalid ``id_`` values at construction time (ARCH-10-001 fail-fast
-domain objects).  A factory function that calls ``case_obj.id_`` before
-constructing the tree would raise ``AttributeError`` before any BT node runs,
-making a runtime validation node unreachable and redundant.
+domain objects).
 """
 
 import logging
@@ -58,7 +57,7 @@ class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
 
     The policy is supplied as a constructor argument rather than read from
     the blackboard so it travels with the tree the same way
-    ``default_case_roles`` does (see ``CreateCaseOwnerParticipant``).  When no
+    ``default_case_roles`` does.  When no
     ``ActorConfig`` is supplied the node defaults to enabled, preserving the
     historical always-create behavior for callers that predate the flag.
 
@@ -97,63 +96,6 @@ class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
             self.name,
         )
         return Status.FAILURE
-
-
-class CheckCaseAlreadyExists(DataLayerConditionWithPorts):
-    """
-    Check if a VulnerabilityCase already exists in DataLayer.
-
-    Returns SUCCESS if the case already exists (idempotency early exit).
-    Returns FAILURE if the case does not exist (proceed with creation).
-
-    Per specs/idempotency.yaml ID-04-004.
-    """
-
-    def __init__(self, case_id: str, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        try:
-            existing = self.datalayer.read(self.case_id)
-            if existing is None:
-                self.logger.debug(
-                    "%s: Case %s not found, proceeding",
-                    self.name,
-                    self.case_id,
-                )
-                return Status.FAILURE
-
-            # A case record that exists but has no participants was
-            # pre-stored by the inbox endpoint as a dehydrated reference.
-            # It still needs full initialisation (participant creation,
-            # CaseActor setup, etc.), so return FAILURE to let the
-            # CreateCaseFlow run.
-            participants = getattr(existing, "case_participants", None) or []
-            if not participants:
-                self.logger.debug(
-                    "%s: Case %s exists but has no"
-                    " participants — proceeding with initialisation",
-                    self.name,
-                    self.case_id,
-                )
-                return Status.FAILURE
-
-            self.logger.info(
-                "%s: Case %s already exists — skipping creation (idempotent)",
-                self.name,
-                self.case_id,
-            )
-            return Status.SUCCESS
-
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
-            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                "%s: Error checking case existence: %s", self.name, e
-            )
-            return Status.FAILURE
 
 
 class CheckCaseExistsForReport(DataLayerConditionWithPorts):
@@ -433,7 +375,7 @@ class WritePendingReportCaseLinkNode(DataLayerActionWithPorts):
     This node only writes the link (BTND-02-001, "No God Nodes").
 
     Always returns ``SUCCESS`` so the enclosing ``Sequence`` continues to
-    ``ProposeCaseToActorNode``.
+    ``ProposeReportCaseToActorNode``.
 
     Per specs/case-proposal.yaml CP-04-001 and ADR-0041.
     """

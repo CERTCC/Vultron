@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted-provisional
 date: 2026-10-06
 created: 2026-10-06
 updated: 2026-10-06

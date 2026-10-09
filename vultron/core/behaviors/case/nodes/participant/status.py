@@ -119,8 +119,8 @@ class CreateParticipantStatusNode(
 
                 **Do not add new users.**  Set only by the bootstrap writes
                 that record a participant's *first* status at a rung other
-                than ``RECEIVED``: ``proposal_reporter.py``,
-                ``participant/owner.py`` and ``participant/participant_add.py``.
+                than ``RECEIVED``: ``proposal_reporter.py`` and
+                ``participant/participant_add.py``.
                 A first record has no predecessor, so the RM adjacency rule
                 (BTND-10-001) has nothing to check it against; every *other*
                 rule (VF/D/PXA, role gates, entailments) still applies.
@@ -164,9 +164,8 @@ class CreateParticipantStatusNode(
 
         ``_actor_id`` is latched from the ``actor_id`` port on the first
         ``initialise`` when the constructor left it empty — the pre-built
-        pattern of ``CreateOwnerInitialStatusNode`` and
-        ``AddCaseActorParticipantNode``, which build the node once in
-        ``__init__`` and run it through ``BTBridge.execute_with_setup``
+        pattern of ``AddCaseActorParticipantNode``, which builds the node once in
+        ``__init__`` and runs it through ``BTBridge.execute_with_setup``
         (BTND-10-004, ADR-0089).  Without this reset the first execution's
         actor would persist, so re-using a pre-built node for a second actor
         would silently write to the first (issue #3268).  Restoring the

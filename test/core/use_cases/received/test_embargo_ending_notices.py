@@ -682,9 +682,19 @@ def test_paused_replica_applies_the_managers_termination(
 
 @pytest.mark.spec("EMB-19-001")
 @pytest.mark.spec("BT-17-008")
-def test_active_replica_tearing_down_queues_no_announce() -> None:
-    """With a trigger port wired, as in production, the replica still sends nothing."""
+@pytest.mark.spec("RSH-08-003")
+def test_active_replica_takes_a_termination_from_the_ledger_not_the_remove() -> (
+    None
+):
+    """An active replica's stream is not paused, so it writes nothing (#3814).
+
+    ``AwaitsEmbargoEndingNoticeNode`` refuses, so the participant-replica arm
+    does not tear down: the replica keeps its active embargo and takes the
+    teardown from the ``remove_embargo_event_from_case`` ledger entry
+    (RSH-08-003, CM-31-010).  It still sends nothing.
+    """
     replica = _Replica(ACTIVE, removed=False)
+    before = replica.embargo_state()
 
     result = route_received(
         replica.dl,
@@ -695,7 +705,8 @@ def test_active_replica_tearing_down_queues_no_announce() -> None:
     )
 
     assert result.disposition is HandlerDisposition.APPLIED
-    assert replica.case().active_embargo_id is None
+    assert replica.case().active_embargo_id is not None
+    assert replica.embargo_state() == before
     assert replica.dl.outbox_list() == []
 
 

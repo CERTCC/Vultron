@@ -100,6 +100,7 @@ def make_case_with_manager(
     case_manager_actor: str = CASE_MANAGER_ACTOR,
     other_participants: tuple[str, ...] = (OTHER_PARTICIPANT_ACTOR,),
     other_consent: EmbargoConsentState | None = EmbargoConsentState.AGREED,
+    store_actor_id: str | None = None,
 ) -> tuple[VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
     """Return a DataLayer with a case, a CASE_MANAGER, and other participants.
 
@@ -114,10 +115,17 @@ def make_case_with_manager(
     entry gets), so it is a signatory, active
     while the embargo is (CM-10-004) and a case-content send reaches
     it.
+
+    *store_actor_id* names the actor whose store holds the case; ``None`` is
+    the CASE_MANAGER's.  Pass a participant's id for that participant's own
+    replica of the same case (TB-06-007).
     """
-    # The store belongs to the CASE_MANAGER named here: the teardown trees commit
-    # to the canonical ledger, which that role holder owns (CLP-09, ADR-0073).
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_manager_actor)
+    # The store belongs to the CASE_MANAGER named here by default: the teardown
+    # trees commit to the canonical ledger, which that role holder owns (CLP-09,
+    # ADR-0073).
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id=store_actor_id or case_manager_actor
+    )
     case, embargo = make_case_and_embargo(suffix, em_state=em_state)
     consents = (
         []

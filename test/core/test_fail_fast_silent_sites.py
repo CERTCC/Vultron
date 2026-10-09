@@ -33,11 +33,7 @@ from py_trees.common import Status
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
-from vultron.core.behaviors.case.nodes.communication import (
-    CreateAndPersistCaseActivityNode,
-)
 from vultron.core.dispatcher import DirectActivityDispatcher
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.events import (
     AddNoteToCaseReceivedEvent,
@@ -124,47 +120,6 @@ class TestCommitCaseLedgerEntryNodeFailFast:
             )
         assert result.status == Status.FAILURE
         mock_factory.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# AC-1b: _read_case_obj sets feedback_message; update returns FAILURE on None
-# ---------------------------------------------------------------------------
-
-
-class TestCreateAndPersistCaseActivityNodeFailFast:
-    """ARCH-15-001: update() returns FAILURE when create_case_obj absent."""
-
-    def test_missing_case_obj_returns_failure(self, bridge):
-        """create_case_obj absent from blackboard → FAILURE."""
-        node = CreateAndPersistCaseActivityNode()
-        case_obj = VulnerabilityCase(id_=CASE_ID, name="Test Case")
-        bridge.datalayer.create(case_obj)
-        result = bridge.execute_with_setup(
-            tree=node,
-            actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-            # create_case_obj intentionally omitted
-            create_case_addressees=[],
-        )
-        assert result.status == Status.FAILURE
-
-    def test_missing_case_obj_sets_feedback_message(self, bridge, datalayer):
-        """_read_case_obj KeyError sets feedback_message on the node."""
-        node = CreateAndPersistCaseActivityNode()
-        case_obj = VulnerabilityCase(id_=CASE_ID, name="Test Case")
-        datalayer.create(case_obj)
-
-        result = bridge.execute_with_setup(
-            tree=node,
-            actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-            # create_case_obj intentionally omitted
-            create_case_addressees=[],
-        )
-        assert result.status == Status.FAILURE
-        # feedback_message should mention the missing key
-        failure_reason = BTBridge.get_failure_reason(node)
-        assert "create_case_obj" in failure_reason
 
 
 # ---------------------------------------------------------------------------

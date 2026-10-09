@@ -131,7 +131,7 @@ Receiver (on Create(VulnerabilityCase)):
 - `CreateCaseNode`, `CreateCaseOwnerParticipant`, `InitializeDefaultEmbargoNode`,
   `CreateCaseActivity`/`UpdateActorOutbox` from the vendor's
   `receive_report_case_tree.py`. The vendor tree becomes: store report →
-  write pending link → `ProposeCaseToActorNode` → done.
+  write pending link → `ProposeReportCaseToActorNode` → done.
 - `WritePrologueLedgerEntriesNode` (Issue #1688) — the back-fill is no longer
   needed when the CaseActor commits init entries natively.
 - `SendOfferCaseManagerRoleNode` from `receive_report_case_tree.py`, and the
@@ -148,9 +148,10 @@ Receiver (on Create(VulnerabilityCase)):
   the operation's later deletion belongs to ADR-0039.
 - `CreateCaseActorNode` from the vendor's `receive_report_case_tree.py` — the
   CaseActor is a pre-existing service; the vendor does not spawn it at report
-  receipt. The node itself was **retained** for `create_tree.py`'s standalone
+  receipt. The node itself was retained for `create_tree.py`'s standalone
   case construction, but that factory had no production caller and was
-  deleted (#4330); #4353 tracks deleting the node.
+  deleted (#4330); the node and all other orphaned case-construction nodes
+  were deleted in issue #4353.
 
 ### Signature authorization
 
@@ -165,8 +166,10 @@ This is a consequence of Option 1, not an alternative to it — see Option 3.
 
 ### What stays
 
-- `ProposeCaseToActorNode` — still needed; the vendor sends
+- `ProposeReportCaseToActorNode` — still needed; the vendor sends
   `Create(as_CaseProposal)` to initiate the CaseActor-authoritative flow.
+  (The original node named in this ADR, `ProposeCaseToActorNode`, was
+  superseded by the slimmed-tree rename and deleted in issue #4353.)
 - `CreateCaseReceivedUseCase` — already handles `Create(VulnerabilityCase)`
   arriving at the vendor inbox; now actually seeds the case rather than hitting
   the idempotency skip.

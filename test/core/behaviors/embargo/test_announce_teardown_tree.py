@@ -27,6 +27,7 @@ import pytest
 
 from test.core.behaviors.embargo.nodes.conftest import (
     CASE_MANAGER_ACTOR,
+    OTHER_PARTICIPANT_ACTOR,
     make_case_and_embargo,
     make_case_with_manager,
 )
@@ -66,7 +67,12 @@ def _make_factory(
 
 
 def _make_remove_event(
-    case, embargo, activity_id: str
+    case,
+    embargo,
+    activity_id: str,
+    *,
+    sender: str = ACTOR_ID,
+    receiver: str = CASE_MANAGER_ACTOR,
 ) -> RemoveEmbargoEventFromCaseReceivedEvent:
     """A Remove(EmbargoEvent) received event that carries its own activity.
 
@@ -83,14 +89,14 @@ def _make_remove_event(
     """
     return RemoveEmbargoEventFromCaseReceivedEvent(
         activity_id=activity_id,
-        actor_id=ACTOR_ID,
+        actor_id=sender,
         object_=CoreObject(id_=embargo.id_),
         origin=CoreObject(id_=case.id_),
-        receiving_actor_id=CASE_MANAGER_ACTOR,
+        receiving_actor_id=receiver,
         activity=VultronActivity(
             id_=activity_id,
             type_="Remove",
-            actor=ACTOR_ID,
+            actor=sender,
             object_=embargo.id_,
             origin=case.id_,
             context=case.id_,
@@ -249,6 +255,91 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
         assert result.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
+
+
+class TestRemoveEmbargoAnnouncedOnlyByTheCaseManager:
+    """Only the CASE_MANAGER announces the teardown (BT-17-008, #4323).
+
+    The same ``Remove(EmbargoEvent)`` runs in two isolated stores, the
+    CASE_MANAGER's and a participant replica's, each as its own actor
+    (TB-06-007).
+    """
+
+    def _run(
+        self,
+        dl,
+        case,
+        embargo,
+        executing_actor: str,
+        expected_em: EM = EM.EXITED,
+    ) -> MagicMock:
+        factory = _make_factory()
+        result = BTBridge(
+            datalayer=dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(
+            tree=remove_embargo_from_case_tree(
+                case_id=case.id_,
+                embargo_id=embargo.id_,
+                sender_actor_id=CASE_MANAGER_ACTOR,
+            ),
+            actor_id=executing_actor,
+            activity=_make_remove_event(
+                case,
+                embargo,
+                "https://example.org/activities/remove6",
+                sender=CASE_MANAGER_ACTOR,
+                receiver=executing_actor,
+            ),
+        )
+        assert result.status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == expected_em
+        return factory
+
+    @pytest.mark.spec("BT-17-008")
+    @pytest.mark.spec("RSH-08-003")
+    @pytest.mark.spec("CM-31-010")
+    def test_active_replica_writes_nothing_and_sends_nothing(self):
+        """An active replica takes the teardown from the ledger (#3814).
+
+        Its stream is not paused, so ``AwaitsEmbargoEndingNoticeNode`` refuses
+        and the participant-replica arm writes nothing: EM stays ``ACTIVE``
+        until the ``remove_embargo_event_from_case`` ledger entry arrives.
+        Only the CASE_MANAGER tears down and announces here (RSH-08-003).
+        """
+        manager_case, _, manager_dl = make_case_with_manager("atrt6")
+        replica_case, _, replica_dl = make_case_with_manager(
+            "atrt6", store_actor_id=OTHER_PARTICIPANT_ACTOR
+        )
+        _, embargo = make_case_and_embargo("atrt6")
+        manager_dl.create(embargo)
+        replica_dl.create(embargo)
+
+        replica_factory = self._run(
+            replica_dl,
+            replica_case,
+            embargo,
+            OTHER_PARTICIPANT_ACTOR,
+            expected_em=EM.ACTIVE,
+        )
+        manager_factory = self._run(
+            manager_dl, manager_case, embargo, CASE_MANAGER_ACTOR
+        )
+
+        replica_factory.announce_embargo.assert_not_called()
+        assert replica_dl.outbox_list() == []
+        manager_factory.announce_embargo.assert_called_once_with(
+            embargo_id=embargo.id_,
+            case_id=manager_case.id_,
+            actor=CASE_MANAGER_ACTOR,
+            to=[OTHER_PARTICIPANT_ACTOR],
+        )
+        assert "https://example.org/activities/ann1" in (
+            manager_dl.outbox_list()
+        )
 
 
 class TestRemoveEmbargoTeardownFailuresSurface:

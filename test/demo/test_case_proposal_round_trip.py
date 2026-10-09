@@ -221,6 +221,7 @@ def two_app_setup():
 class TestCaseProposalRoundTrip:
     """CP-07-003: full Create(CaseProposal) → Accept + Create(Case) round-trip."""
 
+    @pytest.mark.spec("CP-04-001")
     def test_proposal_queued_after_submit_report(self, two_app_setup):
         """ProposeCaseToActorNode queues Create(as_CaseProposal) after SubmitReport.
 
@@ -284,6 +285,7 @@ class TestCaseProposalRoundTrip:
         )
 
     @pytest.mark.spec("CP-09-001")
+    @pytest.mark.spec("CM-02-004")
     def test_case_actor_sends_accept_and_create_case(
         self, two_app_setup, caplog
     ):

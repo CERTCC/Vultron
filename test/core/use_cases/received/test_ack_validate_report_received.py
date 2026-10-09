@@ -318,16 +318,19 @@ class TestFullReportFlow:
             "(case was created at RM.RECEIVED per ADR-0015)"
         )
 
-    def test_full_flow_vendor_in_rm_valid_after_validate(self, make_payload):
-        """After the case replica lands, validate-report records vendor RM.VALID.
+    def test_full_flow_validate_at_a_replica_is_gated(self, make_payload):
+        """RSH-08-003 (#3814): the vendor is the CASE_OWNER, not the case's
+        CASE_MANAGER (the CaseActor is), so processing its own validate-report
+        in its own store writes no RM.VALID — ``validate_report`` is committed
+        and replayed from the CASE_MANAGER's ledger (RmVerdict slot), and the
+        vendor converges to VALID from that fan-out, not from the direct
+        Accept.  The transition at the CASE_MANAGER and the convergence are
+        covered by ``test_receive_tree_ledger_commit.py`` and
+        ``test_rm_verdict_effect.py``.
 
-        Per ADR-0015: validation transitions the vendor's RM state from
-        RECEIVED to VALID; this state change must be persisted.
-        Engage/defer is a separate, explicit protocol step.
-
-        The replica delivery is not optional set-up dressing: under ADR-0041 the
-        vendor has no case of its own at RM.RECEIVED, and RM.VALID is a
-        case-scoped transition (ISSUE-2548).
+        The replica delivery is still required: under ADR-0041 the vendor has
+        no case of its own at RM.RECEIVED (ISSUE-2548), so the guards resolve
+        a case before the gate skips.
         """
         from vultron.core.states.rm import RM
 
@@ -346,19 +349,14 @@ class TestFullReportFlow:
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
+        # The gated write did not run: the report-phase link and the
+        # case-scoped participant both stay at RECEIVED on the replica.
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
-        assert (
-            isinstance(link, VultronReportCaseLink)
-            and link.rm_state == RM.VALID
-        ), f"Vendor {self.VENDOR_ID} must have RM.VALID after validate-report"
-
-        # ID-04-004: a redelivered validate is an idempotent no-op (#2255).
-        again = ValidateReportReceivedUseCase(
-            dl,
-            self._make_validate_event(),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-        assert again.disposition == HandlerDisposition.SKIPPED
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.rm_state == RM.RECEIVED, (
+            "a replica (not the CASE_MANAGER) writes no RM.VALID; it converges"
+            " from the ledger (RSH-08-003, #3814)"
+        )
 
         participant = cast(
             CaseParticipant, dl.read(f"{self.CASE_ID}/participants/vendor")
@@ -366,11 +364,7 @@ class TestFullReportFlow:
         assert participant is not None
         status = participant.participant_status
         assert status is not None
-        assert status.rm.state == RM.VALID, (
-            "The case-scoped participant RM state must advance in lockstep with"
-            " the report-phase record — a report-phase RM.VALID with the"
-            " participant still at RECEIVED is the ISSUE-2548 split"
-        )
+        assert status.rm.state == RM.RECEIVED
 
     def test_full_flow_no_rm_valid_before_case_replica_arrives(self):
         """Without the case replica, validate-report writes no RM.VALID latch.
@@ -438,13 +432,17 @@ class TestFullReportFlow:
         )
 
     def test_full_flow_produces_correct_final_state(self, make_payload):
-        """ADR-0041: submit + replica + validate produces link + vendor RM.VALID.
+        """ADR-0041: submit + replica + validate produces the pending link.
 
         After ADR-0041:
         - SubmitReportReceivedUseCase writes a pending VultronReportCaseLink.
         - The CaseActor's Create(VulnerabilityCase) seeds the case replica.
-        - ValidateReportReceivedUseCase records vendor RM.VALID status.
         - No VulnerabilityCase is created by either report use case.
+
+        RSH-08-003 (#3814): the vendor is a replica (the CaseActor is the
+        CASE_MANAGER), so processing its own validate writes no RM.VALID — the
+        link stays at RECEIVED and the vendor converges to VALID from the
+        CASE_MANAGER's ledger fan-out.
         """
         from vultron.core.states.rm import RM
 
@@ -470,8 +468,8 @@ class TestFullReportFlow:
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
         assert (
             isinstance(link, VultronReportCaseLink)
-            and link.rm_state == RM.VALID
-        ), "Vendor must have RM.VALID after validate-report"
+            and link.rm_state == RM.RECEIVED
+        ), "a replica writes no RM.VALID; it converges from the ledger (#3814)"
 
 
 class TestValidateReportReceivedGuardedCommit:

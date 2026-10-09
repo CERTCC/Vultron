@@ -18,11 +18,15 @@
 import pytest
 from py_trees.common import Status
 
+from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.note.create_note_tree import create_note_tree
 from vultron.core.behaviors.note.nodes import (
     AttachNoteToCaseNode,
@@ -96,7 +100,13 @@ def _archived(dl, event) -> bool:
 
 @pytest.fixture
 def case(dl):
-    obj = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    # RSH-08-003 (#3814): AttachNoteToCaseNode is CASE_MANAGER-gated, so the
+    # executing actor (ACTOR_ID, the store owner) must hold the role for the
+    # attach to run; attributed_to seeds the CLP-08 genesis anchor.
+    obj = as_VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+    )
+    seed_case_manager_participant(dl, obj, ACTOR_ID)
     dl.create(obj)
     return obj
 
@@ -158,21 +168,29 @@ class TestCreateNoteTree:
         assert tree.name == "CreateNoteBT"
 
     def test_tree_runs_intake_then_save_then_attach(self, note, dl):
+        # RSH-08-003 (#3814): the attach is now wrapped in the factory's
+        # CASE_MANAGER gate as the last child; the Note object is still saved
+        # ungated.
         tree = create_note_tree(note_obj=note, case_id=CASE_ID)
         assert len(tree.children) == 3
         assert isinstance(tree.children[0], IntakeReceivedActivityNode)
         assert isinstance(tree.children[1], SaveNoteNode)
-        assert isinstance(tree.children[2], AttachNoteToCaseNode)
+        gate = tree.children[2]
+        assert isinstance(gate, CaseManagerGate)
+        assert isinstance(gate.gated_branch, AttachNoteToCaseNode)
 
     @pytest.mark.spec("CLP-10-018")
-    def test_refused_attach_still_archives_the_activity(
+    def test_unmanaged_case_archives_the_activity_and_attaches_nothing(
         self, bridge, dl, note_with_case
     ):
-        """The case is not held, so attaching fails; the Create is kept."""
+        """The case is not held, so the actor is not its CASE_MANAGER: the
+        attach is gated out (RSH-08-003, #3814) and the tree still succeeds,
+        archiving the Create and writing no attachment (CLP-10-018)."""
         event = _create_note_event(note_with_case)
         tree = create_note_tree(note_obj=note_with_case, case_id=CASE_ID)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
         )
-        assert result.status == Status.FAILURE
+        assert result.status == Status.SUCCESS
         assert _archived(dl, event)
+        assert dl.read(CASE_ID) is None

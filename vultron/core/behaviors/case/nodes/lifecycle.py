@@ -156,7 +156,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
 
     1. Constructor parameter (if provided at tree-build time).
     2. ``case_id`` key in the py_trees blackboard (written by a prior node
-       such as :class:`CreateCaseNode` or :class:`PersistCase`).
+       such as :class:`CreateCaseFromProposalNode`).
 
     If ``case_id`` cannot be resolved, the node returns ``FAILURE`` so the
     enclosing BT sequence propagates the error (ARCH-15-001).
