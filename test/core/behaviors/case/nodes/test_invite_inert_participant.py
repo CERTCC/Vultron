@@ -185,6 +185,19 @@ class TestRefusals:
         scenario.assert_object_absent(PARTICIPANT_ID)
         assert INVITEE_ID not in _case(scenario).actor_participant_index
 
+    def test_case_gone_at_attach_fails(self, scenario: BTTestScenario) -> None:
+        """The helper finds no case to attach to: FAILURE, case not saved."""
+        with patch.object(
+            invite_inert_participant,
+            "_create_and_attach_participant",
+            return_value=None,
+        ):
+            result = _run(scenario, ["VENDOR"])
+
+        assert result.status == Status.FAILURE
+        assert "vanished" in (result.feedback_message or "")
+        assert INVITEE_ID not in _case(scenario).actor_participant_index
+
     def test_missing_case_fails(self) -> None:
         scenario = BTTestScenario(actor_id=MANAGER_ID)
         scenario.seed(CaseActor(id_=MANAGER_ID, name="Vendor Co"))
@@ -237,9 +250,21 @@ class TestIdempotency:
         assert participant.embargo_consents == []
 
     @pytest.mark.spec("CM-11-015")
-    def test_closed_record_is_refused(self, scenario: BTTestScenario) -> None:
-        """A record at RM.CLOSED is terminal: no rejoin, nothing re-seated."""
-        _seed_existing(scenario, joined=False, rm=RM.CLOSED)
+    @pytest.mark.parametrize("joined", [False, True])
+    def test_closed_record_is_refused(
+        self, scenario: BTTestScenario, joined: bool
+    ) -> None:
+        """A record at RM.CLOSED is terminal, joined or not: no rejoin.
+
+        Nothing is re-seated: the roles, status history, and consent rows
+        are left as they were, even under an active embargo.
+        """
+        _seed_existing(scenario, joined=joined, rm=RM.CLOSED)
+        embargo = EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(45))
+        scenario.dl.create(embargo)
+        case = _case(scenario)
+        activate(case, embargo.id_)
+        scenario.dl.save(case)
 
         result = _run(scenario, ["VENDOR"])
 
@@ -247,16 +272,7 @@ class TestIdempotency:
         assert "CM-11-015" in (result.feedback_message or "")
         participant = _participant(scenario)
         assert participant.rm_closed
+        assert participant.joined is joined
         assert participant.case_roles == [CVDRole.FINDER]
-
-    def test_joined_closed_participant_is_left_unchanged(
-        self, scenario: BTTestScenario
-    ) -> None:
-        """A joined participant that later closed is skipped, not refused."""
-        _seed_existing(scenario, joined=True, rm=RM.CLOSED)
-
-        scenario.assert_success(_run(scenario, ["VENDOR"]))
-
-        participant = _participant(scenario)
-        assert participant.joined is True
-        assert participant.case_roles == [CVDRole.FINDER]
+        assert len(participant.participant_statuses) == 1
+        assert participant.embargo_consents == []

@@ -50,6 +50,7 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
+from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -177,19 +178,17 @@ class CreateInertInviteeParticipantNode(
         on a record that is already there.  Returns ``None`` when the invitee
         has no record and must be seated.
 
-        A joined record is never re-seated.  An inert record at ``RM.CLOSED``
-        (a declined invitee) is terminal and refused (FAILURE, CM-11-015,
-        ADR-0085); any other inert record is kept, since a re-invite keeps
-        the same record (CM-11-015).  Both are left unchanged.
+        A record at ``RM.CLOSED`` is terminal, joined or not, and refused
+        (FAILURE, CM-11-015, ADR-0085), as ``ReinviteNotToClosedParticipantNode``
+        refuses it.  Any other record is kept: a joined one is never
+        re-seated, and a re-invite keeps the same inert record (CM-11-015).
+        Both are left unchanged.
         """
         assert self.datalayer is not None
-        existing_id = case.actor_participant_index.get(self.invitee_id)
-        if existing_id is None:
+        existing = invitee_record(self.datalayer, case, self.invitee_id)
+        if existing is None:
             return None
-        existing = self.datalayer.read(existing_id)
-        if not isinstance(existing, CaseParticipant):
-            return None
-        if existing.rm_closed and not existing.joined:
+        if existing.rm_closed:
             self.feedback_message = (
                 f"{self.name}: invitee '{self.invitee_id}' is at RM.CLOSED in"
                 f" case '{self.case_id}' — no rejoin (CM-11-015)"
@@ -202,7 +201,7 @@ class CreateInertInviteeParticipantNode(
             self.name,
             self.invitee_id,
             "a joined" if existing.joined else "an inert",
-            existing_id,
+            existing.id_,
             self.case_id,
         )
         return Status.SUCCESS
