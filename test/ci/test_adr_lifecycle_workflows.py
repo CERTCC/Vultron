@@ -96,6 +96,8 @@ def test_added_reference_check_runs_on_pull_requests_against_the_merge_base():
     assert '--base "$base"' in step["run"]
     assert "docs/adr/*.md" in step["run"]
     assert not step.get("continue-on-error", False)
+    # Neither check's failure hides the other's faults.
+    assert step["run"].count("|| rc=1") == 2
 
 
 @pytest.mark.spec("MS-15-006")

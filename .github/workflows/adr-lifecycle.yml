@@ -38,6 +38,9 @@ jobs:
           fetch-depth: 0
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
+      # Both checks judge the edit, never the record's existing text, so a
+      # code change cannot fail either (ADR-0127). Each runs even when the
+      # other fails, so a pull request sees every kind of fault at once.
       - name: Check the ADRs this pull request changes
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
@@ -49,19 +52,9 @@ jobs:
             echo "No ADR changed."
             exit 0
           fi
-          PYTHONPATH='' uv run python -m vultron.metadata.adr.lifecycle --base "$base" "${adrs[@]}"
-      # MS-15-006: a reference this pull request writes into an ADR resolves.
-      # Only references the edit adds are judged, never the record's existing
-      # text, so a code change cannot fail it (ADR-0127).
-      - name: Check the references this pull request adds to ADRs
-        env:
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: |
-          set -euo pipefail
-          base=$(git merge-base "origin/$BASE_REF" HEAD)
-          mapfile -t adrs < <(git diff --name-only --diff-filter=AMR "$base" HEAD -- 'docs/adr/*.md')
-          if [ "${#adrs[@]}" -eq 0 ]; then
-            echo "No ADR changed."
-            exit 0
-          fi
-          PYTHONPATH='' uv run python -m vultron.metadata.adr.added_refs --base "$base" "${adrs[@]}"
+          rc=0
+          # MS-14-009: material edits leave status on its epoch.
+          PYTHONPATH='' uv run python -m vultron.metadata.adr.lifecycle --base "$base" "${adrs[@]}" || rc=1
+          # MS-15-006: a reference the edit adds to an ADR resolves.
+          PYTHONPATH='' uv run python -m vultron.metadata.adr.added_refs --base "$base" "${adrs[@]}" || rc=1
+          exit "$rc"

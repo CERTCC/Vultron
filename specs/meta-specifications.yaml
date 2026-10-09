@@ -1329,7 +1329,9 @@ groups:
       symbol or path the record annotates as removed, or a convention token that
       was never code — MUST opt the record out in its frontmatter with
       `lint_suppress: [phantom_symbol_ref]` for a symbol or
-      `lint_suppress: [phantom_path_ref]` for a path.
+      `lint_suppress: [phantom_path_ref]` for a path. The opt-out covers the
+      whole record: every later edit to it adds references of that kind
+      unchecked.
     rationale: >-
       The annotated-removal house style ("that mechanism and that module were
       deleted in #2940") names a symbol precisely because it is gone, so it can

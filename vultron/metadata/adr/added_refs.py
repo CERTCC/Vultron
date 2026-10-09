@@ -47,10 +47,10 @@ from vultron.metadata.file_loading import (
     loads_frontmatter,
 )
 from vultron.metadata.specs.lint import (
-    _SOURCE_SYMBOL_RE,
-    _SPEC_DIR_RE,
-    _SPEC_PATH_RE,
-    _PathResolver,
+    SOURCE_SYMBOL_RE,
+    SPEC_DIR_RE,
+    SPEC_PATH_RE,
+    PathResolver,
     iter_python_sources,
     path_is_under,
 )
@@ -69,16 +69,15 @@ _REF_RE = re.compile(
 )
 
 _IDENTIFIER_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
-_FENCE_RE = re.compile(r"^\s*(```|~~~)")
+#: A fenced-code delimiter: up to three spaces, then three or more backticks
+#: or tildes (CommonMark).
+_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 
-#: Files whose text quotes invented names as examples of what this check
-#: refuses; letting them into the corpus would make those names resolve.
-_CORPUS_EXCLUDED_PATHS = frozenset(
-    {
-        "vultron/metadata/adr/added_refs.py",
-        "test/metadata/test_adr_added_refs.py",
-    }
-)
+#: The test file invents names as examples of what this check refuses; letting
+#: it into the corpus would make those names resolve. This module stays in
+#: the corpus, so an ADR may name the check's own API, and its docstrings use
+#: only live names as examples.
+_CORPUS_EXCLUDED_PATHS = frozenset({"test/metadata/test_adr_added_refs.py"})
 
 
 class RefKind(StrEnum):
@@ -107,7 +106,7 @@ class Reference:
 
 
 def _is_camel_case(segment: str) -> bool:
-    """``CaseLogEntry``, ``EMState``; not ``Case``, ``README`` or ``as_Link``."""
+    """``CaseStatus``, ``CVDRole``; not ``Case``, ``README`` or ``as_Link``."""
     return (
         segment[0].isupper()
         and segment.isalnum()
@@ -123,31 +122,39 @@ def symbols_in(span: str) -> list[str]:
 
     - an all-caps constant containing an underscore (``SEMANTIC_REGISTRY``),
       the one shape the spec-corpus check (MS-15-004) reads;
-    - a CamelCase class name (``CaseLogEntry``, ``EMState``) — at least two
+    - a CamelCase class name (``CaseStatus``, ``CVDRole``) — at least two
       capitals and a lowercase letter, so a plain word (``Case``) is not one;
     - a called name (``snake_case()``, ``dl.save()``, ``make(x)``), whose final
       segment is the function;
-    - a member of a CamelCase class (``AppConfig.max_retries``), or an all-caps
-      member after any dot (``PECState.SIGNATORY``).
+    - a member of a CamelCase class (``VulnerabilityCase.name``), or an all-caps
+      member after any dot (``CVDRole.FINDER``).
 
     A bare lowercase name (``queue``), a bare one-word all-caps token
     (``MUST``) and a dotted module path (``httpx.AsyncClient``'s ``httpx``) are
     not read: they are too often prose, vocabulary or third-party names.
     """
-    match = _REF_RE.fullmatch(span.strip())
+    return [name for name, _ in _symbols_with_offsets(span)]
+
+
+def _symbols_with_offsets(span: str) -> list[tuple[str, int]]:
+    """Return each symbol :func:`symbols_in` reads, with its offset in ``span``."""
+    stripped = span.strip()
+    match = _REF_RE.fullmatch(stripped)
     if match is None:
         return []
+    offset = len(span) - len(span.lstrip())
     segments = match.group("ref").split(".")
-    found: list[str] = []
+    found: list[tuple[str, int]] = []
     for idx, segment in enumerate(segments):
         if (
-            _SOURCE_SYMBOL_RE.fullmatch(segment)
+            SOURCE_SYMBOL_RE.fullmatch(segment)
             or _is_camel_case(segment)
             or (idx > 0 and len(segment) > 1 and segment.isupper())
             or (idx > 0 and _is_camel_case(segments[idx - 1]))
             or (match.group("call") and idx == len(segments) - 1)
         ):
-            found.append(segment)
+            found.append((segment, offset))
+        offset += len(segment) + 1
     return found
 
 
@@ -161,14 +168,22 @@ def _body_lines(text: str) -> Iterator[tuple[int, str]]:
             None,
         )
         start = 0 if closing is None else closing + 1
-    in_fence = False
+    fence: str | None = None
     for idx in range(start, len(lines)):
         line = lines[idx]
-        if _FENCE_RE.match(line):
-            in_fence = not in_fence
-            continue
-        if not in_fence:
+        delimiter = _FENCE_RE.match(line)
+        if fence is None:
+            if delimiter:
+                fence = delimiter.group(1)
+                continue
             yield idx + 1, line
+        elif (
+            delimiter
+            and delimiter.group(1)[0] == fence[0]
+            and len(delimiter.group(1)) >= len(fence)
+            and not line[delimiter.end() :].strip()
+        ):
+            fence = None
 
 
 def references_in(text: str) -> list[Reference]:
@@ -179,16 +194,16 @@ def references_in(text: str) -> list[Reference]:
             span = span_match.group(1)
             column = span_match.start(1) + 1
             quoted = f"`{span}`"
-            if _SPEC_PATH_RE.fullmatch(quoted):
+            if SPEC_PATH_RE.fullmatch(quoted):
                 refs.append(Reference(RefKind.PATH, span, line_no, column))
-            elif _SPEC_DIR_RE.fullmatch(quoted):
+            elif SPEC_DIR_RE.fullmatch(quoted):
                 refs.append(
                     Reference(RefKind.DIRECTORY, span, line_no, column)
                 )
             else:
                 refs.extend(
-                    Reference(RefKind.SYMBOL, name, line_no, column)
-                    for name in symbols_in(span)
+                    Reference(RefKind.SYMBOL, name, line_no, column + offset)
+                    for name, offset in _symbols_with_offsets(span)
                 )
     return refs
 
@@ -206,7 +221,7 @@ class ReferenceResolver:
 
     def __init__(self, repo_root: Path) -> None:
         self._repo_root = repo_root
-        self._paths = _PathResolver(repo_root)
+        self._paths = PathResolver(repo_root)
         self._symbols: set[str] | None = None
 
     def resolves(self, ref: Reference) -> bool:

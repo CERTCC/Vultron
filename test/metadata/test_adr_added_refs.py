@@ -197,11 +197,32 @@ def test_invalid_frontmatter_suppresses_nothing(
     assert len(added_reference_faults("a.md", None, text, resolver)) == 1
 
 
-def test_this_modules_examples_do_not_resolve_in_the_real_tree() -> None:
-    """Invented names quoted by the check and its tests stay unresolved."""
+def test_the_checks_own_api_resolves_and_test_inventions_do_not() -> None:
+    """The module stays in the corpus; only this test file is left out."""
     real = ReferenceResolver(repo_root())
-    new = _adr("`ZzInventedOnlyHereClass`")
-    assert len(added_reference_faults("a.md", None, new, real)) == 1
+    new = _adr(
+        "`added_reference_faults()` and `ReferenceResolver`, "
+        "not `ZzInventedOnlyHereClass`."
+    )
+    faults = added_reference_faults("a.md", None, new, real)
+    assert [f.detail.split("'")[1] for f in faults] == [
+        "ZzInventedOnlyHereClass"
+    ]
+
+
+def test_symbol_position_is_the_segment_not_the_span() -> None:
+    (ref,) = references_in("See `vultron.MissingBar`.")
+    assert (ref.name, ref.column) == ("MissingBar", 14)
+
+
+def test_a_longer_fence_hides_a_shorter_one_inside_it() -> None:
+    text = "````md\n```\n`InFence`\n```\n````\n`AfterName`\n"
+    assert [r.name for r in references_in(text)] == ["AfterName"]
+
+
+def test_a_tilde_line_does_not_close_a_backtick_fence() -> None:
+    text = "```\n~~~\n`InFence`\n```\n`AfterName`\n"
+    assert [r.name for r in references_in(text)] == ["AfterName"]
 
 
 # --- Against a base commit (AC-1, AC-3) --------------------------------------
