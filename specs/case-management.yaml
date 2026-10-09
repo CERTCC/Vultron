@@ -1104,6 +1104,7 @@ groups:
       in every field, status ids and times included.
     adr:
     - ADR-0114
+    - ADR-0124
     stories:
     - story_2022_052
     - story_2022_061
@@ -3843,16 +3844,18 @@ groups:
     kind: protocol
     statement: >-
       A participant's case replica is the case as it stood when the replica was seeded
-      plus the ledger entries since. A replica MUST apply the transitions the ledger
-      records, in ledger order, and MUST NOT derive a transition the ledger does not
-      record, for example by walking the RM transition table from its own stored state
-      to a target state.
+      plus the ledger entries since. A replica MUST apply the entries in ledger order by
+      copying the objects they carry, so that two replicas at the same ledger position
+      hold identical case files. Applying an entry MUST NOT mint an id, read a clock,
+      read local policy or state outside the case, or run lifecycle logic, for example
+      by walking the RM transition table from its own stored state to a target state.
     rationale: >-
-      The CASE_MANAGER is the single mover (ADR-0108) and the ledger records each move
-      as it makes it. A replica that re-derives a path from its own, possibly lagging,
-      state can write an RM rung the ledger never recorded, so replicas diverge from the
-      CASE_MANAGER's history (#4091). CM-23-001 states the rule for closure; this states
-      it for every replicated transition.
+      The CASE_MANAGER is the single mover (ADR-0108) and the ledger records each change
+      as it makes it (CLP-07-013). A replica that re-derives a path from its own, possibly
+      lagging, state can write an RM rung the ledger never recorded (#4091), and one that
+      builds a record itself gives it a different id and time from the CASE_MANAGER's
+      (#4425), so replicas diverge from the CASE_MANAGER. CM-23-001 states the rule for
+      closure; this states it for every replicated change (ADR-0124).
     verification: >-
       A unit test replays a ledger whose entries skip a rung that a table walk would
       insert, and asserts the replica's per-actor status history equals the ledger's and
@@ -3862,6 +3865,7 @@ groups:
       spec_id: CM-23-001
     adr:
     - ADR-0108
+    - ADR-0124
     - ADR-0114
     stories:
     - story_2022_066

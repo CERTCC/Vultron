@@ -3,7 +3,7 @@ status: proposed
 date: 2026-10-06
 created: 2026-10-06
 updated: 2026-10-09
-revision: 3
+revision: 4
 deciders: Allen D. Householder
 consulted: >-
   Claude Sonnet 5.5; Claude Opus 5.5; Issue #4178, Concern #4284, Concern #3884,
@@ -171,7 +171,8 @@ The retired wire keys (`emConsentState`, `embargoAdherence`, `embargoConsentStat
 
 ### The protocol messages that cause each change
 
-Each change above is caused by one committed protocol message, and replay derives it (ADR-0124).
+Each change above is caused by one committed protocol message.
+The CASE_MANAGER works out the changes when it decides on the message, and commits each as its own entry after the message's entry, carrying the changed row or register entry; every replica copies them (ADR-0124).
 
 | Message | Register | Consent rows |
 |---|---|---|
@@ -189,7 +190,7 @@ Each change above is caused by one committed protocol message, and replay derive
 | a committed case status entry setting `P`, `X` or `A` | with an `ACTIVE` entry, `TERMINATE` (reason: threat signal) and `CANCEL` of each `PROPOSED` entry; with none, `CANCEL` of each `PROPOSED` entry | — |
 | an invitation's RSVP deadline passing, committed as an entry (CM-28-009) | — | `TIME_OUT` on the invitee's row for that invitation's embargo |
 
-An owner whose row for the proposal is `DECLINED` cannot activate it: `AGREE` refuses `DECLINED`, so replay refuses the activation, and the owner is invited again first.
+An owner whose row for the proposal is `DECLINED` cannot activate it: `AGREE` refuses `DECLINED`, so the CASE_MANAGER refuses the activation, and the owner is invited again first.
 The RSVP deadline belongs to one invitation (CM-28-001, CM-28-012), so its deadline is stored on that invitation's `INVITED` row, and a deadline passing times out only that row, never the participant's other `INVITED` rows.
 
 The two-audience rule (MSM-07-003, MSM-07-004) is retired: the owner's decision for the case has its own activities, and `Accept`/`Reject(Invite(EmbargoEvent))` is always the sender's own consent.
@@ -232,7 +233,7 @@ The termination runs the full cascade: `TERMINATED` with its reason, every open 
 - ADR-0093 (`DECLINE` legal from `SIGNATORY`) stands as `DECLINE` from an `AGREED` row, caused by `Leave(EmbargoEvent)` rather than a `Reject` of the active embargo; its "lapse at activation, never at proposal" rule stands as the lapsed read.
 - ADR-0118 is superseded in its `UNBOUND_EXITED` half (termination is the register's fact); its `EXPIRED` half stands as `TIMED_OUT`, as do its decisions 3 and 4.
 - ADR-0113 (relay through the CASE_MANAGER) is unchanged; its consent references now mean rows.
-- ADR-0124 states the rule this ADR's changes rely on: every change is caused by a committed message, and the case is the replay of its ledger.
+- ADR-0124 states the rule this ADR's changes rely on: every change is committed as its own entry, and replicas copy the entries.
 
 ## Validation
 

@@ -10,6 +10,7 @@ related_specs:
   - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/case-joining.md
   - notes/case-proposal.md
   - notes/demo-interactive-ui.md
   - notes/activitystreams-semantics.md
@@ -255,6 +256,37 @@ The hash chain should therefore be computed over **CASE_MANAGER-authored canonic
 recorded entries**, each of which includes the asserted payload snapshot needed
 by recipients. Replicating only pointers to prior assertions is insufficient,
 because replicas need the actual asserted content to reconstruct state.
+
+---
+
+## Every Change Is an Entry; Replicas Copy (ADR-0124, CLP-07-013)
+
+Two replicas at the same ledger position hold identical case files. That holds
+by construction only if the replica decides nothing, so:
+
+- **One act can commit several entries.** The act's entry comes first. Each
+  further change it causes is its own CASE_MANAGER-authored entry, in write
+  order: `Create(Object)` for a record it brings into existence, `Update(Object)`
+  for a changed one, each carrying the object in full. Sending a stub Invite is
+  the Invite's entry plus a `Create(CaseParticipant)` for the inert invitee.
+- **An act whose activity states the change is that change's entry.**
+  `Add(Note, target=Case)` carrying the note is applied by copying it; no
+  second entry records it again (CLP-07-002).
+- **A replica copies.** Applying an entry mints no id, reads no clock, reads no
+  policy or state outside the case, and runs no lifecycle logic (CM-23-016).
+  Lifecycle and policy code runs on the CASE_MANAGER, before the commit, and
+  only there.
+- **Case file vs. case bookkeeping (CLP-07-014).** The recommendation index,
+  offer records and pending markers are the CASE_MANAGER's working records. They
+  are not ledgered, not replicated, and never read to compute a case-file value.
+- **No allow-list.** A write with no entry is a defect. `KNOWN_UNREPLAYED` in
+  `test/architecture/test_ledger_event_types_are_replayed.py` lists the ones
+  still open; each row names the issue that removes it.
+
+**Pitfall: "one act, one entry".** CLP-09-003 once said a use case produces
+"exactly one canonical commit", and ADR-0116 dropped the invitee's participant
+entry as redundant. Both left the second change an act causes with nowhere to be
+recorded, and replicas rebuilt it with their own ids and times (#4425).
 
 ---
 
