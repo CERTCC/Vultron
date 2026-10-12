@@ -2,7 +2,7 @@
 title: Wire Artifact Immutability
 status: active
 related_specs:
-  - specs/architecture.yaml (ARCH-12-001, ARCH-21-002)
+  - specs/architecture.yaml (ARCH-12-001, ARCH-21-002, ARCH-25-003, ARCH-25-004)
   - specs/vocabulary-model.yaml (VM-08-002, VM-08-003)
   - specs/outbox.yaml (OX-07-001, OX-07-002)
   - specs/case-ledger-processing.yaml (CLP-07-011, CLP-02-003)
@@ -52,7 +52,7 @@ new one via `model_copy(update=...)` instead (issue #2904).
 
 `frozen=True` on the envelope used to be the inbound guarantee, and it stopped
 being one without anything failing. Pydantic's `frozen` covers only the class
-that declares it, not the models nested in its fields. ADR-0099 detail 3
+that declares it, not the models nested in its fields. ARCH-25-003
 deleted the paired `as_*` classes, so the case, report, participant and status
 inside a parsed activity are now mutable core classes. The old gate asserted
 `as_Object.model_config["frozen"]` and kept passing throughout.
@@ -239,7 +239,7 @@ event, breaking the accountability invariant.
 - **ADR-0107** (proposed): a case ledger entry is a postmark on the received
   envelope; replicas resolve bare references by dereference.
 - **ADR-0017**: two-branch hierarchy (core branch strict, wire branch
-  lenient). Its shared root is gone: under ADR-0099 detail 4 `as_Base` stands
+  lenient). Its shared root is gone: under ARCH-25-004 `as_Base` stands
   on `pydantic.BaseModel` directly and inherits nothing from core
   (ARCH-12-001). Wire branch flexibility does not preclude wire branch
   immutability.

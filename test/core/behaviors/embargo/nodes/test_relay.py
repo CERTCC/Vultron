@@ -502,6 +502,35 @@ class TestRelayEmbargoInviteToEachNode:
         assert EMBARGO_INVITE_EVENT_TYPE == "invite_to_embargo_on_case"
 
     @pytest.mark.executes_as(MANAGER)
+    @pytest.mark.spec("CM-23-014")
+    def test_the_owner_close_settle_step_finds_each_relayed_invite(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The settle step reads the invite id from the real relay entry."""
+        from vultron.core.behaviors.case.nodes.leave.settle import (
+            latest_invite_id,
+        )
+        from vultron.core.sync_helpers import recorded_entries_for_case
+
+        _seed_case(
+            bt_scenario,
+            relayed=True,
+            participants={OTHER_A: None, OTHER_B: None},
+        )
+        bt_scenario.assert_success(
+            self._relay(bt_scenario, [OTHER_A, OTHER_B])
+        )
+        entries = recorded_entries_for_case(case_id=CASE_ID, dl=bt_scenario.dl)
+        by_invitee = {
+            invitee: invite.id_
+            for invite in _queued_invites(bt_scenario)
+            for invitee in (invite.to or [])
+        }
+        assert set(by_invitee) == {OTHER_A, OTHER_B}
+        for invitee, invite_id in by_invitee.items():
+            assert latest_invite_id(entries, invitee, EMBARGO_ID) == invite_id
+
+    @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("EP-09-004")
     @pytest.mark.spec("CM-18-003")
     def test_invite_asks_an_unasked_participant_and_keeps_a_signatorys_acceptance(

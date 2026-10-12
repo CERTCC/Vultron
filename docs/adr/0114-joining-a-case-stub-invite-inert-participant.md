@@ -412,3 +412,11 @@ Also recorded from the audit: a replica is `case(t0)` plus the ledger entries, a
 The closure semantics (CM-23-002, CM-23-013, CM-23-014; #4065, #4066) are a separate decision the maintainer has not yet made and are not ratified here.
 The stub's contents (CM-17-010) stand; the open Idea #4184 is linked from that requirement.
 The 2026-10-01 text of ADR-0070 and ADR-0084 that this ADR cites is now ADR-0121.
+
+## Annotation — 2026-10-12
+
+Allen D. Householder decided the closure semantics on 2026-10-12 (CM-23-002, CM-23-013, CM-23-014).
+The Ratification above left them open; this note records that they are now decided.
+[ADR-0085](0085-case-lifecycle-boundaries.md) sets the owner-close write boundary.
+[ADR-0131](0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md) sets the CM-23-013 reply to late traffic: by default the CASE_MANAGER drops it, and it may answer only a late Leave with a Reject (#4065).
+CM-23-014, which expires every pending embargo Invite before case_fully_closed, is implemented by #4066 (PR #4489).

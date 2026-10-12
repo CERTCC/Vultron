@@ -21,6 +21,7 @@ related_notes:
   - notes/case-state-model.md
   - notes/configuration.md
   - notes/domain-validation.md
+  - notes/embargo-lifecycle.md
   - notes/ownership-transfer.md
   - notes/sync-ledger-replication.md
   - notes/wire-artifact-immutability.md
@@ -52,7 +53,7 @@ sender's side. The important distinction is instead:
 - **participant assertion**: an inbound case- or proto-case-scoped activity
   that claims a protocol-relevant change occurred
 - **canonical case ledger entry**: a CASE_MANAGER-authored record that the
-  assertion was accepted into canonical history (CLP-04-007)
+  assertion was admitted into canonical history (CLP-04-007)
 
 This keeps Vultron aligned with the existing rule that Activities are
 state-change notifications, not commands, while still preserving the CASE_MANAGER
@@ -169,7 +170,7 @@ of the original activity and not the transport envelope itself.
 
 Why a neutral object type:
 
-- it records only CASE_MANAGER-accepted assertions — every entry is canonical
+- it records only CASE_MANAGER-admitted assertions — every entry is canonical
 - it separates canonical log content from transport concerns
 - it gives the CASE_MANAGER a stable object to hash, replicate, replay, and audit
 
@@ -180,10 +181,12 @@ A `CaseLedgerEntry` carries:
 - the CASE_MANAGER's own recording metadata (log_index, entry_hash, received_at,
   prev_log_hash, term)
 
-Rejection outcomes are not recorded as ledger entries. When the CASE_MANAGER
-rejects an incoming assertion, it sends a `Reject` protocol activity to the
+Refusals are not recorded as ledger entries. When the CASE_MANAGER
+refuses an incoming assertion, it sends a `Reject` protocol activity to the
 asserting participant (CLP-02-005) and emits a Python log event; nothing enters
-the hash chain (CLP-04-007, CLP-05-002).
+the hash chain (CLP-04-007, CLP-05-002). A participant's own `Reject` of a
+request is a different thing entirely, and is ledgered — see
+[Two Meanings of "Reject"](#two-meanings-of-reject).
 
 `Announce` remains the **transport wrapper** for replication. The thing being
 announced is the `CaseLedgerEntry`, not the other way around.
@@ -196,10 +199,10 @@ Two related but distinct structures capture case-layer information:
 
 ### 1. Canonical Case Ledger
 
-The canonical case ledger is append-only and contains only CASE_MANAGER-accepted
+The canonical case ledger is append-only and contains only CASE_MANAGER-admitted
 protocol-significant assertions. Every entry is a `CaseLedgerEntry` with a valid
 payload snapshot and a hash chain position. No disposition field exists — every
-entry in the ledger is, by definition, accepted (CLP-04-007).
+entry in the ledger is, by definition, admitted (CLP-04-007).
 
 The canonical ledger:
 
@@ -209,11 +212,11 @@ The canonical ledger:
 
 ### 2. Python Process Log
 
-Rejection outcomes, diagnostic events, and processing traces go to Python
+Refusals, diagnostic events, and processing traces go to Python
 `logging` output. This log is per-actor, ephemeral, and must never be
 replicated or relied on for protocol semantics (ADR-0019).
 
-When the CASE_MANAGER rejects an incoming assertion:
+When the CASE_MANAGER refuses an incoming assertion:
 
 - A `Reject` protocol activity is sent directly to the asserting participant
   (CLP-02-005, CLP-05-001)
@@ -222,10 +225,10 @@ When the CASE_MANAGER rejects an incoming assertion:
 
 ---
 
-## Rejection Routing
+## Refusal Routing
 
 Not every inbound failure belongs in the canonical ledger — nothing does except
-accepted assertions.
+admitted assertions.
 
 - If a message cannot be tied to a report/case (including proto-cases in
   RM.RECEIVED/INVALID stages), it belongs in transport- or actor-level
@@ -234,7 +237,7 @@ accepted assertions.
   during case-layer validation, it sends a `Reject` protocol activity to the
   asserting participant (CLP-05-001) and emits a Python log event.
 
-Rejection feedback is directed only to the asserting sender, not broadcast to
+Refusal feedback is directed only to the asserting sender, not broadcast to
 all case participants. The other participants need the canonical history, not
 the full stream of invalid assertion attempts (CLP-05-001).
 
@@ -246,13 +249,13 @@ This model sharpens the replication boundary:
 
 - participant assertions are **inputs** to CASE_MANAGER processing
 - `CaseLedgerEntry` objects are the **canonical replicated facts** — every entry
-  is an accepted assertion by definition (CLP-04-007)
+  is an admitted assertion by definition (CLP-04-007)
 - participant replicas derive state only from canonical ledger entries
 
 To support replay and stale-position detection, participant assertions should
-carry the sender's last accepted canonical log hash or position in `context`
+carry the last canonical log hash or position the sender has applied in `context`
 when available. That gives the CASE_MANAGER a concrete basis for deciding whether
-to accept the assertion, reject it as stale, or replay missing canonical
+to admit the assertion, refuse it as stale, or replay missing canonical
 entries first.
 
 The hash chain should therefore be computed over **CASE_MANAGER-authored canonical
@@ -286,13 +289,49 @@ by construction only if the replica decides nothing, so:
 - **No allow-list.** A write with no entry is a defect, not an exception.
   `NO_REPLICA_EFFECT` in `test/architecture/test_ledger_event_types_are_replayed.py`
   records committed types that change nothing a replica holds; it is not a
-  place to park an unreplayed write.
+  place to park an unreplayed write. `EXEMPT` in
+  `test/architecture/test_ledger_commit_coverage.py` lists only activities that
+  are not case events (CLP-02-013); how it records a tracked gap is #4476's to
+  settle.
 
 **Pitfall: "one act, one entry".** CLP-09-003 once said a use case produces
 "exactly one canonical commit", and ADR-0116 dropped the invitee's participant
 entry as redundant. Both left the second change an act causes with nowhere to be
 recorded, and replicas rebuilt it with their own ids and times (#4425; the
 stub-Invite record was fixed by #4396).
+
+### Two Meanings of "Reject"
+
+(CLP-02-012, CLP-02-013, CLP-09-003; #3748)
+
+"Reject" named two different things, and reading one as the other is why
+declined requests kept turning up with no ledger entry:
+
+| What | Word | Ledgered? |
+|---|---|---|
+| A participant's AS2 `Reject` / `TentativeReject` answering an `Offer` or `Invite` | Reject (the activity) | **Yes** — a case event, like the matching `Accept` |
+| The CASE_MANAGER's verdict that an assertion does not enter the ledger | **refused** (never "rejected") | No (CLP-04-007) |
+| The notice the CASE_MANAGER sends the asserter about that verdict, and a replica's `Reject(CaseLedgerEntry)` sync-repair request | Reject (the activity), about the ledger itself | No — not case events (CLP-02-013) |
+
+The positive verdict is **admitted**, not "accepted". `HandlerDisposition.REFUSED`
+is the handler-level form of the same verdict.
+
+**Pitfall: "a decline changes nothing, so there is nothing to commit".** The
+ownership-transfer Reject handler logged and returned `SKIPPED` for exactly this
+reason, while the Offer it answered had been ledgered and broadcast, so every
+replica held a transfer in flight that never closed (#3748). A Reject closes a
+request/reply pair, and whether a pair is open is read from the ledger
+(CLP-11-001). Ledger it.
+
+**Whether an activity is ledgered is not decided per handler.** The rule is
+CLP-02-001: every admitted case event is ledgered. CLP-02-013 closes the list of
+activities that are not case events (pre-case intake, a replica applying an
+entry, activities about the ledger itself, unmatched messages), and
+`test/architecture/test_ledger_commit_coverage.py` (CLP-09-003) fails any routed
+use case that reaches no commit unless it carries one of those grounds or names
+the open issue tracking its missing commit. A planning or build session that
+finds itself asking "should this one be ledgered?" should read that list, not
+open a design question.
 
 ---
 
@@ -316,15 +355,16 @@ Policy (`vultron/core/models/pending_assertion.py`):
 This framing has several practical consequences:
 
 - The old "intent vs event" terminology should be retired for this topic.
-  `asserted` vs `accepted` is more accurate — every entry in the ledger is an
-  accepted canonical assertion; rejections are protocol activities, not ledger
-  entries (CLP-04-007).
+  `asserted` vs `admitted` is more accurate — every entry in the ledger is an
+  admitted canonical assertion; a refusal is a log event plus a notice to the
+  asserter, not a ledger entry (CLP-04-007). A participant's `Reject` activity is
+  an assertion like any other and is ledgered when admitted (CLP-02-012).
 - The `CaseEvent` / `record_event()` path was a useful foundation, but
   the long-term canonical content model needs to grow into a richer
   `CaseLedgerEntry`.
 - Specs and implementations dealing with replication operate directly on the
   canonical ledger — no disposition filtering is required because the ledger
-  contains only accepted entries.
+  contains only admitted entries.
 - Proto-case history must remain continuous across the
   report-to-case transition rather than being split into two unrelated logs.
 
@@ -336,7 +376,7 @@ requirements belong in `specs/case-ledger-processing.yaml`.
 ## Canonical Entry Criteria: What Belongs in the Log
 
 The canonical case ledger is a **protocol ledger**, not a process log. It records
-one entry per CASE_MANAGER-accepted protocol-significant assertion, whose
+one entry per CASE_MANAGER-admitted protocol-significant assertion, whose
 `payloadSnapshot` is the verbatim AS2 activity that was asserted (or a
 deterministic canonical normalization of it), followed by one CASE_MANAGER-authored
 `Create`/`Update` entry per further change the act makes to the case file
@@ -522,6 +562,15 @@ Five traps, all found the hard way:
    reports as a regression, and leaves CLP-14-007/008 comparing the receiver's
    clock against itself. A snapshot the CASE_MANAGER genuinely authors (its own
    actor URI) does use its own clock.
+
+   One known exception: the expired-invitation entry that the owner-close
+   settle step commits (CM-23-014). The CM-28-009 snapshot names the invitee
+   in `actor`, because the replica apply node reads `actor` as the invitee.
+   But the invitee sent nothing, so there is no claimed time to carry, and
+   `published` is the CASE_MANAGER's clock. The harm is bounded: a regression
+   is only reported (trap 2), and no later entry can record the invitee's act
+   after `case_fully_closed` (CM-23-013). Do not copy this pattern to an entry
+   that a participant's own later entries can follow.
 4. **A missing inbound `published` is a validity failure, not something to
    fill in.** `as_Base` defaults the field to `now_utc` so the same classes can
    author outbound activities; on the inbound path that default is the
