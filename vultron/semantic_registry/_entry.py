@@ -16,8 +16,19 @@
 from dataclasses import dataclass, field
 
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.semantic_registry._occasion import MessagePage, Occasion
 from vultron.wire.as2.extractor import ActivityPattern
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+
+#: Dispatcher fallbacks: entries that route unrecognised activities and are
+#: not protocol messages, so they declare no occasion and own no page
+#: (MSM-06-002, MSM-08-001).
+DISPATCHER_FALLBACKS: frozenset[MessageSemantics] = frozenset(
+    {
+        MessageSemantics.UNKNOWN,
+        MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -39,6 +50,16 @@ class SemanticEntry:
             DataLayer coercion. ``None`` when no specific wire class exists.
         include_activity: When ``True``, ``extract_intent()`` populates
             ``VultronEvent.activity`` for this semantic type.
+        occasions: The situations a sender conveys with this entry's wire
+            activity (ADR-0128).  At least one is required, except on a
+            dispatcher fallback, which has none (MSM-08-001).
+        page: The ``docs/reference/messages/`` page that owns the entry
+            (MSM-06-002).  Required, except on a dispatcher fallback, which
+            has none.
+
+    Raises:
+        ValueError: At construction, when a non-fallback entry declares no
+            occasion or no page, or a fallback declares either.
     """
 
     semantics: MessageSemantics
@@ -48,3 +69,29 @@ class SemanticEntry:
     phrase: str
     wire_activity_class: type[as_Activity] | None = field(default=None)
     include_activity: bool = field(default=False)
+    occasions: tuple[Occasion, ...] = field(default=())
+    page: MessagePage | None = field(default=None)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.occasions, tuple):
+            raise TypeError(
+                f"{self.semantics.name}: occasions must be a tuple"
+            )
+        if self.semantics in DISPATCHER_FALLBACKS:
+            if self.occasions or self.page is not None:
+                raise ValueError(
+                    f"{self.semantics.name} is a dispatcher fallback, not a"
+                    " protocol message, so it declares no occasion and no"
+                    " page (MSM-06-002)"
+                )
+            return
+        if not self.occasions:
+            raise ValueError(
+                f"{self.semantics.name} declares no occasion; every entry"
+                " outside the dispatcher fallbacks needs at least one"
+                " (MSM-08-001)"
+            )
+        if self.page is None:
+            raise ValueError(
+                f"{self.semantics.name} names no message page (MSM-06-002)"
+            )

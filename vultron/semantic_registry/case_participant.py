@@ -25,6 +25,10 @@ from vultron.core.use_cases.received.case_participant import (
     RemoveCaseParticipantFromCaseReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import (
+    MessagePage,
+    Occasion,
+)
 from vultron.wire.as2.extractor import (
     AddCaseParticipantToCasePattern,
     CreateCaseParticipantPattern,
@@ -36,6 +40,10 @@ from vultron.wire.as2.vocab.activities.case_participant import (
     _RemoveParticipantFromCaseActivity,
 )
 
+_HOWTO_MANAGE_PARTICIPANTS = (
+    "howto/activitypub/activities/manage_participants.md"
+)
+
 ENTRIES: list[SemanticEntry] = [
     SemanticEntry(
         semantics=MessageSemantics.CREATE_CASE_PARTICIPANT,
@@ -45,6 +53,22 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} created a case participant record",
         wire_activity_class=_CreateParticipantActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant is about to add an actor's participant "
+                    "record to the case"
+                ),
+                anchor="create-case-participant",
+                description=(
+                    "Mints a participant record that pairs an actor with its "
+                    "roles in the case. It precedes the Add."
+                ),
+                example="create_participant",
+                howto=_HOWTO_MANAGE_PARTICIPANTS,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
@@ -54,6 +78,20 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} added {object} as a case participant",
         wire_activity_class=_AddParticipantToCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="the Case Owner reinstates a removed Participant",
+                anchor="add-case-participant-to-case",
+                description=(
+                    "Asks the Case Manager to reinstate the participant record"
+                    " named by the object. The Participant becomes active "
+                    "again and receives the ledger entries it missed."
+                ),
+                example="add_coordinator_participant_to_case",
+                howto=_HOWTO_MANAGE_PARTICIPANTS,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
@@ -63,5 +101,22 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} removed {object} from the case",
         wire_activity_class=_RemoveParticipantFromCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Owner removes a Participant from active "
+                    "participation"
+                ),
+                anchor="remove-case-participant-from-case",
+                description=(
+                    "Asks the Case Manager to remove the participant record "
+                    "named by the object. The removed Participant receives a "
+                    "direct notice."
+                ),
+                example="remove_participant_from_case",
+                howto=_HOWTO_MANAGE_PARTICIPANTS,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
 ]

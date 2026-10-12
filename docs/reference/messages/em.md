@@ -30,6 +30,12 @@ print(render_page("em", heading=False))
 - **Wire activity:** `Create(Event)[context=VulnerabilityCase|VulnerabilityReport]` (VAM-05-001).
 - **How-to:** [How to Establish an Embargo](../../howto/activitypub/activities/establish_embargo.md).
 
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import create_embargo_event, json2md
+
+print(json2md(create_embargo_event()))
+```
+
 ## EP — Embargo Proposal
 
 - **Protocol role:** Proposes embargo terms (e.g. an expiration date/time).
@@ -114,9 +120,9 @@ print(json2md(accept_embargo()))
   [Transitions](../formal_protocol/transitions.md).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import propose_embargo, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import propose_embargo_revision, json2md
 
-print(json2md(propose_embargo()))
+print(json2md(propose_embargo_revision()))
 ```
 
 ## EJ — Embargo Revision Rejection
@@ -131,9 +137,9 @@ print(json2md(propose_embargo()))
   [Transitions](../formal_protocol/transitions.md).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import reject_embargo, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import reject_embargo_revision, json2md
 
-print(json2md(reject_embargo()))
+print(json2md(reject_embargo_revision()))
 ```
 
 ## EC — Embargo Revision Acceptance
@@ -148,9 +154,9 @@ print(json2md(reject_embargo()))
   [Transitions](../formal_protocol/transitions.md).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import accept_embargo, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import accept_embargo_revision, json2md
 
-print(json2md(accept_embargo()))
+print(json2md(accept_embargo_revision()))
 ```
 
 ## The Case Owner's Decision

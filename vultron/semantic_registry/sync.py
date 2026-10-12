@@ -29,6 +29,10 @@ from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import (
+    MessagePage,
+    Occasion,
+)
 from vultron.wire.as2.extractor import (
     AnnounceLogEntryPattern,
     CloseCasePattern,
@@ -39,6 +43,8 @@ from vultron.wire.as2.vocab.activities.sync import (
     _AnnounceLogEntryActivity,
     _RejectLogEntryActivity,
 )
+
+_HOWTO_MANAGE_CASE = "howto/activitypub/activities/manage_case.md"
 
 ENTRIES: list[SemanticEntry] = [
     # CLOSE_CASE precedes the sync entries in the original dispatch order
@@ -51,6 +57,18 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} closed the case",
         wire_activity_class=_RmCloseCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Participant ends its participation in the case",
+                anchor="close-case",
+                description=(
+                    "Leaves the case, moving the sender's RM state to Closed."
+                ),
+                example="close_case",
+                howto=_HOWTO_MANAGE_CASE,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
@@ -59,6 +77,21 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=AnnounceLedgerEntryReceivedUseCase,
         phrase="{actor} announced a ledger entry",
         wire_activity_class=_AnnounceLogEntryActivity,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager has committed a case event to the case "
+                    "ledger"
+                ),
+                anchor="announce-case-ledger-entry",
+                description=(
+                    "Fans out the newly committed ledger entry to each active "
+                    "participant."
+                ),
+                example="announce_case_ledger_entry",
+            ),
+        ),
+        page=MessagePage.LEDGER_REPLICATION,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
@@ -67,5 +100,24 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=RejectLedgerEntryReceivedUseCase,
         phrase="{actor} rejected a ledger entry",
         wire_activity_class=_RejectLogEntryActivity,
+        occasions=(
+            Occasion(
+                when=(
+                    "a received ledger entry does not chain onto the "
+                    "Participant's own ledger"
+                ),
+                anchor="reject-case-ledger-entry",
+                description=(
+                    "Tells the Case Manager that the entry's previous hash "
+                    "does not match the sender's ledger tail, and the Case "
+                    "Manager replays every entry after the last accepted hash."
+                    " This negative acknowledgment serves the purpose of the "
+                    "formal EK and CK messages."
+                ),
+                example="reject_case_ledger_entry",
+                evolved=True,
+            ),
+        ),
+        page=MessagePage.LEDGER_REPLICATION,
     ),
 ]

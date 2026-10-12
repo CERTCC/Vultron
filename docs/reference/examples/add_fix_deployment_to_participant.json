@@ -1,0 +1,35 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Add",
+  "id": "urn:uuid:fe244dce-82a2-48d6-81ed-75ea3f9f6ade",
+  "name": "https://vultron.example/organizations/deployer Add ACCEPTED D NONE pxa to https://vultron.example/cases/1/participants/deployer",
+  "actor": "https://vultron.example/organizations/deployer",
+  "target": "https://vultron.example/cases/1/participants/deployer",
+  "object": {
+    "id": "https://vultron.example/cases/1/participants/deployer/status/4",
+    "type": "ParticipantStatus",
+    "name": "ACCEPTED D NONE pxa",
+    "context": "https://vultron.example/cases/1/participants/deployer",
+    "published": "2026-06-01T19:12:00+00:00",
+    "updated": "2026-06-01T19:12:00+00:00",
+    "attributedTo": "https://vultron.example/organizations/deployer",
+    "rmState": "ACCEPTED",
+    "dState": "D",
+    "caseEngagement": true,
+    "cvdRole": [
+      "DEPLOYER"
+    ],
+    "caseStatus": {
+      "id": "https://vultron.example/cases/1/status/1",
+      "type": "CaseStatus",
+      "name": "NONE pxa",
+      "context": "https://vultron.example/cases/1",
+      "published": "2026-06-01T19:12:00+00:00",
+      "updated": "2026-06-01T19:12:00+00:00",
+      "emState": "NONE",
+      "pxaState": "pxa",
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    },
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  }
+}
