@@ -102,7 +102,7 @@ Who discovered the vulnerability is metadata, not a role: record it in the repor
 content or in case notes. The formal protocol's process count is defined over
 Reporters, Vendors, Coordinators, Deployers and Others.
 
-The code has not caught up. `CVDRole.FINDER` and the Finder participant classes
-still exist and still appear in demos and stored data, and #2677 owns removing
-them. Do not build new behavior on the Finder role in the meantime: new code
-that needs the reporting party uses `CVDRole.REPORTER`.
+Issue #2677 removes `CVDRole.FINDER` and the Finder participant classes from the
+code; until then the value may still be met in demos and stored data. Do not
+build new behavior on the Finder role: new code that needs the reporting party
+uses `CVDRole.REPORTER`.

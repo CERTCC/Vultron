@@ -14,7 +14,9 @@ from current-state documents only through a **back-edge**:
 A live record (not archived, and not ``superseded``, ``deprecated`` or
 ``rejected``) with no back-edge is **homeless** unless it is legitimately
 record-only. Record-only records are the one-time process choices MS-11-006
-says need no spec entry; they are listed in :data:`RECORD_ONLY_EXEMPTIONS`.
+says need no spec entry; they are listed in :data:`RECORD_ONLY_EXEMPTIONS`, a
+pinned exemption set rather than a ratchet or a backlog: it has no terminal
+value, and its entries are exempt by that recorded decision.
 
 The report is computed from the corpus on every run, never read from a
 committed count (MS-16-002).
@@ -31,7 +33,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from vultron.metadata.adr.loader import load_adr_registry
+from vultron.metadata.adr.loader import adr_number, load_adr_registry
 from vultron.metadata.adr.schema import AdrFrontmatter
 from vultron.metadata.base import repo_root as _find_repo_root
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
@@ -143,6 +145,9 @@ def live_records(
 
     A record is live when it is outside ``docs/adr/archived/`` and its status is
     not ``superseded``, ``deprecated`` or ``rejected``.
+
+    Raises:
+        ValueError: If a record's file name carries no ``NNNN-`` number.
     """
     live: list[LiveRecord] = []
     for rel_path, fm in adr_registry.items():
@@ -151,9 +156,10 @@ def live_records(
             continue
         if fm.status in _RETIRED_STATUSES:
             continue
-        live.append(
-            LiveRecord(adr_id=f"ADR-{path.name[:4]}", file_name=path.name)
-        )
+        number = adr_number(path)
+        if number is None:
+            raise ValueError(f"{rel_path}: decision record name has no number")
+        live.append(LiveRecord(adr_id=f"ADR-{number}", file_name=path.name))
     return live
 
 
@@ -162,7 +168,7 @@ def _corpus_texts(root: Path) -> list[str]:
     for tree in ("specs", "notes"):
         for path in sorted((root / tree).rglob("*")):
             if path.is_file() and path.suffix in _TEXT_SUFFIXES:
-                texts.append(path.read_text(encoding="utf-8", errors="ignore"))
+                texts.append(path.read_text(encoding="utf-8"))
     return texts
 
 

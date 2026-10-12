@@ -120,6 +120,10 @@ class TestLiveRecords:
     def test_retired_statuses_are_not_live(self, status):
         assert live_records({"docs/adr/0100-alpha.md": _fm(status)}) == []
 
+    def test_a_record_name_without_a_number_raises(self):
+        with pytest.raises(ValueError, match="no number"):
+            live_records({"docs/adr/alpha.md": _fm(AdrStatus.ACCEPTED)})
+
     def test_archived_records_are_not_live(self):
         registry = {"docs/adr/archived/0100-alpha.md": _fm(AdrStatus.ACCEPTED)}
         assert live_records(registry) == []
@@ -127,10 +131,26 @@ class TestLiveRecords:
 
 class TestExemptionSet:
     def test_is_marked_as_a_pinned_exemption_set(self):
-        """ARCH-18-003 / ARCH-18-005: permanent marker, described as pinned."""
-        source = inspect.getsource(back_edges)
-        assert "permanent: MS-11-006" in source
-        assert "pinned exemption set" in source
+        """ARCH-18-003 / ARCH-18-005: permanent marker, described as pinned.
+
+        The marker and the description must sit in the comment block directly
+        above the constant, not merely somewhere in the module.
+        """
+        lines = inspect.getsource(back_edges).splitlines()
+        at = next(
+            i
+            for i, line in enumerate(lines)
+            if line.startswith("RECORD_ONLY_EXEMPTIONS")
+        )
+        block: list[str] = []
+        for line in reversed(lines[:at]):
+            if not line.startswith("#:"):
+                break
+            block.append(line)
+        comment = " ".join(block)
+        assert "permanent: MS-11-006" in comment
+        assert "pinned exemption set" in comment
+        assert "pinned exemption set" in (back_edges.__doc__ or "")
 
     def test_holds_only_the_meta_process_records(self):
         assert {"ADR-0000", "ADR-0001"} == RECORD_ONLY_EXEMPTIONS

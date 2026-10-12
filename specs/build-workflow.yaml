@@ -484,6 +484,8 @@ groups:
           same problem. Of the 62 queued files audited on 2026-09-02,
           only 5 were spec-shaped, while 38 named an action that could
           have been taken at discovery.
+        adr:
+          - ADR-0054
       - id: BW-07-005
         priority: MUST
         kind: process

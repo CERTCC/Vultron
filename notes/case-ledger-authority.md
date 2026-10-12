@@ -394,12 +394,12 @@ status entry through the ordinary participant-status effect, which can still
 refuse a step with a WARNING (its monotonic RM ratchet, or a composite-state
 violation, RSH-05-021). Such a replica writes nothing of its own in its place.
 
-### Proposed, Not in Force: A Sent Message Is Committed After Its Outbox Write (ADR-0119)
+### Proposed: A Sent Message Is Committed After Its Outbox Write (ADR-0119)
 
-The rule in force today is commit, then send: the governing specs (SYNC-09-002,
-SBT-04-004, EP-09-002) order a ledger commit before the outbox write, and new
-code follows them. A proposed decision reverses that order, and the work to adopt
-it is Epic #4158. Its rule, stated in full:
+The rule in force is the one the governing specs state: SYNC-09-002, SBT-04-004
+and EP-09-002 order a ledger commit before the outbox write, and new code follows
+them. ADR-0119 proposes the reverse order; whether it is accepted is its `status`,
+and the work to adopt it is Epic #4158. Its rule, stated in full:
 
 - Every ledger entry records an act that has already happened.
 - A send is done when the activity is in the sending node's own outbox. The node
@@ -419,9 +419,10 @@ it is Epic #4158. Its rule, stated in full:
   entry until the retry records it. That is accurate: the act happened and its
   record is pending.
 
-Until the decision is accepted and the specs above are rewritten, it is design
-direction, not a constraint. `vultron/core/behaviors/case/AGENTS.md` § "Ledger
-Commit Must Precede Outbox Write" says the same from the implementer's side.
+Adopting it means rewriting the three specs above, OX-14-002's verification
+(the outbox write, and so the first delivery attempt, can then precede the
+commit) and ADR-0066's emit-after-commit invariant for sent messages. Until the
+specs change, this section is design direction, not a constraint.
 
 ### Commit-Boundary Enforcement
 
