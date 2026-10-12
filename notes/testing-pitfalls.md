@@ -849,11 +849,14 @@ Three properties to keep when adding one:
   `origin/main`, or a shallow clone with no common history, the guard returns a
   `skipped` reason and the test calls `pytest.skip(reason)`, so the gap shows in
   the summary. CI's `test` and `spec-tests` jobs check out with
-  `fetch-depth: 0` for this reason; a guard in a new job needs the same.
-- **The base is read with the branch's loaders, and an error propagates.** A
+  `fetch-depth: 0` for this reason; a guard in a new job needs the same. Under
+  GitHub Actions (`GITHUB_ACTIONS=true`) a missing base raises instead, so a
+  checkout that loses its history cannot turn the guard into a green skip.
+- **The base is read with the branch's loaders, and an error fails.** A
   branch that migrates the spec schema can leave the base unreadable to them;
-  the guard then errors rather than skipping, because a guard that cannot
-  compare must not read as a pass.
+  the guard then raises `BaseExtractionError` naming the merge base rather than
+  skipping, because a guard that cannot compare must not read as a pass. The
+  remedy is a loader that also accepts the old form.
 
 ## Delete an Ephemeral Migration Check When the Migration Lands
 

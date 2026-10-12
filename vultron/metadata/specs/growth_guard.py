@@ -31,7 +31,13 @@ GitHub Actions ``pull_request`` run) and ``origin/main`` otherwise. When the
 base cannot be resolved — no such ref, or a shallow clone with no common
 history — the check is **skipped with a logged reason**, never passed: the
 result carries ``skipped`` and the caller reports it (``pytest.skip``). CI
-checks out with ``fetch-depth: 0`` so the base resolves there.
+checks out with ``fetch-depth: 0`` so the base resolves there, and under GitHub
+Actions (``GITHUB_ACTIONS=true``) a missing base raises instead of skipping, so
+a checkout that loses its history cannot turn the guard into a green skip.
+
+An *extractor* error on the base tree is not a skip either: it is re-raised as
+:class:`BaseExtractionError`, naming the merge base, because the failing tree
+is the one materialized from git, not the working tree.
 
 Consumers: the protocol-coverage guard (SR-05-005) and the
 ``missing_story_reference`` guard (MS-12-007) under ``test/architecture/``.
@@ -55,6 +61,9 @@ logger = logging.getLogger(__name__)
 #: Set by GitHub Actions on ``pull_request`` runs to the base branch name.
 BASE_REF_ENV = "GITHUB_BASE_REF"
 
+#: Set to ``true`` by GitHub Actions; there a missing base fails, not skips.
+CI_ENV = "GITHUB_ACTIONS"
+
 #: The base branch when :data:`BASE_REF_ENV` is unset or empty.
 DEFAULT_BASE_REF = "origin/main"
 
@@ -64,6 +73,10 @@ Extractor = Callable[[Path], frozenset[str]]
 
 class BaseUnavailableError(Exception):
     """The merge base with the base branch cannot be resolved or read."""
+
+
+class BaseExtractionError(Exception):
+    """The extractor failed on the tree materialized from the merge base."""
 
 
 @dataclass(frozen=True)
@@ -88,14 +101,29 @@ class GrowthCheck:
         base = self.base[:12] if self.base else "?"
         return (
             f"{len(self.added)} {what} added since the merge base {base} "
-            f"({self.head_total} in the working tree):\n{listing}\n{remedy}"
+            f"({self.head_total} in the working tree):\n{listing}\n{remedy}\n"
+            f"If this lists items the branch did not touch, the local base "
+            f"ref may be stale: run `git fetch origin` and retry."
         )
 
 
 def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(  # nosec B603 B607 - fixed git argv
-        ["git", *args], cwd=repo_root, capture_output=True, check=False
-    )
+    try:
+        return subprocess.run(  # nosec B603 B607 - fixed git argv
+            ["git", *args], cwd=repo_root, capture_output=True, check=False
+        )
+    except FileNotFoundError as exc:
+        raise BaseUnavailableError(f"git is not available: {exc}") from exc
+
+
+def _stderr(proc: subprocess.CompletedProcess[bytes]) -> str:
+    detail = proc.stderr.decode(errors="replace").strip()
+    return f": {detail}" if detail else ""
+
+
+def running_in_ci(env: Mapping[str, str] | None = None) -> bool:
+    """Whether :data:`CI_ENV` says this is a GitHub Actions run."""
+    return (os.environ if env is None else env).get(CI_ENV, "") == "true"
 
 
 def base_ref_name(env: Mapping[str, str] | None = None) -> str:
@@ -117,14 +145,13 @@ def resolve_merge_base(repo_root: Path, base_ref: str) -> str:
     if ref.returncode != 0:
         raise BaseUnavailableError(
             f"base ref {base_ref!r} is not a commit in {repo_root} "
-            f"(fetch it, or check out with fetch-depth: 0)"
+            f"(fetch it, or check out with fetch-depth: 0){_stderr(ref)}"
         )
     mb = _git(repo_root, "merge-base", base_ref, "HEAD")
     if mb.returncode != 0:
-        detail = mb.stderr.decode(errors="replace").strip()
         raise BaseUnavailableError(
             f"no merge base between {base_ref!r} and HEAD in {repo_root} "
-            f"(shallow clone?){': ' + detail if detail else ''}"
+            f"(shallow clone?){_stderr(mb)}"
         )
     return mb.stdout.decode().strip()
 
@@ -148,8 +175,9 @@ def materialize_tree(
         repo_root, "archive", "--format=tar", commit, "--", *present
     )
     if archive.returncode != 0:
-        detail = archive.stderr.decode(errors="replace").strip()
-        raise BaseUnavailableError(f"git archive {commit} failed: {detail}")
+        raise BaseUnavailableError(
+            f"git archive {commit} failed{_stderr(archive)}"
+        )
     with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
         tar.extractall(dest, filter="data")
 
@@ -161,6 +189,7 @@ def added_since_base(
     paths: Sequence[str],
     base_ref: str | None = None,
     head: frozenset[str] | None = None,
+    require_base: bool | None = None,
 ) -> GrowthCheck:
     """Items *extract* finds in the working tree but not at the merge base.
 
@@ -173,31 +202,54 @@ def added_since_base(
         head: The working-tree set, when the caller already computed it with
             *extract*'s own logic from an in-memory corpus (the shared
             architecture-test corpus); ``None`` calls ``extract(repo_root)``.
+        require_base: Raise instead of skipping when the base cannot be
+            resolved; defaults to :func:`running_in_ci`.
 
     Returns:
         A :class:`GrowthCheck`. When the base cannot be resolved it carries
-        ``skipped`` (also logged at WARNING) and an empty ``added``. *extract*
-        raising on either tree propagates: a guard that cannot compare must
-        not read as a pass.
+        ``skipped`` (also logged at WARNING) and an empty ``added``.
+
+    Raises:
+        BaseUnavailableError: The base cannot be resolved and *require_base*
+            holds.
+        BaseExtractionError: *extract* failed on the merge-base tree. A guard
+            that cannot compare must not read as a pass. An error from
+            *extract* on the working tree propagates unchanged.
     """
     if head is None:
         head = extract(repo_root)
+    if require_base is None:
+        require_base = running_in_ci()
     ref = base_ref or base_ref_name()
     with tempfile.TemporaryDirectory(prefix="growth-guard-") as tmp:
         try:
             base = resolve_merge_base(repo_root, ref)
             materialize_tree(repo_root, base, paths, Path(tmp))
         except BaseUnavailableError as exc:
+            if require_base:
+                raise
             reason = f"growth guard skipped: {exc}"
             logger.warning(reason)
             return GrowthCheck(None, frozenset(), len(head), skipped=reason)
-        base_items = extract(Path(tmp))
+        try:
+            base_items = extract(Path(tmp))
+        except Exception as exc:
+            raise BaseExtractionError(
+                f"the growth guard could not read the merge base "
+                f"{base[:12]} ({ref}): {exc}. That tree is materialized from "
+                f"git and read with this branch's loaders, so a path in the "
+                f"error names the base copy, not the working tree. If this "
+                f"branch changes the format the extractor reads, make the "
+                f"loader accept the old form as well, so it can read the base."
+            ) from exc
     return GrowthCheck(base, head - base_items, len(head))
 
 
 __all__ = [
     "BASE_REF_ENV",
+    "BaseExtractionError",
     "BaseUnavailableError",
+    "CI_ENV",
     "DEFAULT_BASE_REF",
     "Extractor",
     "GrowthCheck",
@@ -205,4 +257,5 @@ __all__ = [
     "base_ref_name",
     "materialize_tree",
     "resolve_merge_base",
+    "running_in_ci",
 ]

@@ -25,7 +25,7 @@ a retired spec leaves the set and is never an addition.
 No count is committed, so concurrent PRs cannot race on it (#4315,
 ``notes/testing-pitfalls.md`` § "A Two-Sided Count Pin Races Every Concurrent
 PR"). ``spec-coverage`` prints the live uncovered total. When no base ref is
-available the test skips with the reason.
+available the test skips with the reason; under GitHub Actions it fails.
 
 Spec: SR-05-005.
 """

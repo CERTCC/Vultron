@@ -17,9 +17,13 @@ import yaml
 from vultron.metadata.specs.coverage import uncovered_protocol_ids
 from vultron.metadata.specs.growth_guard import (
     BASE_REF_ENV,
+    CI_ENV,
     DEFAULT_BASE_REF,
+    BaseExtractionError,
+    BaseUnavailableError,
     added_since_base,
     base_ref_name,
+    running_in_ci,
 )
 from vultron.metadata.specs.kind_classification import (
     missing_story_suppression_carriers,
@@ -108,7 +112,9 @@ def _suppressions(repo: Path):
 
 @pytest.fixture(autouse=True)
 def _no_ci_base_ref(monkeypatch):
+    """Run as a local checkout would, even when the suite runs in CI."""
     monkeypatch.delenv(BASE_REF_ENV, raising=False)
+    monkeypatch.delenv(CI_ENV, raising=False)
 
 
 # --- protocol-coverage guard (SR-05-005) -----------------------------------
@@ -302,6 +308,47 @@ def test_suppression_relabel_out_is_not_an_addition(suppression_repo):
 
 
 @pytest.mark.spec("MS-12-007")
+def test_suppression_kept_through_relabel_in_is_not_an_addition(
+    suppression_repo,
+):
+    """A carrier that already had the code is not new because its kind is."""
+    _git(suppression_repo, "checkout", "-q", "-b", "base-project")
+    _write_specs(
+        suppression_repo,
+        _spec("TST-01-001", lint_suppress=_SUPPRESS),
+        _spec("TST-01-002"),
+        _spec("TST-01-003", "project", lint_suppress=_SUPPRESS),
+    )
+    _git(suppression_repo, "commit", "-qam", "project carrier")
+    _git(suppression_repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    _write_specs(
+        suppression_repo,
+        _spec("TST-01-001", lint_suppress=_SUPPRESS),
+        _spec("TST-01-002"),
+        _spec("TST-01-003", "protocol", lint_suppress=_SUPPRESS),
+    )
+    check = _suppressions(suppression_repo)
+    assert check.added == frozenset()
+    assert check.head_total == 2
+
+
+@pytest.mark.spec("MS-12-007")
+def test_suppression_kept_through_relabel_out_is_not_an_addition(
+    suppression_repo,
+):
+    """A carrier relabelled out of protocol still counts, and is not new."""
+    _write_specs(
+        suppression_repo,
+        _spec("TST-01-001", "project", lint_suppress=_SUPPRESS),
+        _spec("TST-01-002"),
+        _spec("TST-01-003", "project"),
+    )
+    check = _suppressions(suppression_repo)
+    assert check.added == frozenset()
+    assert check.head_total == 1
+
+
+@pytest.mark.spec("MS-12-007")
 def test_suppression_without_base_ref_skips_with_logged_reason(
     suppression_repo, caplog
 ):
@@ -377,16 +424,75 @@ def test_guarded_path_absent_at_base_reads_as_empty(tmp_path):
     assert _suppressions(repo).added == {"TST-01-001"}
 
 
-def test_extractor_error_on_base_tree_propagates(suppression_repo):
+def test_extractor_error_on_base_tree_names_the_merge_base(suppression_repo):
     """A guard that cannot read the base must not read as a pass."""
+    base = _git(suppression_repo, "rev-parse", "HEAD").strip()
 
     def extract(root: Path) -> frozenset[str]:
         if root != suppression_repo:
             raise ValueError("unknown field")
         return frozenset({"X"})
 
-    with pytest.raises(ValueError, match="unknown field"):
+    with pytest.raises(BaseExtractionError) as excinfo:
         added_since_base(extract, repo_root=suppression_repo, paths=("specs",))
+    message = str(excinfo.value)
+    assert "unknown field" in message
+    assert base[:12] in message
+    assert "accept the old form" in message
+    assert isinstance(excinfo.value.__cause__, ValueError)
+
+
+def test_extractor_error_on_working_tree_propagates_unchanged(
+    suppression_repo,
+):
+    def extract(root: Path) -> frozenset[str]:
+        raise ValueError("bad head")
+
+    with pytest.raises(ValueError, match="bad head"):
+        added_since_base(extract, repo_root=suppression_repo, paths=("specs",))
+
+
+def test_missing_base_raises_when_required(suppression_repo):
+    _git(suppression_repo, "update-ref", "-d", "refs/remotes/origin/main")
+    with pytest.raises(BaseUnavailableError, match="origin/main"):
+        added_since_base(
+            missing_story_suppression_carriers,
+            repo_root=suppression_repo,
+            paths=("specs",),
+            require_base=True,
+        )
+
+
+def test_missing_base_raises_under_github_actions(
+    suppression_repo, monkeypatch
+):
+    """In CI a lost checkout history fails the guard rather than skipping."""
+    _git(suppression_repo, "update-ref", "-d", "refs/remotes/origin/main")
+    monkeypatch.setenv(CI_ENV, "true")
+    with pytest.raises(BaseUnavailableError):
+        _suppressions(suppression_repo)
+
+
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [({}, False), ({CI_ENV: ""}, False), ({CI_ENV: "true"}, True)],
+)
+def test_running_in_ci_reads_github_actions(env, expected):
+    assert running_in_ci(env) is expected
+
+
+def test_missing_git_binary_is_an_unavailable_base(
+    suppression_repo, monkeypatch, caplog
+):
+    monkeypatch.setenv("PATH", str(suppression_repo / "no-such-bin"))
+    with caplog.at_level(logging.WARNING):
+        check = added_since_base(
+            lambda root: frozenset(),
+            repo_root=suppression_repo,
+            paths=("specs",),
+        )
+    assert check.skipped is not None
+    assert "git is not available" in check.skipped
 
 
 def test_precomputed_head_is_used_instead_of_extracting(suppression_repo):
@@ -421,4 +527,5 @@ def test_failure_message_lists_each_added_item(suppression_repo):
     )
     assert "2 carrier(s) added" in message
     assert "  TST-01-002\n  TST-01-003\n" in message
-    assert message.endswith("Fix it.")
+    assert "\nFix it.\n" in message
+    assert "git fetch origin" in message
