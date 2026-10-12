@@ -1,6 +1,7 @@
 ---
 title: Inbox Pipeline — InboxPipeline Design Notes
 status: active
+kind: guidance
 description: >
   Design decisions, implementation guidance, and test patterns for the
   `InboxPipeline` class and `build_test_pipeline()` factory that surface

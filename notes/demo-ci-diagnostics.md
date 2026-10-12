@@ -1,6 +1,7 @@
 ---
 title: Demo Integration CI — Diagnostic Runbook
 status: active
+kind: guidance
 description: >
   Targeted diagnostic guide for agents troubleshooting Demo Integration CI
   failures. Covers the 3-layer diagnostic model, per-invariant diagnostic map,

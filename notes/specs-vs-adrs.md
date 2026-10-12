@@ -1,6 +1,7 @@
 ---
 title: Specs vs. ADRs — Delineation Guidelines
 status: active
+kind: guidance
 related_specs:
   - specs/meta-specifications.yaml
   - specs/architecture.yaml

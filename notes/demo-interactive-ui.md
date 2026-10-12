@@ -1,6 +1,12 @@
 ---
 title: Interactive Demo UI — Scenarios and Architecture
 status: active
+kind: plan
+tracks:
+  - "#676"
+  - "#3640"
+  - "#3642"
+  - "#3643"
 description: >
   Design for the Vultron interactive demo UI: a React/ReactFlow dashboard for
   stakeholder presentations that watches the real system's case ledgers live

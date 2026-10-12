@@ -1,6 +1,7 @@
 ---
 title: Use Cases, Domain Logic, and Behavior Trees
 status: active
+kind: guidance
 description: >
   Clarifies the relationship between use cases, domain logic, and behavior
   trees; documents where each concern belongs.

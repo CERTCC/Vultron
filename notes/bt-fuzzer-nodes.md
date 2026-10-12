@@ -1,6 +1,7 @@
 ---
 title: "Vultron BT Fuzzer Nodes: Call-Out Points"
 status: active
+kind: guidance
 description: >
   Index and background for fuzzer (stub) BT nodes in the Vultron BT
   simulation. Fuzzer nodes are call-out points cataloged by domain area

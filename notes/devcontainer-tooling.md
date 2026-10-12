@@ -1,6 +1,7 @@
 ---
 title: Devcontainer and Toolchain Pitfalls
 status: active
+kind: guidance
 description: >
   Environment-level pitfalls specific to this devcontainer: why every tool must
   run under `uv run`, why `PYTHONPATH` must be cleared (pre-commit hooks in a

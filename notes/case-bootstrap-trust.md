@@ -1,6 +1,7 @@
 ---
 title: Case Bootstrap Trust — Implementation Notes
 status: active
+kind: guidance
 description: >
   Design notes for trust establishment at non-owner sites: creator-signed
   bootstrap for the original report path, invite-based bootstrap for

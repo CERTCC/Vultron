@@ -1,6 +1,7 @@
 ---
 title: Case Ledger JSONL Parsing — State Extraction and Tolerant Parsing Patterns
 status: active
+kind: guidance
 description: >
   Guidance for consumers of case-ledger JSONL: the three nesting shapes for
   RM/EM/VFD/PXA state, flat legacy wire spellings, and tolerant parsing patterns

@@ -1,6 +1,7 @@
 ---
 title: Case Communication Model
 status: active
+kind: guidance
 description: >
   Canonical communication model for post-case-creation participant messaging:
   all participant messages route through the CASE_MANAGER exclusively, and all

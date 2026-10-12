@@ -1,6 +1,7 @@
 ---
 title: Git, Branch, and PR Workflow Pitfalls
 status: active
+kind: guidance
 description: >
   Pitfalls in the git and GitHub side of agentic development: rebase failures
   that are false positives, branch-freshening recovery, integration branches

@@ -1,6 +1,7 @@
 ---
 title: Known Flaky Tests
 status: active
+kind: guidance
 related_notes:
   - notes/testing-pitfalls.md
   - notes/sync-ledger-replication.md

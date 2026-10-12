@@ -2,7 +2,8 @@ id: NF
 title: Notes Frontmatter
 description: >-
   Requirements for YAML frontmatter in notes files, covering the required schema, a
-  Pydantic-based loader, validation enforcement, and migration requirements.
+  Pydantic-based loader, validation enforcement, migration requirements, what a note
+  is for and how it is written, and the report that flags delivered plan notes.
 scope:
 - prototype
 - production
@@ -68,6 +69,44 @@ groups:
     kind: process
     verification_debt: '#2571'
     statement: 'The optional `relevant_packages` field, when present, MUST be a non-empty list of non-empty strings naming packages relevant to the note''s topic. Each entry MUST be either a dot-separated Python package name (e.g., `vultron.core`) or a top-level package directory name (e.g., `vultron`).'
+  - id: NF-01-009
+    priority: MUST
+    kind: process
+    statement: >-
+      The frontmatter MUST include a `kind` field whose value is one of `guidance`, `plan`,
+      or `generated`, as defined by NF-08-002.
+    verification: >-
+      Unit tests assert that a note without `kind`, or with a value outside the three, is
+      rejected; the corpus test (NF-04-001) asserts every note declares one.
+    relationships:
+    - rel_type: depends_on
+      spec_id: NF-08-002
+  - id: NF-01-010
+    priority: MUST
+    kind: process
+    statement: >-
+      A note whose `kind` is `plan` MUST include a `tracks` field: a non-empty list of GitHub
+      issue references in `#N` form naming the issues the plan informs and their parent
+      epic. A note of any other `kind` MUST NOT include `tracks`.
+    rationale: >-
+      Tracking the parent epic as well as the leaf issues keeps the note alive while related
+      work continues: a Concern closed by being split into Tasks, or a leaf moved to another
+      epic, does not by itself make every tracked issue closed. Epics close by hand once no
+      open children remain.
+    verification: >-
+      Unit tests assert that a `plan` note without `tracks`, a non-`plan` note with `tracks`,
+      an empty list, and a malformed reference are each rejected.
+  - id: NF-01-011
+    priority: MUST
+    kind: process
+    statement: >-
+      A note whose `kind` is `generated` MUST begin its body, immediately after the
+      frontmatter, with an HTML comment whose text starts with the word `GENERATED` and
+      names the command which writes the file. The loader MUST reject a `generated` note without it, naming
+      the file per NF-03-006.
+    verification: >-
+      Unit tests load a `generated` note with and without the marker; the coverage-matrix
+      generator's rendered output validates as a `generated` note.
 - id: NF-02
   title: Pydantic Schema Module
   specs:
@@ -227,3 +266,102 @@ groups:
       The `notes/README.md` index MAY be generated from the notes registry in a later task,
       replacing the manually-maintained summaries with content derived from `description`
       frontmatter fields.
+- id: NF-08
+  title: Note Kinds and Content
+  specs:
+  - id: NF-08-001
+    priority: MUST
+    kind: process
+    statement: >-
+      A note MUST exist only to inform work that has not been done yet. Once that work lands,
+      the note's content MUST either be archived (PD-03-004) or, if it remains useful beyond
+      that stage, be moved to `docs/` (reference material) or into a `guidance` note
+      (lasting rules). `notes/` MUST NOT be used as a narrative history of the project; git
+      and `plan/history/` hold the history.
+    rationale: >-
+      Notes grew 25% in the four weeks after the 2026-09-17 sweep, mostly from backstory
+      appended to durable notes by fix and feature PRs, not from new plans. Nothing told the
+      writer that a note is a working document with an end.
+    verification: >-
+      Checked by review: the `learn` skill's notes staleness review and each notes sweep
+      apply it to every note, and PR review applies it to changed notes against the
+      writing guide.
+    relationships:
+    - rel_type: refines
+      spec_id: PD-03-004
+  - id: NF-08-002
+    priority: MUST
+    kind: process
+    statement: >-
+      The `kind` values MUST be applied as follows. `guidance`: a rule for changing the
+      project without repeating a known mistake, or a procedure for a recurring task, that
+      would still be true and still change how someone works if every open issue were closed.
+      `plan`: a design or decision for work the code does not do yet, too large or too
+      cross-cutting for one issue body. `generated`: a file a tool writes. Material that is
+      none of these — reference material, or rationale for delivered work — MUST NOT be kept
+      in `notes/`; it belongs in `docs/` or the archive.
+    verification: >-
+      Checked by review: the `learn` skill's notes staleness review and each notes sweep
+      apply it to every note, and PR review applies it to changed notes against the
+      writing guide.
+  - id: NF-08-003
+    priority: MUST
+    kind: process
+    statement: >-
+      Each note MUST have exactly one `kind`. A plan item MUST NOT be added to a `guidance`
+      note; it goes in a `plan` note (a new one if needed) or in the issue itself. When a plan
+      is delivered, its lasting lessons MUST be promoted into the matching `guidance` note,
+      or `docs/`, before the plan note is archived.
+    verification: >-
+      Checked by review: the `learn` skill's notes staleness review and each notes sweep
+      apply it to every note, and PR review applies it to changed notes against the
+      writing guide.
+    relationships:
+    - rel_type: depends_on
+      spec_id: NF-08-002
+  - id: NF-08-004
+    priority: MUST
+    kind: process
+    statement: >-
+      Each item in a `guidance` note MUST be stated as the rule, the reason for it, and at
+      most one citation (issue, ADR, or spec ID). It MUST NOT carry provenance chains,
+      HTML `Source:` comments, accounts of how a defect hid or was found, change-history
+      lists, migration-complete notices, reconstructions of removed features, copies of live
+      code, `file.py:line` tables, or inventories a test already enforces. The writing guide
+      at `.agents/skills/shared/notes-writing-guide.md` holds the full pattern list.
+    rationale: >-
+      A 2026-10-12 survey found these patterns made up most of the removable ~23% of
+      `notes/`. The one-sentence rule a defect produced is what a future reader needs; the
+      story is in git.
+    verification: >-
+      Checked by review: the `learn` skill's notes staleness review and each notes sweep
+      apply it to every note, and PR review applies it to changed notes against the
+      writing guide.
+- id: NF-09
+  title: Plan Retirement Report
+  specs:
+  - id: NF-09-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The `notes-tracks` command MUST list every `plan` note whose tracked issues (NF-01-010)
+      are all closed, and every `plan` note that tracks a number that is not a known issue.
+    verification: >-
+      Unit tests of the pure report function cover an all-closed note, a note with a closed
+      leaf under an open epic, an unknown reference, and a `guidance` note.
+  - id: NF-09-002
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The `notes-tracks` command MUST NOT archive, edit, or fail on a flagged note; a flagged
+      note is an agenda item for the next notes sweep, decided by a person or the sweep's
+      interview. The command exits non-zero only when the issue lookup itself fails.
+    rationale: >-
+      A closed issue is evidence, not proof, that a plan is delivered; follow-up bugs and
+      re-scoped work often keep a plan relevant past its first issue.
+    verification: >-
+      A unit test runs the command with an all-closed plan note and asserts it exits 0,
+      prints the finding, and leaves the note file unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: NF-09-001

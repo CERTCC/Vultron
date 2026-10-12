@@ -1,6 +1,7 @@
 ---
 title: RFC Spec Document Authoring Decisions
 status: active
+kind: guidance
 description: >
   Structural and editorial conventions for the Vultron Protocol Specification
   under docs/reference/vultron-spec/: the page map (routing landing page, six

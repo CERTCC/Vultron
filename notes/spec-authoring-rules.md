@@ -1,6 +1,7 @@
 ---
 title: Spec Authoring Rules — Field Values, Lint Traps, and Coverage Gates
 status: active
+kind: guidance
 description: >
   Mechanical rules for authoring spec YAML: the MS-12 decision tree for
   choosing a `kind` and why copying neighbouring entries is the wrong

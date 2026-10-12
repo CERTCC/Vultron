@@ -1,6 +1,7 @@
 ---
 title: "Parallel Agentic Development: GitHub Issue-Based Coordination"
 status: active
+kind: guidance
 description: >
   Design decisions and implementation guidance for coordinating multiple
   parallel AI agents and human developers via GitHub Issues. Covers the

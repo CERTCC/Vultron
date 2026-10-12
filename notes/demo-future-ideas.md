@@ -1,6 +1,21 @@
 ---
 title: Planned Demo Scenarios and Future Demo Ideas
 status: active
+kind: plan
+tracks:
+  - "#1161"
+  - "#1278"
+  - "#1279"
+  - "#1732"
+  - "#2591"
+  - "#3671"
+  - "#3672"
+  - "#3701"
+  - "#3702"
+  - "#3937"
+  - "#4242"
+  - "#4243"
+  - "#4244"
 description: >
   The planned-scenario register (DEMOCI-11-010) — every demo scenario with a
   spec group and no demo module yet — followed by multi-actor workflow ideas

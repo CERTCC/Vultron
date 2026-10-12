@@ -1,6 +1,7 @@
 ---
 title: Wire Artifact Immutability
 status: active
+kind: guidance
 related_specs:
   - specs/architecture.yaml (ARCH-12-001, ARCH-21-002)
   - specs/vocabulary-model.yaml (VM-08-002, VM-08-003)

@@ -1,15 +1,31 @@
 ---
+source: NOTES-notes-frontmatter--whole-file
+timestamp: '2026-10-12T15:47:06.177766+00:00'
+title: notes-frontmatter.md archived — superseded by spec NF, schema module and notes
+  writing guide
+type: note
+---
+
+Archived: whole file superseded (NF-08, #4493). Schema, loader and hook decisions are stated in specs/notes-frontmatter.yaml (NF-01 to NF-04) and implemented in vultron/metadata/notes/; the maintenance rule now lives in .agents/skills/shared/notes-writing-guide.md and root AGENTS.md.
+
+Superseded by: specs/notes-frontmatter.yaml; vultron/metadata/notes/schema.py; .agents/skills/shared/notes-writing-guide.md
+
+---
+
+---
 title: Notes Frontmatter Design
 status: active
 description: >
   Design decisions for YAML frontmatter schema in notes/*.md files; schema,
   loader, and pre-commit hook.
 related_specs:
-  - specs/notes-frontmatter.yaml
+
+- specs/notes-frontmatter.yaml
 relevant_packages:
-  - pydantic
-  - python-frontmatter
-  - vultron/metadata/notes
+- pydantic
+- python-frontmatter
+- vultron/metadata/notes
+
 ---
 
 # Notes Frontmatter Design

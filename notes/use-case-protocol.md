@@ -1,6 +1,7 @@
 ---
 title: Use-Case Protocol — Result Envelope and Request Paths
 status: active
+kind: guidance
 description: >
   Design decisions for the UseCaseResult type hierarchy, the HandlerDisposition
   vocabulary and its route to InboxOutcome, the two semantically distinct request

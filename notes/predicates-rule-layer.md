@@ -1,6 +1,7 @@
 ---
 title: Predicate Layer Rule Boundary
 status: active
+kind: guidance
 description: >
   Import constraints, module inventory, and guidance for when to place a rule
   in vultron/core/predicates/ rather than inline in a BT node or service.

@@ -195,6 +195,6 @@ MS-10-005..008); never pin a committed count to its live value. Select by tier, 
 - `notes/spec-authoring-rules.md` — field enums, lint traps, coverage guard
 - `notes/specs-vs-adrs.md` — whether a rule belongs in a spec at all
 - `notes/history-management.md` — `append-history` and `plan/history/` layout
-- `notes/notes-frontmatter.md` — the notes frontmatter schema
+- `.agents/skills/shared/notes-writing-guide.md` — note kinds, `tracks:`, and how a note is written
 - `specs/spec-registry.yaml` (SR), `specs/meta-specifications.yaml` (MS),
   `specs/notes-frontmatter.yaml` (NF), `specs/history-management.yaml` (HM)

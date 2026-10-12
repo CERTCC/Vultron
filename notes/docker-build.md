@@ -1,6 +1,7 @@
 ---
 title: Docker Build Notes
 status: active
+kind: guidance
 description: >
   Observations and guidance for Vultron Docker image optimization and docker-
   compose configuration.

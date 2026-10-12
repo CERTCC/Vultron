@@ -1,6 +1,7 @@
 ---
 title: Joining a Case — Stub Invite, Inert Participant, Full-Case Invite
 status: active
+kind: guidance
 description: >
   How an actor goes from invited to participating, what the case records at
   each step, what an inert participant may receive; how removal and reinstatement withdraw and restore entitlement without

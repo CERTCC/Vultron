@@ -1,6 +1,7 @@
 ---
 title: Structured Logging — Narrative Standard and Infrastructure Demotion Guide
 status: active
+kind: guidance
 tags: [logging, observability, debugging]
 description: >
   Log-call shape (SL-01-005: literal template plus lazy positional args, never an

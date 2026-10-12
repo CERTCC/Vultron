@@ -1,6 +1,7 @@
 ---
 title: Architecture Ratchet Corpus
 status: active
+kind: guidance
 related_specs:
   - specs/architecture.yaml
   - specs/testability.yaml

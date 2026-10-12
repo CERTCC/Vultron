@@ -1,6 +1,7 @@
 ---
 title: Demo Scenario Authoring Rules
 status: active
+kind: guidance
 description: >
   How to write a multi-actor demo scenario without faking the protocol:
   puppeteer actors through trigger endpoints rather than spoofing via inbox
