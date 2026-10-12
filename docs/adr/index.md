@@ -217,6 +217,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0112 Per-Recipient Ordered Outbox Delivery: One Drain per Actor, One In-Flight Row per Recipient](0112-per-recipient-ordered-outbox-delivery.md)
 - [ADR-0113 Embargo Negotiation Relays Through the CASE_MANAGER; the Ledger Carries State but Never Asks](0113-embargo-revision-negotiation-relays-through-the-case-manager.md)
 - [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md) *(revision 2)*
+- [ADR-0115 Received Handlers Check the Sender's Entitlement, Declared Once per Use Case and Composed by the Receive-Tree Factory](0115-received-handlers-check-sender-entitlement.md) *(provisional)*
 - [ADR-0117 The Per-Case Genesis Hash Is Anchored to the Case Owner, Not the CaseActor](0117-genesis-hash-is-anchored-to-the-case-owner.md)
 - [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0120 ADR Lifecycle: Three Epochs and Tiered Edits](0120-adr-lifecycle-epochs-and-edit-tiers.md) *(revision 2)* *(provisional)*
@@ -224,20 +225,19 @@ General information about architectural decision records is available at <https:
 - [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 5)* *(provisional)* — supersedes 0056-embargo-adherence-computed-field.md; partially supersedes 0048-pec-no-embargo-is-absence-not-pre-consent.md, 0091-rename-pec-no-embargo-to-unbound.md, 0093-signatory-declined-pec-transition.md, 0118-pec-expired-and-unbound-exited-states.md
 - [ADR-0123 An Embargo Invite May Name Its Terms by URI](0123-embargo-invite-may-name-its-terms-by-uri.md) *(provisional)*
 - [ADR-0127 Decision Records Leave Routine Agent Context; Specs and Notes Carry the Current State](0127-decision-records-leave-routine-agent-context.md) *(provisional)*
+- [ADR-0129 A Sender Rule States Every Position on Both Sides, and Is the Source of "Sent By"](0129-a-sender-rule-states-every-position-on-both-sides-and-is-the-source-of-sent-by.md) *(provisional)*
 - [ADR-0131 Post-Close Traffic Is Dropped, and Only a Late Leave May Be Answered](0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md) *(provisional)*
 - [ADR-0132 The Report Receiver Introduces the CASE_MANAGER to the Reporter](0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md) *(provisional)* — partially supersedes 0041-caseactor-authoritative-case-initialization.md
 - [ADR-0133 The Report Receiver States Its Case Roles on the Case Proposal](0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md) *(provisional)*
 
 ## Proposed ADRs
 
-- [ADR-0115 Received Handlers Check the Sender's Entitlement, Declared Once per Use Case and Composed by the Receive-Tree Factory](0115-received-handlers-check-sender-entitlement.md)
 - [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 3)*
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md)
 - [ADR-0124 The Case Is a Projection of Its Ledger: Every Change Is an Entry, and Replicas Copy](0124-case-is-a-projection-of-its-ledger.md) *(revision 2)*
 - [ADR-0125 A Case Splits by Its Owner Proposing a Child Case: the Child Links Its Parent and Inherits the Embargo Terms Only](0125-case-split-child-case-inherits-the-embargo-only.md)
 - [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)*
 - [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
-- [ADR-0129 A Sender Rule States Every Position on Both Sides, and Is the Source of "Sent By"](0129-a-sender-rule-states-every-position-on-both-sides-and-is-the-source-of-sent-by.md)
 - [ADR-0130 EM Is Computed From the Embargo Register Under the EM Transition Table](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md) *(revision 2)*
 
 ## Rejected ADRs

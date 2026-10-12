@@ -218,6 +218,7 @@ def test_discriminator_names_fields_and_state_contexts_once_each():
         (SenderEntitlementKind.ACTIVE_PARTICIPANT, "an active participant"),
         (SenderEntitlementKind.INVITEE, "the invitee"),
         (SenderEntitlementKind.EXECUTING_ACTOR, "the receiving actor itself"),
+        (SenderEntitlementKind.ANY_ACTOR, "any actor"),
     ],
 )
 def test_sent_by_words_each_kind(kind: SenderEntitlementKind, wording: str):
