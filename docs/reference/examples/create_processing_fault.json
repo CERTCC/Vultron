@@ -1,0 +1,19 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Create",
+  "id": "urn:uuid:c28a8252-610e-4064-8509-b58c090a8cab",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Create urn:uuid:d90a87e5-b6e8-4412-8db1-ee2fc46c1d3f",
+  "to": [
+    "https://vultron.example/organizations/vendorco"
+  ],
+  "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+  "object": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "type": "ProcessingFault",
+    "id": "urn:uuid:d90a87e5-b6e8-4412-8db1-ee2fc46c1d3f",
+    "inReplyTo": "https://vultron.example/cases/1/participants/vendor/status/9",
+    "published": "2026-10-12T17:01:45+00:00",
+    "updated": "2026-10-12T17:01:45+00:00",
+    "failureClass": "https://certcc.github.io/Vultron/ns/errors/StatusAssertionRefused/ImpossibleState"
+  }
+}

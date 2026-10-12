@@ -1,0 +1,18 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Remove",
+  "id": "urn:uuid:5b47fe71-cf46-4345-9890-4f34381bc39e",
+  "name": "https://vultron.example/users/finndervul Remove Note to urn:uuid:c4e6d807-c745-4cb7-85d0-3018a154cbe8",
+  "actor": "https://vultron.example/users/finndervul",
+  "target": "urn:uuid:c4e6d807-c745-4cb7-85d0-3018a154cbe8",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Note",
+    "id": "https://vultron.example/notes/1",
+    "name": "Note",
+    "context": "urn:uuid:c4e6d807-c745-4cb7-85d0-3018a154cbe8",
+    "published": "2026-06-01T19:12:00+00:00",
+    "updated": "2026-06-01T19:12:00+00:00",
+    "content": "This is a note."
+  }
+}

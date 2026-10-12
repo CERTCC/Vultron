@@ -337,10 +337,14 @@ def find_protocol_pair(
 
     Two-pass scan of ``CaseLedgerEntry`` objects scoped to *case_id*:
 
-    1. Locate the request entry whose ``event_type == request_event_type``
-       **and** ``log_object_id == object_id``.
-    2. Search for a reply entry whose ``event_type`` is in
-       *reply_event_types*.
+    1. Locate the latest request entry whose
+       ``event_type == request_event_type`` **and**
+       ``log_object_id == object_id``.
+    2. Search, in ``log_index`` order, for the first reply entry recorded
+       after that request whose ``event_type`` is in *reply_event_types*.
+       A reply recorded before the request answered an earlier one: a case
+       that offers again after an answered Offer must not read the new
+       Offer as already answered (CM-21-014).
 
     Returns a :class:`~vultron.core.models.protocol_pair.ProtocolPair`
     with ``reply_object_id`` / ``reply_event_type`` populated when a reply
@@ -355,23 +359,35 @@ def find_protocol_pair(
        per case at a time, which is the expected protocol usage
        (ADR-0026/CM-16).
     """
-    case_entries = [
-        e
-        for e in dl.list_objects("CaseLedgerEntry")
-        if getattr(e, "case_id", None) == case_id
-    ]
-
-    request_found = any(
-        getattr(e, "event_type", None) == request_event_type
-        and getattr(e, "log_object_id", None) == object_id
-        for e in case_entries
+    case_entries = sorted(
+        (
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if getattr(e, "case_id", None) == case_id
+        ),
+        key=lambda e: getattr(e, "log_index", 0),
     )
+
+    # The latest matching request: when the same object is requested again,
+    # a reply to the earlier request must not close the later one.
+    request_index = max(
+        (
+            getattr(e, "log_index", 0)
+            for e in case_entries
+            if getattr(e, "event_type", None) == request_event_type
+            and getattr(e, "log_object_id", None) == object_id
+        ),
+        default=None,
+    )
+    request_found = request_index is not None
 
     reply_object_id: str | None = None
     reply_event_type_found: str | None = None
 
-    if request_found:
+    if request_index is not None:
         for entry in case_entries:
+            if getattr(entry, "log_index", 0) <= request_index:
+                continue
             entry_event_type = getattr(entry, "event_type", None)
             if entry_event_type in reply_event_types:
                 reply_object_id = getattr(entry, "log_object_id", None)

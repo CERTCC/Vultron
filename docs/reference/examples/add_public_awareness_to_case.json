@@ -1,0 +1,19 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Add",
+  "id": "urn:uuid:a960c5ac-1a13-4bdc-9e21-b782b71d5542",
+  "name": "https://vultron.example/organizations/vendorco Add NONE Pxa to urn:uuid:c4e6d807-c745-4cb7-85d0-3018a154cbe8",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "target": "urn:uuid:c4e6d807-c745-4cb7-85d0-3018a154cbe8",
+  "object": {
+    "id": "https://vultron.example/cases/1/status/2",
+    "type": "CaseStatus",
+    "name": "NONE Pxa",
+    "context": "https://vultron.example/cases/1",
+    "published": "2026-06-01T19:12:00+00:00",
+    "updated": "2026-06-01T19:12:00+00:00",
+    "emState": "NONE",
+    "pxaState": "Pxa",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  }
+}

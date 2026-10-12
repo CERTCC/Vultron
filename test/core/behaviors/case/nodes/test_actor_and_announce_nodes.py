@@ -34,8 +34,9 @@ from vultron.core.behaviors.case.nodes.actor import (
 from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptCaseOwnershipTransferNode,
+    AcceptRecordedOwnershipOfferNode,
 )
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import _as_id, days_from_now_utc, now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -153,6 +154,24 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.FAILURE
+
+    @pytest.mark.spec("CM-21-011")
+    def test_recorded_offer_node_fails_without_a_recorded_offer(
+        self, bridge, dl
+    ) -> None:
+        """The recorded-Offer variant names no owner it cannot read, so it
+        fails and leaves ownership unchanged rather than guessing one."""
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, name="OT Node No Offer", attributed_to=ACTOR_ID
+        )
+        dl.create(case)
+        tree = AcceptRecordedOwnershipOfferNode(
+            case_id=CASE_ID, offer_id="https://example.org/activities/none"
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        assert result.status == Status.FAILURE
+        refreshed = cast(Any, dl.read(CASE_ID))
+        assert _as_id(refreshed.attributed_to) == ACTOR_ID
 
     @pytest.mark.spec("CM-21-002")
     def test_grants_case_owner_role_to_participant(self, bridge, dl) -> None:

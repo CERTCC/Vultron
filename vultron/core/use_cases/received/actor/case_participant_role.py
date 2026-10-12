@@ -50,7 +50,7 @@ class OfferCaseParticipantRoleReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for role offer"
+        "#4522", "no sender check for role offer"
     )
 
     def __init__(
