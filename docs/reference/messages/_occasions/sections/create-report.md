@@ -6,7 +6,7 @@ Mints the vulnerability report object. It precedes the Offer that submits the re
 
 - **When…** a Reporter has written up a vulnerability and is about to submit the report
 - **Send:** `Create(VulnerabilityReport)`
-- **Sent by:** not yet checked (usually: finder, reporter)
+- **Sent by:** any actor (usually: finder, reporter)
 - **How-to:** [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
 
 ```python exec="true" idprefix=""

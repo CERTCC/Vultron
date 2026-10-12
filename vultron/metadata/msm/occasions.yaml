@@ -11,7 +11,7 @@ groups:
     heading: Create report
     when: a Reporter has written up a vulnerability and is about to submit the report
     send: Create(VulnerabilityReport)
-    sent_by: 'not yet checked (usually: finder, reporter)'
+    sent_by: 'any actor (usually: finder, reporter)'
     semantics: create_report
     status: none
     description: Mints the vulnerability report object. It precedes the Offer that submits
@@ -24,7 +24,7 @@ groups:
     heading: Report Submission (RS)
     when: a Reporter submits a vulnerability report to a Vendor or Coordinator
     send: Offer(VulnerabilityReport)
-    sent_by: 'not yet checked (usually: reporter)'
+    sent_by: 'any actor (usually: reporter)'
     semantics: submit_report
     shorthand: RS
     status: direct
