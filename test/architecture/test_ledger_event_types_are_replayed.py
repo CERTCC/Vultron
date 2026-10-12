@@ -94,7 +94,6 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.ADD_NOTE_TO_CASE.value,
         MS.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
         MS.ADD_REPORT_TO_CASE.value,
-        MS.CLOSE_CASE.value,
         MS.CLOSE_REPORT.value,
         MS.DEFER_CASE.value,
         MS.ENGAGE_CASE.value,
@@ -149,9 +148,15 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         "Read(Offer) acknowledges receipt and moves no RM state (RK, ADR-0021)"
     ),
     "case_fully_closed": (
-        "a marker; the transitions it summarises arrive as close_case and"
-        " the CaseActor's add_participant_status_to_participant entry"
+        "a marker; the transitions it summarises arrive as the"
+        " add_participant_status_to_participant entries before it"
         " (CM-23-002, CM-23-005)"
+    ),
+    MS.CLOSE_CASE.value: (
+        "records the received Leave; the RM transitions it caused arrive as"
+        " the add_participant_status_to_participant entries after it, and a"
+        " replica never walks a closure path itself (CM-23-001, CM-23-016,"
+        " #4091)"
     ),
     MS.INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
     MS.OFFER_ACTOR_TO_CASE.value: _RECOMMENDATION,

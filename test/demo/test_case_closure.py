@@ -201,14 +201,20 @@ def _status(index: int, attributed_to: str, rm_state: str) -> dict:
 
 
 def _owner_last_ledger() -> list[dict]:
-    """The FV closure tail: Finder leaves, then the owner closes the case."""
+    """The FV closure tail: Finder leaves, then the owner closes the case.
+
+    Each ``close_case`` is followed by the status entry the CASE_MANAGER
+    commits for the leaver's closure step (CM-23-001).
+    """
     return [
         _status(0, _FINDER, "ACCEPTED"),
         _status(1, _OWNER, "ACCEPTED"),
         _entry(2, "close_case", _FINDER),
-        _entry(3, "close_case", _OWNER),
-        _status(4, _MANAGER, "CLOSED"),
-        _entry(5, "case_fully_closed", _OWNER),
+        _status(3, _FINDER, "CLOSED"),
+        _entry(4, "close_case", _OWNER),
+        _status(5, _OWNER, "CLOSED"),
+        _status(6, _MANAGER, "CLOSED"),
+        _entry(7, "case_fully_closed", _OWNER),
     ]
 
 
@@ -238,23 +244,43 @@ class TestCaseClosureViolations:
         ledger = [
             _status(0, _FINDER, "ACCEPTED"),
             _entry(1, "close_case", _OWNER),
-            _status(2, _MANAGER, "CLOSED"),
-            _entry(3, "case_fully_closed", _OWNER),
-            _entry(4, "close_case", _FINDER),
+            _status(2, _OWNER, "CLOSED"),
+            _status(3, _MANAGER, "CLOSED"),
+            _entry(4, "case_fully_closed", _OWNER),
+            _entry(5, "close_case", _FINDER),
         ]
         violations = case_closure_violations(
             ledger, [_FINDER, _OWNER], _MANAGER
         )
         assert len(violations) == 2
         assert f"no 'close_case' entry for {_FINDER!r}" in violations[0]
-        assert "logIndex=4 'close_case'" in violations[1]
+        assert "logIndex=5 'close_case'" in violations[1]
 
     def test_manager_housekeeping_after_boundary_is_allowed(self):
         """case_fully_closed is a write boundary, not the last entry (CM-23-002)."""
-        ledger = [*_owner_last_ledger(), _status(6, _MANAGER, "CLOSED")]
+        ledger = [*_owner_last_ledger(), _status(8, _MANAGER, "CLOSED")]
         assert (
             case_closure_violations(ledger, [_FINDER, _OWNER], _MANAGER) == []
         )
+
+    @pytest.mark.spec("CM-23-001")
+    def test_close_case_alone_does_not_record_the_closure(self):
+        """A Leave with no status entry after it leaves the leaver open.
+
+        ``close_case`` records the Leave, not an RM state; the CASE_MANAGER's
+        status entries record the closure (CM-23-001, #4210).
+        """
+        ledger = [
+            _status(0, _FINDER, "ACCEPTED"),
+            _entry(1, "close_case", _FINDER),
+            _entry(2, "close_case", _OWNER),
+            _status(3, _OWNER, "CLOSED"),
+            _entry(4, "case_fully_closed", _OWNER),
+        ]
+        (violation,) = case_closure_violations(
+            ledger, [_FINDER, _OWNER], _MANAGER
+        )
+        assert f"{_FINDER!r} is at RM 'ACCEPTED'" in violation
 
     def test_status_reopening_a_departed_actor_is_reported(self):
         ledger = [
@@ -268,9 +294,9 @@ class TestCaseClosureViolations:
 
     @pytest.mark.parametrize("count", [0, 2])
     def test_boundary_must_appear_exactly_once(self, count):
-        ledger = [e for e in _owner_last_ledger() if e["log_index"] < 5]
+        ledger = [e for e in _owner_last_ledger() if e["log_index"] < 7]
         ledger += [
-            _entry(5 + i, "case_fully_closed", _OWNER) for i in range(count)
+            _entry(7 + i, "case_fully_closed", _OWNER) for i in range(count)
         ]
         assert case_closure_violations(ledger, [_FINDER], _MANAGER) == [
             f"expected exactly one 'case_fully_closed' entry, found {count}"
@@ -332,7 +358,7 @@ class TestVerifyCaseClosureRecorded:
     def test_raises_with_every_violation(self):
         ledger = [
             *_owner_last_ledger(),
-            _entry(6, "add_note_to_case", _VENDOR),
+            _entry(8, "add_note_to_case", _VENDOR),
         ]
         waited, resolved, found = self._patches()
         with waited, resolved, found:
@@ -341,5 +367,5 @@ class TestVerifyCaseClosureRecorded:
                     self._client(ledger), _CASE, [_FINDER, _OWNER, _VENDOR]
                 )
         message = str(exc.value)
-        assert "logIndex=6 'add_note_to_case'" in message
+        assert "logIndex=8 'add_note_to_case'" in message
         assert f"no 'close_case' entry for {_VENDOR!r}" in message

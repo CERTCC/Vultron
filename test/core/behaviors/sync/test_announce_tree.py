@@ -1328,33 +1328,9 @@ class TestEffectsFailureBlocksPersist:
         assert result.status == Status.FAILURE
         assert datalayer.read(entry.id_) is None
 
-    @pytest.mark.spec("SYNC-12-001")
-    @pytest.mark.spec("SYNC-12-002")
-    def test_apply_close_case_failure_blocks_persist(
-        self, bridge, datalayer, case_actor, case_obj
-    ):
-        """PersistReceivedLogEntry must NOT run when ApplyCloseCaseFromLedger returns FAILURE."""
-        entry = _make_close_case_entry(0, case_obj.genesis_hash)
-        event = _make_event(entry, actor_id=case_actor.id_)
-
-        tree = create_announce_log_entry_tree()
-        apply_node = _find_node_by_name(tree, "ApplyCloseCaseFromLedger")
-        assert apply_node is not None
-        apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
-
-        result = bridge.execute_with_setup(
-            tree=tree,
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
-        )
-
-        assert result.status == Status.FAILURE
-        assert datalayer.read(entry.id_) is None
-
 
 # ---------------------------------------------------------------------------
-# Announce tree applies close_case ledger entry (CloseCaseEffects slot)
+# A close_case ledger entry changes no RM state on a replica (CM-23-001)
 # ---------------------------------------------------------------------------
 
 DEPARTING_ACTOR_ID = "https://example.org/actors/departing"
@@ -1393,16 +1369,23 @@ def _make_case_with_departing_participant(
     return case
 
 
-class TestAnnounceLogEntryAppliesCloseCase:
-    """Participant receiving close_case ledger entry must advance departing actor to RM.CLOSED."""
+class TestAnnounceLogEntryCloseCaseChangesNoRmState:
+    """A close_case entry is stored; the leaver's RM moves arrive as status entries."""
 
-    @pytest.mark.spec("SYNC-12-001")
-    @pytest.mark.spec("SYNC-12-002")
-    def test_participant_advances_departing_actor_to_rm_closed(
+    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CM-23-016")
+    def test_close_case_entry_alone_changes_no_rm_state(
         self, bridge, datalayer, case_actor
     ):
-        """BT advances the departing actor to RM.CLOSED on close_case entry (CM-23-003, CM-23-004)."""
+        """Applying close_case persists the entry and writes no status.
+
+        The CASE_MANAGER commits one status entry per RM step after the
+        close_case entry, and only those move the leaver on a replica; a
+        replica never works out a closure path from its own state (#4091).
+        """
         case_obj = _make_case_with_departing_participant(datalayer)
+        before = datalayer.read(DEPARTING_PARTICIPANT_ID)
+        assert isinstance(before, CaseParticipant)
         entry = _make_close_case_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
@@ -1414,58 +1397,22 @@ class TestAnnounceLogEntryAppliesCloseCase:
         )
 
         assert result.status == Status.SUCCESS
-        updated = datalayer.read(DEPARTING_PARTICIPANT_ID)
-        assert updated is not None
-        rm_states = [
-            ps.rm.state
-            for ps in updated.participant_statuses
-            if hasattr(ps, "rm") and ps.rm is not None
-        ]
-        assert RM.CLOSED in rm_states, (
-            f"Departing actor must reach RM.CLOSED after close_case announce;"
-            f" rm_states={rm_states}"
+        assert datalayer.read(entry.id_) is not None, (
+            "the close_case entry is still persisted (SYNC-12-002)"
         )
-
-    def test_close_case_not_applied_for_other_event_types(
-        self, bridge, datalayer, case_actor
-    ):
-        """CloseCaseEffects Selector short-circuits for unrelated event_types."""
-        # Use the helper's case, not the ``case_obj`` fixture: the helper saves
-        # a fresh case over the same id, and ``genesis_hash`` is derived from
-        # the second-resolution ``published`` stamp, so the fixture's hash is
-        # stale whenever the two constructions straddle a second boundary.
-        case_obj = _make_case_with_departing_participant(datalayer)
-        entry = _make_entry(
-            0, case_obj.genesis_hash
-        )  # event_type="test_event"
-        event = _make_event(entry, actor_id=case_actor.id_)
-
-        result = bridge.execute_with_setup(
-            tree=create_announce_log_entry_tree(),
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
-        )
-
-        assert result.status == Status.SUCCESS
         updated = datalayer.read(DEPARTING_PARTICIPANT_ID)
-        assert updated is not None
-        rm_states = [
-            ps.rm.state
-            for ps in updated.participant_statuses
-            if hasattr(ps, "rm") and ps.rm is not None
-        ]
-        assert RM.CLOSED not in rm_states, (
-            f"Non-close-case entry must NOT advance departing actor to RM.CLOSED;"
-            f" rm_states={rm_states}"
+        assert isinstance(updated, CaseParticipant)
+        assert updated.participant_statuses == before.participant_statuses, (
+            "close_case must write no ParticipantStatus on a replica"
+            f" (CM-23-001); got {updated.participant_statuses}"
         )
 
     @pytest.mark.spec("SYNC-12-003")
     def test_close_case_apply_is_idempotent(self, datalayer):
-        """ApplyCloseCaseFromLedgerNode called twice must not create duplicate RM.CLOSED entries.
+        """The CASE_MANAGER's Leave advance, run twice, writes RM.CLOSED once.
 
-        Calls the apply node directly (bypassing CheckLogEntryAlreadyStored)
-        so we verify the node's own idempotency guard, not the tree-level guard.
+        Calls the advance node directly, so this checks the node's own
+        idempotency guard; the second run reports no step to record.
         """
         from vultron.core.behaviors.case.nodes.leave import (
             AdvanceParticipantToRMClosedNode,
@@ -1473,17 +1420,20 @@ class TestAnnounceLogEntryAppliesCloseCase:
 
         _make_case_with_departing_participant(datalayer)
 
-        def _run_advance() -> None:
+        def _run_advance() -> list[str]:
+            steps: list[str] = []
             node = AdvanceParticipantToRMClosedNode(
                 leaving_actor_id=DEPARTING_ACTOR_ID,
                 case_id=CASE_ID,
+                closure_steps=steps,
             )
             node.datalayer = datalayer
             node.setup()
             node.update()
+            return steps
 
-        _run_advance()
-        _run_advance()
+        assert _run_advance(), "the first run writes the closure"
+        assert _run_advance() == [], "the second run writes no step"
 
         updated = datalayer.read(DEPARTING_PARTICIPANT_ID)
         assert updated is not None

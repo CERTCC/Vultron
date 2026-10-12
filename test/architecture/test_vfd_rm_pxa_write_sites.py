@@ -50,9 +50,9 @@ from test.architecture import _corpus
 #                is what makes the write-node sites safe, because some call
 #                sites reach CreateParticipantStatusNode through *neither*
 #                (develop_fix.py, deploy_fix.py, and the closure writer
-#                participant/rm_closure.py used by close_case_effect.py and
-#                leave/advance.py).  What protects them is that the write node
-#                validates its own writes against the shared evaluator
+#                participant/rm_closure.py used by leave/advance.py).  What
+#                protects them is that the write node validates its own
+#                writes against the shared evaluator
 #                (BTND-10-001, BTND-10-003, ADR-0086); the upstream guard is
 #                defence in depth, not the guarantee.  No closure write
 #                carries a `force_rm_state` override (RMB-14-005, #4044);
