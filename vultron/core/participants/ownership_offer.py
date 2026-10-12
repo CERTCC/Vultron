@@ -33,7 +33,8 @@ The answer names one of two Offers:
 the sender-entitlement guard reads the transferee and the open state from it,
 and the use case reads the new owner from it (never from the sender).
 :func:`open_ownership_offer` returns the case's Offer that is still open, if
-any, so the CASE_MANAGER can refuse a second one (CM-21-014).
+any, so the CASE_MANAGER can refuse a second one (CM-21-014);
+:func:`is_recorded_ownership_offer` tells a redelivered Offer from a new one.
 
 Spec: CM-21-005, CM-21-011, CM-21-013, CM-21-014, CLP-11-001.
 """
@@ -213,8 +214,23 @@ def _recorded(
     )
 
 
+def is_recorded_ownership_offer(
+    dl: CasePersistence, case_id: str, offer_id: str
+) -> bool:
+    """Return ``True`` when *offer_id* is already ledgered as an Offer for *case_id*.
+
+    An Offer the ledger already records is a redelivery, not a new Offer
+    (HP-01-003): it is neither judged against the one-open-Offer rule nor
+    committed or forwarded again.
+    """
+    return any(
+        entry.log_object_id == offer_id
+        for entry in _offer_entries(dl, case_id)
+    )
+
+
 def open_ownership_offer(
-    dl: CasePersistence, case_id: str, other_than: str
+    dl: CasePersistence, case_id: str
 ) -> RecordedOwnershipOffer | None:
     """Return a recorded ownership-transfer Offer for *case_id* still open.
 
@@ -228,12 +244,12 @@ def open_ownership_offer(
 
     Args:
         dl: The CASE_MANAGER's store.
-        case_id: The case a new Offer names.
-        other_than: The new Offer's own id: a redelivery of an Offer already
-            recorded is not an *earlier* Offer for the case.
+        case_id: The case a new Offer names.  The caller has already ruled out
+            a redelivery (:func:`is_recorded_ownership_offer`), so every
+            recorded Offer is an earlier one.
     """
     for entry in reversed(_offer_entries(dl, case_id)):
-        if entry.log_object_id == other_than or _entry_target(entry) is None:
+        if _entry_target(entry) is None:
             continue
         offer = _recorded(dl, case_id, entry)
         if offer.answer_id is None:
@@ -243,6 +259,7 @@ def open_ownership_offer(
 
 __all__ = [
     "RecordedOwnershipOffer",
+    "is_recorded_ownership_offer",
     "open_ownership_offer",
     "recorded_ownership_offer",
 ]

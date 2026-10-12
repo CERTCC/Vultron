@@ -21,7 +21,7 @@ No HTTP framework imports permitted here.
 
 import json
 import logging
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 from urllib.parse import urlparse
 
 import py_trees.behaviour
@@ -516,8 +516,12 @@ class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
 
     Shared by the accept and reject triggers: both read the Offer by id from
     the transferee's own store and emit their answer to the case's
-    CASE_MANAGER (CM-21-006, CM-21-010).  Subclasses build the tree.
+    CASE_MANAGER (CM-21-006, CM-21-010).  Subclasses build the tree and name
+    the verb they log.
     """
+
+    _verb: ClassVar[str]
+    """Past-tense verb for the success log line; each subclass sets it."""
 
     def _prepare(self) -> None:
         request = cast(
@@ -549,6 +553,14 @@ class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
             )
         self._case_id = raw_case_id
 
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' %s case ownership transfer offer '%s'",
+            self._actor_id,
+            self._verb,
+            self._offer_id,
+        )
+
 
 class SvcAcceptCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
     """Accept a case ownership transfer offer (trigger-side path).
@@ -557,18 +569,13 @@ class SvcAcceptCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
     the case's CASE_MANAGER (TRIG-11-002, CM-21-006).
     """
 
+    _verb = "accepted"
+
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return accept_case_ownership_transfer_trigger_bt(
             offer_id=self._offer_id,
             case_id=self._case_id,
             captured=self._captured,
-        )
-
-    def _handle_result(self) -> None:
-        logger.info(
-            "Actor '%s' accepted case ownership transfer offer '%s'",
-            self._actor_id,
-            self._offer_id,
         )
 
 
@@ -580,18 +587,13 @@ class SvcRejectCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
     broadcasts the decline (CM-21-012).
     """
 
+    _verb = "rejected"
+
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return reject_case_ownership_transfer_trigger_bt(
             offer_id=self._offer_id,
             case_id=self._case_id,
             captured=self._captured,
-        )
-
-    def _handle_result(self) -> None:
-        logger.info(
-            "Actor '%s' rejected case ownership transfer offer '%s'",
-            self._actor_id,
-            self._offer_id,
         )
 
 

@@ -30,7 +30,10 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.participants.ownership_offer import open_ownership_offer
+from vultron.core.participants.ownership_offer import (
+    is_recorded_ownership_offer,
+    open_ownership_offer,
+)
 
 
 class NoOpenOwnershipOfferNode(DataLayerConditionWithPorts):
@@ -45,6 +48,13 @@ class NoOpenOwnershipOfferNode(DataLayerConditionWithPorts):
     recorded after it.  Once it is closed, a new Offer is admitted to any
     transferee, including the one that declined.
 
+    A **redelivery** of an Offer the ledger already records is not a new
+    Offer and not a refusal (HP-01-003), but it must change nothing: the
+    commit would add nothing and the forward would re-send an Offer that may
+    since have been answered.  The guard sets :attr:`is_redelivery` and fails,
+    so nothing downstream runs, and the handler reports the run as
+    ``SKIPPED``.
+
     Read-only, so it runs in ``precondition_guards`` behind the CASE_MANAGER
     gate (:func:`case_manager_admits_ownership_offer_guard`): the transferee
     holds the replicated entries too, and the forward it receives must not be
@@ -57,14 +67,27 @@ class NoOpenOwnershipOfferNode(DataLayerConditionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.offer_id = offer_id
+        self.is_redelivery = False
+        """``True`` when the last run found this Offer already ledgered: a
+        benign no-op, not a refusal."""
 
     def update(self) -> Status:
+        self.is_redelivery = False
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        earlier = open_ownership_offer(
-            self.datalayer, self.case_id, other_than=self.offer_id
-        )
+        if is_recorded_ownership_offer(
+            self.datalayer, self.case_id, self.offer_id
+        ):
+            self.is_redelivery = True
+            self.feedback_message = (
+                f"ownership-transfer Offer '{self.offer_id}' is already"
+                f" recorded for case '{self.case_id}' — redelivery, nothing"
+                " to apply (HP-01-003)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        earlier = open_ownership_offer(self.datalayer, self.case_id)
         if earlier is None:
             return Status.SUCCESS
         self.feedback_message = (

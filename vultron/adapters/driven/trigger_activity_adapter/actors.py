@@ -936,9 +936,11 @@ class _ActorsMixin:
             raw = self._offer_from_core_record(raw)
         offer = cast(as_Offer, raw)
         if to is None:
-            # The transferee holds the CASE_MANAGER's forward, whose actor is
-            # the CASE_MANAGER, so this fallback still addresses it and never
-            # the offerer (CM-21-006, CM-21-010).
+            # Last resort, used only when the emit node found no local case
+            # or CASE_MANAGER to address.  For the CASE_MANAGER's forward the
+            # Offer's actor is the CASE_MANAGER (CM-21-006, CM-21-010); for an
+            # Offer rebuilt from a replicated ledger record it is the record's
+            # sender of record, which need not be.
             offer_actor_id = _as_id(getattr(offer, "actor", None))
             if offer_actor_id:
                 to = [offer_actor_id]

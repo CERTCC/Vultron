@@ -28,7 +28,7 @@ validated, ``Create(CaseProposal)`` delivered, CaseActor creates the case) so
 that the transfer workflow can be demonstrated in isolation.
 
 This corresponds to the workflow documented in:
-    docs/howto/activitypub/activities/transfer_ownership.md
+    docs/topics/case_lifecycle/ownership_transfer.md
 
 When run as a script, this module will:
 1. Check if the API server is available
@@ -40,7 +40,7 @@ When run as a script, this module will:
 Routing model (ADR-0053):
 Both the ``Offer(VulnerabilityCase)`` and the response to it are addressed to
 the **CaseActor's** inbox, never to the transferee or the offerer directly
-(CM-21-005, CM-21-006).  The CaseActor records the Offer, commits a
+(CM-21-005, CM-21-006, CM-21-010).  The CaseActor records the Offer, commits a
 ``CaseLedgerEntry``, broadcasts ``Announce(CaseLedgerEntry)`` to every
 participant — which is how actors outside the negotiation, such as the finder,
 learn a transfer is pending — and only then forwards a **new** Offer of its own
@@ -199,7 +199,7 @@ def demo_transfer_ownership_accept(
     5. Verify case.attributed_to is updated to coordinator
 
     This follows the accept branch in
-    docs/howto/activitypub/activities/transfer_ownership.md.
+    docs/topics/case_lifecycle/ownership_transfer.md.
     """
     logger.info("=" * 80)
     logger.info("DEMO: Transfer Ownership — Accept Path")
@@ -227,13 +227,10 @@ def demo_transfer_ownership_accept(
     with demo_gate(
         "Step 3: CaseActor forwarded the Offer to the coordinator (CM-21-005)"
     ):
-        forwarded_offer = await_forwarded_ownership_transfer_offer(
-            client,
-            case=case,
-            transferee=coordinator,
-            case_actor_id=case_actor_id,
+        forwarded_offer_id = await_forwarded_ownership_transfer_offer(
+            client, case=case, transferee=coordinator
         )
-        logger.info("Forwarded offer id: %s", forwarded_offer.id_)
+        logger.info("Forwarded offer id: %s", forwarded_offer_id)
 
         with demo_step("Step 4: Coordinator accepts ownership transfer"):
             # Through the coordinator's own trigger (DEMOMA-05-001,
@@ -243,7 +240,7 @@ def demo_transfer_ownership_accept(
             accept = (
                 ActorSession(client=client, actor=coordinator)
                 .quiet()
-                .accept_case_ownership_transfer(offer_id=forwarded_offer.id_)
+                .accept_case_ownership_transfer(offer_id=forwarded_offer_id)
                 .activity
             )
             logger.info("Coordinator sent accept: %s", logfmt(accept))
@@ -291,7 +288,7 @@ def demo_transfer_ownership_reject(
        case.attributed_to remains with vendor
 
     This follows the reject branch in
-    docs/howto/activitypub/activities/transfer_ownership.md.
+    docs/topics/case_lifecycle/ownership_transfer.md.
     """
     logger.info("=" * 80)
     logger.info("DEMO: Transfer Ownership — Reject Path")
@@ -319,13 +316,10 @@ def demo_transfer_ownership_reject(
     with demo_gate(
         "Step 3: CaseActor forwarded the Offer to the coordinator (CM-21-005)"
     ):
-        forwarded_offer = await_forwarded_ownership_transfer_offer(
-            client,
-            case=case,
-            transferee=coordinator,
-            case_actor_id=case_actor_id,
+        forwarded_offer_id = await_forwarded_ownership_transfer_offer(
+            client, case=case, transferee=coordinator
         )
-        logger.info("Forwarded offer id: %s", forwarded_offer.id_)
+        logger.info("Forwarded offer id: %s", forwarded_offer_id)
 
         with demo_step("Step 4: Coordinator rejects ownership transfer"):
             # Through the coordinator's own trigger (DEMOMA-05-001,
@@ -334,7 +328,7 @@ def demo_transfer_ownership_reject(
             reject_result = (
                 ActorSession(client=client, actor=coordinator)
                 .quiet()
-                .reject_case_ownership_transfer(offer_id=forwarded_offer.id_)
+                .reject_case_ownership_transfer(offer_id=forwarded_offer_id)
             )
             reject = reject_result.activity
             logger.info("Coordinator sent reject: %s", logfmt(reject))

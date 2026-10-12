@@ -58,7 +58,7 @@ def create_accept_ownership_transfer_tree(
     case_id: str,
     offer_id: str | None,
     sender_id: str,
-    accept_id: str,
+    answer_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``AcceptCaseOwnershipTransferReceivedUseCase``.
 
@@ -76,7 +76,7 @@ def create_accept_ownership_transfer_tree(
         sender_id: The Accept's sender.  The sender guard checks it: at the
             CASE_MANAGER it must be the transferee of the open Offer it
             recorded; at a replica it must be the CASE_MANAGER.
-        accept_id: The Accept's own id, so a redelivery is recognised.
+        answer_id: The Accept's own id, so a redelivery is recognised.
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -88,7 +88,7 @@ def create_accept_ownership_transfer_tree(
             case_id=case_id,
             offer_id=offer_id,
             sender_actor_id=sender_id,
-            answer_id=accept_id,
+            answer_id=answer_id,
         ),
         precondition_guards=[],
         # A receiver that does not hold the case is simply not its
@@ -121,7 +121,7 @@ def create_reject_ownership_transfer_tree(
     case_id: str,
     offer_id: str | None,
     sender_id: str,
-    reject_id: str,
+    answer_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``RejectCaseOwnershipTransferReceivedUseCase``.
 
@@ -136,7 +136,7 @@ def create_reject_ownership_transfer_tree(
         offer_id: The Offer the Reject names (the recorded Offer or the
             CASE_MANAGER's forward of it).
         sender_id: The Reject's sender, checked as for the Accept.
-        reject_id: The Reject's own id, so a redelivery is recognised.
+        answer_id: The Reject's own id, so a redelivery is recognised.
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -150,7 +150,7 @@ def create_reject_ownership_transfer_tree(
             case_id=case_id,
             offer_id=offer_id,
             sender_actor_id=sender_id,
-            answer_id=reject_id,
+            answer_id=answer_id,
         ),
         precondition_guards=[],
         # As for the Accept: a receiver not holding the case is not its

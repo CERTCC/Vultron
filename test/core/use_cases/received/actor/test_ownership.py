@@ -942,6 +942,71 @@ def test_new_offer_after_the_first_is_answered_is_admitted(make_payload):
     assert trigger_activity.offer_case_ownership_transfer.call_count == 2
 
 
+def _redeliver_offer(dl, make_payload, offer, trigger_activity):
+    """Deliver the same Offer activity *offer* to the CASE_MANAGER again."""
+    return OfferCaseOwnershipTransferReceivedUseCase(
+        dl,
+        make_payload(offer, receiving_actor_id=_CASE_ACTOR_ID),
+        trigger_activity=trigger_activity,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+
+
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("CM-21-014")
+def test_redelivered_open_offer_is_skipped_and_not_forwarded_again(
+    make_payload,
+):
+    """The open Offer, delivered again, is not an earlier Offer for itself."""
+    dl, deliver, trigger_activity = _ownership_offer_harness(
+        make_payload, "https://example.org/cases/case_ot_offer_again"
+    )
+    first, offer = deliver(
+        _COORDINATOR_ID, "https://example.org/activities/offer_again_1"
+    )
+    entries_after_first = _event_types(dl)
+
+    again = _redeliver_offer(dl, make_payload, offer, trigger_activity)
+
+    assert first is HandlerDisposition.APPLIED
+    assert again.disposition is HandlerDisposition.SKIPPED
+    assert _event_types(dl) == entries_after_first
+    # The forward already went out; a duplicate does not send it twice.
+    trigger_activity.offer_case_ownership_transfer.assert_called_once()
+
+
+@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("CM-21-014")
+def test_redelivered_answered_offer_is_skipped_while_a_newer_one_is_open(
+    make_payload,
+):
+    """A late copy of an answered Offer is a duplicate, not a second Offer."""
+    dl, deliver, trigger_activity = _ownership_offer_harness(
+        make_payload, "https://example.org/cases/case_ot_offer_late_copy"
+    )
+    _, first = deliver(
+        _COORDINATOR_ID, "https://example.org/activities/offer_late_copy_1"
+    )
+    assert (
+        _accept(dl, make_payload, first).disposition
+        is HandlerDisposition.APPLIED
+    )
+    newer, _ = deliver(
+        "https://example.org/users/vendor2",
+        "https://example.org/activities/offer_late_copy_2",
+        offerer=_COORDINATOR_ID,
+    )
+    assert newer is HandlerDisposition.APPLIED
+    entries_before = _event_types(dl)
+
+    late = _redeliver_offer(dl, make_payload, first, trigger_activity)
+
+    assert late.disposition is HandlerDisposition.SKIPPED
+    assert _event_types(dl) == entries_before
+    assert trigger_activity.offer_case_ownership_transfer.call_count == 2
+
+
 @pytest.mark.spec("CM-21-016")
 @pytest.mark.xfail(
     strict=True,

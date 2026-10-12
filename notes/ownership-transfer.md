@@ -15,6 +15,7 @@ related_specs:
   - specs/triggerable-behaviors.yaml
   - specs/handler-protocol.yaml
   - specs/participant-case-replica.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
@@ -509,6 +510,10 @@ CASE_MANAGER inbox receives Reject
   (`case_manager_admits_ownership_offer_guard`). The gate is load-bearing: the
   transferee runs the same Offer tree on the forward it receives, and its
   replica already holds the ledgered Offer that forward stands for, still open.
+  An Offer the ledger already records is a redelivery, not a second Offer: the
+  guard fails with `is_redelivery` set and `ownership_offer_verdict` reports
+  `SKIPPED` (HP-01-003), so it is neither refused against a newer open Offer
+  nor committed or forwarded again.
 
 ## Withdrawal and Deadline (CM-21-015 – CM-21-017)
 
