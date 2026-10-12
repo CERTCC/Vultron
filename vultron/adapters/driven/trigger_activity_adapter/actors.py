@@ -62,13 +62,16 @@ from vultron.wire.as2.factories.case import (
     accept_case_participant_role_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
+    reject_case_ownership_transfer_activity,
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
     validate_held_case_invite,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
     as_Invite,
     as_Offer,
+    as_Reject,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -876,16 +879,54 @@ class _ActorsMixin:
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer(VulnerabilityCase))`` ownership transfer.
 
+        See :meth:`_ownership_answer` (TRIG-11-002).
+        """
+        return self._ownership_answer(
+            accept_case_ownership_transfer_activity,
+            "accept_case_ownership_transfer",
+            offer_id=offer_id,
+            actor=actor,
+            to=to,
+        )
+
+    def reject_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Offer(VulnerabilityCase))`` ownership transfer.
+
+        See :meth:`_ownership_answer` (TRIG-11-005).
+        """
+        return self._ownership_answer(
+            reject_case_ownership_transfer_activity,
+            "reject_case_ownership_transfer",
+            offer_id=offer_id,
+            actor=actor,
+            to=to,
+        )
+
+    def _ownership_answer(
+        self,
+        factory: Callable[..., as_Accept | as_Reject],
+        label: str,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None,
+    ) -> tuple[str, str]:
+        """Build, persist and seal the transferee's answer to an Offer.
+
         Reads the stored offer from the DataLayer, derives the ``to:`` field
-        from the offer's ``actor`` when not supplied, and persists the Accept
-        (TRIG-11-002).
+        from the offer's ``actor`` when not supplied, and persists the answer
+        that *factory* builds from it.
 
         On a replica whose only source for the Offer was the replicated
         ``offer_case_ownership_transfer`` ledger entry, what is stored at
         ``offer_id`` is a core ``VultronOwnershipTransferOfferRecord`` rather
         than the wire activity — the SYNC path cannot construct wire objects
         (ARCH-03-001).  Rebuild the wire Offer from that record here, where wire
-        imports are allowed, so both delivery paths converge on the same Accept
+        imports are allowed, so both delivery paths converge on the same answer
         (#2225, ADR-0035 DL-06-002).
         """
         raw = self._dl.read(offer_id)
@@ -895,18 +936,21 @@ class _ActorsMixin:
             raw = self._offer_from_core_record(raw)
         offer = cast(as_Offer, raw)
         if to is None:
+            # Last resort, used only when the emit node found no local case
+            # or CASE_MANAGER to address.  For the CASE_MANAGER's forward the
+            # Offer's actor is the CASE_MANAGER (CM-21-006, CM-21-010); for an
+            # Offer rebuilt from a replicated ledger record it is the record's
+            # sender of record, which need not be.
             offer_actor_id = _as_id(getattr(offer, "actor", None))
             if offer_actor_id:
                 to = [offer_actor_id]
-        activity = accept_case_ownership_transfer_activity(
-            offer=offer, actor=actor, to=to
-        )
+        activity = factory(offer=offer, actor=actor, to=to)
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:
             logger.warning(
-                "accept_case_ownership_transfer: activity '%s' already exists"
-                " — skipping",
+                "%s: activity '%s' already exists — skipping",
+                label,
                 activity.id_,
             )
         return _seal(self._dl, activity)

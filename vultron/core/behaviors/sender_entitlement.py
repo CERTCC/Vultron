@@ -72,7 +72,7 @@ Nodes
 - ``SenderIsOwnershipTransfereeNode`` — guards an answer to an
   ownership-transfer Offer: at the CASE_MANAGER the sender must be the
   transferee of the open Offer it recorded; at any other replica it must be
-  the CASE_MANAGER (``NAMED_ACTOR`` kind; CM-21-011, PCR-03-001)
+  the CASE_MANAGER (``NAMED_ACTOR`` kind; CM-21-011, CM-21-013, PCR-03-001)
 - ``SenderIsExecutingActorNode`` — guards that the sender equals the executing
   actor; merged from ``CheckSenderIsExecutingActorNode``
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;

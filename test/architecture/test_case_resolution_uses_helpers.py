@@ -181,7 +181,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ),
         (
             f"{_NODES}/ownership_transfer.py",
-            "EmitAcceptCaseOwnershipTransferNode._call_factory",
+            "_EmitOwnershipAnswerNode._call_factory",
         ),
         # R3 — the genesis ``create_case`` entry is committed alongside case
         # creation, so the case is not readable yet on that one commit. Absence
@@ -205,14 +205,10 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             f"{_NODES}/suggest_actor/conditions.py",
             "ActorAlreadyParticipantNode.update",
         ),
-        # R2 — defer-to-downstream / optional lookup / best-effort index write.
+        # R2 — defer-to-downstream / optional lookup.
         (
             f"{_NODES}/participant/trigger_validation.py",
             "ValidateTriggerTransitionsNode.update",
-        ),
-        (
-            f"{_NODES}/suggest_actor/emit.py",
-            "RecordRecommendationRecommenderNode.update",
         ),
         # LEN — lenient guards / diagnostics; never fail the tree on absence.
         (

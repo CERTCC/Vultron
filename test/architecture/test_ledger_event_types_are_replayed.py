@@ -159,12 +159,23 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " #4091)"
     ),
     MS.INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
-    MS.OFFER_ACTOR_TO_CASE.value: _RECOMMENDATION,
+    MS.OFFER_ACTOR_TO_CASE.value: (
+        "the receipt of a suggestion (CM-16-002); the one thing the"
+        " CASE_MANAGER keeps from it, who recommended whom, is its own"
+        " ActorRecommendationRecord, case bookkeeping outside the case file"
+        " that no replica holds (CLP-07-014), and the member it may lead to"
+        " arrives with accept_invite_actor_to_case"
+    ),
     MS.OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     MS.ACCEPT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     MS.REJECT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     "accept_actor_recommendation": _RECOMMENDATION,
     "reject_actor_recommendation": _RECOMMENDATION,
+    MS.REJECT_CASE_OWNERSHIP_TRANSFER.value: (
+        "the transferee's decline closes the ownership-transfer Offer and"
+        " changes no owner or role; the open state is read from the ledger"
+        " itself, not from replica state (CM-21-012, CM-21-014)"
+    ),
     MS.OFFER_CASE_PARTICIPANT_ROLE.value: (
         "the CASE_MANAGER records the role-delegation offer as an assertion"
         " (ADR-0039, CLP-07-001), but an offer is a proposal, not the grant;"

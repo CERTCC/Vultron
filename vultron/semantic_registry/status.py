@@ -73,6 +73,7 @@ ENTRIES: list[SemanticEntry] = [
                     " state of the case"
                 ),
                 anchor="create-case-status",
+                heading="Create case status",
                 description=(
                     "Mints a case status object carrying `em_state` and "
                     "`pxa_state`. It precedes the Add."
@@ -161,6 +162,7 @@ ENTRIES: list[SemanticEntry] = [
                     "state in the case"
                 ),
                 anchor="create-participant-status",
+                heading="Create participant status",
                 description=(
                     "Mints a participant status object carrying `rm_state`, "
                     "`vf_state` and `d_state`. It precedes the Add."

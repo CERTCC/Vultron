@@ -138,7 +138,7 @@ Display-layer code maps `MessageSemantics` → phrase via
 `SemanticEntry.phrase` is a construction-time `TypeError` (SE-07-003). Only
 `{actor}`, `{object}` and `{target}` are ever filled. See
 [`notes/activitystreams-semantics.md`](../../notes/activitystreams-semantics.md)
-§ "Event-Phrase Lookups". (CONCERN-1675)
+§ "Event Phrases Come From `lookup_entry()`, Never a Local Dict". (CONCERN-1675)
 
 ### Docker Compose Service Names Are Not Actor Names
 

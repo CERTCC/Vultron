@@ -265,7 +265,7 @@ async def outbox_handler(
     logger.debug("Processing outbox for actor %s", actor_id)
     # Key the slot on the *store's* identity, not the id the caller typed: a
     # trigger route forwards the URL segment (a short id) while the inbox path
-    # and `_emitting_outbox` pass the canonical URI, and both name one outbox.
+    # and `emitting_outbox` pass the canonical URI, and both name one outbox.
     slot_key = getattr(actor, "id_", None) or actor_id
     slot = _drain_slot(slot_key)
     if slot.busy:
