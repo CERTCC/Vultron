@@ -21,7 +21,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.NoNewValidationInfo`
 - **Call-out point shape**: ProtocolInternal — reads a change-detection flag written by the upstream `NewValidationInfoSentinel` (see the next entry).
   The external seam is at that upstream writer, not at this behavior tree (BT) condition check.
-- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — ProtocolInternal condition check at the top of `ValidationOrShortcut` Selector; not wired yet: the tree has `CheckRMStateValid` there, and the change-detection variant belongs beside it once the retry loop exists
+- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — ProtocolInternal condition check at the top of the root `ValidateReportBT` Selector; not wired yet: the tree has `CheckRMStateValid` there, and the change-detection variant belongs beside it once the retry loop exists
 
 ## `NewValidationInfoSentinel` *(upstream Sentinel stub)*
 
@@ -36,7 +36,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Automation potential**: **High** — event subscription on the case record or metadata timestamp comparison; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.call_out_point.NewValidationInfoSentinel`
 - **Call-out point shape**: Sentinel — pending reclassification: Sentinel is no longer a call-out shape (ADR-0097, BT-18-013), and #3424 tracks reclassifying this entry.
-- **Factory-fn placement**: Not placed inside the BT tree; writes the change-detection flag read by `NoNewValidationInfo` at the top of the `ValidationOrShortcut` Selector in `vultron.core.behaviors.report.validate_tree.create_validate_report_tree`
+- **Factory-fn placement**: Not placed inside the BT tree; writes the change-detection flag read by `NoNewValidationInfo` at the top of the root `ValidateReportBT` Selector in `vultron.core.behaviors.report.validate_tree.create_validate_report_tree`
 
 ## `EvaluateReportCredibility`
 
@@ -64,7 +64,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Automation potential**: **Medium** — scope checks against well-defined Common Vulnerabilities and Exposures (CVE) Numbering Authority (CNA) or charter rules are automatable; organizational-context validity judgment often requires human review.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.EvaluateReportValidity`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Evaluator condition guard in `ValidationFlow` Sequence (third child, before `ValidationActions`); currently a stub `EvaluateReportValidity` node that always returns SUCCESS
+- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Evaluator condition guard in `ValidationFlow` Sequence (third child, before `RequireCaseForReport`); currently a stub `EvaluateReportValidity` node that always returns SUCCESS
 
 ## `EnoughValidationInfo`
 

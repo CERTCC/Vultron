@@ -72,10 +72,10 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **btz type**: `AlwaysSucceed` (p=1.00)
 - **Source file**: `report_management/fuzzer/prioritize_report.py`
 - **Parent tree**: `RMPrioritizeBt`
-- **Semantic function**: Action — execute site-specific tasks when a report is deferred (e.g., notify stakeholders, schedule a follow-up, update case status)
+- **Semantic function**: Action — execute site-specific tasks when a report is deferred (e.g., notify Participants, schedule a follow-up, update case status)
 - **Input dependency**: Integration hook; notification APIs, task scheduling services, case management system updates
 - **Notes**: Always succeeds in simulation; must be idempotent in production
-- **Automation potential**: **High** — stakeholder notifications, follow-up scheduling, and state updates are all automatable via integration APIs.
+- **Automation potential**: **High** — Participant notifications, follow-up scheduling, and state updates are all automatable via integration APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.OnDefer`
 - **Call-out point shape**: Actuator — fires integration hooks on report deferral; invokes notification APIs, task-scheduling services, and case-management state writes.
   There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
@@ -87,10 +87,10 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **btz type**: `AlwaysSucceed` (p=1.00)
 - **Source file**: `report_management/fuzzer/prioritize_report.py`
 - **Parent tree**: `RMPrioritizeBt`
-- **Semantic function**: Action — execute site-specific tasks when a report is accepted (e.g., notify stakeholders, initialize case workflow, assign to a team)
+- **Semantic function**: Action — execute site-specific tasks when a report is accepted (e.g., notify Participants, initialize case workflow, assign to a team)
 - **Input dependency**: Integration hook; notification APIs, workflow initialization, case management system updates
 - **Notes**: Always succeeds in simulation; must be idempotent in production
-- **Automation potential**: **High** — stakeholder notifications, workflow initialization, and state updates are all automatable via integration APIs.
+- **Automation potential**: **High** — Participant notifications, workflow initialization, and state updates are all automatable via integration APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.OnAccept`
 - **Call-out point shape**: Actuator — fires integration hooks on report acceptance; invokes notification APIs, workflow-initialization services, and case-management state writes.
   There is no content artifact placed on the blackboard; the side effects in external systems are the seam.

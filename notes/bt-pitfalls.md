@@ -142,8 +142,9 @@ first mutation (BT-19-001). Worked example: `vultron/core/behaviors/note/AGENTS.
 `execute_with_setup`'s `managed_keys`. A node that writes an output key on its
 active path MUST clear it on every no-op path (`None` for a scalar, the empty
 collection for a collection port), or the next execution reads a stale value
-(BT-17-003). Example: `create_case_addressees`, written by
-`CollectCaseAddresseesNode`.
+(BT-17-003). Example: `CapturePreCommitBackfillTargetNode`
+(`case/nodes/invite_ledger_backfill.py`) writes `pre_commit_backfill_target` as
+`None` on its no-op path.
 
 - A key the *caller* passes as a `context_data` kwarg is managed and restored; a
   key a node writes mid-tree is not, unless listed in `managed_keys` (next

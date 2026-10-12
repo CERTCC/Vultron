@@ -172,6 +172,6 @@ These nodes belong to the `Deployment` fallback tree (`vultron/bt/report_managem
 ## Fix and mitigation trees
 
 `create_deploy_tree()` in `vultron/core/behaviors/report/deploy_tree.py` composes a `DeployOrMitigateBT` Fallback: the fix arm (`create_deploy_fix_tree`) is preferred and the mitigation arm (`create_deploy_mitigation_tree`) is the fallback (BT-20-005).
-The fix tree records the CS `d → D` transition and emits a `CD` message; the mitigation tree does neither, because mitigation has no CS state bit and no protocol message.
+The fix tree records the case state (CS) `d → D` transition and emits a `CD` message; the mitigation tree does neither, because mitigation has no CS state bit and no protocol message.
 That is why `MitigationDeployed` and `MitigationAvailable` are Retriever call-outs rather than CS-state condition nodes.
 The two trees share the `DeploymentMonitoringBundle` seams (`PrioritizeDeployment`, `MonitoringRequirement`, `MonitorDeployment`).

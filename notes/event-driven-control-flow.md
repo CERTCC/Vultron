@@ -20,6 +20,7 @@ related_notes:
   - notes/demo-scenario-authoring.md
   - notes/ownership-transfer.md
   - notes/use-case-behavior-trees.md
+  - notes/demo-future-ideas.md
 relevant_packages:
   - vultron/core
   - vultron/demo

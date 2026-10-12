@@ -16,6 +16,8 @@ related_notes:
   - notes/bt-integration.md
   - notes/bt-canonical-reference.md
   - notes/use-case-behavior-trees.md
+  - notes/bt-design-patterns.md
+  - notes/event-driven-control-flow.md
 relevant_packages:
   - py_trees
   - vultron/bt

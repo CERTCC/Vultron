@@ -31,6 +31,11 @@ related_notes:
   - notes/inbox-orchestration.md
   - notes/participant-embargo-consent.md
   - notes/case-proposal.md
+  - notes/bt-design-patterns.md
+  - notes/coordination-agents.md
+  - notes/event-driven-control-flow.md
+  - notes/received-status-authorization.md
+  - notes/triggerable-behaviors.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -69,9 +74,10 @@ modify it or reuse it in prototype handlers). `vultron/core/behaviors/` uses
   CASE_MANAGER role is held by one actor per container with the stable identity
   `{case_actor_service_url}/actors/case-actor`. Never compute a per-case
   identity such as `.../actors/case-actor-{slug}`: nobody hosts it, so delivery
-  404s. `PublishCaseActorIdentityNode` publishes the configured identity;
-  `EnsureCaseActorHostedNode` provisions the record locally and returns
-  `SUCCESS` when the actor is hosted elsewhere (`case/nodes/case_setup.py`).
+  404s. `case_actor_identity()` (`case/case_actor_identity.py`) derives the
+  configured identity; `EnsureCaseActorHostedNode` provisions the record locally
+  and returns `SUCCESS` when the actor is hosted elsewhere
+  (`case/nodes/case_setup.py`).
 - **CLI invocation** of individual BTs is supported for testing and agents
   (BT-08).
 
@@ -366,6 +372,7 @@ CASE_MANAGER creates the case and its participants from the report receiver's
 - `notes/bt-composability.md` — composing trees from subtrees
 - `notes/bt-pitfalls.md` — per-pitfall notes on blackboard semantics,
   idempotency, role guards
-- `notes/use-case-behavior-trees.md` — use-case/BT layering
+- `notes/use-case-behavior-trees.md` — tree-is-the-documentation and no
+  post-tree cascades
 - `notes/protocol-event-cascades.md` — cascade gaps and BT subtree fixes
 - `notes/vultron-bt.txt` — full canonical CVD protocol BT dump (read-only)

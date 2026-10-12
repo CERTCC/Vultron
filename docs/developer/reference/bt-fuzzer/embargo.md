@@ -208,7 +208,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **btz type**: `AlwaysSucceed` (p=1.00)
 - **Source file**: `embargo_management/fuzzer.py`
 - **Parent tree**: `_EvaluateAndAcceptProposedEmbargo`
-- **Semantic function**: Action — execute site-specific tasks triggered when an embargo proposal is accepted (e.g., notify stakeholders, record agreement, start embargo timer)
+- **Semantic function**: Action — execute site-specific tasks triggered when an embargo proposal is accepted (e.g., notify Participants, record agreement, start embargo timer)
 - **Input dependency**: Integration hook; may invoke notification APIs, calendar/timer services, case management system updates
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — notification dispatch, timer initialization, and state-update actions are all integration-automatable via APIs.
@@ -223,7 +223,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **btz type**: `AlwaysSucceed` (p=1.00)
 - **Source file**: `embargo_management/fuzzer.py`
 - **Parent tree**: `_RejectProposedEmbargo` (within `_ChooseEmProposedResponse`)
-- **Semantic function**: Action — execute site-specific tasks triggered when an embargo proposal is rejected (e.g., notify stakeholders, log rejection rationale)
+- **Semantic function**: Action — execute site-specific tasks triggered when an embargo proposal is rejected (e.g., notify Participants, log rejection rationale)
 - **Input dependency**: Integration hook; notification APIs and case management updates
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — notification dispatch and logging actions are fully automatable via APIs.

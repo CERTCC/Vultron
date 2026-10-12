@@ -666,4 +666,4 @@ changes. The inbound adoption path was refactored onto `EmitCaseStatusUpdateNode
 - Source Concern: CONCERN-1667
 - Source Idea: IDEA-1836
 - Superseded approach: `docs/developer/reference/bt-fuzzer/rm-threat.md`
-  (sentinel integration context)
+  (event-driven threat monitoring, ADR-0046)

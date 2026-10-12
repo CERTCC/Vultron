@@ -84,8 +84,7 @@ The three conditions of interest are taken straight from the [embargo exit crite
 In the event that one or more of these events is detected, the [Terminate Embargo Behavior Tree](em_terminate_bt.md) is triggered.
 
 There are many other good reasons to monitor and maintain awareness of cybersecurity threats.
-The behavior shown here is intended as a minimal set of things that Coordinated Vulnerability Disclosure (CVD) Participants should watch out for in the
-course of performing their CVD practice.
+The behavior shown here is intended as a minimal set of things that Coordinated Vulnerability Disclosure (CVD) Participants should watch out for in the course of performing their CVD practice.
 
 See also: [Terminate Embargo Behavior Tree](em_terminate_bt.md)
 

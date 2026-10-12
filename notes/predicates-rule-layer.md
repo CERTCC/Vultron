@@ -9,11 +9,10 @@ description: >
 related_specs:
   - CSB-15-001
   - CSB-15-002
-  - CM-25-005
-  - EMB-01-002
-  - EMB-02-002
+  - RSH-05-020
 related_notes:
   - notes/architecture-hexagonal.md
+  - notes/domain-validation.md
 relevant_packages:
   - vultron/core/predicates
 ---

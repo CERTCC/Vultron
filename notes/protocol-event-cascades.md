@@ -16,6 +16,8 @@ related_notes:
   - notes/bt-integration.md
   - notes/event-driven-control-flow.md
   - notes/case-joining.md
+  - notes/case-state-model.md
+  - notes/triggerable-behaviors.md
 relevant_packages:
   - vultron/core/use_cases
   - vultron/core/behaviors

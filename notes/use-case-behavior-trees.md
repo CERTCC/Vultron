@@ -10,6 +10,7 @@ related_specs:
   - specs/bt-composability.yaml
   - specs/behavior-tree-integration.yaml
   - specs/use-case-organization.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-composability.md

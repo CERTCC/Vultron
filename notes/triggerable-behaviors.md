@@ -7,6 +7,7 @@ description: "Rules for designing triggerable behaviors: classifying BT nodes in
 related_specs:
   - specs/triggerable-behaviors.yaml
   - specs/behavior-tree-integration.yaml
+  - specs/datalayer.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/do-work-behaviors.md

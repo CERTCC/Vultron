@@ -31,7 +31,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **btz type**: `AlwaysSucceed` (p=1.00)
 - **Source file**: `report_management/fuzzer/close_report.py`
 - **Parent tree**: `RMCloseBt`
-- **Semantic function**: Action — execute any site-specific tasks that must be completed before a report can be closed (e.g., quality assurance review, final stakeholder notification, archiving)
+- **Semantic function**: Action — execute any site-specific tasks that must be completed before a report can be closed (e.g., quality assurance review, final Participant notification, archiving)
 - **Input dependency**: Integration hook; quality assurance (QA) pipeline, archiving system, or final notification application programming interface (API)
 - **Notes**: Always succeeds in simulation; production may involve multi-step pre-close workflows
 - **Automation potential**: **Medium** — archiving and standard notification steps can be automated; QA review and final approvals typically require human involvement.

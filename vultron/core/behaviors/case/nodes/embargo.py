@@ -27,7 +27,7 @@ The composite subtree assembling these leaf nodes is defined in the sibling
 - ``InitializeDefaultEmbargoNode``
 
 Per specs/case-management.yaml CM-02, OX-03-001 and
-notes/protocol-event-cascades.md D5-6-EMBARGORCP.
+notes/protocol-event-cascades.md § "Cascades MUST Be BT Subtrees".
 """
 
 import logging

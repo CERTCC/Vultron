@@ -50,8 +50,8 @@ Before implementing the outbound path (domain event → AS2 activity), consider:
   history model
 - `notes/activitystreams-semantics.md` — `case_activity` type limitation,
   Accept/Reject `object_` field patterns
-- `notes/use-case-behavior-trees.md` — use case/BT layering and mapping from
-  protocol activities to use cases
+- `notes/use-case-behavior-trees.md` — tree-is-the-documentation and no
+  post-tree cascades
 - `AGENTS.md` — pitfalls for `case_activity`, `active_embargo`,
   and `case_status` (singular) field
 - `docs/adr/_adr-template.md` — template for future ADR on this separation

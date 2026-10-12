@@ -12,6 +12,7 @@ related_notes:
   - notes/bt-composability.md
   - notes/bt-integration.md
   - notes/bt-pitfalls.md
+  - notes/bt-canonical-reference.md
 relevant_packages:
   - py_trees
   - vultron/bt
