@@ -211,7 +211,7 @@ def test_the_assembled_table_indexes_cleanly() -> None:
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="TRIG-11-005: no reject-case-ownership-transfer trigger yet. #3748.",
+    reason="TRIG-11-005: no reject-case-ownership-transfer trigger yet. #4475.",
 )
 def test_reject_case_ownership_transfer_trigger_is_registered() -> None:
     assert "reject-case-ownership-transfer" in {row.verb for row in entries()}

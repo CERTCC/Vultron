@@ -238,7 +238,7 @@ def test_ownership_accept_from_non_transferee_is_refused(
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="CM-21-013: ownership Reject from a non-transferee is not refused. #3748.",
+    reason="CM-21-013: ownership Reject from a non-transferee is not refused. #4475.",
 )
 @pytest.mark.spec("CM-21-013")
 @pytest.mark.spec("HP-01-006")

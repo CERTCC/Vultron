@@ -887,7 +887,7 @@ class TestOwnershipOfferNamingNoCase:
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="CM-21-014: a second Offer is forwarded while the first is unanswered. #3748.",
+    reason="CM-21-014: a second Offer is forwarded while the first is unanswered. #4475.",
 )
 def test_second_offer_while_first_is_unanswered_is_refused(make_payload):
     """Two pending Offers would let two transferees accept the same case."""

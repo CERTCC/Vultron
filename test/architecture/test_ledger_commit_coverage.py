@@ -53,7 +53,7 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
 @pytest.mark.spec("CLP-02-013")
 @pytest.mark.xfail(
     strict=True,
-    reason="CLP-09-003: routed use cases reach no commit and are not yet classified. #3748.",
+    reason="CLP-09-003: routed use cases reach no commit and are not yet classified. #4476.",
 )
 def test_every_routed_use_case_reaches_a_commit_or_is_exempt():
     committed = received_commit_semantics()
