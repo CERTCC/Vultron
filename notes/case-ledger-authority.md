@@ -8,6 +8,8 @@ related_specs:
   - specs/case-management.yaml
   - specs/case-proposal.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/sync-behavior-trees.yaml
+  - specs/embargo-policy.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/case-joining.md
@@ -22,6 +24,7 @@ related_notes:
   - notes/ownership-transfer.md
   - notes/sync-ledger-replication.md
   - notes/wire-artifact-immutability.md
+  - notes/outbox-delivery-reliability.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/core/models
@@ -427,6 +430,36 @@ attributed to them in the `close_case` entry (CLP-07-003). A replica applies a
 status entry through the ordinary participant-status effect, which can still
 refuse a step with a WARNING (its monotonic RM ratchet, or a composite-state
 violation, RSH-05-021). Such a replica writes nothing of its own in its place.
+
+### Proposed: A Sent Message Is Committed After Its Outbox Write (ADR-0119)
+
+The rule in force is the one the governing specs state: SYNC-09-002, SBT-04-004
+and EP-09-002 order a ledger commit before the outbox write, and new code follows
+them. ADR-0119 proposes the reverse order; whether it is accepted is its `status`,
+and the work to adopt it is Epic #4158. Its rule, stated in full:
+
+- Every ledger entry records an act that has already happened.
+- A send is done when the activity is in the sending node's own outbox. The node
+  is then committed to sending it, and getting it to the peer is the outbox's
+  job, with its own retries. So the entry for a sent message is committed
+  *after* the outbox write.
+- A received message is recorded after intake, as now: intake, guards, commit,
+  effects (CLP-10-006) already records an act that has happened.
+- An effect that sends a message because of a received one is a send like any
+  other, recorded after its own outbox write.
+- `Announce(CaseLedgerEntry)` follows its commit. It is not an act the ledger
+  records; it is the record itself, replicated to the participants.
+- Commit-first prevented duplicate sends. Under this rule, a retry after a send
+  whose commit failed must find the activity already in its outbox, by activity
+  id, and must not send it again.
+- A crash between the outbox write and the commit leaves a sent activity with no
+  entry until the retry records it. That is accurate: the act happened and its
+  record is pending.
+
+Adopting it means rewriting the three specs above, OX-14-002's verification
+(the outbox write, and so the first delivery attempt, can then precede the
+commit) and ADR-0066's emit-after-commit invariant for sent messages. Until the
+specs change, this section is design direction, not a constraint.
 
 ### Commit-Boundary Enforcement
 
