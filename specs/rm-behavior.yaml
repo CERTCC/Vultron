@@ -868,6 +868,79 @@ groups:
       spec_id: MSM-01-008
       note: 'RK shorthand wire-type mapping'
 
+  - id: RMB-08-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      RK acknowledging a report submission MUST be sent by an actor the
+      `Offer(VulnerabilityReport)` was addressed to, to the reporter (the
+      Offer's actor), and only before a case exists for the report. RK MUST NOT
+      be sent to the CASE_MANAGER, and a receiver MUST NOT forward an RK it
+      receives.
+    rationale: >-
+      Only the reporter holds the Offer, so only the reporter can check who
+      may acknowledge it (RMB-08-004). Once a case exists the report is no
+      longer acknowledged: the case's own messages, routed through the
+      CASE_MANAGER (PCR-08-001), say what happened to it. The CASE_MANAGER
+      holds no record of the Offer's addressee, so it could not check an RK
+      sent to it. Decided by the maintainer on #4325.
+    verification: >-
+      Tests marked `RMB-08-003` confirm that the ack-report trigger addresses
+      RK to the reporter alone and is refused once a case exists, and that the
+      received AckReport handler forwards nothing and writes no ledger entry.
+    testable: true
+    steps:
+    - order: 1
+      actor: receiver of the report
+      action: Emit RK addressed to the Offer's actor, before any case exists
+      expected: RK queued for the reporter only
+    - order: 2
+      actor: any receiver of RK
+      action: Record the RK at intake
+      expected: No RK forwarded, no ledger entry written
+    postconditions:
+    - description: The reporter holds the RK; the CASE_MANAGER received none
+    relationships:
+    - rel_type: refines
+      spec_id: VP-03-009
+      note: RK acknowledging RS
+    - rel_type: refines
+      spec_id: RMB-01-001
+      note: who sends the RK queued on receipt of RS, and to whom
+    stories:
+    - story_2022_016
+    - story_2022_012
+  - id: RMB-08-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver of RK MUST accept it only from an actor its own record of the
+      acknowledged `Offer(VulnerabilityReport)` names as an addressee, and MUST
+      refuse it (HP-01-006) when the sender is not one, or when it holds no
+      record of that Offer, writing nothing past intake and sending nothing.
+    rationale: >-
+      The reporter sent the Offer, so its record of the Offer's `to` is the
+      only trustworthy statement of who received it; the copy embedded in the
+      RK was written by the sender. Decided by the maintainer on #4325.
+    verification: >-
+      Tests marked `RMB-08-004` drive the received AckReport handler with the
+      Offer's addressee, which is admitted, and with another actor, which is
+      `REFUSED` with nothing written past intake and an empty outbox.
+    testable: true
+    steps:
+    - order: 1
+      actor: reporter
+      action: Check the RK sender against its recorded Offer's addressees
+      expected: Admitted when the sender is an addressee; REFUSED otherwise
+    postconditions:
+    - description: A refused RK leaves only its intake record
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+      note: the RK sender clause
+    stories:
+    - story_2022_016
+
 - id: RMB-09
   title: Enter RM Received
   trigger:

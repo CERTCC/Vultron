@@ -204,8 +204,9 @@ groups:
     statement: >-
       Every activity the CASE_MANAGER admits at the case layer is a case event and
       MUST be ledgered (CLP-02-001), except the following, which are not case events:
-      activities processed before a case exists (report submission, case proposal
-      intake); a replica's receipt of `Announce(CaseLedgerEntry)`, which applies an
+      activities processed before a case exists (report submission and its
+      acknowledgement, RK, which is never sent once a case exists (RMB-08-003), and
+      case proposal intake); a replica's receipt of `Announce(CaseLedgerEntry)`, which applies an
       entry rather than asserting one; activities about the ledger itself, namely the
       CASE_MANAGER's refusal notice (CLP-05-001) and a replica's
       `Reject(CaseLedgerEntry)` asking for redelivery; the activities CLP-10-013
@@ -881,11 +882,13 @@ groups:
       relay target; only the case-actor invocation may commit. This is the same shape
       of bug that produced the original hash-chain fork in issue #923, and it recurs
       at every new dual-invocation call site unless authorization is re-evaluated
-      per invocation rather than per use-case class.'
-    verification: Integration tests in `test/demo/test_acknowledge_demo.py` confirm
-      that when the same use-case class is invoked for both the CASE_MANAGER and a relay
-      target for the same activity, only the CASE_MANAGER invocation produces a canonical
-      ledger entry.
+      per invocation rather than per use-case class. RK itself no longer reaches the
+      CASE_MANAGER or the ledger (RMB-08-003); the rule still governs every activity
+      the CASE_MANAGER and a participant both receive.'
+    verification: Unit tests such as `test/core/use_cases/received/test_note_routing_guard.py`
+      run the same use-case class with the CASE_MANAGER and with another participant
+      as the receiver of one activity and confirm that only the CASE_MANAGER invocation
+      produces a canonical ledger entry.
     stories:
     - story_2022_045
     - story_2022_046

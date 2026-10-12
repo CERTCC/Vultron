@@ -59,6 +59,7 @@ Existing coverage anchors:
 | `SvcAddReportToCaseUseCase` | `test/core/use_cases/triggers/case/test_add_report.py` |
 | `SvcAddOnBehalfStatusUseCase` | `test/core/use_cases/triggers/case/test_add_on_behalf_status.py` |
 | `SvcSyncLogEntryUseCase` | `test/core/use_cases/triggers/test_sync_log_entry.py` |
+| `SvcAckReportUseCase` | `test/core/use_cases/triggers/test_ack_report.py` |
 
 The trigger registry (`vultron/trigger_registry/`, ADR-0110) makes the
 "every use case has a row" half of this mechanical:

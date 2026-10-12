@@ -45,6 +45,9 @@ class NotACaseEvent(StrEnum):
 EXEMPT: dict[str, NotACaseEvent | str] = {
     "create_report": NotACaseEvent.PRE_CASE,
     "submit_report": NotACaseEvent.PRE_CASE,
+    # RK is sent only before a case exists, never to the CASE_MANAGER
+    # (RMB-08-003).
+    "ack_report": NotACaseEvent.PRE_CASE,
     "create_case_proposal": NotACaseEvent.PRE_CASE,
     "announce_case_ledger_entry": NotACaseEvent.REPLICA_APPLY,
     "reject_case_ledger_entry": NotACaseEvent.LEDGER_MECHANICS,

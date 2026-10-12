@@ -144,9 +144,6 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " case state, and the reply that judges the case carries the RM move"
         " (CM-11-010, CM-11-011)"
     ),
-    MS.ACK_REPORT.value: (
-        "Read(Offer) acknowledges receipt and moves no RM state (RK, ADR-0021)"
-    ),
     "case_fully_closed": (
         "a marker; the transitions it summarises arrive as the"
         " add_participant_status_to_participant entries before it"

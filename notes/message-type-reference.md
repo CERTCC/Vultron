@@ -16,6 +16,7 @@ related_specs:
   - specs/project-documentation.yaml
   - specs/received-status-handling.yaml
   - specs/handler-protocol.yaml
+  - specs/rm-behavior.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/received-status-authorization.md
@@ -26,6 +27,7 @@ related_notes:
   - notes/sync-ledger-replication.md
   - notes/participant-embargo-consent.md
   - notes/case-communication-model.md
+  - notes/bt-pitfalls.md
 ---
 
 # Message Type Reference: Formal Shorthands, AS2 Wire Forms, and the Mapping Between Them
@@ -250,6 +252,11 @@ diagram.
 ### Acknowledgement: cumulative and implicit, not per-message
 
 `RK` is a real wire activity (`Read(Offer(VulnerabilityReport))`, MSM-01-008).
+It goes from an addressee of the report's `Offer` to the reporter, which checks
+the sender against its own record of the Offer, so its "Sent by" is the
+addressee wording; it is never sent to the CASE_MANAGER and writes no ledger
+entry, because a report is not acknowledged once its case exists (RMB-08-003,
+RMB-08-004, #4325).
 `EK`, `CK`, and `GK` have no per-message equivalent because acknowledgement
 moved axis for replicated state: ledger sync acknowledges **cumulatively and
 implicitly** via hash-chain continuity.
@@ -394,7 +401,6 @@ moves onto the kind itself (MSM-08-010) so no table like this one is kept by han
 | `INVITEE` | the invitee |
 | `NAMED_ACTOR` (the addressee kind) | the addressee of the *request*, e.g. "the addressee of the case proposal" |
 | author (planned, #4433) | the author of the *object*, e.g. "the note's author" |
-| `EXECUTING_ACTOR` | the receiving actor itself |
 | `ANY_ACTOR` (a new report only, HP-01-010) | any actor |
 | `SenderExemption` | not yet checked |
 

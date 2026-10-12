@@ -17,6 +17,7 @@ related_specs:
   - specs/code-style.yaml
   - specs/received-status-handling.yaml
   - specs/participant-case-replica.yaml
+  - specs/rm-behavior.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/sync-ledger-replication.md
@@ -30,6 +31,7 @@ related_notes:
   - notes/protocol-asks.md
   - notes/peer-broadcast-failure-semantics.md
   - notes/agentic-workflow.md
+  - notes/message-type-reference.md
 relevant_packages:
   - py_trees
   - vultron/core/behaviors
@@ -1330,10 +1332,10 @@ The cause was structural: about fifteen trees each wrapped their effects in
   The factory refuses an exemption not in `REPLICA_EMIT_EXEMPTIONS`, an
   ungated emitter outside `covers`, and an exemption that covers nothing in the
   tree (stale).
-  The registered decisions are the ack echo, the offer-role tree, the
-  case-proposal tree, the report receiver's case proposal, the RSH and
-  case-status trees, the RM gap notes of the engage, defer, validate, close
-  and invalidate trees, the embargo-Invite answer and the P/X/A refusal ER.
+  The registered decisions are the ones `REPLICA_EMIT_EXEMPTIONS` names;
+  `test_received_tree_case_manager_gate.py` pins which tree uses each. The
+  AckReport echo was retired with the RK forward to the CASE_MANAGER
+  (RMB-08-003, #4325).
   An exemption kept only to preserve behaviour during a migration names the
   issue that deletes it in its reason; the last two such cases (the
   Remove(EmbargoEvent) teardown announce, #4323, and the genesis pre-seed,

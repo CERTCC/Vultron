@@ -218,7 +218,6 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
 # in no set at all.
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
-        MessageSemantics.ACK_REPORT,
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,

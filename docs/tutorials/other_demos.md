@@ -343,11 +343,13 @@ See [How to Revise or Terminate an Embargo](../howto/activitypub/activities/mana
 {% include-markdown "../howto/activitypub/activities/_demo_acknowledge.md" %}
 
 This demo shows how a vendor acknowledges receipt of a report without committing to an outcome, using a Report Acknowledgment (RK), `Read(Offer(VulnerabilityReport))`.
+The finder submits through its `submit-report` trigger, so it holds the Offer and accepts the acknowledgment because the vendor is the Offer's addressee.
+The acknowledgment goes to the finder alone, never to the CASE_MANAGER.
 Three paths are demonstrated:
 
-1. **Acknowledge only** — acknowledge, then notify the finder.
-2. **Acknowledge then validate** — acknowledge, then a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, then notify the finder.
-3. **Acknowledge then invalidate** — acknowledge, then a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, then notify the finder.
+1. **Acknowledge only** — the vendor sends the acknowledgment to the finder.
+2. **Acknowledge then validate** — the acknowledgment, then a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, then notify the finder.
+3. **Acknowledge then invalidate** — the acknowledgment, then a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, then notify the finder.
 
 ```mermaid
 ---
@@ -358,9 +360,9 @@ sequenceDiagram
     participant V as Vendor
 
     F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
-    V->>V: Report Acknowledgment (RK)<br/>Read(Offer(VulnerabilityReport))
+    V->>F: Report Acknowledgment (RK)<br/>Read(Offer(VulnerabilityReport))
     alt Path 1 — Acknowledge only
-        V-->>F: Notify finder (acknowledged)
+        Note over F,V: done
     else Path 2 — Acknowledge then validate
         V->>V: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
         V-->>F: Notify finder (validated)

@@ -66,6 +66,10 @@ class ReportTriggerRequest(BaseModel):
     note: NonEmptyString | None = None
 
 
+class AckReportRequest(ReportTriggerRequest):
+    """Request body for the ack-report trigger endpoint."""
+
+
 class ValidateReportRequest(ReportTriggerRequest):
     """Request body for the validate-report trigger endpoint."""
 

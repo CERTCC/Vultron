@@ -138,12 +138,11 @@ The **tentative rejection → acceptance** scenario (#1221) is the first planned
 demo to exercise this path:
 
 1. Finder submits report.
-2. Vendor (with `auto_create_case=False`) sends pre-case ACK via trigger.
+2. Vendor (with `auto_create_case=False`) sends the pre-case ACK through the
+   `ack-report` trigger, which addresses the Finder alone (RMB-08-003).
 3. Vendor invalidates report (RM:R→I) — "tentative rejection".
 4. Vendor later validates (RM:I→V) and engages — "reconsideration".
 
-Once #1221 is implemented, `ack_report` should be wired into the per-scenario
-`_*_EXPECTED_EVENT_TYPES` tuples under `test/ci/invariants/` (e.g.
-`_FV_EXPECTED_EVENT_TYPES` in `test/ci/invariants/test_fv_invariants.py`,
-currently excluded; see the `test_invariant_5_expected_event_types_present`
-docstring citing #1133).
+RK writes no ledger entry, because it is never sent to the CASE_MANAGER
+(RMB-08-003, #4325). So `ack_report` does not belong in the per-scenario
+`_*_EXPECTED_EVENT_TYPES` tuples under `test/ci/invariants/`.

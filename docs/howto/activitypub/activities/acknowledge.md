@@ -15,7 +15,8 @@ You finish with the sender informed and your own Report Management (RM) state un
 
 {% include-markdown "./_demo_prerequisites.md" %}
 
-- A report you have received, at `RM.RECEIVED`.
+- A report you have received, at `RM.RECEIVED`, whose `Offer(VulnerabilityReport)` was addressed to you.
+- No case yet exists for the report.
 - The sender's actor Uniform Resource Identifier (URI).
 
 ---
@@ -32,12 +33,18 @@ An acknowledgment carries no verdict, so it is worth sending only while you have
 
 Sending `Read(Offer(VulnerabilityReport))` immediately before a verdict adds a message without adding information.
 
+Once a case exists for the report, do not acknowledge it: the case's own messages, which go through the CASE_MANAGER, say what happened to the report (RMB-08-003).
+
 ---
 
 ## Send the acknowledgment
 
 1. Send `Read(Offer(VulnerabilityReport))` to the sender's inbox, with the original `Offer(VulnerabilityReport)` activity as its `object`.
-2. Leave your RM state at `RECEIVED`.
+   The `ack-report` trigger does this for you: `POST /actors/{actor_id}/trigger/ack-report` with the Offer's `offer_id`.
+   It addresses the reporter alone, and it answers HTTP 409 once a case exists for the report.
+2. Do not send it to the CASE_MANAGER.
+   The CASE_MANAGER holds no record of who the Offer was addressed to, so nobody sends it an acknowledgment (RMB-08-003).
+3. Leave your RM state at `RECEIVED`.
    Acknowledgment is not a transition.
 
 The nested form is the one a receiver recognizes: the acknowledgment answers the `Offer`, so the `Offer` is its `object` ([Report Management (RM) Messages](../../../reference/messages/rm.md), MSM-01-008).
@@ -48,6 +55,7 @@ A bare `Read(VulnerabilityReport)` carrying the report itself is not a Vultron a
 ## Verify
 
 The sender holds a `Read(Offer(VulnerabilityReport))` from you, and your RM state is still `RECEIVED`.
+The sender accepted it because you are an addressee of its Offer; it refuses an acknowledgment from any other actor (RMB-08-004).
 No `CaseLedgerEntry` is written, because report submission is not ledger-replicated.
 
 ---

@@ -323,11 +323,13 @@ class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
 
 
 class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
-    """Emit RmAckReportActivity (Read(Offer(Report))) to the CaseActor's inbox.
+    """Emit RmReadReportActivity (``Read(Offer(Report))``, RK) to the reporter.
 
-    Per ADR-0021 CLP-10-001: when a vendor acknowledges a report, the AckReport
-    activity must be addressed to the CaseActor so the CaseActor can commit
-    a canonical ledger entry.
+    RK goes from an actor the ``Offer(VulnerabilityReport)`` was addressed to,
+    to the reporter, and never to the CASE_MANAGER (RMB-08-003), so unlike its
+    siblings this node does not route through the case: its one recipient is
+    the Offer's actor, read from this store's ``VultronOfferRecord``
+    (DL-06-001).
     """
 
     def __init__(
@@ -343,6 +345,23 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
             captured=captured,
             name=name,
         )
+
+    def _compute_addressees(self) -> list[str] | None:
+        """The reporter: the actor of the recorded Offer, never the actor."""
+        assert self.datalayer is not None and self.actor_id is not None
+        offer_record = self.datalayer.read(
+            VultronOfferRecord.build_id(self.offer_id)
+        )
+        if isinstance(offer_record, VultronOfferRecord) and (
+            offer_record.offer_actor_id != self.actor_id
+        ):
+            return [offer_record.offer_actor_id]
+        self.feedback_message = (
+            f"no reporter to acknowledge offer '{self.offer_id}' to"
+            f" (actor_id={self.actor_id})"
+        )
+        self.logger.error("%s: %s", self.name, self.feedback_message)
+        return None
 
     def _call_report_factory(
         self, actor_id: str, addressees: list[str]

@@ -24,6 +24,7 @@ DOMAIN_GROUPS: list[dict] = [
         "title": "Report Management",
         "behaviors": [
             "submit-report",
+            "ack-report",
             "validate-report",
             "invalidate-report",
             "reject-report",

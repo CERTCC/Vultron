@@ -19,6 +19,7 @@ Each factory produces a ``py_trees.composites.Sequence`` that implements the
 outbound protocol handling for one of the report-lifecycle trigger
 operations:
 
+- ``AckReport``        — emit Read(Offer(Report)) (RK) to the reporter
 - ``InvalidateReport`` — emit TentativeReject activity + transition RM → INVALID
 - ``RejectReport``     — guard (RM may close) + emit CloseReport activity +
                          transition RM → CLOSED
@@ -51,6 +52,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
     CheckReportNotClosed,
 )
 from vultron.core.behaviors.report.nodes.emit import (
+    EmitAckReportActivity,
     EmitCloseReportActivity,
     EmitInvalidateReportActivity,
     EmitSubmitReportActivity,
@@ -69,6 +71,50 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+
+def create_ack_report_trigger_tree(
+    offer_id: str,
+    report_id: str,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for the ack-report trigger workflow.
+
+    Emits ``RmReadReportActivity`` (``Read(Offer(Report))``, RK) to the
+    reporter (RMB-08-003).  An acknowledgement moves no RM state, so the tree
+    has no transition node.
+
+    Structure::
+
+        AckReportTriggerBT (Sequence)
+        └─ EmitAckReportActivity  # emit RK to the Offer's actor + queue
+
+    Args:
+        offer_id: ID of the Offer being acknowledged.
+        report_id: ID of the VulnerabilityReport.
+        captured: Optional dict; ``captured["activity"]`` is set to the
+            serialised activity dict on success (DL-06-001).
+
+    Returns:
+        Root node of the ``AckReportTriggerBT`` Sequence.
+    """
+    root = py_trees.composites.Sequence(
+        name="AckReportTriggerBT",
+        memory=False,
+        children=[
+            EmitAckReportActivity(
+                offer_id=offer_id,
+                report_id=report_id,
+                captured=captured,
+            ),
+        ],
+    )
+    logger.debug(
+        "Created AckReportTriggerBT for offer=%s report=%s",
+        offer_id,
+        report_id,
+    )
+    return root
 
 
 def create_invalidate_report_trigger_tree(

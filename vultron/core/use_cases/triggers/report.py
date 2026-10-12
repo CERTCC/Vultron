@@ -30,6 +30,7 @@ from typing import Any, cast
 import py_trees.behaviour
 
 from vultron.core.behaviors.report.trigger_report_trees import (
+    create_ack_report_trigger_tree,
     create_close_case_trigger_tree,
     create_invalidate_report_trigger_tree,
     create_reject_report_trigger_tree,
@@ -52,6 +53,7 @@ from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AckReportTriggerRequest,
     CloseReportTriggerRequest,
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
@@ -60,6 +62,7 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import (
     VultronAlreadyExistsError,
+    VultronConflictError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -114,6 +117,47 @@ def _require_offer_addressed_to(
             f"'{offer_record.offer_id}'. A participant that joined the case "
             "through an Invite judges the case by replying to the full-case "
             "Invite, not by answering the original report Offer (CM-11-020)."
+        )
+
+
+class SvcAckReportUseCase(SvcActivityTriggerBase):
+    """Acknowledge a report Offer by emitting RK to the reporter.
+
+    RK goes from an actor the ``Offer(VulnerabilityReport)`` was addressed to,
+    to the reporter, and only before a case exists for the report: once a
+    case exists the report is no longer acknowledged, and nobody sends RK to
+    the CASE_MANAGER (RMB-08-003).  A trigger that cannot meet that rule is
+    refused before anything is emitted.
+    """
+
+    def _prepare(self) -> None:
+        request = cast(AckReportTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._offer, self._report = _resolve_offer_and_report(
+            request.offer_id, self._dl
+        )
+        _require_offer_addressed_to(self._actor_id, self._offer, "ack-report")
+        if self._dl.find_case_by_report_id(self._report.id_) is not None:
+            raise VultronConflictError(
+                f"ack-report refused: report '{self._report.id_}' already has"
+                " a case, and a report is not acknowledged once its case"
+                " exists (RMB-08-003)."
+            )
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return create_ack_report_trigger_tree(
+            offer_id=self._offer.offer_id,
+            report_id=self._report.id_,
+            captured=self._captured,
+        )
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' acknowledged offer '%s' (report '%s')",
+            self._actor_id,
+            self._offer.offer_id,
+            self._report.id_,
         )
 
 

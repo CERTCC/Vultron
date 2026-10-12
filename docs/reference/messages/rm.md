@@ -171,7 +171,11 @@ print(json2md(close_report()))
   dedicated wire activity because report submission is not ledger-replicated
   (MSM-01-008). The `object` is the report's original `Offer`, not the report
   itself; a bare `Read(VulnerabilityReport)` matches no pattern.
-- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
+- **Who may send:**
+  An actor the `Offer(VulnerabilityReport)` was addressed to, and it sends `RK` to the reporter alone (RMB-08-003).
+  The reporter holds the Offer, so it accepts `RK` only from one of the Offer's addressees and refuses any other sender (RMB-08-004).
+  Nobody sends `RK` to the CASE_MANAGER: once a case exists for the report, the report is no longer acknowledged, and `RK` writes no ledger entry.
+- **How-to:** [How to Acknowledge a Report](../../howto/activitypub/activities/acknowledge.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types).
 
 ```python exec="true" idprefix=""

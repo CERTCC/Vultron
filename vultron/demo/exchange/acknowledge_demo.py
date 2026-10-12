@@ -18,9 +18,14 @@ Demonstrates the acknowledgement workflow for vulnerability reports via the Vult
 
 This demo script showcases the RmReadReportActivity (as:Read) acknowledgement mechanism:
 
-1. Acknowledge Only: submit → ack (RmReadReportActivity) → notify finder
-2. Acknowledge then Validate: submit → ack → validate → notify finder
-3. Acknowledge then Invalidate: submit → ack → invalidate → notify finder
+1. Acknowledge Only: submit → vendor sends ack (RmReadReportActivity) to finder
+2. Acknowledge then Validate: submit → ack to finder → validate → notify finder
+3. Acknowledge then Invalidate: submit → ack to finder → invalidate → notify finder
+
+The finder submits through its ``submit-report`` trigger, so it holds the
+Offer and admits the ack only from the Offer's addressee, the vendor
+(RMB-08-004).  The ack goes to the finder alone, never to the CASE_MANAGER
+(RMB-08-003).
 
 The acknowledge workflow corresponds to:
     docs/howto/activitypub/activities/acknowledge.md
@@ -36,7 +41,7 @@ When run as a script, this module will:
 2. Reset the data layer to a clean state
 3. Discover actors (finder, vendor, coordinator) via the API
 4. Run three separate demo workflows, each with a unique report:
-   - demo_acknowledge_only: Submit → RmReadReportActivity → notify finder
+   - demo_acknowledge_only: Submit → RmReadReportActivity to finder
    - demo_acknowledge_then_validate: Submit → RmReadReportActivity → Validate → notify finder
    - demo_acknowledge_then_invalidate: Submit → RmReadReportActivity → Invalidate → notify finder
 5. Verify side effects in the data layer and finder's inbox for each workflow
@@ -50,12 +55,12 @@ from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
     verify_activity_in_inbox,
 )
+from vultron.demo.helpers.workflow import reporter_submits_report
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
     demo_check,
     demo_step,
-    logfmt,
     post_to_inbox_and_wait,
     setup_demo_logging,
     verify_object_stored,
@@ -63,17 +68,52 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 from vultron.wire.as2.factories import (
     rm_invalidate_report_activity,
     rm_read_report_activity,
-    rm_submit_report_activity,
     rm_validate_report_activity,
 )
 
 # Vultron imports
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 
 logger = logging.getLogger(__name__)
+
+
+def _finder_submits_report(
+    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+) -> as_Offer:
+    """Step 1 of every demo: the finder submits a report to the vendor.
+
+    The finder's ``submit-report`` trigger records the Offer in the finder's
+    own store, which is what lets the finder check who may acknowledge it
+    (RMB-08-004), and its outbox delivers the Offer to the vendor.
+    """
+    _report, offer = reporter_submits_report(
+        client, finder, vendor, reporter_client=client
+    )
+    return offer
+
+
+def _vendor_acknowledges_to_finder(
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    offer: as_Offer,
+    content: str,
+) -> None:
+    """The vendor, the Offer's addressee, sends RK to the finder.
+
+    RK goes from the actor the Offer was addressed to, to the reporter, and
+    never to the CASE_MANAGER (RMB-08-003).
+    """
+    ack = rm_read_report_activity(
+        offer, actor=vendor.id_, to=[finder.id_], content=content
+    )
+    post_to_inbox_and_wait(client, finder.id_, ack)
+    with demo_check("RmReadReportActivity in finder's inbox"):
+        if not verify_activity_in_inbox(client, finder.id_, ack.id_):
+            raise ValueError(
+                "RmReadReportActivity not found in finder's inbox."
+            )
 
 
 def demo_acknowledge_only(
@@ -88,57 +128,25 @@ def demo_acknowledge_only(
 
     Workflow:
       1. Finder submits report to vendor
-      2. Vendor sends RmReadReportActivity (as:Read) back to their own inbox
-      3. Vendor notifies finder with an RmReadReportActivity
-      4. Verify ack stored and delivered to finder
+      2. Vendor, the Offer's addressee, sends RmReadReportActivity (as:Read)
+         to the finder, and the demo verifies it reached the finder's inbox
     """
     logger.info("=" * 80)
     logger.info("DEMO 1: Acknowledge Only (RmReadReportActivity)")
     logger.info("=" * 80)
 
-    report = offer = None
+    offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = as_VulnerabilityReport(
-            attributed_to=finder.id_,
-            content="Possible integer overflow in the network parsing library.",
-            name="Network Parser Integer Overflow",
-        )
-        logger.info("Created report: %s", logfmt(report))
-        offer = rm_submit_report_activity(
-            report, actor=finder.id_, to=vendor.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, offer)
-        with demo_check("Report offer and report stored"):
-            verify_object_stored(client=client, obj_id=offer.id_)
-            verify_object_stored(client=client, obj_id=report.id_)
+        offer = _finder_submits_report(client, finder, vendor)
 
-    with demo_step(
-        "Step 2: Vendor acknowledges report (RmReadReportActivity to own inbox)"
-    ):
-        ack = rm_read_report_activity(
+    with demo_step("Step 2: Vendor acknowledges the report to the finder"):
+        _vendor_acknowledges_to_finder(
+            client,
+            finder,
+            vendor,
             offer,
-            actor=vendor.id_,
-            content="We have received your report and will review it shortly.",
+            "We have received your report and will review it shortly.",
         )
-        post_to_inbox_and_wait(client, vendor.id_, ack)
-        with demo_check("RmReadReportActivity activity stored"):
-            verify_object_stored(client=client, obj_id=ack.id_)
-
-    with demo_step("Step 3: Vendor notifies finder of acknowledgement"):
-        ack_to_finder = rm_read_report_activity(
-            offer,
-            actor=vendor.id_,
-            to=[finder.id_],
-            content="We have received your report and will review it shortly.",
-        )
-        post_to_inbox_and_wait(client, finder.id_, ack_to_finder)
-        with demo_check("RmReadReportActivity notification in finder's inbox"):
-            if not verify_activity_in_inbox(
-                client, finder.id_, ack_to_finder.id_
-            ):
-                raise ValueError(
-                    "RmReadReportActivity notification not found in finder's inbox."
-                )
 
     logger.info("✅ DEMO 1 COMPLETE: Report acknowledged (read-only).")
 
@@ -154,7 +162,7 @@ def demo_acknowledge_then_validate(
 
     Workflow:
       1. Finder submits report to vendor
-      2. Vendor sends RmReadReportActivity (as:Read)
+      2. Vendor sends RmReadReportActivity (as:Read) to the finder
       3. Vendor then sends RmValidateReportActivity (as:Accept)
       4. Verify both activities stored; verify validate notification to finder
     """
@@ -162,33 +170,14 @@ def demo_acknowledge_then_validate(
     logger.info("DEMO 2: Acknowledge then Validate")
     logger.info("=" * 80)
 
-    report = offer = None
+    offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = as_VulnerabilityReport(
-            attributed_to=finder.id_,
-            content=(
-                "SQL injection in the admin login form — confirmed via manual testing."
-            ),
-            name="Admin Login SQL Injection",
-        )
-        logger.info("Created report: %s", logfmt(report))
-        offer = rm_submit_report_activity(
-            report, actor=finder.id_, to=vendor.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, offer)
-        with demo_check("Report offer and report stored"):
-            verify_object_stored(client=client, obj_id=offer.id_)
-            verify_object_stored(client=client, obj_id=report.id_)
+        offer = _finder_submits_report(client, finder, vendor)
 
-    with demo_step(
-        "Step 2: Vendor acknowledges report (RmReadReportActivity)"
-    ):
-        ack = rm_read_report_activity(
-            offer, actor=vendor.id_, content="Report received — under review."
+    with demo_step("Step 2: Vendor acknowledges the report to the finder"):
+        _vendor_acknowledges_to_finder(
+            client, finder, vendor, offer, "Report received — under review."
         )
-        post_to_inbox_and_wait(client, vendor.id_, ack)
-        with demo_check("RmReadReportActivity activity stored"):
-            verify_object_stored(client=client, obj_id=ack.id_)
 
     with demo_step(
         "Step 3: Vendor validates report (RmValidateReportActivity)"
@@ -236,7 +225,7 @@ def demo_acknowledge_then_invalidate(
 
     Workflow:
       1. Finder submits report to vendor
-      2. Vendor sends RmReadReportActivity (as:Read)
+      2. Vendor sends RmReadReportActivity (as:Read) to the finder
       3. Vendor sends RmInvalidateReportActivity (as:TentativeReject)
       4. Vendor notifies finder of the invalidation
       5. Verify activities stored and invalidation in finder's inbox
@@ -245,33 +234,14 @@ def demo_acknowledge_then_invalidate(
     logger.info("DEMO 3: Acknowledge then Invalidate")
     logger.info("=" * 80)
 
-    report = offer = None
+    offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = as_VulnerabilityReport(
-            attributed_to=finder.id_,
-            content=(
-                "Crash when submitting empty form — no security impact confirmed."
-            ),
-            name="Empty Form Submission Crash",
-        )
-        logger.info("Created report: %s", logfmt(report))
-        offer = rm_submit_report_activity(
-            report, actor=finder.id_, to=vendor.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, offer)
-        with demo_check("Report offer and report stored"):
-            verify_object_stored(client=client, obj_id=offer.id_)
-            verify_object_stored(client=client, obj_id=report.id_)
+        offer = _finder_submits_report(client, finder, vendor)
 
-    with demo_step(
-        "Step 2: Vendor acknowledges report (RmReadReportActivity)"
-    ):
-        ack = rm_read_report_activity(
-            offer, actor=vendor.id_, content="Report received — under review."
+    with demo_step("Step 2: Vendor acknowledges the report to the finder"):
+        _vendor_acknowledges_to_finder(
+            client, finder, vendor, offer, "Report received — under review."
         )
-        post_to_inbox_and_wait(client, vendor.id_, ack)
-        with demo_check("RmReadReportActivity activity stored"):
-            verify_object_stored(client=client, obj_id=ack.id_)
 
     with demo_step(
         "Step 3: Vendor invalidates report (RmInvalidateReportActivity)"

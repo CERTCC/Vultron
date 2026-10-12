@@ -43,6 +43,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     AcceptCaseInviteRequest,
     AcceptCaseOwnershipTransferRequest,
     AcceptEmbargoRequest,
+    AckReportRequest,
     AddNoteToCaseRequest,
     AddObjectToCaseRequest,
     AddOnBehalfStatusRequest,
@@ -117,6 +118,10 @@ class OfferTriggerRequest(
     TriggerRequest[ActivityResult], ReportTriggerRequest
 ):
     """Trigger request that requires an ``offer_id``."""
+
+
+class AckReportTriggerRequest(OfferTriggerRequest, AckReportRequest):
+    pass
 
 
 class ValidateReportTriggerRequest(OfferTriggerRequest, ValidateReportRequest):
@@ -412,6 +417,7 @@ __all__ = [
     "AcceptCaseOwnershipTransferTriggerRequest",
     "AcceptFullCaseInviteTriggerRequest",
     "AcceptEmbargoTriggerRequest",
+    "AckReportTriggerRequest",
     "AddNoteToCaseTriggerRequest",
     "AddObjectToCaseTriggerRequest",
     "AddOnBehalfStatusTriggerRequest",

@@ -32,6 +32,7 @@ from vultron.core.models.use_case_result import ActivityResult, OfferResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.use_cases.triggers.request_bodies import (
+    AckReportRequest,
     CloseReportRequest,
     InvalidateReportRequest,
     RejectReportRequest,
@@ -39,6 +40,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     ValidateReportRequest,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AckReportTriggerRequest,
     CloseReportTriggerRequest,
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
@@ -47,6 +49,47 @@ from vultron.core.use_cases.triggers.requests import (
 )
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
+
+
+@router.post(
+    "/{actor_id}/trigger/ack-report",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger report acknowledgement.",
+    description=(
+        "Triggers the ack-report behavior for the given actor. "
+        "Emits a Read(Offer(VulnerabilityReport)) activity (RK) to the "
+        "reporter and returns it in the response body (TRIG-04-001). "
+        "Only an actor the Offer was addressed to may acknowledge it, and "
+        "only before a case exists for the report: returns HTTP 409 once a "
+        "case exists, since RK is never sent to the CASE_MANAGER "
+        "(RMB-08-003)."
+    ),
+    operation_id="actors_trigger_ack_report",
+    response_model=ActivityResult,
+)
+def trigger_ack_report(
+    actor_id: str,
+    body: AckReportRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
+    """
+    Trigger the ack-report behavior for the given actor.
+
+    Implements:
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-001, TRIG-03-001,
+        TRIG-03-002, TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002,
+        TRIG-07-001, TRIG-12-001, RMB-08-003
+    """
+    return run_trigger(
+        AckReportTriggerRequest(
+            actor_id=actor_id, offer_id=body.offer_id, note=body.note
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
 
 
 @router.post(
