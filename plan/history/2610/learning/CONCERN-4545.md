@@ -29,3 +29,5 @@ Where: vultron/core/use_cases/triggers/note.py
 ---
 
 **Resolved**: 2026-10-12. Implementation is tracked in #4549. That is a variant of the issue's second option: the trigger sends one `Create(Note)` whose note's `context` is the case, with no `target` on the Create and no follow-up `Add`. `Add(Note, target=Case)` stays a supported protocol message. #4549 is blocked by #4441, which is still open, because the double entry happens only once #4441 lands. The general question of telling what the protocol allows apart from what this implementation sends is filed as Idea #4550.
+
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4551>.
