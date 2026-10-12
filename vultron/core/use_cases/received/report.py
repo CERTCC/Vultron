@@ -165,8 +165,9 @@ def _case_id_for_report(
 
 
 class CreateReportReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4325", "no sender check defined for report creation"
+    # A new report precedes any case, so any actor may send one (HP-01-010).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ANY_ACTOR
     )
 
     def __init__(
@@ -205,8 +206,10 @@ class CreateReportReceivedUseCase:
 
 
 class SubmitReportReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4325", "no sender check defined for report submission"
+    # A new report precedes any case, so any actor may send one (HP-01-010);
+    # only its addressing is checked (HP-01-005, HP-09-001).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.ANY_ACTOR
     )
 
     def __init__(
@@ -420,9 +423,13 @@ class InvalidateReportReceivedUseCase:
 
 
 class AckReportReceivedUseCase:
+    # RK's sender is the recipient of the RS it acknowledges, the actor the
+    # Offer(Report) was addressed to (RMB-01-001, VP-03-009).  No spec says
+    # how the CASE_MANAGER, which holds no OfferRecord (CP-01-007), checks
+    # that; #4325 holds the question.
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
         "#4325",
-        "sender is internal echo route (SenderIsExecutingActorNode inside effect node), not an entitlement guard",
+        "the CASE_MANAGER side of the RK sender rule is not yet specified",
     )
 
     def __init__(

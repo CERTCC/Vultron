@@ -22,6 +22,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.behaviors.sender_entitlement import SenderEntitlementKind
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import SubmitReportReceivedEvent
@@ -792,6 +793,35 @@ class TestSubmitReportDisposition:
         result, _ = self._run(cc=[self.VENDOR_ID])
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "cc" in result.reason
+
+    @pytest.mark.spec("HP-01-010")
+    def test_sender_outside_the_receivers_case_is_applied(self):
+        """Any actor may submit a report; no case standing is checked."""
+        from vultron.core.models.case_actor import CaseActor
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
+        dl.save(CaseActor(id_=self.VENDOR_ID))
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/c-other",
+            attributed_to=self.VENDOR_ID,
+        )
+        dl.save(case)
+        assert self.FINDER_ID not in case.actor_participant_index
+
+        result, dl = self._run(to=[self.VENDOR_ID], dl=dl)
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert dl.read(self.REPORT_ID) is not None
+
+    @pytest.mark.spec("HP-01-011")
+    def test_declares_any_actor(self):
+        assert (
+            SubmitReportReceivedUseCase.sender_entitlement
+            is SenderEntitlementKind.ANY_ACTOR
+        )
 
     @pytest.mark.spec("HP-01-005")
     def test_not_a_recipient_is_refused(self):

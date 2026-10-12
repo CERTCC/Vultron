@@ -166,13 +166,12 @@ back under the check. Only `statement`, `verification`, and behavioral
 step/condition text are scanned; `rationale` is exempt by design, because it
 narrates history and legitimately names things that were removed.
 
-A `kind: protocol` spec with no `stories:` whose `statement` names a `.py` file,
-a `vultron/`, `test/` or `scripts/` path, or `pytest`, `pydantic` or `py_trees`
-is a hard error too (MS-12-006). Only the `statement` is scanned: a
-`verification:` path is what MS-10-003 obliges, not a sign the rule is `project`
-(#3943). The fix is a corrected `kind:` via the MS-12-001 → MS-12-005 tree in
-order, not a suppression; `protocol_kind_with_code_reference` is for a genuinely
-incidental reference.
+A story-less `protocol` or `foundation` spec whose `statement` names a `.py`
+file, a `vultron/`, `test/` or `scripts/` path, or `pytest`, `pydantic` or
+`py_trees` is a hard error (MS-12-006; `verification:` is not scanned, #3943).
+Naming code does not decide a kind (MS-12-002): reword or split (MS-12-010),
+never relabel; suppress only a genuinely incidental reference. A `foundation`
+spec needs an `as2`/`activitypub`/`http` tag (MS-12-009).
 
 ## Changing a Linter Check
 

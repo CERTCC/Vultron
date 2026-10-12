@@ -481,7 +481,7 @@ Two consequences to keep apart, each with its own gate since #3735:
   by design (#3634 AC-1). A generator that emits `#fragment` links needs
   its own test that each fragment exists on its target page. For the spec
   pages that is `test_render_for_kind_cross_links_resolve` in
-  `test/metadata/specs/test_docs_render.py`, which renders all four kind pages
+  `test/metadata/specs/test_docs_render.py`, which renders every kind page
   from the real registry and checks every `_cross_link` "Related" fragment
   against the ids on its target kind page, failing on zero collected links
   (DF-09-009).
