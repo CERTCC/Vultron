@@ -221,7 +221,10 @@ which files to update per type.
   append to root — it sits at exactly its 400-line budget and
   `test/metadata/test_agents_md_size_ratchet.py` fails CI on line 401.
 - **ADR** — Draft `docs/adr/NNNN-<slug>.md` if the ADR determination
-  recommended one.
+  recommended one. Before you draft it, read the bodies of the records whose
+  titles in `docs/adr/index.md` touch the same choice. Their considered
+  options say whether the alternative was already weighed and rejected. Weigh
+  each one by `.agents/skills/shared/weighing-decision-records.md`.
 
 Track created filenames:
 

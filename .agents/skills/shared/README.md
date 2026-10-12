@@ -12,6 +12,7 @@ Shared scripts and reference documents referenced by multiple skills.
 | `bundling.md` | Normative definition of a bundle: the two selection stages, the three fit signals and their authorities, and how one bundle becomes one PR (PAD-15) | `propose-bundle`, `build`, `bugfix`, `plan-issue` |
 | `asking-the-user.md` | How to present a question or decision to the user: one at a time, problem before decision, plain language, no bare IDs, restate rather than point by number, which tool to use | `AGENTS.md` (every session), `grill-me`, `plan-issue`, `learn`, `decision-audit`, `spec-audit`, `bugfix`, `process-concerns`, `review-priorities` |
 | `sizing.md` | What the `size:` labels mean, estimate vs. measurement, who applies each, and why `size:XL` is a review-coverage warning (PAD-05). Band values come from `pr-size`, never prose | `plan-issue`, `update-plan`, `build`, `bugfix` |
+| `weighing-decision-records.md` | How far to trust a decision record whose body you read: settled versus challengeable, and why a stale code reference is not a challenge (ADR-0127, ADR-0043) | `deepen-context` § "Skills that read record bodies" and each skill it lists: `decision-audit`, `learn`, `plan-issue`, `pr-triage` |
 | `upward-reflection.md` | Mandatory end-of-session checklist and the routing table that sends each finding to a GitHub issue, an in-session fix, an assertion at the site, or a learning file | `build` Phase 8, `bugfix` Phase 3, `pr-execute` Phase 3 |
 
 ## Scripts

@@ -2,7 +2,8 @@
 title: Specs vs. ADRs — Delineation Guidelines
 status: active
 related_specs:
-  - specs/meta-specifications.yaml (MS-11-007)
+  - specs/meta-specifications.yaml (MS-11-007, MS-11-008)
+  - specs/spec-registry.yaml (SR-07-017)
   - specs/architecture.yaml (ARCH-25)
 related_notes:
   - notes/bt-pitfalls.md
@@ -91,6 +92,36 @@ underscore, which saw neither a stale class name nor a function name — so a
 check extended to record bodies has to widen the shape to be worth anything,
 and #4412 is where it widens.
 
+### Routine context routes through records by title and edge
+
+Routine task context does not load record bodies. `deepen-context` Step 2 finds
+in-scope records by title in the generated sections of `docs/adr/index.md`, then
+loads the requirements each one generated with `spec-dump --adr ADR-NNNN`. That
+reads the structured `adr:` edge backwards, from record to requirements
+(SR-07-017). Those requirements then feed spec selection, which is the job the
+body's prose citations used to do. Nothing new is generated: the title index and
+the `adr:` fields already exist and are already checked.
+
+A live record with only a prose back-edge (below) has no `adr:` edge, so
+`--adr` selects nothing for it. `spec-dump` prints a note naming the record, and
+the step sends the agent to the `specs/` and `notes/` files that cite it, which
+state the rule in full (MS-11-007). The title index still lists the record, so
+it is found by title. Only the edge hop is replaced, by a grep. Converting such a
+citation to an `adr:` edge, wherever a requirement covers the decision, makes the
+record reachable by the tool as well.
+
+Some skills make the record their object of work and still read bodies in full.
+Examples are decision auditing, record authoring, `learn` (it writes the
+generated-requirements line) and issue planning. The list and each skill's
+reason live in one place, the "Skills that read record bodies" table in
+`deepen-context`. Every listed skill weighs what it reads by
+`.agents/skills/shared/weighing-decision-records.md`, which holds the
+challengeable-record rules that used to sit in Step 2. MS-11-008 makes the rule
+enforceable, and `test/metadata/test_routine_context_skips_adr_bodies.py` reads
+the skill text: it fails a skill off the list that instructs reading a body, and
+a list missing a required skill or a reason. If the list grows until most work
+falls under it, ADR-0127's revisit trigger has fired.
+
 Source: ADR-0127 (`docs/adr/0127-decision-records-leave-routine-agent-context.md`)
 and concern #4389. This replaces the ISSUE-1777 guidance (2026-07-31) that
 asked authors to revise accepted ADR bodies in place so a reader met only
@@ -101,8 +132,8 @@ they are.
 
 ### Every live record is reachable from a spec or a note, or is record-only
 
-Once routine context stops loading record bodies, a decision stated nowhere but a
-body is lost. So every live record (not archived, and not superseded, deprecated
+Routine context does not load record bodies, so a decision stated nowhere but a
+body is lost to it. So every live record (not archived, and not superseded, deprecated
 or rejected) needs a **back-edge**: an `adr:` edge on a requirement, or a citation
 of the record in a `specs/` or `notes/` file. A record without one is handled one
 of three ways:
@@ -125,8 +156,9 @@ on each run. `test/metadata/test_adr_back_edges.py` fails on either, so a new
 record without a home fails CI rather than silently going dark.
 
 A prose citation counts as a back-edge, but only the structured `adr:` edge is
-something a tool can walk from a record to its requirements. Prefer the edge
-whenever a requirement covers the decision.
+something a tool can walk from a record to its requirements: `spec-dump --adr`
+walks it for `deepen-context`. Prefer the edge whenever a requirement covers the
+decision.
 
 ---
 
@@ -239,8 +271,10 @@ the anti-pattern list in `specs/AGENTS.md`.
 ## Choosing the ADR `status` Value
 
 The ADR `status:` frontmatter field is the **primary confidence signal** that
-reaches coding agents: `deepen-context` weights how much to trust an ADR by its
-status. A wrong or careless status value is a landmine — an agent will treat a
+reaches coding agents. Routine context sees it as the section of
+`docs/adr/index.md` a record is listed under, and every skill that reads a body
+weighs the record by it (`.agents/skills/shared/weighing-decision-records.md`).
+A wrong or careless status value is a landmine — an agent will treat a
 `status: accepted` ADR as settled fact even when the decision was never
 validated. Choose the value deliberately, not by habit.
 
@@ -514,7 +548,7 @@ widening MS-16.
 
 | Artifact | Location |
 |---|---|
-| Normative requirements (MS-11-001 – MS-11-006) | `specs/meta-specifications.yaml` |
+| Normative requirements (MS-11) | `specs/meta-specifications.yaml` |
 | Human-facing guidance ("when to write an ADR") | `docs/adr/index.md` |
 | This decision table and heuristic | `notes/specs-vs-adrs.md` (this file) |
 | Agent-facing shorthand | `AGENTS.md` "Change Protocol" section |

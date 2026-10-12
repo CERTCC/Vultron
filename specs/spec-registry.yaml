@@ -744,7 +744,7 @@ groups:
     kind: project
     statement: >-
       The selection that `--text` requires MUST be a set selector (`--topic`, `--group`, `--ids`,
-      or `--cross-cutting`) naming at least one value; an attribute filter such as `--kind` or
+      `--adr`, or `--cross-cutting`) naming at least one value; an attribute filter such as `--kind` or
       `--priority` MUST NOT satisfy it, and a set selector that names no values (`--topic ""`)
       MUST exit with status 2.
     rationale: >-
@@ -755,7 +755,8 @@ groups:
       unfiltered one. Both are typos, and both should say so.
     verification: >-
       `test/metadata/specs/test_spec_dump_cli.py` asserts `--text` with only an attribute filter
-      exits 2, and that an empty set selector exits 2 in both text and JSON modes.
+      exits 2, and that an empty set selector exits 2 in both text and JSON modes;
+      `test/metadata/specs/test_spec_dump_adr_selector.py` asserts the same for an empty `--adr`.
     relationships:
     - rel_type: refines
       spec_id: SR-07-014
@@ -780,6 +781,34 @@ groups:
       their own terms.
     tags:
     - documentation
+    - tooling
+  - id: SR-07-017
+    priority: MUST
+    kind: project
+    statement: >-
+      The `spec-dump` CLI MUST support an `--adr` set selector (a comma-separated list of
+      `ADR-NNNN` ids) that selects every requirement whose `adr:` field names one of them, and
+      that combines with the other selectors as a union. A value that is not an `ADR-NNNN` id
+      MUST exit with status 2 and name the value. For each named record that no requirement cites
+      in `adr:`, it MUST write a note to stderr that names the record and points at its prose
+      citations under `specs/` and `notes/`, and MUST still print the selection.
+    rationale: >-
+      `deepen-context` routes through decision records by reading the `adr:` edge backwards
+      instead of reading a record body (ADR-0127, MS-11-008), and agents do not read raw spec
+      YAML. Some live records are reached only by prose citation, so an empty selection for one
+      of them would read as "this record governs nothing"; the note says where its rule is stated
+      instead.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_adr_selector.py` asserts selection by one and by two
+      records, the union with `--ids` and `--deps`, JSON and `--text` output, `--adr` alone
+      satisfying `--text`, the stderr note and non-empty output for an uncited record, and
+      exit 2 for each malformed value.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-07-008
+    adr:
+    - ADR-0127
+    tags:
     - tooling
 - id: SR-09
   title: Docs Renderer Kind Routing

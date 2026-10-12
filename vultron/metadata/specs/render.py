@@ -31,6 +31,7 @@ from vultron.metadata.specs.llm_export import (
     to_index_text,
     to_llm_json,
     to_requirements_text,
+    uncited_adrs,
     unknown_selectors,
 )
 from vultron.metadata.specs.registry import (
@@ -407,6 +408,7 @@ def _empty_selectors(args: argparse.Namespace) -> list[str]:
             ("topic", "topic"),
             ("group", "group"),
             ("ids", "ids"),
+            ("adr", "adr"),
         )
         if getattr(args, dest) == []
     ]
@@ -417,7 +419,7 @@ def _build_dump_parser() -> _DumpArgParser:
         prog="spec-dump",
         description=(
             "Export specs as LLM-optimized JSON. Selectors (--topic, --group,"
-            " --ids, --cross-cutting) are unioned; --kind/--tag/--scope/"
+            " --ids, --adr, --cross-cutting) are unioned; --kind/--tag/--scope/"
             "--priority narrow the result. Start with --index."
         ),
     )
@@ -435,6 +437,14 @@ def _build_dump_parser() -> _DumpArgParser:
     parser.add_argument("--topic", type=_csv, help="comma list of topic IDs")
     parser.add_argument("--group", type=_csv, help="comma list of group IDs")
     parser.add_argument("--ids", type=_csv, help="comma list of spec IDs")
+    parser.add_argument(
+        "--adr",
+        type=_csv,
+        help=(
+            "comma list of ADR-NNNN ids; selects the requirements whose adr:"
+            " field names one"
+        ),
+    )
     parser.add_argument(
         "--deps",
         action="store_true",
@@ -481,6 +491,36 @@ def _enum_problems(args: argparse.Namespace) -> list[str]:
     return problems
 
 
+_ADR_ID_RE = re.compile(r"^ADR-\d{4}$")
+
+
+def _malformed_adrs(args: argparse.Namespace) -> list[str]:
+    """Report ``--adr`` values that are not ``ADR-NNNN`` ids (SR-07-017)."""
+    bad = sorted(a for a in args.adr or [] if not _ADR_ID_RE.match(a))
+    if not bad:
+        return []
+    return [
+        f"malformed adr value(s): {', '.join(bad)}. Expected ADR-NNNN,"
+        " e.g. ADR-0127"
+    ]
+
+
+def _note_uncited_adrs(registry: SpecRegistry, adrs: list[str]) -> None:
+    """Say on stderr which ``--adr`` records no requirement cites in ``adr:``.
+
+    Such a record is reached only by a prose citation, so ``--adr`` selects
+    nothing for it. Saying so keeps an empty selection from reading as "this
+    record governs nothing" (SR-07-017).
+    """
+    for adr_id in uncited_adrs(registry, adrs):
+        print(
+            f"spec-dump: note: no requirement names {adr_id} in adr:; any"
+            f" rule it carries is stated where specs/ or notes/ cite it"
+            f" (grep -rn {adr_id} specs/ notes/)",
+            file=sys.stderr,
+        )
+
+
 def _fail(problems: list[str]) -> NoReturn:
     for problem in problems:
         print(f"Error: {problem}", file=sys.stderr)
@@ -505,6 +545,7 @@ def _selection_kwargs(args: argparse.Namespace) -> dict[str, Any]:
         "topic": topics,
         "groups": args.group,
         "spec_ids": args.ids,
+        "adrs": args.adr,
         "include_deps": args.deps,
         "kinds": args.kind,
         "scope": args.scope,
@@ -526,6 +567,7 @@ def main_llm_json() -> None:
         spec-dump --cross-cutting --slim        # ARCH, CS, TB, HP, SL, EH
         spec-dump --topic CM,EP --group ARCH-01
         spec-dump --ids EP-04-001 --deps
+        spec-dump --adr ADR-0127 --text         # requirements citing a record
         spec-dump --kind protocol,architecture --priority MUST
         spec-dump [specs/]                      # full dump (large; warns)
 
@@ -533,7 +575,9 @@ def main_llm_json() -> None:
     than reading raw YAML files or the full dump.
     """
     args = _build_dump_parser().parse_args()
-    problems = _enum_problems(args) + _empty_selectors(args)
+    problems = (
+        _enum_problems(args) + _empty_selectors(args) + _malformed_adrs(args)
+    )
     if problems:
         _fail(problems)
 
@@ -548,18 +592,21 @@ def main_llm_json() -> None:
     if problems:
         _fail(problems)
 
+    if args.adr:
+        _note_uncited_adrs(registry, args.adr)
+
     kwargs = _selection_kwargs(args)
     if args.index:
         _emit(to_index_text(registry, **kwargs))
         return
 
-    # Only the four *set* selectors narrow the corpus enough to be readable.
+    # Only the *set* selectors narrow the corpus enough to be readable.
     # An attribute filter such as --kind or --priority keeps whole topics, so
     # counting one as a selection let `--text --kind protocol` print the 285 KB
     # wall the guard exists to prevent. `--topic ""` is not a selection either:
     # it selects nothing, and used to print an empty dump plus a 0.0 MB warning.
     narrowed = any(
-        kwargs[key] for key in ("topic", "groups", "spec_ids")
+        kwargs[key] for key in ("topic", "groups", "spec_ids", "adrs")
     ) or bool(args.cross_cutting)
     filtered = any(
         value for key, value in kwargs.items() if key != "include_deps"
@@ -569,7 +616,7 @@ def main_llm_json() -> None:
             _fail(
                 [
                     "--text needs a non-empty selection (--topic/--group/"
-                    "--ids/--cross-cutting); every requirement as text is a"
+                    "--ids/--adr/--cross-cutting); every requirement as text is a"
                     " ~1 MB wall, and an attribute filter such as --kind or"
                     " --priority does not narrow it enough. Start with"
                     " --index."
@@ -583,7 +630,8 @@ def main_llm_json() -> None:
         print(
             f"spec-dump: warning: unfiltered dump is ~{len(output) / 1e6:.1f} MB"
             f" (~{len(output) // 4000}k tokens); use --index for a map and"
-            " --topic/--group/--ids/--cross-cutting [--slim] to load subsets",
+            " --topic/--group/--ids/--adr/--cross-cutting [--slim] to load"
+            " subsets",
             file=sys.stderr,
         )
     _emit(output)
