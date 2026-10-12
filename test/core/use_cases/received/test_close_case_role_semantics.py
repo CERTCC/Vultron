@@ -764,6 +764,48 @@ class TestOwnerCloseSettlesPendingInvites:
         )
 
     @pytest.mark.spec("CM-23-014")
+    def test_stub_invitee_row_on_the_ended_embargo_is_not_settled(self):
+        """A stub Invite's INVITED row needs no settling (CM-23-014, CM-11-006).
+
+        A stub Invite leaves its invitee ``INVITED`` on the embargo in force.
+        The close requires that embargo to end first (CM-23-011), which
+        freezes the row, so the settle step leaves it and commits nothing.
+        """
+        dl = _make_full_dl()
+        case = dl.read_case(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        embargo = as_EmbargoEvent(
+            id_=f"{CASE_ID}/embargo_events/in-force",
+            context=CASE_ID,
+            end_time=days_from_now_utc(45),
+        )
+        dl.create(embargo)
+        activate(case, embargo.id_)
+        dl.save(case)
+        write_consent_rows(dl, case)
+        invitee = dl.read(case.actor_participant_index[VENDOR_ID])
+        assert isinstance(invitee, CaseParticipant)
+        invitee.apply_pec_transition(
+            embargo.id_,
+            PEC_Trigger.INVITE,
+            entry_status=EmbargoRegisterStatus.ACTIVE,
+            rsvp_deadline=days_from_now_utc(365),
+        )
+        dl.save(invitee)
+        case = dl.read_case(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        terminate(case)
+        dl.save(case)
+
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert _case_ledger(dl)[-1].event_type == "case_fully_closed"
+        assert _expiry_entries(dl) == []
+        assert (
+            _consent(dl, VENDOR_ID, embargo.id_) == EmbargoConsentState.INVITED
+        )
+
+    @pytest.mark.spec("CM-23-014")
     def test_failed_expiry_commit_still_closes_the_case(
         self, monkeypatch, caplog
     ):

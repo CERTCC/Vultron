@@ -386,7 +386,8 @@ the replica replay node (`ApplyInviteExpiryFromLedgerNode`) are one copy. A row
 on a final entry is frozen and is not pending, which covers a stub invitee's
 row on the embargo that the close already required to end. The entry names the
 last Invite the ledger records for that invitee and embargo. Its `published`
-is the CASE_MANAGER's clock, because the invitee sent nothing. Recording is
+is the CASE_MANAGER's clock, because the invitee sent nothing (the named
+exception in `notes/case-ledger-authority.md`, trap 3). Recording is
 best-effort, as for the `RM.CLOSED` entry: a failure here must not cost the
 case its `case_fully_closed`.
 See `notes/participant-embargo-consent.md` §"Synthesised Ledger Entries" for

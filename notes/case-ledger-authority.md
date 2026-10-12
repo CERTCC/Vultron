@@ -19,6 +19,7 @@ related_notes:
   - notes/case-state-model.md
   - notes/configuration.md
   - notes/domain-validation.md
+  - notes/embargo-lifecycle.md
   - notes/ownership-transfer.md
   - notes/sync-ledger-replication.md
   - notes/wire-artifact-immutability.md
@@ -489,6 +490,15 @@ Five traps, all found the hard way:
    reports as a regression, and leaves CLP-14-007/008 comparing the receiver's
    clock against itself. A snapshot the CASE_MANAGER genuinely authors (its own
    actor URI) does use its own clock.
+
+   One known exception: the expired-invitation entry that the owner-close
+   settle step commits (CM-23-014). The CM-28-009 snapshot names the invitee
+   in `actor`, because the replica apply node reads `actor` as the invitee.
+   But the invitee sent nothing, so there is no claimed time to carry, and
+   `published` is the CASE_MANAGER's clock. The harm is bounded: a regression
+   is only reported (trap 2), and no later entry can record the invitee's act
+   after `case_fully_closed` (CM-23-013). Do not copy this pattern to an entry
+   that a participant's own later entries can follow.
 4. **A missing inbound `published` is a validity failure, not something to
    fill in.** `as_Base` defaults the field to `now_utc` so the same classes can
    author outbound activities; on the inbound path that default is the
