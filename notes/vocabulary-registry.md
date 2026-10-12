@@ -9,7 +9,7 @@ description: >
   live in vultron/wire/as2/vocab/AGENTS.md.
 related_specs:
   - specs/vocabulary-model.yaml (VM-01 through VM-03, VM-06, VM-10)
-  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010, ARCH-20-002, ARCH-23-001, ARCH-23-002)
+  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010, ARCH-20-002, ARCH-23-001, ARCH-23-002, ARCH-25-003, ARCH-25-004)
   - specs/docs-build-workflow.yaml (DOCBW-03-005)
   - specs/message-validation.yaml (MV-11-005)
 related_notes:
@@ -226,7 +226,7 @@ Ratchet: `test_core_record_types_in_core_type_map`.
 
 **No wire-branch guard is needed any more** (issue #2416). While wire classes
 inherited the core root, its `__init_subclass__` had to skip them through an
-`_is_core_branch` sentinel. ADR-0099 detail 4 made `as_Base` stand on
+`_is_core_branch` sentinel. ARCH-25-004 made `as_Base` stand on
 `pydantic.BaseModel` directly (ARCH-12-001), so no wire class ever reaches the
 core hook and the sentinel is gone. `test_no_wire_types_in_core_type_map` in
 `test/architecture/test_hierarchy_invariants.py` stays as a regression
@@ -387,7 +387,7 @@ diagnosis ADR-0099 builds on and whose remedy it replaces.
 ## Registry Keys Are Disjoint: `VOCABULARY` vs. `WIRE_TYPE_MAP` (ARCH-23-002)
 
 Wire classes use the `as_` prefix (ARCH-14-001). For a *domain* type the prefixed
-name is no longer a wire class: ADR-0099 detail 3 made `as_VulnerabilityCase` an
+name is no longer a wire class: ARCH-25-003 made `as_VulnerabilityCase` an
 alias of the core `VulnerabilityCase`, so it holds no `VOCABULARY` key. The prefix
 still marks a real wire class for unpaired AS2 vocabulary (`as_Link`,
 `as_Collection`, …).

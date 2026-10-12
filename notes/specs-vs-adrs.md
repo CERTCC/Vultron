@@ -2,7 +2,8 @@
 title: Specs vs. ADRs — Delineation Guidelines
 status: active
 related_specs:
-  - specs/meta-specifications.yaml
+  - specs/meta-specifications.yaml (MS-11-007)
+  - specs/architecture.yaml (ARCH-25)
 related_notes:
   - notes/bt-pitfalls.md
   - notes/spec-authoring-rules.md
@@ -51,12 +52,12 @@ Three consequences for everyday work:
   insight, and cite the ADR as provenance (MS-11-004, and the Cross-Referencing
   Pattern below).
 - **A spec or note must not resolve its own meaning by pointing into an ADR
-  body.** Cite the ADR for *why*; state the rule where the reader already is. The
-  corpus does not satisfy this yet — the "ADR-0099 detail N" citations across
-  `specs/` and `notes/` are the known exception, and they are what gates the
-  change that stops routine agent context from loading ADR bodies at all. Do not
-  add another: a citation that names a numbered detail inside a body makes that
-  body load-bearing again.
+  body.** Cite the ADR for *why*; state the rule where the reader already is.
+  MS-11-007 makes this normative for a numbered detail: a citation that names
+  one makes the body load-bearing again, and
+  `test/metadata/test_no_adr_detail_citations.py` fails any such citation under
+  `specs/` or `notes/`. ADR-0099's decision details, the last such citations,
+  now live in the ARCH-25 requirement group.
 
 What stays in the body: the reasoning, the rejected options, and how the code
 looked when the decision was made — the last written so it reads as of its time,

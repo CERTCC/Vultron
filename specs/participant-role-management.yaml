@@ -211,7 +211,7 @@ groups:
     statement: 'The wire-layer participant `as_CaseParticipant` (`vultron/wire/as2/vocab/objects/case_participant.py`) MUST
       expose `add_role()`, `remove_role()`, and `has_role()` methods with behavioral contracts equivalent to those on the
       core `CaseParticipant`: idempotent add/remove with optional raise-on-duplicate/missing flags, and a boolean presence
-      check. Under ADR-0099 detail 3 the two names are one class, which satisfies this by identity.'
+      check. Under ARCH-25-003 the two names are one class, which satisfies this by identity.'
     rationale: 'Callers that work with either domain or wire participant objects should not need to know which class they
       hold in order to manage roles.'
     tags:

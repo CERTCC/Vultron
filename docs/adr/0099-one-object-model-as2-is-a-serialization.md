@@ -775,6 +775,13 @@ ARCH-12-010 keeps only the `CORE_TYPE_MAP` registration duty for bare `CoreRecor
 The ARCH-23-006 prerequisite named above is met: `VultronValidationError` is a `ValueError`, held by `test_core_guard_inside_wire_union_fails_the_branch`.
 The audit in #4390 checked the set and rewrote the one requirement still carrying an ADR-0099 annotation, ARCH-20-006, which had required HTTP routes to render from an `as_*` class that detail 3 deletes.
 
+**Annotated 2026-10-12 (#4409).**
+The ten decision details are restated in full as the requirement group ARCH-25 in `specs/architecture.yaml`, one requirement per detail in order: ARCH-25-001 (detail 1) through ARCH-25-010 (detail 10).
+Each carries `adr: ADR-0099` and a verification clause naming the tests the table under Validation lists; ARCH-25-008 adds `test_core_object_declares_every_as2_object_field` for the object root, which that table did not cover.
+The amendments to details 7 and 8 are carried as provenance in the rationales of ARCH-25-007 and ARCH-25-008.
+Specs and notes now cite those requirement IDs rather than this record's detail numbers, and MS-11-007 forbids citing a detail number from either.
+Generated spec requirements: ARCH-25-001, ARCH-25-002, ARCH-25-003, ARCH-25-004, ARCH-25-005, ARCH-25-006, ARCH-25-007, ARCH-25-008, ARCH-25-009, ARCH-25-010.
+
 ## Ratification — 2026-10-02
 
 Ratified by Allen D. Householder on 2026-10-02, in the audit of unsupervised agent decisions (#4195).

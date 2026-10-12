@@ -41,7 +41,7 @@ groups:
     kind: project
     statement: When a factory parameter represents a domain entity whose fields determine how the wire object is enriched
       (e.g. a case whose embargo state determines whether `activeEmbargo` appears in the stub), the factory MUST accept the
-      complete domain object — under ADR-0099 detail 3 the core class is its own wire form, so there is no separate
+      complete domain object — under ARCH-25-003 the core class is its own wire form, so there is no separate
       counterpart to project into — and MUST derive the enrichment from that object's own fields. Callers MUST NOT hand a
       factory a hand-built *partial* stub (e.g. an `as_VulnerabilityCaseStub` assembled field-by-field) in place of the
       object — an incomplete argument risks omitting fields the object would have supplied (e.g. `end_time` on an embargo

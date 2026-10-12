@@ -12,7 +12,8 @@ description: >
   class ancestry.
 related_specs:
   - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-20-008,
-    ARCH-20-009, ARCH-21-002, ARCH-22-001, ARCH-23-005)
+    ARCH-20-009, ARCH-21-002, ARCH-22-001, ARCH-23-005, ARCH-25-002 through
+    ARCH-25-008)
   - specs/case-management.yaml (CM-31-003)
   - specs/code-style.yaml (CS-08-001, CS-08-002)
   - specs/error-handling.yaml (EH-07-001, EH-07-003)
@@ -103,7 +104,7 @@ Three MUST-level requirements made zero impossible:
 
 - **ARCH-12-001** (as originally written) — `as_Base` MUST inherit a shared
   root that lived in `vultron/core/models/base.py`. A required inheritance is a
-  permanent import. ADR-0099 detail 4 has since deleted that root, and
+  permanent import. ADR-0099 has since deleted that root (ARCH-25-004), and
   ARCH-12-001 now says the opposite: a wire class MUST NOT inherit a core
   class, and `as_Base` stands on `pydantic.BaseModel` directly.
 - **ARCH-20-002** (as originally written) — the rendering adapter MUST locate the
@@ -132,7 +133,7 @@ The rule, now normative as **MV-04-003**: resolving an inline object's type
 inside a wire tree MUST consider wire-branch classes only; an unresolved type is left for the parent field to
 validate. "Wire-branch" means *held by the wire registry* — an `as_Base`
 subclass or a class registered in `WIRE_TYPE_MAP` — not `as_Base` ancestry:
-since ADR-0099 detail 3 the canonical `VulnerabilityCase` is a core class
+since ARCH-25-003 the canonical `VulnerabilityCase` is a core class
 registered as its own wire form, and an ancestry test would refuse it. A hit in
 the core map is a **coincidence of naming**, not a wire
 counterpart — the same disjointness ARCH-23-002 records for `VOCABULARY` and
@@ -158,7 +159,7 @@ An implementer working the easy files would reach the base classes and have to
 choose which MUST to break. ADR-0082 removed the first two structural causes —
 the shared base was to move to a branch-neutral layer, and projection to the
 adapter side — and retargeted the goal test at a one-member exemption set.
-ADR-0099 superseded both moves: detail 4 deleted the shared base outright, and
+ADR-0099 superseded both moves: the shared base is deleted outright (ARCH-25-004), and
 the rendering adapter now dumps the core object itself (ARCH-20-002).
 
 **Lesson for future ratchets**: a goal test that asserts an unreachable state is
@@ -394,7 +395,7 @@ counterparts before passing them.
 
 **Both halves of that were undone in #3487, and the ratchet was replaced rather
 than widened.** The union is back on purpose; the adapter-side conversion has
-nothing left to convert. The ratchet's replacement asserts the invariant detail 3
+nothing left to convert. The ratchet's replacement asserts the invariant ARCH-25-003
 states — every promoted class is exactly AS2-representable — because the
 alternative on offer was a 59-entry allowlist, which records violations without
 checking anything.
@@ -428,7 +429,7 @@ that accepted a legacy camelCase key silently dropped that key and reset the
 field to its start value — a lost RM ladder, not an error (the #2232 defect).
 
 > **Under ADR-0099 the camelCase key is read, not refused.** #3487 put
-> `alias_generator=to_camel` on `CoreObject` (detail 2), so `participantStatuses`
+> `alias_generator=to_camel` on `CoreObject` (ARCH-25-002), so `participantStatuses`
 > is a declared alias of `participant_statuses` and lands in the right field. With
 > `extra="forbid"` beside it, the only key still refused is one matching *no*
 > field — a retired name or a typo — which is exactly the case that used to vanish.
@@ -446,8 +447,8 @@ wire-shaped payload fails loudly".** `forbid` rejects keys the model does not
 know. Keys the model *does* know under a wire spelling are still accepted:
 
 - `participantStatuses`, `caseRoles` and other camelCase spellings are
-  **accepted** once #3487 lands: `CoreObject` derives them as aliases (ADR-0099
-  detail 2), so they are read into their fields. Only a key matching no field
+  **accepted** once #3487 lands: `CoreObject` derives them as aliases
+  (ARCH-25-002), so they are read into their fields. Only a key matching no field
   raises.
 - A flat `rm_state`/`rmState` on `ParticipantStatus`, or `em_state` on
   `CaseStatus`, is **accepted** — those spellings are declared `AliasChoices` on
@@ -484,8 +485,8 @@ validators on `CoreObject` (see `_check_computed_field_inputs` and
   so two disagreeing spellings cannot mask each other. Refusing was tried and
   reverted during #2940 triage because `as_ParticipantStatus` then had an
   independent settable `embargo_adherence`, so a wire row could legitimately
-  disagree with core. That objection died with the second hierarchy: ADR-0099
-  detail 3 aliases `as_ParticipantStatus` onto `ParticipantStatus`, and the
+  disagree with core. That objection died with the second hierarchy: ARCH-25-003
+  aliases `as_ParticipantStatus` onto `ParticipantStatus`, and the
   `WireParsePort` the triage note waited on (#2938) is rejected, not pending.
   Measured on the unit suite, only two tests fed a self-contradictory row, and
   both fabricated it. A persisted row that contradicts itself now reads back as
@@ -524,11 +525,11 @@ Measured through `parse_activity` on 2026-09-30:
 
 The docs disagreed with each other about it too: ARCH-21-002 says inbound wire
 data stays lenient, ARCH-12-003 forbids on every core object including inline
-inbound ones, and the 2026-09-29 amendment of ADR-0099 detail 7 adopted
+inbound ones, and the 2026-09-29 amendment of ADR-0099's unknown-key rule adopted
 fail-loudly with an envelope carve-out that had no principle behind it beyond
 "that is what the code does".
 
-**The rule (MV-11, ADR-0099 details 7 and 8 as amended 2026-09-30).** The parser
+**The rule (MV-11, ARCH-25-007 and ARCH-25-008; ADR-0099 as amended 2026-09-30).** The parser
 is the inbound wire-to-core seam. It already walks every inline dict at every
 depth, resolves each to its class, and knows the field path. So the disposition
 is stated once there and holds everywhere:

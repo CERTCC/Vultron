@@ -111,7 +111,8 @@ groups:
       needs no marker.'
     rationale: Enabling the rule makes the exception the visible, reviewable artifact. Because `RUF100` (`unused-noqa`)
       stays selected, a marker whose cycle has been removed fails lint, so the backlog can only shrink and the last marker
-      cannot be left as decoration (ADR-0064 ratchet properties, ADR-0094 detail 2).
+      cannot be left as decoration. Growth fails, silent progress fails, and completion forces the marker's deletion,
+      which is the ratchet property set ADR-0064 requires (ADR-0094 chose `RUF100` as that forcing function).
     verification: '`ruff check` invoked with no path operands (IMPLTS-07-021) reports no `PLC0415` finding; each surviving
       marker in `vultron/` cites an open issue.'
     relationships:

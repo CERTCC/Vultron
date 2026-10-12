@@ -473,7 +473,7 @@ groups:
       to fix. The normalisation is deliberately shallow: AS2 has many two- and three-letter
       property names within one character of each other, so an edit-distance model would
       misfire constantly, and pinning down a richer notion of "near" is not worth the time
-      (ADR-0099 detail 8). A retired name is not a spelling of anything, so it is in the list
+      (ARCH-25-008; ADR-0099). A retired name is not a spelling of anything, so it is in the list
       by name rather than by normalisation. The JSON-LD keywords are named so the refusal is
       understood as a decision: a peer that emits `@id`/`@type` skipped compaction or compacted
       under a context without the AS2 aliases, and it meant the `id`/`type` Vultron reads.

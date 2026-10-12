@@ -51,6 +51,7 @@ Reference: `docs/adr/archived/0017-domain-wire-object-separation.md` (superseded
 
 import pytest
 
+from test.support.model_keys import accepted_keys, dumped_keys
 from vultron.core.models.base import CoreObject, CoreRecord
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -206,7 +207,7 @@ class TestWireVocabularyHierarchy:
 
 
 class TestCoreRoots:
-    """Core has exactly two roots (ADR-0099 detail 4, ARCH-12-002)."""
+    """Core has exactly two roots (ARCH-25-004, ARCH-12-002)."""
 
     def test_core_object_sits_directly_on_core_record(self) -> None:
         """``CoreObject`` is the one AS2 root, directly on the record root;
@@ -216,7 +217,7 @@ class TestCoreRoots:
         assert CoreObject.__bases__ == (CoreRecord,)
         for retired in ("VultronBase", "VultronObject"):
             assert not hasattr(base, retired), (
-                f"{retired} is retired by ADR-0099 detail 4; do not restore it"
+                f"{retired} is retired by ARCH-25-004; do not restore it"
             )
 
     def test_core_record_has_only_identity_fields(self) -> None:
@@ -244,6 +245,23 @@ class TestCoreRoots:
 
         for cls in (CoreRecord, CoreObject, as_Object):
             assert "_is_core_branch" not in dir(cls)
+
+    @pytest.mark.spec("ARCH-25-008")
+    def test_core_object_declares_every_as2_object_field(self) -> None:
+        """Every key the wire ``as_Object`` dumps is a ``CoreObject`` field.
+
+        The object root declares the full AS2 Object field set, including
+        fields Vultron does not use (``bto``, ``bcc``, ``icon``, ``image``),
+        so a legitimate AS2 field never reaches the parse edge as unknown and
+        ``extra="forbid"`` never refuses one on the stored side.
+        """
+        from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+        missing = dumped_keys(as_Object) - accepted_keys(CoreObject)
+        assert not missing, (
+            f"CoreObject does not declare AS2 object fields {sorted(missing)}"
+            " — declare them (ARCH-25-008)"
+        )
 
 
 class TestCoreTypeMapHierarchy:

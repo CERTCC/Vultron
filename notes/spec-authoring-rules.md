@@ -19,6 +19,7 @@ related_specs:
   - specs/testability.yaml
   - specs/docs-build-workflow.yaml
   - specs/demo-ci.yaml
+  - specs/architecture.yaml (ARCH-25-007, ARCH-25-008)
 related_notes:
   - notes/specs-vs-adrs.md
   - notes/behavioral-conformance-specs.md
@@ -500,7 +501,7 @@ the statement asserts. Five sessions found clauses that did not:
 | VM-01-004 | A test asserting the actor dual key | The test did not exist, and the stale wording licensed six bogus registry keys (#2982) |
 | DR-03-002 | Nothing | No clause, so nobody noticed it named the wrong component (#3827) |
 | MS-13-003 | Nothing | No check, half adoption, and the corpus read as having no rule; planning nearly invented a duplicate (#3480) |
-| ADR-0099 details 7–8 | The epic's closed children | Graduated to `accepted` with two details unbuilt; a `lint_suppress` in the same commit hid the prose/status mismatch (#3888) |
+| ADR-0099's unknown-key rule (now ARCH-25-007, ARCH-25-008) | The epic's closed children | Graduated to `accepted` with two details unbuilt; a `lint_suppress` in the same commit hid the prose/status mismatch (#3888) |
 
 **How to apply:** for each clause you write or review, ask one question — *if
 this requirement were violated, would the named check fail?* A build, lint or

@@ -536,7 +536,7 @@ Design guidance for per-machine dimension objects decomposed from `CaseStatus`
 and `ParticipantStatus` (ADR-0036): naming table, `BaseModel`-not-`CoreObject`
 rationale, immutable `transition()` pattern, call-site migration mapping
 (~308 active sites), and `EmbargoLifecycle` migration priority. The Wire
-Projection section now records ADR-0099 detail 5 / SDO-01-004: a dimension
+Projection section now records ARCH-25-005 / SDO-01-004: a dimension
 serializes to its **bare state value**, both input forms are accepted, and any
 reader of a persisted dimension must handle all three shapes.
 **Load when**: implementing or reviewing dimension-object migration, working on

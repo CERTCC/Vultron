@@ -255,7 +255,7 @@ groups:
       field matching the wire type name, so that registration via `__init_subclass__` fires
       automatically (`CORE_VOCABULARY` for a `CoreObject`, `CORE_TYPE_MAP` for a
       `CoreRecord`-only type). If a wire-facing `as_` name is wanted for it, that name MUST be an
-      alias of the core class (ADR-0099 detail 3), not a separate class. A separate `as_` wire
+      alias of the core class (ARCH-25-003), not a separate class. A separate `as_` wire
       class MUST be written only for unpaired AS2 vocabulary with no core counterpart; such a class
       inherits from an AS2 base (`as_Object`, `as_Activity`, etc.), is placed in the vocabulary
       subpackage that matches its category (`vocab/objects/`, `vocab/activities/`), and is
@@ -364,8 +364,8 @@ groups:
       not to a reference. Slots that do admit `str` (every `ActivityStreamRef[T]`) are out of
       scope here and keep VM-06-004's defer behaviour.
     rationale: >-
-      ADR-0099 detail 9 requires object slots to hold whole objects but named nothing to fill
-      them. Per-class `from_core` did it by fabricating a stub with an invented `actor` — the
+      ARCH-25-009 requires object slots to hold whole objects, and ADR-0099 as first written
+      named nothing to fill them. Per-class `from_core` did it by fabricating a stub with an invented `actor` — the
       case owner, or the case's own URI — which misattributes every activity the owner did not
       perform. `rehydrate()` already holds the `DataLayer` (VM-06-002), so it can resolve the
       real object and read the real actor off it. Naming it keeps the behaviour alive when the
@@ -480,7 +480,7 @@ groups:
     rationale: >-
       The received artifact is the evidence of what arrived, and the ledger replicates it via
       `Announce(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not
-      reach nested models, and since ADR-0099 detail 3 the nested objects are mutable core
+      reach nested models, and since ARCH-25-003 the nested objects are mutable core
       classes. The evidence is therefore a value taken at parse, not a property of the graph.
       The stored record does not keep the body, so a rebuilt activity has no evidence to carry;
       persisting it with the record is a later step of ADR-0107. Until then, attaching a new
