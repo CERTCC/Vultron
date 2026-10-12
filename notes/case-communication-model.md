@@ -36,6 +36,7 @@ related_notes:
   - notes/protocol-asks.md
   - notes/case-joining.md
   - notes/received-status-authorization.md
+  - notes/message-type-reference.md
 relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/core/use_cases/received
@@ -592,6 +593,17 @@ reports `REFUSED`. A reply to an ask is authorized by the ask naming its sender
 the sender's own copy of the ask: an Accept that embeds an Invite proves nothing
 about the Invite the CASE_MANAGER sent (CM-11-017). A replica accepts
 case-state changes only from the CASE_MANAGER (PCR-03-001).
+
+The declaration is the whole rule, not a floor (HP-01-008, ADR-0129). It is
+composed of entitlement kinds, may require any one of several ("the note's
+author or the Case Owner"), and states the standing per addressee: the
+CASE_MANAGER, a participant, or an actor outside any case before one exists.
+A tree adds no narrower sender check of its own. Positions within one exchange
+(the invitee, the addressee of a request, the author of an object) are kinds,
+never `CVDRole` values (HP-01-009). The occasion lookup table derives its "Sent
+by" and "Send to" columns from these declarations; see
+[message-type-reference.md](message-type-reference.md) § Planning decisions
+(#4433).
 
 ---
 
