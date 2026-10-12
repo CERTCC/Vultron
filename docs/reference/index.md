@@ -41,7 +41,7 @@ protocol with other related standards and protocols, including:
 - [Case Model Fields](case_model_fields.md) — The fields of the case, participant, and status objects, as the reference implementation defines them.
 - [Formal Protocol](formal_protocol/index.md) — The Multi-Party Coordinated Vulnerability Disclosure (MPCVD) process defined as a communicating hierarchical state machine.
 - [Messages](messages/index.md) — How the formal message set relates to the ActivityStreams 2.0 (AS2) wire vocabulary the prototype sends and receives.
-- [Specifications](specs/index.md) — Structured requirements organized by portability tier: Protocol, Architecture, Project, and Process.
+- [Specifications](specs/index.md) — Structured requirements organized by portability tier: Protocol, Foundation, Architecture, Project, and Process.
 
 <!-- END GENERATED SECTION CONTENTS -->
 

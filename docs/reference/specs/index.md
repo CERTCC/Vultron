@@ -1,7 +1,7 @@
 ---
 description: >
   Structured requirements organized by portability tier: Protocol,
-  Architecture, Project, and Process.
+  Foundation, Architecture, Project, and Process.
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
 contents: routing
@@ -16,7 +16,11 @@ reflects the current state of the specification.
 
 | Tier | Description |
 |------|-------------|
-| [Protocol](protocol.md) | Required for Vultron compliance — any implementation in any language |
-| [Architecture](architecture.md) | Implementation-independent structural guidance transferable across languages |
-| [Project](project.md) | Specific to this Python codebase |
+| [Protocol](protocol.md) | The Vultron layer — required of any implementation in any language |
+| [Foundation](foundation.md) | Rules inherited from ActivityStreams 2.0, ActivityPub, and HTTP |
+| [Architecture](architecture.md) | Recommended structure that carries over to other languages, not required for compliance |
+| [Project](project.md) | This codebase only — deployment choices, operating limits, internals |
 | [Process](process.md) | How we run this project — CI, GitHub workflow, agent conventions |
+
+Who must obey a rule decides its tier; naming code never does.
+An implementer reads Protocol and Foundation.

@@ -145,7 +145,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0035 Core Activity Representation and Envelope Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md)
 - [ADR-0036 Per-Machine Dimension Objects for CaseStatus and ParticipantStatus](0036-status-dimension-objects.md)
 - [ADR-0037 Buffer Out-of-Order `Announce(CaseLedgerEntry)` Instead of Dropping](0037-buffer-out-of-order-ledger-entries.md)
-- [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy](0038-four-tier-specification-taxonomy.md)
+- [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy](0038-four-tier-specification-taxonomy.md) — partially superseded by 0134-who-must-obey-a-rule-decides-its-spec-kind.md
 - [ADR-0039 Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
 - [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce UseCaseRequest](0040-use-case-result-envelope.md)
 - [ADR-0041 CASE_MANAGER-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md) *(revision 2)* — partially superseded by 0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md; supersedes 0015-create-case-at-report-receipt.md
@@ -229,6 +229,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0131 Post-Close Traffic Is Dropped, and Only a Late Leave May Be Answered](0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md) *(provisional)*
 - [ADR-0132 The Report Receiver Introduces the CASE_MANAGER to the Reporter](0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md) *(provisional)* — partially supersedes 0041-caseactor-authoritative-case-initialization.md
 - [ADR-0133 The Report Receiver States Its Case Roles on the Case Proposal](0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md) *(provisional)*
+- [ADR-0134 Who Must Obey a Rule Decides Its Spec Kind](0134-who-must-obey-a-rule-decides-its-spec-kind.md) *(provisional)* — partially supersedes 0038-four-tier-specification-taxonomy.md
 
 ## Proposed ADRs
 
