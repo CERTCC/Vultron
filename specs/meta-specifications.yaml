@@ -217,6 +217,21 @@ groups:
     rationale: Declarative requirements avoid constraining implementation unnecessarily.
     tags:
     - documentation
+  - id: MS-05-005
+    priority: MUST
+    kind: process
+    statement: A requirement written to guard against an implementation mistake MUST state the domain truth the mistake
+      violates, in the vocabulary of its kind, and MUST NOT be phrased only as a prohibition of the mistake.
+    rationale: 'A bare prohibition reads as if the mistake were a plausible design, and under the protocol story gate it
+      needs a contrived story. The positive truth is design an implementer can follow, and the regression test verifies
+      it. RSH-08-001 is the worked case: the rule is that a participant''s assertion about itself is about itself, not
+      about another actor, and the mistake it guards against recurred (ADR-0089, CONCERN-3473). The bug that prompted
+      such a requirement belongs in its rationale. A guard with no domain truth behind it is `project` under MS-12, or
+      only a regression test.'
+    tags:
+    - documentation
+    verification: 'Review: a requirement whose rationale cites the bug it guards against states a positive obligation;
+      see `notes/spec-authoring-rules.md` § "A Guard States the Truth the Mistake Violates".'
 - id: MS-07
   title: Cross-References and Sources
   specs:
