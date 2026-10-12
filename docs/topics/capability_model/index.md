@@ -339,8 +339,8 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 ### Embargo
 
 - `propose-embargo` — propose a new embargo
-- `accept-embargo` — accept a pending embargo proposal
-- `reject-embargo` — reject a pending embargo proposal
+- `accept-embargo` — accept a pending embargo proposal, or the embargo in force by naming the Invite you received for it
+- `reject-embargo` — reject a pending embargo proposal, or the embargo in force by naming the Invite you received for it
 - `propose-embargo-revision` — propose a revision to an active embargo
 - `terminate-embargo` — end the active embargo immediately
 

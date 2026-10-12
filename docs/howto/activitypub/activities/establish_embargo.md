@@ -124,7 +124,7 @@ Once the embargo is in force it is no longer an open proposal, but a participant
    You send the same `Accept(Invite(Event))` or `Reject(Invite(Event))` as for an open proposal, addressed to the CASE_MANAGER.
 
 You can answer this way while your consent row for the embargo in force is `INVITED` or `TIMED_OUT`.
-An Accept after the RSVP deadline is honored, because the terms you agree to are the terms in force (EMB-17-002).
+An Accept sent after the reply deadline is honored, because the terms you agree to are the terms in force (EMB-17-002).
 The trigger reports not found when you hold no such Invite, or when your row is already `AGREED` or `DECLINED`.
 
 Name the Invite.
