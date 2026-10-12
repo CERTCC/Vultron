@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Acknowledge a Report
@@ -54,19 +54,7 @@ No `CaseLedgerEntry` is written, because report submission is not ledger-replica
 
 ## See it end to end
 
-!!! example "Try it: `vultron-demo acknowledge`"
-
-    ```bash
-    vultron-demo acknowledge
-    ```
-
-    Or with Docker Compose:
-
-    ```bash
-    DEMO=acknowledge docker compose -f docker/docker-compose.yml run --rm demo
-    ```
-
-    The scenario runs all three paths: acknowledge only, acknowledge then validate, and acknowledge then invalidate.
+{% include-markdown "./_demo_acknowledge.md" %}
 
 ---
 

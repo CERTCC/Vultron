@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Invite an Actor to a Case
@@ -118,19 +118,7 @@ If you are not the Case Owner but you know an actor belongs on the case, suggest
 
 ## See it end to end
 
-!!! example "Try it: `vultron-demo invite-actor`"
-
-    ```bash
-    vultron-demo invite-actor
-    ```
-
-    Or with Docker Compose:
-
-    ```bash
-    DEMO=invite-actor docker compose -f docker/docker-compose.yml run --rm demo
-    ```
-
-    The scenario invites one coordinator that accepts and a second that rejects.
+{% include-markdown "./_demo_invite_actor.md" %}
 
 ---
 

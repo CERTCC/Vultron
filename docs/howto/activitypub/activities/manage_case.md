@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Advance a Case Through Report Management
@@ -155,19 +155,7 @@ Each transition is committed to the case ledger, so the same `rm_state` should b
 
 ## See it end to end
 
-!!! example "Try it: `vultron-demo manage-case`"
-
-    ```bash
-    vultron-demo manage-case
-    ```
-
-    Or with Docker Compose:
-
-    ```bash
-    DEMO=manage-case docker compose -f docker/docker-compose.yml run --rm demo
-    ```
-
-    The scenario runs the engage path, the defer-and-re-engage path, and the invalidate path.
+{% include-markdown "./_demo_manage_case.md" %}
 
 ---
 
