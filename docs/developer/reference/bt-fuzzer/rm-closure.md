@@ -4,7 +4,7 @@ stakeholder_type: [project-contributor]
 
 # Report closure and other work fuzzer nodes
 
-These stub nodes belong to `RMCloseBt` (`vultron/bt/report_management/_behaviors/close_report.py`), which models closing a report once the CVD workflow concludes, and to `RMDoWorkBt` (`vultron/bt/report_management/_behaviors/do_work.py`), the fallback tree for miscellaneous work on an accepted report.
+These stub nodes belong to `RMCloseBt` (`vultron/bt/report_management/_behaviors/close_report.py`), which models closing a report once the Coordinated Vulnerability Disclosure (CVD) workflow concludes, and to `RMDoWorkBt` (`vultron/bt/report_management/_behaviors/do_work.py`), the fallback tree for miscellaneous work on an accepted report.
 
 See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
 
@@ -32,7 +32,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Source file**: `report_management/fuzzer/close_report.py`
 - **Parent tree**: `RMCloseBt`
 - **Semantic function**: Action — execute any site-specific tasks that must be completed before a report can be closed (e.g., quality assurance review, final stakeholder notification, archiving)
-- **Input dependency**: Integration hook; QA pipeline, archiving system, or final notification API
+- **Input dependency**: Integration hook; quality assurance (QA) pipeline, archiving system, or final notification application programming interface (API)
 - **Notes**: Always succeeds in simulation; production may involve multi-step pre-close workflows
 - **Automation potential**: **Medium** — archiving and standard notification steps can be automated; QA review and final approvals typically require human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.close_report.PreCloseAction`
@@ -60,7 +60,7 @@ These nodes belong to `RMDoWorkBt` (`vultron/bt/report_management/_behaviors/do_
 - **btz type**: `AlwaysSucceed` (p=1.00)
 - **Source file**: `report_management/fuzzer/other_work.py`
 - **Parent tree**: `RMDoWorkBt`
-- **Semantic function**: Action — placeholder for any additional work activities not covered by the more specific BT sub-trees (e.g., internal documentation, stakeholder meetings, legal review, additional analysis)
+- **Semantic function**: Action — placeholder for any additional work activities not covered by the more specific behavior tree (BT) sub-trees (e.g., internal documentation, stakeholder meetings, legal review, additional analysis)
 - **Input dependency**: Site-specific work queue; human analyst tasks or automated workflow steps not yet modeled in the BT
 - **Notes**: Always succeeds; this is an extensibility point for organizations to plug in their own workflow steps
 - **Automation potential**: **Low** — intentional extensibility stub for unmodeled work; automation potential is entirely site-specific and cannot be assessed generically.

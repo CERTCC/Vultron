@@ -5,6 +5,7 @@ stakeholder_type: [project-contributor]
 # Fix development and deployment fuzzer nodes
 
 These stub nodes belong to the simulator's fix development and fix deployment sub-trees.
+Each entry maps a simulator stub to the call-out point that replaces it in `vultron/core/behaviors/report/`.
 
 See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
 
@@ -44,7 +45,7 @@ These nodes belong to the `Deployment` fallback tree (`vultron/bt/report_managem
 - **Automation potential**: **High** — metadata timestamp or deployment-event subscription check; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.NoNewDeploymentInfo`
 - **Call-out point shape**: ProtocolInternal — reads a change-detection flag written by the upstream `NewDeploymentInfoSentinel` (see the next entry).
-  The external seam is at that upstream writer, not at this BT condition check.
+  The external seam is at that upstream writer, not at this behavior tree (BT) condition check.
 - **Factory-fn placement**: `CheckNoNewDeploymentInfoNode` in `vultron.core.behaviors.report.nodes.deploy_fix` — ProtocolInternal condition check in the `_ShouldStayInRmDeferred` arm of the `DeployFixBT` Fallback built by `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`, and reused by `create_deploy_mitigation_tree`.
   It reads the blackboard key `new_deployment_info` (`NEW_DEPLOYMENT_INFO_KEY`) and defaults to SUCCESS when the key is absent.
   Not a factory param: there is no injection seam at this node.
@@ -71,7 +72,7 @@ These nodes belong to the `Deployment` fallback tree (`vultron/bt/report_managem
 - **Source file**: `report_management/fuzzer/deploy_fix.py`
 - **Parent tree**: `Deployment`
 - **Semantic function**: Action — assess and set the priority for deploying the fix across affected systems
-- **Input dependency**: Human analyst or automated vulnerability prioritization system (e.g., CVSS environmental score, EPSS, asset criticality)
+- **Input dependency**: Human analyst or automated vulnerability prioritization system (e.g., a Common Vulnerability Scoring System (CVSS) environmental score, an Exploit Prediction Scoring System (EPSS) score, asset criticality)
 - **Notes**: Succeeds almost always in simulation; in production may involve structured prioritization criteria
 - **Automation potential**: **Medium** — CVSS environmental scores, EPSS, and asset criticality data are automatable inputs; final prioritization decision may require human approval, especially for production systems.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.PrioritizeDeployment`
@@ -114,7 +115,7 @@ These nodes belong to the `Deployment` fallback tree (`vultron/bt/report_managem
 - **btz type**: `UsuallySucceed` (p=0.75)
 - **Source file**: `report_management/fuzzer/deploy_fix.py`
 - **Parent tree**: `Deployment`
-- **Semantic function**: Action — apply the available mitigation to affected systems (e.g., configuration change, WAF rule, temporary patch)
+- **Semantic function**: Action — apply the available mitigation to affected systems (e.g., configuration change, web application firewall (WAF) rule, temporary patch)
 - **Input dependency**: Human operator prompt or automated deployment pipeline; patch management or configuration management system integration
 - **Notes**: Succeeds most of the time in simulation; production implementation would integrate with patch/config management tooling
 - **Automation potential**: **Medium** — automated deployment is feasible for some environments (configuration management, cloud); human approval is typically required for production system changes.
@@ -147,7 +148,7 @@ These nodes belong to the `Deployment` fallback tree (`vultron/bt/report_managem
 - **Notes**: Always succeeds in simulation; in production monitors deployment coverage metrics
 - **Automation potential**: **High** — integration with deployment verification tools, patch compliance dashboards, or asset management platforms; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MonitorDeployment`
-- **Call-out point shape**: Actuator — initiates external deployment-monitoring as a side-effect; invokes patch-compliance dashboard, deployment-verification API, or asset-management platform to start ongoing coverage tracking.
+- **Call-out point shape**: Actuator — initiates external deployment-monitoring as a side-effect; invokes patch-compliance dashboard, deployment-verification application programming interface (API), or asset-management platform to start ongoing coverage tracking.
   There is no content artifact placed on the blackboard; the side effect in the external monitoring system is the seam.
   This is a fire-and-confirm action node, not a continuous monitor running outside the BT — the BT tick reaches this node once per `MonitoringRequirement` pass and asks the external system to begin tracking.
 - **Factory-fn placement**: `monitor_deployment_factory` in the shared `DeploymentMonitoringBundle` — Actuator in the `_MonitorDeploymentIfDesired` arm of both deployment trees, after `MonitoringRequirement` succeeds

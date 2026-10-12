@@ -20,7 +20,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Automation potential**: **High** — event subscription on the case record or metadata timestamp comparison; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.NoNewValidationInfo`
 - **Call-out point shape**: ProtocolInternal — reads a change-detection flag written by the upstream `NewValidationInfoSentinel` (see the next entry).
-  The external seam is at that upstream writer, not at this BT condition check.
+  The external seam is at that upstream writer, not at this behavior tree (BT) condition check.
 - **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — ProtocolInternal condition check at the top of `ValidationOrShortcut` Selector; not wired yet: the tree has `CheckRMStateValid` there, and the change-detection variant belongs beside it once the retry loop exists
 
 ## `NewValidationInfoSentinel` *(upstream Sentinel stub)*
@@ -45,7 +45,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Source file**: `report_management/fuzzer/validate_report.py`
 - **Parent tree**: `RMValidateBt`
 - **Semantic function**: Condition — assess whether the report's source and content are credible (i.e., likely to describe a real vulnerability)
-- **Input dependency**: Human analyst judgment; structured credibility criteria (e.g., SSVC Exploitation, reporter reputation, technical plausibility); potentially automatable with ML-based triage tools
+- **Input dependency**: Human analyst judgment; structured credibility criteria (e.g., Stakeholder-Specific Vulnerability Categorization (SSVC) Exploitation, reporter reputation, technical plausibility); potentially automatable with triage tools based on machine learning (ML)
 - **Notes**: SSVC documentation provides structured criteria for this evaluation
 - **Automation potential**: **Medium** — SSVC exploitation status, reporter reputation scoring, and technical plausibility checks can be partially automated; final credibility determination typically requires human analyst review.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.EvaluateReportCredibility`
@@ -59,9 +59,9 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Source file**: `report_management/fuzzer/validate_report.py`
 - **Parent tree**: `RMValidateBt`
 - **Semantic function**: Condition — assess whether the report is valid for this organization's scope (credible AND meeting org-specific acceptance criteria)
-- **Input dependency**: Human analyst judgment or policy-driven scope check; context-specific to the receiving organization's CVD charter
+- **Input dependency**: Human analyst judgment or policy-driven scope check; context-specific to the receiving organization's Coordinated Vulnerability Disclosure (CVD) charter
 - **Notes**: A report can be credible but out of scope; validity is contextual and role-dependent
-- **Automation potential**: **Medium** — scope checks against well-defined CNA/charter rules are automatable; organizational-context validity judgment often requires human review.
+- **Automation potential**: **Medium** — scope checks against well-defined Common Vulnerabilities and Exposures (CVE) Numbering Authority (CNA) or charter rules are automatable; organizational-context validity judgment often requires human review.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.EvaluateReportValidity`
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Evaluator condition guard in `ValidationFlow` Sequence (third child, before `ValidationActions`); currently a stub `EvaluateReportValidity` node that always returns SUCCESS
@@ -89,7 +89,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Semantic function**: Action — request or collect additional information needed to validate the report (e.g., reproduction steps, affected versions, proof-of-concept)
 - **Input dependency**: Human analyst outreach to reporter, or automated intake forms / follow-up workflows
 - **Notes**: Succeeds most of the time in simulation to keep the workflow progressing
-- **Automation potential**: **Low–Medium** — structured intake form follow-ups and automated case-update requests are partially automatable; direct reporter outreach typically requires human involvement.
+- **Automation potential**: **Medium** — structured intake form follow-ups and automated case-update requests are partially automatable; direct reporter outreach typically requires human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.GatherValidationInfo`
 - **Call-out point shape**: Retriever
 - **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Retriever action node in the info-gathering Sequence (not wired yet), triggered when `EnoughValidationInfo` returns FAILURE

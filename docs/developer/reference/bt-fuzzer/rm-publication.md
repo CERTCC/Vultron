@@ -21,7 +21,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Notes**: Fails most of the time in simulation because publication is an active goal being worked toward
 - **Automation potential**: **High** — publication status flag on the case record; fully automatable as a metadata check.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.AllPublished`
-- **Call-out point shape**: ProtocolInternal — reads a publication-completion flag maintained in the local DataLayer / BT blackboard by the protocol's own BT execution (written by `Publish` nodes).
+- **Call-out point shape**: ProtocolInternal — reads a publication-completion flag maintained in the local DataLayer / behavior tree (BT) blackboard by the protocol's own BT execution (written by `Publish` nodes).
   No external agent seam — the flag is local and actor-scoped.
 - **Factory-fn placement**: Not placed: `create_publication_tree` has no top-level early exit once all artifacts are published; adding one would wrap the `PublicationBT` Sequence in a `Selector(AllPublished, …)`.
 
@@ -61,7 +61,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Source file**: `report_management/fuzzer/publication.py`
 - **Parent tree**: `Publication`
 - **Semantic function**: Action — execute the publication of a prepared artifact to the intended audience (advisory, patch, bulletin, etc.)
-- **Input dependency**: Publication platform API (CMS, advisory database, package repository, NVD/CVE submission); could be fully automated
+- **Input dependency**: Publication platform application programming interface (API), such as a content management system (CMS), advisory database, package repository, or National Vulnerability Database (NVD) / Common Vulnerabilities and Exposures (CVE) submission; could be fully automated
 - **Notes**: Succeeds almost always in simulation; in production may involve API calls to advisory publishing platforms
 - **Automation potential**: **High** — advisory platform APIs (NVD, CVE.org, CMS, package repository) enable fully automated artifact publication.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.Publish`
@@ -135,7 +135,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Parent tree**: `Publication`
 - **Semantic function**: Condition — check the publication intent flag for the fix artifact; `SUCCESS` means "do not publish fix"
 - **Input dependency**: Publication intent record; case policy
-- **Notes**: Fails most of the time because fix publication is the standard expected outcome of CVD
+- **Notes**: Fails most of the time because fix publication is the standard expected outcome of Coordinated Vulnerability Disclosure (CVD)
 - **Automation potential**: **TerminalPlaceholder** — BT bypass fallback leaf; no decision logic required.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishFix`
 - **Call-out point shape**: ProtocolInternal — bypass fallback leaf that succeeds when the fix is not intended for publication; exists purely so the BT succeeds gracefully on the no-op path; no external input, output, or monitoring seam.
@@ -151,7 +151,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Semantic function**: Action — create, document, and stage the fix artifact for publication (patch notes, release artifacts, advisory text)
 - **Input dependency**: Engineering team output; patch release pipeline and content authoring workflow
 - **Notes**: Succeeds almost always in simulation
-- **Automation potential**: **Low–Medium** — CI/CD pipeline can automate patch build and packaging; advisory text and release notes typically require human authoring and review.
+- **Automation potential**: **Medium** — a build and release pipeline can automate patch build and packaging; advisory text and release notes typically require human authoring and review.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PrepareFix`
 - **Call-out point shape**: Composer
 - **Factory-fn placement**: `vultron.core.behaviors.report.publication_tree.create_publication_tree` (`prepare_fix_factory` param) — Composer in the fix arm, between `ShouldPublishFix` and the publish pipeline

@@ -17,7 +17,7 @@ Explanation material.
 
 ## Maintainer reference pages
 
-- [BT fuzzer node catalog](bt-fuzzer/index.md): the simulator's stub nodes and the prototype call-out points that replace them.
+- [Behavior tree (BT) fuzzer node catalog](bt-fuzzer/index.md): the simulator's stub nodes and the prototype call-out points that replace them.
 
 ## Maintainer source-of-truth files in the repository
 

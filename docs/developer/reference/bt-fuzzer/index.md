@@ -4,7 +4,7 @@ stakeholder_type: [project-contributor]
 
 # BT fuzzer node catalog
 
-Fuzzer nodes are stub behavior tree nodes in the `vultron/bt/` protocol simulation.
+Fuzzer nodes are stub behavior tree (BT) nodes in the `vultron/bt/` protocol simulation.
 Each one is built with the `vultron.bt.base.factory.fuzzer` factory and wraps a probabilistic base type from `vultron.bt.base.fuzzer` (such as `AlwaysSucceed` or `UsuallyFail`) in place of real-world logic.
 
 Every fuzzer node is a **call-out point**: a place where the tree cannot decide the outcome by itself.
@@ -13,7 +13,7 @@ Deciding it takes one of the following:
 - **External data**, such as threat intelligence feeds, exploit databases, vulnerability registries, or contact directories.
 - **State of the world**, such as whether a fix is deployed, a threat has materialized, or a timer has elapsed.
 - **Human judgment**, such as an analyst's decision on report validity, embargo terms, or publication priority.
-- **Input from another agent**, such as a scoring system (CVSS, SSVC), a policy engine, or an orchestration service.
+- **Input from another agent**, such as a Common Vulnerability Scoring System (CVSS) or Stakeholder-Specific Vulnerability Categorization (SSVC) scoring system, a policy engine, or an orchestration service.
 
 The `vultron.demo.fuzzer` package ports these stubs to the py_trees prototype, where `vultron.core.behaviors` factories accept them as call-out backends.
 
@@ -46,7 +46,7 @@ Each node entry has these fields:
 - **btz type**: the base type from `vultron.bt.base.fuzzer` and its success probability (see [Base types](#base-types)).
 - **Source file**: the path relative to `vultron/bt/`, unless written in full.
 - **Parent tree**: the named BT sub-tree the node participates in.
-- **Semantic function**: what the node represents in the CVD process.
+- **Semantic function**: what the node represents in the Coordinated Vulnerability Disclosure (CVD) process.
 - **Input dependency**: the kind of real-world input needed to replace it.
 - **Notes**: implementation guidance from the source code comments.
 - **Automation potential**: one of the [automation potential](#automation-potential) values.
@@ -58,7 +58,7 @@ Each node entry has these fields:
 
 ## Automation potential
 
-- **High**: fully automatable through API calls, metadata queries, or policy-rule evaluation.
+- **High**: fully automatable through application programming interface (API) calls, metadata queries, or policy-rule evaluation.
 - **Medium**: partly automatable with data feeds or policy templates, but edge cases still need human oversight.
 - **Low**: inherently human-driven; automation is limited to notifications or task triggers.
 - **TerminalPlaceholder**: a placeholder leaf with no decision logic and no external dependency, such as an `AlwaysSucceed` fallback.
@@ -77,7 +77,7 @@ The shape comes from the seam structure, not from the automation potential (BT-1
 - **Actuator**: receives a trigger and context and invokes an external system for a side effect, such as a notification, a state write, or an API call.
   It returns `SUCCESS` when the side effect is confirmed and writes no content artifact to the blackboard.
 - **ProtocolInternal**: the node resolves entirely inside the protocol implementation, with no external input, output, or monitoring seam.
-  Use it only for terminal placeholders and structural composites, never because a node is highly automatable (BT-18-005).
+  It applies only to terminal placeholders and structural composites, never to a node because that node is highly automatable (BT-18-005).
 
 Sentinel is not a call-out shape: it is a call-in pattern with no call-out node to classify (ADR-0097).
 A few entries still read `Sentinel`; #3424 tracks reclassifying them.

@@ -18,7 +18,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Semantic function**: Condition/action — decide whether a deployed fix is sufficient reason to exit an active embargo
 - **Input dependency**: Human or policy judgment; deployment event plus site policy on post-deployment embargo continuation
 - **Notes**: Modeled as unlikely because deployment alone is usually insufficient (e.g., partial rollout, emergency deployment)
-- **Automation potential**: **Medium** — deployment status check is automatable via patch-management or case-state APIs; the *decision* to exit still requires policy-rule evaluation or human confirmation.
+- **Automation potential**: **Medium** — deployment status check is automatable via patch-management or case-state application programming interfaces (APIs); the *decision* to exit still requires policy-rule evaluation or human confirmation.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenDeployed`
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`exit_embargo_when_deployed_factory` param) — condition guard in the ReasonSelector, checked before delegating to `terminate_embargo_bt`; the same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
@@ -63,8 +63,8 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Automation potential**: **High** — simple system-clock comparison against the recorded embargo expiry timestamp; fully automatable with no human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoTimerExpired`
 - **Call-out point shape**: Retriever — on-demand synchronous check: reads the embargo expiry timestamp from the case DataLayer, compares it to the current system clock, and returns SUCCESS/FAILURE with no output keys.
-  The BT tick drives this node; it does not run independently or fire a trigger endpoint.
-  A timestamp comparison is the simplest kind of structured fact (ADR-0024 BT-18-006: binary on-demand queries are Retrievers, not Sentinels).
+  The behavior tree (BT) tick drives this node; it does not run independently or fire a trigger endpoint.
+  A timestamp comparison is the simplest kind of structured fact (ADR-0024, BT-18-006: binary on-demand queries are Retrievers, not Sentinels).
 - **Factory-fn placement**: Not placed in a production factory.
   `create_terminate_active_embargo_tree` models actor-chosen exit reasons only; invite-deadline expiry is handled by `vultron.core.behaviors.embargo.expiry_tree`.
 
@@ -242,7 +242,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
   Defaults to approval in simulation (owner approval assumed).
 - **Input dependency**: Human approval / adjudication — final authority rests with the case owner (a human or configured policy agent)
 - **Notes**: Gate only; no content artifact placed on the blackboard.
-  In production this seam would be fulfilled by an Evaluator-type Coordination Agent (UI prompt, LLM adjudicator, or policy rule) returning the owner's decision.
+  In production this seam would be fulfilled by an Evaluator-type Coordination Agent (a user interface (UI) prompt, a large language model (LLM) adjudicator, or a policy rule) returning the owner's decision.
 - **Automation potential**: **Low** — final authority rests with the case owner; not auto-approvable by default.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CaseOwnerApprovesEmbargoResponse`
 - **Call-out point shape**: Evaluator — records an adjudication decision (approve/deny); no blackboard output_keys (pass/fail gate only per BT-18-006).

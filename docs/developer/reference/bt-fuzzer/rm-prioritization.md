@@ -20,7 +20,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Automation potential**: **High** — metadata timestamp or case-update event check; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.NoNewPrioritizationInfo`
 - **Call-out point shape**: ProtocolInternal — reads a change-detection flag written by the upstream `NewPrioritizationInfoSentinel` (see the next entry).
-  The external seam is at that upstream writer, not at this BT condition check.
+  The external seam is at that upstream writer, not at this behavior tree (BT) condition check.
 - **Factory-fn placement**: `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree` — ProtocolInternal condition check at the top of `PrioritizeBT` Selector; not wired yet: it belongs here once the re-prioritization loop exists
 
 ## `NewPrioritizationInfoSentinel` *(upstream Sentinel stub)*
@@ -29,7 +29,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **btz type**: *(not a BT node — upstream agent seam)*
 - **Source file**: *(to be determined)*
 - **Parent tree**: *(runs independently, outside the BT tick loop)*
-- **Semantic function**: Sentinel — monitors the case record for new prioritization-relevant events (e.g., updated SSVC scoring data, new threat intelligence, CVSS score update) and writes a change-detection flag that `NoNewPrioritizationInfo` consumes.
+- **Semantic function**: Sentinel — monitors the case record for new prioritization-relevant events (e.g., updated Stakeholder-Specific Vulnerability Categorization (SSVC) scoring data, new threat intelligence, Common Vulnerability Scoring System (CVSS) score update) and writes a change-detection flag that `NoNewPrioritizationInfo` consumes.
 - **Input dependency**: Case management system event stream; metadata timestamp comparison or event subscription on prioritization-relevant case fields (e.g., SSVC decision points, CVSS scores).
 - **Notes**: This is the real seam implied by `NoNewPrioritizationInfo`.
   The writer registers with an external event source and writes a flag to the BT blackboard or local DataLayer; `NoNewPrioritizationInfo` reads that flag each tick.
@@ -61,7 +61,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Semantic function**: Action — collect additional context needed to support a prioritization decision (e.g., severity scores, asset inventory, threat landscape data)
 - **Input dependency**: Human analyst research, CVSS/SSVC scoring tools, asset management systems, threat intelligence feeds
 - **Notes**: Succeeds almost always in simulation to keep the workflow progressing
-- **Automation potential**: **Medium** — fetching CVSS scores, EPSS scores, NVD data, and asset inventory is fully automatable via APIs; analyst interpretation and gap-filling still requires human involvement.
+- **Automation potential**: **Medium** — fetching CVSS scores, Exploit Prediction Scoring System (EPSS) scores, National Vulnerability Database (NVD) data, and asset inventory is fully automatable via application programming interfaces (APIs); analyst interpretation and gap-filling still requires human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.GatherPrioritizationInfo`
 - **Call-out point shape**: Retriever
 - **Factory-fn placement**: `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree` — Retriever action node in the info-gathering Sequence (not wired yet), triggered when `EnoughPrioritizationInfo` returns FAILURE

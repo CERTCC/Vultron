@@ -4,7 +4,7 @@ stakeholder_type: [project-contributor]
 
 # Vulnerability ID assignment fuzzer nodes
 
-These stub nodes belong to the `AssignVulID` fallback tree (`vultron/bt/report_management/_behaviors/assign_vul_id.py`), which models assigning a public vulnerability identifier (such as a CVE ID) to a validated report.
+These stub nodes belong to the `AssignVulID` fallback tree (`vultron/bt/report_management/_behaviors/assign_vul_id.py`), which models assigning a public vulnerability identifier (such as a Common Vulnerabilities and Exposures (CVE) ID) to a validated report.
 The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/report/assign_cve_id_tree.py`).
 
 See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
@@ -23,7 +23,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Automation potential**: **High** — simple query against case metadata or a vulnerability registry; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssigned`
 - **Call-out point shape**: Retriever — synchronous on-demand query to case metadata or an external vulnerability registry (e.g., CVE database); returns SUCCESS if an identifier has already been assigned to this vulnerability, writing the existing ID to `output_keys = {"assigned_vul_id": str}` so the parent tree has a guaranteed key on any successful path.
-  A boolean is the simplest structured fact (ADR-0024) (BT-18-006).
+  A boolean is the simplest structured fact (ADR-0024, BT-18-006).
 - **Factory-fn placement**: `vultron.core.behaviors.report.assign_cve_id_tree.create_assign_cve_id_tree` — early-exit Retriever guard at the top of `AssignVulID` Fallback Selector; returns SUCCESS if an ID is already assigned, short-circuiting assignment work
 
 ### `InScope`
@@ -32,7 +32,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **btz type**: `UsuallySucceed` (p=0.75)
 - **Source file**: `report_management/fuzzer/assign_vul_id.py`
 - **Parent tree**: `AssignVulID`
-- **Semantic function**: Condition — check whether the vulnerability is within the scope of the relevant ID namespace (e.g., CVE CNA rules)
+- **Semantic function**: Condition — check whether the vulnerability is within the scope of the relevant ID namespace (e.g., CVE Numbering Authority (CNA) rules)
 - **Input dependency**: Human analyst review against CNA scope rules, or automated scope-checking against a product/component registry
 - **Notes**: Scope rules vary by ID space; a broad ID space may skip this check
 - **Automation potential**: **High** — scope rules for well-defined ID spaces (e.g., CVE CNA rules) can be encoded as a policy check and automated; may require human review for ambiguous cases.
@@ -50,7 +50,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Input dependency**: Organizational metadata / role configuration; fully automatable as a static capability check.
   Driven by `CVDRole.CVE_NUMBERING_AUTHORITY` on the participant's `case_roles` list — if the participant holds this role, the check succeeds.
 - **Notes**: In production this is a static configuration check, not a runtime decision.
-  Multiple participants in the same case may independently hold `CVDRole.CVE_NUMBERING_AUTHORITY` (e.g., a vendor CNA and a coordinator CNA); each evaluates this node independently in their own BT context.
+  Multiple participants in the same case may independently hold `CVDRole.CVE_NUMBERING_AUTHORITY` (e.g., a vendor CNA and a coordinator CNA); each evaluates this node independently in their own behavior tree (BT) context.
 - **Automation potential**: **High** — static organizational configuration; can be fully automated as a capability metadata lookup.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IsIDAssignmentAuthority`
 - **Call-out point shape**: ProtocolInternal — reads a deployment-time configuration constant (`CVDRole.CVE_NUMBERING_AUTHORITY` on this participant's `case_roles`); the value is set at participant registration, not queried from an external system at runtime.
@@ -65,10 +65,10 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Parent tree**: `AssignVulID`
 - **Semantic function**: Condition — check whether this participant has authority to assign an ID to this specific vulnerability (e.g., is the authoritative CNA for the affected product)
 - **Input dependency**: CNA rules lookup, product-to-CNA mapping, or human analyst determination.
-  Requires that the participant holds `CVDRole.CVE_NUMBERING_AUTHORITY` (necessary precondition, evaluated by `IsIDAssignmentAuthority`); this node then evaluates the CNA's scope rules against the specific vulnerability's affected product/ component to determine whether assignment authority applies here.
+  Requires that the participant holds `CVDRole.CVE_NUMBERING_AUTHORITY` (necessary precondition, evaluated by `IsIDAssignmentAuthority`); this node then evaluates the CNA's scope rules against the specific vulnerability's affected product/component to determine whether assignment authority applies here.
 - **Notes**: A participant may be an ID authority generally (holds `CVDRole.CVE_NUMBERING_AUTHORITY`) but not the authoritative CNA for this specific product.
   The two checks are separate and sequential: `IsIDAssignmentAuthority` first, `IdAssignable` second.
-- **Automation potential**: **High** — CNA-scope and product-to-CNA mapping checks are automatable via the CVE Services API or a local policy registry.
+- **Automation potential**: **High** — CNA-scope and product-to-CNA mapping checks are automatable via the CVE Services application programming interface (API) or a local policy registry.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssignable`
 - **Call-out point shape**: Evaluator — evaluates whether this CNA (`CVDRole.CVE_NUMBERING_AUTHORITY` participant) has assignment authority for this specific vulnerability by matching vulnerability attributes against CNA scope rules and product-to-CNA mappings; a scope-matching evaluation, not a binary condition monitor.
   In the production tree `IdAssignable` is a SequenceNode subtree of 9 child nodes (exclusion guards, positive conditions, duplicate check, evidence bar, and holistic judgment), not a single leaf.
