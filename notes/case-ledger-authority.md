@@ -659,7 +659,9 @@ CLP-07-013).  Causal order:
 
 1. `create_case` — `Create(VulnerabilityCase)`, `actor` = CASE_MANAGER
 2. `add_report_to_case` — `Add(VulnerabilityReport)`, `actor` = CASE_MANAGER
-3. `add_participant_status_to_participant` × N — `actor` = CASE_MANAGER
+3. `add_participant_status_to_participant` × N — `actor` = CASE_MANAGER; its
+   `target` is the participant record in full, so this entry is what carries
+   the record (a `Create(CaseParticipant)` shape is #4295's)
 4. `add_case_status_to_case` — `Add(CaseStatus)`, `actor` = **vendor URI**
 
 The `payloadSnapshot` shapes come from

@@ -43,7 +43,11 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.use_cases.triggers.case import SvcCreateCaseUseCase
 from vultron.core.use_cases.triggers.requests import CreateCaseTriggerRequest
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -542,7 +546,9 @@ class TestCreateCaseTriggerLedger:
             to=[_RECIPIENT],
         )
 
-        with pytest.raises(VultronValidationError):
+        # A composition fault is ours, not the client's: never a 422
+        # validation error (ARCH-20-001).
+        with pytest.raises(VultronBTInternalError, match=missing):
             SvcCreateCaseUseCase(
                 self.dl,
                 request,
@@ -559,7 +565,10 @@ class TestCreateCaseTriggerLedger:
         """The genesis entry roots the hash chain; its failure is not masked.
 
         The trigger raises rather than reporting a created case whose ledger
-        has no root.
+        has no root.  The commit runs after the ``Create`` is queued
+        (CP-09-009), so the failure is surfaced, not prevented: the case and
+        its queued ``Create`` remain, and the error names the case so the
+        caller can find it rather than retry into a second one.
         """
         from vultron.core.behaviors.case.nodes import (
             CommitNativeLedgerEntriesNode,
@@ -573,8 +582,13 @@ class TestCreateCaseTriggerLedger:
 
         with pytest.raises(
             VultronValidationError, match="genesis create_case ledger commit"
-        ):
+        ) as raised:
             self._create(to=[_RECIPIENT])
+
+        (case,) = self.dl.list_objects("VulnerabilityCase")
+        assert case.id_ in str(raised.value)
+        (activity_id,) = self.dl.outbox_list()
+        assert getattr(self.dl.read(activity_id), "type_", None) == "Create"
 
 
 @pytest.mark.spec("CLP-07-013")

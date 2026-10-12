@@ -76,16 +76,18 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
          ``_CASE_AUTHORED_SIGNATURES`` per CLP-12-001, so a CaseActor-authored
          entry would also validate)
 
-    Best-effort: a single failed entry logs a warning but does not abort
-    the Sequence (the ledger is an audit record, not a precondition for the
-    Accept/Create emissions).
+    Best-effort after genesis: a single failed later entry logs a warning but
+    does not abort the Sequence.  A failed genesis entry returns FAILURE.
 
-    Runs *after* ``EmitCreateVulnerabilityCaseNode`` in the accept flow: every
-    commit fans its entry out through the FIFO outbox, and a participant must
-    hold the case object before its first ``Announce(CaseLedgerEntry)`` arrives
-    (CM-14-011, CP-09-009).  Committed ahead of the Create, the fan-out put ten
-    entries in front of it and every recipient took the SYNC-15 pre-genesis
-    path on the normal case-creation route (#3033, #2898).
+    Runs *after* the tree has queued its ``Create(VulnerabilityCase)``
+    (``EmitCreateVulnerabilityCaseNode`` in the accept flow,
+    ``UpdateActorOutbox`` on the trigger path, which queues nothing when the
+    ``Create`` names no recipient): every commit fans its entry out through
+    the FIFO outbox, and a participant must hold the case object before its
+    first ``Announce(CaseLedgerEntry)`` arrives (CM-14-011, CP-09-009).
+    Committed ahead of the Create, the fan-out put ten entries in front of it
+    and every recipient took the SYNC-15 pre-genesis path on the normal
+    case-creation route (#3033, #2898).
 
     Reads ``case_id`` from the blackboard.
     """
@@ -331,12 +333,11 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
-        # Audit-best-effort skip (ADR-0087; NOT Regime 1). This node's role is
-        # to record the CaseActor's *audit* ledger — it is not a coordination
-        # precondition for the outbound Accept/Create emissions. A missing case
-        # therefore skips as SUCCESS: the coordination decision is deferred to
-        # the emission node (WriteCreateCaseMarkerNode), which hard-fails on an
-        # absent case via _require_case. The distinct hard-fail here is a failed
+        # Audit-best-effort skip (ADR-0087; NOT Regime 1). A missing case
+        # skips as SUCCESS: the node runs last, after the node that wrote the
+        # case (and, on the accept flow, WriteCreateCaseMarkerNode, which
+        # hard-fails on an absent case via _require_case), so the coordination
+        # decision belongs to those nodes. The distinct hard-fail here is a failed
         # *genesis commit* (case present, write fails) — see _commit_one and the
         # paired tests test_genesis_create_case_failure_aborts /
         # test_case_not_found_is_best_effort_success. Conformance allowlist.
@@ -361,10 +362,10 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         # so the enclosing Sequence fails and the handler reports it.
         #
         # What that FAILURE can and cannot do changed with CP-09-009.  This
-        # node now runs after the emit nodes, so Accept(as_CaseProposal) and
-        # Create(VulnerabilityCase) are already in the outbox and the retry
-        # marker is already cleared: the failure is surfaced (ERROR log,
-        # non-APPLIED verdict), not prevented.  Holding the Create back would
+        # node runs after the emit nodes, so the Create(VulnerabilityCase) is
+        # already queued (with Accept(as_CaseProposal), and the retry marker
+        # cleared, on the accept flow): the failure is surfaced (ERROR log,
+        # non-APPLIED verdict or a raised trigger), not prevented.  Holding the Create back would
         # mean fanning the genesis entry out ahead of it, which is the
         # pre-genesis path CP-09-009 exists to avoid.  Pinned by
         # test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued.
