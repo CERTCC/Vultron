@@ -656,14 +656,16 @@ groups:
       A spec file or a `notes/` file MUST NOT resolve its meaning by naming a numbered detail inside a decision record's
       body (a record ID followed by "detail" and a number). It MUST state the rule where the reader already is, or cite the requirement
       that states it, and cite the record only as provenance for why. A decision record citing a numbered detail of
-      another record is out of scope: that is history citing history.
+      another record is out of scope: that is history citing history. Because a bare "detail N" a sentence after the
+      record was named is the same citation, any "detail" followed by a number counts.
     rationale: >-
       A detail number is defined nowhere but the record body, so a citation of one makes the body load-bearing and forces
       every reader to load it, which ADR-0127 removes from routine agent context. A rule stated in a requirement is
       checked by its verification clause; a rule left in a body ages with nothing to say it has.
     verification: >-
       `test_no_spec_or_note_names_a_numbered_decision_detail` in `test/metadata/test_no_adr_detail_citations.py` scans
-      every file under `specs/` and `notes/` and fails on a "detail N" citation, including one split across a line break;
+      every file under `specs/` and `notes/`, whatever its suffix, and fails on a "detail N" citation, including one
+      split across a line break;
       its detector cases show it catches each citation shape that was converted and passes a requirement-ID citation.
     adr:
     - ADR-0127

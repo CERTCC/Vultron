@@ -38,8 +38,6 @@ _REPO_ROOT = Path(__file__).parents[2]
 
 _SCAN_ROOTS = (_REPO_ROOT / "specs", _REPO_ROOT / "notes")
 
-_SCAN_SUFFIXES = {".md", ".yaml", ".yml"}
-
 #: "detail 3", "details 7 and 8", "detail #4", "detail-6", case-insensitive,
 #: with any whitespace (including a line break) between word and number. One
 #: or two digits only, so "details 2026" (a year) is not a detail number.
@@ -57,11 +55,12 @@ def detail_citations(text: str) -> list[tuple[int, str]]:
 
 
 def _scanned_files() -> list[Path]:
+    """Every file under the scan roots, whatever its suffix."""
     return sorted(
         path
         for root in _SCAN_ROOTS
         for path in root.rglob("*")
-        if path.is_file() and path.suffix in _SCAN_SUFFIXES
+        if path.is_file() and "__pycache__" not in path.parts
     )
 
 

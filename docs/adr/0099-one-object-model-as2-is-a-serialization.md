@@ -777,7 +777,7 @@ The audit in #4390 checked the set and rewrote the one requirement still carryin
 
 **Annotated 2026-10-12 (#4409).**
 The ten decision details are restated in full as the requirement group ARCH-25 in `specs/architecture.yaml`, one requirement per detail in order: ARCH-25-001 (detail 1) through ARCH-25-010 (detail 10).
-Each carries `adr: ADR-0099` and a verification clause naming the tests the table under Validation lists; ARCH-25-008 adds `test_core_object_declares_every_as2_object_field` for the object root, which that table did not cover.
+Each carries `adr: ADR-0099` and a verification clause naming the tests the table under Validation lists; Three checks the table did not list were added with them: `test_as2_vocabulary_properties_are_declared_on_both_roots` and `test_core_object_declares_every_as2_object_field` for ARCH-25-008, and `test_every_wire_activity_class_lives_under_the_wire_package` for ARCH-25-010.
 The amendments to details 7 and 8 are carried as provenance in the rationales of ARCH-25-007 and ARCH-25-008.
 Specs and notes now cite those requirement IDs rather than this record's detail numbers, and MS-11-007 forbids citing a detail number from either.
 Generated spec requirements: ARCH-25-001, ARCH-25-002, ARCH-25-003, ARCH-25-004, ARCH-25-005, ARCH-25-006, ARCH-25-007, ARCH-25-008, ARCH-25-009, ARCH-25-010.

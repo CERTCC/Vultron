@@ -365,8 +365,8 @@ groups:
       scope here and keep VM-06-004's defer behaviour.
     rationale: >-
       ARCH-25-009 requires object slots to hold whole objects, and ADR-0099 as first written
-      named nothing to fill them. Per-class `from_core` did it by fabricating a stub with an invented `actor` — the
-      case owner, or the case's own URI — which misattributes every activity the owner did not
+      named nothing to fill them. Per-class `from_core` did it by fabricating a stub with an
+      invented `actor` — the case owner, or the case's own URI — which misattributes every activity the owner did not
       perform. `rehydrate()` already holds the `DataLayer` (VM-06-002), so it can resolve the
       real object and read the real actor off it. Naming it keeps the behaviour alive when the
       projection methods are deleted.

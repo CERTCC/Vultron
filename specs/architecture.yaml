@@ -1588,7 +1588,7 @@ groups:
       The classes under `vultron/core/models/` MUST be the one object model: no second set of
       classes may model the same domain concept. A core object MUST be written out in one of
       two ways, chosen by where it is going. For inter-actor delivery over HTTP it MUST be
-      written as AS2 by `model_dump(by_alias=True)`, which emits camelCase field names and
+      written as AS2 by a `by_alias=True` dump, which emits camelCase field names and
       `@context`. For persistence to the data layer it MUST be written by
       `model_dump(mode="json")` without `by_alias`, followed by `_rekey_wire_identity()`, which
       renames only `id_`, `type_` and `context_` to `id`, `type` and `@context`; no other stored
@@ -1615,9 +1615,10 @@ groups:
       Core field names MUST follow Python convention (`in_reply_to`, not `inReplyTo`), and the
       AS2 spelling of each field MUST be carried by its Pydantic alias. The aliases MUST be
       derived by the `alias_generator=to_camel` declared once on `CoreObject` and inherited by
-      every subclass, not enumerated per field or declared per class; an explicit alias is
-      declared only where the AS2 name is not the camelCase of the field name (`id_`, `type_`,
-      `context_`, and the status dimension fields such as `rm`, spelled `rmState`). Core code
+      every subclass, not enumerated per field or declared per class. An explicit alias is
+      required only where the generator cannot produce the AS2 name: `id_`, `type_` and
+      `context_` (no generator yields `@context`), and a field whose name differs from its AS2
+      property, such as the status dimension field `rm`, spelled `rmState`. Core code
       MUST NOT type an AS2 spelling, and no parallel core-only naming scheme may be built.
       ARCH-12-003 refines the alias mechanism.
     rationale: >-
@@ -1646,8 +1647,8 @@ groups:
       core class that can appear in a message slot MUST be exactly AS2-representable: every
       field it carries has a valid AS2 property spelling, and it carries no field that cannot
       go on the wire (ARCH-23-006). A core class that never appears in a message is not
-      constrained by AS2. Nothing may look for a `to_core()` or `from_core()` projection
-      between a wire object and a core object.
+      constrained by AS2. Core code MUST NOT look for a `to_core()` projection on an object
+      it holds: with one class there is nothing to project.
     rationale: >-
       Conflating a wire object with a core object was the original defect behind the split;
       with one class per concept that conflation is structurally impossible. The AS2
@@ -1736,11 +1737,13 @@ groups:
       decided at the parse edge (`parse_activity`), for every object at every depth, by one
       rule and never by which class the object happens to resolve to: a near miss for a
       declared spelling, or a retired name, refuses the whole activity naming both spellings;
-      any other unknown key is set aside and reported, and the activity proceeds on its
+      any other unknown key is set aside and reported once at `INFO`, with `activity_id`, the
+      sender's `actor_id`, the field path and the key, and the activity proceeds on its
       declared fields (MV-11-001 to MV-11-003). `CoreObject` MUST keep `extra="forbid"` to guard
-      in-process and stored data, where an unknown key is always a bug (ARCH-12-003). No core
-      class may gain a loose extras field, and a set-aside key MUST NOT be carried on the
-      parsed object; the received evidence (VM-08-002) is its only copy.
+      in-process and stored data, where an unknown key is always a bug (ARCH-12-003); it never
+      sees an inbound unknown key, because the parse edge is the only way inbound data enters
+      (MV-11-004). No core class may gain a loose extras field, and a set-aside key MUST NOT be
+      carried on the parsed object; the received evidence (VM-08-002) is its only copy.
     rationale: >-
       A key that spells a field Vultron reads was meant as that field, and proceeding without
       it loses data silently (#2232); a key Vultron does not read is reported, not refused or
@@ -1779,9 +1782,12 @@ groups:
       (#3888), then restored with the near miss promoted to a refusal (#3900), because a
       warning still loses the sender's data.
     verification: >-
-      `test_core_object_declares_every_as2_object_field` in
-      `test/architecture/test_hierarchy_invariants.py` asserts every key the wire `as_Object`
-      dumps is a declared `CoreObject` field;
+      `test_as2_vocabulary_properties_are_declared_on_both_roots` in
+      `test/architecture/test_hierarchy_invariants.py` asserts a fixed list of the AS2 Object
+      and Activity properties, `bto`, `bcc`, `icon` and `image` included, is declared on
+      `CoreObject`, `as_Object`, `VultronActivity` and `as_TransitiveActivity`;
+      `test_core_object_declares_every_as2_object_field` in the same file asserts every key
+      the wire `as_Object` dumps is a declared `CoreObject` field;
       `test_vultron_activity_accepts_every_wire_activity_key` in
       `test/adapters/driving/fastapi/test_outbox_helpers.py` asserts the same of every wire
       activity against `VultronActivity`; the near-miss rows of
@@ -1801,12 +1807,14 @@ groups:
       admits `str` (every `ActivityStreamRef[T]`) keeps the IRI (VM-06-004), and a slot that
       admits a model and no `str` refuses (VM-06-007). A placeholder object MUST NOT be
       fabricated for an unresolved reference, and an actor MUST NOT be synthesised for one.
+      Embedding whole objects is a prototype shortcut: it MUST NOT be read as a permanent
+      architectural principle, and MUST be revisited before production.
     rationale: >-
       `rehydrate()` holds the data layer, so it resolves the real object instead of a
       placeholder; the projection it replaced invented an actor and misattributed activity.
-      Embedding whole objects is a prototype shortcut that defers data normalization: a
-      production system is expected to use references, one store and join objects, so this
-      rule is to be revisited before production, not read as a permanent principle.
+      The shortcut defers data normalization rather than solving it: a production system is
+      expected to use references rather than embedded copies, one backing store, and join
+      objects where a relationship carries data of its own.
     verification: >-
       `test/wire/as2/test_rehydration_materialisation.py` asserts `rehydrate()` materialises a
       bare ID in a model-only slot, refuses an unresolvable reference there, leaves a
@@ -1832,7 +1840,8 @@ groups:
       `test/test_message_semantics_mapping.py` (MSM-03 to MSM-05) asserts the formal shorthands
       map onto the semantic registry rather than onto AS2 types one-for-one, including one AS2
       verb carrying several semantics and one shorthand spanning several activities; and
-      `test/architecture/test_core_no_wire_imports.py` holds the message-shape classes out of
-      core, since core cannot import the AS2 verbs they subclass.
+      `test_every_wire_activity_class_lives_under_the_wire_package` in
+      `test/architecture/test_hierarchy_invariants.py` asserts every `as_Activity` subclass
+      defined under `vultron/` is defined in a `vultron.wire` module.
     adr:
     - ADR-0099

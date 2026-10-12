@@ -529,10 +529,10 @@ inbound ones, and the 2026-09-29 amendment of ADR-0099's unknown-key rule adopte
 fail-loudly with an envelope carve-out that had no principle behind it beyond
 "that is what the code does".
 
-**The rule (MV-11, ARCH-25-007 and ARCH-25-008; ADR-0099 as amended 2026-09-30).** The parser
-is the inbound wire-to-core seam. It already walks every inline dict at every
-depth, resolves each to its class, and knows the field path. So the disposition
-is stated once there and holds everywhere:
+**The rule (MV-11, ARCH-25-007 and ARCH-25-008; ADR-0099 as amended
+2026-09-30).** The parser is the inbound wire-to-core seam. It already walks
+every inline dict at every depth, resolves each to its class, and knows the
+field path. So the disposition is stated once there and holds everywhere:
 
 1. Partition the arriving keys against the resolved class's declared spellings
    — field names, generated camelCase aliases, explicit validation aliases,

@@ -9,7 +9,8 @@ description: >
   live in vultron/wire/as2/vocab/AGENTS.md.
 related_specs:
   - specs/vocabulary-model.yaml (VM-01 through VM-03, VM-06, VM-10)
-  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010, ARCH-20-002, ARCH-23-001, ARCH-23-002, ARCH-25-003, ARCH-25-004)
+  - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010,
+    ARCH-20-002, ARCH-23-001, ARCH-23-002, ARCH-25-003, ARCH-25-004)
   - specs/docs-build-workflow.yaml (DOCBW-03-005)
   - specs/message-validation.yaml (MV-11-005)
 related_notes:

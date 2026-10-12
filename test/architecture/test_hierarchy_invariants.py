@@ -27,7 +27,7 @@ between the core (domain) and wire (ActivityStreams) layers:
 Invariant 3 **inverted** under ADR-0099, and that is worth stating rather than
 quietly editing. It used to read "no CoreObject subclass uses
 alias_generator=to_camel", because AS2 spelling belonged to the wire layer
-(ARCH-12-003, ARCH-12-004) and a paired ``as_*`` class held it. ADR-0099 detail 2
+(ARCH-12-003, ARCH-12-004) and a paired ``as_*`` class held it. ARCH-25-002
 deletes those classes and puts the spelling on the core class, so there is no
 second class left to carry it. The #1991 backlog set that tracked the old
 direction is removed with it. #2288 and #2289, which described the old goal, are
@@ -59,6 +59,48 @@ from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
 # AS2 namespace constant from wire layer
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
+
+#: The AS2 Activity Vocabulary properties whose domain is ``Object`` (W3C
+#: Activity Vocabulary section 4), plus ``id`` and ``type``. Listed here rather
+#: than read off a model so that a property dropped from every model still
+#: fails (ARCH-25-008).
+AS2_OBJECT_PROPERTIES = frozenset(
+    {
+        "id",
+        "type",
+        "attachment",
+        "attributedTo",
+        "audience",
+        "bcc",
+        "bto",
+        "cc",
+        "content",
+        "context",
+        "duration",
+        "endTime",
+        "generator",
+        "icon",
+        "image",
+        "inReplyTo",
+        "location",
+        "mediaType",
+        "name",
+        "preview",
+        "published",
+        "replies",
+        "startTime",
+        "summary",
+        "tag",
+        "to",
+        "updated",
+        "url",
+    }
+)
+
+#: The AS2 properties whose domain is ``Activity``.
+AS2_ACTIVITY_PROPERTIES = frozenset(
+    {"actor", "instrument", "object", "origin", "result", "target"}
+)
 
 # ---------------------------------------------------------------------------
 # Backlog: core-layer classes registered in the wire VOCABULARY registry,
@@ -104,7 +146,7 @@ class TestCoreVocabularyHierarchy:
         Replaces the #1991 backlog set and its goal xfail, both of which drove
         toward *removing* ``alias_generator`` from core. That goal was right while
         a paired ``as_*`` class held the AS2 spelling; ADR-0099 deletes those
-        classes, so the spelling has nowhere else to live (detail 2). The
+        classes, so the spelling has nowhere else to live (ARCH-25-002). The
         backlog's direction is inverted, not merely satisfied — a set documented
         as "may only SHRINK" cannot express "all of them, by inheritance".
 
@@ -183,7 +225,7 @@ class TestWireVocabularyHierarchy:
     def test_wire_vocabulary_inherits_nothing_from_core(self) -> None:
         """No VOCABULARY class has a core class anywhere in its MRO.
 
-        ADR-0099 detail 4 deletes the shared root: ``as_Base`` gets its own,
+        ARCH-25-004 deletes the shared root: ``as_Base`` gets its own,
         so the wire branch no longer inherits core fields, configuration or
         registration hooks (ARCH-12-001).
         """
@@ -263,6 +305,78 @@ class TestCoreRoots:
             " — declare them (ARCH-25-008)"
         )
 
+    @pytest.mark.spec("ARCH-25-008")
+    def test_as2_vocabulary_properties_are_declared_on_both_roots(
+        self,
+    ) -> None:
+        """Every AS2 Object and Activity property is a declared field.
+
+        The parity test above holds only if one side has the field; this one
+        pins the AS2 Activity Vocabulary property list itself, so dropping
+        ``bto`` from both roots at once still fails.
+        """
+        from vultron.core.models.activity import VultronActivity
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_TransitiveActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+        for model, properties in (
+            (CoreObject, AS2_OBJECT_PROPERTIES),
+            (as_Object, AS2_OBJECT_PROPERTIES),
+            (VultronActivity, AS2_OBJECT_PROPERTIES | AS2_ACTIVITY_PROPERTIES),
+            (
+                as_TransitiveActivity,
+                AS2_OBJECT_PROPERTIES | AS2_ACTIVITY_PROPERTIES,
+            ),
+        ):
+            missing = properties - accepted_keys(model)
+            assert not missing, (
+                f"{model.__name__} does not declare AS2 properties "
+                f"{sorted(missing)} (ARCH-25-008)"
+            )
+
+
+def _all_subclasses(cls: type) -> set[type]:
+    found: set[type] = set()
+    pending = [cls]
+    while pending:
+        for sub in pending.pop().__subclasses__():
+            if sub not in found:
+                found.add(sub)
+                pending.append(sub)
+    return found
+
+
+@pytest.mark.spec("ARCH-25-010")
+def test_every_wire_activity_class_lives_under_the_wire_package() -> None:
+    """Message-shape classes are the AS2 encoding of a message, so they live
+    in the wire layer: every ``as_Activity`` subclass defined in ``vultron/``
+    is in a ``vultron.wire`` module. Classes a test module defines are out of
+    scope."""
+    # The factories import every activity module, so every message shape is
+    # loaded before the walk.
+    import vultron.wire.as2.factories  # noqa: F401
+    from vultron.wire.as2.vocab.base.objects.activities.base import (
+        as_Activity,
+    )
+
+    production = {
+        cls
+        for cls in _all_subclasses(as_Activity)
+        if cls.__module__.startswith("vultron.")
+    }
+    assert production, "no as_Activity subclass found; the walk is vacuous"
+    misplaced = sorted(
+        f"{cls.__module__}.{cls.__qualname__}"
+        for cls in production
+        if not cls.__module__.startswith("vultron.wire.")
+    )
+    assert not misplaced, (
+        f"as_Activity subclasses outside vultron/wire/: {misplaced} "
+        "(ARCH-25-010)"
+    )
+
 
 class TestCoreTypeMapHierarchy:
     """Tests for CORE_TYPE_MAP hierarchy invariants (ARCH-12-003, ARCH-12-004)."""
@@ -270,7 +384,7 @@ class TestCoreTypeMapHierarchy:
     def test_no_wire_types_in_core_type_map(self) -> None:
         """CORE_TYPE_MAP must contain only core-branch types, never wire types.
 
-        Structural since ADR-0099 detail 4: the registration hook lives on
+        Structural since ARCH-25-004: the registration hook lives on
         ``CoreRecord``, which no wire class inherits.  Kept as a regression
         guard for the #2416 contamination (ARCH-12-011).
 
@@ -385,16 +499,16 @@ class TestCoreObjectModelConfig:
         This asserted the opposite until ADR-0099: no ``alias_generator`` on
         ``CoreObject``, because AS2 spelling was the wire branch's job
         (ARCH-12-002, ARCH-12-004).  Under one object model there is no second
-        class to hold it — detail 2 puts the AS2 spelling on the core class.
+        class to hold it — ARCH-25-002 puts the AS2 spelling on the core class.
 
         Both halves are asserted together because they are only correct together.
         The generator alone would make the *persistence* form unreadable, since
         stored rows are keyed by Python field name; ``populate_by_name`` is what
-        keeps both serializations of detail 1 valid on input.
+        keeps both serializations of ARCH-25-001 valid on input.
         """
         config = getattr(CoreObject, "model_config", {})
         assert config.get("alias_generator") is not None, (
-            "CoreObject must derive AS2 spellings (ADR-0099 detail 2)"
+            "CoreObject must derive AS2 spellings (ARCH-25-002)"
         )
         assert config.get("populate_by_name") is True, (
             "CoreObject must still accept Python field names, or persisted rows"
