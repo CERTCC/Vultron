@@ -16,11 +16,16 @@ groups:
   - id: CBT-01-001
     priority: MUST
     kind: protocol
-    statement: When an actor creates a case in response to an inbound `Offer(VulnerabilityReport)`, that case creator MUST
-      establish trust at the original report submitter by sending a one-time `Create(VulnerabilityCase)` activity.
+    statement: When a case is created in response to an inbound `Offer(VulnerabilityReport)`, the actor that received the
+      report (the report receiver) MUST establish trust at the original report submitter by sending it, as itself, a
+      one-time `Create(VulnerabilityCase)` activity. When the CASE_MANAGER is a different actor from the report receiver,
+      that activity introduces the CASE_MANAGER the receiver delegated case maintenance to (ADR-0132).
+    rationale: The submitter chose the report receiver and wrote a record of that choice before the case existed. A case
+      that arrives first from an actor the submitter never addressed gives it nothing to check the sender against, and a
+      roster the sender wrote is not an anchor. The receiver already knows the CASE_MANAGER, so it vouches for it.
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that when a case is created
-      in response to an `Offer(VulnerabilityReport)`, a `Create(VulnerabilityCase)` is dispatched to the original report
-      submitter's inbox.
+      in response to an `Offer(VulnerabilityReport)`, a `Create(VulnerabilityCase)` from the report receiver is dispatched
+      to the original report submitter's inbox.
     relationships:
     - rel_type: refines
       spec_id: CM-12-001
@@ -94,7 +99,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: A report submitter MUST NOT trust a newly introduced CASE_MANAGER unless the bootstrap `Create(VulnerabilityCase)`
-      both comes from the same actor that received the report and references the previously submitted report.
+      both comes from the same actor that received the report and references the previously submitted report. The
+      submitter MUST check this against a record it wrote itself before the case arrived; the roster in the snapshot,
+      which the sender wrote, MUST NOT serve as that record.
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that a
       `Create(VulnerabilityCase)` from an unexpected sender or without a matching report reference is rejected and does
       not establish CASE_MANAGER trust.
@@ -180,12 +187,13 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      The CASE_MANAGER MUST generate the bootstrap `Create(VulnerabilityCase)`
-      activity only after the `VulnerabilityCase` domain object has been fully
+      The CASE_MANAGER MUST generate its `Create(VulnerabilityCase)` activity
+      only after the `VulnerabilityCase` domain object has been fully
       initialized — all participants set to their correct initial RM states,
       all roles assigned. The activity MUST be a faithful record of a completed
       initialization, not an intent message constructed before initialization
-      is finished.
+      is finished. The report receiver's introduction to the submitter (CBT-01-001)
+      MUST relay that completed snapshot.
     rationale: >-
       ActivityStreams 2.0 activities represent completed events, not intentions.
       A `Create(VulnerabilityCase)` sent before the case is fully initialized
@@ -199,6 +207,58 @@ groups:
       spec_id: CBT-01-002
     - rel_type: refines
       spec_id: CBT-01-007
+    lint_suppress:
+    - missing_story_reference
+  - id: CBT-01-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the actor enacting CASE_MANAGER is not the report receiver, the
+      CASE_MANAGER MUST NOT address its `Create(VulnerabilityCase)` to the
+      original report submitter. That activity goes to the report receiver (the
+      Case Owner), which relays the introduction (CBT-01-001). The CASE_MANAGER's
+      first message to the submitter is an `Announce`, sent after the submitter
+      has accepted the introduction.
+    rationale: >-
+      The submitter never addressed the CASE_MANAGER, so a `Create` from it
+      cannot be checked against anything the submitter wrote (CBT-01-005).
+      Introducing the CASE_MANAGER through the actor the submitter chose keeps
+      one trust anchor for the submitter and removes the route that trusted a
+      sender because its own snapshot named it (ADR-0132).
+    verification: >-
+      Tests confirm that the CASE_MANAGER's `Create(VulnerabilityCase)` has the
+      report receiver as its only addressee, that the submitter receives a
+      `Create(VulnerabilityCase)` from the report receiver, and that the
+      submitter accepts a later CASE_MANAGER `Announce`.
+    adr:
+    - ADR-0132
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-001
+    - rel_type: refines
+      spec_id: CBT-01-005
+    lint_suppress:
+    - missing_story_reference
+  - id: CBT-01-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant MUST refuse a bootstrap `Create(VulnerabilityCase)` from an
+      actor that no trust anchor the participant wrote names as the expected
+      sender, and MUST store nothing from it. Naming the sender as CASE_MANAGER
+      in the carried snapshot MUST NOT make the sender trusted.
+    rationale: >-
+      The sender wrote the snapshot, so a roster in it proves nothing about the
+      sender's authority (ADR-0132; `notes/participant-case-replica.md`).
+    verification: >-
+      A test sends `Create(VulnerabilityCase)` from an actor no local anchor
+      names, with a snapshot naming that sender as CASE_MANAGER, and asserts a
+      refusal and an empty case store (CBT-05-002).
+    adr:
+    - ADR-0132
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-005
     lint_suppress:
     - missing_story_reference
 - id: CBT-02

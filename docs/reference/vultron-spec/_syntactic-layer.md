@@ -210,7 +210,9 @@ occurring before a CASE_MANAGER exists to route through
    vendor. No case exists, and therefore no case actor service has provisioned an
    actor to hold the `CASE_MANAGER` role.
 2. **Case creation handshake** — the receiving party sends the case-creation
-   message back to the reporter, introducing the actor that holds the role.
+   message back to the reporter as itself, introducing the actor that holds the role.
+   When that actor is not the receiving party, it does not address the reporter
+   until the reporter has accepted the introduction.
 
 !!! warning "This is a routing rule, not a prohibition on talking"
     The rule above scopes **Vultron protocol messages about a case**. It does not

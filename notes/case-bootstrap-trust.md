@@ -37,7 +37,7 @@ relevant_packages:
 
 | Question | Decision | Rationale |
 |---|---|---|
-| What establishes first trust for the original report-submission path? | The case creator sends a one-time `Create(VulnerabilityCase)` to the report submitter. | The report submitter already knows who received the report; the bootstrap reuses that trust anchor to introduce the CASE_MANAGER safely. |
+| What establishes first trust for the original report-submission path? | The report receiver sends a one-time `Create(VulnerabilityCase)` to the report submitter, as itself (ADR-0132). | The report submitter already knows who received the report; the bootstrap reuses that trust anchor to introduce the CASE_MANAGER safely. |
 | Is `Announce(VulnerabilityCase)` still the first snapshot for that path? | No. After bootstrap, later snapshots come from the CASE_MANAGER via `Announce`. | Keeps initial trust establishment separate from ongoing single-writer replication. |
 | What must be in the bootstrap payload? | A full case snapshot naming the case creator/owner, the CASE_MANAGER, and the report submitter when they are already in the loop. | The receiver needs both the case state and the identities required for future trust checks. |
 | What roles should those participants carry? | Case creator/owner gets `CASE_OWNER`; CASE_MANAGER gets `COORDINATOR`. | Distinguishes ownership from coordination authority. |
@@ -63,6 +63,8 @@ report_submitter -> Offer(VulnerabilityReport) -> report_receiver
 report_receiver == case_creator
 
 case_creator -> Create(VulnerabilityCase full snapshot) -> report_submitter
+(case_creator is the report receiver; when the CASE_MANAGER is another actor,
+the snapshot names it and the receiver relays the CASE_MANAGER's case, ADR-0132)
 report_submitter validates:
   - sender == report_receiver
   - case references the submitted report
@@ -151,32 +153,52 @@ bootstrap `Create(VulnerabilityCase)` for this report/case relationship."
 
 ---
 
-## ADR-0041 Update: Receiver Holds No Interim VulnerabilityCase
+## ADR-0041 and ADR-0132: Who Introduces the CASE_MANAGER to Whom
 
 Per ADR-0041 (`docs/adr/0041-caseactor-authoritative-case-initialization.md`),
 the receiver (vendor) does **not** create a `VulnerabilityCase` before the
-CASE_MANAGER responds. The bootstrap flow for the original report-submission path
-is now:
+CASE_MANAGER responds. The CASE_MANAGER creates the case and sends its
+`Create(VulnerabilityCase)` to the receiver (the Case Owner).
+
+ADR-0041 also had the CASE_MANAGER address the reporter directly. That left the
+reporter with a case from an actor it never addressed and nothing to check the
+sender against; the `direct` bootstrap route trusted the sender because its own
+snapshot named it CASE_MANAGER (#4472). ADR-0132 reverses that one decision
+(#4473). The flow for the original report-submission path is:
 
 ```text
-Receiver: Offer(VulnerabilityReport) received
-  → store report
-  → write VultronReportCaseLink(status=PENDING_PROPOSAL)
-  → send Create(as_CaseProposal) to the case actor service
+Reporter: Offer(VulnerabilityReport) -> Receiver
+Receiver: store report, write VultronReportCaseLink(PENDING_PROPOSAL),
+          send Create(as_CaseProposal) to the CASE_MANAGER
 
-CASE_MANAGER: Create(VulnerabilityCase, actor=case_actor_id, inline participants)
-  → Receiver seeds local replica via CreateCaseReceivedUseCase
-  → trust anchors recorded in VultronReportCaseLink
+CASE_MANAGER: Create(VulnerabilityCase, actor=case_manager, inline participants)
+  -> Receiver only
+  -> Receiver seeds its replica, records trust anchors in VultronReportCaseLink
+
+Receiver: Create(VulnerabilityCase, actor=receiver, full inline snapshot,
+          names the CASE_MANAGER) -> Reporter
+  -> Reporter checks the sender against the Offer it wrote, then records the
+     report-to-case link, the receiver as case creator, and the named CASE_MANAGER
+
+CASE_MANAGER: Announce(...) -> Reporter   (accepted: the introduction named it)
 ```
 
-The `Create(VulnerabilityCase)` from the CASE_MANAGER IS the bootstrap. The
-sender is the CASE_MANAGER (not the report receiver), so the trust anchor the
-receiver validates is `case_manager_id` from the `Accept(CaseProposal)`
-recorded earlier in `accept_case_proposal_received_tree.py`.
-That `Accept` is recorded only when its sender is the actor the vendor addressed
-the proposal to (`case_creator_id`), and never once a case is established for
-the report, so an unrelated actor cannot plant itself as the trust anchor
-(CP-06-005, CBT-02-003).
+The receiver's message is the reporter's bootstrap. The trust anchor the
+reporter validates is the one it wrote itself: the report it submitted and the
+actor it submitted it to (CBT-01-005). A roster in the snapshot is never an
+anchor, so a `Create(VulnerabilityCase)` from an actor no local anchor names is
+refused and nothing is stored (CBT-01-011). The receiver's own anchor for the
+CASE_MANAGER is `case_manager_id` from the `Accept(CaseProposal)` recorded in
+`accept_case_proposal_received_tree.py`. That `Accept` is recorded only when its
+sender is the actor the vendor addressed the proposal to (`case_creator_id`),
+and never once a case is established for the report, so an unrelated actor
+cannot plant itself as the trust anchor (CP-06-005, CBT-02-003).
+
+`Create` is the introduction verb (it was before ADR-0041 too).
+`Announce(VulnerabilityCase)` stays the CASE_MANAGER's later sync (CBT-02-001),
+and `Accept(Offer(Report))` and `RK` keep their receipt and validation meaning.
+Owner and CASE_MANAGER MAY be one actor (CM-02-010); then the receiver's message
+is the only one the reporter gets, as before ADR-0041.
 
 The `Create(VulnerabilityCase)` payload MUST embed participant objects inline
 so `store_embedded_participants` can seed them on the receiver's replica.
