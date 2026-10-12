@@ -284,6 +284,43 @@ class TestOfferActorToCaseReceivedUseCase:
             assert "RecommenderIndex" not in rendered
             assert "ActorRecommendationRecord" not in rendered
 
+    @pytest.mark.spec("CLP-07-014")
+    def test_a_redelivered_offer_keeps_one_recommendation_record(
+        self, make_payload, seed_case_manager
+    ):
+        """A second delivery of the same Offer rewrites the same record.
+
+        The record id comes from the case and the recommendation, so running
+        the Offer again leaves exactly one record naming the same recommender
+        rather than adding a second one.
+        """
+        dl, local_actor_id, case_id = self._setup_dl(seed_case_manager)
+        recommender_id = "https://example.org/actors/finder"
+        activity = recommend_actor_activity(
+            as_Actor(id_="https://example.org/actors/vendor-new"),
+            target=_case_ref(case_id),
+            actor=recommender_id,
+            to=[local_actor_id],
+        )
+
+        for _ in range(2):
+            OfferActorToCaseReceivedUseCase(
+                dl,
+                make_payload(activity, receiving_actor_id=TEST_ACTOR_ID),
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+
+        records = dl.list_objects("ActorRecommendationRecord")
+        assert len(records) == 1
+        record = records[0]
+        assert isinstance(record, ActorRecommendationRecord)
+        assert record.id_ == ActorRecommendationRecord.build_id(
+            case_id, activity.id_
+        )
+        assert record.recommender_id == recommender_id
+
 
 class TestOfferActorToCaseAtNonCaseManager:
     """A receiver that is not the case's CASE_MANAGER refuses (#3752).

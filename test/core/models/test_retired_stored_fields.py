@@ -39,6 +39,7 @@ from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
     RetiredStoredField,
 )
+from vultron.errors import VultronValidationError
 
 PROPOSAL_ID = "https://example.org/proposals/p-1"
 CASE_ACTOR_ID = "https://example.org/actors/vendor/case-actor"
@@ -185,6 +186,12 @@ def test_a_case_carrying_the_moved_recommender_index_is_refused(
     assert repr(old) in message
     assert "moved it to ActorRecommendationRecord.recommender_id" in message
     assert "#4448" in message
+    assert "sender still using the old shape" in message
+    # The replacement is not a field of the case, so the violation names the
+    # key it read rather than sending the reader to a field the case lacks.
+    refusal = excinfo.value.errors()[0]["ctx"]["error"]
+    assert isinstance(refusal, VultronValidationError)
+    assert [v.dimensions for v in refusal.violations] == [(old,)]
 
 
 @pytest.mark.usefixtures("isolated_core_registries")

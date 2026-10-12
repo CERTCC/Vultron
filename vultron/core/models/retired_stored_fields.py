@@ -102,7 +102,9 @@ class RetiredFieldsRecord(CoreRecord):
             Violation(
                 f"{key!r} is the stored shape before {field.retired_by}"
                 f" {field.change()} {field.destination()}",
-                (field.replacement,),
+                # A moved field's replacement is not on this model, so the
+                # rule names the key it read instead.
+                (key,) if field.moved_to else (field.replacement,),
             )
             for old, field in cls.retired_stored_fields.items()
             for key in (old, to_camel(old))
@@ -112,7 +114,8 @@ class RetiredFieldsRecord(CoreRecord):
             raise VultronValidationError(
                 f"{cls.__name__} carries a retired stored field; no"
                 " conversion is made, so a store written before the change"
-                " must be reset",
+                " must be reset, and a sender still using the old shape must"
+                " be updated",
                 violations=violations,
             )
         return data
