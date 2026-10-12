@@ -30,10 +30,10 @@ from vultron.demo.exchange.embargo_lifecycle import (
     demo_propose_and_activate_embargo,
 )
 from vultron.demo.helpers.polling import (
-    resolve_case_actor_store_id,
+    case_manager_store,
     wait_for_case_em_state,
 )
-from vultron.demo.utils import demo_check, demo_gate
+from vultron.demo.utils import DataLayerClient, demo_check, demo_gate
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -42,17 +42,20 @@ logger = logging.getLogger(__name__)
 
 
 def canonical_case(
-    session: ActorSession, case: as_VulnerabilityCase
+    session: ActorSession,
+    case: as_VulnerabilityCase,
+    case_manager_client: DataLayerClient | None = None,
 ) -> as_VulnerabilityCase:
-    """The case as the CASE_MANAGER holds it, read through *session*'s container."""
-    client = session.client
+    """The case as the CASE_MANAGER holds it.
+
+    Read through *case_manager_client* when the CaseActor has its own container,
+    else through *session*'s (:func:`case_manager_store`).
+    """
+    client, dl_actor_id = case_manager_store(
+        session.client, case.id_, case_manager_client
+    )
     return as_VulnerabilityCase.model_validate(
-        client.get(
-            client.dl_path(
-                case.id_,
-                actor_id=resolve_case_actor_store_id(client, case.id_),
-            )
-        )
+        client.get(client.dl_path(case.id_, actor_id=dl_actor_id))
     )
 
 
@@ -62,18 +65,23 @@ def assert_canonical_em_state(
     expected: EM,
     phase: str,
     active_embargo_id: str | None = None,
+    case_manager_client: DataLayerClient | None = None,
 ) -> None:
     """Assert the CASE_MANAGER's canonical case is at *expected*.
 
     Args:
-        session: A session whose container hosts the CASE_MANAGER's store (the
-            Coordinator's).
+        session: A participant session (the Coordinator's), read through when
+            no *case_manager_client* is given.
         phase: The phase name, for the check label.
         active_embargo_id: When given, the embargo that must be the active one;
             ``EM.ACTIVE`` alone cannot tell a revision from the embargo it
             revised.
+        case_manager_client: Client for the CaseActor's own container, where
+            the canonical case is read when the CaseActor runs in one.
     """
-    client = session.client
+    client, dl_actor_id = case_manager_store(
+        session.client, case.id_, case_manager_client
+    )
     with demo_check(
         f"{phase}: CASE_MANAGER's canonical case has {expected.name}"
     ):
@@ -82,7 +90,7 @@ def assert_canonical_em_state(
             case.id_,
             expected,
             COMMIT_TIMEOUT_SECONDS,
-            dl_actor_id=resolve_case_actor_store_id(client, case.id_),
+            dl_actor_id=dl_actor_id,
             active_embargo_id=active_embargo_id,
         )
 
@@ -93,6 +101,7 @@ def confirm_embargo_revised(
     prior_embargo_id: str | None,
     phase: str,
     gate_label: str,
+    case_manager_client: DataLayerClient | None = None,
 ) -> str | None:
     """Gate on a revision, not *prior_embargo_id*, being the embargo in force.
 
@@ -106,7 +115,9 @@ def confirm_embargo_revised(
     """
     revised_embargo_id: str | None = None
     with demo_gate(gate_label):
-        in_force = canonical_case(coordinator, case).active_embargo_id
+        in_force = canonical_case(
+            coordinator, case, case_manager_client
+        ).active_embargo_id
         if in_force is None or in_force == prior_embargo_id:
             raise AssertionError(
                 f"active embargo {in_force!r} is not a revision of"
@@ -119,6 +130,7 @@ def confirm_embargo_revised(
             EM.ACTIVE,
             phase,
             active_embargo_id=revised_embargo_id,
+            case_manager_client=case_manager_client,
         )
     return revised_embargo_id
 
@@ -129,6 +141,7 @@ def revise_default_embargo(
     vendor: ActorSession,
     case: as_VulnerabilityCase,
     phase: str,
+    case_manager_client: DataLayerClient | None = None,
 ) -> str | None:
     """The Reporter revises the default embargo; the Coordinator activates it.
 
@@ -140,9 +153,17 @@ def revise_default_embargo(
         The id of the embargo now in force, or ``None`` when no revision took
         effect (the failure is recorded).
     """
-    default_embargo_id = canonical_case(coordinator, case).active_embargo_id
+    default_embargo_id = canonical_case(
+        coordinator, case, case_manager_client
+    ).active_embargo_id
 
-    demo_propose_and_activate_embargo(reporter, coordinator, vendor, case)
+    demo_propose_and_activate_embargo(
+        reporter,
+        coordinator,
+        vendor,
+        case,
+        case_manager_client=case_manager_client,
+    )
 
     return confirm_embargo_revised(
         coordinator,
@@ -150,4 +171,5 @@ def revise_default_embargo(
         default_embargo_id,
         phase,
         "The revision, not the default embargo, is now in force",
+        case_manager_client=case_manager_client,
     )

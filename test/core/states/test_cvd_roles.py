@@ -205,3 +205,15 @@ def test_roundtrip():
     original = [CVDRole.FINDER, CVDRole.COORDINATOR, CVDRole.CASE_OWNER]
     serialized = serialize_roles(original)
     assert validate_roles(serialized) == original
+
+
+def test_validate_roles_refuses_a_non_string_item():
+    """A list item that is neither a string nor a CVDRole is refused, not dropped."""
+    with pytest.raises(ValueError, match="items must be CVDRole strings"):
+        validate_roles([1, "vendor"])
+
+
+def test_validate_roles_error_names_the_field():
+    """The error names the field the caller validates, not a fixed config key."""
+    with pytest.raises(ValueError, match=r"^proposerCaseRoles must be a list"):
+        validate_roles("vendor", field_name="proposerCaseRoles")

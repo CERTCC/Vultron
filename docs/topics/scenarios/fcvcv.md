@@ -95,7 +95,7 @@ where C2 acts as a broker for V2 rather than C1 inviting V2 directly.
 - **V1 (Vendor 1)** — receives a direct invite from C1; develops a fix (reaches VFd, not VFD).
 - **C2 (Coordinator 2)** — receives a direct invite from C1; suggests V2 to the case.
 - **V2 (Vendor 2 / Deployer)** — joins via the actor-suggestion path; develops and deploys a fix (VFD).
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. C1's platform hosts it, but its authority comes from the role, not from where it runs.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 

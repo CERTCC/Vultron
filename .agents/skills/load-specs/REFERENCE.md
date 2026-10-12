@@ -50,7 +50,7 @@ One entry per spec topic that has a selected requirement. Fields: `id`,
 | `type` | `behavioral` or `statement` |
 | `priority` | `MUST`, `MUST_NOT`, `SHOULD`, `SHOULD_NOT`, or `MAY` |
 | `statement` | The normative requirement text |
-| `kind` | `protocol`, `architecture`, `project`, or `process` |
+| `kind` | `protocol`, `foundation`, `architecture`, `project`, or `process` |
 | `scope` | List: `prototype`, `production`, or both |
 | `tags` | Optional topic tags |
 | `rationale` | Optional explanatory text |

@@ -93,7 +93,7 @@ vendors develop fixes before joint disclosure.
 - **Vendor1** — receives the report; validates and engages the case; holds initial ownership; transfers ownership to the Coordinator.
 - **Coordinator** — joins via Vendor1's invitation; receives case ownership; invites Vendor2.
 - **Vendor2** — joins via the Coordinator's invitation; develops and ships a fix.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. Vendor1's platform hosts it, but its authority comes from the role, not from where it runs; the same Case Actor keeps the role after the ownership handoff.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs; the same Case Actor keeps the role after the ownership handoff.
 
 ## Protocol narrative
 

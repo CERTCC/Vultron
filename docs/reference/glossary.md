@@ -593,7 +593,7 @@ The [Concept Taxonomy](vultron-taxonomy.md) explains the boundary: `vultron/core
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Four-Tier Spec Taxonomy** | The four-kind classification for Vultron specification files (ADR-0038): `protocol` (required for Vultron compliance in any language — wire behavior, state machine invariants, message semantics), `architecture` (implementation-independent structural guidance transferable across languages but not required for compliance — hexagonal boundaries, port/adapter patterns), `project` (specific to this codebase — Python paths, BT nodes, module organization), and `process` (how this project is run — CI config, GitHub workflow, agent conventions, spec authoring rules). Replaces a prior six-kind taxonomy. | Spec kinds, spec classification |
+| **Spec Kind Taxonomy** | The five-kind classification for Vultron specification files (ADR-0134, which partially supersedes ADR-0038), where who must obey a rule decides its kind and naming code never does: `protocol` (the Vultron layer — message forms on the wire, which messages are sent and when, what a receiver does given its state, and the underlying state machines), `foundation` (rules inherited from ActivityStreams 2.0, ActivityPub, or HTTP, tagged with the standard), `architecture` (recommended structure that carries over to other languages but is not required for compliance — behavior trees, hexagonal boundaries), `project` (this codebase only — deployment choices, operating limits, how a receiver records what it receives, internals), and `process` (how this project is run — CI config, GitHub workflow, agent conventions, spec authoring rules). | Four-tier spec taxonomy, spec classification |
 
 ---
 

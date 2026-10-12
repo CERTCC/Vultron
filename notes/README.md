@@ -1060,7 +1060,8 @@ Mechanical rules for authoring spec YAML: the MS-12 decision tree for choosing
 a `kind`, and why copying the neighbouring entries is the mechanism that spread
 misclassification rather than a safe shortcut; the exact enums `spec-lint`
 accepts for `kind`, `priority`, and `rel_type`; keys silently dropped by
-`spec-dump`; the PR-only protocol-coverage guard and its strict-`xfail` pattern; and
+`spec-dump`; the PR-only marker-coverage guard over `protocol` and `foundation`
+specs and its strict-`xfail` pattern; and
 the audit passes required when retiring a name or splitting a compound
 requirement; why a priority gate names a tier (`MUST_NOT` with `MUST`), never a
 keyword; and the four rules that make the per-requirement `verification_debt`

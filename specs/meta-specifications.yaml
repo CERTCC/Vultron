@@ -721,8 +721,8 @@ groups:
     - documentation
 - id: MS-12
   title: SpecKind Classification Decision Tree
-  description: Mechanical rules for assigning a `kind` value to a new or reclassified spec. Stop at the first matching
-    question.
+  description: Rules for assigning a `kind` value to a new or reclassified spec. Who must obey a rule decides its kind.
+    Split a spec that mixes kinds first, then stop at the first matching question.
   specs:
   - id: MS-12-001
     priority: MUST
@@ -735,42 +735,56 @@ groups:
   - id: MS-12-002
     priority: MUST
     kind: process
-    statement: When a spec references a language construct, library, file path, class, function, module, or codebase-specific
-      mechanism (py_trees, pydantic, `vultron/`, `.py`, pytest, Behavior Tree nodes, etc.), the spec MUST be classified
-      as `project`. A spec about an internal endpoint or mechanism of this codebase is `project` even when it is phrased
-      as a MUST on observable behaviour.
+    statement: >-
+      A spec's kind MUST be decided by who must obey it, never by whether its statement names
+      a codebase construct such as a file path, library, class, or Behavior Tree node. When
+      only this codebase must obey the spec — a deployment choice (such as running the
+      CASE_MANAGER as an actor separate from the case owner), a performance or operating
+      limit, how a receiver records what it receives, or a core internal — the spec MUST be
+      classified as `project`.
     rationale: >-
       Compare TCP and an operating system's socket API. An RFC fixes what two independent
       implementations exchange on the wire; how one implementation structures its internals (its
       endpoints, stores, compare-and-set loops) is not RFC content, however firm the MUST.
-      EP-02-004 (compare-and-set on the policy PUT) is the worked example: it constrains an
-      internal endpoint, so it is `project`, not `protocol`.
+      EP-02-004 (compare-and-set on the policy PUT) is the worked example: only this codebase
+      must obey it, so it is `project`. Naming code is a symptom, not the test: a protocol rule
+      spelled in this codebase's terms is reworded, and one that also says how this codebase
+      meets it is split (MS-12-010). Neither is relabeled.
     verification: >-
-      MS-12-006's spec-lint check enforces the unambiguous half of this rule — a spec of kind protocol
-      carrying no story back-reference, whose text names a `.py` suffix, a `vultron/`, `test/`, or
-      `scripts/` path, or `pytest`, `pydantic`, or `py_trees`, is a hard error. Covered by
-      `test/metadata/specs/test_lint.py`.
+      MS-12-006's spec-lint check enforces the first sentence where it is mechanical: a
+      story-less protocol or foundation spec whose statement names a `.py` suffix, a `vultron/`, `test/`, or
+      `scripts/` path, or `pytest`, `pydantic`, or `py_trees` is a hard error, and its message
+      advises rewording or splitting and never relabeling. Covered by
+      `test/metadata/specs/test_lint.py::test_protocol_code_reference_message_advises_reword_or_split`.
+      The `project` branch itself is a classification judgement no check inspects.
     relationships:
     - rel_type: depends_on
       spec_id: MS-12-005
       note: applies only when MS-12-001 did not already match
+    adr:
+    - ADR-0134
     tags:
     - documentation
   - id: MS-12-003
     priority: MUST
     kind: process
     verification_debt: '#2571'
-    statement: When a spec describes a requirement that an independent implementer would need to satisfy to be considered
-      Vultron-compliant regardless of language or framework (wire behaviour, state machine invariants, behavioral contracts,
-      message semantics, protocol rules), the spec MUST be classified as `protocol`. `protocol` means RFC content, namely wire
-      messages, the behaviours that lead to them, and state machines. Nothing else is `protocol`.
+    statement: >-
+      When every Vultron implementation, in any language or framework, must obey the spec to
+      take part in the protocol, the spec MUST be classified as `protocol`. `protocol` is the
+      Vultron layer: Vultron's message forms on the wire (including where ActivityStreams allows
+      several forms and Vultron requires one), which messages are sent and when, what a receiver
+      does given its state (including on duplicate delivery), and the state machines underlying
+      those behaviors. Nothing else is `protocol`.
     rationale: >-
       The test is the TCP analogy: if the sentence could appear in an RFC for the protocol and an
       implementer in any language would have to honour it to interoperate, it is `protocol`.
-      Behaviour that only changes how one implementation is built is not. Labelling internal
-      mechanisms `protocol` inflates the compliance surface, and labelling RFC content
-      `project` because its verification names a test hides it from implementers; #4312
-      returned the RFC-content specs #3944 had relabeled that way to `protocol`.
+      Behaviour that only changes how one implementation is built is not. State-machine states
+      such as `RM.CLOSED` are protocol constructs. The CASE_MANAGER role and case-ledger sync are
+      `protocol` for now; they are re-judged if the protocol moves to a federated design with no
+      CASE_MANAGER (ADR-0134).
+    adr:
+    - ADR-0134
     tags:
     - documentation
   - id: MS-12-004
@@ -784,49 +798,64 @@ groups:
   - id: MS-12-005
     priority: MUST
     kind: process
-    statement: The decision tree MUST be applied in order (MS-12-001 → MS-12-002 → MS-12-003 → MS-12-004); a spec MUST
-      be assigned the kind corresponding to the first matching question.
-    rationale: The ordering ensures that process and project concerns (which immediately disqualify protocol or architecture)
-      are checked before the compliance test, preventing misclassification.
-    verification: MS-12-006's check defers to this ordering rather than naming a replacement kind, so its
-      error message cannot prescribe `project` for a spec MS-12-001 claims for `process`. Covered by
-      `test/metadata/specs/test_lint.py`.
+    statement: >-
+      A spec that mixes kinds MUST first be split as MS-12-010 directs. The decision tree MUST
+      then be applied in order (MS-12-001 → MS-12-002 → MS-12-009 → MS-12-003 → MS-12-004), and
+      a spec MUST be assigned the kind corresponding to the first matching question.
+    rationale: >-
+      Each question asks who must obey the rule, in this order: how the project is run, this
+      codebase only, every implementation of a standard Vultron inherits, every Vultron
+      implementation, and recommended structure. `foundation`
+      precedes `protocol` so a rule that only restates ActivityStreams, ActivityPub or HTTP is not
+      counted as Vultron's own. Splitting comes first because a mixed spec would otherwise match
+      `project` and hide its protocol half from implementers.
+    verification: >-
+      MS-12-006's check names the split rule and the who-must-obey question rather than a
+      replacement kind, so its error message cannot route a spec around this ordering. Covered by
+      `test/metadata/specs/test_lint.py::test_protocol_code_reference_message_advises_reword_or_split`.
+    adr:
+    - ADR-0134
     tags:
     - documentation
   - id: MS-12-006
     priority: MUST
     kind: process
     statement: >-
-      spec-lint MUST emit a hard error for any spec with kind protocol that carries no
-      `stories:` back-reference and whose `statement` text references
+      spec-lint MUST emit a hard error for any spec with kind protocol or foundation that
+      carries no `stories:` back-reference and whose `statement` text references
       an unambiguous codebase construct — a `.py` suffix, a `vultron/`, `test/`, or
       `scripts/` path, or the tokens `pytest`, `pydantic`, or `py_trees`. The check MUST
       be suppressible per-spec via the `protocol_kind_with_code_reference` lint_suppress
-      code, and its message MUST direct the author to the MS-12-001 → MS-12-005 tree
-      rather than naming a single replacement kind.
+      code. Its message MUST advise rewording the statement so any implementation could obey
+      it, or splitting the spec (MS-12-010), and MUST NOT advise relabeling it.
     rationale: >-
       MS-12-001 through MS-12-005 went unenforced until issue #2601, and the corpus accreted
       protocol-kind specs suppressing the missing-story-reference check instead of carrying a
       corrected kind. An unenforced MUST anti-advertises: partial adoption reads as "no rule
       here". Three choices keep it off already-compliant specs: story-less specs only, a token
-      list narrow enough to exclude domain English, and the whole tree — not one branch — as
-      the remedy. Derived in `notes/spec-authoring-rules.md`. Only the `statement` is scanned: a
+      list narrow enough to exclude domain English, and reword-or-split — not relabel — as the
+      remedy, because naming code never decides a kind (MS-12-002). Derived in
+      `notes/spec-authoring-rules.md`. Only the `statement` is scanned: a
       `verification` field names the test that checks a rule, and naming a test file there says
-      nothing about whether the rule itself is protocol content.
-    verification: Unit tests in `test/metadata/specs/test_lint.py` cover the hard error, the
-      story-bearing exemption, and the suppression path, and `test/architecture/` holds a ratchet
-      asserting the live corpus has no unsuppressed violation.
+      nothing about whether the rule itself is protocol content. `foundation` is scanned too: a
+      foundation rule whose statement names this codebase's code also says how this codebase
+      meets it, so it is a mixed spec to split (MS-12-010, ADR-0134). The suppression code keeps
+      its `protocol_` name, which specs already carry.
+    verification: Unit tests in `test/metadata/specs/test_lint.py` cover the hard error for a
+      protocol and for a foundation spec, the reword-or-split message, the story-bearing exemption, and the suppression path, and
+      `test/architecture/` holds a ratchet asserting the live corpus has no unsuppressed violation.
     relationships:
     - rel_type: verifies
       spec_id: MS-12-002
     - rel_type: verifies
       spec_id: MS-12-005
-      note: the error message defers to the ordering rule rather than to a single branch
+      note: the error message advises reword or split rather than naming a single branch
     - rel_type: depends_on
       spec_id: SR-11-003
       note: shares the story-traceability population; the absence of stories gates both
     adr:
     - ADR-0038
+    - ADR-0134
     tags:
     - documentation
     - tooling
@@ -888,6 +917,89 @@ groups:
       note: holds the suppression escape hatch MS-12-006 provides at no carrier
     adr:
     - ADR-0038
+    tags:
+    - documentation
+    - tooling
+  - id: MS-12-009
+    priority: MUST
+    kind: process
+    statement: >-
+      When every implementation must obey the spec because Vultron inherits it from a standard
+      beneath it — ActivityStreams 2.0, ActivityPub, or HTTP — the spec MUST be classified as
+      `foundation`, and it MUST carry the tag naming that standard (`as2`, `activitypub`, or
+      `http`). spec-lint MUST emit a hard error for a `foundation` spec whose effective tags name
+      none of the three.
+    rationale: >-
+      Addressing and delivery, HTTP status codes, and rules that only restate ActivityStreams
+      (IDs are opaque URIs) bind every implementation, but Vultron does not own them. Filing them
+      as `protocol` inflates what Vultron defines; filing them as `project` hides them from
+      implementers, who read `protocol` and `foundation` together. Where Vultron requires one
+      form among several the standard allows, the rule is Vultron's own and is `protocol`. The
+      tag lets a reader trace each rule to the standard that owns it.
+    verification: >-
+      `test/metadata/specs/test_lint.py::test_foundation_without_standard_tag_is_hard_error`
+      fails a `foundation` spec with no standard tag, and
+      `::test_foundation_with_standard_tag_passes` and
+      `::test_foundation_standard_tag_inherited_from_file_passes` accept each of the three tags,
+      on the spec or its file. The classification itself is a judgement no check inspects.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-12-005
+      note: applies only when MS-12-001 and MS-12-002 did not already match
+    adr:
+    - ADR-0134
+    tags:
+    - documentation
+    - tooling
+  - id: MS-12-010
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A spec that mixes kinds MUST be split along what other participants can observe. The
+      original ID MUST keep the half that states what is emitted or observed, reworded so any
+      implementation could obey it, and the half that states how this codebase does it MUST move
+      to a new `project` ID whose `relationships:` name the original ID.
+    rationale: >-
+      Keeping the original ID on the protocol half keeps its user stories, test markers and
+      citations where implementers look, so the PR-only growth guards (SR-05-005, MS-12-007) see
+      no new uncovered protocol spec and no new suppression. Worked example: default-embargo
+      creation. The protocol half says other participants never observe the intermediate
+      Proposed state; the project half says this codebase applies PROPOSE and ACCEPT atomically
+      in one behavior tree node.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-12-005
+      note: the split MS-12-005 runs before the decision tree
+    adr:
+    - ADR-0134
+    tags:
+    - documentation
+  - id: MS-12-011
+    priority: MUST
+    kind: process
+    statement: >-
+      Changing a spec's kind MUST NOT remove the tests or `@pytest.mark.spec` markers that already
+      verify it, whatever the destination kind. A spec relabeled from `protocol` to `project`, for
+      example, keeps its tests and markers even though `project` does not require them.
+    rationale: >-
+      A test that verifies a rule is evidence the rule holds, and a kind change does not change
+      whether it holds. Dropping markers on a relabel would turn a re-judgement sweep into a way
+      to shed coverage, and a later relabel back would find the tests gone.
+    verification: >-
+      `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_drops_a_marker_while_changing_a_kind`
+      fails a pull request in which an ID whose kind differs from the merge base has lost every
+      marker it had there, and `test/metadata/specs/test_growth_guard.py` exercises it on fixture
+      repositories: a relabel that drops its marker, one that keeps it, a marker dropped with no
+      relabel, a relabel of an unmarked spec, a retired spec, and the skip with no base. A test
+      deleted while another test still marks the spec is not detected; that part is checked in
+      review.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-12-005
+      note: constrains how the kind the decision tree assigns is applied
+    adr:
+    - ADR-0134
     tags:
     - documentation
     - tooling

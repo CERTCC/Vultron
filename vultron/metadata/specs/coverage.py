@@ -13,7 +13,9 @@
 """Protocol-tier @pytest.mark.spec coverage reporter.
 
 Scans the test suite for ``@pytest.mark.spec("ID")`` markers and reports
-coverage for protocol-kind requirements loaded from the spec registry.
+coverage for the requirements every implementation must obey — ``protocol``
+and ``foundation`` kind (:data:`~vultron.metadata.specs.schema.IMPLEMENTER_KINDS`)
+— loaded from the spec registry.
 
 Runnable locally::
 
@@ -27,7 +29,7 @@ from __future__ import annotations
 
 import argparse
 import re
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -36,14 +38,14 @@ from vultron.metadata.specs.registry import (
     find_repo_root,
     load_registry,
 )
-from vultron.metadata.specs.schema import SpecKind
+from vultron.metadata.specs.schema import IMPLEMENTER_KINDS, SpecKind
 
 SPEC_MARKER_RE = re.compile(r'@pytest\.mark\.spec\(["\']([^"\']+)["\']\)')
 
 
 @dataclass
-class ProtocolCoverageReport:
-    """Coverage of @pytest.mark.spec markers for protocol-kind requirements."""
+class ImplementerCoverageReport:
+    """Coverage of @pytest.mark.spec markers for implementer-kind requirements."""
 
     total: int
     covered_count: int
@@ -51,7 +53,7 @@ class ProtocolCoverageReport:
 
     @property
     def covered_pct(self) -> float:
-        """Percentage of protocol specs with at least one marker (0–100)."""
+        """Percentage of implementer-kind specs with a marker (0–100)."""
         if self.total == 0:
             return 0.0
         return 100.0 * self.covered_count / self.total
@@ -96,41 +98,41 @@ def collect_marked_ids(test_root: Path) -> frozenset[str]:
 
 def _coverage_report(
     registry: SpecRegistry, marked_ids: frozenset[str]
-) -> ProtocolCoverageReport:
-    protocol_ids = frozenset(
+) -> ImplementerCoverageReport:
+    implementer_ids = frozenset(
         spec_id
         for spec_id, spec in registry.all_specs.items()
-        if spec.kind == SpecKind.PROTOCOL
+        if spec.kind in IMPLEMENTER_KINDS
     )
-    covered_ids = protocol_ids & marked_ids
-    return ProtocolCoverageReport(
-        total=len(protocol_ids),
+    covered_ids = implementer_ids & marked_ids
+    return ImplementerCoverageReport(
+        total=len(implementer_ids),
         covered_count=len(covered_ids),
-        uncovered=sorted(protocol_ids - covered_ids),
+        uncovered=sorted(implementer_ids - covered_ids),
     )
 
 
-def compute_protocol_coverage(
+def compute_implementer_coverage(
     registry: SpecRegistry,
     test_root: Path,
-) -> ProtocolCoverageReport:
-    """Compute @pytest.mark.spec coverage for protocol-kind requirements.
+) -> ImplementerCoverageReport:
+    """Compute @pytest.mark.spec coverage for implementer-kind requirements.
 
     Args:
         registry: Loaded :class:`~vultron.metadata.specs.registry.SpecRegistry`.
         test_root: Directory to scan for test files.
 
     Returns:
-        :class:`ProtocolCoverageReport` with covered/uncovered counts and the
-        sorted list of uncovered protocol-kind spec IDs.
+        :class:`ImplementerCoverageReport` with covered/uncovered counts and the
+        sorted list of uncovered ``protocol`` and ``foundation`` spec IDs.
     """
     return _coverage_report(registry, collect_marked_ids(test_root))
 
 
-def uncovered_protocol_ids(
+def uncovered_implementer_ids(
     repo_root: Path, *, test_sources: Iterable[str] | None = None
 ) -> frozenset[str]:
-    """``kind: protocol`` IDs under *repo_root* that no test marker covers.
+    """``protocol`` and ``foundation`` IDs under *repo_root* no marker covers.
 
     The per-item extractor behind the SR-05-005 growth guard
     (:func:`vultron.metadata.specs.growth_guard.added_since_base`): it reads
@@ -152,11 +154,59 @@ def uncovered_protocol_ids(
     return frozenset(report.uncovered)
 
 
+@dataclass(frozen=True)
+class KindAndMarker:
+    """One spec ID's kind, and whether any test marker covers it."""
+
+    kind: SpecKind
+    marked: bool
+
+
+def kinds_and_markers(
+    repo_root: Path, *, test_sources: Iterable[str] | None = None
+) -> dict[str, KindAndMarker]:
+    """Every spec ID under *repo_root* with its kind and marker state.
+
+    The reader behind the MS-12-011 kind-change guard, run on the working tree
+    and on a materialized base tree by
+    :func:`vultron.metadata.specs.growth_guard.compare_with_base`. Arguments
+    are as :func:`uncovered_implementer_ids` documents.
+    """
+    if test_sources is None:
+        test_sources = _read_sources(repo_root / "test")
+    marked = marked_ids_in(test_sources)
+    registry = load_registry(repo_root / "specs")
+    return {
+        spec_id: KindAndMarker(spec.kind, spec_id in marked)
+        for spec_id, spec in registry.all_specs.items()
+    }
+
+
+def markers_dropped_by_kind_change(
+    base: Mapping[str, KindAndMarker], head: Mapping[str, KindAndMarker]
+) -> frozenset[str]:
+    """IDs that changed kind and lost the marker they had at *base* (MS-12-011).
+
+    Whatever the destination kind, a kind change keeps the tests that already
+    verify the spec. An ID retired at *head* is not reported: retirement is not
+    a kind change.
+    """
+    return frozenset(
+        spec_id
+        for spec_id, was in base.items()
+        if was.marked
+        and (now := head.get(spec_id)) is not None
+        and now.kind != was.kind
+        and not now.marked
+    )
+
+
 def main() -> None:
-    """CLI entry point: print uncovered protocol-kind spec IDs to stdout."""
+    """CLI entry point: print uncovered implementer-kind spec IDs to stdout."""
     parser = argparse.ArgumentParser(
         description=(
-            "Report @pytest.mark.spec coverage for protocol-kind requirements."
+            "Report @pytest.mark.spec coverage for protocol- and "
+            "foundation-kind requirements."
         )
     )
     parser.add_argument(
@@ -181,16 +231,17 @@ def main() -> None:
     else:
         test_root = find_repo_root() / "test"
 
-    report = compute_protocol_coverage(registry, test_root)
+    report = compute_implementer_coverage(registry, test_root)
     pct = report.covered_pct
 
     print(
-        f"Protocol-kind spec coverage: "
+        f"Protocol and foundation spec coverage: "
         f"{report.covered_count}/{report.total} ({pct:.1f}%)"
     )
     if report.uncovered:
         print(
-            f"\nUncovered protocol-kind requirements ({len(report.uncovered)}):"
+            "\nUncovered protocol and foundation requirements "
+            f"({len(report.uncovered)}):"
         )
         for spec_id in report.uncovered:
             print(f"  {spec_id}")

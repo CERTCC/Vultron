@@ -29,7 +29,11 @@ import sys
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    case_actor_role,
+    role_map,
+)
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.invite_chain import (
@@ -39,9 +43,9 @@ from vultron.demo.helpers.invite_chain import (
 )
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
+    case_actor_dump_target,
     dump_case_ledgers,
     replica_route_key,
-    resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -85,7 +89,7 @@ from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
-    case_actor_id_on,
+    bound_case_actor_client,
     check_server_availability,
     demo_check,
     demo_gate,
@@ -136,15 +140,7 @@ ROLES: list[ActorRole] = [
         has_id=True,
         id_help="Deterministic full URI for the Coordinator actor (optional).",
     ),
-    ActorRole(
-        name="case-actor",
-        url_env="VULTRON_CASE_ACTOR_BASE_URL",
-        default_url="http://localhost:7905/api/v2",
-        url_help="Base URL of the CaseActor container API "
-        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the CaseActor actor (optional).",
-    ),
+    case_actor_role("http://localhost:7905/api/v2", has_id=True),
     ActorRole(
         name="vendor2",
         url_env="VULTRON_VENDOR2_BASE_URL",
@@ -209,10 +205,15 @@ def reset_containers(
         ("Finder", finder_client),
         ("Vendor1", vendor_client),
         ("Coordinator", coordinator_client),
-        ("CaseActor", case_actor_client),
         ("Vendor2", vendor2_client),
     ]
-    _reset_containers(targets, reset_fn=reset_datalayer)
+    # Reset with the others, then its CaseActor identity is re-seeded: Vendor1
+    # proposes the case to it (DEMOMA-06-004).
+    _reset_containers(
+        targets,
+        reset_fn=reset_datalayer,
+        case_actor_client=case_actor_client,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -344,7 +345,7 @@ def _phase_ownership_handoff(
     # #3038).
     run_case_invite_chain(
         case=case,
-        case_manager_client=vendor_client,
+        case_manager_client=case_actor_client,
         invitee_name="Coordinator",
         invitee_client=coordinator_client,
         invitee=coordinator,
@@ -455,7 +456,7 @@ def _phase_ownership_handoff(
         "CaseActor committed accept_case_ownership_transfer (CM-21-007)"
     ):
         wait_for_case_actor_ledger_event(
-            client=vendor_client,
+            client=case_actor_client,
             case_id=case.id_,
             event_type="accept_case_ownership_transfer",
         )
@@ -561,7 +562,7 @@ def _phase_coordinator_invites_vendor2(
     # delivery gate (ADR-0058 nested-block model, EDF-06-005, #3038).
     run_case_invite_chain(
         case=case,
-        case_manager_client=vendor_client,
+        case_manager_client=case_actor_client,
         invitee_name="Vendor2",
         invitee_client=vendor2_client,
         invitee=vendor2,
@@ -620,7 +621,7 @@ def _phase_coordinator_invites_vendor2(
             offer=offer,
             report=report,
             finder=finder,
-            auth_client=vendor_client,
+            auth_client=case_actor_client,
             case=case,
             invited_obj=vendor2,
             timeout_seconds=90.0,
@@ -961,12 +962,14 @@ def _phase_case_closure(
     coordinator: as_Actor,
     coordinator_in_coordinator: as_Actor,
     case: as_VulnerabilityCase,
+    case_actor_client: DataLayerClient,
 ) -> None:
     """Close the case from all four participants and verify terminal state.
 
     Vendor1, Vendor2 and the Finder leave first; the Coordinator, the Case
     Owner since the handoff, leaves last, once their departures are recorded
-    (CM-23-015).  The CASE_MANAGER stays on Vendor1's container.
+    (CM-23-015).  The handoff moves ownership, not the CASE_MANAGER, which
+    stays on the dedicated case-actor container.
     """
     logger.info("─" * 80)
     logger.info("Phase 7: Case closure — all participants RM.CLOSED")
@@ -974,7 +977,7 @@ def _phase_case_closure(
 
     close_case_owner_last(
         case=case,
-        authority_client=vendor_client,
+        authority_client=case_actor_client,
         others=[
             CaseLeaver(client=vendor_client, actor=vendor_in_vendor),
             CaseLeaver(client=vendor2_client, actor=vendor2_in_vendor2),
@@ -1031,6 +1034,7 @@ def _phase_dump_case_ledgers(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     case: as_VulnerabilityCase,
     demo_name: str = "fvcv-handoff",
 ) -> None:
@@ -1061,13 +1065,9 @@ def _phase_dump_case_ledgers(
             vendor2_client,
             replica_route_key(vendor2_client, "vendor2"),
         ),
+        # The canonical ledger, from the dedicated case-actor container.
+        case_actor_dump_target(case_actor_client),
     ]
-    # The case-actor is a sub-actor inside the vendor1 container.
-    case_actor_route_key = resolve_case_actor_route_key(case)
-    if case_actor_route_key is not None:
-        targets.append(
-            LedgerDumpTarget("case-actor", vendor_client, case_actor_route_key)
-        )
 
     dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
 
@@ -1132,17 +1132,17 @@ def run_fvcv_handoff_demo(
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
                 vendor2_client=vendor2_client,
+                case_actor_client=case_actor_client,
                 case=case,
                 demo_name=harness.demo_name,
             )
         )
 
-        # The case's CaseActor is the container-level identity of whichever node
-        # first received the report (ADR-0041, CP-08-003) — not a per-case
-        # sub-actor, and not necessarily the standalone case-actor service.
-        # After a handoff it is on a container that no longer owns the case, so
-        # which one it is cannot be assumed or constructed from a slug: read it
-        # off the case's own participants.
+        # The case's CaseActor is the dedicated case-actor container's identity
+        # (CP-08-008, DEMOMA-06-004), and it stays the CASE_MANAGER through the
+        # ownership handoff.  Read it off the case's own participants rather
+        # than constructing it from a slug, so the Invite check below asserts
+        # the actor the case actually names.
         dynamic_case_actor_id = find_case_actor_participant_id(
             vendor_client, case.id_
         )
@@ -1259,6 +1259,7 @@ def run_fvcv_handoff_demo(
             coordinator,
             coordinator_in_coordinator,
             case,
+            case_actor_client,
         )
 
     logger.info("=" * 80)
@@ -1317,9 +1318,7 @@ def main(
     finder_client = DataLayerClient(base_url=f_url)
     vendor_client = DataLayerClient(base_url=v_url)
     coordinator_client = DataLayerClient(base_url=c_url)
-    case_actor_client = DataLayerClient(
-        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
-    )
+    case_actor_client = bound_case_actor_client(ca_url)
     vendor2_client = DataLayerClient(base_url=v2_url)
 
     if not skip_health_check:

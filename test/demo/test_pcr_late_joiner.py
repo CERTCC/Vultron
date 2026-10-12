@@ -92,8 +92,8 @@ def three_app_setup():
 
     Lifecycle:
       1. Patches ``VULTRON_SERVER__BASE_URL`` to ``{_OWNER_BASE}/api/v2`` so
-         that ``CreateCaseActorNode`` generates a routable CaseActor ID (e.g.
-         ``http://owner-late-joiner.test/api/v2/actors/case-actor-…``).
+         that IDs minted from the server base URL are routable (e.g.
+         ``http://owner-late-joiner.test/api/v2/actors/…``).
          Without this the default ``http://localhost:7999`` is used, which
          lacks the ``/api/v2/`` prefix and gets a 404 from the owner's ASGI
          app (its routes are at ``/api/v2/actors/…``).
@@ -121,10 +121,9 @@ def three_app_setup():
     # restores both on exit — the ordering footgun (#2086) is impossible
     # by construction (CFG-06-006).
     with config_override(
-        # Patch the server base URL so the CaseActor is created with the
-        # owner's routable base URL.  Without this, CreateCaseActorNode reads
-        # the default http://localhost:7999 which produces IDs like
-        # http://localhost:7999/actors/case-actor-... and the owner's app
+        # Patch the server base URL so IDs minted from it are routable to the
+        # owner's app.  Without this the default http://localhost:7999 yields
+        # IDs under http://localhost:7999/actors/... and the owner's app
         # returns 404 for /actors/ paths (it expects /api/v2/actors/).
         VULTRON_SERVER__BASE_URL=f"{_OWNER_BASE}/api/v2",
         # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
@@ -448,8 +447,8 @@ def _run_late_joiner_sequence(
     )
     assert case_actor_id is not None, (
         f"Could not find CaseActor for case '{case_id}' in owner's "
-        f"DataLayer.  CreateCaseActorNode may not have run during "
-        f"create_receive_report_case_tree."
+        f"DataLayer.  The CaseProposal round-trip may not have completed "
+        f"during create_receive_report_case_tree."
     )
     ca_dl = owner_iso.store_for(case_actor_id)
     _case_obj = ca_dl.read(case_id)

@@ -22,6 +22,7 @@ Split from ``cases.py`` at the CS-18-001 module-size cap.
 """
 
 import logging
+from collections.abc import Sequence
 from typing import Any
 
 from pydantic import ValidationError
@@ -30,6 +31,7 @@ from vultron.adapters.outbox_sealed_body import derived_activity_id
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.actor import CoreActor
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronAlreadyExistsError,
@@ -65,6 +67,7 @@ class _ProposalsMixin:
         to: list[str] | None = None,
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
+        proposer_case_roles: Sequence[CVDRole] = (),
     ) -> tuple[str, str]:
         """Create and persist a ``Create(as_CaseProposal)`` activity.
 
@@ -82,7 +85,9 @@ class _ProposalsMixin:
         The sending actor's own profile, read from this store with its
         ``embargo_policy`` when it has published one, travels inline as the
         Create's ``actor`` (CP-01-010): it is the only place the CASE_MANAGER
-        reads the CASE_OWNER's actor default from.
+        reads the CASE_OWNER's actor default from.  ``proposer_case_roles`` ride
+        on the proposal for the same reason: they are the only place it reads
+        the CASE_OWNER's CVD roles from (CP-01-011, ADR-0133).
 
         Per CP-04-001, CP-04-002.
 
@@ -123,6 +128,7 @@ class _ProposalsMixin:
             offer_id=offer_id,
             offer_actor_id=offer_actor_id,
             in_reply_to=offer,
+            proposer_case_roles=list(proposer_case_roles),
         )
         # Persist the proposal so the outbox expansion path can find it
         # when the as_Create activity is read back from the DataLayer.

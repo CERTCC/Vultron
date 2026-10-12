@@ -93,7 +93,7 @@ and the Case Actor formally invites the Vendor.
 - **C1 (Coordinator 1)** — receives the report; validates, engages, and owns the case; invites C2.
 - **C2 (Coordinator 2)** — joins via C1's invitation; suggests the Vendor.
 - **Vendor** — joins via the actor-suggestion path; develops and ships a fix.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. C1's platform hosts it, but its authority comes from the role, not from where it runs.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 

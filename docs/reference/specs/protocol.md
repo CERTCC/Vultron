@@ -5,9 +5,10 @@ level: 400
 
 # Protocol Specifications
 
-Required for Vultron compliance in any implementation and any language. Covers
-wire behavior, state machine invariants, behavioral contracts, message
-semantics, and protocol rules.
+The Vultron layer: what every implementation, in any language, must obey to take part in Vultron.
+It covers Vultron's message forms on the wire, including where ActivityStreams allows several forms and Vultron requires one.
+It also covers which messages are sent and when, what a receiver does given its state, including on duplicate delivery, and the state machines underlying those behaviors.
+Rules Vultron inherits unchanged from ActivityStreams 2.0, ActivityPub, or HTTP are on the [Foundation](foundation.md) page.
 
 ```python exec="true" idprefix=""
 import sys
