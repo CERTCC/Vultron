@@ -248,9 +248,9 @@ replicates normally (ASK-06-001), so a stalled decision is visible to
 participants. Consequently an ask must carry nothing undisclosable to them
 (ASK-06-002); private rationale goes in a directed `Note`, which CLP-05-001
 already establishes as a delivery shape. Delivering the *fact* of an ask while
-directing its *detail* would need redaction with proofs — `notes/selective-disclosure.md`
-describes redaction as future work, and committing a stub instead would break
-CLP-02-003 and CLP-07-012.
+directing its *detail* would need redaction with proofs —
+`notes/selective-disclosure.md` describes redaction as future work, and committing a
+stub instead would break CLP-02-003 and CLP-07-012.
 
 ## Expiry has no clock, and that is deliberate
 

@@ -111,11 +111,11 @@ reject, and for the inbound unknown-key rule (MV-11).
 `participant_status_vf_state()`, `participant_status_d_state()`. Each raises
 `VultronValidationError` on a non-core shape.
 
-The reason: a `getattr` chain on the wrong shape yields `None`, and every reader
-used to substitute the initial state, silently resetting the participant's
-ladder (#2264). Absence and shape mismatch are different outcomes: an **empty**
-status list is a legitimate absence callers check for; a status with no usable
-dimension must raise (ARCH-15-001, ARCH-15-002).
+The reason: a `getattr` chain on the wrong shape yields `None`, and a reader that
+substitutes the initial state silently resets the participant's ladder (#2264).
+Absence and shape mismatch are different outcomes: an **empty** status list is a
+legitimate absence callers check for; a status with no usable dimension must raise
+(ARCH-15-001, ARCH-15-002).
 
 **At a wire→core ingress boundary, skip rather than raise.** An embedded object
 that is not a core participant is the sender's defect and must not cost the

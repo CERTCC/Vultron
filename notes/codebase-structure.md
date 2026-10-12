@@ -251,14 +251,6 @@ descriptions, so keep those accurate and put new endpoints on the right router.
 
 ---
 
-## Python 3.14 Is Not Supported Yet
-
-Do not raise `requires-python` or the Docker base image to 3.14: the suite failed on
-3.14 because Pydantic called the removed `typing._eval_type()` signature (TOOLS-1).
-Re-test when Pydantic ships a 3.14-compatible build.
-
----
-
 ## Bulk Module Renames
 
 - Find every caller first (`grep -r "from old.path\|import old.path" vultron/ test/`),

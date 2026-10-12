@@ -1,6 +1,7 @@
 # Activity Factories — Design Rules
 
-> Design rules and rationale: [`notes/activity-factories.md`](../../../../notes/activity-factories.md)
+> Design rules and rationale:
+> [`notes/activity-factories.md`](../../../../notes/activity-factories.md)
 >
 > Spec: `specs/activity-factories.yaml` (AF-01 through AF-08)
 

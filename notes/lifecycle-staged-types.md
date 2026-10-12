@@ -58,8 +58,8 @@ embargoed = EmbargoedCase.model_validate(case)   # raises if no active embargo
 The subtype's `model_validator` **is** the promotion logic; write no separate
 promotion function. It raises at the boundary, never returns `None` into core
 (ADR-0032). This works on a real `dl.read()` result, not only on a
-core-constructed object
-(`test_staged_case.py::TestDataLayerRoundTrip::test_promotion_works_on_a_real_datalayer_read`).
+core-constructed object (`test_staged_case.py`,
+`TestDataLayerRoundTrip::test_promotion_works_on_a_real_datalayer_read`).
 An upstream BT guard such as `HasActiveEmbargoNode` is an alternative placement
 for the same precondition, not evidence that promotion fails.
 

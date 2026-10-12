@@ -27,6 +27,7 @@ related_notes:
   - notes/domain-validation.md
   - notes/status-dimension-objects.md
   - notes/case-joining.md
+  - notes/selective-disclosure.md
 relevant_packages:
   - vultron/core/models
   - vultron/wire/as2/vocab
