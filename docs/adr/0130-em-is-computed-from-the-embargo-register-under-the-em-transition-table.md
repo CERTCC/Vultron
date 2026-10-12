@@ -41,6 +41,11 @@ The question: **how does the EM state machine relate to the embargo register, an
 - The EM transition table is restored and checked by tests only.
 - The EM transition table is restored and every register change is checked against it.
 
+Two narrower questions about the multi-proposal moves were decided with it:
+
+- Activating one proposal tacitly closes the others, or leaves them open as revisions.
+- RSVP deadlines close the proposal, or time out only the invitees' consent rows.
+
 ## Decision Outcome
 
 Chosen option: "The EM transition table is restored and every register change is checked against it", because it is the only option in which the EM state machine remains a rule the system enforces, rather than a property the register happens to have.
@@ -59,7 +64,7 @@ A step the register allows but the table refuses is a defect in the register lay
 | `ACTIVATE`, with `SUPERSEDE` of any `ACTIVE` entry | `accept` |
 | `REJECT` | `reject` |
 | `TERMINATE`, with `CANCEL` of each `PROPOSED` entry | `terminate` |
-| `CANCEL` of each `PROPOSED` entry on a threat signal with no `ACTIVE` entry (EMB-16-001) | `reject` |
+| `CANCEL` of one or more `PROPOSED` entries on a threat signal with no `ACTIVE` entry (EMB-16-001) | `reject` |
 
 Withdrawal by `Leave(EmbargoEvent)` changes consent rows only, not the register, so it is not an EM move.
 
@@ -105,7 +110,8 @@ The owner reads the timed-out rows and decides.
 - ADR-0122 is amended: its "EM is derived from the register" section no longer retires the EM transition table, and points here.
   Its register, consent rows, derivation table and messages stand.
 - ADR-0124 is unchanged; the EM check is part of the replay function's register step.
-- EMB-06-001 (receive ER) and EMB-16-001 are read with the multi-proposal moves: a reject returns EM to `NONE` only when no other proposal is open.
+- EMB-06-001 (receive ER), EMB-02-001 (receive EA), EMB-04-001 (receive EJ) and EMB-05-001 (receive EC) are amended for the multi-proposal moves: each leaves EM in `PROPOSED` or `REVISE` while another proposal is open.
+  EMB-16-001 is read the same way.
 
 ## Validation
 
@@ -148,4 +154,4 @@ The owner reads the timed-out rows and decides.
 Decided in the maintainer's design session of 2026-10-09, reviewing the open issues of epic #4283.
 Implementation is tracked in #4449.
 
-Generated spec requirements: `em-behavior.yaml` EMB-18-005, EMB-18-006; EMB-06-001 updated.
+Generated spec requirements: `em-behavior.yaml` EMB-18-005, EMB-18-006; EMB-02-001, EMB-04-001, EMB-05-001 and EMB-06-001 updated.

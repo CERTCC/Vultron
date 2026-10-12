@@ -228,13 +228,18 @@ groups:
     statement: >-
       A Participant in EM Proposed (q^em ∈ P) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EA MUST transition their EM state to Active
-      (q^em P → A) and emit EK to acknowledge receipt.
+      (q^em P → A) when the accepted proposal was the last one open, MUST move
+      to Revise (q^em P → R) while another proposal stays open (EMB-18-005),
+      and MUST emit EK to acknowledge receipt.
     rationale: >-
       EA is the message that moves a negotiated embargo from Proposed to Active.
-      The receiver records that the embargo is now in effect.
+      The receiver records that the embargo is now in effect. Any other open
+      proposal stays open as a revision of it (ADR-0130).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EA in EM PROPOSED
-      with CS matching ...pxa transitions EM to ACTIVE and queues EK to the sender.
+      with CS matching ...pxa and no other open proposal transitions EM to ACTIVE
+      and queues EK to the sender; the multi-proposal move is covered by
+      `test/core/states/test_em_transition_table.py` (EMB-18-005).
     testable: true
     preconditions:
     - em_state:
@@ -251,7 +256,9 @@ groups:
       action: Emit EK to acknowledge receipt of EA
       expected: EK queued for sender
     postconditions:
-    - description: Receiver EM state is ACTIVE; EK emitted to sender
+    - description: >-
+        Receiver EM state is ACTIVE, or REVISE while another proposal is open;
+        EK emitted to sender
     relationships:
     - rel_type: satisfies
       spec_id: VP-05-003
@@ -527,7 +534,9 @@ groups:
     statement: >-
       A Participant in EM Revise (q^em ∈ R) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EJ MUST transition their EM state back to Active
-      (q^em R → A). "Emit EK" is discharged by the CASE_MANAGER's commit of the
+      (q^em R → A) when the rejected revision was the last proposal open, and
+      MUST remain in Revise (q^em R → R) while another proposal is open
+      (EMB-18-005). "Emit EK" is discharged by the CASE_MANAGER's commit of the
       received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
       is emitted (EP-09-009, MSM-02-009).
     rationale: >-
@@ -536,7 +545,8 @@ groups:
       pre-revision state.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
-      with CS matching ...pxa transitions EM back to ACTIVE, and that the CASE_MANAGER's
+      with CS matching ...pxa and no other open proposal transitions EM back to
+      ACTIVE, and that the CASE_MANAGER's
       ledger commit and announcement of the received EJ discharge EK with no EK message
       queued.
     testable: true
@@ -556,7 +566,8 @@ groups:
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: >-
-        Receiver EM state is ACTIVE (revision rejected); EK discharged by the ledger commit
+        Receiver EM state is ACTIVE (revision rejected), or REVISE while another
+        proposal is open; EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
@@ -627,7 +638,9 @@ groups:
     statement: >-
       A Participant in EM Revise (q^em ∈ R) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EC MUST transition their EM state back to Active
-      (q^em R → A) with the revised terms. "Emit EK" is discharged by the
+      (q^em R → A) with the revised terms when the accepted revision was the
+      last proposal open, and MUST remain in Revise (q^em R → R) under the
+      revised terms while another proposal is open (EMB-18-005). "Emit EK" is discharged by the
       CASE_MANAGER's commit of the case owner's
       `Accept(EmbargoEvent, target=Case)`, fanned out as
       `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009, MSM-02-009).
@@ -636,7 +649,8 @@ groups:
       to Active state under the new terms agreed by the revision.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
-      with CS matching ...pxa transitions EM back to ACTIVE with revised terms, and that the
+      with CS matching ...pxa and no other open proposal transitions EM back to
+      ACTIVE with revised terms, and that the
       CASE_MANAGER's commit of the case owner's
       `Accept(EmbargoEvent, target=Case)` and its announcement
       discharge EK with no EK message queued.
@@ -659,7 +673,8 @@ groups:
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: >-
-        Receiver EM state is ACTIVE with new terms; EK discharged by the ledger commit
+        Receiver EM state is ACTIVE with new terms, or REVISE while another
+        proposal is open; EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-04-005
@@ -735,11 +750,16 @@ groups:
       one open, MUST remain in Proposed (q^em P → P) while another proposal is
       open (EMB-18-005), and MUST emit EK to acknowledge receipt.
     rationale: >-
-      ER signals that a proposed embargo has been rejected. The embargo returns
-      to None state (no embargo in effect). The EK acknowledges the rejection.
+      ER signals that a proposed embargo has been rejected. When it was the last
+      open proposal, the case returns to None (no embargo in effect); another
+      open proposal keeps it in Proposed (ADR-0130). The EK acknowledges the
+      rejection.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving ER in EM PROPOSED
-      transitions EM to NONE and queues EK to the sender.
+      with no other open proposal transitions EM to NONE and queues EK to the
+      sender; `test_a_rejection_returns_em_to_none_only_with_the_last_proposal`
+      in `test/core/states/test_em_transition_table.py` covers the
+      multi-proposal case.
     testable: true
     preconditions:
     - em_state:
@@ -755,7 +775,9 @@ groups:
       action: Emit EK to acknowledge receipt of ER
       expected: EK queued for sender
     postconditions:
-    - description: Receiver EM state is NONE (proposal rejected); EK emitted
+    - description: >-
+        Receiver EM state is NONE (proposal rejected), or PROPOSED while another
+        proposal is open; EK emitted
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004

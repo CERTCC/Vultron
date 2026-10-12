@@ -142,7 +142,8 @@ def trigger_accept_embargo(
         "with Reject(Invite(EmbargoEvent)), which records its own refusal and "
         "moves no EM state. The case owner's reject is its decision for the "
         "case, Reject(EmbargoEvent, target=Case), which rejects the proposal "
-        "(EM state PROPOSED → NONE or REVISE → ACTIVE). "
+        "(EM state PROPOSED → NONE or REVISE → ACTIVE, or unchanged while "
+        "another proposal is open). "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_reject_embargo",

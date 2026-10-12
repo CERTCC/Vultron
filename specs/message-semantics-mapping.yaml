@@ -853,7 +853,8 @@ groups:
     statement: >-
       When the case owner's Accept(Event)[target=VulnerabilityCase] (MSM-07-008) replaces
       active embargo A with revision B (the register activates B and supersedes A, so the
-      derived EM goes REVISE → ACTIVE),
+      derived EM goes REVISE → ACTIVE, or stays REVISE while another proposal is open,
+      EMB-18-005),
       implementations MUST settle every participant's consent rows against B:
       if B ends no later than A, every participant whose row for A is AGREED MUST be carried
       over by applying CARRY_OVER to its row for B, a DECLINED row for B included

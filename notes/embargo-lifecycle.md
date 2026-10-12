@@ -40,6 +40,7 @@ related_specs:
   - specs/status-dimension-objects.yaml
 related_notes:
   - notes/embargo-default-semantics.md
+  - notes/case-state-model.md
   - notes/bt-integration.md
   - notes/participant-embargo-consent.md
   - notes/case-communication-model.md
@@ -391,8 +392,8 @@ state from the ledger through the relay replay nodes in
 The owner's `Reject(EmbargoEvent, target=Case)` is decided by
 `DecideRejectedEmbargoProposalNode`, `STRICT` on the CASE_MANAGER and
 `OBSERVED` on replay (the `EmbargoProposalRejection` slot):
-`reject_embargo_proposal` returns EM `REVISE → ACTIVE` (or `PROPOSED → NONE`)
-and rejects the proposal, except for the last revision with P/X/A set, which
+`reject_embargo_proposal` returns EM `REVISE → ACTIVE` (or `PROPOSED → NONE`),
+or leaves it in place while another proposal is open (EMB-18-005), and rejects the proposal, except for the last revision with P/X/A set, which
 it leaves to the ET that follows (EMB-04-002); the owner's
 `Accept(EmbargoEvent, target=Case)` is replayed by the `EmbargoActivation`
 slot (ADR-0122). EMB-01-002 and
@@ -655,7 +656,8 @@ do about it? The answer, in order:
    changes nothing that binds it: `INVITE` lands on the revision's own row and
    the signatory keeps its `AGREED` row for the active embargo (EP-09-004).
 5. The owner's answer is consent *and* decision: `Accept` activates
-   (`PROPOSED → ACTIVE`, or `REVISE → ACTIVE` with the EP-05-001 carry-over),
+   (`PROPOSED → ACTIVE`, or `REVISE → ACTIVE` with the EP-05-001 carry-over;
+   `→ REVISE` instead while another proposal stays open, EMB-18-005),
    `Reject` clears a first proposal or keeps the prior terms. The owner MAY
    decide without waiting (EP-09-005) and SHOULD wait for some answers to gauge
    consensus (EP-09-006); no quorum or vote is defined — that is actor policy,

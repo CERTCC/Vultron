@@ -21,6 +21,7 @@ from vultron.core.models.embargo_register import (
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
+    RegisterTrigger,
     TerminationReason,
     derive_em,
 )
@@ -87,10 +88,17 @@ def _steps(register: Register) -> Iterator[Step]:
             False,
         )
     elif _ids(register, S.PROPOSED):
-        # A threat signal with no embargo in force abandons every proposal
-        # (EMB-16-001), which is an ER: the EM trigger is ``reject``.
+        # A threat signal with no embargo in force abandons the named open
+        # proposals (EMB-16-001), which is an ER: the EM trigger is
+        # ``reject``.  It may name every open proposal or only some of them.
         cancel = termination_changes(register, TerminationReason.EARLY)
         yield "reject", cancel, True
+        if len(cancel) > 1:
+            for embargo_id in _ids(register, S.PROPOSED):
+                one = RegisterChange(
+                    embargo_id=embargo_id, trigger=RegisterTrigger.CANCEL
+                )
+                yield "reject", [one], True
 
 
 def _reachable() -> list[Register]:
@@ -161,6 +169,7 @@ def test_activating_one_proposal_leaves_the_others_open_as_revisions() -> None:
 
 @pytest.mark.xfail(
     strict=True,
+    raises=KeyError,
     reason=(
         "EMB-18-006: the EM transition table is not yet declared in"
         " vultron.core.states.em or checked by the register step."
@@ -182,6 +191,8 @@ def test_em_transition_table_is_declared_and_enforced(
 
     # With ``propose: NONE -> PROPOSED`` withdrawn, the register refuses the
     # first proposal: the step is checked against the table, not just tested.
+    # This relies on the register step reading ``em.EM_TRANSITIONS`` at call
+    # time, not binding the name at import, so #4449 must look it up there.
     narrowed = {
         trigger: frozenset(m for m in moves if m != (EM.NONE, EM.PROPOSED))
         for trigger, moves in declared.items()

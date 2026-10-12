@@ -6,6 +6,7 @@ related_specs:
   - specs/architecture.yaml (ARCH-12-002)
   - specs/case-management.yaml
   - specs/cs-behavior.yaml
+  - specs/em-behavior.yaml
   - specs/received-status-handling.yaml
   - specs/rm-behavior.yaml
 related_notes:
@@ -15,6 +16,7 @@ related_notes:
   - notes/received-status-authorization.md
   - notes/domain-validation.md
   - notes/case-joining.md
+  - notes/embargo-lifecycle.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -473,8 +475,8 @@ Case State (CS) is one of three interacting state machines:
 - **EM (Embargo Management)**: Shared across case participants; tracks
   `NONE → PROPOSED → ACTIVE → REVISE → EXITED`. Tracked in
   `CaseStatus`. Note: `Accept` is an **activity type** that triggers the
-  `PROPOSED → ACTIVE` (or `REVISE → ACTIVE`) transition — it is not itself a
-  state. See `vultron/bt/embargo_management/states.py`.
+  `PROPOSED → ACTIVE` (or `REVISE → ACTIVE`) transition, or `→ REVISE` while
+  another proposal stays open (EMB-18-005) — it is not itself a state. See `vultron/bt/embargo_management/states.py`.
 - **CS (Case State)**: The 6-dimensional VFD/PXA hypercube described above.
 
 See `docs/topics/process_models/rm/`, `docs/topics/process_models/em/`, and
