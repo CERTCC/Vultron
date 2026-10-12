@@ -595,7 +595,7 @@ call is an alternative to fixed heuristics.
 
 **See**: `specs/agentic-readiness.yaml` and `specs/case-management.yaml` for
 the CVD action rules; `docs/developer/reference/bt-fuzzer/index.md` for
-related external touchpoints.
+related call-out points.
 
 ---
 

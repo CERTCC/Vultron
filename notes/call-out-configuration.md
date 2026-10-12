@@ -17,6 +17,7 @@ related_specs:
   - specs/prototype-shortcuts.yaml
 related_notes:
   - notes/bt-pitfalls.md
+  - notes/bt-integration.md
   - notes/bt-canonical-reference.md
   - notes/coordination-agents.md
   - notes/call-out-simulation-plan.md

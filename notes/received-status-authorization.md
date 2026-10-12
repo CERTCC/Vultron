@@ -665,4 +665,5 @@ changes. The inbound adoption path was refactored onto `EmitCaseStatusUpdateNode
 - Spec: `specs/received-status-handling.yaml` RSH-01 through RSH-04
 - Source Concern: CONCERN-1667
 - Source Idea: IDEA-1836
-- Superseded approach: `docs/developer/reference/bt-fuzzer/rm-threat.md` (sentinel integration context)
+- Superseded approach: `docs/developer/reference/bt-fuzzer/rm-threat.md`
+  (sentinel integration context)

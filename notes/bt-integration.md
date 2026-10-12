@@ -20,6 +20,7 @@ related_specs:
   - specs/case-proposal.yaml
 related_notes:
   - notes/bt-canonical-reference.md
+  - notes/call-out-configuration.md
   - notes/bt-composability.md
   - notes/case-ledger-authority.md
   - notes/bt-pitfalls.md
@@ -321,7 +322,7 @@ a state; `states.py` is the authoritative state list.
 
 py_trees re-implementations of `vultron/bt/` fuzzer nodes go in
 **`vultron/demo/fuzzer/`**, never `vultron/core/behaviors/` (BT-16-004): they
-are simulation stubs for external-dependency touchpoints, not protocol
+are simulation stubs for call-out points, not protocol
 behavior. Modules mirror the simulator: `base.py` (probabilistic base types),
 `embargo.py`, `messaging.py`, and `report_management/`.
 `vultron/bt/vul_discovery/fuzzer.py` is intentionally not ported: discovery

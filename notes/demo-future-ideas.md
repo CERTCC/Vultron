@@ -30,6 +30,7 @@ related_notes:
   - notes/demo-interactive-ui.md
   - notes/demo-scenario-registry.md
   - notes/event-driven-control-flow.md
+  - notes/call-out-simulation-plan.md
 ---
 
 # Planned Demo Scenarios and Future Demo Ideas

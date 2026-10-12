@@ -65,7 +65,8 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Call-out point shape**: Retriever — on-demand synchronous check: reads the embargo expiry timestamp from the case DataLayer, compares it to the current system clock, and returns SUCCESS/FAILURE with no output keys.
   The BT tick drives this node; it does not run independently or fire a trigger endpoint.
   A timestamp comparison is the simplest kind of structured fact (ADR-0024 BT-18-006: binary on-demand queries are Retrievers, not Sentinels).
-- **Factory-fn placement**: Not placed in a production factory. `create_terminate_active_embargo_tree` models actor-chosen exit reasons only; invite-deadline expiry is handled by `vultron.core.behaviors.embargo.expiry_tree`.
+- **Factory-fn placement**: Not placed in a production factory.
+  `create_terminate_active_embargo_tree` models actor-chosen exit reasons only; invite-deadline expiry is handled by `vultron.core.behaviors.embargo.expiry_tree`.
 
 ## `OnEmbargoExit`
 
@@ -245,7 +246,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Automation potential**: **Low** — final authority rests with the case owner; not auto-approvable by default.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CaseOwnerApprovesEmbargoResponse`
 - **Call-out point shape**: Evaluator — records an adjudication decision (approve/deny); no blackboard output_keys (pass/fail gate only per BT-18-006).
-- **Factory-fn placement**: `vultron.core.behaviors.embargo.response_decision_tree.create_embargo_response_decision_tree` (`case_owner_approves_embargo_response_factory` param) — second child of the `AuthorizeSelector`, reached when `CheckIsCaseOwnerNode` returns FAILURE (EMB-15-002).
+- **Factory-fn placement**: `vultron.core.behaviors.embargo.response_decision_tree.create_embargo_response_decision_tree` (`case_owner_approves_embargo_response_factory` param) — second child of the `AuthorizeSelector`, reached when `SenderIsCaseOwnerNode` returns FAILURE (EMB-15-002).
 
 ## `CurrentEmbargoAcceptable`
 

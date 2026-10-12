@@ -453,9 +453,5 @@ Agentic Participants epic, #2450).
 
 ## Terminology Note
 
-the fuzzer node catalog
-(`docs/developer/reference/bt-fuzzer/index.md` and its per-domain pages)
-use the phrase **"external dependency touchpoints"** for what we now call
-**call-out points**. These notes predate the canonical term. The terminology
-should be aligned when those notes are next edited; do not introduce new
-uses of "touchpoint" to mean call-out point.
+Say **call-out point**, never "touchpoint" or "external dependency touchpoint":
+call-out point is the canonical term (ADR-0025).

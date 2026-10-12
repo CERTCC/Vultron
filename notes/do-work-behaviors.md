@@ -54,8 +54,8 @@ not expect the protocol to perform it.
 `do_work_bt.md` draws the sub-behaviors (assign ID, develop fix, deploy fix,
 publish, …) as one parallel node, as if all run at once. In the implementation
 each sub-behavior's own tree states its preconditions as guard nodes (for
-example, `create_assign_cve_id_tree` checks the CNA role first); do not rely on the parallel
-parent to sequence them.
+example, `create_assign_cve_id_tree` checks the CNA role first); do not rely
+on the parallel parent to sequence them.
 
 ---
 
