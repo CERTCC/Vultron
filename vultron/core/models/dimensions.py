@@ -219,8 +219,9 @@ class EmDimension(_ScalarDimension):
     Replaces CaseStatus.em_state (SDO-01-001, SDO-03-001).
 
     Frozen so that ``instance.state = EM.X`` raises ``ValidationError``.
-    A status with a different EM is always built by construction or
-    ``model_copy(update={"state": ...})``, never by mutation (SDO-03-006).
+    A status with a different EM is always built by construction or by
+    ``status.model_copy(update={"em": EmDimension(state=...)})``, never by
+    mutation (SDO-03-006).
     """
 
     model_config = ConfigDict(frozen=True)

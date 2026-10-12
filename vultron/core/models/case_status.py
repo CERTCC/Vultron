@@ -77,14 +77,17 @@ class CaseStatus(CoreObject):
     # above accept all three spellings, and ``_ScalarDimension``'s
     # ``_accept_bare_state`` accepts the bare state value the flat form carries.
 
-    # ``em_state``/``pxa_state`` are a read/write view onto the dimension, not a
-    # second place to keep the value: the dimension owns the state machine
+    # ``em_state``/``pxa_state`` are a view onto the dimension, not a second
+    # place to keep the value: the dimension owns the state machine
     # (ADR-0036, SDO-03-001) and the flat spelling is only how it serializes
-    # (ADR-0099 detail 5).  ``em_state`` is read-only: ``em`` is a frozen field
-    # (SDO-03-006, EMB-18-001) and ``EmDimension`` is a frozen model, so every
-    # write path raises ``ValidationError``.  The owning ``VulnerabilityCase``
-    # stamps the derived EM onto a copy via ``model_copy(update={"em": ...})``
-    # rather than mutating the status directly (ADR-0122).
+    # (ADR-0099 detail 5).  ``pxa_state`` is read/write; ``em_state`` is
+    # read-only (SDO-03-006, EMB-18-001).  ``em`` is a frozen field and
+    # ``EmDimension`` a frozen model, so ``status.em = ...`` and
+    # ``status.em.state = ...`` raise ``ValidationError``, and ``em_state``
+    # has no setter, so ``status.em_state = ...`` raises ``AttributeError``.
+    # The owning ``VulnerabilityCase`` stamps the derived EM onto a copy via
+    # ``model_copy(update={"em": ...})`` rather than mutating the status
+    # (ADR-0122).
 
     @property
     def em_state(self) -> EM:

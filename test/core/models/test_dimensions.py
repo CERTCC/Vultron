@@ -4,6 +4,8 @@
 import pytest
 from pydantic import ValidationError
 
+from test.support.embargo_register import activate
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     EmDimension,
@@ -82,6 +84,26 @@ class TestEmDimension:
         assert CaseStatus.__dict__["em_state"].fset is None, (
             "em_state must have no setter"
         )
+
+    def test_status_em_state_assignment_raises_attribute_error(self):
+        """The flat spelling ``status.em_state = X`` raises (SDO-03-006)."""
+        status = CaseStatus(context="urn:case:1")
+        with pytest.raises(AttributeError):
+            status.em_state = EM.ACTIVE  # type: ignore[misc]
+        assert status.em.state == EM.NONE
+
+    def test_case_register_step_still_stamps_frozen_status(self):
+        """A register step re-stamps EM onto the frozen status (AC-3, ADR-0122)."""
+        case = VulnerabilityCase(
+            id_="urn:uuid:case-4375",
+            case_statuses=[CaseStatus(context="urn:uuid:case-4375")],
+        )
+        before = case.current_status
+        activate(case, "urn:uuid:embargo-4375")
+        assert case.em_state == EM.ACTIVE
+        assert case.current_status.em.state == EM.ACTIVE
+        # the stamp replaced the status by copy; the old one is untouched
+        assert before.em.state == EM.NONE
 
     def test_model_copy_with_em_update_works(self):
         """``model_copy(update={"em": ...})`` is the legitimate write path (ADR-0122)."""
