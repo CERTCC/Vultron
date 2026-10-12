@@ -24,6 +24,7 @@ allowed the transferee to write a second entry at the same ``log_index`` as the
 CaseActor's guarded commit, producing a hash-chain fork (AC-3, CLP-09-001).
 """
 
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
@@ -32,6 +33,9 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
+)
+from vultron.core.behaviors.case.nodes.ownership_transfer import (
+    AcceptRecordedOwnershipOfferNode,
 )
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
@@ -110,22 +114,32 @@ def _accept_tree():
         offer_id=OFFER_ID,
         sender_id=TRANSFEREE_ID,
         accept_id=OFFER_ID,
-        new_owner_id=TRANSFEREE_ID,
     )
 
 
+@contextmanager
 def _sender_admitted():
-    """Admit the sender: these tests are about the commit gate, not the sender.
+    """Admit the sender and name the transferee as the recorded Offer would.
 
-    The sender guard is tested through the use case in
+    These tests are about the commit gate, not the Offer lookup; the sender
+    guard and the lookup are tested through the use case in
     ``test/core/use_cases/received/actor/test_ownership.py``.
     """
-    return patch.object(
-        SenderIsOwnershipTransfereeNode,
-        "update",
-        autospec=True,
-        return_value=Status.SUCCESS,
-    )
+    with (
+        patch.object(
+            SenderIsOwnershipTransfereeNode,
+            "update",
+            autospec=True,
+            return_value=Status.SUCCESS,
+        ),
+        patch.object(
+            AcceptRecordedOwnershipOfferNode,
+            "_new_owner_id",
+            autospec=True,
+            return_value=TRANSFEREE_ID,
+        ),
+    ):
+        yield
 
 
 @pytest.mark.parametrize(

@@ -101,7 +101,10 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.participants.ownership_offer import recorded_ownership_offer
+from vultron.core.participants.ownership_offer import (
+    RecordedOwnershipOffer,
+    recorded_ownership_offer,
+)
 from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
@@ -970,29 +973,15 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
-    def _transferee_of_open_offer(self, manager_id: str) -> Status:
-        """The CASE_MANAGER arm: the sender answers an open Offer to it."""
-        assert self.datalayer is not None
+    def _check_open_offer(self, offer: RecordedOwnershipOffer) -> Status:
+        """The CASE_MANAGER arm: the sender is the transferee of *offer*,
+        which no other answer has closed."""
         sender = self._sender_actor_id
-        if self._offer_id is None:
-            return self._refuse(
-                f"Sender '{sender}' answers no ownership-transfer Offer"
-            )
-        try:
-            offer = recorded_ownership_offer(
-                self.datalayer, self._case_id, self._offer_id, manager_id
-            )
-        except VultronNotFoundError as exc:
-            return self._refuse(
-                f"Sender '{sender}' answers Offer '{self._offer_id}', which"
-                f" this CASE_MANAGER never recorded for case"
-                f" '{self._case_id}' ({exc})"
-            )
         if offer.is_answered_other_than(self._answer_id):
             return self._refuse(
                 f"Ownership-transfer Offer '{offer.offer_id}' for case"
                 f" '{self._case_id}' was already answered by"
-                f" '{offer.pair.reply_object_id}'"
+                f" '{offer.answer_id}'"
             )
         if not same_actor_id(sender, offer.transferee_id):
             return self._refuse(
@@ -1023,7 +1012,21 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
                 " names no CASE_MANAGER"
             )
         if same_actor_id(self.actor_id, manager_id):
-            return self._transferee_of_open_offer(manager_id)
+            if self._offer_id is None:
+                return self._refuse(
+                    f"Sender '{sender}' answers no ownership-transfer Offer"
+                )
+            try:
+                offer = recorded_ownership_offer(
+                    self.datalayer, self._case_id, self._offer_id, manager_id
+                )
+            except VultronNotFoundError as exc:
+                return self._refuse(
+                    f"Sender '{sender}' answers Offer '{self._offer_id}',"
+                    f" which this CASE_MANAGER never recorded for case"
+                    f" '{self._case_id}' ({exc})"
+                )
+            return self._check_open_offer(offer)
         if same_actor_id(sender, manager_id):
             return Status.SUCCESS
         return self._refuse(

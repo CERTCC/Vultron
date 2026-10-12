@@ -22,7 +22,6 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.participants.ownership_offer import recorded_ownership_offer
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import (
@@ -35,7 +34,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager,
     verdict_from_bt,
 )
-from vultron.errors import VultronNotFoundError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -232,31 +230,6 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         self._request: AcceptCaseOwnershipTransferReceivedEvent = request
         self._sync_port = sync_port
 
-    def _recorded_transferee(
-        self, case_id: str, offer_id: str | None
-    ) -> str | None:
-        """The new owner the recorded Offer names, or ``None`` if none is held.
-
-        Read from this store's ledger, never from the sender id or from the
-        Offer the Accept embeds (CM-21-011).  Whether the sender may accept it
-        is the sender guard's to decide, in the tree.
-        """
-        case = self._dl.read_case(case_id)
-        manager_id = (
-            resolve_case_manager_id(case, self._dl)
-            if case is not None
-            else None
-        )
-        if manager_id is None or offer_id is None:
-            return None
-        try:
-            offer = recorded_ownership_offer(
-                self._dl, case_id, offer_id, manager_id
-            )
-        except VultronNotFoundError:
-            return None
-        return offer.transferee_id
-
     def execute(self) -> HandlerResult:
         request = self._request
         receiving_actor_id = resolve_receiving_actor_id(
@@ -270,13 +243,11 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             return HandlerResult.refused(
                 "Accept(ownership transfer) names no case"
             )
-        new_owner_id = self._recorded_transferee(case_id, request.object_id)
         tree = create_accept_ownership_transfer_tree(
             case_id=case_id,
             offer_id=request.object_id,
             sender_id=request.actor_id,
             accept_id=request.activity_id,
-            new_owner_id=new_owner_id,
         )
         bridge = BTBridge(
             datalayer=self._dl,

@@ -38,7 +38,6 @@ Spec: CM-21-005, CM-21-011, CM-21-013, CM-21-014, CLP-11-001.
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -69,16 +68,18 @@ class RecordedOwnershipOffer:
     transferee_id: str
     pair: ProtocolPair
 
+    @property
+    def answer_id(self) -> str | None:
+        """The ledgered answer that closed the Offer, or ``None`` while open."""
+        return self.pair.reply_object_id
+
     def is_answered_other_than(self, answer_id: str) -> bool:
         """Return ``True`` when another answer has already closed the Offer.
 
         A redelivered answer finds its own ledger entry as the reply; it is
         the same answer, so it does not count as a second one (HP-01-003).
         """
-        return (
-            self.pair.reply_object_id is not None
-            and self.pair.reply_object_id != answer_id
-        )
+        return self.answer_id is not None and self.answer_id != answer_id
 
 
 def _offer_entries(dl: CasePersistence, case_id: str) -> list[CaseLedgerEntry]:
@@ -99,7 +100,12 @@ def _entry_target(entry: CaseLedgerEntry) -> str | None:
     return _as_id(entry.payload_snapshot.get("target"))
 
 
-def _type_name(obj: Any) -> str | None:
+def _type_name(obj: object) -> str | None:
+    """The activity type of a stored object, read by name.
+
+    The store may hand back the wire class registered for the activity rather
+    than the core one, so the type is compared by its AS2 name, not by class.
+    """
     type_ = getattr(obj, "type_", None)
     value = getattr(type_, "value", type_)
     return value if isinstance(value, str) else None

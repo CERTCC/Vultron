@@ -85,7 +85,7 @@ CASE_MANAGER inbox receives Accept
       guard:  receiving_actor_id == case_actor_id (skip if not the CASE_MANAGER)
       1. Commits CaseLedgerEntry (ownership-transferred).  ← CM-21-007
       2. Announce(CaseLedgerEntry) → all participants.
-      3. AcceptCaseOwnershipTransferNode applies role changes (CM-21-001–004),
+      3. AcceptRecordedOwnershipOfferNode applies role changes (CM-21-001–004),
          to the transferee the recorded Offer names, never the sender id.
 ```
 
@@ -210,7 +210,7 @@ Audit any peer that reads `request.actor_id` where it means "who asked for this"
 
 `create_accept_ownership_transfer_tree()` MUST pass `case_id` to
 `create_receive_activity_tree`, pass `SenderIsOwnershipTransfereeNode` as its
-`sender_guard`, and include ONLY `AcceptCaseOwnershipTransferNode` in
+`sender_guard`, and include ONLY `AcceptRecordedOwnershipOfferNode` in
 `manager_effects` (RSH-08-003: the change is the CASE_MANAGER's to write):
 
 ```python
@@ -221,14 +221,16 @@ tree = create_receive_activity_tree(
     precondition_guards=[],
     case_may_be_absent=True,
     manager_effects=[
-        AcceptCaseOwnershipTransferNode(case_id=case_id, new_owner_id=new_owner_id),
+        AcceptRecordedOwnershipOfferNode(case_id=case_id, offer_id=offer_id),
     ],
     manager_case_id=case_id,
 )
 ```
 
-`new_owner_id` is the transferee of the recorded Offer; when this store recorded
-none, the tree carries no transfer and the sender guard refuses.
+`AcceptRecordedOwnershipOfferNode` reads the new owner from the recorded Offer
+through the same `recorded_ownership_offer()` the guard uses, never from the
+sender id. `AcceptCaseOwnershipTransferNode` is the same transfer for a named
+new owner.
 
 `create_receive_activity_tree` already injects `GuardedCommitCaseLedgerEntryBT`
 (with `CheckIsCaseManagerNode`) as the canonical single-writer commit step.
