@@ -471,8 +471,8 @@ delegate that assumes the guard ran: `CreateParticipantStatusNode` is reached
 from `develop_fix.py`, `deploy_fix.py` and the Leave closure writer
 (`participant/rm_closure.py`, used twice by `leave/advance.py`) without passing
 through the guard, and for those paths its checks are the only validation.
-This does not double-report on the trigger path — the guard fails first and the enclosing `Sequence` aborts before the
-write node ticks.
+This does not double-report on the trigger path — the guard fails first and the
+enclosing `Sequence` aborts before the write node ticks.
 
 The composed evaluator covers the four `ParticipantStatus` dimensions (RM, VF,
 D and the case-level P/X/A) and nothing else. Embargo consent (PEC) is not one
@@ -631,7 +631,8 @@ which walks `rm_closure_path()` with RM adjacency validation in force, so no
 closure write carries `force_rm_state`. The replica site that once made a third
 (`close_case_effect.py`) is gone (see below).
 `test/architecture/test_rm_closure_no_force.py` pins that; the remaining
-`_RM_FORCE_QUARANTINE` entries are bootstrap writes only, which makes it a pinned exemption set rather than a ratchet (ARCH-18-005).
+`_RM_FORCE_QUARANTINE` entries are bootstrap writes only, which makes it a
+pinned exemption set rather than a ratchet (ARCH-18-005).
 If a new closure path seems to need the override, the RM table is wrong or the
 path is — do not add an exemption.
 

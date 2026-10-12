@@ -44,6 +44,7 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.roles import has_case_manager_role
+from vultron.errors import VultronBTInternalError
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,9 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
     than FAILURE — see :meth:`_best_effort` for why.  Only the framework regime
     guards (``_require_datalayer_and_actor``, ``_require_case``) still fail,
     because a missing store or case fails ``case_fully_closed`` too and there
-    is no closure left to protect.
+    is no closure left to protect.  A nested commit that reports
+    ``internal_error`` is a bug, not a refusal, so it raises
+    :class:`~vultron.errors.VultronBTInternalError` instead of warning.
 
     Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005, ADR-0051.
     """
@@ -337,6 +340,16 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
             ),
             actor_id=self.actor_id,
         )
+        if result.internal_error:
+            # A crash in the nested commit is our fault, not a refusal the
+            # best-effort rule covers: carry the nested bridge's
+            # classification across the hop rather than log it as a WARNING
+            # (CONCERN-3019, #4113; the same idiom as the settle step).
+            raise VultronBTInternalError(
+                f"{self.name}: nested commit of the RM.{rm_name} entry of"
+                f" '{self._closing_actor_id}' for case '{self._case_id}'"
+                f" failed: {result.feedback_message}"
+            )
         if result.status != Status.SUCCESS:
             # The reachable one: CheckLedgerFreshnessNode opens the commit tree
             # and fails on a gapped local prefix by design (SYNC-10-001/002).

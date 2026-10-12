@@ -896,6 +896,9 @@ the non-owner path, leaving a half-closed case with no diagnostic. Losing one
 transition's visibility beats losing the case's write-boundary entry.
 `_commit_one` in `nodes/proposal_ledger.py` makes the same call for the same
 event type, reserving hard failure for the load-bearing genesis entry.
+Best-effort covers a commit the nested tree *refuses*, not a crash inside it:
+a nested result flagged `internal_error` raises `VultronBTInternalError`, as in
+the settle step, so a bug never reads as a WARNING (CONCERN-3019, #4113).
 
 **Why this entry is committed synchronously rather than through the loopback.**
 The standard path for a *participant's* protocol-significant event is

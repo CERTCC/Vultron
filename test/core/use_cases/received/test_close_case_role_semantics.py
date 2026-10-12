@@ -82,6 +82,7 @@ from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -1503,6 +1504,33 @@ class TestLeaveCommitsEachClosureStep:
             VENDOR_ID in r.getMessage() and r.levelno == logging.WARNING
             for r in caplog.records
         ), [r.getMessage() for r in caplog.records]
+
+    @pytest.mark.spec("CM-23-001")
+    def test_crash_in_step_commit_is_an_internal_error_not_a_warning(
+        self, monkeypatch
+    ):
+        """Best-effort covers a refused commit, never a bug in the commit.
+
+        A crash inside the nested commit tree is carried across the hop as
+        an internal error, so the received verdict does not log it as a
+        WARNING and report the closure as applied (CONCERN-3019, #4113).
+        """
+
+        class _Crash(py_trees.behaviour.Behaviour):
+            def update(self) -> py_trees.common.Status:
+                raise RuntimeError("simulated crash in the step commit")
+
+        dl = _make_full_dl()
+        monkeypatch.setattr(
+            "vultron.core.behaviors.case.nodes.leave.record"
+            ".create_commit_log_entry_tree",
+            lambda *a, **kw: _Crash(name="CrashingCommit"),
+        )
+
+        with pytest.raises(VultronBTInternalError, match="nested commit"):
+            _close(
+                dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+            )
 
 
 class TestReplicaAppliesTheClosureSteps:

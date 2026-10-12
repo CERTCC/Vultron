@@ -289,3 +289,35 @@ def test_unreadable_status_is_reported_as_failure(
     assert status == Status.FAILURE
     assert "not core-shaped" in probe.feedback_message
     assert _rm_history(bt_scenario, participant_id) == before
+
+
+@pytest.mark.spec("CM-23-001")
+def test_a_step_that_reports_no_status_id_fails_the_closure(
+    bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A write the caller cannot name is a FAILURE, never a silent drop.
+
+    The CASE_MANAGER commits one ledger entry per reported id, so a step
+    written without one would be a transition no entry records.
+    """
+    case, participants = _seed_case(bt_scenario, {ACTOR_A: RM.ACCEPTED})
+    participant_id = participants[ACTOR_A].id_
+    writer = RMClosureWriter(name="Close")
+    monkeypatch.setattr(
+        writer._writers[RM.CLOSED], "update", lambda: Status.SUCCESS
+    )
+    probe = _probe()
+    steps: list[str] = []
+
+    status = writer.close(
+        probe,
+        bt_scenario.dl,
+        participant_id,
+        case.id_,
+        actor_id=ACTOR_A,
+        steps_out=steps,
+    )
+
+    assert status == Status.FAILURE
+    assert "reported no status id" in probe.feedback_message
+    assert steps == []
