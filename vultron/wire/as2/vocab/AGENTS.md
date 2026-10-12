@@ -43,7 +43,7 @@
 just `ConfigDict(frozen=True)`. The old `validate_assignment=False` override on
 `as_Object` and the `_is_core_branch` sentinel are gone: they existed only to
 cancel what the wire branch inherited from the shared core root, which
-ADR-0099 detail 4 deleted. `validate_assignment` now lives on the core
+ADR-0099 deleted (ARCH-25-004). `validate_assignment` now lives on the core
 `CoreRecord` root, which no wire class inherits, so the wire branch stays
 lenient for inbound AS2 data without an override (ARCH-21-002).
 

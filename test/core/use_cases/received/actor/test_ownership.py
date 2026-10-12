@@ -13,6 +13,8 @@
 """Tests for ownership transfer received use cases."""
 
 import logging
+import time
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from unittest.mock import MagicMock
 
@@ -26,6 +28,8 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.actor.ownership import (
@@ -881,3 +885,191 @@ class TestOwnershipOfferNamingNoCase:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "names no case" in result.reason
         assert dl.read(ReceivedActivityRecord.build_id(offer.id_)) is not None
+
+
+_CASE_ACTOR_ID = "https://example.org/actors/case-actor"
+_VENDOR_ID = "https://example.org/users/vendor"
+_COORDINATOR_ID = "https://example.org/users/coordinator"
+
+
+def _ownership_offer_harness(make_payload, case_id: str):
+    """A CASE_MANAGER store holding one case, and a function delivering an Offer.
+
+    Returns ``(dl, deliver, trigger_activity)``; ``deliver(transferee_id,
+    offer_id, end_time=None, offerer=_VENDOR_ID)`` runs the received Offer use
+    case and returns its disposition with the Offer as sent.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+    case = as_VulnerabilityCase(
+        id_=case_id, name="One open offer", attributed_to=_VENDOR_ID
+    )
+    seed_case_manager_participant(dl, case, _CASE_ACTOR_ID)
+    dl.create(case)
+    trigger_activity = MagicMock()
+    trigger_activity.offer_case_ownership_transfer.return_value = (
+        "https://example.org/activities/forwarded",
+        {},
+    )
+
+    def deliver(
+        transferee_id: str,
+        offer_id: str,
+        end_time: datetime | None = None,
+        offerer: str = _VENDOR_ID,
+    ) -> tuple[HandlerDisposition, Any]:
+        offer = offer_case_ownership_transfer_activity(
+            case,
+            target=as_Service(id_=transferee_id, name="Transferee"),
+            actor=offerer,
+            to=[_CASE_ACTOR_ID],
+            id_=offer_id,
+            end_time=end_time,
+        )
+        result = OfferCaseOwnershipTransferReceivedUseCase(
+            dl,
+            make_payload(offer, receiving_actor_id=_CASE_ACTOR_ID),
+            trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        return result.disposition, offer
+
+    return dl, deliver, trigger_activity
+
+
+def _deadline_shortly() -> datetime:
+    return datetime.now(UTC) + timedelta(seconds=1)
+
+
+def _wait_past(deadline: datetime) -> None:
+    time.sleep(max(0.0, (deadline - datetime.now(UTC)).total_seconds()) + 0.05)
+
+
+def _accept(dl, make_payload, offer):
+    accept = accept_case_ownership_transfer_activity(
+        offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
+    )
+    return AcceptCaseOwnershipTransferReceivedUseCase(
+        dl,
+        make_payload(accept, receiving_actor_id=_CASE_ACTOR_ID),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+
+
+@pytest.mark.spec("CM-21-014")
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="CM-21-014: a second Offer is forwarded while the first is unanswered. #4475.",
+)
+def test_second_offer_while_first_is_unanswered_is_refused(make_payload):
+    """Two pending Offers would let two transferees accept the same case."""
+    _, deliver, trigger_activity = _ownership_offer_harness(
+        make_payload, "https://example.org/cases/case_ot_one_open"
+    )
+
+    first, _ = deliver(
+        _COORDINATOR_ID,
+        "https://example.org/activities/offer_one_open_1",
+    )
+    second, _ = deliver(
+        "https://example.org/users/vendor2",
+        "https://example.org/activities/offer_one_open_2",
+    )
+
+    assert first is HandlerDisposition.APPLIED
+    assert second is HandlerDisposition.REFUSED
+    trigger_activity.offer_case_ownership_transfer.assert_called_once()
+
+
+@pytest.mark.spec("CM-21-014")
+def test_new_offer_after_the_first_is_answered_is_admitted(make_payload):
+    """Once an Offer is answered, the case may be offered again to anyone."""
+    dl, deliver, trigger_activity = _ownership_offer_harness(
+        make_payload, "https://example.org/cases/case_ot_reoffer"
+    )
+    disposition, first = deliver(
+        _COORDINATOR_ID, "https://example.org/activities/offer_reoffer_1"
+    )
+    assert disposition is HandlerDisposition.APPLIED
+
+    answered = _accept(dl, make_payload, first)
+    assert answered.disposition is HandlerDisposition.APPLIED
+
+    # The coordinator now owns the case and offers it on.
+    second, _ = deliver(
+        "https://example.org/users/vendor2",
+        "https://example.org/activities/offer_reoffer_2",
+        offerer=_COORDINATOR_ID,
+    )
+
+    assert second is HandlerDisposition.APPLIED
+    assert trigger_activity.offer_case_ownership_transfer.call_count == 2
+
+
+@pytest.mark.spec("CM-21-016")
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="CM-21-016: an Accept after the Offer's end_time is applied. #4491.",
+)
+def test_accept_after_the_offer_deadline_is_refused(make_payload):
+    """A transfer deadline is binding: a late answer changes nothing."""
+    dl, deliver, _ = _ownership_offer_harness(
+        make_payload, "https://example.org/cases/case_ot_deadline"
+    )
+    deadline = _deadline_shortly()
+    disposition, offer = deliver(
+        _COORDINATOR_ID,
+        "https://example.org/activities/offer_deadline_1",
+        end_time=deadline,
+    )
+    assert disposition is HandlerDisposition.APPLIED
+    _wait_past(deadline)
+
+    late = _accept(dl, make_payload, offer)
+
+    assert late.disposition is HandlerDisposition.REFUSED
+    case = dl.read("https://example.org/cases/case_ot_deadline")
+    assert isinstance(case, VulnerabilityCase)
+    assert case.attributed_to == _VENDOR_ID
+
+
+@pytest.mark.spec("CM-21-017")
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="CM-21-017: an expired Offer is never ledgered as expired. #4491.",
+)
+def test_new_offer_after_an_expired_one_ledgers_the_expiry(make_payload):
+    """The CASE_MANAGER finds the expiry lazily and records it before admitting."""
+    dl, deliver, _ = _ownership_offer_harness(
+        make_payload, "https://example.org/cases/case_ot_expired"
+    )
+    deadline = _deadline_shortly()
+    first, _ = deliver(
+        _COORDINATOR_ID,
+        "https://example.org/activities/offer_expired_1",
+        end_time=deadline,
+    )
+    assert first is HandlerDisposition.APPLIED
+    _wait_past(deadline)
+
+    second, _ = deliver(
+        "https://example.org/users/vendor2",
+        "https://example.org/activities/offer_expired_2",
+    )
+
+    assert second is HandlerDisposition.APPLIED
+    event_types = [
+        entry.event_type
+        for entry in dl.list_objects("CaseLedgerEntry")
+        if isinstance(entry, CaseLedgerEntry)
+    ]
+    assert any("expir" in event_type for event_type in event_types), (
+        event_types
+    )

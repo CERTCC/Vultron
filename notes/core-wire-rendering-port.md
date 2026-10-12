@@ -13,7 +13,8 @@ description: >
   flat-field reject-guard, and why persisted rows are unaffected.
 related_specs:
   - architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-18-002, ARCH-20,
-    ARCH-20-001, ARCH-20-002, ARCH-20-003, ARCH-20-004, ARCH-20-006, ARCH-21-002)
+    ARCH-20-001, ARCH-20-002, ARCH-20-003, ARCH-20-004, ARCH-20-006, ARCH-21-002,
+    ARCH-25-002 through ARCH-25-005)
   - vocabulary-model.yaml (VM-10-001, VM-08-002)
   - case-ledger-processing.yaml (CLP-07-011, CLP-07-006, CLP-07-009, CLP-07-010)
   - status-dimension-objects.yaml (SDO-03-003, SDO-03-005)
@@ -43,7 +44,7 @@ Source: CONCERN-2260. Supersedes the known-deviation posture of #1991.
 > Core logic obtains wire-shaped JSON through a driven port rather than by dumping
 > or patching its own objects; that is unchanged and still correct. What changed
 > is what the adapter does behind the port, and that core types now carry the AS2
-> spelling themselves (ADR-0099 detail 2):
+> spelling themselves (ARCH-25-002):
 >
 > 1. **The pairing registry is cancelled.** ADR-0082 was going to replace
 >    `VOCABULARY.get(type(obj).__name__)` with a declarative pairing registry
@@ -103,8 +104,8 @@ so that core could call `model_dump(by_alias=True)`:
 `VultronService`, `VultronApplication`, `VultronGroup`, `CoreActorCollection`
 (since deleted as vestigial, #3563).
 
-This violated ARCH-12-003 as it was then written; ADR-0099 detail 2 later
-rewrote that requirement so every `CoreObject` inherits the generator on purpose.
+This violated ARCH-12-003 as it was then written; ADR-0099 (now ARCH-25-002)
+later rewrote that requirement so every `CoreObject` inherits the generator on purpose.
 The generator was never the real defect. Less obviously, **it did not work**. Core and
 wire `ParticipantStatus` differ *structurally*, not just by spelling: core nests
 `consent: PecDimension`, the wire shape carries a flat `emConsentState`. An alias
@@ -189,9 +190,9 @@ the re-enumeration warning below.
 |---|---|---|
 | 1 | `core/behaviors/case/ledger_snapshots.py` (`obj_to_inline_dict`, `build_add_participant_status_snapshot`) | Dumped core objects `by_alias=True` for CASE_MANAGER-synthesized bootstrap snapshots; hand-patched `consent` → `emConsentState`. Callers are `nodes/proposal_ledger.py` and `nodes/leave/record.py`. |
 | 2 | `core/use_cases/_helpers.py` (`_inline_snapshot_reference_value`) | Dumped `dl.read()` results `by_alias=True` for CLP-07-006 inlining. `dl.read()` returns **core** objects per DL-05-001, so the alias generator was doing the wire projection here too. |
-| 3 | `adapters/driving/fastapi/routers/actors/_routes.py` (`get_actor`, siblings) | `AS2JSONResponse(cls.model_validate(data).model_dump(mode="json", by_alias=True, exclude_none=True))` where `cls` is a **core** actor class — so core aliases shaped an externally-visible AS2 actor document. Resolved: under ADR-0099 detail 3 the core actor class *is* the AS2 class, so its own `by_alias` dump is the document; ARCH-20-006 now forbids serving any model that is not a `CoreObject` or `as_Base`, and `AS2JSONResponse` refuses one. |
+| 3 | `adapters/driving/fastapi/routers/actors/_routes.py` (`get_actor`, siblings) | `AS2JSONResponse(cls.model_validate(data).model_dump(mode="json", by_alias=True, exclude_none=True))` where `cls` is a **core** actor class — so core aliases shaped an externally-visible AS2 actor document. Resolved: under ARCH-25-003 the core actor class *is* the AS2 class, so its own `by_alias` dump is the document; ARCH-20-006 now forbids serving any model that is not a `CoreObject` or `as_Base`, and `AS2JSONResponse` refuses one. |
 | 4 | `vultron/demo/utils.py` | Same pattern, demo-only. |
-| 5 | `core/behaviors/status/nodes/dimension_filter.py` (`_to_core_status`) | **Depended on the shim, not the alias generator.** Dumped a wire status `by_alias=True` and revalidated it through core `ParticipantStatus`, relying on `_migrate_flat_fields` to accept flat `rmState` (ARCH-20-007). Resolved: under ADR-0099 detail 3 the wire status *is* `ParticipantStatus`, so the function is now a bare `isinstance` check — no dump, no `to_core()` (ARCH-20-008, #3840). Added by ADR-0061, so it post-dated CONCERN-2260. |
+| 5 | `core/behaviors/status/nodes/dimension_filter.py` (`_to_core_status`) | **Depended on the shim, not the alias generator.** Dumped a wire status `by_alias=True` and revalidated it through core `ParticipantStatus`, relying on `_migrate_flat_fields` to accept flat `rmState` (ARCH-20-007). Resolved: under ARCH-25-003 the wire status *is* `ParticipantStatus`, so the function is now a bare `isinstance` check — no dump, no `to_core()` (ARCH-20-008, #3840). Added by ADR-0061, so it post-dated CONCERN-2260. |
 
 One further site hand-writes camelCase into a snapshot dict, the same
 anti-pattern as the `consent` → `emConsentState` patch and equally covered by
@@ -261,8 +262,8 @@ revive it.
 The flat dimension spellings are a separate matter, and are *kept*, not
 retired. #2289 planned to remove `alias_generator` and then the `AliasChoices`
 entries; it was closed as superseded by ADR-0099 (as was #2288, the same plan
-for the actor classes), whose detail 5 makes each
-dimension serialize to its bare state value. The flat key (`rmState`,
+for the actor classes), which makes each dimension serialize to its bare state
+value (ARCH-25-005). The flat key (`rmState`,
 `emConsentState`, ...) is now the AS2 spelling of the dimension field itself, so
 `AliasChoices` on `ParticipantStatus`/`CaseStatus` accepts the flat, snake_case
 and field-name forms of one declared field. That is several spellings of a known
@@ -299,7 +300,7 @@ removed along with the report's PEC column. The port argument above stands on it
 
 ## The `as_Object.model_config` override is gone, and why
 
-(ISSUE-2294, 2026-08-19; retired by ADR-0099 detail 4)
+(ISSUE-2294, 2026-08-19; retired by ARCH-25-004)
 
 `as_Object` used to carry `model_config = ConfigDict(validate_assignment=False)`
 to cancel the `validate_assignment=True` the wire branch would otherwise have

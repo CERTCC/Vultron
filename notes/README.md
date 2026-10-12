@@ -536,7 +536,7 @@ Design guidance for per-machine dimension objects decomposed from `CaseStatus`
 and `ParticipantStatus` (ADR-0036): naming table, `BaseModel`-not-`CoreObject`
 rationale, immutable `transition()` pattern, call-site migration mapping
 (~308 active sites), and `EmbargoLifecycle` migration priority. The Wire
-Projection section now records ADR-0099 detail 5 / SDO-01-004: a dimension
+Projection section now records ARCH-25-005 / SDO-01-004: a dimension
 serializes to its **bare state value**, both input forms are accepted, and any
 reader of a persisted dimension must handle all three shapes.
 **Load when**: implementing or reviewing dimension-object migration, working on
@@ -909,13 +909,17 @@ the development loop, or deciding which skill to run next.
 
 **`ownership-transfer.md`**
 Implementation guidance for the ownership-transfer routing model (ADR-0053):
-Offer and Accept MUST route through the CASE_MANAGER; correct flow for
+Offer, Accept and Reject MUST route through the CASE_MANAGER; correct flow for
 `EmitOfferCaseOwnershipTransferNode`, `EmitAcceptCaseOwnershipTransferNode`,
 `OfferCaseOwnershipTransferReceivedUseCase`, and the cascade wiring in
-`ownership_transfer_tree.py`. Includes the demo workaround removal checklist.
+`ownership_transfer_tree.py`; the ledgered Reject path, the one-open-offer
+rule, and withdrawal and the binding deadline. Includes the demo workaround
+removal checklist.
 **Load when**: implementing ownership-transfer routing fixes (CM-21-005,
-CM-21-006, CM-21-007), auditing transfer routing in demos, or understanding
-why the CASE_MANAGER must be the intermediary for ownership transfers.
+CM-21-006, CM-21-007), the Reject path, re-offering, withdrawal or expiry
+(CM-21-010 – CM-21-017),
+auditing transfer routing in demos, or understanding why the CASE_MANAGER must
+be the intermediary for ownership transfers.
 
 **`coordination-agents.md`**
 Design guidance for capability shapes — the four abstract interface contracts

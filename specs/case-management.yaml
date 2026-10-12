@@ -3165,14 +3165,11 @@ groups:
       too.  If the transferee's Reject goes only to the offerer, the CASE_MANAGER —
       the authoritative record of ownership — never learns the transfer was
       declined and its view of who owns the case can silently diverge from
-      reality.  What the CASE_MANAGER does on receiving a rejection (whether it
-      ledgers the declined transfer, whether the offerer is notified, and
-      whether the case may be re-offered) is a separate open question tracked in
-      `notes/ownership-transfer.md`.
+      reality.
     note: >-
-      This entry governs *addressing* only, mirroring CM-21-005/CM-21-006. The
-      downstream received-side behavior of the rejection is deliberately out of
-      scope here — see the Open Question in `notes/ownership-transfer.md`.
+      This entry governs *addressing* only, mirroring CM-21-005/CM-21-006. What
+      the CASE_MANAGER does on receiving the Reject is CM-21-012 and CM-21-013;
+      whether the case may be offered again is CM-21-014.
     verification: >-
       Inspection of `vultron/demo/exchange/transfer_ownership_demo.py` confirms that an
       ownership-transfer `Reject(Offer(VulnerabilityCase))` is addressed to the CASE_MANAGER's inbox
@@ -3213,6 +3210,192 @@ groups:
       spec_id: CM-21-002
     adr:
     - ADR-0115
+  - id: CM-21-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER admits a `Reject(Offer(VulnerabilityCase))`
+      (ownership-transfer variant) under CM-21-013, it MUST commit a
+      `CaseLedgerEntry` recording the Reject and MUST broadcast
+      `Announce(CaseLedgerEntry)` to all case participants, as it does for the
+      Accept (CM-21-007). The entry closes the Offer (CM-21-014): from it on,
+      that Offer is no longer pending on any replica. A replica applies no
+      further state change from the entry; `VulnerabilityCase.attributed_to` and
+      every participant's `CASE_OWNER` role are unchanged.
+    rationale: >-
+      The Offer was ledgered and broadcast (CM-21-005), so every replica holds a
+      transfer in flight. A Reject that leaves no entry never closes it, and the
+      offerer, who is no longer a recipient of the Reject (CM-21-010), never
+      learns of the decline. A participant's `Reject` is a case event like its
+      `Accept`; it is ledgered for the same reason (CLP-02-012). See #3748.
+    verification: >-
+      A test marked `CM-21-012` confirms that
+      `RejectCaseOwnershipTransferReceivedUseCase` reaches a canonical commit for the
+      `reject_case_ownership_transfer` event type.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-010
+    - rel_type: refines
+      spec_id: CLP-02-012
+    adr:
+    - ADR-0053
+    stories:
+    - story_2022_050
+  - id: CM-21-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on `Reject(Offer(VulnerabilityCase))` only when the
+      sender is the transferee named in an ownership-transfer Offer it recorded for
+      that case and that is still open, as CM-21-014 defines and reads from the
+      ledger. Any other sender MUST be refused, with no ledger commit, no outbound
+      activity, and the Offer still pending.
+    rationale: >-
+      The same standing CM-21-011 requires for the Accept. Without it any actor that
+      knows an Offer id could close a transfer it is not party to, and the closed
+      Offer could no longer be accepted by the transferee it names.
+    verification: >-
+      A test marked `CM-21-013` sends the Reject from an actor the pending Offer does
+      not name and asserts `REFUSED` with an empty outbox and no new
+      `CaseLedgerEntry`; a companion test confirms the named transferee's Reject is
+      not refused.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CM-21-011
+    adr:
+    - ADR-0115
+    stories:
+    - story_2022_050
+  - id: CM-21-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse an ownership-transfer `Offer(VulnerabilityCase)`
+      for a case while an earlier ownership-transfer Offer for that case is open.
+      Whether an Offer is open MUST be read from the case ledger (CLP-11-001): it is
+      open until the ledger holds an Accept (CM-21-007), Reject (CM-21-012),
+      withdrawal (CM-21-015) or expiry (CM-21-017) entry for it. Once it is closed,
+      the CASE_MANAGER MUST admit a new Offer for the case to any transferee,
+      including the one that declined, with no waiting period and nothing to clear
+      first.
+    rationale: >-
+      Two pending Offers would let two transferees accept the same case, and
+      CM-21-001 allows one owner. Reading "open" from the ledger rather than from
+      local offer records keeps the CASE_MANAGER and every replica in agreement
+      (CLP-07-014), and no memory of who declined is needed because a decline does
+      not bar a later offer. Withdrawal and expiry exist so that a transferee who
+      never answers cannot block every later transfer of the case.
+    verification: >-
+      A test marked `CM-21-014` delivers a second Offer for a case whose first Offer
+      is open and asserts it is `REFUSED` and not forwarded; a companion test
+      confirms a new Offer is admitted once the first is closed.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-001
+    - rel_type: refines
+      spec_id: CM-21-005
+    - rel_type: refines
+      spec_id: CLP-11-001
+    adr:
+    - ADR-0053
+    stories:
+    - story_2022_050
+  - id: CM-21-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_OWNER that made an ownership-transfer Offer MAY withdraw it while it
+      is open (CM-21-014) by sending `Undo(Offer(VulnerabilityCase))` addressed to
+      the CASE_MANAGER. When the CASE_MANAGER admits the Undo, it MUST commit a
+      `CaseLedgerEntry` recording the withdrawal and MUST broadcast
+      `Announce(CaseLedgerEntry)` to all case participants; the entry closes the
+      Offer. The CASE_MANAGER MUST refuse an Undo from any other sender, or for an
+      Offer that is already closed, with no ledger commit and no outbound activity.
+    rationale: >-
+      Without a withdrawal, one open Offer per case (CM-21-014) lets a transferee
+      who never answers block every later transfer of the case. Ledgering the
+      withdrawal tells the transferee and every replica that the Offer can no
+      longer be accepted, the same way the Reject entry does (CM-21-012).
+    verification: >-
+      A test marked `CM-21-015` confirms that the received ownership-transfer
+      withdrawal use case reaches a canonical commit.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-014
+    - rel_type: refines
+      spec_id: CLP-02-012
+    adr:
+    - ADR-0053
+    stories:
+    - story_2022_050
+  - id: CM-21-016
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An ownership-transfer `Offer(VulnerabilityCase)` MAY carry an activity-level
+      `end_time`. When present, it MUST be read as the deadline to answer the
+      Offer: the instant after which the Offer can no longer be accepted or
+      rejected. Unlike an embargo Invite's deadline (CM-28-001), it is binding: the
+      CASE_MANAGER MUST refuse an Accept or Reject of the Offer that it processes
+      after `end_time`, with no role change and no ledger entry for the answer. An
+      Offer without `end_time` stays open until it is answered or withdrawn.
+      `end_time` MUST be normalised to UTC at the wire edge (CS-13-001, ADR-0032).
+    rationale: >-
+      An embargo deadline is a strong suggestion, so participants may still answer
+      late. A transfer deadline has to hold, so that the offerer, the transferee
+      and every other participant know who decides for the case once it passes.
+      `end_time` keeps the meaning CM-28-001 gives it on an Invite — the deadline
+      to answer — so it adds no new meaning to the field.
+    verification: >-
+      A test marked `CM-21-016` delivers an Accept for an Offer whose `end_time`
+      has passed and asserts it is `REFUSED` and the case owner is unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-011
+    - rel_type: refines
+      spec_id: CM-21-013
+    - rel_type: refines
+      spec_id: CS-13-001
+    adr:
+    - ADR-0053
+    stories:
+    - story_2022_050
+  - id: CM-21-017
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Only the CASE_MANAGER evaluates ownership-transfer Offer expiry, and it MUST
+      do so lazily, from `(end_time, now)`, whenever it processes an Accept, Reject
+      or Undo of the Offer or a new Offer for the case; no scheduler is required.
+      When it finds an open Offer expired, it MUST commit a `CaseLedgerEntry`
+      recording the expiry, distinct from the Reject entry (CM-21-012), and MUST
+      broadcast `Announce(CaseLedgerEntry)` to all case participants; the entry
+      closes the Offer (CM-21-014). The commit MUST be behind the CASE_MANAGER role
+      gate (BT-17-001) and have a replica apply node (RSH-08-004). A replica learns
+      an expiry from that entry and never computes one.
+    rationale: >-
+      Expiry evaluated in one place keeps every replica in agreement about whether a
+      transfer is still in flight, as for embargo Invite expiry (CM-28-003,
+      CM-28-014). Lazy evaluation needs no timer, and the next act on the case is
+      the first moment the expiry matters. A distinct entry keeps "never answered"
+      apart from "declined".
+    verification: >-
+      A test marked `CM-21-017` delivers a new Offer for a case whose earlier Offer
+      has expired unanswered and asserts the CASE_MANAGER commits an expiry entry
+      before admitting it.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-014
+    - rel_type: refines
+      spec_id: CM-21-016
+    - rel_type: refines
+      spec_id: RSH-08-004
+    adr:
+    - ADR-0053
+    stories:
+    - story_2022_050
 - id: CM-22
   title: CASE_MANAGER-Authoritative Case Creation
   description: >-
@@ -3334,10 +3517,12 @@ groups:
     See ADR-0050 (Leave is canonical for RM closure) and ADR-0051
     (CASE_MANAGER RM lifecycle).
 
-    Pending decision: the closure semantics in CM-23-002, CM-23-013 and CM-23-014
-    (what the owner's close does to pending Invites and to later Leaves; #4065, #4066)
-    await a separate decision by the maintainer. Nothing in this group changes
-    them until that decision is recorded.
+    Decided: the maintainer decided the closure semantics in CM-23-002, CM-23-013
+    and CM-23-014 (what the owner's close does to pending Invites and to later
+    Leaves) on 2026-10-12. ADR-0085 sets the owner-close write boundary.
+    ADR-0131 sets the CM-23-013 reply to late traffic: by default it is dropped,
+    and only a late Leave may get an as:Reject (#4065). The CM-23-014 settle step
+    is #4066 (PR #4489).
   specs:
   - id: CM-23-001
     priority: MUST
@@ -3828,7 +4013,12 @@ groups:
       A test confirms that an owner Leave(VulnerabilityCase) on a case with an unanswered Invite
       whose RSVP deadline is in the future moves that participant's consent to `TIMED_OUT`, commits
       the expired-invitation entry, and orders that entry after the CASE_MANAGER's RM.CLOSED entry
-      and before `case_fully_closed`.
+      and before `case_fully_closed`:
+      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_owner_close_expires_pending_invite_before_boundary`.
+      `TestOwnerCloseSettlesPendingInvites` in the same file covers a case with no pending
+      Invite, several pending Invites, a row frozen by a final register entry, a stub
+      invitee's row on the embargo the close required to end, and replica replay of the
+      settled entry.
     relationships:
     - rel_type: refines
       spec_id: CM-23-002
