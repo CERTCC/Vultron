@@ -99,26 +99,31 @@ def expiry_payload_snapshot(
     *,
     case_id: str,
     invitee_id: str,
-    invite_id: str,
+    invite_id: str | None,
     embargo_id: str,
     published: str,
 ) -> dict[str, Any]:
     """The CM-28-009 expiry entry's snapshot, attributed to the expired invitee.
 
-    *published* is the invitee's own claimed time — its late answer's — not
+    *published* is the invitee's own claimed time when it answered late — not
     the CASE_MANAGER's clock: mixing the two inside one actor's claimed stream
-    is what CLP-15-003 reads as a regression.
+    is what CLP-15-003 reads as a regression.  The owner-close settle step
+    (CM-23-014) has no answer to take a time from, so it passes its own.
+
+    The Invite carries no ``id`` when *invite_id* is ``None`` or empty: a
+    blank id is not an id (CS-08-002), and the replica apply node reads only
+    the invitee and the embargo.
     """
+    invite: dict[str, Any] = {"type": "Invite"}
+    if invite_id:
+        invite["id"] = invite_id
+    invite["object"] = {"type": "EmbargoEvent", "id": embargo_id}
     return {
         "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
         "actor": invitee_id,
         "context": case_id,
         "published": published,
-        "object": {
-            "type": "Invite",
-            "id": invite_id,
-            "object": {"type": "EmbargoEvent", "id": embargo_id},
-        },
+        "object": invite,
     }
 
 
@@ -146,6 +151,59 @@ def honour_late_accept_payload_snapshot(
             "object": {"type": "EmbargoEvent", "id": embargo_id},
         },
     }
+
+
+def create_commit_and_record_expiry_tree(
+    *,
+    case_id: str,
+    invitee_id: str,
+    invite_id: str | None,
+    embargo_id: str,
+    published: str,
+) -> py_trees.behaviour.Behaviour:
+    """Commit one expired-invitation entry, then apply ``INVITED → TIMED_OUT``.
+
+    The commit → effect half of the CM-28-009 expiry, shared by the lazy
+    late-Accept evaluation (:func:`create_invite_expiry_tree`) and the
+    owner-close settle step (CM-23-014).  The caller decides *that* the
+    invitation has expired; this subtree only records and applies it, so a
+    failed commit leaves the invitee unchanged (CLP-10-006).  It is not
+    gated: the caller places it behind the CASE_MANAGER role gate
+    (CM-28-014, BT-17-001).
+
+    Args:
+        case_id: The case the Invite was for.
+        invitee_id: The participant whose invitation expires.
+        invite_id: The expired Invite; the entry's object id.  ``None`` when
+            the caller cannot name it, in which case the entry's object is
+            the case and the snapshot's Invite carries no ``id``.
+        embargo_id: The embargo the Invite proposed.
+        published: The snapshot's claimed time (see
+            :func:`expiry_payload_snapshot`).
+    """
+    return py_trees.composites.Sequence(
+        name="CommitAndApplyExpiry",
+        memory=False,
+        children=[
+            create_commit_log_entry_tree(
+                case_id=case_id,
+                object_id=invite_id or case_id,
+                event_type=INVITE_EXPIRED_EVENT_TYPE,
+                payload_snapshot=expiry_payload_snapshot(
+                    case_id=case_id,
+                    invitee_id=invitee_id,
+                    invite_id=invite_id,
+                    embargo_id=embargo_id,
+                    published=published,
+                ),
+            ),
+            RecordInviteExpiryNode(
+                case_id=case_id,
+                invitee_id=invitee_id,
+                embargo_id=embargo_id,
+            ),
+        ],
+    )
 
 
 def create_invite_expiry_tree(
@@ -179,28 +237,12 @@ def create_invite_expiry_tree(
         result_out: Receives ``IS_EXPIRED_KEY`` and ``NEEDS_APPLY_KEY``
             from :class:`EvaluateInviteExpiryNode` when the gate passes.
     """
-    commit_and_apply = py_trees.composites.Sequence(
-        name="CommitAndApplyExpiry",
-        memory=False,
-        children=[
-            create_commit_log_entry_tree(
-                case_id=case_id,
-                object_id=invite_id or case_id,
-                event_type=INVITE_EXPIRED_EVENT_TYPE,
-                payload_snapshot=expiry_payload_snapshot(
-                    case_id=case_id,
-                    invitee_id=invitee_id,
-                    invite_id=invite_id,
-                    embargo_id=embargo_id,
-                    published=published,
-                ),
-            ),
-            RecordInviteExpiryNode(
-                case_id=case_id,
-                invitee_id=invitee_id,
-                embargo_id=embargo_id,
-            ),
-        ],
+    commit_and_apply = create_commit_and_record_expiry_tree(
+        case_id=case_id,
+        invitee_id=invitee_id,
+        invite_id=invite_id,
+        embargo_id=embargo_id,
+        published=published,
     )
     commit_and_apply_if_due = py_trees.composites.Selector(
         name="CommitAndApplyExpiryIfDue",
@@ -372,6 +414,7 @@ __all__ = [
     "CONSENT_CHANGED_KEY",
     "IS_EXPIRED_KEY",
     "NEEDS_APPLY_KEY",
+    "create_commit_and_record_expiry_tree",
     "create_honour_late_accept_tree",
     "create_invite_expiry_tree",
     "create_noop_ledger_entry_tree",

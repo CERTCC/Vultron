@@ -33,6 +33,7 @@ import pytest
 from test.support.embargo_register import (
     activate,
     propose,
+    reject,
     terminate,
     write_consent_rows,
 )
@@ -68,6 +69,11 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+    PEC_Trigger,
+)
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
@@ -79,6 +85,7 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -569,6 +576,55 @@ def _close(
     ).execute()
 
 
+def _seed_pending_invite(
+    dl: SqliteDataLayer,
+    suffix: str = "proposed",
+    invitee_id: str = VENDOR_ID,
+) -> str:
+    """Propose an embargo and leave *invitee_id*'s Invite to it unanswered.
+
+    The RSVP deadline is a year away, so only a settle step expires it before
+    close.  Returns the embargo's id.
+    """
+    case = dl.read_case(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    embargo = as_EmbargoEvent(
+        id_=f"{CASE_ID}/embargo_events/{suffix}",
+        context=CASE_ID,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(embargo)
+    propose(case, embargo.id_)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    invitee = dl.read(case.actor_participant_index[invitee_id])
+    assert isinstance(invitee, CaseParticipant)
+    invitee.apply_pec_transition(
+        embargo.id_,
+        PEC_Trigger.INVITE,
+        entry_status=EmbargoRegisterStatus.PROPOSED,
+        rsvp_deadline=days_from_now_utc(365),
+    )
+    dl.save(invitee)
+    return embargo.id_
+
+
+def _consent(dl: SqliteDataLayer, actor_id: str, embargo_id: str):
+    case = dl.read_case(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    participant = dl.read(case.actor_participant_index[actor_id])
+    assert isinstance(participant, CaseParticipant)
+    return participant.consent_for(embargo_id)
+
+
+def _expiry_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
+    return [
+        e
+        for e in _case_ledger(dl)
+        if e.event_type == INVITE_EXPIRED_EVENT_TYPE
+    ]
+
+
 class TestPostCloseBoundary:
     """CM-23-013/014: nothing a participant does lands after case_fully_closed."""
 
@@ -621,55 +677,20 @@ class TestPostCloseBoundary:
             "the as:Reject must decline the Leave activity itself"
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="CM-23-014: owner close does not yet expire pending Invites"
-        " before case_fully_closed. Tracked by #4066.",
-    )
     @pytest.mark.spec("CM-23-014")
     def test_owner_close_expires_pending_invite_before_boundary(self):
         """An unanswered Invite is expired at close, not left waiting on its deadline."""
-        from datetime import UTC, datetime, timedelta
-
-        from vultron.core.states.embargo_register import (
-            EmbargoRegisterStatus,
-        )
-        from vultron.core.states.participant_embargo_consent import (
-            EmbargoConsentState,
-            PEC_Trigger,
-        )
-        from vultron.wire.as2.vocab.objects.embargo_event import (
-            as_EmbargoEvent,
-        )
-
         dl = _make_full_dl()
+        embargo_id = _seed_pending_invite(dl)
         case = dl.read_case(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
-        embargo = as_EmbargoEvent(
-            id_=f"{CASE_ID}/embargo_events/proposed",
-            context=CASE_ID,
-            end_time=datetime.now(tz=UTC) + timedelta(days=45),
-        )
-        dl.create(embargo)
-        propose(case, embargo.id_)
-        dl.save(case)
-        write_consent_rows(dl, case)
-        vendor = dl.read(case.actor_participant_index[VENDOR_ID])
-        assert isinstance(vendor, CaseParticipant)
-        vendor.apply_pec_transition(
-            embargo.id_,
-            PEC_Trigger.INVITE,
-            entry_status=EmbargoRegisterStatus.PROPOSED,
-            rsvp_deadline=datetime.now(tz=UTC) + timedelta(days=365),
-        )
-        dl.save(vendor)
 
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
         vendor = dl.read(case.actor_participant_index[VENDOR_ID])
         assert isinstance(vendor, CaseParticipant)
         assert (
-            vendor.consent_for(embargo.id_) == EmbargoConsentState.TIMED_OUT
+            vendor.consent_for(embargo_id) == EmbargoConsentState.TIMED_OUT
         ), "owner close must expire a pending Invite immediately (CM-23-014)"
         ledger = _case_ledger(dl)
         types = [e.event_type for e in ledger]
@@ -688,6 +709,170 @@ class TestPostCloseBoundary:
         assert max(rm_closed_idx) < min(lapse_idx), (
             "the expired-invitation entry must follow the CASE_MANAGER's"
             f" RM.CLOSED entry (CM-23-014); got {types}"
+        )
+
+
+class TestOwnerCloseSettlesPendingInvites:
+    """CM-23-014: the settle step between RM.CLOSED and case_fully_closed."""
+
+    @pytest.mark.spec("CM-23-014")
+    def test_close_without_pending_invite_commits_no_expiry_entry(self):
+        """A case with no pending Invite closes exactly as before (AC-4)."""
+        dl = _make_full_dl()
+
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert _case_ledger(dl)[-1].event_type == "case_fully_closed"
+        assert _expiry_entries(dl) == []
+
+    @pytest.mark.spec("CM-23-014")
+    def test_every_pending_invite_gets_one_entry(self):
+        """Two pending Invites, two expiry entries, both before the boundary."""
+        dl = _make_full_dl()
+        first = _seed_pending_invite(dl, "first")
+        second = _seed_pending_invite(dl, "second")
+
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        expired = _expiry_entries(dl)
+        named = {e.payload_snapshot["object"]["object"]["id"] for e in expired}
+        assert named == {first, second}
+        assert len(expired) == 2
+        assert all(e.payload_snapshot["actor"] == VENDOR_ID for e in expired)
+        assert _consent(dl, VENDOR_ID, first) == EmbargoConsentState.TIMED_OUT
+        assert _consent(dl, VENDOR_ID, second) == EmbargoConsentState.TIMED_OUT
+        ledger = _case_ledger(dl)
+        assert ledger[-1].event_type == "case_fully_closed"
+        assert all(e.log_index < ledger[-1].log_index for e in expired)
+
+    @pytest.mark.spec("CM-23-014")
+    def test_row_on_a_final_entry_is_not_settled(self):
+        """A row frozen by a final register entry is not pending (ADR-0122)."""
+        dl = _make_full_dl()
+        embargo_id = _seed_pending_invite(dl)
+        case = dl.read_case(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        reject(case, embargo_id)
+        dl.save(case)
+
+        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert _case_ledger(dl)[-1].event_type == "case_fully_closed"
+        assert _expiry_entries(dl) == []
+        assert (
+            _consent(dl, VENDOR_ID, embargo_id) == EmbargoConsentState.INVITED
+        )
+
+    @pytest.mark.spec("CM-23-014")
+    def test_failed_expiry_commit_still_closes_the_case(
+        self, monkeypatch, caplog
+    ):
+        """A refused expiry commit is logged, and the case still closes."""
+        dl = _make_full_dl()
+        embargo_id = _seed_pending_invite(dl)
+        monkeypatch.setattr(
+            "vultron.core.behaviors.case.nodes.leave.settle"
+            ".create_commit_and_record_expiry_tree",
+            lambda *a, **kw: py_trees.behaviours.Failure(name="ForcedFailure"),
+        )
+
+        with caplog.at_level(logging.WARNING):
+            _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert _expiry_entries(dl) == []
+        assert (
+            _consent(dl, VENDOR_ID, embargo_id) == EmbargoConsentState.INVITED
+        )
+        assert _case_ledger(dl)[-1].event_type == "case_fully_closed"
+        assert any(
+            "could not expire the Invite" in r.getMessage()
+            for r in caplog.records
+        )
+
+    @pytest.mark.spec("CM-23-014")
+    def test_entry_names_the_invite_the_ledger_recorded(self):
+        """The expiry entry's object is the last Invite sent to that invitee."""
+        from vultron.core.behaviors.case.nodes.leave.settle import (
+            latest_invite_id,
+        )
+        from vultron.core.behaviors.embargo.nodes.relay import (
+            EMBARGO_INVITE_EVENT_TYPE,
+        )
+        from vultron.core.models.rsvp_deadline import (
+            EMBARGO_REINVITE_EVENT_TYPE,
+        )
+
+        embargo_id = f"{CASE_ID}/embargo_events/proposed"
+
+        def entry(index: int, event_type: str, to: str, invite: str):
+            return _to_persistable_entry(
+                HashChainLedgerRecord(
+                    case_id=CASE_ID,
+                    log_index=index,
+                    object_id=invite,
+                    event_type=event_type,
+                    payload_snapshot={
+                        "type": "Invite",
+                        "actor": CASE_ACTOR_ID,
+                        "to": [to],
+                        "object": {"type": "EmbargoEvent", "id": embargo_id},
+                    },
+                    prev_log_hash=_ZERO_HASH,
+                )
+            )
+
+        entries = [
+            entry(0, EMBARGO_INVITE_EVENT_TYPE, VENDOR_ID, "urn:invite:1"),
+            entry(1, EMBARGO_INVITE_EVENT_TYPE, OWNER_ID, "urn:invite:2"),
+            entry(2, EMBARGO_REINVITE_EVENT_TYPE, VENDOR_ID, "urn:invite:3"),
+            entry(3, "close_case", VENDOR_ID, "urn:leave:4"),
+        ]
+
+        assert latest_invite_id(entries, VENDOR_ID, embargo_id) == (
+            "urn:invite:3"
+        )
+        assert latest_invite_id(entries, OWNER_ID, embargo_id) == (
+            "urn:invite:2"
+        )
+        assert latest_invite_id(entries, VENDOR_ID, "urn:other") is None
+
+    @pytest.mark.spec("CM-23-014")
+    def test_a_replica_applies_the_settled_expiry(self):
+        """The settle entry replays on a replica through the announce tree (AC-2)."""
+        manager = _make_full_dl()
+        embargo_id = _seed_pending_invite(manager)
+        _close(manager, OWNER_ID, "https://example.org/activities/leave-owner")
+        (settled,) = _expiry_entries(manager)
+
+        replica = _make_full_dl(store_owner_id=VENDOR_ID)
+        assert _seed_pending_invite(replica) == embargo_id
+        case = replica.read(CASE_ID)
+        genesis_hash = getattr(case, "genesis_hash", _ZERO_HASH) or _ZERO_HASH
+        # The settled snapshot, as the first entry of the replica's chain.
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=CASE_ID,
+                log_index=0,
+                object_id=settled.log_object_id,
+                event_type=settled.event_type,
+                payload_snapshot=settled.payload_snapshot,
+                prev_log_hash=genesis_hash,
+            )
+        )
+        BTBridge(
+            datalayer=replica, wire_render_port=As2WireRenderAdapter()
+        ).execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=VENDOR_ID,
+            activity=_make_announce_event(
+                entry=entry, sender_actor_id=CASE_ACTOR_ID
+            ),
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert (
+            _consent(replica, VENDOR_ID, embargo_id)
+            == EmbargoConsentState.TIMED_OUT
         )
 
 

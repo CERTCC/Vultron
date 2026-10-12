@@ -3826,7 +3826,11 @@ groups:
       A test confirms that an owner Leave(VulnerabilityCase) on a case with an unanswered Invite
       whose RSVP deadline is in the future moves that participant's consent to `TIMED_OUT`, commits
       the expired-invitation entry, and orders that entry after the CASE_MANAGER's RM.CLOSED entry
-      and before `case_fully_closed`.
+      and before `case_fully_closed`:
+      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_owner_close_expires_pending_invite_before_boundary`.
+      `TestOwnerCloseSettlesPendingInvites` in the same file covers a case with no pending
+      Invite, several pending Invites, a row frozen by a final register entry, and replica
+      replay of the settled entry.
     relationships:
     - rel_type: refines
       spec_id: CM-23-002

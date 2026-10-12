@@ -19,6 +19,7 @@ Implements receiver-side role semantics for Leave(VulnerabilityCase):
 
 - **Owner Leave** (sender holds ``CVDRole.CASE_OWNER``): advances the leaving
   participant to ``RM.CLOSED``, advances the CaseActor to ``RM.CLOSED``,
+  expires every embargo Invite still awaiting a reply (CM-23-014),
   commits a ``case_fully_closed`` CaseLedgerEntry, and fans out to
   non-RM.CLOSED participants (CM-23-002, CM-23-004) — **unless** an embargo is
   still live, in which case the close is declined with an ``as:Reject`` and
@@ -53,6 +54,7 @@ from vultron.core.behaviors.case.nodes.leave import (
     AdvanceParticipantToRMClosedNode,
     CommitCaseActorRMClosedEntryNode,
     EmitRejectCloseCaseNode,
+    ExpirePendingInvitesOnCloseNode,
 )
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
 from vultron.core.behaviors.case.receive_activity_tree import (
@@ -137,6 +139,7 @@ def create_close_case_received_tree(
                 │       │   ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
                 │       │   ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
                 │       │   ├── CommitCaseActorRMClosedEntryNode  # step 2 on the ledger (CM-23-005)
+                │       │   ├── ExpirePendingInvitesOnCloseNode   # settle pending Invites (CM-23-014)
                 │       │   └── CommitCaseFullyClosedBT (Sequence)  # steps 3-4: commit + fan-out
                 │       │       ├── RequireSyncPortNode             # refuse before writing
                 │       │       ├── ReconstructChainTailNode        # step 3a: tail hash
@@ -303,6 +306,15 @@ def create_close_case_received_tree(
                 case_actor_id=receiving_actor_id,
                 case_id=case_id,
                 name="CommitCaseActorRMClosedEntry",
+            )
+        )
+        # CM-23-014: after close a pending Invite can only expire, so expire
+        # each one now, while its entry can still precede case_fully_closed,
+        # rather than leave the CASE_MANAGER waiting on its RSVP deadline.
+        # Best-effort for the same reason as the entry above.
+        owner_leave_children.append(
+            ExpirePendingInvitesOnCloseNode(
+                case_id=case_id, name="ExpirePendingInvitesOnClose"
             )
         )
     owner_leave_children.append(case_fully_closed_commit)
