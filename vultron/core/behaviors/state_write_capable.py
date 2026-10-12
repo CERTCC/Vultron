@@ -18,7 +18,7 @@
 A node is *state-write-capable* when its ``update()`` can write participant or
 case state: a ``CaseParticipant`` or its ``ParticipantStatus`` history, the
 ``VulnerabilityCase`` (its participant index, notes, reports, case statuses,
-embargo lists, recommendations), or an embargo's lifecycle and consent rows,
+embargo lists), or an embargo's lifecycle and consent rows,
 whether through the DataLayer directly or through ``EmbargoLifecycle`` and the
 replica-seeding services.
 
@@ -38,7 +38,7 @@ Not marked, on purpose: storing the received activity or its object
 (CLP-10-017 intake, ``StoreReceivedObjectNode``), ledger records and
 replication state (gated by ledger authority, ADR-0073), and an actor's local
 bookkeeping that is not a record of the case (report-case links, proposal
-admission and retry markers, dead letters).
+admission and retry markers, who recommended whom, dead letters; CLP-07-014).
 """
 
 __all__ = ["StateWriteCapable"]
