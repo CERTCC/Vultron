@@ -3220,9 +3220,9 @@ groups:
       `CaseLedgerEntry` recording the Reject and MUST broadcast
       `Announce(CaseLedgerEntry)` to all case participants, as it does for the
       Accept (CM-21-007). The entry closes the Offer (CM-21-014): from it on,
-      that Offer is no longer pending on any replica. A replica applies no further state change
-      from the entry; `VulnerabilityCase.attributed_to` and every participant's
-      `CASE_OWNER` role are unchanged.
+      that Offer is no longer pending on any replica. A replica applies no
+      further state change from the entry; `VulnerabilityCase.attributed_to` and
+      every participant's `CASE_OWNER` role are unchanged.
     rationale: >-
       The Offer was ledgered and broadcast (CM-21-005), so every replica holds a
       transfer in flight. A Reject that leaves no entry never closes it, and the
