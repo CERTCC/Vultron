@@ -41,7 +41,7 @@ Once a case exists for the report, do not acknowledge it: the case's own message
 
 1. Send `Read(Offer(VulnerabilityReport))` to the sender's inbox, with the original `Offer(VulnerabilityReport)` activity as its `object`.
    The `ack-report` trigger does this for you: `POST /actors/{actor_id}/trigger/ack-report` with the Offer's `offer_id`.
-   It addresses the reporter alone, and it answers HTTP 409 once a case exists for the report.
+   It addresses the sender alone, and it answers HTTP 409 once a case exists for the report.
 2. Do not send it to the CASE_MANAGER.
    The CASE_MANAGER holds no record of who the Offer was addressed to, so nobody sends it an acknowledgment (RMB-08-003).
 3. Leave your RM state at `RECEIVED`.
