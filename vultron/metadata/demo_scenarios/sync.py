@@ -65,6 +65,7 @@ from vultron.metadata.demo_scenarios.render import (
     scenario_matrix_json,
 )
 from vultron.metadata.generated_block import splice_between
+from vultron.metadata.generated_files import stale_paths, write_generated
 
 #: Command that regenerates every artifact, quoted in every failure message.
 WRITE_COMMAND = "uv run demo-scenarios --write"
@@ -192,15 +193,11 @@ def _out_of_date(
     while the writer found nothing to do would be unfixable by the command its
     own error message names.
     """
-    out_of_date: list[tuple[Path, str, str]] = []
-    for path, desired in desired_contents(base, specs).items():
-        target = base / path
-        current = (
-            target.read_text(encoding="utf-8") if target.is_file() else ""
-        )
-        if current != desired:
-            out_of_date.append((target, path, desired))
-    return out_of_date
+    desired = desired_contents(base, specs)
+    return [
+        (base / path, path, desired[path])
+        for path in stale_paths(base, desired)
+    ]
 
 
 def stale_artifacts(
@@ -242,9 +239,9 @@ def write_artifacts(
     written: list[str] = []
     for target, path, desired in _out_of_date(base, specs):
         # A whole-file artifact can legitimately not exist yet, and in a
-        # caller-supplied root its parent directory may not either.
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(desired, encoding="utf-8")
+        # caller-supplied root its parent directory may not either;
+        # write_generated creates it.
+        write_generated(target, desired)
         written.append(path)
     return written
 

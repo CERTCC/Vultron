@@ -208,6 +208,9 @@ def classify_docs_tree(root: Path) -> DocsTree:
         fragments.setdefault(appended, ("every page (snippets auto_append)",))
     # An excluded file is never built, so it has no reader of its own; until
     # a page includes it (and it becomes a fragment above) it is neither.
+    # This holds for every `exclude_docs` pattern, not only the occasion
+    # fragments: a page excluded by mistake also leaves DF-11's scope, so
+    # widen `exclude_docs` only for files that are never pages.
     excluded = excluded_docs_spec(mkdocs_config(root))
     return DocsTree(
         pages=tuple(

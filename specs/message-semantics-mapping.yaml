@@ -671,10 +671,12 @@ groups:
       `test_committed_occasion_artifacts_are_in_sync` in
       `test/metadata/test_msm_occasions.py` fails when the committed YAML or a
       fragment under `docs/reference/messages/_occasions/` differs from a fresh
-      generation. Inspection of `docs/reference/messages/*.md` confirms each
-      mapping table is an `include-markdown` directive naming one of those
-      fragments. A wire example inside an occasion section carries no link and
-      is not a mapping table, so it may still render at build time.
+      generation. `test_no_message_page_renders_its_table_at_build_time` in
+      the same module fails while any page under `docs/reference/messages/`
+      prints a mapping table from a `markdown_exec` block; it is a strict
+      `xfail` until #4431 moves the pages onto the fragments, which must
+      remove the marker. A wire example inside an occasion section carries no
+      link and is not a mapping table, so it may still render at build time.
   - id: MSM-06-002
     priority: MUST
     kind: process

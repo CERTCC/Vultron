@@ -23,12 +23,13 @@ artifacts, and ``--check`` fails on any difference (MSM-06-001):
   ``##`` group per message page: the case lifecycle first, then protocol
   mechanics.
 - ``docs/reference/messages/_occasions/lookup-<page>.md`` — one page's slice.
+- ``docs/reference/messages/_occasions/sections/<anchor>.md`` — one section
+  per occasion, anchored by the occasion's ID.
 
 The table fragments are not named ``*table*.md``: ``lint-docs`` exempts that
 name as a generated content class, and these carry occasion prose it must
-check (DF-09-007).
-- ``docs/reference/messages/_occasions/sections/<anchor>.md`` — one section
-  per occasion, anchored by the occasion's ID.
+check (DF-09-007).  Only ``*.md`` files under the fragment directory count as
+committed fragments, so ``--write`` never deletes anything else there.
 
 The fragments are rendered from the YAML text, re-parsed, not from the
 registry, so the YAML carries every fact a fragment shows.  Every fragment
@@ -68,6 +69,7 @@ from vultron.metadata.file_loading import (
     loads_yaml,
     validate,
 )
+from vultron.metadata.generated_files import stale_paths, write_generated
 from vultron.metadata.markdown_tables import iter_sections
 from vultron.metadata.msm._mapping import (
     EXEMPTED_SEMANTICS,
@@ -441,7 +443,7 @@ def _committed_fragments(base: Path) -> set[str]:
         return set()
     return {
         path.relative_to(base).as_posix()
-        for path in directory.rglob("*")
+        for path in directory.rglob("*.md")
         if path.is_file()
     }
 
@@ -465,16 +467,9 @@ def _compare(
     """Generate once and compare; the single comparison point for
     ``--check`` and ``--write``, so the two cannot disagree about "stale"."""
     desired = desired_contents(base, registry)
-    stale = []
-    for path, text in desired.items():
-        target = base / path
-        current = (
-            target.read_text(encoding="utf-8") if target.is_file() else None
-        )
-        if current != text:
-            stale.append(path)
+    stale = tuple(stale_paths(base, desired))
     unexpected = sorted(_committed_fragments(base) - set(desired))
-    return desired, Drift(stale=tuple(stale), unexpected=tuple(unexpected))
+    return desired, Drift(stale=stale, unexpected=tuple(unexpected))
 
 
 def drift(
@@ -493,9 +488,7 @@ def write_artifacts(
     base = root or repo_root()
     desired, found = _compare(base, registry)
     for path in found.stale:
-        target = base / path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(desired[path], encoding="utf-8")
+        write_generated(base / path, desired[path])
     for path in found.unexpected:
         (base / path).unlink()
     return [*found.stale, *found.unexpected]

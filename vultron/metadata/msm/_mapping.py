@@ -46,7 +46,9 @@ from vultron.core.behaviors.sender_entitlement import (
 from vultron.core.models.events.base import MessageSemantics
 from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import (
-    load_yaml,
+    display_path,
+    loads_yaml,
+    read_utf8,
     validate,
     yaml_node_positions,
 )
@@ -506,12 +508,13 @@ def load_occasion_table(
         FileNotFoundError: When *path* does not exist.
     """
     shown_root = repo_root(Path(__file__).parent) if root is None else root
-    data = load_yaml(path, root=shown_root)
+    shown = display_path(path, shown_root)
+    text = read_utf8(path, shown)
     return validate(
         OccasionTable,
-        data,
+        loads_yaml(text, Path(shown)),
         path=path,
         root=shown_root,
         prefix="invalid occasion table",
-        positions=yaml_node_positions(path.read_text(encoding="utf-8")),
+        positions=yaml_node_positions(text),
     )

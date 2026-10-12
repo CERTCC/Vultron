@@ -207,6 +207,19 @@ def test_check_fails_on_an_orphaned_fragment_and_write_deletes_it(tmp_path):
     assert gen.drift(root) == gen.Drift(stale=(), unexpected=())
 
 
+def test_a_non_markdown_file_is_not_an_orphan(tmp_path):
+    """``--write`` deletes orphaned fragments; it must not delete editor or
+    OS droppings such as ``.DS_Store`` that are no fragment at all."""
+    root = _scratch_root(tmp_path)
+    gen.write_artifacts(root)
+    stray = root / gen.FRAGMENT_DIR / ".DS_Store"
+    stray.write_bytes(b"\x00")
+
+    assert gen.drift(root) == gen.Drift(stale=(), unexpected=())
+    gen.write_artifacts(root)
+    assert stray.exists()
+
+
 def test_check_reports_a_malformed_yaml_with_its_position(
     tmp_path, monkeypatch, capsys
 ):
@@ -527,12 +540,44 @@ def test_formal_definition_links_name_an_existing_section():
         assert link.split("#", 1)[1].rstrip(")") in anchors
 
 
-def test_table_links_target_the_group_page_and_the_row_anchor(table):
+def test_table_links_target_the_group_page_and_a_generated_section(table):
+    """Each Details link in a committed slice names its group's page and the
+    anchor of one of that group's rows, whose section fragment exists.
+
+    Whether the anchor resolves on the page itself waits for #4431, which
+    includes the sections there.
+    """
     for group in table.groups:
-        for row in group.occasions:
-            assert gen.details_link(group, row, "../") == (
-                f"[{row.heading}](../{group.page.value}.md#{row.anchor})"
-            )
+        slice_path = _FRAGMENTS / f"lookup-{group.page.value}.md"
+        anchors = {row.anchor for row in group.occasions}
+        page = _DOCS / f"reference/messages/{group.page.value}.md"
+        seen = set()
+        for target in _LINK.findall(slice_path.read_text(encoding="utf-8")):
+            path, anchor = _resolve(slice_path, target)
+            if path.parent != page.parent:
+                continue  # not a Details link
+            assert path == page and page.is_file(), (slice_path, target)
+            assert anchor in anchors, (slice_path, target)
+            assert (_FRAGMENTS / "sections" / f"{anchor}.md").is_file()
+            seen.add(anchor)
+        assert seen == anchors, slice_path
+
+
+@pytest.mark.spec("MSM-06-001")
+@pytest.mark.xfail(
+    strict=True,
+    reason="#4431 moves the message pages onto the generated fragments",
+)
+def test_no_message_page_renders_its_table_at_build_time():
+    """The end state MSM-06-001 requires: no page under
+    ``docs/reference/messages/`` prints a mapping table from an exec block.
+    #4431 must remove this marker when it rebuilds the pages."""
+    rendering = sorted(
+        page.name
+        for page in (_DOCS / "reference/messages").glob("*.md")
+        if "render_page(" in page.read_text(encoding="utf-8")
+    )
+    assert rendering == []
 
 
 def test_no_fragment_is_exempt_from_lint_docs():

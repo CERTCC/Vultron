@@ -78,12 +78,12 @@ regenerates `docs/adr/index.md` but only checks the hand-labelled nav;
 `demo_scenarios/` regenerates the CI matrix and two scenario tables but leaves
 spec enumerations and nav to completeness checks; `msm/occasions.py` regenerates
 the occasion YAML and its fragments, not the page prose. Each is a `--check`
-hook (`adr-index-sync`, `demo-scenarios-sync`, `msm-occasions-sync`); a committed
-but ungated generated file is hand-edited with extra steps. `docs/landing_pages.py`
-(`docs-site-sync`) splits per page: a nav group's `index.md` declares `contents:
-generated | routing | rendered`, and a routing index is *checked* to link every
-member of its section instead of being written (#3617). Do not add a fourth
-shape or a default — an undeclared group index is a fault on purpose.
+hook (`adr-index-sync`, `demo-scenarios-sync`, `msm-occasions-sync`) comparing
+byte for byte via `generated_files.py`; an ungated one is hand-edited.
+`docs/landing_pages.py` (`docs-site-sync`) splits per page: a nav group's
+`index.md` declares `contents: generated | routing | rendered`, and a routing
+index is *checked* to link every member of its section, not written (#3617).
+No fourth shape or default: an undeclared group index is a fault on purpose.
 
 One trap specific to build-time rendering: MkDocs rewrites `.md` links with a
 treeprocessor on **its own** `Markdown` instance, and `markdown-exec` converts a

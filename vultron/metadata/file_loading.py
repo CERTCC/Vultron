@@ -243,6 +243,23 @@ def load_yaml(
         raise MetadataLoadError(f"not valid UTF-8: {exc}", path=shown) from exc
 
 
+def read_utf8(path: Path, shown: str) -> str:
+    """Read *path* as UTF-8 text, attributing a decode fault to *shown*.
+
+    For a loader that needs the text itself as well as its parse, such as one
+    that also locates nodes with :func:`yaml_node_positions`, so the file is
+    read once.
+
+    Raises:
+        MetadataLoadError: When the file is not valid UTF-8.
+        FileNotFoundError: If *path* does not exist.
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise MetadataLoadError(f"not valid UTF-8: {exc}", path=shown) from exc
+
+
 def loads_yaml(
     text: str,
     shown: Path,
@@ -342,11 +359,7 @@ def load_frontmatter(
         FileNotFoundError: If *path* does not exist.
     """
     shown = display_path(path, root)
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        raise MetadataLoadError(f"not valid UTF-8: {exc}", path=shown) from exc
-    return _parse_frontmatter(text, shown)
+    return _parse_frontmatter(read_utf8(path, shown), shown)
 
 
 def loads_frontmatter(text: str) -> frontmatter.Post:
