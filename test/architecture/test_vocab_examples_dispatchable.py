@@ -76,12 +76,12 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 # turn its exemption into a permanent ``KeyError``, which ``xfail`` records as a
 # pass.
 _KNOWN_UNDISPATCHABLE: dict[str, str] = {
-    # Empty since #3469 removed the retired ``choose_preferred_embargo`` poll
-    # (ADR-0100).  Every rendered example is dispatchable.  A new entry here is
-    # either debt naming an open issue or a decision naming its ADR, and it needs
-    # a per-entry ``xfail(strict=True)`` beside it (the shape #3469 removed with
-    # the last entry), because a strict xfail is what forces the exemption out
-    # once the example becomes dispatchable.
+    # Permanent, not debt: no actor sends Update(VulnerabilityCase).  A
+    # CASE_MANAGER change to a case field is its own ledger entry whose snapshot
+    # is this Update, and replicas copy the entry (CLP-07-013, ADR-0124); the
+    # received path changed the case with no entry, so #4443 removed it.  The
+    # example renders the snapshot shape on the case-management page.
+    "update_case": "ADR-0124 — Update(VulnerabilityCase) is a ledger-entry snapshot only, never a sent message, so this example has no ActivityPattern and no MessageSemantics by decision (CLP-07-013, #4443)",
 }
 
 
@@ -131,8 +131,7 @@ def test_known_undispatchable_names_are_collected():
     An exempted name is excluded from the exactly-one-pattern test by name, so
     renaming or deleting the example — or giving it a required argument — would
     otherwise freeze its entry in place and the exemption would outlive the
-    issue it names.  Vacuous while the table is empty; it bites the moment an
-    entry returns.
+    issue it names.
     """
     missing = sorted(set(_KNOWN_UNDISPATCHABLE) - set(_ACTIVITY_EXAMPLES))
     assert not missing, (
@@ -168,3 +167,22 @@ def test_example_activity_matches_exactly_one_pattern(example_name: str):
         "context_); note that ActivityPattern has no origin_ field, so `origin` "
         "is never consulted for dispatch."
     )
+
+
+@pytest.mark.parametrize(
+    "example_name",
+    [
+        # The mark is built per-parameter rather than applied to the whole test so
+        # that each xfail's own ``reason`` names its decision. A single shared
+        # marker puts it in the parametrize id instead, where an audit of xfail
+        # reasons does not read it.
+        pytest.param(name, marks=pytest.mark.xfail(strict=True, reason=reason))
+        for name, reason in sorted(_KNOWN_UNDISPATCHABLE.items())
+    ],
+)
+def test_known_undispatchable_examples_still_fail(example_name: str):
+    """Strict xfail: an exempted example that becomes dispatchable must leave."""
+    activity = _ACTIVITY_EXAMPLES[example_name]
+    assert len(_matching_pattern_names(activity)) == 1, _KNOWN_UNDISPATCHABLE[
+        example_name
+    ]

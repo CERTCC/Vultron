@@ -185,10 +185,8 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     PendingOfferCaseParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.update import (
-    ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
     CaptureCaseUpdateBroadcastExclusionsNode,
-    CheckCaseUpdateOwnerNode,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckNotSoleObserverVfdNode,
@@ -236,9 +234,7 @@ __all__ = [
     # lifecycle
     "CommitCaseLedgerEntryNode",
     # update
-    "CheckCaseUpdateOwnerNode",
     "CaptureCaseUpdateBroadcastExclusionsNode",
-    "ApplyCaseUpdateNode",
     "BroadcastCaseUpdateNode",
     # ownership_transfer (leaf nodes)
     "EmitOfferCaseOwnershipTransferNode",

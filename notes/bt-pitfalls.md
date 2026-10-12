@@ -1318,8 +1318,8 @@ The cause was structural: about fifteen trees each wrapped their effects in
   mints and fans out (`DeclineForeignLedgerCommitNode`, ADR-0073). Those classes
   are a pinned set, `LEDGER_REPLICATION_SENDERS`, so a new one is classified.
 - **The gate's case id is its own argument.**
-  Several received trees pass `case_id=None` to skip the commit stage
-  (`update_tree`, the close-case tree) yet still gate an emit on a real case.
+  A received tree can pass `case_id=None` to skip the commit stage
+  (the close-case tree) yet still gate an emit on a real case.
   `manager_case_id` therefore names the case to gate on separately from the
   commit's `case_id`, and the factory orders the stages
   intake → guards → commit → `replica_effects` → `manager_effects`.

@@ -13,15 +13,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Shared helpers for update-case BT nodes."""
+"""Shared helpers for announcing a case update to the participants."""
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.participants.recipients import (
     case_content_recipients,
     inert_participants,
@@ -35,27 +34,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def apply_update_case_fields(
-    stored_case: Any, request: UpdateCaseReceivedEvent
-) -> bool:
-    """Apply mutable case fields from *request* onto *stored_case*."""
-    if request.object_type != "VulnerabilityCase" or request.case is None:
-        return False
-
-    for field in ("name", "summary", "content"):
-        value = getattr(request.case, field, None)
-        if value is not None:
-            setattr(stored_case, field, value)
-    return True
-
-
 def find_excluded_actor_ids(
     case: VulnerabilityCase, dl: CasePersistence
 ) -> set[str]:
     """Return the inert participants a case-update broadcast leaves out.
 
     Delegates to the shared selection (CM-10-007): the roster less the active
-    participants (CM-10-004).  Kept as its own step so the update tree can
+    participants (CM-10-004).  Kept as its own step so the calling tree can
     report whom it withheld the broadcast from; :func:`broadcast_case_update`
     applies the active check itself whatever this returns.
     """
@@ -65,7 +50,7 @@ def find_excluded_actor_ids(
         # is routine under ADR-0114, but whom an update skipped is worth
         # one operator-visible line.
         logger.info(
-            "update_case: %d participant(s) not active on case '%s' (not"
+            "case_update_broadcast: %d participant(s) not active on case '%s' (not"
             " joined, or not a signatory to the active embargo) — case update"
             " will not be broadcast to them (CM-10-004): %s",
             len(excluded),
@@ -91,8 +76,8 @@ def broadcast_case_update(
         case: The updated case object to announce.
         actor_id: The broadcasting actor. The caller MUST already have
             established that this actor holds ``CVDRole.CASE_MANAGER`` for the
-            case — see ``create_update_case_received_tree``, which wraps the
-            calling node in a ``CheckIsCaseManagerNode`` gate.
+            case — see ``create_engage_case_tree``, which places the calling
+            node in the factory's CASE_MANAGER-gated ``manager_effects``.
         trigger_activity: The port that builds, persists, and seals the
             ``Announce(VulnerabilityCase)``.  Core used to construct the
             activity itself; routing it through the adapter is what lets the
@@ -116,7 +101,7 @@ def broadcast_case_update(
     )
     if not participant_ids:
         logger.debug(
-            "update_case: no eligible participants in case '%s' — skipping broadcast",
+            "case_update_broadcast: no eligible participants in case '%s' — skipping broadcast",
             case_id,
         )
         return
@@ -129,7 +114,7 @@ def broadcast_case_update(
     )
     cast(CaseOutboxPersistence, dl).outbox_append(broadcast_id)
     logger.info(
-        "update_case: CaseActor '%s' broadcast Announce for case '%s' to %d participants (CM-06-001)",
+        "case_update_broadcast: CaseActor '%s' broadcast Announce for case '%s' to %d participants (CM-06-001)",
         actor_id,
         case_id,
         len(participant_ids),

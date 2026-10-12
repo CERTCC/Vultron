@@ -43,7 +43,6 @@ from vultron.core.models.events.case import (
     CreateCaseReceivedEvent,
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
-    UpdateCaseReceivedEvent,
 )
 from vultron.core.models.events.case_context import (
     CASE_BOOTSTRAP_SEMANTICS,
@@ -112,7 +111,6 @@ AnyReceivedEvent = (
     |
     # case
     CreateCaseReceivedEvent
-    | UpdateCaseReceivedEvent
     | EngageCaseReceivedEvent
     | DeferCaseReceivedEvent
     | AddReportToCaseReceivedEvent
@@ -198,7 +196,6 @@ __all__ = [
     "CloseReportReceivedEvent",
     # case
     "CreateCaseReceivedEvent",
-    "UpdateCaseReceivedEvent",
     "EngageCaseReceivedEvent",
     "DeferCaseReceivedEvent",
     "AddReportToCaseReceivedEvent",

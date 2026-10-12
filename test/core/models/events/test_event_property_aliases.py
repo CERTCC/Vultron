@@ -31,7 +31,6 @@ from vultron.core.models.events.case import (
     CreateCaseReceivedEvent,
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
-    UpdateCaseReceivedEvent,
 )
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
@@ -187,12 +186,6 @@ _CASES = [
         CreateCaseReceivedEvent,
         MessageSemantics.CREATE_CASE,
         {"object_": _case, "activity": _activity},
-        [("case_id", "object_id"), ("case", "object_")],
-    ),
-    (
-        UpdateCaseReceivedEvent,
-        MessageSemantics.UPDATE_CASE,
-        {"object_": _case},
         [("case_id", "object_id"), ("case", "object_")],
     ),
     (
@@ -451,11 +444,6 @@ def test_named_aliases_resolve_to_correct_base_fields(
             SubmitReportReceivedEvent,
             MessageSemantics.SUBMIT_REPORT,
             ["report_id", "report"],
-        ),
-        (
-            UpdateCaseReceivedEvent,
-            MessageSemantics.UPDATE_CASE,
-            ["case_id", "case"],
         ),
         (
             CreateNoteReceivedEvent,

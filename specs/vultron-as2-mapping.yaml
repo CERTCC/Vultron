@@ -220,16 +220,6 @@ groups:
       matches this shape.
     stories:
     - story_2022_012
-  - id: VAM-03-002
-    priority: MUST
-    kind: protocol
-    statement: '`UPDATE_CASE` MUST be represented as `Update(VulnerabilityCase)`'
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `UpdateCasePattern`
-      is registered as `Update(VulnerabilityCase)`; integration tests in `test/demo/` exercise the
-      update-case flow.
-    stories:
-    - story_2022_088
-    - story_2022_074
   - id: VAM-03-003
     priority: MUST
     kind: protocol

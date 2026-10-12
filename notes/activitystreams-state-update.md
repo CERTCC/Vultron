@@ -53,10 +53,11 @@ authenticate that a case update originated from the CASE_MANAGER before
 treating it as authoritative (see `specs/case-management.yaml` CM-06-002,
 CM-06-004).
 
-The CASE_MANAGER broadcast is implemented in
-`vultron/core/use_cases/received/case.py` (`UpdateCaseReceivedUseCase`)
-via `_broadcast_case_update()`, which fans out updates to all case
-participants (see `specs/case-management.yaml` CM-06-001, CM-06-002).
+No actor sends `Update(VulnerabilityCase)` to the CASE_MANAGER: an inbound
+one resolves to `UNKNOWN` and is refused, because applying it changed the case
+with no ledger entry (CLP-07-013, #4443). A CASE_MANAGER change to a case field
+is its own ledger entry, and the ledger fan-out carries it to participants
+(CM-06-001).
 
 **Cross-reference**: `specs/case-management.yaml` CM-02-002, CM-06.
 

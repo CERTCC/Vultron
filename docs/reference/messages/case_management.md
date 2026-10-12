@@ -57,10 +57,12 @@ print(json2md(create_case()))
 
 ## Update Case
 
-- **Protocol role:** The CASE_MANAGER records a changed `VulnerabilityCase` object — for example after a title edit or an ownership transfer is applied — and fans it out through the ledger ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
-  A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to its peers.
+- **Protocol role:** `Update(VulnerabilityCase)` is not a message any actor sends.
+  It appears only inside a ledger entry: when the CASE_MANAGER changes a field of the case, it commits the change as its own entry whose snapshot is an `Update` carrying the case in full, and replicas copy that entry from the ledger fan-out ([CLP-07-013](../specs/protocol.md#clp-07-013), [§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
+  A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to the CASE_MANAGER or to its peers.
+- **On receipt:** an inbox refuses a direct `Update(VulnerabilityCase)` as an unrecognized activity and changes nothing.
 - **Triggering transition:** none — metadata change, not a state transition.
-- **Wire activity:** `Update(VulnerabilityCase)`.
+- **Wire activity:** `Update(VulnerabilityCase)`, as a ledger entry's snapshot only.
 - **Example artifact:** [update_case.json](../examples/update_case.json).
 
 ```python exec="true" idprefix=""

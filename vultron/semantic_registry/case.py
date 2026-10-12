@@ -24,7 +24,6 @@ from vultron.core.models.events.case import (
     CreateCaseReceivedEvent,
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
-    UpdateCaseReceivedEvent,
 )
 from vultron.core.models.events.case_proposal import (
     AcceptCaseProposalReceivedEvent,
@@ -36,7 +35,6 @@ from vultron.core.use_cases.received.case import (
     CreateCaseReceivedUseCase,
     DeferCaseReceivedUseCase,
     EngageCaseReceivedUseCase,
-    UpdateCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.case_proposal import (
     AcceptCaseProposalReceivedUseCase,
@@ -59,14 +57,12 @@ from vultron.wire.as2.extractor import (
     DeferCasePattern,
     EngageCasePattern,
     RejectCaseProposalPattern,
-    UpdateCaseActivityPattern,
 )
 from vultron.wire.as2.vocab.activities.case import (
     _AddReportToCaseActivity,
     _CreateCaseActivity,
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
-    _UpdateCaseActivity,
 )
 
 ENTRIES: list[SemanticEntry] = [
@@ -161,28 +157,6 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="create_case",
                 howto=HowToGuide.INITIALIZE_CASE,
-            ),
-        ),
-        page=MessagePage.CASE_MANAGEMENT,
-    ),
-    SemanticEntry(
-        semantics=MessageSemantics.UPDATE_CASE,
-        pattern=UpdateCaseActivityPattern,
-        event_class=UpdateCaseReceivedEvent,
-        use_case_class=UpdateCaseReceivedUseCase,
-        phrase="{actor} updated the case",
-        wire_activity_class=_UpdateCaseActivity,
-        occasions=(
-            Occasion(
-                when=(
-                    "the Case Manager has recorded a change to the case object"
-                ),
-                anchor="update-case",
-                description=(
-                    "Sends the changed case object, for example after a title "
-                    "edit or an applied ownership transfer."
-                ),
-                example="update_case",
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,

@@ -492,8 +492,13 @@ class TestEngageCaseLedgerCommit:
             and not isinstance(a.object_, CaseLedgerEntry)
         ]
 
+    @pytest.mark.spec("CM-06-003")
     def test_engage_received_by_case_manager_broadcasts(self, seeded_dl):
-        """Control: the CASE_MANAGER announces the updated case (CM-06-001)."""
+        """The CASE_MANAGER announces the updated case under its own URL.
+
+        The ``Announce``'s ``actor`` is the CASE_MANAGER, so a recipient knows
+        whom to fetch current case state from (CM-06-001, CM-06-003).
+        """
         EngageCaseReceivedUseCase(
             seeded_dl,
             self._engage_event(),
