@@ -735,10 +735,10 @@ groups:
       spelled in this codebase's terms is reworded, and one that also says how this codebase
       meets it is split (MS-12-010). Neither is relabeled.
     verification: >-
-      MS-12-006's spec-lint check enforces the first sentence where it is mechanical: for a
+      MS-12-006's spec-lint check enforces the first sentence where it is mechanical: a
       story-less protocol spec whose statement names a `.py` suffix, a `vultron/`, `test/`, or
-      `scripts/` path, or `pytest`, `pydantic`, or `py_trees`, its message advises rewording or
-      splitting and never relabeling. Covered by
+      `scripts/` path, or `pytest`, `pydantic`, or `py_trees` is a hard error, and its message
+      advises rewording or splitting and never relabeling. Covered by
       `test/metadata/specs/test_lint.py::test_protocol_code_reference_message_advises_reword_or_split`.
       The `project` branch itself is a classification judgement no check inspects.
     relationships:
@@ -787,9 +787,9 @@ groups:
       then be applied in order (MS-12-001 → MS-12-002 → MS-12-009 → MS-12-003 → MS-12-004), and
       a spec MUST be assigned the kind corresponding to the first matching question.
     rationale: >-
-      Each question asks who must obey the rule, from the narrowest audience to the widest
-      claim: how the project is run, this codebase only, every implementation of a standard
-      Vultron inherits, every Vultron implementation, and recommended structure. `foundation`
+      Each question asks who must obey the rule, in this order: how the project is run, this
+      codebase only, every implementation of a standard Vultron inherits, every Vultron
+      implementation, and recommended structure. `foundation`
       precedes `protocol` so a rule that only restates ActivityStreams, ActivityPub or HTTP is not
       counted as Vultron's own. Splitting comes first because a mixed spec would otherwise match
       `project` and hide its protocol half from implementers.

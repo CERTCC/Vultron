@@ -174,8 +174,9 @@ statement needs rewording or splitting.
 **The token list excludes bare `module`, `class`, and `function`.** Those read as
 ordinary domain English in wire requirements — "a machine-readable failure
 class", "the same action class", "the actor's function in the CVD process". Left
-in, they flag two dozen genuine protocol statements that need no rewording. `.py`, `vultron/`, `test/`,
-`scripts/`, `pytest`, `pydantic`, and `py_trees` carry no such second meaning.
+in, they flag two dozen genuine protocol statements that need no rewording.
+`.py`, `vultron/`, `test/`, `scripts/`, `pytest`, `pydantic`, and `py_trees`
+carry no such second meaning.
 The cost of the omission is a handful of true positives the check will not catch;
 those are MS-12-006's acknowledged blind spot, not an oversight.
 
