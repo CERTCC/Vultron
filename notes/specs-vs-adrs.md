@@ -315,8 +315,7 @@ the same change (MS-14-010). A material edit restarts the timers but not the
 dependency. Status only moves forward: the computed epoch is a floor, and a
 promotion ahead of it needs a `status_override:` the pull request adds or
 changes (MS-14-012). Agents implement against `proposed` ADRs; the mandatory
-human touch is the epoch-2 ask. The tooling for revision 2 is #4501; until it
-lands, the checks below still apply the old 3- and 10-day boundaries.
+human touch is the epoch-2 ask.
 
 **The clock never fails a merge-blocking check.** An ADR crossing a boundary
 changes no commit, so a check reading today's date turns `main` red with no one to
@@ -334,22 +333,37 @@ the replaced text; a change of chosen option is a new ADR that supersedes the
 old one, whose original text is restored. Never rewrite an accepted ADR under its
 own number.
 
-**What is checked (MS-14-007, MS-14-009, MS-14-010, MS-15-006).** Three fields
-are required on every ADR (MS-14-008); `date` is the older spelling of `created`
-and may stay.
-Epochs are counted in whole days (3 and 10 today; 14 and 28 once #4501 lands)
-because `updated` is a date.
+**What is checked (MS-14-007, MS-14-009, MS-14-010, MS-14-012, MS-15-006).**
+Three fields are required on every ADR (MS-14-008); `date` is the older spelling
+of `created` and may stay. Epochs are counted in whole days (14 and 28) because
+`updated` is a date. Retired and rejected ADRs have no epoch. A
+`status_override:` with a human's reason holds a status off its epoch.
 
-- `spec-lint` fails an ADR whose `status` differs from its epoch, unless the ADR
-  carries `status_override:` with the human's reason. Retired and rejected ADRs
-  have no epoch. Because the epoch moves with the calendar, an ADR that nobody
-  touches fails on the day it crosses a boundary; promoting it, or recording an
-  override, is the human touch.
-- The `adr-lifecycle-check` pre-commit hook compares an edited ADR with `HEAD`.
-  It fails a changed Decision Outcome or Considered Options section on an
-  epoch-3 ADR unless the edit adds a heading naming "Amendment" and a
-  `YYYY-MM-DD` date. It also fails a bump of `updated` on an ADR that was past
-  epoch 1, unless `status_override:` is present.
+- `spec-lint` never fails a status the clock has made stale (MS-14-007). It
+  warns on a `proposed` ADR with a test-verified dependent and no override,
+  because that needs no clock (MS-14-010).
+- The `adr-lifecycle-check` pre-commit hook compares the working tree with
+  `HEAD`; the `ADR Lifecycle` pull-request workflow runs the same check against
+  the merge base. The dependents are counted on each side of the change. It
+  fails:
+  - a material edit (`updated` moved, or a new ADR) whose status is not its
+    epoch on that date, without an override (MS-14-007);
+  - a status change that moves back, or ahead of the epoch, without a
+    `status_override:` the change adds or changes (MS-14-012);
+  - a change that gives a `proposed` ADR its first test-verified dependent
+    without setting it to `accepted-provisional`, or adding or changing a
+    `status_override:` (MS-14-010). The change need not touch the ADR, so the
+    workflow also runs when only `specs/` or `test/` changes; the local hook
+    runs only when an ADR is staged, and counts only test files git tracks;
+  - a bump of `updated` on an ADR past epoch 1, without an override (MS-14-009);
+  - a changed Decision Outcome or Considered Options section on an epoch-3 ADR,
+    unless the edit adds a heading naming "Amendment" and a `YYYY-MM-DD` date.
+  For the last two, an ADR's epoch is the later of its computed epoch and the
+  one its status names, since a status ahead of the clock stands: an `accepted`
+  ADR is epoch 3 however recently it was updated. An ADR held by a
+  `status_override:` is in the epoch its status names.
+- The hourly `adr-status-drift` workflow lists each ADR whose status is behind
+  its epoch on `main`, never one ahead of it.
 - The `adr-added-reference-check` pre-commit hook (MS-15-006) also compares an
   edited ADR with `HEAD`, and fails a backticked path or code symbol the edit
   *adds* that resolves nowhere — class names, called names and class members
@@ -359,14 +373,12 @@ because `updated` is a date.
   `[phantom_path_ref]` (MS-15-007).
 - Both hooks also run in the `ADR Lifecycle` pull-request workflow against the
   merge base, so skipping a local hook does not bypass them.
-- `spec-lint` prints an `[INFO]` line for an ADR in epoch 1 or 2 that a spec
-  requirement cites in `adr:` and verifies with an existing `test/` file: the
-  hardened signal that a human may promote it early. It checks that the file
+- A test-verified dependent is found by checking that the named test file
   exists, not that it passes.
 - `uv run adr-index --epochs` prints each live ADR's epoch, status and revision.
   The generated `index.md` shows only the revision (`*(revision N)*`, when above
-  1), because the epoch depends on today's date and the index is compared byte
-  for byte.
+  1), because the epoch depends on today's date and the spec corpus, and the
+  index is compared byte for byte.
 
 ### A Provisional ADR Must Phrase an Unbuilt Contract in the Future Tense
 

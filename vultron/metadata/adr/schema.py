@@ -61,9 +61,10 @@ class AdrFrontmatter(BaseModel):
     (an integer bumped by each material edit) carry the lifecycle of ADR-0120.
     All three are required (MS-14-008). ``date`` is the legacy spelling of
     ``created`` and stays optional. ``status_override`` is a human's reason for
-    a ``status`` that disagrees with the epoch computed from ``updated``; it is
-    what :func:`vultron.metadata.adr.lifecycle.status_epoch_fault` (MS-14-007)
-    reads to let the disagreement stand.
+    a ``status`` that disagrees with the epoch computed from ``updated`` and the
+    ADR's test-verified dependents; it is what
+    :func:`vultron.metadata.adr.lifecycle.status_epoch_fault` (MS-14-007) reads
+    to let the disagreement stand.
 
     ``partially_superseded_by`` is distinct from ``superseded_by`` and does not
     retire the ADR: it marks one decision inside an otherwise live ADR as

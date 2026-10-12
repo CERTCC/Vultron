@@ -452,3 +452,22 @@ class TestLifecycleRendering:
         _write_adr(adr_dir, "0001", "accepted", "Old")
         report = epoch_report(tmp_path, today=dt.date(2026, 10, 20))
         assert "0001 | 3 | accepted | 1 | 2020-01-01" in report
+
+    @pytest.mark.spec("MS-14-007")
+    def test_epoch_report_counts_a_tested_dependent(self, tmp_path):
+        import datetime as dt
+
+        from vultron.metadata.adr.index_gen import epoch_report
+
+        adr_dir = _scaffold(tmp_path)
+        _write_adr(adr_dir, "0001", "proposed", "New")
+        today = dt.date(2020, 1, 2)
+        assert "0001 | 1 | proposed" in epoch_report(tmp_path, today=today)
+        (tmp_path / "specs").mkdir(exist_ok=True)
+        (tmp_path / "specs" / "t.yaml").write_text(
+            "groups:\n- id: T-01\n  specs:\n  - id: T-01-001\n"
+            "    adr: [ADR-0001]\n    verification: '`test/test_t.py`'\n"
+        )
+        (tmp_path / "test").mkdir(exist_ok=True)
+        (tmp_path / "test" / "test_t.py").write_text("")
+        assert "0001 | 2 | proposed" in epoch_report(tmp_path, today=today)
