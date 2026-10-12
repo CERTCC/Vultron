@@ -35,7 +35,9 @@ relevant_packages:
 Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053. The participant-facing
 description is `docs/topics/case_lifecycle/ownership_transfer.md`. The unbuilt close
 paths (ledgered Reject, withdrawal, deadline) are planned in
-[ownership-transfer-close-paths](ownership-transfer-close-paths.md).
+[ownership-transfer-close-paths](ownership-transfer-close-paths.md). A
+participant's `Reject` is a case event, ledgered like its `Accept` (CLP-02-012;
+[case-ledger-authority](case-ledger-authority.md#two-meanings-of-reject)).
 
 ---
 
@@ -113,12 +115,6 @@ Every replica, the accepting actor's included, updates through that `Announce`. 
 replica is not updating, the routing is wrong; never hand-deliver
 ([demo-scenario-authoring](demo-scenario-authoring.md)). The invariant: the accepting
 actor's `case.attributed_to` changes on its own replica (`test/ci/invariants/`).
-
-### A Participant's Reject Is Ledgered
-
-A participant's `Reject` of the Offer is a case event and is ledgered like its
-`Accept` (CLP-02-012); see
-[case-ledger-authority § Two Meanings of "Reject"](case-ledger-authority.md#two-meanings-of-reject).
 
 ---
 

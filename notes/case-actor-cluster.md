@@ -46,11 +46,9 @@ Both use the `Announce(CaseLedgerEntry)` wire format.
   The emit-after-commit invariant is unchanged, so participant fan-out stays
   downstream of the commit index.
 - **`term`**: `CaseLedgerEntry.term` is optional now and becomes required here.
-- **Leadership guard**: the BT bridge's `is_leader` port (SYNC-09-003) returns
-  `True` in single-node. The cluster supplies a real Raft check behind it.
-- **Leadership is not ownership**: Raft leadership is an availability mechanism.
-  An ownership transfer implies a leadership handover. A failover does not
-  transfer ownership.
+- **Leadership guard and leadership vs. ownership**: the cluster supplies a real
+  Raft check behind the `is_leader` seam; the single-node rules are in
+  [sync-ledger-replication](sync-ledger-replication.md) § Architecture Overview.
 
 ## AS2 mapping
 

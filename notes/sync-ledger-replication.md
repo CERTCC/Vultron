@@ -177,8 +177,8 @@ Admission is caught at two points:
 An admitted peer's own Reject clears the pause too: its replay resends everything
 past its contiguous prefix (SYNC-10-004), and duplicates are idempotent
 (SYNC-12-003). Why the gate pauses a whole stream is in
-[participant-embargo-consent.md](participant-embargo-consent.md) § "Ledger
-Fan-Out Is Case Content".
+[participant-embargo-consent.md](participant-embargo-consent.md) § "Embargo
+Messages Reach Non-Signatories".
 
 ## Ingress Never Writes the Ledger (SYNC-13)
 

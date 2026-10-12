@@ -19,6 +19,7 @@ related_specs:
   - specs/project-documentation.yaml
 related_notes:
   - notes/message-type-reference.md
+  - notes/case-communication-model.md
 relevant_packages:
   - vultron/semantic_registry
   - vultron/metadata/msm

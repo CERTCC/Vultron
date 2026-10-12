@@ -99,6 +99,10 @@ to `EM.ACTIVE` with no `EP`/`EA` exchange (EP-04-001). The intermediate
   profile is never another's default. A profile with no policy means no actor
   default. The parser refuses a bare-URI actor or one that differs from
   `attributedTo`, and a URL-string `embargoPolicy` on any inbound actor.
+- **The policy is a field of the profile** (`CoreActor.embargo_policy`,
+  EP-01-001). A stored actor whose `embargo_policy` is a URL string (the old
+  free-standing record) is refused, not converted: the URL names nothing a
+  reader may follow, and the remedy is a store reset (#4027).
 - **The P/X/A refusal arm is a negative condition.** `CaseNotEmbargoEligibleNode`
   returns SUCCESS for "not eligible, stop" and FAILURE only for "eligible"; an
   unreadable case or store raises, because FAILURE would run creation

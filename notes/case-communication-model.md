@@ -36,6 +36,7 @@ related_notes:
   - notes/protocol-asks.md
   - notes/case-joining.md
   - notes/received-status-authorization.md
+  - notes/message-occasion-table.md
   - notes/message-type-reference.md
 relevant_packages:
   - vultron/core/use_cases/triggers
@@ -302,9 +303,9 @@ A received-side use case runs in one actor's DataLayer. It MUST NOT build activi
 run BTs with `actor_id` set to another actor (e.g. running the invitee's prioritize
 subtree from the owner's store). The CASE_MANAGER records a participant's reply to the
 full-case Invite (RV/RI/RC, CM-11-011) as a direct RM write through
-`CreateParticipantStatusNode` in its own store, with the participant as subject and
-itself as executing actor — no proxy activity (PCR-08-010, ADR-0089). The stub `Accept`
-moves no RM state (CM-11-001).
+`CreateParticipantStatusNode` in its own store, with the participant as subject
+and itself as executing actor — no proxy activity (PCR-08-010, ADR-0089). The
+stub `Accept` moves no RM state (CM-11-001).
 
 ---
 
@@ -325,8 +326,9 @@ something else checks who sent it.
 - **The declaration is the whole rule** (HP-01-008, ADR-0129): composed of entitlement
   kinds, possibly any-of, with standing per addressee. A tree adds no narrower sender
   check. Positions within one exchange (invitee, addressee, author) are kinds, never
-  `CVDRole` values (HP-01-009). The occasion table derives its "Sent by" and "Send to"
-  columns from these declarations ([message-type-reference](message-type-reference.md)).
+  `CVDRole` values (HP-01-009). The occasion table will derive its "Sent by" and "Send
+  to" columns from these declarations
+  ([message-occasion-table](message-occasion-table.md), #4438).
 
 ---
 

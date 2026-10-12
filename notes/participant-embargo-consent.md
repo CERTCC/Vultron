@@ -133,12 +133,20 @@ agreed to.**
 | Revision B proposed | every participant gets an `UNINVITED` row for B; the proposer's becomes `AGREED`; nothing else |
 | A participant (owner included) accepts the Invite to B | its row for B becomes `AGREED`; its row for A is untouched |
 | A participant (owner included) rejects the Invite to B | its row for B becomes `DECLINED`; refusing B is not withdrawing from A |
-| A non-owner rejects the *active* embargo | withdrawal: its row for A becomes `DECLINED`, and so does every open proposal's row it had agreed to |
+| A non-owner withdraws from the *active* embargo | its row for A becomes `DECLINED`, and so does every open proposal's row it had agreed to (MSM-07-010) |
 | Owner rejects B for the case (`Reject(EmbargoEvent)`) | nothing — the owner is keeping A, not declining it |
 | Owner activates B, and B ends **no later than** A | owner's row for B → `AGREED`; `CARRY_OVER` makes B's row `AGREED` for every signatory of A, a `DECLINED` row for B included |
 | Owner activates B, and B ends **later than** A | owner's row for B → `AGREED`; nothing else — signatories without an `AGREED` row for B have lapsed by derivation |
 | Owner activates B while its own row for B is `DECLINED` | refused; the owner is invited again first |
 | Termination | nothing — no entry is `ACTIVE` and every row is frozen |
+
+**Withdrawal is `Leave(EmbargoEvent)`, never a Reject** (MSM-07-004, MSM-07-010).
+A Reject of the active embargo from an `AGREED` row must be refused. The code
+still treats that Reject as withdrawal (`_assert_rejectable` in
+`vultron/core/services/embargo_lifecycle/pec.py`) until #4388 adds `Leave`; do
+not build on it. Answering the embargo in force names its relayed
+`Invite(EmbargoEvent)`, never the full-case Invite, and never falls back to it
+when no Invite is named (EP-09-012, #4373).
 
 Only the owner's decision changes the embargo on the case, through
 `Accept`/`Reject(EmbargoEvent, target=Case)` (MSM-07-008/009). Every

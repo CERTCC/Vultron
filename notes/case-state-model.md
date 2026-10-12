@@ -61,10 +61,12 @@ rules for changing the code that implements it.
 - **Ephemeral states**: the six `vP` states must next take `V`, and the six
   `pX` states must next take `P` (`required_next_cs_events()`, CSB-17-003).
 
-The legacy module stays until two importers migrate: `cs.py` still uses
+Do not delete the legacy module (ADR-0060): `cs.py` still uses
 `case_states.validations.ensure_valid_state`, and
 `vultron/core/use_cases/query/action_rules.py` (the `actors_get_action_rules`
-endpoint) still uses `case_states.patterns.potential_actions`.
+endpoint) still uses `case_states.patterns.potential_actions`. Its potential
+actions are a menu of **possible** actions per CS state, never required ones;
+the decision is left to participant policy.
 
 ## Participant-Specific vs. Participant-Agnostic State
 
@@ -145,7 +147,9 @@ initialization (CM-12, CM-13). Full flow: [case-joining.md](case-joining.md).
 A case-level rule (CASE_MANAGER or case owner perspective) MUST aggregate over
 all relevant participants: for example, an `EMBARGO_END` trigger MUST NOT fire
 because one vendor reached `FIX_READY` while others have not. Participant-level
-rules evaluate one participant's state.
+rules evaluate one participant's state. No aggregation threshold is specified
+("all engaged vendors at `FIX_READY`" versus "≥X% of vendors"); do not hard-code
+one in a node. It needs a spec, or a call-out that delegates the judgment.
 
 ## CS Representation: Keep the Compound Enum
 

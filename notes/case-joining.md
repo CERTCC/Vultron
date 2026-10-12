@@ -70,8 +70,8 @@ case, so there is no `TentativeReject` handler for it.
 
 A participant is **active** when it was seated by case initialization (Case Owner,
 CASE_MANAGER, reporter — never sent a stub) or accepted the stub Invite, is not
-removed, and — only while an embargo is active — is a signatory to it. Many cases have
-no active embargo, so "inert until a signatory" is wrong.
+removed, and — only while an embargo is active — is a signatory to it. Many
+cases have no active embargo, so "inert until a signatory" is wrong.
 
 - The one check is `VulnerabilityCase.is_active_participant()`, read from the
   replicated `CaseParticipant` record and the case's `active_embargo`, so a replica
