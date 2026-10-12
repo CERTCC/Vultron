@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Revise or Terminate an Embargo
@@ -133,9 +133,7 @@ See [Early Termination](../../../topics/process_models/em/early_termination.md).
 
 !!! example "Try it: `vultron-demo manage-embargo`"
 
-    ```bash
-    vultron-demo manage-embargo
-    ```
+    {% include-markdown "./_demo_manage_embargo.md" %}
 
     Or with Docker Compose:
 

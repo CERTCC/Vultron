@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Suggest an Actor for a Case
@@ -110,9 +110,7 @@ The same holds for an actor the case has removed.
 
 !!! example "Try it: `vultron-demo suggest-actor`"
 
-    ```bash
-    vultron-demo suggest-actor
-    ```
+    {% include-markdown "./_demo_suggest_actor.md" %}
 
     Or with Docker Compose:
 
