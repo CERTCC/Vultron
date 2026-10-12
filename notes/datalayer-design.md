@@ -25,6 +25,7 @@ related_notes:
   - notes/case-bootstrap-trust.md
   - notes/case-proposal.md
 relevant_packages:
+  - vultron/core/models/actor_recommendation_record.py
   - vultron/core/ports
   - vultron/adapters/driven
   - vultron/wire/as2/vocab
@@ -230,12 +231,13 @@ domain fact — the ARCH-09-001 core violations):
   `list_objects("Invite")` semantic reads in `received/embargo/`,
   `triggers/_helpers.py`, and `dispatcher.py` removed. `Invite` removed from
   DL-05-004 exemptions.
-- ~~*actor/participant*~~: migrated (#1520). `recommendation_recommender_index:
-  dict[str, str]` (recommendation_id → recommender_actor_id) added to
-  `VulnerabilityCase`; populated in `OfferActorToCaseReceivedUseCase.execute()`.
-  `AcceptOfferCaseParticipantReceivedUseCase` and
-  `RejectOfferCaseParticipantReceivedUseCase` now read
-  `case.recommendation_recommender_index.get(recommendation_id)` instead of
+- ~~*actor/participant*~~: migrated (#1520). `ActorRecommendationRecord`
+  (case + recommendation_id → recommender_id), a `CoreRecord` in the
+  CASE_MANAGER's own store and not a field of the case (CLP-07-014, #4448);
+  written by `RecordRecommendationRecommenderNode` on the `Offer(Actor, Case)`
+  path. `AcceptOfferCaseParticipantReceivedUseCase` and
+  `RejectOfferCaseParticipantReceivedUseCase` read it by
+  `ActorRecommendationRecord.build_id(case_id, recommendation_id)` instead of
   `dl.read(recommendation_id)`. Redundant `invite_type != "Invite"` check
   removed from `SvcAcceptCaseInviteUseCase._prepare()`.
 - *Fix*: capture the fact as core state at extraction time; read it from core.

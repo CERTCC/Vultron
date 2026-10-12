@@ -31,6 +31,7 @@ relevant_packages:
   - vultron/core/participants/recipients.py
   - vultron/core/models/case.py
   - vultron/core/models/case_participant.py
+  - vultron/core/models/actor_recommendation_record.py
   - vultron/core/behaviors/case/nodes/invite_participant.py
   - vultron/core/behaviors/case/nodes/invite_ledger_backfill.py
   - vultron/core/behaviors/case/nodes/on_behalf_guards.py
@@ -302,10 +303,10 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   VF is a vendor-only status: no other role's record, status or entry carries
   one. The two-replica test compares the whole record of the CASE_MANAGER and
   each replica after the Invite, the Accept and the Reject, for a vendor, a
-  non-vendor, and a case with and without an embargo in force. Not an entry
-  today: `case.recommendation_recommender_index` set on the `Offer(Actor, Case)`
-  path, whose receipt entry carries the same fact but no replica applies it
-  (#4295).
+  non-vendor, and a case with and without an embargo in force. Who recommended
+  whom on the `Offer(Actor, Case)` path is not on the case and has no entry: it
+  is case bookkeeping, an `ActorRecommendationRecord` in the CASE_MANAGER's own
+  store, so no replica holds it (CLP-07-014, #4448).
 - **Where the embargo-ending notices live (#4083).** The recipients are
   `embargo_ending_notice_recipients` (joined, a signatory to the ending
   embargo, removed or RM `CLOSED`). The decision is `embargo_ending_notice`:

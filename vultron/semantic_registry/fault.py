@@ -41,6 +41,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant has received a message it cannot process",
                 anchor="create-processing-fault",
+                heading="Create processing fault",
                 description=(
                     "Tells the sender that its message was received but not "
                     "understood. It names the failed activity and a failure "

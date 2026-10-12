@@ -75,6 +75,7 @@ def _occasion(index: int = 0, **overrides: Any) -> Occasion:
     fields: dict[str, Any] = {
         "when": f"stub situation {index} arises",
         "anchor": f"stub-{index}",
+        "heading": f"Stub situation {index}",
         "description": "Stands in for a real occasion.",
         "example": f"stub_example_{index}",
     }
