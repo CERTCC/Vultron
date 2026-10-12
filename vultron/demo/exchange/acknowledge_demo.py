@@ -103,7 +103,11 @@ def _vendor_acknowledges_to_finder(
     """The vendor, the Offer's addressee, sends RK to the finder.
 
     RK goes from the actor the Offer was addressed to, to the reporter, and
-    never to the CASE_MANAGER (RMB-08-003).
+    never to the CASE_MANAGER (RMB-08-003).  Like every step of this exchange
+    demo, the RK is posted to the finder's inbox directly rather than through
+    the vendor's ``ack-report`` trigger: that trigger is refused once a case
+    exists for the report, and under the default ``auto_create_case=True``
+    the vendor already holds one by now (CM-15-001).
     """
     ack = rm_read_report_activity(
         offer, actor=vendor.id_, to=[finder.id_], content=content

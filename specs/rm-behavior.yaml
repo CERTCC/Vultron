@@ -914,8 +914,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver of RK MUST accept it only from an actor its own record of the
-      acknowledged `Offer(VulnerabilityReport)` names as an addressee, and MUST
+      A receiver of an RK acknowledging a report submission (RMB-08-003) MUST
+      accept it only from an actor its own record of the acknowledged
+      `Offer(VulnerabilityReport)` names as an addressee, and MUST
       refuse it (HP-01-006) when the sender is not one, or when it holds no
       record of that Offer, writing nothing past intake and sending nothing.
     rationale: >-

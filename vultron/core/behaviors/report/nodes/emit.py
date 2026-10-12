@@ -347,19 +347,28 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
         )
 
     def _compute_addressees(self) -> list[str] | None:
-        """The reporter: the actor of the recorded Offer, never the actor."""
+        """Address RK to the reporter alone; ``None`` fails the emit.
+
+        Overrides the case routing of the base: RK goes to the actor of the
+        recorded Offer, never to the CASE_MANAGER (RMB-08-003).  ``None`` is
+        the base's failure signal, returned when this store holds no record
+        of the Offer or when the executing actor is itself the reporter.
+        """
         assert self.datalayer is not None and self.actor_id is not None
         offer_record = self.datalayer.read(
             VultronOfferRecord.build_id(self.offer_id)
         )
-        if isinstance(offer_record, VultronOfferRecord) and (
-            offer_record.offer_actor_id != self.actor_id
-        ):
+        if not isinstance(offer_record, VultronOfferRecord):
+            self.feedback_message = (
+                f"no record of offer '{self.offer_id}' to acknowledge"
+            )
+        elif offer_record.offer_actor_id == self.actor_id:
+            self.feedback_message = (
+                f"actor '{self.actor_id}' is the reporter of offer"
+                f" '{self.offer_id}' and cannot acknowledge it to itself"
+            )
+        else:
             return [offer_record.offer_actor_id]
-        self.feedback_message = (
-            f"no reporter to acknowledge offer '{self.offer_id}' to"
-            f" (actor_id={self.actor_id})"
-        )
         self.logger.error("%s: %s", self.name, self.feedback_message)
         return None
 
