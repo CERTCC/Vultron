@@ -38,7 +38,7 @@ groups:
     heading: Report Acknowledgment (RK)
     when: a report receiver has read a submitted report
     send: Read(Offer(VulnerabilityReport))
-    sent_by: 'not yet checked (usually: vendor, coordinator)'
+    sent_by: 'the addressee of the vulnerability report (usually: vendor, coordinator)'
     semantics: ack_report
     shorthand: RK
     status: direct

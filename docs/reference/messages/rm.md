@@ -166,7 +166,8 @@ print(json2md(close_report()))
 ## RK — Report Acknowledgment
 
 - **Protocol role:** Acknowledges receipt of an RM message.
-- **Triggering transition:** any valid RM message.
+  Vultron sends it only to acknowledge a report submission (RMB-08-003).
+- **Triggering transition:** receipt of `RS`, before a case exists for the report.
 - **Wire activity:** `Read(Offer(VulnerabilityReport))`. `RK` survives as a
   dedicated wire activity because report submission is not ledger-replicated
   (MSM-01-008). The `object` is the report's original `Offer`, not the report
