@@ -351,7 +351,8 @@ the page and the two derivations landed in #4429; the addressee is #4438:
 
 | Fact | Owner |
 |---|---|
-| when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes | `SemanticEntry.occasions` |
+| when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes, section heading (when no own shorthand) | `SemanticEntry.occasions` |
+| formal message name | `ProtocolShorthand.formal_name`, held to `formal_protocol/messages.md` by a test |
 | wire summary | the entry's `ActivityPattern`, rendered as today |
 | send to (addressee) | `SemanticEntry.occasions` (ADR-0129) |
 | sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
@@ -375,12 +376,42 @@ discriminator is now `vf_state / d_state`: `rm_state` distinguishes none of
 `CV`, `CF` and `CD`, so no occasion names it, and its RM role is the
 second-home row on `rm.md`.
 
-The YAML file and the `include-markdown` fragments (the whole table, a slice per
-page, one per occasion) are generated, committed, and gated by a `--check` hook
-(#4430); `_mapping.py` becomes their loader and validator. That replaces
-MSM-06-001's build-time rendering, so the implementation revises MSM-06-001.
-Until it lands, the pages render as described below. The occasion requirements
-are MSM-08.
+### The generated artifacts (#4430)
+
+`uv run msm-occasions --write` (`vultron/metadata/msm/occasions.py`) projects
+the registry into `vultron/metadata/msm/occasions.yaml` and into fragments under
+`docs/reference/messages/_occasions/`: `lookup.md` (the whole table, one `##`
+group per page, lifecycle first and then mechanics), `lookup-<page>.md` (one
+page's slice) and `sections/<anchor>.md` (one section per occasion). The table
+fragments avoid the name `*table*.md`, which `lint-docs` exempts as generated,
+because their cells are occasion prose it must check (DF-09-007). The
+`msm-occasions-sync` pre-commit hook runs `--check`, and
+`test_committed_occasion_artifacts_are_in_sync` is the CI backstop (MSM-06-001,
+revised by #4430). `_mapping.py` holds the YAML's Pydantic models and
+`load_occasion_table`, which reports failures through `file_loading.py` (MS-17),
+locating a schema fault deep in the file by `yaml_node_positions`.
+The occasion requirements are MSM-08.
+
+Four choices there are not obvious from the code:
+
+- **Fragments render from the YAML, re-parsed, not from the registry.** So the
+  YAML carries every fact a fragment shows, and the later "Send to" (#4438) and
+  "Seen in" (#4432) columns are a field on `OccasionRow` plus a renderer change.
+- **The fragments are in `exclude_docs`.** Built alone, a table's links point at
+  anchors its page does not have until it includes the sections (#4431), and
+  each fragment would publish a URL. `include-markdown` reads excluded files from
+  disk, and `docs-frontmatter` treats an excluded file no page includes as
+  neither page nor fragment.
+- **The example stays an exec block inside the section fragment.** Its JSON
+  carries no link, and its IDs are minted per run, so a committed copy could
+  never pass `--check`.
+- **A pipe in a table's "Send" cell is a `<code>` element with entities.**
+  Python-Markdown keeps a backtick span whole and shows `\|` literally, GFM
+  splits the cell at a bare `|`, and `markdownlint --fix` rewrites an
+  unprotected `(Event)[context=…]` as a reversed link.
+
+Until #4431 rebuilds the pages on these fragments, the pages still render their
+old tables as described below.
 
 ### Planning decisions (#4418)
 
@@ -472,7 +503,12 @@ and no "you" (MSM-08-007). The details link names the formal message and code,
 "Fix Readiness (CF)", because the row's "Send" cell already gives the wire form
 and DF-09-010 wants the pair (MSM-08-008). An expansion is the exception: the
 `GI` rows link by section heading, because "General Inquiry (GI)" would label
-every row of the expansion alike, and DF-09-010 lets the heading stand in.
+every row of the expansion alike, and DF-09-010 lets the heading stand in. `RV`,
+`RI` and `RC` are expansions too (the Full-Case Invite replies carry them), so
+their rows link by heading with no shorthand, as DF-09-010 says; no exception
+is made for them (maintainer, #4430). The link text and the section heading are
+one string: the formal name and code when the shorthand is the occasion's own,
+otherwise the occasion's declared `heading`.
 
 **Each occasion's example shows its own distinguisher.** Until #4429 the CV, CF
 and CD sections of `cs.md` rendered the same `add_status_to_participant()`
@@ -489,12 +525,13 @@ states (the EM state that separates `EP` from `EV` on `Invite(Event)`)
 
 ## Examples are rendered at build time
 
-Today the pages use `markdown_exec` blocks calling
-`vultron.wire.as2.vocab.examples.vocab_examples`. Build-time rendering cannot go
-stale. ADR-0128 moves generated content to committed `include-markdown` fragments
-instead, because MkDocs does not rewrite a `.md` link printed from an exec block
-(`vultron/metadata/AGENTS.md`, Generate vs. Check) — and a lookup table is mostly
-links.
+The examples are still `markdown_exec` blocks calling
+`vultron.wire.as2.vocab.examples.vocab_examples`, now inside each generated
+occasion section. Build-time rendering cannot go stale, and an example carries
+no link. The tables are the part that moved: they are committed
+`include-markdown` fragments (#4430), because MkDocs does not rewrite a `.md`
+link printed from an exec block (`vultron/metadata/AGENTS.md`, Generate vs.
+Check) — and a lookup table is mostly links.
 
 Two patterns are easy to confuse. `docs/reference/specs/protocol.md` is the
 exemplar for the **mapping tables** — a thin `markdown_exec` shell over

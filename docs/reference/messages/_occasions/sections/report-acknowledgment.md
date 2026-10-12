@@ -1,0 +1,20 @@
+<!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
+
+## Report Acknowledgment (RK) { #report-acknowledgment }
+
+Acknowledges receipt of the submitted report. Report submission is not replicated through the case ledger, so the acknowledgment is an explicit message.
+
+- **When…** a report receiver has read a submitted report
+- **Send:** `Read(Offer(VulnerabilityReport))`
+- **Sent by:** not yet checked (usually: vendor, coordinator)
+- **How-to:** [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
+- **Formal definition:** [Report Acknowledgment (RK)](../../../formal_protocol/messages.md#rm-message-types)
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import (
+    read_report,
+    json2md,
+)
+
+print(json2md(read_report()))
+```
