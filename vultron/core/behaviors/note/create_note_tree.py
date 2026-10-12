@@ -18,16 +18,23 @@ Note creation behavior tree composition.
 
 Composes the create_note workflow as a behavior tree.  The tree saves the
 note to the DataLayer and, when the note carries a ``context`` (case ID),
-attaches it to the associated VulnerabilityCase.
+commits the ``Create(Note)`` as the case's ledger entry and attaches the note
+to the associated VulnerabilityCase, both only at the case's CASE_MANAGER.
 
-Structure:
+Structure (when the note names a case):
 
     CreateNoteBT (Sequence, via create_receive_activity_tree)
-    ├─ IntakeReceivedActivityNode  # Archive the Create(Note) as received
-    ├─ SaveNoteNode          # Upsert note into DataLayer (idempotent)
-    └─ AttachNoteToCaseNode  # Attach note to case if case_id present (idempotent)
+    ├─ IntakeReceivedActivityNode      # Archive the Create(Note) as received
+    ├─ CaseOpenToExternalWrites        # Post-close write boundary
+    ├─ GuardedCommitCaseLedgerEntryBT  # CASE_MANAGER commits create_note
+    ├─ SaveNoteNode                    # Upsert note (idempotent)
+    └─ AttachNoteToCaseIfCaseManager
+       └─ AttachNoteToCaseNode         # Attach note to case (idempotent)
 
-Per specs/case-management.yaml CM-06.
+A note that names no case has no commit and no attach stage.
+
+Per specs/case-management.yaml CM-06 and
+specs/case-ledger-processing.yaml CLP-07-013.
 """
 
 import logging
@@ -53,7 +60,8 @@ def create_note_tree(
     """Create the behavior tree for the create_note workflow.
 
     Handles receipt of a ``Create(Note)`` activity: persists the note to the
-    DataLayer and, when the note specifies a case context, attaches it to
+    DataLayer and, when the note specifies a case context, has the case's
+    CASE_MANAGER commit the activity as a ledger entry and attach the note to
     the VulnerabilityCase.
 
     Each step is idempotent, so replaying the same activity yields the same
@@ -69,31 +77,36 @@ def create_note_tree(
         Root node of the CreateNoteBT behavior tree (Sequence).
     """
     # SaveNoteNode upserts the Note object itself, which every replica keeps
-    # (CLP-10-017); attaching it to the case is canonical case state only the
-    # CASE_MANAGER writes (RSH-08-003).  ``add_note_to_case`` is committed and
-    # replayed (Note slot), so a replica learns the attachment from the ledger
-    # fan-out, not from the direct Create(Note) (#3814).  A note that names no
-    # case attaches to nothing, so the gated node is omitted entirely then.
+    # (CLP-10-017).  Attaching it to the case is a change to the case file
+    # that only the CASE_MANAGER makes (RSH-08-003), and a change with no
+    # committed entry is not made (CLP-07-013): the Create(Note) states the
+    # attachment through the note's ``context``, so its own entry
+    # (``create_note``) is the attachment's entry, and a replica attaches the
+    # note when it applies that entry (``IsAddNoteEventNode`` slot, #4441).  A
+    # note that names no case changes no case file, so the commit and the
+    # gated attach are omitted entirely then.
     manager_effects: list[py_trees.behaviour.Behaviour] = []
     if case_id is not None:
         manager_effects.append(
             AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id)
         )
+    names_a_case = bool(manager_effects)
     root = create_receive_activity_tree(
         name="CreateNoteBT",
-        case_id=None,
+        case_id=case_id,
         precondition_guards=[],
-        replica_effects=[SaveNoteNode(note_obj=note_obj)],
-        manager_effects=manager_effects or None,
-        manager_case_id=case_id if manager_effects else None,
-        manager_gate_name=(
-            "AttachNoteToCaseIfCaseManager" if manager_effects else None
-        ),
         # A receiver that does not hold the named case is simply not its
         # CASE_MANAGER (not a Regime-1 anomaly): it keeps the Note object but
-        # attaches nothing, and takes the attachment from the ledger
-        # (RSH-08-003, ADR-0087 Regime 3).
-        manager_case_may_be_absent=bool(manager_effects),
+        # commits and attaches nothing, and takes the attachment from the
+        # ledger (RSH-08-003, ADR-0087 Regime 3).
+        case_may_be_absent=names_a_case,
+        replica_effects=[SaveNoteNode(note_obj=note_obj)],
+        manager_effects=manager_effects or None,
+        manager_case_id=case_id,
+        manager_gate_name=(
+            "AttachNoteToCaseIfCaseManager" if names_a_case else None
+        ),
+        manager_case_may_be_absent=names_a_case,
     )
     logger.info(
         "Created CreateNoteBT for note=%s, case=%s", note_obj.id_, case_id

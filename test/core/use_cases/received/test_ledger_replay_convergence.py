@@ -71,6 +71,10 @@ from vultron.wire.as2.factories import (
     rm_defer_case_activity,
     rm_engage_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Create,
+)
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
@@ -499,6 +503,40 @@ def test_a_replica_follows_a_participants_engagement_decision(
         assert _rm(net, store_of, OWNER) == owner_before[store_of], store_of
 
 
+def _create_note(net: LedgerNetwork, note_id: str) -> as_Create:
+    """A bystander's ``Create(Note)`` whose note names the network's case."""
+    return as_Create(
+        actor=BYSTANDER,
+        object_=as_Note(
+            id_=note_id, content="A general inquiry", context=net.case_id
+        ),
+        to=[MANAGER],
+    )
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("TB-06-007")
+def test_a_replica_follows_a_note_attached_from_a_create():
+    """Create(Note) naming the case: the CASE_MANAGER commits the attachment
+    and the owner's replica attaches the note from that entry alone (#4441)."""
+    net = LedgerNetwork(
+        "https://example.org/cases/replay-create-note", em_state=EM.NONE
+    )
+    note_id = "https://example.org/notes/replay-create-note"
+    _send(net, _create_note(net, note_id))
+
+    assert "create_note" in _ledger(net, MANAGER)
+    assert "create_note" in _replay(net, OWNER)
+    manager, replica = net.case(MANAGER), net.case(OWNER)
+    assert note_id in [_as_id(n) for n in manager.notes]
+    assert [_as_id(n) for n in replica.notes] == [
+        _as_id(n) for n in manager.notes
+    ]
+    # The replica holds the note itself, not a dangling reference.
+    assert net.stores[OWNER].read(note_id) is not None
+
+
 # ---------------------------------------------------------------------------
 # AC-6, "writes nothing" half (RSH-08-003, #3814): an activity delivered
 # straight to a replica — not the CASE_MANAGER — changes no participant or
@@ -600,3 +638,23 @@ def test_case_status_writes_nothing_at_a_replica():
 # ``test_report_routing_guard.py`` and ``test_receive_tree_ledger_commit.py``;
 # #4304 made those verdicts committed and replayed, so gating them is safe
 # (RSH-08-003).
+
+
+@pytest.mark.spec("RSH-08-003")
+@pytest.mark.spec("TB-06-007")
+def test_create_note_writes_no_attachment_at_a_replica():
+    """Create(Note) delivered straight to a replica keeps the Note object but
+    attaches nothing and commits nothing; the attachment comes from the
+    CASE_MANAGER's entry (RSH-08-003, CLP-07-013)."""
+    net = LedgerNetwork(
+        "https://example.org/cases/direct-create-note", em_state=EM.NONE
+    )
+    note_id = "https://example.org/notes/direct-create-note"
+    notes_before = list(net.case(OWNER).notes)
+    ledger_before = _ledger(net, OWNER)
+
+    _deliver_direct(net, OWNER, _create_note(net, note_id))
+
+    assert net.stores[OWNER].read(note_id) is not None
+    assert net.case(OWNER).notes == notes_before
+    assert _ledger(net, OWNER) == ledger_before
