@@ -3,6 +3,7 @@ title: Specs vs. ADRs — Delineation Guidelines
 status: active
 related_specs:
   - specs/meta-specifications.yaml
+  - specs/architecture.yaml
 related_notes:
   - notes/bt-pitfalls.md
   - notes/spec-authoring-rules.md
@@ -96,6 +97,35 @@ currently-accurate statements. That pursued the same goal — keeping stale deta
 out of a reader's way — through the only mechanism available while every ADR body
 was read as routine agent context. Records revised in place under it are left as
 they are.
+
+### Every live record is reachable from a spec or a note, or is record-only
+
+Once routine context stops loading record bodies, a decision stated nowhere but a
+body is lost. So every live record (not archived, and not superseded, deprecated
+or rejected) needs a **back-edge**: an `adr:` edge on a requirement, or a citation
+of the record in a `specs/` or `notes/` file. A record without one is handled one
+of three ways:
+
+- **A requirement already covers the decision** — add the record to that
+  requirement's `adr:` field. This is the usual case, and the structured edge is
+  the one tooling can traverse.
+- **Nothing covers it** — state the decision in full in a spec requirement (when
+  testable) or a `notes/` file (when design insight), citing the record as
+  provenance. Do not point into the body for the meaning.
+- **The record is legitimately record-only** — a one-time process choice with no
+  per-change requirement (MS-11-006). Add it to `RECORD_ONLY_EXEMPTIONS` in
+  `vultron/metadata/adr/back_edges.py`, a pinned exemption set (ARCH-18-005):
+  it has no terminal value and is not a backlog. Its members are the
+  records about how this project keeps decision records at all.
+
+`uv run adr-back-edges` reports every live record with no back-edge and no
+exemption, and every exemption that is no longer needed, computed from the corpus
+on each run. `test/metadata/test_adr_back_edges.py` fails on either, so a new
+record without a home fails CI rather than silently going dark.
+
+A prose citation counts as a back-edge, but only the structured `adr:` edge is
+something a tool can walk from a record to its requirements. Prefer the edge
+whenever a requirement covers the decision.
 
 ---
 
