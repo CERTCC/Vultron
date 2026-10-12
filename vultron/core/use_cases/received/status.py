@@ -178,6 +178,8 @@ class AddCaseStatusToCaseReceivedUseCase:
             activity=request,
         )
 
+        if (refusal := post_close_refusal(tree)) is not None:
+            return refusal  # dropped with no reply, no fault (CM-23-017)
         if (
             result.status != Status.SUCCESS
             and BTBridge.get_failure_reason(tree)
@@ -191,8 +193,6 @@ class AddCaseStatusToCaseReceivedUseCase:
             return HandlerResult.skipped(
                 f"CaseStatus '{status_id}' already in case '{case_id}'"
             )
-        if (refusal := post_close_refusal(tree)) is not None:
-            return refusal  # dropped with no reply, no fault (CM-23-017)
         verdict = verdict_from_bt(tree, result, label="AddCaseStatusToCaseBT")
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
