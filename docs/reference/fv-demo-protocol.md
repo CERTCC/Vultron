@@ -136,7 +136,7 @@ POST /api/v2/actors/{vendor_id}/trigger/engage-case
 3. The Case Actor creates the case, seats itself as `CASE_MANAGER`, the Vendor as `CASE_OWNER` at `RM.RECEIVED`, and the Finder as `REPORTER` at `RM.ACCEPTED`, initializes the Vendor's default embargo, and seeds both participants' [embargo consent](../topics/behavior_logic/use-cases/embargo-lifecycle.md) as signatories.
    The embargo is therefore `ACTIVE` from the first ledger entry without a proposal round-trip (EP-04-001).
    It then sends `Accept(CaseProposal)` to the Vendor, followed by `Create(VulnerabilityCase)` to both the Vendor and the Finder.
-   That `Create` carries the case with its participants inline; it is the trust bootstrap that lets the Finder bind the Case Actor's identity to this case (CBT-01-001).
+   That `Create` carries the case with its participants inline; it is the [trust bootstrap](../topics/case_lifecycle/case_authority_and_trust.md#trust-bootstrap-how-a-participant-learns-whom-to-trust) that lets the Finder bind the Case Actor's identity to this case (CBT-01-001).
 4. The Vendor's `validate-report` trigger sends Report Valid (RV) to the Case Actor, and the Vendor's participant record advances to `RM.VALID`.
 5. The Vendor's `engage-case` trigger sends Report/Case Accepted (RA), and the record advances to `RM.ACCEPTED`.
 

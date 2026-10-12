@@ -112,7 +112,7 @@ Parties disagree about when an embargo starts, who can invite additional Partici
 Vultron gives these negotiations a shared vocabulary.
 Embargoes move through explicit states (Proposed, Active, Revise, eXited).
 Invitations follow formal invite, accept, and reject handshakes.
-A trust bootstrap mechanism lets previously unknown parties establish a relationship.
+A [trust bootstrap](../case_lifecycle/case_authority_and_trust.md#trust-bootstrap-how-a-participant-learns-whom-to-trust) mechanism lets previously unknown parties establish a relationship.
 This *diplomatic* layer lets parties who do not fully trust each other coordinate without a central authority.
 
 ### 4. Coordinative: ad-hoc interoperability

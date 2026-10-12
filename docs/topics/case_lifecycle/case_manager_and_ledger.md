@@ -103,6 +103,7 @@ How a replica holds that early entry until the one before it arrives, and why th
 - [The Case Model](case_model.md) — the objects a case is made of and the roles participants hold
 - [Case Ledger Synchronization](case_ledger_sync.md) — ordering, out-of-order entries, and what a replica guarantees
 - [Case Ownership Transfer](ownership_transfer.md) — how the `CASE_OWNER` role moves from one participant to another
+- [Case Authority, Trust, and Routing](case_authority_and_trust.md) — who may change what, why messages route through the CASE_MANAGER, and how a participant learns which actor to trust
 - [Actor Knowledge Model](../actor-knowledge-model.md) — why nothing can be learned except by receiving a message
 - [Federation](../future_work/federation.md#the-case-ledger-and-the-delivery-log) — future work on the ledger when each organization runs its own service
 - [Protocol specifications](../../reference/specs/protocol.md) — the normative requirements behind this page, including CLP-01, CLP-04, PCR-03, and SYNC-01 through SYNC-03

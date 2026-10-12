@@ -38,6 +38,7 @@ If it does, it creates the case and sends `Create(VulnerabilityCase)` with itsel
 - [Case Proposal Messages](../../reference/messages/case_proposal.md) — the `Create`, `Accept`, and `Reject` activities on the wire
 - [The Case Model](case_model.md) — `VulnerabilityCase`, participants, and roles
 - [Ownership Transfer](ownership_transfer.md) — how the `CASE_OWNER` role moves between participants
+- [Case Authority, Trust, and Routing](case_authority_and_trust.md) — how the participants a case starts with learn to trust its CASE_MANAGER
 - [ADR-0023](../../adr/0023-case-proposal-protocol.md) — decision record for the `CaseProposal` mechanism
 - [ADR-0041](../../adr/0041-caseactor-authoritative-case-initialization.md) — CaseActor-authoritative case initialization
 - [ADR-0045](../../adr/0045-create-vulnerability-case-field-assignment.md) — `context` vs `in_reply_to` field assignment
