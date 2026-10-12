@@ -52,6 +52,7 @@ _KNOWN_NON_TRIGGER_ROUTES = frozenset(
     {
         ("GET", "/api/v2/actors/{actor_id}/demo/cases/{case_id}/log"),
         ("GET", "/api/v2/actors/{actor_id}/demo/cases/{case_id}/log/{index}"),
+        ("GET", "/api/v2/actors/{actor_id}/demo/cases/{case_id}/log/stream"),
     }
 )
 
@@ -154,7 +155,7 @@ def test_every_mounted_verb_looks_up_to_its_row(paths: dict[str, Any]) -> None:
 def test_only_the_known_ledger_reads_are_non_trigger_routes(
     paths: dict[str, Any],
 ) -> None:
-    """Every non-POST operation under either prefix is one of the two ledger GETs.
+    """Every non-POST operation under either prefix is one of the ledger GETs.
 
     Pins the exclusion the bijection relies on: a new non-trigger route under
     ``/trigger/`` or ``/demo/`` shows up here instead of being skipped.
