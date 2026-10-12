@@ -95,7 +95,9 @@ The growth guards then see no new uncovered protocol spec and no new suppression
 This decision changes the rule, the schema, and the tooling.
 It does not re-judge the corpus: the suppressed and story-less protocol specs are #3601's, and the sweep that relabels inherited-standard rules to `foundation` is #4529's.
 
-The gates that were written for `protocol` stay `protocol`-only: the story-traceability gate (SR-11-003, SR-11-004), the marker-coverage guard (SR-05-004, SR-05-005), and the code-reference detector (MS-12-006).
+`foundation` joins `protocol` in the marker-coverage guard (SR-05-004, SR-05-005): every rule an implementer must obey needs a test, whether Vultron defines it or inherits it.
+A PR that adds an uncovered `protocol` or `foundation` spec fails, and a relabel from `protocol` to `foundation` keeps its marker.
+The story-traceability gate (SR-11-003, SR-11-004) and the code-reference detector (MS-12-006) stay `protocol`-only, because user stories describe Vultron behavior, and the rules Vultron inherits from ActivityStreams, ActivityPub and HTTP are not Vultron behavior.
 `foundation` starts with no verification-debt owner, so an unverified `foundation` MUST needs a `verification:` clause, never a marker (MS-10-007).
 
 ### Consequences
@@ -104,13 +106,15 @@ The gates that were written for `protocol` stay `protocol`-only: the story-trace
 - Good, because inherited rules are separated from Vultron's own and each names the standard that owns it.
 - Good, because the split rule keeps the protocol half on its original ID, so a split never trips a growth guard.
 - Bad, because "who must obey" is a judgement: the detector can only flag the mechanical symptom (a code token in a protocol statement), not decide the kind.
-- Bad, because a protocol spec relabeled to `foundation` leaves the protocol-only marker-coverage and story gates; the `foundation` sweep has to keep that move from becoming a way around them.
+- Bad, because a protocol spec relabeled to `foundation` leaves the protocol-only story gate; the `foundation` sweep has to keep that move from becoming a way around it.
+  The marker-coverage guard covers both kinds, so the relabel does not escape it.
 - Neutral, because the CASE_MANAGER role and case-ledger sync are classified for the current, centralized design and are expected to be re-judged if that design changes.
 
 ## Validation
 
 - `SpecKind` in `vultron/metadata/specs/schema.py` has the five values, and its docstring carries the definitions above.
 - `spec-lint` fails a `foundation` spec whose effective tags name no standard (MS-12-009), and its MS-12-006 message advises rewording or splitting, never relabeling.
+- The PR-only marker-coverage guard fails a PR that adds an uncovered `protocol` or `foundation` spec (SR-05-005).
 - Every kind has a docs page under `docs/reference/specs/`, enforced by `test/metadata/specs/test_kind_page_coverage.py`.
 
 ## Pros and Cons of the Options
@@ -143,4 +147,4 @@ The gates that were written for `protocol` stay `protocol`-only: the story-trace
 This ADR partially supersedes ADR-0038: it replaces the four tiers with five and replaces the decision tree's second question.
 ADR-0038's move from six kinds to named portability tiers stands.
 
-Generated spec requirements: `specs/meta-specifications.yaml` MS-12-002, MS-12-003, MS-12-005, MS-12-006, MS-12-009 and MS-12-010, and `specs/spec-registry.yaml` SR-02-005.
+Generated spec requirements: `specs/meta-specifications.yaml` MS-12-002, MS-12-003, MS-12-005, MS-12-006, MS-12-009 and MS-12-010, and `specs/spec-registry.yaml` SR-02-005, SR-05-004 and SR-05-005.

@@ -514,31 +514,41 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      Tests that verify a protocol-tier requirement (spec items with kind equal to "protocol") MUST carry
-      `@pytest.mark.spec("<ID>")` linking the test to the requirement it exercises. Tests for other requirement kinds
-      SHOULD use the marker to enable coverage reporting by spec ID.
+      Tests that verify a requirement every implementation must obey (spec items with kind equal to "protocol" or
+      "foundation") MUST carry `@pytest.mark.spec("<ID>")` linking the test to the requirement it exercises. Tests for
+      other requirement kinds SHOULD use the marker to enable coverage reporting by spec ID.
     rationale: >-
-      Protocol-kind requirements are conformance-critical. Without a marker, coverage for those requirements is
-      unverifiable and the CI coverage guard (SR-05-005) cannot enforce it. The SHOULD for non-protocol kinds preserves
-      opt-in adoption for lower-stakes requirements.
+      Protocol- and foundation-kind requirements are conformance-critical. Without a marker, coverage for those
+      requirements is unverifiable and the CI coverage guard (SR-05-005) cannot enforce it. `foundation` is covered
+      with `protocol` because every rule an implementer must obey needs a test, whether Vultron defines it or inherits
+      it (ADR-0133). The SHOULD for other kinds preserves opt-in adoption for lower-stakes requirements.
+    adr:
+    - ADR-0133
   - id: SR-05-005
     priority: MUST
     kind: project
     statement: >-
-      No pull request may add an uncovered protocol-tier requirement: CI MUST fail a pull request when a `kind:
-      protocol` ID that no `@pytest.mark.spec` marker covers at the PR head was covered, or was not a protocol
-      requirement, at the merge base with the base branch, and MUST list each such ID. A requirement that leaves the
-      protocol tier or is retired is not an addition, and the check MUST NOT compare against a committed count.
+      No pull request may add an uncovered `protocol` or `foundation` requirement: CI MUST fail a pull request when a
+      `kind: protocol` or `kind: foundation` ID that no `@pytest.mark.spec` marker covers at the PR head was covered,
+      or was of neither kind, at the merge base with the base branch, and MUST list each such ID. A requirement that
+      leaves both kinds or is retired is not an addition, and the check MUST NOT compare against a committed count.
     rationale: >-
       A SHOULD-only marker rule produced near-zero adoption with no enforcement signal. Markers record coverage per
       item, so the check compares the uncovered set at the base with the set at the head and commits no number: a
       one-sided ceiling collects silent slack and a two-sided pin races every concurrent PR
-      (`notes/testing-pitfalls.md`). `spec-coverage` prints the live uncovered total.
+      (`notes/testing-pitfalls.md`). `spec-coverage` prints the live uncovered total. `foundation` is guarded with
+      `protocol` because every rule an implementer must obey needs a test (ADR-0133), and treating the two as one
+      set means a relabel from `protocol` to `foundation` is not a way around the guard. The story gate (SR-11-003)
+      stays `protocol`-only, because user stories describe Vultron behavior and inherited ActivityStreams,
+      ActivityPub and HTTP rules are not Vultron behavior.
     verification: >-
-      `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_adds_an_uncovered_protocol_spec` fails on each ID
+      `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_adds_an_uncovered_implementer_spec` fails on each ID
       uncovered since the merge base and runs in CI with full history, and `test/metadata/specs/test_growth_guard.py`
-      exercises the guard on fixture repositories for a new unmarked spec, a removed last marker, an unchanged corpus,
-      a relabel in and out, a retired spec, and the logged skip when no base ref is available.
+      exercises the guard on fixture repositories for a new unmarked protocol spec, a new unmarked foundation spec, a
+      removed last marker, an unchanged corpus, a relabel in and out, a relabel from protocol to foundation with and
+      without a marker, a retired spec, and the logged skip when no base ref is available.
+    adr:
+    - ADR-0133
   - id: SR-05-006
     priority: MUST
     kind: project

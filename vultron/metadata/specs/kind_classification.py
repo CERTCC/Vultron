@@ -152,8 +152,8 @@ def check_foundation_standard_tags(registry: SpecRegistry) -> list[str]:
     """Hard errors for ``foundation`` specs that name no standard (MS-12-009).
 
     A ``foundation`` rule is inherited from a standard beneath Vultron, and its
-    effective tags (its own, or its file's) MUST name which one with at least
-    one of :data:`FOUNDATION_STANDARD_TAGS`. Not suppressible: the tag is what
+    effective tags (its own, or its file's when it has none of its own) MUST
+    name which one with at least one of :data:`FOUNDATION_STANDARD_TAGS`. Not suppressible: the tag is what
     lets a reader trace the rule to the standard that owns it.
     """
     wanted = ", ".join(sorted(tag.value for tag in FOUNDATION_STANDARD_TAGS))

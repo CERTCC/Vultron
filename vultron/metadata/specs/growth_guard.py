@@ -39,7 +39,7 @@ An *extractor* error on the base tree is not a skip either: it is re-raised as
 :class:`BaseExtractionError`, naming the merge base, because the failing tree
 is the one materialized from git, not the working tree.
 
-Consumers: the protocol-coverage guard (SR-05-005) and the
+Consumers: the marker-coverage guard (SR-05-005) and the
 ``missing_story_reference`` guard (MS-12-007) under ``test/architecture/``.
 The planned ``verification_debt`` guard (#4200) is meant to reuse it.
 """

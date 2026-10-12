@@ -8,7 +8,7 @@ description: >
   ADR-0133), the split rule for a spec that mixes kinds, and why copying
   neighbouring entries is the wrong heuristic; the exact enum values
   spec-lint accepts for `kind`, `priority`, and `rel_type`; keys that are
-  silently dropped; the PR-only protocol-coverage and suppression growth
+  silently dropped; the PR-only marker-coverage and suppression growth
   guards and the xfail pattern; the audit passes required when retiring a
   name or splitting a compound requirement; priority tiers (MS-02-003/004);
   and the per-requirement `verification_debt` marker and its owner and
@@ -210,10 +210,11 @@ consequences, each with a tool:
 - **The suppression goes with the old kind.** `scripts/relabel_spec_kinds.py`
   applies a `{spec_id: kind}` mapping and strips `missing_story_reference` from
   each item in one pass, preserving every other line byte for byte. The
-  live uncovered total `spec-coverage` prints drops too, since a spec that leaves
-  the protocol tier leaves that population. The protocol-coverage guard never
-  counts a relabel out as an addition; a relabel *into* `protocol` needs a marker
-  in the same PR.
+  live uncovered total `spec-coverage` prints drops too, since a spec that
+  leaves `protocol` and `foundation` leaves that population. The marker-coverage
+  guard never counts a relabel out as an addition, and a relabel from
+  `protocol` to `foundation` keeps its marker; a relabel *into* either kind from
+  another needs a marker in the same PR.
 
 ### Valid `priority:` Values — Underscores, Not Spaces
 
@@ -417,20 +418,27 @@ why it cannot.
 
 ---
 
-## Protocol Coverage Guard
+## Marker Coverage Guard
 
-### Adding or Modifying a `kind: protocol` Entry Requires a Same-PR Marker Test
+### A `protocol` or `foundation` Entry Requires a Same-PR Marker Test
 
-(SR-05-005, ISSUE-2117, ISSUE-4315)
+(SR-05-005, ISSUE-2117, ISSUE-4315, ISSUE-4528)
+
+The guard covers `kind: protocol` and `kind: foundation` together: every rule an
+implementer must obey needs a test, whether Vultron defines it or inherits it
+(ADR-0133). The story gate (SR-11-003) stays `protocol`-only, because user
+stories describe Vultron behavior and inherited rules are not Vultron behavior.
 
 The PR-only growth guard
-(`test_no_pr_adds_an_uncovered_protocol_spec` in
+(`test_no_pr_adds_an_uncovered_implementer_spec` in
 `test/architecture/test_spec_coverage_ratchet.py`) compares the set of uncovered
-`kind: protocol` IDs at the merge base with `origin/main` (or
+`protocol` and `foundation` IDs at the merge base with `origin/main` (or
 `origin/$GITHUB_BASE_REF` in CI) against the working tree, and fails on each ID
-the branch added to it: a new protocol spec with no marker, removal of an ID's
-last `@pytest.mark.spec` marker, or a relabel into `kind: protocol` without one.
-A relabel out of protocol or a retired spec leaves the set and never fails it.
+the branch added to it: a new spec of either kind with no marker, removal of an
+ID's last `@pytest.mark.spec` marker, or a relabel into either kind without one.
+A relabel from `protocol` to `foundation` stays in the set, so it keeps its
+marker and never fails the guard. A relabel out of both kinds or a retired spec
+leaves the set and never fails it.
 No count is committed, so there is no constant to lower or raise; `spec-coverage`
 prints the live total.
 
@@ -445,8 +453,8 @@ resolves (a shallow clone, or no `origin/main`). CI checks out with
 `missing_story_reference` guard (MS-12-007) uses it too, and any new per-item
 debt guard should (#4200 is the next).
 
-`spec-coverage` reports `kind: protocol` IDs only. A `project`- or other-kind ID
-never appears in its output, covered or not, so an acceptance criterion reading
+`spec-coverage` reports `protocol` and `foundation` IDs only. An ID of any other
+kind never appears in its output, covered or not, so an acceptance criterion reading
 "`spec-coverage` shows `<ID>` covered" cannot be met for one (#3565's AC-6
 asked this of VM-06-008). Write such a criterion as "a test carries
 `@pytest.mark.spec("<ID>")`" and check it with `grep`.

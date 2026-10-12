@@ -2137,6 +2137,20 @@ def test_foundation_standard_tag_inherited_from_file_passes(tmp_path, capsys):
     assert not _foundation_lines(capsys.readouterr().err)
 
 
+@pytest.mark.spec("MS-12-009")
+def test_foundation_spec_tags_replace_file_standard_tag(tmp_path, capsys):
+    """Spec-level tags replace file-level ones, so a file's standard tag does
+    not rescue a foundation spec whose own tags name no standard."""
+    data = _minimal_spec_no_stories(kind="foundation")
+    data["groups"][0]["specs"][0]["tags"] = ["messaging"]
+    data["tags"] = ["as2"]
+    write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    (line,) = _foundation_lines(capsys.readouterr().err)
+    assert result == 1
+    assert "TST-01-001" in line
+
+
 def test_standard_tag_on_a_protocol_spec_is_allowed(tmp_path, capsys):
     """A protocol rule that narrows a standard may carry its tag (MS-12-009)."""
     data = _minimal_spec_no_stories(kind="protocol")

@@ -267,6 +267,14 @@ class SpecTag(StrEnum):
     BEHAVIORAL = "behavioral"
 
 
+#: The kinds every Vultron implementation must obey: the kinds an implementer
+#: reads, and the kinds whose every requirement needs a test marker (SR-05-004,
+#: SR-05-005, ADR-0133). The story gate (SR-11-003) stays ``protocol``-only.
+IMPLEMENTER_KINDS: frozenset[SpecKind] = frozenset(
+    {SpecKind.PROTOCOL, SpecKind.FOUNDATION}
+)
+
+
 #: The tags that name the standard a ``foundation`` rule is inherited from.
 #: Every ``foundation`` spec carries at least one (MS-12-009).
 FOUNDATION_STANDARD_TAGS: frozenset[SpecTag] = frozenset(
