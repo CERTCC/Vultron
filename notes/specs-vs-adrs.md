@@ -9,6 +9,7 @@ related_notes:
   - notes/spec-authoring-rules.md
   - notes/agentic-workflow.md
   - notes/documentation-sweeps.md
+  - notes/user-story-catalog.md
 ---
 
 # Specs vs. ADRs — Delineation Guidelines

@@ -6,43 +6,34 @@ source: ISSUE-2655
 signal: theme-candidate
 ---
 
-PR #3923 replaced the outbox's re-read-and-normalise delivery with a sealed
-body relayed byte for byte. Locally everything was green: 11,760 unit tests, 1,300
-integration tests including the three-node in-process topologies in
-`test/demo/test_remote_case_actor_invite.py` and the new
-`test/demo/test_sealed_body_wire.py`, and a three-scenario demo pass a review
-sub-agent ran. The PR's Docker demo CI then failed three times in a row, each
-time on a different latent bug the faithful body exposed:
+**Trigger.** Unit and in-process integration suites are green, but the Docker
+demo fails with a "missing object" symptom on the *receiving* side (`no
+VulnerabilityCase for report`, `Invalid RM transition START → …`, `no routable
+recipients`), and the change touched what an outbound payload carries.
 
-- `invite_actor_to_case` handed an inline `EmbargoEvent` to `dl.read()` — a
-  case seeded from a sealed `Announce` carries its embargo inline;
-- `find_case_by_report_id` matched inline reports on `id_` while stored rows
-  are re-keyed to `id`;
-- the sealed `Announce`/`Create(VulnerabilityCase)` carried participants as
-  bare ids, because the removed delivery-time `dl.hydrate()` had been the only
-  thing expanding them (CBT-01-007, CP-09-004).
+**Claim.** In that situation the in-process pass is not evidence about payload
+completeness. The in-process topologies seed the case, its participants, and its
+embargo into *every* node's store (`_seed_case(owner_dl, …)`,
+`_seed_case(ca_dl, …)`) before exercising one protocol step. A receiver that
+already holds everything never depends on what the wire carried, so a body that
+omits objects, or carries them in a shape the receiver cannot index, looks the
+same as a complete one. Only the Docker demos bootstrap a participant solely
+from delivered `Create`/`Announce` activities.
 
-None of these can show in the in-process suites as written, and the reason is
-structural rather than a missing assertion. The in-process topologies seed the
-case, its participants, and its embargo directly into *every* node's store
-(`_seed_case(owner_dl, …)`, `_seed_case(ca_dl, …)`) and then exercise one
-protocol step on top. A receiver that already holds the case, the participants
-and the embargo never depends on what the wire carried, so a body that omits
-them (or carries them in a shape the receiver's store cannot index) is
-indistinguishable from a complete one. Only the Docker demos, where the vendor
-learns of the case solely through the bootstrap `Create`/`Announce`, exercise
-the completeness contract the outbox change moved from the handler into the
-factory.
+**Evidence.** PR #3923 (sealed outbox bodies) was green on about 13,000 tests
+and failed Docker demo CI three times, each on a different latent receive-side
+bug the faithful body exposed: an inline `EmbargoEvent` handed to `dl.read()`,
+`find_case_by_report_id` matching on `id_` against rows keyed `id`, and
+participants sent as bare ids once delivery-time `dl.hydrate()` was removed
+(CBT-01-007, CP-09-004).
 
-The recognisable trigger: unit and in-process integration are green, the
-Docker demo fails with a "missing object" symptom on the *receiving* side
-(`no VulnerabilityCase for report`, `Invalid RM transition START → …`,
-`no routable recipients`), and the change touched what an outbound payload
-carries. In that situation the in-process pass is not evidence about payload
-completeness. Two remedies seem worth weighing rather than asserting from one
-instance: an in-process topology whose participant node starts *empty* and is
-bootstrapped only by delivered activities (the harness in `test/demo/conftest.py`
-supports it — `test_pcr_bootstrap.py` does this for a two-node Announce), and a
-ratchet on the sealed body itself, which #3923 added for the trigger port
-(`test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py`) but
-which does not cover the receive-side projections that consume the payload.
+**How to apply.** When the change touches payload contents, reproduce with a
+topology whose participant node starts *empty* and is bootstrapped only by
+delivered activities. `test/demo/conftest.py` supports this;
+`test_pcr_bootstrap.py` does it for a two-node Announce. Don't count a seeded
+topology as coverage. The sealed-body ratchet
+(`test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py`)
+covers the trigger port, not the receive-side projections that consume it.
+
+**What would confirm it.** A second payload-shape change that passes in-process
+and fails only in the Docker demos.
