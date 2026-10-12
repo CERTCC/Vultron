@@ -30,7 +30,7 @@ are the product**.
 | `notes/` | `notes/*.md` frontmatter | `NotesFrontmatter` |
 | `adr/` | `docs/adr/*.md` frontmatter | `AdrFrontmatter` |
 | `history/` | `plan/history/**/*.md`, `plan/incoming/learnings/*.md` | `HistoryEntryFrontmatter` |
-| `msm/` | the `occasions` and `page` on each `SEMANTIC_REGISTRY` entry; derives mapping status and "Sent by" | — |
+| `msm/` | the `occasions` and `page` on each `SEMANTIC_REGISTRY` entry; derives mapping status, "Sent by" and section headings; generates `msm/occasions.yaml` and `docs/reference/messages/_occasions/` (`occasions.py`) | `OccasionTable` (`_mapping.py`) |
 | `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
 | `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md` (`glossary_index.py`); the built `site/` tree (`withheld.py`, `links.py`, `legacy_urls.py`, via `built_site.py`); each page's rendered HTML at build time (`anchor_ids.py`, an `on_page_content` hook under `hooks:` in `mkdocs.yml` — registers exec-emitted ids as anchor targets for `--strict`, #3735); the assembled `full.md` Markdown at build time (`full_page_links.py`, an `on_page_markdown` hook under `hooks:` — rewrites the Protocol Specification's same-section `page.md#fragment` links to in-page `#fragment` links on its single-page edition only, #4092); every `docs/**/*.md` page's `stakeholder_type`/`level` (`page_frontmatter.py`, DF-11) | `PageFrontmatter`, `WorkingRecordFrontmatter` (`page_schema.py`); publication axis: DOCBW-03-005; reference axis: DOCBW-03-007; continuity axis: DOCBW-03-008 |
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin; a branch diff (`size_bands.py`, `targeted_tests.py`) | — (selection rules: PAD-15; local test gate: PAD-18) |
@@ -72,18 +72,18 @@ the private spelling will not find a public duplicate** — search for the behav
 
 ## Generate vs. Check
 
-Two subpackages own committed generated artifacts, and both split the same way:
+Three subpackages own committed generated artifacts, and all split the same way:
 **generate what is derivable, check what is prose.** `adr/index_gen.py`
-regenerates `docs/adr/index.md` but only checks the MkDocs nav, whose labels are
-hand-written; `demo_scenarios/` regenerates the CI matrix and two scenario
-tables but leaves the spec enumerations and nav to completeness checks. Each is
-wired into pre-commit as a `--check` hook (`adr-index-sync`,
-`demo-scenarios-sync`). A generated file that is committed but ungated is a
-hand-edited file with extra steps. `docs/landing_pages.py` (`docs-site-sync`)
-makes the split per page: an `index.md` that opens a nav group declares
-`contents: generated | routing | rendered`, and a routing index is *checked* to
-link every member of its section instead of being written (#3617). Do not add a
-fourth shape or a default — an undeclared group index is a fault on purpose.
+regenerates `docs/adr/index.md` but only checks the hand-labelled nav;
+`demo_scenarios/` regenerates the CI matrix and two scenario tables but leaves
+spec enumerations and nav to completeness checks; `msm/occasions.py` regenerates
+the occasion YAML and its fragments, not the page prose. Each is a `--check`
+hook (`adr-index-sync`, `demo-scenarios-sync`, `msm-occasions-sync`) comparing
+byte for byte via `generated_files.py`; an ungated one is hand-edited.
+`docs/landing_pages.py` (`docs-site-sync`) splits per page: a nav group's
+`index.md` declares `contents: generated | routing | rendered`, and a routing
+index is *checked* to link every member of its section, not written (#3617).
+No fourth shape or default: an undeclared group index is a fault on purpose.
 
 One trap specific to build-time rendering: MkDocs rewrites `.md` links with a
 treeprocessor on **its own** `Markdown` instance, and `markdown-exec` converts a
@@ -109,7 +109,7 @@ as a path-prefixed `ValueError` — the shape every hand-written copy took.
 | `load_yaml(path, root=, loader=)` | a whole YAML file (`specs/*.yaml`) |
 | `load_frontmatter(path, root=)` | a markdown file's frontmatter block |
 | `loads_frontmatter(text)` | the no-path form, for content not yet on disk |
-| `validate(Model, data, path=, root=, prefix=, key_lines=)` | the Pydantic half; `key_lines` locates the failure at its key's line |
+| `validate(Model, data, path=, root=, prefix=, key_lines=, positions=)` | the Pydantic half; `key_lines` locates the failure at its key's line, `positions` (from `yaml_node_positions(text)`) at the failing node's line and column |
 | `FailureCollector` | report **every** failing file, not the first (SR-03-009): these loaders reject the corpus as a unit, so stopping early reports less than the tool knows (EH-07-001 is the general principle; `load_registry` and `history/incoming.py` show the shape) |
 
 All raise `MetadataLoadError`, a `ValueError` subclass carrying `path`, `line`,

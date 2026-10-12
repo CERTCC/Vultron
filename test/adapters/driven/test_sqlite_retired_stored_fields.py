@@ -25,6 +25,7 @@ from typing import Any
 import pytest
 
 from vultron.adapters.driven.db_record import Record
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_proposal_admission import (
     CaseProposalAdmissionRecord,
 )
@@ -142,3 +143,43 @@ def test_a_row_under_the_new_name_reads_back(
 
     assert isinstance(record, cls)
     assert getattr(record, new) == OWNER_ID
+
+
+CASE_ID = "https://example.org/cases/c-legacy"
+
+
+@pytest.mark.spec("CLP-07-014")
+def test_a_case_row_carrying_the_moved_recommender_index_reads_absent(
+    dl, caplog
+) -> None:
+    """A case stored before #4448 still holds the recommender index.
+
+    The index is now the CASE_MANAGER's own ``ActorRecommendationRecord``;
+    the old case row is not converted, and reading it says the store must be
+    reset rather than reporting a bare "not found".
+    """
+    case = VulnerabilityCase(
+        id_=CASE_ID, attributed_to=OWNER_ID, name="Legacy case"
+    )
+    data = case.model_dump(mode="json", by_alias=True)
+    data["recommendationRecommenderIndex"] = {
+        "https://example.org/activities/o-legacy": OWNER_ID
+    }
+    dl.create(Record(id_=CASE_ID, type_="VulnerabilityCase", data_=data))
+
+    with caplog.at_level("WARNING"):
+        assert dl.read(CASE_ID) is None
+
+    assert "must be reset" in caplog.text
+    assert "'recommendationRecommenderIndex'" in caplog.text
+    assert "ActorRecommendationRecord.recommender_id" in caplog.text
+
+
+@pytest.mark.spec("CLP-07-014")
+def test_a_case_row_without_the_index_reads_back(dl) -> None:
+    case = VulnerabilityCase(
+        id_=CASE_ID, attributed_to=OWNER_ID, name="Current case"
+    )
+    dl.create(case)
+
+    assert dl.read(CASE_ID) == case

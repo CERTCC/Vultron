@@ -79,6 +79,7 @@ ENTRIES: list[SemanticEntry] = [
                     "propose"
                 ),
                 anchor="create-embargo-event",
+                heading="Create embargo event",
                 description=(
                     "Mints the embargo event that carries the proposed terms. "
                     "It precedes the Invite that proposes them."
@@ -124,6 +125,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the Case Manager states the terms of the embargo in force"
                 ),
                 anchor="announce-embargo",
+                heading="Announce embargo",
                 description=(
                     "Tells participants the terms of the active embargo. It "
                     "proposes nothing."
@@ -277,6 +279,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="the Case Owner decides to activate a proposed embargo",
                 anchor="activate-embargo",
+                heading="Activate embargo",
                 description=(
                     "Activates the proposal for the case. If an embargo is "
                     "already active, the proposal replaces it."
@@ -299,6 +302,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="the Case Owner decides to reject a proposed embargo",
                 anchor="reject-embargo-proposal",
+                heading="Reject embargo proposal",
                 description=(
                     "Rejects the proposal for the case. An active embargo "
                     "stays in force on its current terms."
