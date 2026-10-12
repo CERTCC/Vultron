@@ -24,6 +24,9 @@ Specs: DEMOMA-06-002, DEMOMA-06-003.
 import logging
 from collections.abc import Mapping, Sequence
 
+from vultron.core.predicates.case_closure import (
+    CASE_FULLY_CLOSED_EVENT_TYPE,
+)
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
@@ -452,8 +455,9 @@ def verify_case_closed(
     logger.info("✓ case closed: all participants RM.CLOSED on both replicas")
 
 
-#: The CASE_MANAGER's owner-close write boundary (ADR-0085, CM-23-002).
-CASE_FULLY_CLOSED = "case_fully_closed"
+#: The CASE_MANAGER's owner-close write boundary (ADR-0085, CM-23-002); the
+#: same constant the core post-close guard reads (CM-23-013).
+CASE_FULLY_CLOSED = CASE_FULLY_CLOSED_EVENT_TYPE
 
 #: The receipt entry of a ``Leave(VulnerabilityCase)`` (ADR-0050, CM-23-001).
 _CLOSE_CASE = "close_case"

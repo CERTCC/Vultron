@@ -107,8 +107,8 @@ copy after the guards; intake writing it would seed a replica ahead of trust
 factory-built tree with `activity=<event>` or it fails with `ACTIVITY_UNAVAILABLE`.
 The commit runs only for a canonical `(type, object)` signature (CLP-10-013);
 `Update(VulnerabilityCase)` has none, and `Announce(VulnerabilityCase)` is exempt
-(#4304), so both pass `case_id=None`. Intake-only handlers report via
-`intake_verdict()`. Full write-up: `notes/bt-integration.md` § "The Four Received-Side Stages".
+(#4304), so both pass `case_id=None`. Intake-only handlers use `intake_verdict()`.
+The factory adds the post-close guard (CM-23-013). See `notes/bt-integration.md`.
 
 **The factory owns the CASE_MANAGER gate (BT-17-008).** Pass effects as
 `replica_effects` (every replica, ungated) and `manager_effects` (gated by the

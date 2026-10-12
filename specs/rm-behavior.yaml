@@ -204,10 +204,16 @@ groups:
     kind: protocol
     statement: >-
       A Participant in RM Closed (q^rm ∈ C) receiving any R* message MAY
-      ignore it without sending a response.
+      ignore it without sending a response. The same holds for non-R* traffic
+      (EM, CS, GI) on a closed case (VP-03-013); for the CASE_MANAGER after
+      `case_fully_closed`, ignoring is not optional: it records nothing
+      (CM-23-013).
     rationale: >-
       Closed cases are terminal. The protocol permits silent discard to avoid
-      generating unnecessary traffic for completed work.
+      generating unnecessary traffic for completed work. The R* scope is this
+      group's trigger, not the limit of the rule: VP-03-013 covers every message
+      class, and ADR-0085 makes owner close a hard kill switch at the
+      CASE_MANAGER.
     testable: false
     lint_suppress:
     - testable_without_steps
@@ -1383,10 +1389,13 @@ groups:
     kind: protocol
     statement: >-
       A Participant in RM Closed (q^rm ∈ C) MAY ignore further R* messages
-      received on the closed report without sending a response.
+      received on the closed report without sending a response. Non-R* traffic
+      (EM, CS, GI) on a closed case is covered by VP-03-013, and the
+      CASE_MANAGER's kill switch after `case_fully_closed` by CM-23-013.
     rationale: >-
       Closed is a terminal state. The protocol permits silent discard to avoid
-      generating traffic for completed work.
+      generating traffic for completed work. ADR-0085 broadened the post-close rule
+      beyond R*: the CASE_MANAGER records no message of any class after owner close.
     testable: false
     lint_suppress:
     - testable_without_steps

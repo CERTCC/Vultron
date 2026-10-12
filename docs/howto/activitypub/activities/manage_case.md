@@ -125,7 +125,12 @@ What your closure does to the case depends on whether you are the Case Owner.
   The CASE_MANAGER advances you and itself to `RM.CLOSED` and commits a `case_fully_closed` ledger entry (CM-23-002).
   Every other participant keeps the RM state it already held — closure does not advance bystanders (CM-23-012).
 - If you want your departure recorded, leave **before** the Case Owner does (CM-23-015).
-  Once the case is fully closed, the CASE_MANAGER records nothing more for it, and might not reply to a later `Leave` at all (CM-23-013).
+  Once the case is fully closed, the CASE_MANAGER records nothing more for it (CM-23-013).
+  A `Leave(VulnerabilityCase)` you send after that is declined: nothing is recorded and your RM state on the case ledger stays where it was.
+  By default the CASE_MANAGER sends no reply to it.
+  A CASE_MANAGER configured with `post_close_reply: reject` answers it with an `as:Reject` of your `Leave` instead.
+- Any other activity you send for the case after it is fully closed, such as `Add(Note)`, is dropped: nothing is recorded, and the CASE_MANAGER never replies, whatever its configuration (ADR-0131).
+  Do not wait for a reply to an activity sent after the case has closed.
 
 !!! warning "An owner closure is refused while an embargo is active"
 

@@ -102,9 +102,11 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
                 sync_port=self._sync_port,
                 wire_render_port=self._wire_render_port,
             )
-            applied_or_raise(
+            verdict = applied_or_raise(
                 tree, result, label="AnnounceEmbargoEventToCaseReceivedBT"
             )
+            if verdict.disposition is HandlerDisposition.REFUSED:
+                return verdict  # the case is fully closed (CM-23-013)
             return self._no_change()
         # A replica whose ledger stream is paused applies a shorter revision
         # from the CASE_MANAGER's notice (CM-31-009, CM-31-010); any other

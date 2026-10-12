@@ -9,6 +9,7 @@ related_specs:
   - specs/demo-ci.yaml
   - specs/case-ledger-processing.yaml
   - specs/multi-actor-demo.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
@@ -170,6 +171,7 @@ missing log pattern.
 | 14 | `test_invariant_14_no_gaps_in_log_indices` | active | 2 — Received |
 | 15 | `test_invariant_15_cs_state_transitions_observed` | active | 1 — Sent |
 | 16 | `test_invariant_16_causal_edges_in_ledger_order` | active | 3 — Committed |
+| 18 | `test_invariant_18_no_participant_act_after_case_fully_closed` | active | 3 — Committed |
 | — | `test_invariant_clp13_no_rejected_invite_entries` | active | 3 — Committed |
 | — | `test_invariant_clp07_unique_payload_snapshot_ids` | active | 3 — Committed |
 | — | `test_invariant_clp14_timestamp_invariants` | active | 3 — Committed |
@@ -177,6 +179,14 @@ missing log pattern.
 | — | `test_invariant_per_actor_replica_rm_closed_termination` | active | 2 — Received |
 | — | `test_invariant_per_actor_replica_participant_status_schema_completeness` | active | 2 — Received |
 | — | `test_invariant_per_actor_replica_cs_state_transitions_observed` | active | 2 — Received |
+
+**Invariant 18 is the whole-scenario form of the CM-23-013 write boundary.**
+It runs `case_closure_violations` from `vultron/demo/helpers/milestones.py` (the
+check each closure `demo_check` runs live) over the `case-actor` log. A failure
+names an entry that records a participant's act after `case_fully_closed`.
+Start at Layer 3: the CASE_MANAGER committed it, so check the post-close guard
+(`CaseOpenToExternalWritesNode`) and the scenario's closure order
+(`close_case_owner_last`).
 
 **The `#` column is a historical label, not an index.** It skips 8 (that
 invariant is scenario-local — see below) and runs out entirely for the

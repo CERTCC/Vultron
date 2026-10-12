@@ -3,6 +3,7 @@
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -47,10 +48,13 @@ def create_reject_log_entry_tree(
             gates the answer.
     """
     # The envelope is never a canonical entry (CLP-10-004): no commit stage.
+    # Resync replays entries the ledger already holds, so it keeps working
+    # after the case closes (ADR-0085, CM-23-013).
     return create_receive_activity_tree(
         name="RejectLogEntryReceivedBT",
         case_id=None,
         precondition_guards=[],
+        post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
         replica_effects=[
             FindCaseActorNode(name="FindCaseActor"),
             # Sender entitlement (SYNC-03-005, HP-01-006): only an active

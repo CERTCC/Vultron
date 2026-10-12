@@ -248,7 +248,11 @@ class SubmitReportReceivedUseCase:
             result = bridge.execute_with_setup(
                 tree, actor_id=receiving_actor_id, activity=request
             )
-            applied_or_raise(tree, result, label="SubmitReportReceivedBT")
+            verdict = applied_or_raise(
+                tree, result, label="SubmitReportReceivedBT"
+            )
+            if verdict.disposition is HandlerDisposition.REFUSED:
+                return verdict  # the case is fully closed (CM-23-013)
             return HandlerResult.skipped(
                 "Offer carries no report id; nothing to propose a case for"
             )
