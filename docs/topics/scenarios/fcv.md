@@ -110,8 +110,8 @@ An `accept_invite_actor_to_case` entry is recorded.
 
 ### 6. Participants exchange notes
 
-The Finder, Coordinator, and Vendor communicate through case notes.  Each
-note is an `add_note_to_case` entry.
+The Finder, Coordinator, and Vendor communicate through case notes.
+Each note is recorded as a `create_note` entry, which attaches it to the case, followed by an `add_note_to_case` entry.
 
 *Antecedent:* `engage_case` is in the ledger.
 

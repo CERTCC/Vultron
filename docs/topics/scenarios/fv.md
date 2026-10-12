@@ -102,9 +102,9 @@ entry.
 
 ### 5. Finder and Vendor exchange notes
 
-Participants communicate about the vulnerability through case notes.  Each note
-is posted via the protocol and recorded as an `add_note_to_case` entry in the
-ledger.  The Finder may ask about workarounds; the Vendor provides status updates.
+Participants communicate about the vulnerability through case notes.
+Each note is posted via the protocol and recorded in the ledger as a `create_note` entry, which attaches it to the case, followed by an `add_note_to_case` entry.
+The Finder may ask about workarounds; the Vendor provides status updates.
 
 *Antecedent:* `engage_case` is present in the ledger.
 

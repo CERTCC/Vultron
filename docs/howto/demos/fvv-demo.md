@@ -153,7 +153,9 @@ Both Finder and Vendor2 DataLayers are synchronized with Vendor1.
 ### Phase 3 — Notes exchange
 
 The Finder adds a question note to the case; Vendor1 replies.
-Each note is sent to the Case Actor, which commits an `add_note_to_case` entry to the case ledger and fans it out to every participant via `Announce(CaseLedgerEntry)`.
+Each note is sent to the Case Actor as a `Create(Note)` and an `Add(Note)`.
+The Case Actor commits a `create_note` entry, which attaches the note, and then an `add_note_to_case` entry to the case ledger.
+It fans both entries out to every participant via `Announce(CaseLedgerEntry)`.
 This phase ends with a `✓ Notes exchange complete` line rather than a numbered milestone.
 
 ### Phase 4 — Fix lifecycle (M4–M5)
