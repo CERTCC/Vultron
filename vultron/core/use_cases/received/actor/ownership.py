@@ -1,7 +1,6 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING, ClassVar
 
 import py_trees
@@ -211,47 +210,40 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         return verdict
 
 
+def _names_no_case(
+    request: AcceptCaseOwnershipTransferReceivedEvent
+    | RejectCaseOwnershipTransferReceivedEvent,
+    verb: str,
+) -> HandlerResult:
+    """The refusal of a transferee's answer (*verb*) that names no case.
+
+    Shared by the Accept and the Reject, before any tree is built.
+    """
+    logger.warning(
+        "%s(ownership transfer): '%s' from '%s' names no case",
+        verb,
+        request.activity_id,
+        request.actor_id,
+    )
+    return HandlerResult.refused(f"{verb}(ownership transfer) names no case")
+
+
 def _run_ownership_answer(
     *,
     dl: CaseOutboxPersistence,
     request: AcceptCaseOwnershipTransferReceivedEvent
     | RejectCaseOwnershipTransferReceivedEvent,
-    build_tree: Callable[..., py_trees.behaviour.Behaviour],
-    verb: str,
+    tree: py_trees.behaviour.Behaviour,
     label: str,
     sync_port: SyncActivityPort | None,
     wire_render_port: "WireRenderPort | None",
 ) -> HandlerResult:
     """Run the receive tree of a transferee's answer and read its verdict.
 
-    Shared by the Accept and the Reject: an answer that names no case is
-    ``REFUSED`` before any tree runs; a redelivery of the answer that already
-    closed the Offer is ``SKIPPED`` (HP-01-003); a refusal is logged at
-    WARNING with the sender and the case.
-
-    Args:
-        build_tree: The answer's tree factory, called with ``case_id``,
-            ``offer_id``, ``sender_id`` and ``answer_id``.
-        verb: The answer's AS2 verb (``Accept``/``Reject``), for messages.
-        label: The tree's name, for messages.
+    Shared by the Accept and the Reject: a redelivery of the answer that
+    already closed the Offer is ``SKIPPED`` (HP-01-003); a refusal is logged
+    at WARNING with the sender and the case.
     """
-    case_id = request.case_id
-    if case_id is None:
-        logger.warning(
-            "%s(ownership transfer): '%s' from '%s' names no case",
-            verb,
-            request.activity_id,
-            request.actor_id,
-        )
-        return HandlerResult.refused(
-            f"{verb}(ownership transfer) names no case"
-        )
-    tree = build_tree(
-        case_id=case_id,
-        offer_id=request.object_id,
-        sender_id=request.actor_id,
-        answer_id=request.activity_id,
-    )
     receiving_actor_id = resolve_receiving_actor_id(
         dl, request.receiving_actor_id
     )
@@ -274,7 +266,7 @@ def _run_ownership_answer(
             label,
             request.activity_id,
             request.actor_id,
-            case_id,
+            request.case_id,
             verdict.reason,
         )
     return verdict
@@ -312,11 +304,20 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> HandlerResult:
+        request = self._request
+        case_id = request.case_id
+        if case_id is None:
+            return _names_no_case(request, "Accept")
+        tree = create_accept_ownership_transfer_tree(
+            case_id=case_id,
+            offer_id=request.object_id,
+            sender_id=request.actor_id,
+            answer_id=request.activity_id,
+        )
         return _run_ownership_answer(
             dl=self._dl,
-            request=self._request,
-            build_tree=create_accept_ownership_transfer_tree,
-            verb="Accept",
+            request=request,
+            tree=tree,
             label="AcceptOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
@@ -358,11 +359,19 @@ class RejectCaseOwnershipTransferReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        case_id = request.case_id
+        if case_id is None:
+            return _names_no_case(request, "Reject")
+        tree = create_reject_ownership_transfer_tree(
+            case_id=case_id,
+            offer_id=request.object_id,
+            sender_id=request.actor_id,
+            answer_id=request.activity_id,
+        )
         verdict = _run_ownership_answer(
             dl=self._dl,
             request=request,
-            build_tree=create_reject_ownership_transfer_tree,
-            verb="Reject",
+            tree=tree,
             label="RejectOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
@@ -373,6 +382,6 @@ class RejectCaseOwnershipTransferReceivedUseCase:
                 " '%s' — ownership unchanged",
                 request.actor_id,
                 request.object_id,
-                request.case_id,
+                case_id,
             )
         return verdict
