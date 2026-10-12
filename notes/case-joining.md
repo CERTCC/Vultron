@@ -34,6 +34,7 @@ relevant_packages:
   - vultron/core/participants/stub_reply.py
   - vultron/core/models/case.py
   - vultron/core/models/case_participant.py
+  - vultron/core/models/actor_recommendation_record.py
   - vultron/core/behaviors/case/nodes/invite_participant.py
   - vultron/core/behaviors/case/nodes/on_behalf_guards.py
   - vultron/core/behaviors/case/case_participant_received_tree.py
@@ -214,8 +215,9 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   the invitee after its case seed (#2898). Replay from genesis may run over a seed that
   is ahead, so each write moves forward only.
 - VF is vendor-only: no other role's record, status or entry carries one.
-- Known gap: `case.recommendation_recommender_index` is not ledgered as an entry
-  (#4295).
+- Who recommended whom on the `Offer(Actor, Case)` path is not on the case and
+  has no entry: it is case bookkeeping, an `ActorRecommendationRecord` in the
+  CASE_MANAGER's own store, so no replica holds it (CLP-07-014, #4448).
 
 ## Vocabulary: `Offer` versus `Invite`
 

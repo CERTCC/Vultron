@@ -42,10 +42,6 @@ def test_create_case_trigger_commits_entries():
 
 
 @pytest.mark.spec("CLP-07-014")
-@pytest.mark.xfail(
-    strict=True,
-    reason="CLP-07-014: recommendation_recommender_index is still a VulnerabilityCase field. Tracked in #4448 (source #4444).",
-)
 def test_case_bookkeeping_is_not_a_case_field():
     assert (
         "recommendation_recommender_index"

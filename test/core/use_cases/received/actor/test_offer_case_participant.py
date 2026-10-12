@@ -37,6 +37,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.actor_recommendation_record import (
+    ActorRecommendationRecord,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
@@ -128,17 +131,35 @@ def _seed_dl_for_case_actor(
         name="OfferRoundTripTest",
         attributed_to=CASE_OWNER_ID,
         stub_summary="Security issue — details shared after acceptance",
-        # What OfferActorToCaseReceivedUseCase records when the recommendation
-        # arrives (CM-16-004): the decision handlers read the recommender
-        # from here, and refuse a decision on a recommendation never recorded.
-        recommendation_recommender_index={RECOMMENDATION_ID: RECOMMENDER_ID},
     )
     seed_case_manager_participant(dl, case, manager_id)
     seed_case_owner_participant(dl, case, CASE_OWNER_ID)
     dl.create(case_actor)
     dl.create(case)
+    _record_recommendation(dl)
     _record_offer(dl)
     return dl, CASE_ACTOR_ID
+
+
+def _record_recommendation(
+    dl: SqliteDataLayer,
+    case_id: str = CASE_ID,
+    recommender_id: str = RECOMMENDER_ID,
+) -> None:
+    """Store who recommended the actor, as the CASE_MANAGER's bookkeeping.
+
+    What OfferActorToCaseReceivedUseCase records when the recommendation
+    arrives (CM-16-004): the decision handlers read the recommender from this
+    record, and refuse a decision on a recommendation never recorded.  It is
+    kept beside the case, never on it (CLP-07-014).
+    """
+    dl.save(
+        ActorRecommendationRecord(
+            case_id=case_id,
+            recommendation_id=RECOMMENDATION_ID,
+            recommender_id=recommender_id,
+        )
+    )
 
 
 def _record_offer(dl: SqliteDataLayer) -> None:
@@ -154,12 +175,10 @@ def _record_offer(dl: SqliteDataLayer) -> None:
 
 def _forget_recommendation(dl: SqliteDataLayer) -> None:
     """Drop the recorded recommender, as a store that never saw the Offer."""
-    from vultron.core.models.case import VulnerabilityCase
-
-    case = dl.read(CASE_ID)
-    assert isinstance(case, VulnerabilityCase)
-    case.recommendation_recommender_index = {}
-    dl.save(case)
+    assert dl.delete(
+        "ActorRecommendationRecord",
+        ActorRecommendationRecord.build_id(CASE_ID, RECOMMENDATION_ID),
+    )
 
 
 def _build_offer_activity(
@@ -414,6 +433,29 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("CM-16-006")
+    @pytest.mark.spec("CLP-07-014")
+    def test_a_recommendation_recorded_for_another_case_is_not_found(self):
+        """The record is keyed by case: another case's recommender is not used.
+
+        The index this record replaces lived on each case (#4448), so a
+        decision about one case could never pick up a recommender recorded on
+        another; the case-keyed record id keeps that.
+        """
+        dl, _ = _seed_dl_for_case_actor()
+        _forget_recommendation(dl)
+        _record_recommendation(dl, case_id="https://example.org/cases/other")
+        result = AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            self._event(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "never recorded" in (result.reason or "")
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-16-006")
     @pytest.mark.spec("CS-08-001")
     def test_refuses_an_offer_that_names_no_recommendation(self):
         """An inner Offer without ``origin`` names no recommendation at all.
@@ -582,25 +624,16 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
     def test_recommender_notified_via_core_state(self):
         """AC-5: recommender notification emitted; recommender read from core state.
 
-        Seeds recommendation_recommender_index on the case (as
-        OfferActorToCaseReceivedUseCase does at ingestion time), then runs
+        Seeds the ActorRecommendationRecord (as OfferActorToCaseReceivedUseCase
+        does at ingestion time), then runs
         AcceptOfferCaseParticipantReceivedUseCase and asserts that at least
         two outbox activities are queued — one Invite to the invitee and one
         AcceptActorRecommendation to the recommender — confirming the recommender
         ID came from core state, not from a dl.read(recommendation_id) re-read.
         """
-        from vultron.core.models.case import VulnerabilityCase
-
-        RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
-
         dl, _actor_id = _seed_dl_for_case_actor()
-        # Seed the recommender index as OfferActorToCaseReceivedUseCase would.
-        case = dl.read(CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
-        case.recommendation_recommender_index[RECOMMENDATION_ID] = (
-            RECOMMENDER_ID
-        )
-        dl.save(case)
+        # Seed the recommendation as OfferActorToCaseReceivedUseCase would.
+        _record_recommendation(dl)
 
         # CM-11-019: store the offer with roles so CreateInertInviteeParticipantNode
         # can resolve them and the use case is APPLIED.
@@ -627,7 +660,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         ]
         assert addressed_to_recommender, (
             f"No outbox activity addressed to recommender '{RECOMMENDER_ID}'; "
-            "recommender lookup must read from core state (recommendation_recommender_index)"
+            "recommender lookup must read the CASE_MANAGER's ActorRecommendationRecord"
         )
 
     @pytest.mark.spec("CM-11-015")
@@ -965,21 +998,12 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
     def test_recommender_notified_via_core_state(self):
         """AC-5: recommender notification emitted on reject; recommender from core state.
 
-        Seeds recommendation_recommender_index on the case and asserts that
+        Seeds the ActorRecommendationRecord and asserts that
         RejectOfferCaseParticipantReceivedUseCase queues a RejectActorRecommendation
         addressed to the recommender, read from core state.
         """
-        from vultron.core.models.case import VulnerabilityCase
-
-        RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
-
         dl, _actor_id = _seed_dl_for_case_actor()
-        case = dl.read(CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
-        case.recommendation_recommender_index[RECOMMENDATION_ID] = (
-            RECOMMENDER_ID
-        )
-        dl.save(case)
+        _record_recommendation(dl)
 
         event = self._event()
         result = RejectOfferCaseParticipantReceivedUseCase(
@@ -1003,7 +1027,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         ]
         assert addressed_to_recommender, (
             f"No outbox activity addressed to recommender '{RECOMMENDER_ID}'; "
-            "recommender lookup must read from core state (recommendation_recommender_index)"
+            "recommender lookup must read the CASE_MANAGER's ActorRecommendationRecord"
         )
 
 
@@ -1036,11 +1060,6 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
         name="AC1RolesThreading",
         attributed_to=AC1_CASE_OWNER_ID,
         stub_summary="Security issue — details shared after acceptance",
-        # Recorded when the recommendation arrived (CM-16-004); the Accept
-        # handler refuses a decision on a recommendation never recorded.
-        recommendation_recommender_index={
-            RECOMMENDATION_ID: AC1_RECOMMENDER_ID
-        },
     )
     # The CaseActor holds CASE_MANAGER: both the Accept(Offer) effects and
     # the Accept(Invite) effects are role-gated (BT-17-001, BT-17-005).
@@ -1050,6 +1069,9 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
     dl.create(case_actor)
     dl.create(case)
     dl.create(invitee)
+    # Recorded when the recommendation arrived (CM-16-004); the Accept
+    # handler refuses a decision on a recommendation never recorded.
+    _record_recommendation(dl, AC1_CASE_ID, AC1_RECOMMENDER_ID)
     return dl
 
 
@@ -1449,15 +1471,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
     OTHER_MANAGER_ID = "https://example.org/actors/other-case-manager"
 
     def _seed(self) -> SqliteDataLayer:
-        from vultron.core.models.case import VulnerabilityCase
-
         dl, _ = _seed_dl_for_case_actor(manager_id=self.OTHER_MANAGER_ID)
-        case = dl.read(CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
-        case.recommendation_recommender_index[
-            "https://example.org/activities/orig-offer-001"
-        ] = RECOMMENDER_ID
-        dl.save(case)
         return dl
 
     @pytest.mark.spec("BT-17-001")
