@@ -700,9 +700,10 @@ the pause cannot deadlock the participant out of accepting.
 **Status**: Answering is implemented (#4373); withdrawal is planned (#4388).
 `_resolve_embargo_proposal` (`vultron/core/use_cases/triggers/_helpers.py`)
 looks in the open-proposal index first, then reads a named id as the actor's
-received Invite (`read_received_activity`): an `Invite` addressed to the actor
-whose object is the active embargo, with the actor's row for it `INVITED` or
-`TIMED_OUT`. Anything else raises `VultronNotFoundError`.
+received Invite (`read_received_activity`): an `Invite` whose sole `to`
+recipient is the actor (EP-09-010) and whose object is the active embargo,
+held under its own id too (the answer wraps that copy), with the actor's row
+for it `INVITED` or `TIMED_OUT`. Anything else raises `VultronNotFoundError`.
 
 Activation takes a proposal out of `pending_embargo_proposal_index` (EP-08-003),
 so the accept and reject triggers cannot reach the embargo in force through it.

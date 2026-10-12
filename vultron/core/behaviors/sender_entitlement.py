@@ -112,7 +112,7 @@ from vultron.core.participants.ownership_offer import (
 from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
-    normalise_actor_id,
+    distinct_recipients,
     same_actor_id,
 )
 from vultron.core.predicates.roles import has_case_owner_role
@@ -880,14 +880,8 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         invite = (
             self.datalayer.read(self._invite_id) if self._invite_id else None
         )
-        recipients = list(
-            dict.fromkeys(
-                normalise_actor_id(rid)
-                for rid in (
-                    _as_id(r) for r in (getattr(invite, "to", None) or [])
-                )
-                if rid
-            )
+        recipients = distinct_recipients(
+            _as_id(r) for r in (getattr(invite, "to", None) or [])
         )
         if len(recipients) == 1 and same_actor_id(sender, recipients[0]):
             if self._case_id is None:

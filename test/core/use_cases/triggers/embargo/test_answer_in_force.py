@@ -72,33 +72,32 @@ from .conftest import (
 _Answer = Callable[[SqliteDataLayer, str, str, str | None], ActivityResult]
 
 
-def _accept(
-    dl: SqliteDataLayer, actor_id: str, case_id: str, invite_id: str | None
-) -> ActivityResult:
-    return SvcAcceptEmbargoUseCase(
-        dl,
-        AcceptEmbargoTriggerRequest(
-            actor_id=actor_id, case_id=case_id, proposal_id=invite_id
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
+def _answer_with(
+    use_case: type[SvcAcceptEmbargoUseCase] | type[SvcRejectEmbargoUseCase],
+    request: type[AcceptEmbargoTriggerRequest]
+    | type[RejectEmbargoTriggerRequest],
+) -> _Answer:
+    """Return a caller that runs *use_case* for one actor, case and Invite."""
+
+    def answer(
+        dl: SqliteDataLayer,
+        actor_id: str,
+        case_id: str,
+        invite_id: str | None,
+    ) -> ActivityResult:
+        return use_case(
+            dl,
+            request(actor_id=actor_id, case_id=case_id, proposal_id=invite_id),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+    return answer
 
 
-def _reject(
-    dl: SqliteDataLayer, actor_id: str, case_id: str, invite_id: str | None
-) -> ActivityResult:
-    return SvcRejectEmbargoUseCase(
-        dl,
-        RejectEmbargoTriggerRequest(
-            actor_id=actor_id, case_id=case_id, proposal_id=invite_id
-        ),
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
-
+_accept = _answer_with(SvcAcceptEmbargoUseCase, AcceptEmbargoTriggerRequest)
+_reject = _answer_with(SvcRejectEmbargoUseCase, RejectEmbargoTriggerRequest)
 
 _ANSWERS = [
     pytest.param(
@@ -115,10 +114,7 @@ _ANSWERS = [
     ),
 ]
 
-_ANSWER_ONLY = [
-    pytest.param(_accept, id="accept"),
-    pytest.param(_reject, id="reject"),
-]
+_ANSWER_ONLY = [pytest.param(p.values[0], id=p.id) for p in _ANSWERS]
 
 
 @dataclass
@@ -140,21 +136,30 @@ def _store_received_invite(
     case_id: str,
     manager_id: str,
     invitee_id: str,
+    to: list[str] | None = None,
+    own_id_copy: bool = True,
+    archive_record: bool = True,
 ) -> str:
     """Store a relayed ``Invite(EmbargoEvent)`` as the invitee received it.
 
     Intake archives it as a ``ReceivedActivityRecord`` and
-    ``CreateAndStoreInviteNode`` keeps the Invite under its own id, so both
-    copies are written, as a received relay leaves them.
+    ``CreateAndStoreInviteNode`` keeps the Invite under its own id, so by
+    default both copies are written, as a received relay leaves them.
+    *to* overrides the single-invitee addressing.
     """
     invite = em_propose_embargo_activity(
-        embargo, context=case_id, actor=manager_id, to=[invitee_id]
+        embargo,
+        context=case_id,
+        actor=manager_id,
+        to=to if to is not None else [invitee_id],
     )
-    dl.create(invite)
-    received = VultronActivity.model_validate(
-        invite.model_dump(by_alias=True, exclude_none=True)
-    )
-    dl.create(ReceivedActivityRecord.for_activity(received))
+    if own_id_copy:
+        dl.create(invite)
+    if archive_record:
+        received = VultronActivity.model_validate(
+            invite.model_dump(by_alias=True, exclude_none=True)
+        )
+        dl.create(ReceivedActivityRecord.for_activity(received))
     return invite.id_
 
 
@@ -265,8 +270,13 @@ def test_answers_the_embargo_in_force_by_invite_id(
 @pytest.mark.spec("EP-09-012")
 @pytest.mark.parametrize(
     "row",
-    [EmbargoConsentState.AGREED, EmbargoConsentState.DECLINED, None],
-    ids=["agreed", "declined", "missing"],
+    [
+        EmbargoConsentState.UNINVITED,
+        EmbargoConsentState.AGREED,
+        EmbargoConsentState.DECLINED,
+        None,
+    ],
+    ids=["uninvited", "agreed", "declined", "missing"],
 )
 @pytest.mark.parametrize("answer", _ANSWER_ONLY)
 def test_a_row_with_nothing_to_answer_is_not_found(
@@ -274,9 +284,9 @@ def test_a_row_with_nothing_to_answer_is_not_found(
     answer: _Answer,
     row: EmbargoConsentState | None,
 ) -> None:
-    """An ``AGREED``, ``DECLINED`` or missing row raises not-found.
+    """An ``UNINVITED``, ``AGREED``, ``DECLINED`` or missing row is not found.
 
-    Withdrawing from an ``AGREED`` row is ``Leave(EmbargoEvent)``, not an
+    An ``UNINVITED`` row was never asked.  Withdrawing from an ``AGREED`` row is ``Leave(EmbargoEvent)``, not an
     answer (EP-09-013).
     """
     embargo_id = in_force.case.active_embargo_id
@@ -333,6 +343,131 @@ def test_an_invite_addressed_to_another_actor_is_not_found(
     with pytest.raises(VultronNotFoundError, match="addressed to"):
         answer(
             in_force.dl, in_force.finder_id, in_force.case.id_, others_invite
+        )
+    assert in_force.dl.outbox_list() == []
+
+
+@pytest.mark.spec("EP-09-012", "EP-09-010")
+@pytest.mark.parametrize("answer", _ANSWER_ONLY)
+def test_an_invite_naming_several_invitees_is_not_found(
+    in_force: _InForce,
+    answer: _Answer,
+) -> None:
+    """An Invite with two ``to`` recipients has no invitee (EP-09-010).
+
+    The actor is one of them, but the CASE_MANAGER would refuse the answer,
+    so the trigger does not send it.
+    """
+    embargo_id = in_force.case.active_embargo_id
+    assert embargo_id is not None
+    embargo = cast(as_EmbargoEvent, in_force.dl.read(embargo_id))
+    shared_invite = _store_received_invite(
+        in_force.dl,
+        embargo,
+        case_id=in_force.case.id_,
+        manager_id=in_force.manager_id,
+        invitee_id=in_force.finder_id,
+        to=[in_force.finder_id, "https://example.org/actors/someone-else"],
+    )
+
+    with pytest.raises(VultronNotFoundError, match="addressed to"):
+        answer(
+            in_force.dl, in_force.finder_id, in_force.case.id_, shared_invite
+        )
+    assert in_force.dl.outbox_list() == []
+
+
+@pytest.mark.spec("EP-09-012")
+@pytest.mark.parametrize("answer", _ANSWER_ONLY)
+def test_a_held_activity_that_is_not_an_invite_is_not_found(
+    in_force: _InForce,
+    answer: _Answer,
+) -> None:
+    """A held non-Invite naming the embargo in force is not an Invite to answer."""
+    embargo_id = in_force.case.active_embargo_id
+    assert embargo_id is not None
+    embargo = cast(as_EmbargoEvent, in_force.dl.read(embargo_id))
+    invite = em_propose_embargo_activity(
+        embargo,
+        context=in_force.case.id_,
+        actor=in_force.manager_id,
+        to=[in_force.finder_id],
+    )
+    data = invite.model_dump(by_alias=True, exclude_none=True)
+    data["type"] = "Offer"
+    offer = VultronActivity.model_validate(data)
+    in_force.dl.create(offer)
+    in_force.dl.create(ReceivedActivityRecord.for_activity(offer))
+
+    with pytest.raises(VultronNotFoundError, match=offer.id_):
+        answer(in_force.dl, in_force.finder_id, in_force.case.id_, offer.id_)
+    assert in_force.dl.outbox_list() == []
+
+
+@pytest.mark.spec("EP-09-012")
+@pytest.mark.parametrize(("answer", "verb", "semantics"), _ANSWERS)
+def test_an_invite_held_only_under_its_own_id_is_answered(
+    in_force: _InForce,
+    answer: _Answer,
+    verb: str,
+    semantics: MessageSemantics,
+) -> None:
+    """A copy held only under the Invite's own id still answers.
+
+    That copy rehydrates as the wire class, as an Invite the inbox deferred
+    leaves it, and the resolver reads its fields the same way.
+    """
+    embargo_id = in_force.case.active_embargo_id
+    assert embargo_id is not None
+    embargo = cast(as_EmbargoEvent, in_force.dl.read(embargo_id))
+    deferred_invite = _store_received_invite(
+        in_force.dl,
+        embargo,
+        case_id=in_force.case.id_,
+        manager_id=in_force.manager_id,
+        invitee_id=in_force.finder_id,
+        archive_record=False,
+    )
+
+    result = answer(
+        in_force.dl, in_force.finder_id, in_force.case.id_, deferred_invite
+    )
+
+    activity = activity_of(result)
+    assert activity["type"] == verb
+    assert activity["object"]["id"] == deferred_invite
+    _assert_asked_case_manager(
+        in_force.dl,
+        actor_id=in_force.finder_id,
+        case_id=in_force.case.id_,
+        manager_id=in_force.manager_id,
+        activity_type=verb,
+        event_type=semantics.value,
+    )
+
+
+@pytest.mark.spec("EP-09-012")
+@pytest.mark.parametrize("answer", _ANSWER_ONLY)
+def test_an_invite_with_no_own_id_copy_is_not_found(
+    in_force: _InForce,
+    answer: _Answer,
+) -> None:
+    """An archive record alone cannot be answered: the answer wraps the copy."""
+    embargo_id = in_force.case.active_embargo_id
+    assert embargo_id is not None
+    embargo = cast(as_EmbargoEvent, in_force.dl.read(embargo_id))
+    archived_invite = _store_received_invite(
+        in_force.dl,
+        embargo,
+        case_id=in_force.case.id_,
+        manager_id=in_force.manager_id,
+        invitee_id=in_force.finder_id,
+        own_id_copy=False,
+    )
+
+    with pytest.raises(VultronNotFoundError, match="own-id copy"):
+        answer(
+            in_force.dl, in_force.finder_id, in_force.case.id_, archived_invite
         )
     assert in_force.dl.outbox_list() == []
 
