@@ -58,7 +58,9 @@ print(json2md(create_case()))
 ## Update Case
 
 - **Protocol role:** `Update(VulnerabilityCase)` is not a message any actor sends.
-  It appears only inside a ledger entry: when the CASE_MANAGER changes a field of the case, it commits the change as its own entry whose snapshot is an `Update` carrying the case in full, and replicas copy that entry from the ledger fan-out ([CLP-07-013](../specs/protocol.md#clp-07-013), [§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
+  It appears only inside a ledger entry.
+  When the CASE_MANAGER changes a field of the case, it commits the change as its own entry, whose snapshot is an `Update` carrying the case in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
+  Replicas copy that entry from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
   A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to the CASE_MANAGER or to its peers.
 - **On receipt:** an inbox refuses a direct `Update(VulnerabilityCase)` as an unrecognized activity and changes nothing.
 - **Triggering transition:** none — metadata change, not a state transition.
