@@ -44,6 +44,7 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 )
 from vultron.adapters.driving.fastapi.inbox_port_factories import (
     _CASE_PROPOSAL_SEMANTICS,
+    _CLOSE_CASE_SEMANTICS,
     _EMBARGO_INVITE_SEMANTICS,
     _STATUS_AUTH_TRIGGER_SEMANTICS,
     _SUBMIT_REPORT_SEMANTICS,
@@ -126,6 +127,7 @@ def make_dispatcher() -> ActivityDispatcher:
         _SUBMIT_REPORT_SEMANTICS,
         _CASE_PROPOSAL_SEMANTICS,
         _EMBARGO_INVITE_SEMANTICS,
+        _CLOSE_CASE_SEMANTICS,
         _STATUS_AUTH_TRIGGER_SEMANTICS,
     )
     for i, left in enumerate(_all_sets):
@@ -146,7 +148,9 @@ def make_dispatcher() -> ActivityDispatcher:
     port_factories.update(
         {
             sem: _trigger_activity_with_actor_config_port_factory
-            for sem in _SUBMIT_REPORT_SEMANTICS | _EMBARGO_INVITE_SEMANTICS
+            for sem in _SUBMIT_REPORT_SEMANTICS
+            | _EMBARGO_INVITE_SEMANTICS
+            | _CLOSE_CASE_SEMANTICS
         }
     )
     port_factories.update(

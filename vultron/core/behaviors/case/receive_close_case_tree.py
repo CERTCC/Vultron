@@ -25,6 +25,11 @@ Implements receiver-side role semantics for Leave(VulnerabilityCase):
   none of the closure effects run (CM-23-011).
 - **Non-owner Leave**: advances only the leaving participant to ``RM.CLOSED``;
   the case remains open for remaining participants (CM-23-003).
+- **Any Leave after ``case_fully_closed``**: the factory's post-close guard
+  refuses it ahead of both arms, so no ``close_case`` entry is committed or
+  fanned out and no one advances (CM-23-013).  Under
+  ``PostCloseReply.REJECT`` the sender gets ``Reject(Leave(VulnerabilityCase))``;
+  under the default ``DROP`` it gets nothing (ADR-0131).
 
 The role check is performed by :class:`~vultron.core.behaviors.case.nodes
 .vfd_role_guards.SenderIsCaseOwnerNode` as a tree-level condition node, per
@@ -41,12 +46,15 @@ from typing import Any
 
 import py_trees
 
+from vultron.config.actor import DEFAULT_POST_CLOSE_REPLY, PostCloseReply
 from vultron.core.behaviors.case.nodes.leave import (
+    LATE_LEAVE_DECLINE,
     AdvanceCaseActorToRMClosedNode,
     AdvanceParticipantToRMClosedNode,
     CommitCaseActorRMClosedEntryNode,
     EmitRejectCloseCaseNode,
 )
+from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -66,6 +74,7 @@ from vultron.core.behaviors.sync.nodes import (
     RequireSyncPortNode,
 )
 from vultron.core.models._helpers import claimed_published_iso
+from vultron.core.predicates.case_closure import CASE_FULLY_CLOSED_EVENT_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +85,7 @@ def create_close_case_received_tree(
     activity_obj: Any,
     sender_actor_id: str | None = None,
     receiving_actor_id: str | None = None,
+    post_close_reply: PostCloseReply = DEFAULT_POST_CLOSE_REPLY,
 ) -> py_trees.behaviour.Behaviour:
     """Single-BT received-side tree for CloseCaseReceived (ADR-0022).
 
@@ -91,6 +101,11 @@ def create_close_case_received_tree(
       must terminate the embargo first, then re-issue the close.
     - Non-owner Leave → advance only the leaving participant to ``RM.CLOSED``;
       case remains open (non-owner path, CM-23-003).
+    - Any Leave after ``case_fully_closed`` → refused by the post-close guard
+      before the ``CloseOrDecline`` decision, so the receipt
+      ``GuardedCommitOrSkip`` never runs: nothing is committed or fanned out
+      (CM-23-013).  The same shape as the CM-23-011 decline: the decision
+      gates the receipt commit itself.
 
     When ``sender_actor_id`` is ``None`` (e.g., in legacy paths or tests that
     do not supply it), the tree falls back to the pre-#1901 behaviour: intake
@@ -100,10 +115,14 @@ def create_close_case_received_tree(
 
         CloseCaseBT (Sequence, via create_receive_activity_tree)
         ├── IntakeReceivedActivityNode                  # archive the Leave (CLP-10-017)
+        ├── CaseOpenToExternalWrites                    # post-close boundary (CM-23-013)
+        │       (under PostCloseReply.REJECT: a PostCloseStage whose refusal
+        │        arm emits EmitRejectLateLeave at the CASE_MANAGER)
         └── CloseOrDeclineIfCaseManager (CaseManagerGate)  # BT-17-008, #3825
             └── CloseOrDecline (Selector)               # close unless declined
                 ├── CloseCaseReceive (Sequence, via create_receive_activity_tree)
                 │   ├── IntakeReceivedActivityNode          # finds the archive; no-op
+                │   │   (no post-close guard: CloseCaseBT's guard runs first)
                 │   ├── Inverter(OwnerCloseBlockedByEmbargoCheck)  # guard: SUCCESS iff NOT declining
                 │   │   └── Sequence: CheckIsCaseOwner → HasCaseStatuses
                 │   │              → ReadEmState → IsCloseBlockedByActiveEmbargo
@@ -174,6 +193,10 @@ def create_close_case_received_tree(
             applies role-discriminating RM closure effects (CM-23-002/003) and
             the CM-23-011 embargo decline. When ``None``, only intake and
             the guarded receipt commit run.
+        post_close_reply: The CASE_MANAGER's reply policy for a Leave that
+            arrives after ``case_fully_closed`` (``ActorConfig.post_close_reply``,
+            CM-23-013).  ``REJECT`` answers it with
+            ``Reject(Leave(VulnerabilityCase))``; ``DROP`` sends nothing.
         receiving_actor_id: Actor URI of the receiving actor.  Used as the
             ``case_actor_id`` argument of :class:`AdvanceCaseActorToRMClosedNode`
             and :class:`CommitCaseActorRMClosedEntryNode`, so that on owner Leave
@@ -215,7 +238,7 @@ def create_close_case_received_tree(
                 # holds without going through CommitCaseLedgerEntryNode.
                 case_id=case_id,
                 object_id=activity_id,
-                event_type="case_fully_closed",
+                event_type=CASE_FULLY_CLOSED_EVENT_TYPE,
                 payload_snapshot={
                     "type": "Leave",
                     "actor": sender_actor_id,
@@ -371,6 +394,7 @@ def create_close_case_received_tree(
         manager_effects=[owner_or_non_owner_effects],
         manager_case_id=case_id,
         manager_gate_name="CloseCaseEffectsIfCaseManager",
+        post_close_exemption=PostCloseExemption.ENCLOSING_TREE_GUARDS,
     )
 
     # Decline arm: emit an as:Reject; commit nothing (CM-23-011). The Leave is
@@ -408,10 +432,28 @@ def create_close_case_received_tree(
     # ``replica_effects``/``manager_effects`` could not express. ``case_id`` is
     # ``None`` (no commit at this level); ``manager_case_id`` names the case
     # whose CASE_MANAGER gates the Selector.
+    # CM-23-013: a Leave after case_fully_closed is refused by the factory's
+    # post-close guard ahead of the CloseOrDecline decision, so neither arm
+    # runs and the receipt commit is gated by the boundary itself.  The reply
+    # is the one policy point's choice (ADR-0131).
+    late_leave_reply: list[py_trees.behaviour.Behaviour] = (
+        [
+            EmitRejectCloseCaseNode(
+                case_id=case_id,
+                close_sender_id=sender_actor_id,
+                close_activity_id=activity_id,
+                name="EmitRejectLateLeave",
+                decline_reason=LATE_LEAVE_DECLINE,
+            )
+        ]
+        if post_close_reply is PostCloseReply.REJECT
+        else []
+    )
     return create_receive_activity_tree(
         name="CloseCaseBT",
         case_id=None,
         precondition_guards=[],
+        post_close_reply=late_leave_reply,
         manager_effects=[
             py_trees.composites.Selector(
                 name="CloseOrDecline",

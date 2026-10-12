@@ -431,7 +431,23 @@ groups:
   - id: VP-03-013
     priority: MAY
     kind: protocol
-    statement: Recipients MAY ignore messages received on Closed cases
+    statement: >-
+      Recipients MAY ignore messages received on Closed cases, whatever the
+      message class: RM ($R*$), EM, CS and general-inquiry ($GI$) messages
+      alike. For the CASE_MANAGER, owner close is a hard kill switch rather than
+      a permission: once `case_fully_closed` is committed it MUST NOT record any
+      later inbound message for the case (CM-23-013).
+    rationale: >-
+      The 2022 rule was read as scoped to $R*$ messages, so a note ($GI$) sent after
+      close had no rule and the reference note handler persisted it (CONCERN-1894).
+      ADR-0085 chose a hard kill switch over a selective gate, because no principled
+      line separates note-like traffic from the rest.
+    verification: >-
+      A test sends a $GI$ `Add(Note, target=Case)` to the CASE_MANAGER after the
+      owner has closed the case, and confirms it is refused and the case ledger gains
+      no entry.
+    adr:
+    - ADR-0085
 - id: VP-04
   title: Embargo Management (EM) Process
   specs:

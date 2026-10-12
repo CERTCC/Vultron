@@ -22,6 +22,9 @@ no emit, so it names no exemption (the factory refuses a stale one).
 
 import pytest
 
+from vultron.core.behaviors.case.nodes.post_close import (
+    CaseOpenToExternalWritesNode,
+)
 from vultron.core.behaviors.embargo.nodes.invite_answer import (
     SendEmbargoInviteAnswerNode,
 )
@@ -44,7 +47,8 @@ def test_answering_tree_guards_then_sends_the_er_last() -> None:
     tree = embargo_invite_refusal_tree(_CASE, _INVITE, None, store_invite=True)
 
     children = list(tree.children)
-    assert type(children[1]) is EmbargoInviteNotYetRefusedNode
+    assert type(children[1]) is CaseOpenToExternalWritesNode
+    assert type(children[2]) is EmbargoInviteNotYetRefusedNode
     assert type(children[-1]) is SendEmbargoInviteAnswerNode
     assert children[-1].name == "SendEmbargoRefusalER"
 

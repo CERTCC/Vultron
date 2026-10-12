@@ -42,6 +42,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.config.actor import ActorConfig, PostCloseReply
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
@@ -401,7 +402,8 @@ class TestOwnerLeaveReceivePath:
         """The CaseActor's RM.CLOSED entry is committed before case_fully_closed.
 
         CM-23-002 orders the sequence: advancing the CASE_MANAGER is step 2 and
-        ``case_fully_closed`` is the final entry, which is precisely why this is
+        ``case_fully_closed`` is the write boundary that must follow it
+        (CM-23-013), which is precisely why this is
         committed synchronously in the receive tree rather than emitted as a
         self-addressed ``Add(ParticipantStatus)`` through the CLP-10-001
         loopback — that is an outbox background task and could not honour the
@@ -570,12 +572,6 @@ def _close(
 class TestPostCloseBoundary:
     """CM-23-013/014: nothing a participant does lands after case_fully_closed."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="CM-23-013: a bystander Leave after owner close is still"
-        " committed as close_case. Tracked by #4162 (record nothing, reply"
-        " optional) and #4065 (refusal and demo closure order).",
-    )
     @pytest.mark.spec("CM-23-013")
     def test_bystander_leave_after_owner_close_is_refused(self):
         """A bystander Leave after owner close commits nothing and closes no one.
@@ -693,6 +689,306 @@ class TestPostCloseBoundary:
             "the expired-invitation entry must follow the CASE_MANAGER's"
             f" RM.CLOSED entry (CM-23-014); got {types}"
         )
+
+
+def _close_with_policy(
+    dl: SqliteDataLayer,
+    sender_actor_id: str,
+    activity_id: str,
+    policy: PostCloseReply,
+) -> HandlerResult:
+    return CloseCaseReceivedUseCase(
+        dl=dl,
+        request=_make_close_case_event(
+            sender_actor_id=sender_actor_id, activity_id=activity_id
+        ),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(dl),
+        actor_config=ActorConfig(post_close_reply=policy),
+    ).execute()
+
+
+def _closed_dl() -> SqliteDataLayer:
+    """The CaseActor's store after the Case Owner has closed the case."""
+    dl = _make_full_dl()
+    _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+    assert _case_ledger(dl)[-1].event_type == "case_fully_closed"
+    return dl
+
+
+def _add_note_event(note_id: str, sender_id: str = VENDOR_ID):
+    from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    note = as_Note(id_=note_id, content="late note", context=CASE_ID)
+    activity = add_note_to_case_activity(
+        note, target=as_VulnerabilityCase(id_=CASE_ID), actor=sender_id
+    )
+    event = extract_event(activity).model_copy(
+        update={"receiving_actor_id": CASE_ACTOR_ID}
+    )
+    assert isinstance(event, AddNoteToCaseReceivedEvent)
+    return note, event
+
+
+def _add_note(dl: SqliteDataLayer, note_id: str, sync_port=None):
+    from vultron.core.use_cases.received.note import (
+        AddNoteToCaseReceivedUseCase,
+    )
+
+    note, event = _add_note_event(note_id)
+    dl.create(note)
+    return AddNoteToCaseReceivedUseCase(
+        dl,
+        event,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=sync_port or SyncActivityAdapter(dl),
+    ).execute()
+
+
+class TestPostCloseWriteBoundary:
+    """CM-23-013 / ADR-0085: after case_fully_closed, nothing is recorded."""
+
+    @pytest.mark.spec("CM-23-013")
+    @pytest.mark.parametrize(
+        ("policy", "replies"),
+        [(PostCloseReply.DROP, 0), (PostCloseReply.REJECT, 1)],
+    )
+    def test_late_leave_follows_the_reply_policy(self, policy, replies):
+        """A late Leave is REFUSED and records nothing; only REJECT replies."""
+        dl = _closed_dl()
+        entries_at_close = len(_case_ledger(dl))
+        rm_before = _participant_rm_states(dl, VENDOR_ID)
+        outbox_before = set(dl.outbox_list())
+
+        result = _close_with_policy(
+            dl, VENDOR_ID, "https://example.org/activities/leave-late", policy
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-23-013" in (result.reason or "")
+        assert len(_case_ledger(dl)) == entries_at_close
+        assert _participant_rm_states(dl, VENDOR_ID) == rm_before
+        queued = [i for i in dl.outbox_list() if i not in outbox_before]
+        assert len(queued) == replies, queued
+        if replies:
+            reject = dl.read(queued[0])
+            assert getattr(reject, "type_", None) == "Reject"
+            assert VENDOR_ID in (getattr(reject, "to", None) or [])
+            inner = getattr(reject, "object_", None)
+            assert getattr(inner, "type_", None) == "Leave"
+
+    @pytest.mark.spec("CM-23-013")
+    def test_default_policy_drops_a_late_leave(self):
+        """The default ActorConfig drops a late Leave with no reply (ADR-0131)."""
+        assert ActorConfig().post_close_reply is PostCloseReply.DROP
+        dl = _closed_dl()
+        outbox_before = set(dl.outbox_list())
+
+        result = _close(
+            dl, VENDOR_ID, "https://example.org/activities/leave-late"
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert set(dl.outbox_list()) == outbox_before
+
+    @pytest.mark.spec("CM-23-013")
+    def test_late_leave_drop_is_logged_with_activity_and_actor(self, caplog):
+        """The drop names the activity id and the sender at INFO (SL-01)."""
+        dl = _closed_dl()
+        activity_id = "https://example.org/activities/leave-late-logged"
+        with caplog.at_level(logging.INFO):
+            _close(dl, VENDOR_ID, activity_id)
+        dropped = [
+            r.getMessage()
+            for r in caplog.records
+            if "dropped activity_id" in r.getMessage()
+        ]
+        assert dropped, "the post-close drop must be logged at INFO"
+        assert activity_id in dropped[0]
+        assert VENDOR_ID in dropped[0]
+
+    @pytest.mark.spec("CM-23-013")
+    def test_a_late_reply_is_answered_at_most_once(self):
+        """A redelivered late Leave is not answered again under REJECT."""
+        dl = _closed_dl()
+        outbox_before = set(dl.outbox_list())
+        activity_id = "https://example.org/activities/leave-late-twice"
+        for _ in range(2):
+            _close_with_policy(
+                dl, VENDOR_ID, activity_id, PostCloseReply.REJECT
+            )
+        queued = [i for i in dl.outbox_list() if i not in outbox_before]
+        assert len(queued) == 1, queued
+
+    @pytest.mark.spec("CM-23-013")
+    @pytest.mark.spec("VP-03-013")
+    def test_post_close_add_note_is_refused_with_no_ledger_append(self):
+        """#3060 AC-1: a post-close Add(Note, target=Case) appends nothing.
+
+        The note is not attached to the case and no entry is committed or
+        announced; the CASE_MANAGER sends nothing back (non-Leave traffic
+        after close is never answered, ADR-0131).
+        """
+        dl = _closed_dl()
+        entries_at_close = len(_case_ledger(dl))
+        outbox_before = set(dl.outbox_list())
+
+        result = _add_note(dl, "https://example.org/notes/late-note")
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-23-013" in (result.reason or "")
+        assert len(_case_ledger(dl)) == entries_at_close
+        case = dl.read_case(CASE_ID)
+        assert case is not None
+        assert "https://example.org/notes/late-note" not in case.notes
+        assert set(dl.outbox_list()) == outbox_before
+
+    @pytest.mark.spec("CM-23-013")
+    def test_add_note_before_close_is_still_recorded(self):
+        """Control: the same Add(Note) on an open case is committed."""
+        dl = _make_full_dl()
+        entries_before = len(_case_ledger(dl))
+
+        result = _add_note(dl, "https://example.org/notes/open-note")
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert len(_case_ledger(dl)) == entries_before + 1
+
+    @pytest.mark.spec("CM-23-002")
+    @pytest.mark.spec("CM-23-013")
+    def test_closure_announce_is_emitted_before_external_writes_cease(self):
+        """#3060 AC-4: case_fully_closed is announced, then nothing more is."""
+        dl = _make_full_dl()
+        sync = MagicMock(wraps=SyncActivityAdapter(dl))
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=sync,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        announced = [
+            (c.kwargs.get("entry") or c.args[0]).event_type
+            for c in sync.send_announce_log_entry.call_args_list
+        ]
+        assert "case_fully_closed" in announced, announced
+        calls_at_close = sync.send_announce_log_entry.call_count
+
+        result = _add_note(
+            dl, "https://example.org/notes/after-announce", sync_port=sync
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert sync.send_announce_log_entry.call_count == calls_at_close
+
+    @pytest.mark.spec("CM-23-013")
+    def test_a_replica_still_processes_after_close(self):
+        """The guard binds only the CASE_MANAGER: a replica's store passes it."""
+        from vultron.core.behaviors.case.nodes.post_close import (
+            CaseOpenToExternalWritesNode,
+        )
+
+        dl = _closed_dl()
+        node = CaseOpenToExternalWritesNode(case_id=CASE_ID)
+        node.datalayer = dl
+        node.actor_id = VENDOR_ID
+        assert node.update() == py_trees.common.Status.SUCCESS
+        node.actor_id = CASE_ACTOR_ID
+        assert node.update() == py_trees.common.Status.FAILURE
+
+    @pytest.mark.spec("CM-23-013")
+    @pytest.mark.spec("CM-23-017")
+    def test_a_late_participant_status_gets_no_processing_fault(self):
+        """A refused status claim is normally answered; after close it is not."""
+        from vultron.core.models.events.status import (
+            AddParticipantStatusToParticipantReceivedEvent,
+        )
+        from vultron.core.use_cases.received.status import (
+            AddParticipantStatusToParticipantReceivedUseCase,
+        )
+        from vultron.wire.as2.factories import (
+            add_status_to_participant_activity,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import (
+            as_ParticipantStatus,
+        )
+
+        dl = _closed_dl()
+        case = dl.read_case(CASE_ID)
+        assert case is not None
+        participant = dl.read(case.actor_participant_index[VENDOR_ID])
+        assert isinstance(participant, CaseParticipant)
+        status = as_ParticipantStatus(
+            id_=f"{CASE_ID}/participants/vendor/statuses/late",
+            context=CASE_ID,
+            attributed_to=VENDOR_ID,
+            rm=RmDimension(state=RM.VALID),
+        )
+        activity = add_status_to_participant_activity(
+            status,
+            target=participant,
+            actor=VENDOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID),
+        )
+        event = extract_event(activity).model_copy(
+            update={"receiving_actor_id": CASE_ACTOR_ID}
+        )
+        assert isinstance(
+            event, AddParticipantStatusToParticipantReceivedEvent
+        )
+        entries_at_close = len(_case_ledger(dl))
+        outbox_before = set(dl.outbox_list())
+
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "CM-23-013" in (result.reason or "")
+        assert len(_case_ledger(dl)) == entries_at_close
+        assert set(dl.outbox_list()) == outbox_before
+
+    @pytest.mark.spec("CM-23-013")
+    @pytest.mark.parametrize("policy", ["drop", "reject"])
+    def test_dispatcher_wires_the_policy_point(self, policy):
+        """End to end: the configured policy reaches the late-Leave reply.
+
+        Through the inbox dispatcher, a late Leave is answered only under
+        ``reject``; a late Add(Note) is dropped under both settings.
+        """
+        from vultron.adapters.driving.fastapi.inbox_handler import (
+            make_dispatcher,
+        )
+        from vultron.config.app import config_override
+
+        dl = _closed_dl()
+        with config_override(VULTRON_ACTOR__POST_CLOSE_REPLY=policy):
+            dispatcher = make_dispatcher()
+            outbox_before = set(dl.outbox_list())
+            note, note_event = _add_note_event(
+                "https://example.org/notes/dispatched-late-note"
+            )
+            dl.create(note)
+            note_result = dispatcher.dispatch(note_event, dl)
+            assert note_result.disposition is HandlerDisposition.REFUSED
+            assert set(dl.outbox_list()) == outbox_before
+
+            leave_result = dispatcher.dispatch(
+                _make_close_case_event(
+                    sender_actor_id=VENDOR_ID,
+                    activity_id="https://example.org/activities/leave-disp",
+                ),
+                dl,
+            )
+            assert leave_result.disposition is HandlerDisposition.REFUSED
+            queued = [i for i in dl.outbox_list() if i not in outbox_before]
+            assert len(queued) == (1 if policy == "reject" else 0), queued
 
 
 # ---------------------------------------------------------------------------

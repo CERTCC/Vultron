@@ -142,10 +142,12 @@ def _make_event(
 def test_create_announce_log_entry_tree_is_intake_then_role_selector():
     tree = create_announce_log_entry_tree()
     assert tree.name == "AnnounceLogEntryReceivedBT"
-    # Intake first (CLP-10-017), then the CASE_MANAGER / participant arms.
+    # Intake first (CLP-10-017), the post-close guard (CM-23-013), then the
+    # CASE_MANAGER / participant arms.
     assert tree.children[0].name == "IntakeReceivedActivityNode"
-    assert len(tree.children) == 2
-    assert len(tree.children[1].children) == 2
+    assert tree.children[1].name == "CaseOpenToExternalWrites"
+    assert len(tree.children) == 3
+    assert len(tree.children[2].children) == 2
 
 
 def _archived(datalayer, event) -> bool:

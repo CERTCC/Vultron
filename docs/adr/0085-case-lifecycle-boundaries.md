@@ -175,3 +175,12 @@ code is required.
 - CONCERN-3400 — `case_fully_closed` was called the last ledger entry while bystander `Leave`s still landed after it (resolved: CM-23-013, CM-23-014)
 - Deferred: post-join role change (`Update(CaseParticipant)`, #3065) and case
   reopen mechanics (#3066) are tracked as Ideas under Epic #2567.
+
+## Annotation — 2026-10-09
+
+CM-23-013 later made the reply to a post-close message optional: the CASE_MANAGER MAY send an `as:Reject` or MAY send nothing.
+[ADR-0131](0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md) sets the reference implementation's choice.
+By default it sends nothing.
+A Reject is sent only for a late `Leave(VulnerabilityCase)`, and only when the CASE_MANAGER is configured to send one.
+So the Consequences bullet above that says a late bystander `Leave` "is declined with `as:Reject`" now describes the optional setting, not the default.
+The closed-case guard is one guard placed in every received tree, not a separate guard in each handler.
