@@ -15,7 +15,7 @@
 """Spec coverage for the protocol-ask primitive (ADR-0080, ASK-01..ASK-08).
 
 Every ``kind: protocol`` requirement introduced by ADR-0080 is marked here, so
-the spec-coverage ratchet (`test_spec_coverage_ratchet.py`) does not grow when
+the PR-only coverage guard (`test_spec_coverage_ratchet.py`) does not fail when
 the requirements land ahead of their implementations.
 
 Two kinds of test live in this module:

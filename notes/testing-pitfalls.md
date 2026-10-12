@@ -9,9 +9,10 @@ description: >
   patterns, CoreObject subclass isolation, assertion-quality traps (vacuous
   asserts, "falls back to" tests, bare MagicMock), and test layout rules for
   module splits, why a two-sided count pin races concurrent PRs (keep a
-  per-item record instead), why `nproc` overstates a worktree slot's CPUs for
-  `-n auto`, why order-dependent tests need an `xdist_group`, and how outbox
-  retry backoff hides inside a passing demo.
+  per-item record and a PR-only growth guard instead), why `nproc`
+  overstates a worktree slot's CPUs for `-n auto`, why order-dependent
+  tests need an `xdist_group`, and how outbox retry backoff hides inside a
+  passing demo.
   `test/AGENTS.md` keeps the short index and the rules you need on every run.
 related_specs:
   - specs/testability.yaml
@@ -817,12 +818,45 @@ the fix, because it collects silent slack instead (#3959).
 still in debt (`verification_debt: '#N'` on the requirement itself) and check
 each item on its own. Then two PRs conflict only when they edit the same item,
 and git reports that as a real conflict. The count is still printed, computed
-from the markers, so progress stays visible without being committed. Hold back
-growth with a one-way, PR-only diff guard (#4200), not a pinned total. Where a
+from the markers, so progress stays visible without being committed. Where a
 committed baseline is unavoidable, make it a named set (`KNOWN_VIOLATIONS`,
 ARCH-18), never a bare number. A set entry names what it exempts, and a
 concurrent PR that removes a different entry merges cleanly to the right
 answer.
+
+### Hold Back Growth With a PR-Only Guard, Not a Pinned Total
+
+`added_since_base` in `vultron/metadata/specs/growth_guard.py` takes a per-item
+extractor (a function from a repository root to the set of item IDs in debt),
+runs it on the tree at the merge base with `origin/main` and on the working
+tree, and returns only the items the branch added. Removals and pre-existing
+items never fail it, so a sibling PR that fixes or adds a different item cannot
+turn this one red. Two guards use it (#4315): uncovered `kind: protocol` specs
+(SR-05-005, `test_spec_coverage_ratchet.py`) and `missing_story_reference`
+carriers (MS-12-007, `test_spec_kind_ratchet.py`); the planned
+`verification_debt` guard (#4200) is meant to reuse it. A debt class already
+at zero needs no guard: assert the set is empty (MS-12-008).
+
+Three properties to keep when adding one:
+
+- **The base side is materialized from git**, only the paths the extractor
+  reads (`git archive`), so the same extractor runs on both trees. A caller may
+  pass the head set (`head=`) to read from an in-memory corpus (TB-13-001), but
+  only through the extractor's own logic: an architecture test hands
+  `uncovered_protocol_ids` its `_corpus` sources via `test_sources=`. A head set
+  built some other way reports phantom additions.
+- **No base means skip, never pass.** With no `origin/$GITHUB_BASE_REF` or
+  `origin/main`, or a shallow clone with no common history, the guard returns a
+  `skipped` reason and the test calls `pytest.skip(reason)`, so the gap shows in
+  the summary. CI's `test` and `spec-tests` jobs check out with
+  `fetch-depth: 0` for this reason; a guard in a new job needs the same. Under
+  GitHub Actions (`GITHUB_ACTIONS=true`) a missing base raises instead, so a
+  checkout that loses its history cannot turn the guard into a green skip.
+- **The base is read with the branch's loaders, and an error fails.** A
+  branch that migrates the spec schema can leave the base unreadable to them;
+  the guard then raises `BaseExtractionError` naming the merge base rather than
+  skipping, because a guard that cannot compare must not read as a pass. The
+  remedy is a loader that also accepts the old form.
 
 ## Delete an Ephemeral Migration Check When the Migration Lands
 
