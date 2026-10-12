@@ -1,8 +1,8 @@
 # Core Ports — Design Rules
 
-> Full DataLayer architecture analysis, CasePersistence narrowing rationale,
-> auto-rehydration contract, and vocabulary registry entanglement:
-> [`notes/datalayer-design.md`](../../../../notes/datalayer-design.md)
+> DataLayer design rules, the CasePersistence narrowing rationale, and the
+> activity read-back contract:
+> [`notes/datalayer-design.md`](../../../notes/datalayer-design.md)
 
 Core ports are split by direction.
 

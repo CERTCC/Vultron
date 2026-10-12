@@ -318,7 +318,7 @@ groups:
       MV-04-003 now refuses. Reading MV-10-001 as a general licence for partial inline
       objects would entrench a workaround for a capability Vultron lacks: dereferencing a
       URI in another actor's message into the resolved object. Design discussion:
-      `notes/stub-objects.md`.
+      `notes/selective-disclosure.md`.
     verification: >-
       A unit test confirms that an inline object with `type: VulnerabilityCaseStub`
       resolves to the stub class, that a sparse inline object with `type:

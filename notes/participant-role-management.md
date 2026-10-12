@@ -11,6 +11,7 @@ related_specs:
   - specs/case-management.yaml
 related_notes:
   - notes/case-joining.md
+  - notes/demo-ci-diagnostics.md
 relevant_packages:
   - vultron/core/models/case_participant.py
   - vultron/wire/as2/vocab/objects/case_participant.py
