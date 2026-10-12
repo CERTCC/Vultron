@@ -25,4 +25,4 @@ Where: specs/, notes/; test/metadata/test_no_adr_detail_citations.py
 
 **Resolved**: 2026-10-12 — implementation tracked in #4502, with #4503 extending the same check to code. Decided in planning: MS-11-007 covers any numbered part of a record (detail, rule, step, option, part), anchored to a nearby record ID except for "detail"; 14 citations in specs/notes to convert, no record needs an ADR-0099-style reflow; the "ADR-0015 Option 4" citations are dangling (no ADR-0015 exists). Blocked by #4409 (PR #4466).
 
-Docs PR: PR_URL_PLACEHOLDER.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4504>.

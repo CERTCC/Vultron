@@ -24,4 +24,4 @@ Where: vultron/, test/ (docstrings and comments citing ADR-0099 detail N)
 
 **Resolved**: 2026-10-12 — implementation tracked in #4503 (code conversion and scan extension), after #4502 (widened detector on git grep). Decided in planning: code comments and docstrings fall under MS-11-007; enforcement runs as one git grep call in the test (measured ~0.06 s vs ~1 s for a Python read-every-file scan). Both tasks are blocked by #4409 (PR #4466).
 
-Docs PR: PR_URL_PLACEHOLDER.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/4504>.
