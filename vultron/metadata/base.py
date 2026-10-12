@@ -88,8 +88,27 @@ def unbuilt_docs_spec(
     semantics cannot drift from the build's. Pages in ``not_in_nav`` are **not**
     matched: they are built and reachable by URL, just absent from the nav.
     """
+    return _docs_spec(config, ("draft_docs", "exclude_docs"))
+
+
+def excluded_docs_spec(
+    config: dict[str, object],
+) -> pathspec.gitignore.GitIgnoreSpec:
+    """Return a matcher for the ``docs/``-relative paths in ``exclude_docs``.
+
+    Such a file is not processed by ``mkdocs build`` or ``serve``, so it is
+    no page; it can still be an ``include-markdown`` fragment, which the
+    plugin reads from disk.  ``draft_docs`` pages are not matched: ``serve``
+    renders them.
+    """
+    return _docs_spec(config, ("exclude_docs",))
+
+
+def _docs_spec(
+    config: dict[str, object], keys: tuple[str, ...]
+) -> pathspec.gitignore.GitIgnoreSpec:
     lines: list[str] = []
-    for key in ("draft_docs", "exclude_docs"):
+    for key in keys:
         value = config.get(key)
         if isinstance(value, str):
             lines.extend(value.splitlines())
