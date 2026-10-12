@@ -506,8 +506,8 @@ Common causal waits (should be `demo_gate`):
 |---|---|
 | `wait_for_participant_rm_state` to RM.VALID | `engage-case` trigger (rejects at 422 if RM.VALID not committed) |
 | `wait_for_case_on_container` (replica present) | `wait_for_replica_ledger_coverage` (needs genesis hash to anchor chain) |
-| `wait_for_replica_ledger_coverage` (`causal=True`) | any state comparison across replicas — `run_sync_verification_phase` composes both |
-| `wait_for_event_type_in_ledger` (close phase) | reading ledger tail on a complete replica |
+| `wait_for_replica_ledger_coverage` | any state comparison across replicas — `run_sync_verification_phase` composes both |
+| `wait_for_participant_rm_state` to RM.CLOSED in the CASE_MANAGER's store | the Case Owner's `Leave` (`close_case_owner_last`, CM-23-015) |
 
 Common temporal waits (may stay `demo_check` if they do not gate a
 downstream step):
@@ -597,13 +597,17 @@ wait_for_replica_ledger_coverage(
     auth_client=vendor_client,
     replicas=[(finder_client, "Finder")],
     case_id=case.id_,
-    phase_label="close phase",
-    causal=False,  # temporal: nothing but the dump depends on it (EDF-06-006)
+    phase_label="notes phase",
 )
 ```
 
 Apply this after every phase that introduces a new ledger tail before a devlog
-dump. The helper reads the authority tail, waits for *contiguous* coverage of
+dump, except case closure. After closure no replica covers the authority's
+tail, because a closed participant is sent nothing after the entries recording
+its own closure (CM-23-004). There, `close_case_owner_last` waits for each
+leaver's replica to end at its own closure (`wait_for_replica_ledger_ending_at`
+in `vultron/demo/helpers/sync.py`) before the dump runs.
+The helper reads the authority tail, waits for *contiguous* coverage of
 every index up to it on each replica (a tail-hash-only wait misses an
 intermediate entry that arrives after the tail, #1363), and wraps each wait in
 a demo context so a timeout accumulates instead of crashing the run. The same

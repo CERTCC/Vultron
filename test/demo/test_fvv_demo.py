@@ -508,12 +508,14 @@ class TestCoverageWaitInsideDemoCheck:
 
 
 class TestWaitForEventTypeInLedger:
-    """Regression: the close phase must wait for close_case to appear on the
+    """Regression: wait for an asynchronously committed entry to appear on the
     authoritative actor before reading the tail index for replica coverage.
 
-    Without this wait, the tail excludes close_case (committed asynchronously
-    after the last RM.CLOSED); coverage 'succeeds' for the wrong tail; the
-    dump runs before close_case replicates; invariant harness fails.
+    Without this wait, the tail excludes the entry; coverage 'succeeds' for
+    the wrong tail; the dump runs before the entry replicates; the invariant
+    harness fails.  (The close phase that #1772 found this in no longer reads
+    the authority's tail: a closed participant is sent nothing after its own
+    closure entries, CM-23-004.)
     """
 
     def _make_entries(self, case_id: str, event_types: list[str]) -> dict:

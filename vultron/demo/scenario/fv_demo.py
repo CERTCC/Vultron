@@ -54,7 +54,6 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_participants,
-    wait_for_event_type_in_ledger,
     wait_for_finder_case,
     wait_for_finder_log_entry,
     wait_for_note_in_case,
@@ -71,7 +70,6 @@ from vultron.demo.helpers.seeding import (  # noqa: F401
 from vultron.demo.helpers.sync import (  # noqa: F401
     _extract_ref_id,
     run_sync_verification_phase,
-    wait_for_replica_ledger_coverage,
 )
 from vultron.demo.helpers.verification import (  # noqa: F401
     _all_fetchable_participants_rm_closed,

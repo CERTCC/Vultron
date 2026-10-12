@@ -388,11 +388,6 @@ class TestVerifyCaseClosureRecorded:
             patch.object(milestones, "wait_for_case_actor_ledger_event"),
             patch.object(
                 milestones,
-                "resolve_case_actor_store_id",
-                return_value=_MANAGER,
-            ),
-            patch.object(
-                milestones,
                 "find_case_actor_participant_id",
                 return_value=_MANAGER,
             ),
@@ -401,23 +396,23 @@ class TestVerifyCaseClosureRecorded:
     @pytest.mark.spec("CM-23-015")
     def test_reads_the_case_managers_store_after_the_boundary(self):
         client = self._client(_owner_last_ledger())
-        waited, resolved, found = self._patches()
-        with waited as wait, resolved, found:
+        waited, found = self._patches()
+        with waited as wait, found:
             verify_case_closure_recorded(client, _CASE, [_FINDER, _OWNER])
         wait.assert_called_once_with(
             client=client, case_id=_CASE, event_type="case_fully_closed"
         )
-        client.dl_path.assert_called_once_with(
-            "CaseLedgerEntrys/", actor_id=_MANAGER
-        )
+        # The client is already bound to the CASE_MANAGER's store: read as
+        # given, with no second store lookup.
+        client.dl_path.assert_called_once_with("CaseLedgerEntrys/")
 
     def test_raises_with_every_violation(self):
         ledger = [
             *_owner_last_ledger(),
             _entry(8, "add_note_to_case", _VENDOR),
         ]
-        waited, resolved, found = self._patches()
-        with waited, resolved, found:
+        waited, found = self._patches()
+        with waited, found:
             with pytest.raises(AssertionError) as exc:
                 verify_case_closure_recorded(
                     self._client(ledger), _CASE, [_FINDER, _OWNER, _VENDOR]

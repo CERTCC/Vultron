@@ -383,6 +383,15 @@ def wait_for_replica_ledger_ending_at(
     the CASE_MANAGER's tail.  Waits for the contiguous prefix (SYNC-10-004),
     then checks once that no later entry reached the replica.
 
+    The absence half is one read, so it is best-effort: no cause can be
+    awaited for an entry that should never arrive, and a wrongly sent entry
+    committed just before the read (the Case Owner's case, whose tail is
+    followed at once by the CASE_MANAGER's own closure and
+    ``case_fully_closed``) may still be in flight.  The backstops are the
+    recipient-selection unit tests (``test/core/participants/test_recipients.py``)
+    and the CI per-replica termination invariant, which reads each replica's
+    final export after the run.
+
     Bounded by ``LATE_JOINER_COVERAGE_TIMEOUT`` by default (EDF-06-008): a
     late joiner may still be draining its backfill when it leaves.  The
     budget is a ceiling, so an early participant pays nothing for it.

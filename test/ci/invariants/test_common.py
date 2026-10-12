@@ -1429,9 +1429,18 @@ class TestCheckPerActorReplicaRmClosedTermination:
             "final RM state" in v and "'ACCEPTED'" in v for v in violations
         )
 
-    def test_an_actor_that_never_left_is_left_to_invariant_7(self):
+    @pytest.mark.spec("CM-23-004")
+    def test_a_replica_with_no_recorded_closure_is_flagged(self):
+        """An unresolved or never-departed replica is a violation, not a skip.
+
+        Otherwise a manifest whose names do not resolve would leave every
+        replica unchecked and the invariant green with nothing checked.
+        """
         nonstatus = [_entry(0, _SHA256("n:0"), GENESIS_HASH, "create_case")]
-        assert self._check(bystander=nonstatus) == []
+        violations = self._check(bystander=nonstatus)
+        assert len(violations) == 1
+        assert "'bystander'" in violations[0]
+        assert "no close_case" in violations[0]
 
 
 class TestCheckPerActorReplicaParticipantStatusSchemaCompleteness:

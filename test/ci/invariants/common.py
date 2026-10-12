@@ -1131,8 +1131,10 @@ def check_per_actor_replica_rm_closed_termination(
     reading each scenario's closure ``demo_check`` runs live), and the
     participant's own last RM state in it MUST be ``CLOSED``.
 
-    A replica whose actor never left (no ``close_case`` records it) is not
-    checked here; invariant 7 reports the missing closure.
+    Every exported participant replica is checked.  A replica whose actor
+    the ``case-actor`` log records no ``close_case`` for — it never left, or
+    its name did not resolve through the manifest — is a violation, not a
+    skip, so the check cannot pass with nothing checked.
 
     Args:
         replicas: The scenario's exported replicas, by actor name.
@@ -1144,7 +1146,14 @@ def check_per_actor_replica_rm_closed_termination(
     leavers = _leaver_ids(auth, actor_names)
     violations: list[str] = []
     for actor, entries in replicas.items():
-        if actor == _CASE_ACTOR_NAME or actor not in leavers:
+        if actor == _CASE_ACTOR_NAME:
+            continue
+        if actor not in leavers:
+            violations.append(
+                f"Actor {actor!r}: the case-actor log records no close_case"
+                " for it, so its replica's own closure cannot be checked"
+                " (CM-23-004)"
+            )
             continue
         actor_id = leavers[actor]
         tail = own_closure_tail_index(shaped, actor_id)

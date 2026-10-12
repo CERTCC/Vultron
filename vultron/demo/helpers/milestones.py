@@ -33,7 +33,6 @@ from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
     find_case_actor_participant_id,
-    resolve_case_actor_store_id,
     wait_for_all_participants_rm_closed,
     wait_for_case_actor_ledger_event,
     wait_for_case_em_terminated,
@@ -639,13 +638,13 @@ def case_manager_ledger(
 ) -> list[Mapping[str, object]]:
     """Return *case_id*'s ledger entries as the CASE_MANAGER holds them.
 
-    Read through *client*, scoped to the co-hosted CaseActor's store
-    (:func:`~vultron.demo.helpers.polling.resolve_case_actor_store_id`);
-    a client bound to the CaseActor already reads that store.  DataLayer shape (``log_index``,
+    Read through *client* as given: it MUST already be bound to the
+    CASE_MANAGER's own store (the closure milestone binds it once, through
+    :func:`~vultron.demo.helpers.polling.case_manager_store`), so no second
+    store lookup is made here.  DataLayer shape (``log_index``,
     ``event_type``, ``payload_snapshot``), in no particular order.
     """
-    store_id = resolve_case_actor_store_id(client, case_id)
-    raw = client.get(client.dl_path("CaseLedgerEntrys/", actor_id=store_id))
+    raw = client.get(client.dl_path("CaseLedgerEntrys/"))
     if not isinstance(raw, dict):
         return []
     return [
@@ -698,15 +697,15 @@ def verify_case_closure_recorded(
     """Verify the CASE_MANAGER's ledger records the case's closure in order.
 
     The ledger half of the closure milestone; :func:`verify_case_closed` is
-    the participant-record half, read in the same store.  Waits for ``case_fully_closed`` in the CASE_MANAGER's
-    own store, then checks the ledger with :func:`case_closure_violations`:
-    every participant in *departed_actor_ids* is ``RM.CLOSED`` on the ledger
-    before ``case_fully_closed``, and no later entry records a participant's
-    act.  The read goes through *client*, scoped to the co-hosted CaseActor's
-    store when there is one (ADR-0073).
+    the participant-record half, read in the same store.  Waits for
+    ``case_fully_closed`` in the CASE_MANAGER's own store, then checks the
+    ledger with :func:`case_closure_violations`: every participant in
+    *departed_actor_ids* is ``RM.CLOSED`` on the ledger before
+    ``case_fully_closed``, and no later entry records a participant's act.
 
     Args:
-        client: Client for the container that hosts the case's CASE_MANAGER.
+        client: Client bound to the CASE_MANAGER's own store (see
+            :func:`~vultron.demo.helpers.polling.case_manager_store`).
         case_id: Full URI of the ``as_VulnerabilityCase``.
         departed_actor_ids: Every participant that left before the case
             closed, the Case Owner included, as

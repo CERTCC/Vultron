@@ -478,16 +478,18 @@ def everyone_closes_case(
     case: as_VulnerabilityCase,
     later_vendors: Sequence[tuple[str, DataLayerClient, as_Actor]] = (),
 ) -> None:
-    """Every participant closes the case; check the terminal state everywhere.
+    """Every participant closes the case, and the closure milestone runs.
 
     The Vendor, the Reporter and each of *later_vendors* leave first, in that
     order; the Coordinator, the Case Owner, leaves last, once their
     departures are recorded (CM-23-015).
 
     *later_vendors* are ``(label, client, actor)`` for vendors beyond the first
-    (the second vendor of ``rcvv-embargo``); each closes and is checked for
-    ledger coverage like the rest.  The departures are read where they
-    commit: the CASE_MANAGER's store, through *case_actor_client*.
+    (the second vendor of ``rcvv-embargo``); each closes like the rest.  Every
+    closure is verified in the CASE_MANAGER's store, through
+    *case_actor_client*, and each leaver's own replica only for its own
+    closure (CM-23-004, :func:`~vultron.demo.helpers.closure
+    .close_case_owner_last`).
     """
     close_case_owner_last(
         case=case,

@@ -349,26 +349,41 @@ def test_closed_participant_receives_nothing_about_anyone_else(
         ) == [_SIGNATORY]
 
 
-@pytest.mark.spec("CM-23-004", "CM-10-004")
+@pytest.mark.spec("CM-23-004", "CM-10-004", "CM-31-001")
+@pytest.mark.parametrize("why_inert", ["embargo-withheld", "removed"])
 def test_own_closure_entries_never_widen_entitlement(
-    dl: SqliteDataLayer,
+    dl: SqliteDataLayer, why_inert: str
 ) -> None:
-    """A closed participant that is inert is not sent its closure either."""
+    """A closed participant that is inert is not sent its closure either.
+
+    Inert because the active embargo withholds it, or because it was
+    removed (CM-31-001): neither its ``close_case`` entry nor its closure
+    status entry reaches it.
+    """
     case = _embargoed_case(dl)
+    actor_id = "https://example.org/actors/closed-inert"
     inert_closed = _seat(
         dl,
         case,
-        "https://example.org/actors/closed-invited",
-        consent=EmbargoConsentState.INVITED,
+        actor_id,
+        consent=(
+            EmbargoConsentState.INVITED
+            if why_inert == "embargo-withheld"
+            else EmbargoConsentState.AGREED
+        ),
         rm_state=RM.CLOSED,
     )
-    entry = _status_entry(6, _closed_status_id(inert_closed))
-    assert entry_records_own_closure(
-        entry, "https://example.org/actors/closed-invited", inert_closed
-    )
-    assert ledger_entry_recipients(case, dl, entry, excluding={_SENDER}) == [
-        _SIGNATORY
-    ]
+    if why_inert == "removed":
+        inert_closed.removal_activity = f"{_CASE_ID}/activities/remove-1"
+        dl.save(inert_closed)
+    for entry in (
+        _close_case_entry(5, actor_id),
+        _status_entry(6, _closed_status_id(inert_closed)),
+    ):
+        assert entry_records_own_closure(entry, actor_id, inert_closed)
+        assert ledger_entry_recipients(
+            case, dl, entry, excluding={_SENDER}
+        ) == [_SIGNATORY]
 
 
 @pytest.mark.spec("CM-23-004")

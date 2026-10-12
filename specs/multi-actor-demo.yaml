@@ -3970,9 +3970,9 @@ groups:
       a scenario carried before the loop was shared), and wraps each per-replica
       wait in a demo context internally. After case closure no replica covers
       the authority's tail, because a closed participant is sent nothing after
-      the entries recording its own closure (CM-23-004); the closure-phase wait
-      that a departed participant's replica ends at its own closure MUST also be
-      performed through a helper in `vultron/demo/helpers/sync.py`.
+      the entries recording its own closure (CM-23-004). The closure-phase wait
+      for a departed participant's replica to end at its own closure MUST also
+      be performed through a helper in `vultron/demo/helpers/sync.py`.
     rationale: >-
       The same read-tail-then-poll-replicas block was repeated in every scenario
       module, once before the notes phase and once after closure (the
@@ -3988,7 +3988,11 @@ groups:
       receives the late-joiner coverage budget and every other replica the
       default coverage budget, that neither budget is below the values the
       scenario copies carried, and that a raising per-replica timeout is
-      recorded by the failure accumulator rather than propagating.
+      recorded by the failure accumulator rather than propagating. Unit tests
+      for the closure-phase helper (`wait_for_replica_ledger_ending_at`, in
+      `test/demo/test_case_closure.py`) assert that it passes when the replica
+      ends at the participant's own closure, reports an entry after it, and
+      times out on a gap.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -4240,8 +4244,10 @@ groups:
       actor: demo-script
       action: close the case on every participant, then dump the case ledgers
       expected: >-
-        RM.CLOSED on every replica; one case-ledger JSONL artifact per actor
-        under devlogs/fcvd/
+        RM.CLOSED for every participant in the CASE_MANAGER's store; each
+        participant's replica ends at the entries recording its own closure
+        (CM-23-004); one case-ledger JSONL artifact per actor under
+        devlogs/fcvd/
     postconditions:
     - description: >-
         The final state DEMOMA-24-005 requires. Deliberately a pointer rather

@@ -363,11 +363,13 @@ unit test. The guard was never missing; the single place to fix it was.
    by default, `LATE_JOINER_COVERAGE_TIMEOUT` for a late joiner — the widest
    budgets any copy carried, so sharing the loop tightened nothing) and wraps
    each per-replica wait in a demo context itself, the same way
-   `wait_for_participants_on_replicas` does. Called with `causal=True` (the
-   default) it is the `demo_gate` before the notes phase and the Phase 1
-   drain before Phase 2 (`phase_label="Phase 1 drain before Phase 2"`); with
-   `causal=False` and `phase_label="close phase"` it is the `demo_check` after
-   case closure, labelled temporal per EDF-06-006. It returns the replicas
+   `wait_for_participants_on_replicas` does. It is the `demo_gate` before the
+   notes phase and the Phase 1 drain before Phase 2
+   (`phase_label="Phase 1 drain before Phase 2"`). It is not used after case
+   closure: a closed participant is sent nothing after the entries recording
+   its own closure (CM-23-004), so no replica covers the authority's tail
+   then. The closure-phase wait is `wait_for_replica_ledger_ending_at`, run by
+   `close_case_owner_last` for each leaver. It returns the replicas
    whose wait passed, so a dependent step can be gated on coverage per
    replica. There is no other copy of the loop: `drain_phase1_ledger` in
    `polling.py` was the last one, invisible to the DEMOMA-23-006 ratchet while

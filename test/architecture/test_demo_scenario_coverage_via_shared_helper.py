@@ -189,8 +189,9 @@ def test_demo_module_routes_coverage_waits_through_shared_helper(module: Path):
 
     Route the wait through ``wait_for_replica_ledger_coverage`` (Phase 1
     drain), ``wait_for_replica_ledger_ending_at`` (closure phase, CM-23-004)
-    or ``run_sync_verification_phase`` (sync-verification phase) instead (DEMOMA-23-005, DEMOMA-23-006, DEMOMA-23-007).  This covers
-    helper modules too: a copy of the loop moved into one is the same defect
+    or ``run_sync_verification_phase`` (sync-verification phase) instead
+    (DEMOMA-23-005, DEMOMA-23-006, DEMOMA-23-007).  This covers helper
+    modules too: a copy of the loop moved into one is the same defect
     as a copy in a scenario (#3906).
     """
     hits = _violations(module, _DEMO_TREES[module])
