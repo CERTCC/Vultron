@@ -44,6 +44,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     OfferCaseOwnershipTransferRequest,
     OfferCaseParticipantRoleRequest,
     RejectCaseInviteRequest,
+    RejectCaseOwnershipTransferRequest,
     SuggestActorToCaseRequest,
 )
 from vultron.core.use_cases.triggers.requests import (
@@ -55,6 +56,7 @@ from vultron.core.use_cases.triggers.requests import (
     OfferCaseOwnershipTransferTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
     RejectCaseInviteTriggerRequest,
+    RejectCaseOwnershipTransferTriggerRequest,
     RejectFullCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
     TentativeRejectFullCaseInviteTriggerRequest,
@@ -449,8 +451,8 @@ def trigger_offer_case_ownership_transfer(
     summary="Accept a case ownership transfer offer.",
     description=(
         "Emits an Accept(Offer(VulnerabilityCase)) from the accepting actor "
-        "back to the offering actor.  The ownership transfer offer must "
-        "already exist in the actor's DataLayer (TRIG-11-002)."
+        "to the case's CASE_MANAGER.  The ownership transfer offer must "
+        "already exist in the actor's DataLayer (TRIG-11-002, CM-21-006)."
     ),
     operation_id="actors_trigger_accept_case_ownership_transfer",
     response_model=ActivityResult,
@@ -471,6 +473,43 @@ def trigger_accept_case_ownership_transfer(
     """
     return run_trigger(
         AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=actor_id, offer_id=body.offer_id
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
+
+
+@router.post(
+    "/{actor_id}/trigger/reject-case-ownership-transfer",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Decline a case ownership transfer offer.",
+    description=(
+        "Emits a Reject(Offer(VulnerabilityCase)) from the declining actor "
+        "to the case's CASE_MANAGER, which ledgers and broadcasts the "
+        "decline.  The ownership transfer offer must already exist in the "
+        "actor's DataLayer (TRIG-11-005, CM-21-010, CM-21-012)."
+    ),
+    operation_id="actors_trigger_reject_case_ownership_transfer",
+    response_model=ActivityResult,
+)
+def trigger_reject_case_ownership_transfer(
+    actor_id: str,
+    body: RejectCaseOwnershipTransferRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
+    """
+    Trigger the reject-case-ownership-transfer behavior for the given actor.
+
+    Implements:
+        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-007, TRIG-03-001,
+        TRIG-03-002, TRIG-04-001, TRIG-12-001; TRIG-11-005
+    """
+    return run_trigger(
+        RejectCaseOwnershipTransferTriggerRequest(
             actor_id=actor_id, offer_id=body.offer_id
         ),
         dispatcher=dispatcher,

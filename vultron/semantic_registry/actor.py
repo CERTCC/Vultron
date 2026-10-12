@@ -337,6 +337,7 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=RejectCaseOwnershipTransferReceivedUseCase,
         phrase="{actor} declined case ownership",
         wire_activity_class=_RejectCaseOwnershipTransferActivity,
+        include_activity=True,
         occasions=(
             Occasion(
                 when="an actor declines an offer of case ownership",

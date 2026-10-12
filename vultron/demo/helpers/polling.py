@@ -32,6 +32,7 @@ from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.helpers.verification import (
     _all_fetchable_participants_rm_closed,
     _fetch_participant,
+    recipient_ids,
 )
 from vultron.demo.utils import (
     CASE_ACTOR_SLUG,
@@ -1660,12 +1661,7 @@ def _is_embargo_invite_for(
     inner_id = inner.get("id") if isinstance(inner, dict) else inner
     if inner_id != embargo_id:
         return False
-    recipients = invite.get("to")
-    if not isinstance(recipients, list):
-        recipients = [recipients]
-    return invitee_id in [
-        r.get("id") if isinstance(r, dict) else r for r in recipients
-    ]
+    return invitee_id in recipient_ids(invite.get("to"))
 
 
 def find_embargo_invite_for_actor(

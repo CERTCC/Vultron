@@ -127,6 +127,11 @@ class RejectCaseOwnershipTransferReceivedEvent(VultronEvent):
     def offer(self) -> "VultronActivity | None":
         return cast("VultronActivity | None", self.object_)
 
+    @property
+    def case_id(self) -> str | None:
+        """The case the declined Offer would have transferred."""
+        return self.inner_object_id
+
 
 class InviteActorToCaseReceivedEvent(VultronEvent):
     """Actor invited another actor to join a VulnerabilityCase."""

@@ -51,10 +51,6 @@ def test_case_bookkeeping_is_not_a_case_field():
 
 @pytest.mark.spec("CM-21-012")
 @pytest.mark.spec("CLP-02-012")
-@pytest.mark.xfail(
-    strict=True,
-    reason="CM-21-012: the ownership-transfer Reject handler commits no entry. #4475.",
-)
 def test_ownership_transfer_reject_commits_an_entry():
     assert "reject_case_ownership_transfer" in received_commit_semantics()
 

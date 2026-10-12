@@ -43,6 +43,7 @@ from vultron.core.behaviors.case.nodes.invite_response import (
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
     EmitOfferCaseOwnershipTransferNode,
+    EmitRejectCaseOwnershipTransferNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
@@ -253,6 +254,28 @@ def offer_case_ownership_transfer_trigger_bt(
     return root
 
 
+def _ownership_answer_trigger_bt(
+    name: str,
+    emit_node: (
+        type[EmitAcceptCaseOwnershipTransferNode]
+        | type[EmitRejectCaseOwnershipTransferNode]
+    ),
+    offer_id: str,
+    case_id: str,
+    captured: dict | None,
+) -> py_trees.behaviour.Behaviour:
+    """The trigger-side tree shared by the transferee's Accept and Reject."""
+    root = py_trees.composites.Sequence(
+        name=name,
+        memory=False,
+        children=[
+            emit_node(offer_id=offer_id, case_id=case_id, captured=captured),
+        ],
+    )
+    logger.debug("Created %s for offer=%s case=%s", name, offer_id, case_id)
+    return root
+
+
 def accept_case_ownership_transfer_trigger_bt(
     offer_id: str,
     case_id: str,
@@ -271,20 +294,38 @@ def accept_case_ownership_transfer_trigger_bt(
     Returns:
         Sequence containing a single EmitAcceptCaseOwnershipTransferNode.
     """
-    root = py_trees.composites.Sequence(
-        name="AcceptCaseOwnershipTransferTriggerBT",
-        memory=False,
-        children=[
-            EmitAcceptCaseOwnershipTransferNode(
-                offer_id=offer_id,
-                case_id=case_id,
-                captured=captured,
-            ),
-        ],
-    )
-    logger.debug(
-        "Created AcceptCaseOwnershipTransferTriggerBT for offer=%s case=%s",
+    return _ownership_answer_trigger_bt(
+        "AcceptCaseOwnershipTransferTriggerBT",
+        EmitAcceptCaseOwnershipTransferNode,
         offer_id,
         case_id,
+        captured,
     )
-    return root
+
+
+def reject_case_ownership_transfer_trigger_bt(
+    offer_id: str,
+    case_id: str,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the reject-case-ownership-transfer workflow.
+
+    Emits ``Reject(Offer(VulnerabilityCase))`` addressed to the case's
+    CASE_MANAGER (TRIG-11-005, CM-21-010).
+
+    Args:
+        offer_id: ID of the ``_OfferCaseOwnershipTransferActivity`` declined.
+        case_id: ID of the VulnerabilityCase; used to resolve the
+            CASE_MANAGER.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single EmitRejectCaseOwnershipTransferNode.
+    """
+    return _ownership_answer_trigger_bt(
+        "RejectCaseOwnershipTransferTriggerBT",
+        EmitRejectCaseOwnershipTransferNode,
+        offer_id,
+        case_id,
+        captured,
+    )
