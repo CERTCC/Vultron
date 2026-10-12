@@ -47,7 +47,7 @@ class CreateCaseReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for case creation"
+        "#4522", "no sender check defined for case creation"
     )
 
     def __init__(

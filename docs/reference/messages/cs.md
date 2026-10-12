@@ -58,9 +58,9 @@ print(json2md(create_participant_status()))
   [Transitions](../formal_protocol/transitions.md).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_participant, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_vendor_awareness_to_participant, json2md
 
-print(json2md(add_status_to_participant()))
+print(json2md(add_vendor_awareness_to_participant()))
 ```
 
 ## CF — Fix Readiness
@@ -74,9 +74,9 @@ print(json2md(add_status_to_participant()))
   [Transitions](../formal_protocol/transitions.md).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_participant, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_fix_readiness_to_participant, json2md
 
-print(json2md(add_status_to_participant()))
+print(json2md(add_fix_readiness_to_participant()))
 ```
 
 ## CD — Fix Deployed
@@ -90,9 +90,9 @@ print(json2md(add_status_to_participant()))
   [Transitions](../formal_protocol/transitions.md).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_participant, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_fix_deployment_to_participant, json2md
 
-print(json2md(add_status_to_participant()))
+print(json2md(add_fix_deployment_to_participant()))
 ```
 
 ## Create Case Status
@@ -121,9 +121,9 @@ print(json2md(create_case_status()))
   [Transitions](../formal_protocol/transitions.md).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_case, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_public_awareness_to_case, json2md
 
-print(json2md(add_status_to_case()))
+print(json2md(add_public_awareness_to_case()))
 ```
 
 ## CX — Exploit Public
@@ -137,9 +137,9 @@ print(json2md(add_status_to_case()))
   [Transitions](../formal_protocol/transitions.md).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_case, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_exploit_public_to_case, json2md
 
-print(json2md(add_status_to_case()))
+print(json2md(add_exploit_public_to_case()))
 ```
 
 ## CA — Attacks Observed
@@ -154,9 +154,9 @@ print(json2md(add_status_to_case()))
   [Transitions](../formal_protocol/transitions.md).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_case, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_attacks_observed_to_case, json2md
 
-print(json2md(add_status_to_case()))
+print(json2md(add_attacks_observed_to_case()))
 ```
 
 ## CK — CS Acknowledgment

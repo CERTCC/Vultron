@@ -92,6 +92,7 @@ from vultron.core.use_cases.received.actor.offer_case_participant import (
 )
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
+    OfferCaseOwnershipTransferReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.core.use_cases.received.case.lifecycle import (
@@ -197,11 +198,6 @@ def _report_id(report: Any) -> str:
     return report_id
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CM-21-011: ownership Accept from a non-transferee is applied. Tracked by #4070.",
-)
 @pytest.mark.spec("CM-21-011")
 @pytest.mark.spec("HP-01-006")
 def test_ownership_accept_from_non_transferee_is_refused(
@@ -215,9 +211,26 @@ def test_ownership_accept_from_non_transferee_is_refused(
         # bare-id target (VultronCanonicalEntryError).
         target=as_Actor(id_="https://example.org/actors/transferee"),
         actor=_OWNER_ID,
+        to=[_CASE_MANAGER_ID],
         id_="https://example.org/activities/offer-ownership-se",
     )
-    cm_store.create(offer)
+    # The CASE_MANAGER records (ledgers) the Offer; its forward to the
+    # transferee is not what this test is about.
+    forward = MagicMock()
+    forward.offer_case_ownership_transfer.return_value = (
+        "https://example.org/activities/offer-ownership-se-forwarded",
+        "{}",
+    )
+    recorded = OfferCaseOwnershipTransferReceivedUseCase(
+        cm_store,
+        make_payload(offer, receiving_actor_id=_CASE_MANAGER_ID),
+        trigger_activity=forward,
+        sync_port=SyncActivityAdapter(cm_store),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+    assert recorded.disposition is HandlerDisposition.APPLIED
+    entries_before = list(cm_store.list_objects("CaseLedgerEntry"))
+    outbox_before = cm_store.outbox_list()
     event = make_payload(
         accept_case_ownership_transfer_activity(offer, actor=_IMPOSTOR_ID),
         receiving_actor_id=_CASE_MANAGER_ID,
@@ -231,8 +244,13 @@ def test_ownership_accept_from_non_transferee_is_refused(
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert (
+        result.reason is not None and "is not the transferee" in result.reason
+    )
     assert _reload_case(cm_store, owned_case.id_).attributed_to == _OWNER_ID
-    assert cm_store.outbox_list() == []
+    # No ledger commit and nothing sent for the refused Accept.
+    assert list(cm_store.list_objects("CaseLedgerEntry")) == entries_before
+    assert cm_store.outbox_list() == outbox_before
 
 
 _TRANSFEREE_ID = "https://example.org/actors/transferee"

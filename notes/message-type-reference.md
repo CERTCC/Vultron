@@ -6,8 +6,8 @@ description: >-
   Design guidance for the consolidated per-message-type reference pages: why the
   formal message set and the AS2 wire vocabulary are different shapes, how the
   many-to-many mapping is rendered, where the fault and acknowledgement
-  mechanisms diverged from their specified form, and the planned occasion
-  lookup table that the pages will be generated from (ADR-0128).
+  mechanisms diverged from their specified form, and the occasions declared on
+  each registry entry that the lookup table is generated from (ADR-0128).
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/vultron-as2-mapping.yaml
@@ -326,7 +326,7 @@ So the reference pages are the Reference half of un-blurring an existing
 collapse. Treating them as a fourth parallel surface would deepen the collapse
 instead of resolving it.
 
-## Occasions: the unit of the lookup table (planned, ADR-0128, #4418)
+## Occasions: the unit of the lookup table (ADR-0128, #4418, #4429)
 
 A builder's question runs the other way from the mapping tables: not "what wire
 form does `CF` take?" but "a fix is ready — what do I send?" ADR-0128 answers it
@@ -339,7 +339,8 @@ pair: When… | Send | Send to | Sent by | Distinguished by | Details. The forma
 shorthand is only the Details link text; the formal protocol is linked, not
 leading.
 
-Where each fact will live, so nothing derivable is typed by hand:
+Where each fact lives, so nothing derivable is typed by hand. The occasions,
+the page and the two derivations landed in #4429; the addressee is #4438:
 
 | Fact | Owner |
 |---|---|
@@ -347,15 +348,32 @@ Where each fact will live, so nothing derivable is typed by hand:
 | wire summary | the entry's `ActivityPattern`, rendered as today |
 | send to (addressee) | `SemanticEntry.occasions` (ADR-0129) |
 | sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
-| page | a new `SemanticEntry.page` field, moved from `RowSpec.page` |
-| `MappingStatus`, discriminator | derived from the occasions (`evolved` declared on its occasion), no longer entered in `_mapping.py` |
+| page | `SemanticEntry.page`, a `MessagePage` value |
+| `MappingStatus`, discriminator | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
 | "Seen in" | the include directives on workflow pages |
 
+The value objects are in `vultron/semantic_registry/_occasion.py`. An occasion
+names its example by `vocab_examples` function name rather than holding the
+function, so the dispatch registry does not import the example corpus at server
+start; `test/test_semantic_registry_occasions.py` resolves every name and checks
+the example dispatches to its own entry. The derived mapping rows put a page's
+rows in registry order, which is dispatch order, not reading order.
+
+Deriving the status corrected three rows on `rm.md`. MSM-01-002, MSM-01-003 and
+MSM-01-006 give `RI`, `RV` and `RC` a second wire form, the full-case Invite reply
+of a participant that joined through an Invite, so those shorthands are
+expansions, not direct mappings. `Create(ProcessingFault)` and
+`Reject(CaseLedgerEntry)` declare `evolved`. The `Add(ParticipantStatus)`
+discriminator is now `vf_state / d_state`: `rm_state` distinguishes none of
+`CV`, `CF` and `CD`, so no occasion names it, and its RM role is the
+second-home row on `rm.md`.
+
 The YAML file and the `include-markdown` fragments (the whole table, a slice per
-page, one per occasion) are generated, committed, and gated by a `--check` hook;
-`_mapping.py` becomes their loader and validator. That replaces MSM-06-001's
-build-time rendering, so the implementation revises MSM-06-001. Until it lands, the
-pages render as described below. The occasion requirements are MSM-08.
+page, one per occasion) are generated, committed, and gated by a `--check` hook
+(#4430); `_mapping.py` becomes their loader and validator. That replaces
+MSM-06-001's build-time rendering, so the implementation revises MSM-06-001.
+Until it lands, the pages render as described below. The occasion requirements
+are MSM-08.
 
 ### Planning decisions (#4418)
 
@@ -449,12 +467,12 @@ and DF-09-010 wants the pair (MSM-08-008). An expansion is the exception: the
 `GI` rows link by section heading, because "General Inquiry (GI)" would label
 every row of the expansion alike, and DF-09-010 lets the heading stand in.
 
-**Each occasion's example shows its own distinguisher.** Today the CV, CF and CD
-sections of `cs.md` render the same `add_status_to_participant()` example, which
-dispatches correctly and carries `vf_state` `Vf`, the vendor awareness value, so
-the CF and CD sections show a value that is not theirs. A dispatch check alone
-passes that, so MSM-08-003 also requires the example to carry a field-value
-distinguisher. A state context is the receiver's state, not payload, so no
+**Each occasion's example shows its own distinguisher.** Until #4429 the CV, CF
+and CD sections of `cs.md` rendered the same `add_status_to_participant()`
+example, which dispatches correctly and carries `vf_state` `Vf`, the vendor
+awareness value, so the CF and CD sections showed a value that is not theirs.
+A dispatch check alone passes that, so MSM-08-003 also requires the example to
+carry a field-value distinguisher. A state context is the receiver's state, not payload, so no
 example carries it.
 
 **A distinguisher is typed.** Either a field value checked against the field's

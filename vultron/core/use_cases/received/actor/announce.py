@@ -79,7 +79,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for actor announcement"
+        "#4522", "no sender check for actor announcement"
     )
 
     def __init__(

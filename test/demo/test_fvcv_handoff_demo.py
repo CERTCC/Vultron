@@ -755,6 +755,47 @@ def _otc_post_inbox(client, actor_slug: str, activity) -> None:
     )
 
 
+def _otc_record_offer(dl, offer, case_manager_id: str) -> None:
+    """Run the CASE_MANAGER's received Offer use case on *dl*, forward stubbed."""
+    from unittest.mock import MagicMock
+
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+    from vultron.core.models.events.actor import (
+        OfferCaseOwnershipTransferReceivedEvent,
+    )
+    from vultron.core.models.use_case_result import HandlerDisposition
+    from vultron.core.use_cases.received.actor.ownership import (
+        OfferCaseOwnershipTransferReceivedUseCase,
+    )
+    from vultron.semantic_registry import extract_event
+
+    forward = MagicMock()
+    forward.offer_case_ownership_transfer.return_value = (
+        f"{offer.id_}/forwarded",
+        "{}",
+    )
+    event = extract_event(offer).model_copy(
+        update={"receiving_actor_id": case_manager_id}
+    )
+    assert isinstance(event, OfferCaseOwnershipTransferReceivedEvent)
+    result = OfferCaseOwnershipTransferReceivedUseCase(
+        dl,
+        event,
+        trigger_activity=forward,
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+    assert result.disposition is HandlerDisposition.APPLIED, result
+    # The Offer's own fan-out and its stubbed forward are not this test's
+    # subject; drop them so nothing is delivered back into the Coordinator's
+    # own inbox while it handles the Accept.
+    while dl.outbox_pop() is not None:
+        pass
+
+
 @pytest.mark.spec("CM-21-007")
 class TestOwnershipTransferAnnounceReachesFinderAC5c:
     """AC-5c: Finder receives Announce(CaseLedgerEntry) after ownership transfer.
@@ -768,7 +809,8 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
 
     All three actors use isolated FastAPI apps wired via _TestClientRouter.
     The test seeds the case and participants directly on the Coordinator's
-    DataLayer, then delivers the Accept(Offer) to the Coordinator's inbox
+    DataLayer, has the Coordinator record the Vendor's Offer, then delivers
+    the Accept(Offer) to the Coordinator's inbox
     via HTTP POST.  The outbox drains automatically (TestClient processes
     BackgroundTasks synchronously), routing the Announce to Finder's inbox.
     Finder's DataLayer is then checked for an Announce whose object is a
@@ -899,18 +941,26 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
                     cdl.create(as_Service(id_=vendor_id, name="Vendor OTC"))
                     cdl.create(as_Service(id_=finder_id, name="Finder OTC"))
 
-                    # Seed the Offer on the Coordinator's DL (as if the
-                    # Vendor had already sent it and the Coordinator stored it).
+                    # The Coordinator records (ledgers) the Vendor's Offer, as
+                    # its received Offer use case does: an Accept is acted on
+                    # only for an Offer the CASE_MANAGER recorded (CM-21-011).
+                    # It runs in-process because the transferee is the
+                    # Coordinator itself, and its forward would be delivered
+                    # back into the inbox call that sent it.
                     case_wire = as_VulnerabilityCase.model_validate(
                         {"id": case_id, "name": case.name or "OTC Test Case"}
                     )
                     offer = offer_case_ownership_transfer_activity(
                         case=case_wire,
-                        target=coordinator_id,
+                        # Inline, as the inbox rehydrates it: the ledger
+                        # commit refuses a bare-id target (CLP-07).
+                        target=as_Service(
+                            id_=coordinator_id, name="Coordinator OTC"
+                        ),
                         actor=vendor_id,
                         to=[coordinator_id],
                     )
-                    cdl.create(offer)
+                    _otc_record_offer(cdl, offer, coordinator_id)
 
                     # Build and deliver Accept(Offer) to Coordinator's inbox.
                     # The Coordinator IS the CaseActor so it processes the

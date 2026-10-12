@@ -60,6 +60,14 @@ from vultron.wire.as2.vocab.examples.vocab_examples import add_note_to_case, jso
 print(json2md(add_note_to_case()))
 ```
 
+The note withdrawn from the case:
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import remove_note_from_case, json2md
+
+print(json2md(remove_note_from_case()))
+```
+
 Suggesting an actor for a case:
 
 ```python exec="true" idprefix=""

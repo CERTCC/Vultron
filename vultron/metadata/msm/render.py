@@ -2,8 +2,9 @@
 
 Produces shorthand↔wire-form mapping tables for the consolidated per-message-type
 reference pages.  Each page covers one family of protocol messages; the tables
-are rendered from the MSM mapping table (:mod:`vultron.metadata.msm._mapping`)
-joined against ``SEMANTIC_REGISTRY``.
+are rendered from each ``SEMANTIC_REGISTRY`` entry: its ``page``, the
+shorthands and distinguishers on its occasions, and the mapping status derived
+from them (:mod:`vultron.metadata.msm._mapping`, ADR-0128).
 
 Usage (in a ``markdown-exec`` Python block)::
 
@@ -21,8 +22,8 @@ Column semantics:
 - **`MessageSemantics`**: the ``SEMANTIC_REGISTRY`` key used for dispatch.
 - **Wire Form**: ActivityStreams 2.0 verb+object(±qualifier) derived from the
   entry's :class:`~vultron.wire.as2.extractor.ActivityPattern`.
-- **Discriminator**: the payload field that distinguishes shorthands in a
-  collapse mapping, or ``—`` for direct/expansion/none rows.
+- **Discriminator**: the payload fields or state contexts that tell the entry's
+  occasions apart, or ``—`` when it has one occasion.
 - **Status**: one of ``direct``, ``collapse``, ``expansion``,
   ``evolved``, or ``none`` (MSM-06-003).
 

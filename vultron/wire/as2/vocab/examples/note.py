@@ -17,6 +17,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
+    as_Remove,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.examples._base import (
@@ -62,3 +63,12 @@ def create_note():
         target=_case.id_,
     )
     return activity
+
+
+def remove_note_from_case() -> as_Remove:
+    """``Remove(Note)[target=VulnerabilityCase]``: the note's author withdraws it."""
+    return as_Remove(
+        actor=finder().id_,
+        object_=note(),
+        target=case().id_,
+    )
