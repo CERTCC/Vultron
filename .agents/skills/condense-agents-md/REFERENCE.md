@@ -23,7 +23,7 @@ Use these questions to classify a section:
    | ActivityStreams semantics (wire format, Accept/Reject, name field) | `notes/activitystreams-semantics.md` |
    | Case state model (case_status list, CaseEvent timestamps) | `notes/case-state-model.md` |
    | Architecture / layer separation | `notes/architecture-hexagonal.md` |
-   | Domain model separation | `notes/domain-model-separation.md` |
+   | Domain model separation | `notes/wire-core-boundary.md` |
    | Codebase structure (actor IDs, demo lifecycle) | `notes/codebase-structure.md` |
    | DataLayer design | `vultron/core/ports/AGENTS.md` |
    | History management | `notes/history-management.md` |

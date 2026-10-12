@@ -244,7 +244,7 @@ groups:
     statement: Wire-level ActivityStreams payload classes SHOULD carry the `Activity` suffix; domain event classes SHOULD
       carry the `Event` suffix
     rationale: Distinguishes wire representation from domain intent, prevents accidental coupling between layers, and makes
-      the translation point explicit. See `notes/domain-model-separation.md` for the full design rationale.
+      the translation point explicit. See `notes/wire-core-boundary.md` for the full design rationale.
 - id: CS-11
   title: Type Annotations
   specs:

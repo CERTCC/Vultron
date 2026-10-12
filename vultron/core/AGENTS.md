@@ -147,7 +147,7 @@ because the codebase was built wire-first. The wire layer imports and projects
 from core, never the reverse — which is why `VultronActivity.object_` is typed
 `Any | None`. Do **not** add new imports from `vultron/core/` into
 `vultron/wire/as2/`. Migration tracked in #539; full direction in
-[notes/domain-model-separation.md](../../notes/domain-model-separation.md).
+[notes/wire-core-boundary.md](../../notes/wire-core-boundary.md).
 
 ### Adding SemanticEntry: Use Domain Sub-Module, Not `__init__.py`
 

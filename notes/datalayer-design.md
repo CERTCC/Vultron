@@ -2,20 +2,18 @@
 title: "DataLayer Design: Architecture and Migration Notes"
 status: active
 kind: guidance
-tags: [datalayer, ports, persistence, architecture, migration, hexagonal]
+tags: [datalayer, ports, persistence, architecture, hexagonal]
 description: >
-  Architectural analysis of the DataLayer port contract, CasePersistence
-  narrowing, auto-rehydration requirements, storage record design, and
-  vocabulary registry entanglement. Operating rules live in
+  Rules for the DataLayer port contract, CasePersistence narrowing, the
+  write/read shape boundary, activity read-back, received-artifact snapshots,
+  per-actor stores, and shared-record writes. Operating rules live in
   vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
   - specs/embargo-policy.yaml (EP-02-004)
-  - specs/case-proposal.yaml (CP-05-005)
   - specs/case-management.yaml (CM-11-017)
 related_notes:
-  - notes/domain-model-separation.md
   - notes/architecture-hexagonal.md
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
@@ -24,6 +22,8 @@ related_notes:
   - notes/vocabulary-registry.md
   - notes/case-bootstrap-trust.md
   - notes/case-proposal.md
+  - notes/wire-artifact-immutability.md
+  - notes/triggerable-behaviors.md
 relevant_packages:
   - vultron/core/ports
   - vultron/adapters/driven
@@ -33,7 +33,7 @@ relevant_packages:
 # DataLayer Design: Architecture and Migration Notes
 
 Operating rules summary: `vultron/core/ports/AGENTS.md`.
-Specs: `specs/datalayer.yaml` (DL-01 through DL-04).
+Specs: `specs/datalayer.yaml`.
 
 `dl.read()` returns core objects, never wire objects (ADR-0034), and core
 must not re-read a stored wire activity to recover its semantics (ADR-0035; see
@@ -49,38 +49,14 @@ The repository distinguishes between two layers of persistence contract:
 | `CasePersistence` | core use cases and BT nodes | Narrow core-facing persistence/query contract |
 | `CaseOutboxPersistence` | the small subset of core code that also enqueues outbound activities | `CasePersistence` plus outbound enqueue methods only |
 
-`CasePersistence` is intentionally narrower than `DataLayer`. Its current
-required minimum surface is:
-
-- `create`
-- `read`
-- `get`
-- `save`
-- `by_type`
-- `find_case_by_report_id`
-- `find_actor_by_short_id`
-
-That list is the current minimum contract, not a promise that the
-surface is finished forever. Future additions are allowed only when they
-preserve the same core-facing persistence/query boundary. Queue methods,
-health checks, admin helpers, diagnostics, and low-level storage
-primitives remain part of the full `DataLayer` contract instead.
-
-## Deprecated Compatibility Methods
-
-`get()` and `by_type()` remain on `CasePersistence` only as compatibility
-methods during the migration away from raw-record access in core. They
-are deprecated and should be treated as removal targets, not stable
-design endpoints.
-
-For new or refactored core code, prefer:
-
-- `read_case()` for `VulnerabilityCase` retrieval — returns the typed object
-  directly, no isinstance narrowing needed (ISSUE-2490)
-- `read()` for single-object lookup of other domain types
-- `list_objects()` for typed collection queries
-- dedicated typed helper methods when a generic query would otherwise
-  expose raw persistence details
+`CasePersistence` (`vultron/core/ports/case_persistence.py`) is intentionally
+narrower than `DataLayer`. Add a method to it only when the method preserves the
+core-facing persistence/query boundary; queue methods, health checks, admin
+helpers, diagnostics, and low-level storage primitives stay on `DataLayer`.
+In core, use `read_case()` for a `VulnerabilityCase` (typed, no `isinstance`
+narrowing), `read()` for other single objects, `list_objects()` for typed
+collections, and a dedicated typed helper when a generic query would expose raw
+persistence details.
 
 ## CaseOutboxPersistence as a Smell Marker
 
@@ -91,91 +67,40 @@ sometimes legitimate, but it should not become invisible. When a
 architectural smell: the handler is mixing inbound processing with
 outbound broadcast and should be reviewed for a cleaner split later.
 
-## DataLayer Storage Records Need Re-Evaluation
+## Write Path Stores Verbatim; the Boundary Is `extra="forbid"`
 
-`Record` and `StorableRecord` in
-`vultron/adapters/driven/db_record.py` were designed when wire and core
-were the same layer. Now that they are separated, these classes need
-re-evaluation. The questions to answer are:
+The shape guard lives on the *type*, not the write path (ARCH-12-003, ADR-0082).
+`CoreObject` sets `extra="forbid"`, so handing a wire-shaped payload to a core
+type raises a pydantic `ValidationError` instead of silently dropping every
+snake_case-only key. A wire-shaped row in a core-typed slot is not cosmetic:
+core `ParticipantStatus` nests `rm: RmDimension` where wire carries a flat
+`rm_state`, so the wrong shape makes `status.rm.state` read `None`.
 
-1. Should `Record`/`StorableRecord` remain as adapter-specific types, or
-   should they be promoted to a more neutral abstraction?
-2. Is a tiered adapter structure appropriate — a thin translation adapter
-   that converts domain objects to/from a generic dict/document form,
-   sitting above a storage-specific adapter (SQLite, MongoDB, SQL)?
-3. How should the DataLayer port be typed: should it use generic
-   `dict`/`Any` for storage records, or should there be typed protocols
-   for different record kinds?
-
-**Key principle**: the DataLayer **port** should be defined entirely in
-terms of core domain objects. The DataLayer **adapter** handles all
-translation to storage format. Core should be agnostic to whether the
-adapter uses separate tables per type, a single JSON blob, or a document
-store.
-
-Research needed: audit all current callers of `object_to_record()`,
-`record_to_object()`, and `find_in_vocabulary()` to understand the scope
-of the coupling before designing the refactor.
-
-## Write Path Stores Verbatim; the Boundary Is `extra="forbid"` (#2232, #2940)
-
-**Superseded (#2940).** The write-side normalisation gate this section used to
-describe — `Record.from_obj()` projecting through `_normalize_to_core()`, the
-`_NORMALIZE_WIRE_TO_CORE` frozenset, its grow-only ratchet, and
-`_project_shadowing_wire_obj` — **is deleted**. ADR-0062 is archived; the
-contract is now ADR-0082 / ARCH-12-003.
-
-The problem it solved was real and is worth keeping in view: `Record.from_obj()`
-rejected objects whose `type_` starts with `as_`, but wire vocabulary `type_`
-values are **bare** (`"CaseParticipant"`, not `"as_CaseParticipant"`), so the
-guard never fired for the 15 wire classes that shadow a `CORE_VOCABULARY` entry.
-A wire-shaped object was written into a core-typed row, and whichever class read
-the row back decided what the data meant. For `ParticipantStatus` and
-`CaseParticipant` the two shapes are *structurally* incompatible — core nests
-`rm: RmDimension` where wire carries a flat `rm_state` — so a wire-shaped row
-makes `status.rm.state` yield `None` rather than merely misspell a key.
-
-**Rule (current):** the guard moved from the write path to the *type*.
-`CoreObject` sets `extra="forbid"` (ARCH-12-003), so handing a wire-shaped
-payload to a core type raises a pydantic `ValidationError` instead of silently
-discarding every snake_case-only key. Two consequences for this adapter:
-
-- **Writes store verbatim.** `Record.from_obj()` and `_storable_to_record()` no
-  longer project anything; a row is persisted in whatever shape it arrived.
+- **Writes store verbatim.** `Record.from_obj()` and `_storable_to_record()` do
+  not project; a row is persisted in the shape it arrived in. Do not add a
+  write-side normalisation gate back.
 - **Reads project.** `ValidationError` is the shape-mismatch signal that drives
-  the read-side fallback (`_from_row` → `_wire_object_from_row` →
-  `_project_wire_row_to_core`), so a wire-shaped row still reads back as core.
-  When even that projection fails, `dl.read()` logs a WARNING and returns the
-  **wire** object (see "A DataLayer Fallback Is a Smell for a Masked Protocol
-  Bug" below).
+  the read-side fallback in
+  `vultron/adapters/driven/datalayer_sqlite/hydration.py`
+  (`project_wire_row_to_core`), so a wire-shaped row still reads back as core.
+  When that projection also fails, `dl.read()` logs a WARNING and returns the
+  **wire** object (see "A DataLayer Fallback Is a Smell" below).
 
-Two caveats worth knowing before touching this path:
+Two caveats before touching this path:
 
-- `extra="forbid"` rejects *unknown* keys. It does **not** reject a flat
-  `rm_state`/`rmState` on `ParticipantStatus` or `CaseStatus`, because those
-  spellings are declared `AliasChoices` on the field and are therefore
-  *interpreted*, not dropped. Removing those aliases is #2288/#2289.
-- Persisted rows now use wire-facing identity keys (`id`, `type`, `@context`).
+- `extra="forbid"` rejects *unknown* keys only. A flat `rm_state`/`rmState` on
+  `ParticipantStatus` is a declared `AliasChoices` spelling, so it is
+  *interpreted*, not rejected.
+- Persisted rows use wire-facing identity keys (`id`, `type`, `@context`):
   `Record.from_obj()` applies `_rekey_wire_identity()` after `_dehydrate_data()`
-  to rename the three identity keys before storage (#3546, ARCH-23-005).
-  Existing rows keyed `id_`/`type_` continue to round-trip correctly via
-  `populate_by_name=True` / `validate_by_name=True` on model roots.
-  The refusal clause of ARCH-23-005 (computed-field contradiction, #3695) is still
-  tracked separately.
+  (ARCH-23-005).
 
 ## Activity Read-Back: Semantic Content vs. Envelope Reconstitution (ADR-0035, DL-06)
 
-**Decided (ADR-0035).** `dl.read(activity_id)` in `vultron/core/` is a
-*symptom*. The root cause is that the 29 AS2 protocol Activities (`Offer`,
-`Invite`, `Accept`, …) were built wire-first and never given a core counterpart,
-inverting "wire is a projection of core" (ADR-0017) and violating ARCH-09-001.
-Because the domain fact each message carries has no home in core, core reaches
-back through the DataLayer to re-read the stored wire envelope.
-
-Vultron is a set of communicating **core** state machines; wire exists only to
-carry a core fact from one isolated actor to another (Actor Knowledge Model). An
-AS2 Activity is an **envelope**, not a domain object. The fix splits two needs
-that `dl.read(activity_id)` conflates:
+An AS2 Activity is an **envelope** that carries a core fact between isolated
+actors, not a domain object. `dl.read(activity_id)` in `vultron/core/` is the
+symptom of a domain fact with no home in core (ARCH-09-001). Keep the three needs
+it conflates apart:
 
 | Need | Source of truth | Rule |
 |---|---|---|
@@ -185,257 +110,84 @@ that `dl.read(activity_id)` conflates:
 
 The extractor (the single interpretation site, ARCH-03-001) records each domain
 fact as core state at interpretation time — a transition on an existing core
-entity or a purpose-built core record. This is **not** a 1:1 clone of the AS2
-Activity into core (the generic-event-mirroring-AS2 anti-pattern in
-`notes/domain-model-separation.md`); model only the domain fact, in domain
+entity or a purpose-built core record (for example `VultronOfferRecord`, or an
+index on `VulnerabilityCase` such as `pending_embargo_proposal_index`). This is
+**not** a 1:1 clone of the AS2 Activity into core — a generic event mirroring AS2
+is the anti-pattern ADR-0035 rejects; model only the domain fact, in domain
 vocabulary, capturing only what handlers use.
 
-**Why the envelope seam is legitimate, not anathema.** Activity ids are
-non-regenerable random `urn:uuid:` values (`vultron/wire/as2/vocab/base/utils.py`),
-and the Actor Knowledge Model requires a reply to embed the *full inline
-original* activity — so a reply's `object_` cannot be produced by re-projecting
-core state. The original envelope must be retained and read back verbatim.
-Confining that read to a wire/adapter-owned seam that treats the payload as
-opaque keeps semantic authority in core. `CaseLedgerEntry.payloadSnapshot` is
-the existing precedent for opaque, write-only activity retention.
-
-### Audited core activity read-back sites (concern #1506)
-
-Classification of every `dl.read(activity_id)` / activity `list_objects()` site
-in `vultron/core/` at audit time. Categories A/B need migration; C is the
-sanctioned seam; D is not an activity read (covered by DL-05 / #1503).
-
-**A — plumbing re-reads** (re-read only to `model_dump()` the just-emitted
-activity into the API response; the factory already built the object):
-
-- `vultron/core/use_cases/triggers/report.py` — `_handle_result` in
-  `SvcValidateReportUseCase`, `SvcInvalidateReportUseCase`, `SvcRejectReportUseCase`,
-  `SvcCloseReportUseCase` (4 sites).
-- ~~`vultron/core/behaviors/case/nodes/delegation.py`~~ — `CreateOfferCaseManagerActivityNode`
-  re-read the just-created `Offer(CaseManagerRole)`. Deleted in issue #2429 when
-  `OFFER_CASE_MANAGER_ROLE` infrastructure was removed (ADR-0039).
-- *Fix*: `TriggerActivityPort` returns `(activity_id, activity_dict)`; delete the
-  re-reads. Not even a semantic read.
-
-**B — semantic-content reads** (core re-interprets a stored activity for a
-domain fact — the ARCH-09-001 core violations):
-
-- ~~*report/offer*~~: migrated (#1518). `VultronOfferRecord` now captures
-  offer facts at adapter time (sender) and received-side ingest time (receiver).
-  Core reads `VultronOfferRecord` instead of the stored wire `Offer` activity.
-- ~~*embargo*~~: migrated (#1519). `pending_embargo_proposal_index: dict[str,
-  str]` (embargo_id → proposal_id) added to `VulnerabilityCase`; populated on
-  receive (`InviteToEmbargoOnCaseReceivedUseCase`) and trigger
-  (`SvcProposeEmbargoUseCase._handle_result`). All `dl.read(invite_id)` and
-  `list_objects("Invite")` semantic reads in `received/embargo/`,
-  `triggers/_helpers.py`, and `dispatcher.py` removed. `Invite` removed from
-  DL-05-004 exemptions.
-- ~~*actor/participant*~~: migrated (#1520). `recommendation_recommender_index:
-  dict[str, str]` (recommendation_id → recommender_actor_id) added to
-  `VulnerabilityCase`; populated in `OfferActorToCaseReceivedUseCase.execute()`.
-  `AcceptOfferCaseParticipantReceivedUseCase` and
-  `RejectOfferCaseParticipantReceivedUseCase` now read
-  `case.recommendation_recommender_index.get(recommendation_id)` instead of
-  `dl.read(recommendation_id)`. Redundant `invite_type != "Invite"` check
-  removed from `SvcAcceptCaseInviteUseCase._prepare()`.
-- *Fix*: capture the fact as core state at extraction time; read it from core.
-
-**C — envelope reconstitution** (verbatim original needed for a reply):
-
-Audited by #1521. Four live reply paths need the verbatim original activity
-inline in the reply's `object_`:
-
-- `TriggerActivityAdapter.accept_case_invite` (`actors.py`) — reads the
-  stored `Invite` and passes it verbatim to `rm_accept_invite_to_case_activity`.
-- `TriggerActivityAdapter.accept_embargo` (`embargo.py`) — reads the stored
-  embargo proposal `Invite` and passes it to `em_accept_embargo_activity`.
-- `TriggerActivityAdapter.reject_embargo` (`embargo.py`) — same pattern for
-  `em_reject_embargo_activity`.
-- `TriggerActivityAdapter.accept_case_participant_offer` (`actors.py`) —
-  reads the stored `Offer(CaseParticipant)` and passes it to
-  `accept_case_participant_offer_activity`.
-
-**All four reads are already in the adapter layer** (`vultron/adapters/driven/
-trigger_activity_adapter/`), not in `vultron/core/`. They satisfy DL-06-004:
-the payload is treated opaquely (passed straight to the factory without any
-semantic interpretation). No new seam is needed; the correct seam already
-exists. The DL-05-004 exemption set does not need modification for these sites
-because they are not core reads.
-
-Tests verifying verbatim reconstitution (id preserved in `in_reply_to` /
-`object.id`) are in `test/adapters/driven/trigger_activity_adapter/`.
-
-**D — not activities** (core entities, covered by DL-05 / #1503, out of scope):
-
-- `dispatcher.py:147` (`VultronReplicationState`); `received/actor/announce.py:29`
-  (`VultronReportCaseLink`); `list_objects("CaseLedgerEntry")` reads; case /
-  participant / status / marker reads.
-
-Implementation is tracked in the issues filed from concern #1506 (blocked by
-that concern, children of Epic #1394). As each B site migrates, remove its
-Activity type from the DL-05-004 exemption set (DL-06-005) until the set reaches
-zero.
+**Why the envelope seam is legitimate.** Activity ids are non-regenerable random
+`urn:uuid:` values, and the Actor Knowledge Model requires a reply to embed the
+*full inline original* activity, so a reply's `object_` cannot be re-projected
+from core state. The seam lives in the adapter
+(`vultron/adapters/driven/trigger_activity_adapter/`), which passes the stored
+payload to the factory without interpreting it. As a core site migrates, remove
+its Activity type from the DL-05-004 exemption set (DL-06-005).
 
 ## A DataLayer Fallback Is a Smell for a Masked Protocol Bug
 
 Reading a protocol-significant field from the DataLayer *as a fallback* — when
 that field could have arrived in the received message — is a smell for a masked
-bug or race. When a handler tries `event.activity.object_...` and, finding it
-absent, falls back to `dl.read(...)`, it usually only works because a prior
-delivery happened to store the value; that hidden dependency on delivery order
-is a latent race, not a safety net.
+bug or race. A handler that falls back to `dl.read(...)` when
+`event.activity.object_...` is absent usually works only because a prior
+delivery happened to store the value: a hidden dependency on delivery order.
 
-The smell does not apply when the message's copy is not authoritative.
-`_read_invite_roles()` in
-`vultron/core/behaviors/case/nodes/invite_participant.py` reads the roles of
-a stub Invite from the Invite the CASE_MANAGER recorded when it sent it, never
-from the copy the invitee's `Accept` embeds: the sender wrote that copy, so
-taking roles from it lets any sender choose its own (CM-11-017, #3733).
-A missing recorded Invite is a refusal (CM-11-019), not a cue to fall back to
-the embedded copy.
-A protocol field that is *present in the message* and is the sender's own
-assertion is read from the message; a field that grants standing is read from
-the receiver's record of what it sent.
+The smell does not apply when the message's copy is not authoritative. A field
+that grants standing is read from the receiver's record of what it sent, never
+from the copy the sender embeds: `_read_invite_roles()` in
+`vultron/core/behaviors/case/nodes/invite_participant.py` reads an invitee's
+roles from the Invite the CASE_MANAGER recorded, because taking them from the
+copy inside the invitee's `Accept` lets any sender choose its own (CM-11-017).
+A missing recorded Invite is a refusal (CM-11-019), not a cue to fall back.
 
 **How to apply:**
 
-- Read protocol-significant fields from the received message
-  (`event.activity.object_...`) — the authoritative carrier under the Actor
-  Knowledge Model.
+- Read protocol-significant fields that are the sender's own assertion from the
+  received message (`event.activity.object_...`).
 - A **missing** protocol field is a protocol VIOLATION, not a cue to search the
-  store: log it and return an empty/default result. Do not silently DL-fallback.
+  store: log it and return an empty/default result.
 - DataLayer reads stay correct for **persisted state that cannot travel in the
   message** — the local `VulnerabilityCase` for derived fields, idempotency/dedup
-  guards, correlation indexes. The smell is specifically substituting a DL read
-  for a field the message should have carried.
+  guards, correlation indexes.
 
-This is the same message-primacy principle as the semantic-content rule in
-[Activity Read-Back](#activity-read-back-semantic-content-vs-envelope-reconstitution-adr-0035-dl-06)
-(DL-06-001/002: core MUST NOT re-read a stored activity to interpret it) and the
+This is the same message-primacy principle as DL-06-001/002 above and the
 message-subject-identity rule in
 [notes/wire-core-boundary.md](wire-core-boundary.md).
 
-*Source: ISSUE-2719 — `_read_invite_roles()` DataLayer fallback; ISSUE-4071 —
-roles from the recorded Invite.*
-
 ## Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional
 
-**Principle.** A received Activity is an **artifact** — the exact wire object
-received is worth storing as-is. `_dehydrate_data` in
+A received Activity is an **artifact**: `_dehydrate_data` in
 `vultron/adapters/driven/db_record.py` deliberately does NOT recursively
 dehydrate the sub-fields of an inline Activity object. When `Accept` stores an
-inline `Offer`, the `Offer`'s own `object_`, `target`, etc. are preserved as a
-snapshot of what they contained at receipt time — not collapsed to ID strings.
+inline `Offer`, the `Offer`'s own `object_`, `target`, etc. stay a snapshot of
+what they contained at receipt time. Do not change this, for two reasons:
 
-This is correct behaviour and must not be changed. The rationale has two parts:
+1. **Technical**: inline Activities may have no DataLayer record of their own
+   (a reconstituted `Offer`, a `CaseLedgerEntry` inside an `Announce`, a
+   `VulnerabilityCaseStub`), so collapsing them to an ID makes read-back
+   rehydration impossible. A stub Invite is recognised by its target's `type`
+   (CM-11-013), so a collapsed stub makes the stored Invite unrecognisable.
+2. **Semantic (more important)**: an `Accept(Offer(VulnerabilityCase))` is a
+   contract that records what was offered at the moment of acceptance. The case
+   evolves; the contract must not.
 
-1. **Technical**: inline Activities may not have independent DataLayer records
-   (e.g., a reconstituted `Offer` in the validate-report path, a
-   `CaseLedgerEntry` inside an `Announce` envelope). Collapsing them to a bare
-   ID would make rehydration impossible on read-back.
-   A `VulnerabilityCaseStub` is kept inline for this reason alone: a stub never
-   has a record of its own, and the stub Invite is recognised by its target's
-   `type` (CM-11-013, #4045), so collapsing the stub to its ID would make the
-   stored Invite unrecognisable.
+**Two copies, not one.** An actor that extracts a case from a received
+`Offer(Case)` to seed its live record now holds the immutable **artifact** (read
+it to answer "what was I offered?", never update it) and the evolving **live
+record**. They diverge by design: never treat the snapshot as current state, and
+never write it back over the live record.
 
-2. **Semantic (more important)**: even where independent records exist, the
-   snapshot captures state at receipt time — "when you offered me this case, it
-   looked like this." An `Accept(Offer(VulnerabilityCase))` is a contract: it
-   records what was offered at the moment of acceptance, not the current state
-   of the case. The case will evolve; the contract must not.
-
-**Two copies, not one.** If an actor receives `Offer(Case)` and then extracts
-the case to seed a live record in its DataLayer, two distinct things now exist:
-
-- The **artifact** — the stored `Offer` with its frozen `Case` snapshot.
-  Immutable in the context of that offer. Read it to answer "what was I
-  offered?" Never update it.
-- The **live record** — the `VulnerabilityCase` actively maintained by the
-  actor. Participants join, states transition, embargo terms change. This copy
-  evolves.
-
-These two copies diverge over time **by design**. Do not treat the snapshot as
-the current state of the object, and do not write the snapshot back over the
-live record when refreshing or re-seeding.
-
-**Why recursive dehydration would be wrong.** If `_dehydrate_data` were
-extended to recurse into inline Activity sub-fields, `Accept.object_.object_`
-would become a bare ID string pointing to the *current* `VulnerabilityCase` —
-losing the at-offer-time snapshot. Even if Activities eventually gain
-independent DataLayer records (removing the technical constraint), the semantic
-reason alone prohibits recursive dehydration here.
-
-Source: CONCERN-2219. See also `notes/wire-artifact-immutability.md` for the
-full design (A/B split, `frozen=True` enforcement, outbound blob pipeline, and
-VM-08-002/003 spec requirements).
+Full design: `notes/wire-artifact-immutability.md`.
 
 ---
 
-## Vocabulary Registry Entanglement Across Wire, Core, and DataLayer
+## Happy-Path DL Seeds Must Include Everything a Use Case Reads
 
-The vocabulary registry in `vultron/wire/as2/vocab/` was created before
-the hexagonal architecture separated wire from core. As a result:
-
-- `vultron/adapters/driven/db_record.py` uses the vocabulary registry to
-  determine AS2 type names for storage keys.
-- `vultron/wire/as2/rehydration.py` uses the vocabulary registry to
-  reconstruct wire objects from DataLayer records.
-- these two files create a tight coupling: the DataLayer's behaviour
-  depends on the wire layer's type system.
-
-If the wire layer is removed or replaced, the DataLayer adapter breaks.
-Core cannot interact with the DataLayer in terms of core domain objects
-because the adapter expects to find AS2 type names at every step.
-
-Recommended direction:
-
-1. The DataLayer adapter should maintain its own type-to-table mapping
-   that is independent of the wire vocabulary registry.
-2. Rehydration of wire objects from storage should be confined to the
-   wire adapter layer, not shared with core.
-3. Core's interaction with the DataLayer should use core domain type keys
-   (the `CORE_VOCABULARY` class names, e.g. `"VulnerabilityCase"`,
-   `"VulnerabilityReport"`) rather than lookups in the wire vocabulary
-   registry.
-
-This separation allows the wire layer to evolve (or be replaced) without
-breaking DataLayer storage, and allows core to read/write domain objects
-without knowing anything about AS2 naming conventions.
-
-Files to investigate:
-
-- `vultron/adapters/driven/db_record.py`
-- `vultron/adapters/driven/datalayer_sqlite/`
-- `vultron/wire/as2/rehydration.py`
-- `vultron/wire/as2/vocab/registry.py`
-
----
-
-## Happy-Path DL Seeds Must Include Origin Activities for `dl.read()` Calls
-
-(ISSUE-1326, 2026-07-10)
-
-When a use case calls `dl.read(some_id)` to resolve a related entity (e.g.,
-`recommender_id` from the original recommendation offer), the happy-path test
-fixture MUST store that entity in the DataLayer, or the use case silently falls
-back to `""` / `None`.
-
-In `AcceptActorRecommendationReceivedUseCase` and
-`RejectActorRecommendationReceivedUseCase`, the `origin` field of the inner
-`Offer(CaseParticipant)` carries the original recommendation activity ID. The
-use case calls `self._dl.read(recommendation_id)` to look up that activity and
-extract `recommender_id`. If the activity is absent, `recommender_id=""` and the
-recommender-notification branch silently no-ops — but other tree nodes still emit
-to the outbox, so `len(outbox) >= 1` can pass while hiding the broken path.
-
-**Fix pattern**: after building the inner offer with
-`origin=<recommendation_id>`, also call
-`dl.create(recommend_actor_activity(..., id_=<recommendation_id>))` in the
-fixture so `dl.read()` resolves correctly.
-
-**Assertion depth**: the Accept happy path emits both an Accept notification
-and an Invite (2 activities). Assert `len(outbox) >= 2`, not `>= 1`, to catch
-the case where only one of the two required activities was emitted.
+A happy-path fixture MUST seed every record the use case reads to resolve a
+related entity; an absent record makes an optional branch (such as a
+notification) silently no-op while other nodes still emit, so `len(outbox) >= 1`
+passes over the broken path. Assert the full count of activities the path must
+emit, not `>= 1` (#1326).
 
 ---
 
@@ -443,135 +195,72 @@ the case where only one of the two required activities was emitted.
 
 An `actor_id` is a **store name**, not a label on a store. `get_datalayer()`
 requires an actor and returns that actor's own store (DL-07-002); there is no
-ambient or unscoped singleton to reach for. A BT's store is the store of its
-executing actor, reconciled once in `BTBridge._store_for_actor` (BT-05-005), so a
-node cannot write to "some other" store by forgetting to use `self.datalayer`.
-
-Two hazards follow, in opposite directions, and both have bitten:
+unscoped singleton. A BT's store is the store of its executing actor, reconciled
+once in `BTBridge._store_for_actor` (BT-05-005). Two hazards follow, in opposite
+directions:
 
 - **Two DataLayers built for the same actor id are the *same* database**
-  (DL-07-004). Two scenarios that must not see each other's rows therefore need
-  two actor ids — deriving one per test (`f"{ACTOR_ID}/{slug}"`) is enough and
-  self-documenting. The loud symptom is the second seed raising
-  `ValueError: record with id_=... already exists`.
+  (DL-07-004). Scenarios that must not see each other's rows need two actor ids;
+  derive one per test (`f"{ACTOR_ID}/{slug}"`). The symptom is the second seed
+  raising `ValueError: record with id_=... already exists`.
 - **Sharing one store between two logical actors hides a *missing* write**: the
-  reader finds the writer's row and the test passes for the wrong reason. This is
-  the defect class ISSUE-2238 was about, and it is why several tests were found
-  asserting nothing at all. Conversely, do not give one logical actor two ids
-  merely to get a fresh database — that reintroduces the masking.
-
-Only the loud hazard was noticeable before per-actor storage, which is why the
-silent one accumulated.
+  reader finds the writer's row and the test passes for the wrong reason. Do not
+  give one logical actor two ids merely to get a fresh database either; that
+  reintroduces the masking.
 
 `test/conftest.py` carries an autouse `_dispose_actor_stores_between_tests` —
-**do not remove it.** It handles the *between-test* case only; both hazards above
-occur *within* a single test, where no fixture can help.
-
-References: ADR-0073 and ISSUE-2238 for the decision. Rewritten tests:
-`test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTCaseActorRecords`,
-which asserts against each actor's own store rather than against an empty
-singleton.
+**do not remove it.** It covers only the *between-test* case; both hazards above
+occur *within* a single test (ADR-0073).
 
 ## Declaring a Test's Executing Actor
 
-Because a BT's store follows its executing actor (BT-05-005, above), a test that
+Because a BT's store follows its executing actor (BT-05-005), a test that
 seeds one actor's store and runs `execute_with_setup(actor_id=<other>)` reads an
 empty one. Declare the executor with `@pytest.mark.executes_as(ACTOR)` —
 `bt_scenario` honours it — or build the scenario per actor with
-`bt_scenario_factory`. Derive a test's executing actor by looking at
+`bt_scenario_factory`. Derive a test's executing actor from
 `execute_with_setup(actor_id=…)` and `receiving_actor_id`, never from fixture or
 test names.
-
-Source: ISSUE-2238
 
 ---
 
 ## A Default Minted From the Clock Cannot Round-Trip Through a Field That Does Not Store It
 
-(ISSUE-3732, ISSUE-3726, 2026-09-29)
+A value a wire default mints at construction cannot survive a round trip through
+a core field that does not store it; the symptom is an equality that holds only
+when write and read land in the same wall-clock second (#3732). Neither "store
+more" nor "re-mint on read" is the fix — the fix is to stop minting. For example,
+an actor endpoint is an *address*: the core actor keeps it as a URI string
+(ARCH-12-006), so `_address_collection()` in
+`vultron/wire/as2/vocab/base/objects/actors.py` builds the derived wire
+collection with `published=None, updated=None`, while a collection that
+*arrives* carrying its own times keeps them as received (ADR-0103).
 
-`as_Object.published`/`updated` default to `now_utc()` so that an object this
-process *authors* is stamped (ADR-0103). `as_Actor` derived an actor's
-`inbox`/`outbox` `OrderedCollection` through that default, so a freshly built
-`as_Person` carried two clock stamps that were never anyone's claim. The
-datalayer keeps an actor as `CoreActor`, whose endpoints are URI strings
-(ARCH-12-006, ADR-0034): the stamps were dropped on write, and the wire form
-minted new ones when the URI was coerced back to a collection on read. The
-stored actor therefore read back equal to itself only when write and read
-landed in the same wall-clock second — a full-suite flake that reproduced
-deterministically with a `time.sleep(1.1)` between the two calls, and that
-seven PRs — none touching the actor read path — were blocked on before
-anyone traced it.
-
-The general shape: **a value a wire default mints at construction cannot
-survive a round trip through a core field that does not store it**, and the
-symptom is an equality that depends on timing. Neither "store more" nor
-"re-mint on read" is the fix — the core field is URI-only by design, and a
-re-minted value is by definition not what was stored. The fix is to stop
-minting: an endpoint is an *address*, so `_address_collection()` in
-`vultron/wire/as2/vocab/base/objects/actors.py` builds a derived one with
-`published=None, updated=None`, a collection dict reads an absent stamp as
-`None` in every validation context (so the `to_json()` form, which
-`exclude_none` strips, re-validates equal too), and a collection that *arrives*
-carrying its own times keeps them as received. `ARCH-23-003`'s pin on the endpoint wire form
-had been popping both keys before it could claim "address, type and items —
-nothing else"; it no longer needs to.
-
-Two rules for the next instance:
-
-- **A round-trip equality test must cross a second boundary on purpose.**
-  Pin the clock ahead between write and read with `test/support/clock.py`'s
-  `SteppingClock` (patch `vultron.core.models._helpers.datetime`); never
-  `time.sleep()`. A test that passes only because both calls share a second
-  is not testing the round trip.
+- **A round-trip equality test must cross a second boundary on purpose.** Step
+  the clock between write and read with `SteppingClock` from
+  `test/support/clock.py`; never `time.sleep()`.
 - **Ask which side of the boundary owns a default before adding one.** If a
-  field defaults on the wire branch and the core branch reduces the object to
-  a reference, the default is unstorable and every read will disagree with
-  every write. The committed `docs/reference/examples` are the visible record
-  of the wire form: the endpoint stamps had to be removed from twelve of them,
-  and the key-shape ratchet (`test_vocab_examples_current.py`) is what would
-  have caught the mismatch had it existed when the default was added.
+  field defaults on the wire branch and the core branch reduces the object to a
+  reference, the default is unstorable and every read disagrees with every write.
 
 ## A Read-Modify-Write of a Shared Record Uses `save_if_unchanged`, Not `save`
 
-(ISSUE-4102, 2026-10-02)
+`save()` is an unguarded upsert: a caller that reads a record, changes one field
+and saves it back overwrites any write that landed in between. For a
+read-modify-write of a shared record, use `DataLayer.save_if_unchanged(obj,
+expected)` (DL-02-003), which writes only when the stored record still equals
+`expected` and otherwise returns `False` with nothing written. It closes both the
+window before the call and the window between its own read and write; the tests
+are in `test/adapters/driven/test_sqlite_save_if_unchanged.py`.
 
-`save()` is an upsert with no guard. A caller that reads a record, changes
-one field and saves the whole record back overwrites any write that landed
-in between, and nobody is told. `PUT /actors/{id}/embargo-policy` was such a
-caller once the policy became a field of the actor profile (EP-01-001): the
-profile is what travels inline on every `Create(CaseProposal)` (CP-01-010),
-so a lost write silently changed the actor default a CASE_MANAGER applies.
-
-`DataLayer.save_if_unchanged(obj, expected)` is the compare-and-set for that
-shape (DL-02-003). It writes only when the stored record still equals `expected` (both
-compared in stored form) and refuses otherwise, returning `False` with
-nothing written. Two windows are closed, and each has its own test in
-`test/adapters/driven/test_sqlite_save_if_unchanged.py`:
-
-- **A write before the call** — caught by comparing the stored record with
-  `expected`.
-- **A write between the call's own read and its write** — a file-backed
-  store opens one connection per `Session`, so a Python-side comparison
-  alone is not enough. The write is one conditional `UPDATE` keyed on the
-  row's stored text as the call read it, so a row changed in between
-  matches nothing.
-
-The caller decides what a refusal means. The embargo-policy PUT changes
-only the policy field, so it re-reads and re-applies its terms, and after a
-bounded number of attempts it refuses with 409 (EP-02-004). A caller whose
-change depends on the fields it read cannot re-apply blindly and should
-surface the conflict at once. No schema change was needed: the stored text
-is the version token.
-
-A compare-and-set guards only the writers that use it. A plain `save()` of
-the same record by another writer still overwrites whatever the guarded
-writer stored, so the protection holds in both directions only while
-**every** read-modify-write of the actor profile goes through
-`save_if_unchanged`. Today the PUT is the only code that rewrites a profile
-(`POST /actors/` uses `create()`, which refuses an existing record); a new
-profile writer MUST use `save_if_unchanged` too, or it reopens the window
-that issue #4102 closed, this time in the other direction.
+- **The caller decides what a refusal means.** A caller that changes one field
+  can re-read and re-apply, then refuse after a bounded number of attempts (the
+  embargo-policy PUT answers 409, EP-02-004). A caller whose change depends on the
+  fields it read must surface the conflict at once.
+- **A compare-and-set guards only the writers that use it.** Every
+  read-modify-write of the actor profile MUST go through `save_if_unchanged`; a
+  plain `save()` by a new profile writer reopens the lost-write window (#4102).
+  `POST /actors/` uses `create()`, which refuses an existing record.
 
 ---
 
@@ -588,12 +277,11 @@ retirement table whose replacement the model does not declare, or whose old key
 it still declares, fails at class definition.
 
 The declaration is what makes the refusal legible. `CoreRecord` refuses unknown
-keys (`extra="forbid"`, #4186), so an undeclared rename never loses a field
-silently, but the row fails with a bare "extra inputs are not permitted" plus a
-"field required" for a name the operator never wrote, and nothing says a rename
-happened. The SQLite read path logs the validation reason at
-WARNING when it reads such a row as absent, for core-registered and
-bookkeeping row types alike, so `dl.read()` returning `None` always has a
-logged cause. Because no row survives the rename, every PR that renames a
-stored field carries an operator note saying a file-backed store must be reset
-(`docker compose down -v`); an in-memory store is unaffected.
+keys (`extra="forbid"`), so an undeclared rename never loses a field silently,
+but the row fails with a bare "extra inputs are not permitted" plus a "field
+required" for a name the operator never wrote, and nothing says a rename
+happened. The SQLite read path logs the validation reason at WARNING when it
+reads such a row as absent, so `dl.read()` returning `None` always has a logged
+cause. Every PR that renames a stored field carries an operator note saying a
+file-backed store must be reset (`docker compose down -v`); an in-memory store is
+unaffected.

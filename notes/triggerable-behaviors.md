@@ -13,8 +13,8 @@ related_notes:
   - notes/triggerable-behaviors-resolved.md
   - notes/bt-fuzzer-nodes.md
   - notes/bt-integration.md
+  - notes/datalayer-design.md
   - notes/do-work-behaviors.md
-  - notes/domain-model-separation.md
   - notes/protocol-event-cascades.md
 relevant_packages:
   - transitions
@@ -98,8 +98,7 @@ is implemented. Design trigger endpoints to accept a
 DataLayer instance via dependency injection so that per-actor isolation
 can be retrofitted later without changing the endpoint contract.
 
-**See**: `notes/domain-model-separation.md` "Per-Actor DataLayer Options"
-for isolation design options.
+**See**: `notes/datalayer-design.md` (per-actor storage isolation, ADR-0073).
 
 ---
 

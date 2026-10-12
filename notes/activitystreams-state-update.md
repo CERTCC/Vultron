@@ -3,16 +3,16 @@ title: "ActivityStreams: Case State Update and Advanced Patterns"
 status: active
 kind: guidance
 description: >
-  Case state update path, CASE_MANAGER authoritativeness, DR-series named bugs,
-  transitive activity patterns, base-typed serialization, invite response parsing,
-  bootstrap embedded-object contract, semantic registry patterns,
-  offer_case_participant_activity object-id semantics, and target-field
-  discriminator wire ambiguity between OFFER_CASE_MANAGER_ROLE and
-  OFFER_CASE_OWNERSHIP_TRANSFER.
+  Case state update path and CASE_MANAGER authoritativeness, outbound activity
+  naming and addressing, unresolvable-object dead letters, serialization and
+  parsing traps, the bootstrap embedded-object contract, and semantic registry
+  pattern rules.
 related_specs:
   - specs/semantic-extraction.yaml
   - specs/response-format.yaml
   - specs/case-management.yaml
+  - specs/handler-protocol.yaml
+  - specs/case-bootstrap-trust.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/bt-integration.md
@@ -24,380 +24,104 @@ relevant_packages:
 
 # ActivityStreams: Case State Update and Advanced Patterns
 
-> See also: [activitystreams-semantics.md](activitystreams-semantics.md) for the first half of these design notes.
+See also [activitystreams-semantics.md](activitystreams-semantics.md).
 
-## Case State Update Path and CASE_MANAGER Authoritativeness
+## The CASE_MANAGER Is the Authoritative Case State
 
-Each actor MAY maintain a local copy of a `VulnerabilityCase` object for
-performance or offline use. However, the **CASE_MANAGER is the authoritative
-source of truth** for all case state updates. Local copies MUST be treated
-as cached projections, not independent sources of truth.
+An actor's local `VulnerabilityCase` is a cached projection. Case-state changes
+flow actor → CASE_MANAGER inbox → canonical update → broadcast to every
+participant → each participant updates its copy. A participant does not accept
+case state from another regular actor, so the CASE_MANAGER stays the single
+coordination point and replicas cannot diverge (CM-06-002). In production the
+participant must also authenticate that the update came from the CASE_MANAGER
+(`PROD_ONLY`, CM-06-004).
 
-The canonical update path when an actor modifies case-related state is:
+## Outbound Activity `name` Is Semantic Content
 
-```text
-Actor → CASE_MANAGER inbox
-  → CASE_MANAGER updates canonical case state
-  → CASE_MANAGER broadcasts update to all CaseParticipants
-  → Each participant updates its local copy
-```
+Derive a BT-built activity's `name` from the object's own attributes
+(`object_.name or object_.id_`), never `repr()` or `str()`. The outbound adapter
+does not sanitize semantic content.
 
-**Consequence**: Actors MUST NOT directly accept case state updates from
-other regular actors. Updates received from any source other than the
-CASE_MANAGER MUST be ignored (or at minimum flagged for verification). This
-ensures the CASE_MANAGER remains the single coordination point and prevents
-conflicting state divergence.
+## A `cc`-Only Receiver of `Offer(Report)` Refuses It
 
-**Authentication note** (`PROD_ONLY`): In production, participants MUST
-authenticate that a case update originated from the CASE_MANAGER before
-treating it as authoritative (see `specs/case-management.yaml` CM-06-002,
-CM-06-004).
+Only a `to` recipient of `Offer(Report)` creates a case; a `cc`-only receiver
+reports `REFUSED` with a reason naming the addressing (HP-01-005, HP-09-001).
 
-The CASE_MANAGER broadcast is implemented in
-`vultron/core/use_cases/received/case.py` (`UpdateCaseReceivedUseCase`)
-via `_broadcast_case_update()`, which fans out updates to all case
-participants (see `specs/case-management.yaml` CM-06-001, CM-06-002).
+## An Unresolvable `object_` Is a Dead Letter, Not a Missing Pattern
 
-**Cross-reference**: `specs/case-management.yaml` CM-02-002, CM-06.
+A bare URI still in `object_` after rehydration resolves to
+`UNKNOWN_UNRESOLVABLE_OBJECT`, not `UNKNOWN`: no registered pattern is a code
+gap, whereas an unresolvable object is a data gap.
+`UnresolvableObjectUseCase` (`vultron/core/use_cases/received/unknown.py`) logs
+a WARNING and stores a dead-letter record (VAM-01-009).
 
----
+## `Accept(Invite)` Carries the Invite
 
-### Activity `name` Field: Use Semantic Content, Not Repr
+The `object_` of an `Accept(Invite(...))` is the original `Invite` activity,
+not the case or embargo event; a wrong object fails coercion at the receiver.
+Set `inReplyTo` on the accept/reject models themselves, defaulting from the
+Invite, rather than relying on every call site to wire it.
 
-(DR-02, 2026-04-20)
+## Put Activity-Family Requirements on the Shared Base Type
 
-The `name` field of outbound activities is **semantic content** — a
-human-readable label — not a wire-format concern. BT nodes that construct
-outbound activities with a `name` field MUST derive it from the object's own
-attributes:
+When a field is required across an AS2 activity family, the shared base type
+encodes it. Use the required alias (`ActivityStreamRequiredRef`), not just a
+changed `Field(...)` default: `ActivityStreamRef` still admits `None`, so the
+type-level and runtime contracts would diverge.
 
-```python
-# Correct
-activity_name = object_.name or object_.id_
+## Base-Typed Fields Drop Inline Subtype Fields Without `serialize_as_any`
 
-# Wrong — never use repr() or str()
-activity_name = repr(object_)
-activity_name = str(object_)
-```
+A nested value stored through a base reference annotation
+(`as_ObjectRequiredRef`) serializes as the base shape under plain
+`model_dump()`, silently omitting subtype-only fields. Paths that revalidate or
+deliver rehydrated activities use `model_dump(..., serialize_as_any=True)`.
+Regression tests must cover both the persistence boundary and the outbound
+delivery boundary: a DataLayer round trip alone misses loss in the outbox.
 
-The outbound adapter (`outbox_handler.py`) does not sanitize semantic content.
-Audit any BT node in `vultron/core/behaviors/` that constructs `Add`, `Invite`,
-or `Accept` activities with a computed `name` string.
+## Parsing Recurses Into Nested Inline Activities
 
----
+`Accept(Invite(...))` nests an `Invite` whose own `actor` and `object_` must also
+be parsed to typed objects, or `ActivityPattern` matching on subtypes fails. A
+case stub is recognized by its `type` (`VulnerabilityCaseStub`, CM-11-013),
+never by its sparseness: a sparse `VulnerabilityCase` is always a case.
 
-### `cc` Addressing Is Not Supported
+## Bootstrap Embeds Nested Objects Inline
 
-(DR-13, 2026-04-20)
+Every nested domain object in a `Create(VulnerabilityCase)` bootstrap (for
+example the `case_participants` records) MUST be a full inline object, never a
+URI string (CBT-01-007). `ActivityStreamRef` accepts the string, but the
+receiver persists only materialized entries, so the participant is never stored
+and later participant guards fail. Serialize the snapshot with
+`serialize_as_any=True` (see above).
 
-`cc` addressing has no defined handler semantics in the current protocol
-version. When a receiving actor is in `cc` of an `Offer(Report)` activity:
+## Registry Patterns Match the Inbound Wire Format
 
-- Log **WARNING** (not DEBUG): "`cc` addressing is not supported; activity
-  discarded"
-- Discard the activity without creating a case
+A semantic registry pattern matches what arrives in the **receiver's** inbox, not
+what this actor emits. Before adding an entry, ask who sends the message and what
+the recipient receives. `OfferActorToCasePattern` (`Offer(CaseParticipant,
+Case)`) stays in `_instances.py` only as a nested template for the actor
+recommendation patterns; `OFFER_ACTOR_TO_CASE` matches `SuggestActorToCasePattern`
+(`Offer(Actor, Case)`).
 
-This is a deliberate simplification. Implementing an "informational receive"
-use case for `cc` recipients would require defining what "informational only"
-means, which is deferred.
+## `offer_case_participant_activity` Object IDs Carry `#participant`
 
-See `specs/handler-protocol.yaml` for the `to`-only case-creation rule.
+The factory builds the `CaseParticipant` with `id_=f"{actor_id}#participant"`,
+so the extracted `object_id` is the participant URI, not the actor. Read the
+actor from the participant's `attributed_to`; falling back to `object_id` keeps
+the suffix, so log a warning if it is reached.
 
----
+## Roles Come From the Stored Offer the CASE_MANAGER Sent
 
-### Dead-Letter Handling for Unresolvable `object_` References
+On `Accept(Offer(CaseParticipant))`, the CASE_MANAGER reads the invitee's roles
+from the stored Offer it constructed, never from the participant embedded in
+the Accept: the acceptor could substitute or omit roles (ADR-0026). See
+`vultron/core/use_cases/received/actor/offer_case_participant.py`.
 
-(DR-14, 2026-04-20)
+## Patterns Sharing a Verb and Object Need a Strict Discriminator
 
-When `find_matching_semantics()` returns `UNKNOWN` because `object_` is still
-a bare string URI after rehydration, this is a **different failure mode** from
-UNKNOWN due to no registered pattern. The two cases require different handling:
-
-| Failure mode | Cause | Handler |
-|---|---|---|
-| `UNKNOWN_NO_PATTERN` | No matching `ActivityPattern` | Raise `VultronApiHandlerMissingSemanticError` |
-| `UNKNOWN_UNRESOLVABLE_OBJECT` | `object_` still bare string after rehydration | Log WARNING, store dead-letter record, return silently |
-
-Dead-letter record schema:
-
-```json
-{
-  "activity_id": "urn:uuid:...",
-  "activity_json": {},
-  "unresolvable_uri": "https://...",
-  "actor_id": "https://...",
-  "received_at": "2026-..."
-}
-```
-
-For future synchronous paths: return HTTP 422 Unprocessable Content with the
-unresolvable URI in the error body.
-
-See `specs/semantic-extraction.yaml` VAM-01-009.
-
----
-
-### Accept.object_ Must Carry the Invite Activity, Not the Case Object
-
-(DR-05, 2026-04-20)
-
-When constructing an `Accept(Invite(...))` activity, the `object_` field MUST
-be the original `Invite` activity (retrieved from the BT blackboard), not the
-case or embargo event.
-
-**Wrong pattern** — passing the case or embargo event as `object_`:
-
-```python
-# This produces coercion failures on the receiving end
-accept = RmAcceptInviteToCaseActivity(
-    actor=actor_id,
-    object_=case,          # ← WRONG: must be the Invite activity
-)
-```
-
-**Correct pattern** — stash invite on blackboard; read it back in Accept node:
-
-```python
-# In InviteReceivedUseCase.execute() — store invite on blackboard
-bb.set("invite_activity", invite)
-
-# In AcceptInviteNode.update() — read invite from blackboard
-invite = bb.get("invite_activity")
-accept = RmAcceptInviteToCaseActivity(actor=actor_id, object_=invite)
-```
-
-This ensures that `Accept` activities satisfy the AS2 convention: the
-`object` of an `Accept` is the activity being accepted.
-
----
-
-### Transitive Activity `object_` Field: Contract at the Base Type
-
-(BUG-26041802, 2026-04-22)
-
-If a field is semantically required across an entire AS2 activity family, the
-**shared base type** must encode that requirement. Keeping
-`as_TransitiveActivity.object_` optional lets generic constructors drift out
-of sync with the stricter typed subclasses.
-
-**Key lessons:**
-
-- Use a **distinct required-reference alias** (`ActivityStreamRequiredRef`)
-  rather than just changing a `Field(...)` default. `ActivityStreamRef` still
-  includes `None`, so type-level and runtime contracts diverge unless required
-  fields use the stricter alias.
-- Wire/domain translation tests must reflect the stricter contract too:
-  `as_VultronActivity.from_core()` should reject objectless transitive domain
-  activities rather than silently materializing invalid wire objects.
-- A backlog bug may already be fixed; close it with concrete code-search and
-  regression-test evidence (see also `.claude/skills/bugfix/SKILL.md` § Phase 2a prior-fix check).
-
----
-
-### Base-Typed Activity Serialization Can Drop Inline Subtype Fields
-
-(BUG-26042201, 2026-04-22)
-
-When a typed AS2 activity stores `object_` through a base reference annotation
-(`as_ObjectRequiredRef`), plain `model_dump()` can serialize the nested value
-as the base `as_Object` shape and silently omit subtype-only fields.
-
-**Fix**: For any adapter path that re-validates or delivers rehydrated
-activities, prefer `model_dump(..., serialize_as_any=True)` so inline typed
-payloads (such as `CaseLedgerEntry`) survive semantic coercion and HTTP delivery
-intact.
-
-**Regression coverage** MUST hit **both** the persistence boundary AND the
-outbound delivery boundary. A DataLayer round-trip test alone will NOT catch
-the same field loss in the outbox adapter.
-
----
-
-### Invite Response Parsing: Recursive Rehydration and Stub Expansion
-
-(BUG-26042203, 2026-04-22)
-
-**Lesson 1 — Generic AS2 parsing must recurse into nested inline dicts.**
-
-`Accept(Invite(...))` and `Reject(Invite(...))` contain an `Invite` as their
-`object_`. If the parser only recurses into the outer `object` field and not
-into fields of the nested dict, the `Invite`'s own `actor` and `object_`
-(typically a case stub) are left as raw dicts, breaking `ActivityPattern`
-matching that relies on typed subtype information.
-
-**Lesson 2 — A case stub is recognised by its `type`, not by its sparseness.**
-
-An Invite's `target` stub carries `"type": "VulnerabilityCaseStub"` and expands
-to `as_VulnerabilityCaseStub` (CM-11-013). This preserves selective-disclosure
-semantics: the invitee has not yet accepted the embargo, so it sees only the
-stub. Before #4045 the stub reused `"type": "VulnerabilityCase"` and was guessed
-from a minimal key set; a sparse `VulnerabilityCase` is now always a case.
-
-**Lesson 3 — `inReplyTo` belongs on the model, not only on call sites.**
-
-Setting `inReplyTo` directly on invite accept/reject activity models (as a
-constructor parameter with a default that reads the invite ID) is a safer
-invariant than relying on every trigger/demo/example call site to wire the
-original invite ID correctly. Model-level defaults prevent accidental omission.
-
----
-
-## Bootstrap Embedded-Object vs. URI-String Contract
-
-(BUG-26051902, 2026-05-19)
-
-All nested domain objects in a `Create(VulnerabilityCase)` bootstrap
-activity (e.g., `CaseParticipant` records in `case_participants`) MUST be
-included as **full inline objects**, not as bare URI string references.
-
-**Why bare strings fail:**
-
-Receiving use-case handlers store nested objects by iterating the embedded
-collection and persisting each object individually to the local DataLayer.
-`ActivityStreamRef` allows bare URI strings, so Pydantic accepts the field
-without error — but the handler only persists non-`str` entries (materialized
-objects). A bare URI string (e.g., `"urn:uuid:786aaff1-..."`) is silently
-skipped; the referenced `CaseParticipant` is never written to the receiver's
-DataLayer.
-
-**Cascading failure mode (bug #561/#562):**
-
-```text
-1. Vendor sends Create(VulnerabilityCase) with case_participants as URI strings.
-2. Finder's create_case_received handler iterates case.case_participants —
-   strings are accepted by the model but skipped during persistence.
-3. Vendor's CaseParticipant object is never stored in Finder's DataLayer.
-4. Vendor sends RmEngageCase (Join) to Finder.
-5. EngageCaseBT on Finder runs → its participant guard fails (no record).
-6. RM-state update is never recorded in Finder's case replica.
-```
-
-**Fix**: When constructing the bootstrap case snapshot, serialize the
-`VulnerabilityCase` with `model_dump(..., serialize_as_any=True)` to ensure
-subtype fields (e.g., all `CaseParticipant` fields, not just base-type fields)
-are retained. See also "Base-Typed Activity Serialization Can Drop Inline
-Subtype Fields" in this file.
-
-**Formal requirement**: `specs/case-bootstrap-trust.yaml` CBT-01-007.
-
----
-
-## Semantic Registry Patterns Must Match Inbound Wire Format
-
-(ISSUE-1298, 2026-07-10)
-
-A semantic registry pattern maps an incoming AS2 activity shape to a
-`MessageSemantics` value. The pattern MUST match the **inbound** wire format
-— the shape that arrives in an actor's inbox from a peer — NOT the outbound
-format that this actor emits.
-
-`OFFER_ACTOR_TO_CASE` was initially mapped to `OfferActorToCasePattern`
-(`Offer(CaseParticipant, Case)`) — the format that CASE_MANAGER sends to Case
-Owner — instead of `SuggestActorToCasePattern` (`Offer(Actor, Case)`) — the
-format that Finder sends to CASE_MANAGER's inbox.
-
-`OfferActorToCasePattern` is still needed in `_instances.py` as a nested
-template for `AcceptActorRecommendationPattern` and
-`RejectActorRecommendationPattern` (which wrap `Offer(CaseParticipant)`).
-Keep it in `_instances.py` but do NOT register it as a top-level registry
-entry for `OFFER_ACTOR_TO_CASE`.
-
-**Rule**: when adding a new registry entry, trace the message flow and
-ask "who sends this, and what does the recipient's inbox receive?" The
-registry matches the *receiver*'s perspective.
-
----
-
-## `offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix
-
-(ISSUE-1298, 2026-07-10)
-
-`offer_case_participant_activity(recommended, ...)` builds a `CaseParticipant`
-with `id_=f"{recommended.id_}#participant"`. When extracted via
-`extract_event()`, the event's `object_id` is the `CaseParticipant` URI
-(e.g., `https://example.org/actors/vendor#participant`), not the actor URI.
-
-Use cases that need the actor ID must extract it from the `CaseParticipant`'s
-`attributed_to` field:
-
-```python
-participant_obj = getattr(request.activity, "object_", None)
-raw_actor = getattr(participant_obj, "attributed_to", None)
-actor_id = getattr(raw_actor, "id_", None) or request.object_id
-```
-
-The fallback `request.object_id` retains the `#participant` suffix and should
-only be used as a last resort — log a warning if it is reached.
-
-### Trust Boundary: Roles MUST Come from the Stored Offer We Sent
-
-(ISSUE-1745, 2026-07-28)
-
-When `CaseActor` processes an `Accept(Offer(CaseParticipant))` from the Case
-Owner, the roles for the invited actor MUST be read from the stored
-`Offer(CaseParticipant)` in the DataLayer — the Offer that CASE_MANAGER itself
-constructed and sent — NOT from the embedded `CaseParticipant` in the received
-`Accept`.
-
-**Why**: the accepting actor (Case Owner) may have modified or omitted roles in
-their response, or may have sent only a bare ID reference. Reading roles from
-the received `Accept` would allow a malicious or minimally-conformant acceptor
-to substitute different roles than those evaluated and forwarded by the CASE_MANAGER.
-
-**Implementation**: `AcceptOfferCaseParticipantReceivedUseCase` looks up the
-stored Offer by `request.object_id`, extracts `stored_participant.roles`, and
-serializes them before passing to
-`create_accept_actor_recommendation_received_tree(roles=...)`. The
-`EmitInviteActorToCaseNode` uses the injected roles directly, falling back to
-the blackboard only in the single-execution path where the blackboard is
-populated.
-
-**ADR**: ADR-0026 Consequences section should document this invariant (see
-tracking issue for ADR update).
-
----
-
-## Target-Field Discriminators: Wire Ambiguity Between Offer Semantics
-
-(CONCERN-1674, 2026-07-27; amended CONCERN-2322, 2026-08-20)
-
-**Resolution summary**: The `OFFER_CASE_MANAGER_ROLE` wire format and all
-supporting infrastructure have been removed (CONCERN-2322). The canonical
-format is `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole,
-target=Actor, context=VulnerabilityCase)`). The historical context below is
-preserved for understanding ADR-0039 and the strictness fix.
-
----
-
-`OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` both serialized
-as `Offer(VulnerabilityCase)` on the wire, disambiguated solely by the
-presence or absence of `target=CaseParticipant`:
-
-| Semantic | Pattern |
-|---|---|
-| `OFFER_CASE_MANAGER_ROLE` (removed) | `Offer(VulnerabilityCase, target=CaseParticipant)` |
-| `OFFER_CASE_OWNERSHIP_TRANSFER` | `Offer(VulnerabilityCase)` (no target) |
-
-**Structural gap (CONCERN-2322)**: `ActivityPattern._match_activity_field`
-always treated `target_` as permissive (`strict=False`), meaning a bare URI
-string in `target` would match any typed target constraint. Registry ordering
-was therefore the *sole* protection against misrouting when `_rehydrate_fields`
-had not yet resolved the target.
-
-**Fix**: When `ActivityPattern.strict=True`, the `target_` field is now also
-matched strictly — bare URI strings do NOT match a typed target constraint.
-Patterns that discriminate by target should set `strict=True`. See SE-08-004.
-
-**Full resolution (ADR-0039 + CONCERN-2322)**: The `OFFER_CASE_MANAGER_ROLE`
-format was never emitted by any supported actor; retaining it as a registry
-entry was a source of ordering fragility. It has been removed entirely.
-The canonical `OFFER_CASE_PARTICIPANT_ROLE` format uses a dedicated object
-type (`as_CaseParticipantRole`) that is self-describing without any registry
-ordering dependency. See SE-08-003 (SE-08-005, retired, recorded the
-removal of its predecessor).
-
-**Rule for new patterns that share a verb+object pair** — if a new semantic
-requires the same `(activity_, object_)` pair as an existing pattern, it MUST
-either (a) use a distinct object type (preferred — SE-08-003), or (b) add a
-more-specific discriminator field with `strict=True` AND appear before the
-less-specific entry in `SEMANTIC_REGISTRY` (SE-08-001, SE-08-004).
+`target_` is matched permissively unless the pattern sets `strict=True`, so a
+bare URI target matches any typed target constraint. A new semantic that shares
+an `(activity_, object_)` pair with an existing pattern MUST either use a
+distinct object type (preferred, SE-08-003) or add a more specific discriminator
+with `strict=True` and sit before the less specific entry in `SEMANTIC_REGISTRY`
+(SE-08-001, SE-08-004).
