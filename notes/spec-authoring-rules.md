@@ -12,8 +12,9 @@ description: >
   requirement; priority tiers (MS-02-003/004); and the per-requirement
   `verification_debt` marker and its owner and
   terminal-state rules (MS-10-006..008); the rule that a verification clause
-  names a check that inspects its property (MS-10-009); and the
-  CASE_MANAGER-versus-CaseActor naming discriminator.
+  names a check that inspects its property (MS-10-009); the rule that a
+  guard against a mistake states the truth the mistake violates (MS-05-005);
+  and the CASE_MANAGER-versus-CaseActor naming discriminator.
 related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
@@ -452,6 +453,35 @@ points to. And do not describe a verification test that does not exist: write it
 or describe the one that does.
 
 Source: ISSUE-2982
+
+## A Guard States the Truth the Mistake Violates
+
+**Rule (MS-05-005):** when a requirement exists to stop an implementation
+mistake, state the domain truth the mistake violates, in the vocabulary of the
+requirement's kind. Don't write a ban on the mistake, or a correction of it in
+the code's terms. Put the bug that prompted it in `rationale:`, and let the
+regression test verify the positive rule. Such a requirement carries no marker,
+tag or field.
+
+**Why:** a bare "MUST NOT do the obvious wrong thing" reads as if the wrong
+thing were a live design option, and once SR-11-003's story gate extends to
+protocol MUST_NOT (#4517) a ban on a mistake gets only a contrived story. The
+positive truth reads as design and has a natural story. Deleting the
+requirement and keeping only the test is not the fix: agents read specs more
+often than tests, and RSH-08-001's mistake recurred while only code and tests
+guarded it.
+
+**How to apply:** write "a participant's assertion about itself is about
+itself, not about another actor". Don't write "the subject of a received-side
+RM write MUST be the sender, never the receiver": it is a positive MUST, but it
+is the code's correction, in the code's terms, inside a `protocol` spec. If the
+requirement mixes kinds, split it per MS-12-005 (see
+[`protocol` Means RFC Content](#protocol-means-rfc-content)): the meaning is
+`protocol`, and how our code records it is `project`. A guard with no domain
+truth behind it, a pure coding mistake with nothing another participant can
+observe, is not `protocol` (MS-12-003), or is only a regression test.
+
+Source: CONCERN-4530
 
 ## `protocol` Means RFC Content
 
