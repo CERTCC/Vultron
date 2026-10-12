@@ -194,6 +194,20 @@ not. Domains with named simulator nodes wire those classes directly.
 
 ---
 
+## Two Integration Surfaces: Call-In and Call-Out
+
+External capabilities meet the protocol on one of two surfaces; know which one
+you are designing for before choosing a shape.
+
+- **Call-in**: trigger endpoints (`vultron/core/use_cases/triggers/`). The
+  external party has already decided; the use case executes the decision.
+- **Call-out**: call-out points inside BT nodes. The protocol needs a decision,
+  a fact, or content, and asks a capability for it.
+
+All four capability shapes sit on the call-out surface. The Sentinel pattern is
+call-in only (it watches, then calls a trigger), so it has no BT node: a
+synchronous external query reached by the tick is a Retriever (BT-18-013).
+
 ## Capabilities Grounded in External Versioned Standards Are One Call-Out Unit
 
 When a capability is grounded in an external, independently-versioned
