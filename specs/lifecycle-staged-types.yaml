@@ -86,8 +86,9 @@ groups:
     priority: MUST_NOT
     kind: project
     verification: >-
-      `test/core/models/test_staged_case.py` asserts that no RM-state staged
-      `VulnerabilityCase` type exists.
+      `test/core/models/test_staged_case.py::TestNoRMStagedTypes` confirms
+      `staged_case` exports only `IncomingReport`, `Case` and `EmbargoedCase`, none
+      of them an RM-state type.
     statement: Per-participant RM state (valid, accepted, deferred) MUST NOT be modeled as a VulnerabilityCase staged type.
     rationale: RM state is per-participant, not case-universal; a case-level RM type is ill-defined ("valid according to whom?").
       See LST-04.

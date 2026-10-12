@@ -656,8 +656,9 @@ groups:
     kind: project
     verification: >-
       `test/core/behaviors/embargo/nodes/test_terminate.py::TestTeardownAsk::test_the_manager_reaching_the_ask_is_a_wiring_fault`
-      covers the embargo-teardown path; inspection confirms no other CASE_MANAGER commit
-      path reads or writes the pending-assertion store.
+      confirms the CASE_MANAGER reaching the embargo-teardown ask records no pending
+      assertion; inspection confirms no other CASE_MANAGER commit path reads or writes
+      the pending-assertion store.
     statement: >-
       The CASE_MANAGER MUST NOT use the pending-assertion store for its own ledger commits;
       the CASE_MANAGER's DataLayer idempotency check already guards against duplicate commits

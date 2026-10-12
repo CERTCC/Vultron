@@ -280,8 +280,11 @@ groups:
       `test/core/use_cases/received/test_embargo_owner_decision.py::test_an_activation_with_pxa_set_is_refused_uncommitted`
       and
       `test/core/use_cases/received/test_embargo_relay_replay.py::test_a_case_manager_with_pxa_set_rejects_a_participants_acceptance`
-      confirm an activation with a PXA bit set is refused before commit and answered
-      with ER where the rule calls for one.
+      confirm an activation on a public case (P set) is refused before commit, and that
+      the CASE_MANAGER answers a participant's acceptance with ER; inspection confirms
+      both refusals test all three bits (`pxa_is_embargo_eligible` in the owner's
+      decision, `pxa_embargo_ineligible` on a participant's acceptance), so X or A set
+      refuses the activation as P does.
     statement: >-
       A Participant MUST NOT process EA to transition EM to Active when the case
       is already public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or
