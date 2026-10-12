@@ -63,12 +63,12 @@ The record is inert until the invitee accepts.
 ### Two narrow on-behalf exceptions
 
 Some state changes are evidenced by events outside the participant.
-For two of them, a Case Manager or the Case Owner may assert the change on the participant's behalf.
+For two of them, the CASE_MANAGER or the Case Owner may assert the change on the participant's behalf.
 
 | Change | Who may assert it on another's behalf | When |
 |---|---|---|
-| `v → V`, the Vendor is aware | The Case Manager or the Case Owner | The notification is evidenced: any acknowledgment from the Vendor, even a read receipt of its invitation ([PRM-06-003](../../reference/specs/protocol.md#prm-06-003)) |
-| `d → D`, the fix is deployed | The Case Manager or the Case Owner | The same evidenced pattern, and rarely — for example, a Deployer that joined and has since gone quiet ([PRM-06-004](../../reference/specs/protocol.md#prm-06-004)) |
+| `v → V`, the Vendor is aware | The CASE_MANAGER or the Case Owner | The notification is evidenced: any acknowledgment from the Vendor, even a read receipt of its invitation ([PRM-06-003](../../reference/specs/protocol.md#prm-06-003)). The write does not change the Vendor's RM state |
+| `d → D`, the fix is deployed | The CASE_MANAGER or the Case Owner | The same evidenced pattern, and rarely — for example, a Deployer that joined and has since gone quiet ([PRM-06-004](../../reference/specs/protocol.md#prm-06-004)). The write succeeds only when the Deployer's RM state is consistent with deployment |
 | `f → F`, the fix is ready | Nobody | Fix readiness is not knowable from outside the Vendor, so only the Vendor asserts it ([PRM-06-005](../../reference/specs/project.md#prm-06-005)) |
 
 An on-behalf assertion targets an existing participant only.
@@ -105,7 +105,7 @@ A participant that holds both a Vendor role and the Case Owner role may do every
 
 Once a case exists, a participant addresses every case-scoped message to the CASE_MANAGER and to nobody else ([PCR-08-001](../../reference/specs/protocol.md#pcr-08-001)).
 That covers notes, status updates, embargo proposals, and every other message about the case.
-The CASE_MANAGER judges it, records the outcome in the ledger, and sends the new ledger entry to every participant.
+The CASE_MANAGER judges it, records the outcome in the ledger, and sends the new ledger entry to every active participant.
 That fan-out is the only way a participant learns of an accepted change ([PCR-08-003](../../reference/specs/protocol.md#pcr-08-003), [§5.4.2 Routing Topology](../../reference/vultron-spec/layers.md#542-routing-topology)).
 
 ```mermaid
@@ -226,10 +226,11 @@ A receiver that finds a required participant missing, or present only as a bare 
 It does not fill the gap from what it thinks the participant should be ([CBT-05-008](../../reference/specs/protocol.md#cbt-05-008)).
 
 !!! note "The reporter's anchor when the receiver does not hold the role"
-    The reporter's check in the table works when the report receiver also holds the `CASE_MANAGER` role.
-    The actor that received the report then sends the bootstrap itself.
-    When a separate CASE_MANAGER creates the case, it sends the bootstrap, and the reporter has never addressed it.
-    How the reporter ties that bootstrap back to the actor it chose is under review in [#4473](https://github.com/CERTCC/Vultron/issues/4473).
+    The reporter's check in the table is stated as CBT-01-005 words it.
+    It is clear when the actor that received the report also sends the bootstrap.
+    It is not settled when a separate actor holds the `CASE_MANAGER` role and creates the case.
+    The requirements do not yet agree on which actor then sends the reporter's bootstrap, or on what the reporter checks before it trusts a CASE_MANAGER it never addressed.
+    That question is under review in [#4473](https://github.com/CERTCC/Vultron/issues/4473).
 
 After it accepts the bootstrap, a participant stores three things together.
 They are the case that its report became, the actor that created the case, and the actor that is the CASE_MANAGER ([CBT-01-006](../../reference/specs/protocol.md#cbt-01-006)).
@@ -335,7 +336,7 @@ Whether the named CASE_MANAGER is genuine cannot be proved until actors sign the
 A message about a case the participant has no replica for is not discarded ([PCR-06-001](../../reference/specs/protocol.md#pcr-06-001)).
 The participant holds it briefly and asks the CASE_MANAGER for the case snapshot ([PCR-06-002](../../reference/specs/protocol.md#pcr-06-002)).
 It applies nothing from the message until a trusted replica exists ([PCR-06-003](../../reference/specs/protocol.md#pcr-06-003)).
-A node that hosts several actors holds these messages separately for each actor.
+A node that hosts several actors holds these messages separately for each actor ([PCR-06-004](../../reference/specs/project.md#pcr-06-004)).
 Then a case seeded for one actor never receives messages held for another.
 
 ---
@@ -378,8 +379,8 @@ The CASE_MANAGER runs one fixed sequence when it receives the Case Owner's `Leav
 5. It records a `case_fully_closed` entry, which marks the boundary.
 6. It sends that entry to every active participant that has not already left.
 
-The CASE_MANAGER refuses the close while an embargo is still active ([CM-23-011](../../reference/specs/protocol.md#cm-23-011)).
-It records nothing for the refused close.
+The CASE_MANAGER declines the close with a `Reject` while an embargo is still active ([CM-23-011](../../reference/specs/protocol.md#cm-23-011)).
+It records nothing for the declined close.
 The Case Owner must end the embargo first and then leave again.
 
 Closing the case does not close every participant.
@@ -407,6 +408,10 @@ A general `Reject` reply is not safe, because many `Reject` messages already mea
 `Reject(Invite)` is a declined invitation.
 A sender that received one after close would read it as an answer to its request, not as "the case is closed".
 `Reject(Leave)` already means "close declined", so it cannot be misread.
+
+A new case proposal is not a late message about the case, because it names a report, not a case.
+When a proposal resolves to a closed case, the CASE_MANAGER answers it with `Reject(CaseProposal)` under either setting, and records nothing for the case ([CP-05-006](../../reference/specs/protocol.md#cp-05-006), [CP-05-008](../../reference/specs/protocol.md#cp-05-008)).
+That reply is a decision on the proposal, so it cannot be misread either.
 
 The boundary stops new writes, not reads.
 The CASE_MANAGER may still answer a participant's request for missing ledger entries, because sending entries the ledger already holds adds nothing to it ([CM-23-013](../../reference/specs/protocol.md#cm-23-013)).
