@@ -110,6 +110,20 @@ def compute_protocol_coverage(
     )
 
 
+def uncovered_protocol_ids(repo_root: Path) -> frozenset[str]:
+    """``kind: protocol`` IDs under *repo_root* that no test marker covers.
+
+    The per-item extractor behind the SR-05-005 growth guard
+    (:func:`vultron.metadata.specs.growth_guard.added_since_base`): it reads
+    ``specs/`` and ``test/`` under *repo_root*, so the same function runs on
+    the working tree and on a materialized base tree.
+    """
+    report = compute_protocol_coverage(
+        load_registry(repo_root / "specs"), repo_root / "test"
+    )
+    return frozenset(report.uncovered)
+
+
 def main() -> None:
     """CLI entry point: print uncovered protocol-kind spec IDs to stdout."""
     parser = argparse.ArgumentParser(

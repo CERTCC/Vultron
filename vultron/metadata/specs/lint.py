@@ -28,6 +28,7 @@ from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.adr.schema import AdrFrontmatter
 from vultron.metadata.specs.kind_classification import (
     check_protocol_kind_code_references,
+    suppression_status_lines,
 )
 from vultron.metadata.specs.registry import (
     SpecRegistry,
@@ -1028,6 +1029,7 @@ def lint(
     )
     hard_errors.extend(verification_errors)
     status_lines.extend(verification_lines)
+    status_lines.extend(suppression_status_lines(registry))
     if closing_pr is not None:
         hard_errors.extend(check_closing_pr(registry, debt_owners, closing_pr))
 

@@ -5,10 +5,11 @@ description: >
   Mechanical rules for authoring spec YAML: the MS-12 decision tree for
   choosing a `kind` and why copying neighbouring entries is the wrong
   heuristic; the exact enum values spec-lint accepts for `kind`, `priority`,
-  and `rel_type`; keys that are silently dropped; the protocol-coverage
-  ratchet and its xfail pattern; the audit passes required when retiring a
-  name or splitting a compound requirement; priority tiers (MS-02-003/004); and
-  the per-requirement `verification_debt` marker and its owner and
+  and `rel_type`; keys that are silently dropped; the PR-only
+  protocol-coverage and suppression growth guards and the xfail pattern;
+  the audit passes required when retiring a name or splitting a compound
+  requirement; priority tiers (MS-02-003/004); and the per-requirement
+  `verification_debt` marker and its owner and
   terminal-state rules (MS-10-006..008); the rule that a verification clause
   names a check that inspects its property (MS-10-009); and the
   CASE_MANAGER-versus-CaseActor naming discriminator.
@@ -94,18 +95,17 @@ is what produced the defect behind ISSUE-2601: MS-12 went unenforced from its
 adoption until 2026-09, and by then a large fraction of the `kind: protocol`
 corpus was carrying `lint_suppress: [missing_story_reference]` instead of a
 corrected `kind` — code naming conventions, test-coverage requirements, and
-build-file formats all tagged as wire-protocol obligations. For the live count,
-read `MAX_MISSING_STORY_SUPPRESSIONS` in
-`test/architecture/test_spec_kind_ratchet.py`, the ceiling MS-12-007 pins; it is
-the authoritative figure and it only goes down. Suppressing the
-story-traceability gate is almost never the right response to it firing; a spec
-that cannot be traced to a user story is usually mis-classified, not story-less.
-MS-12-006 now makes the unambiguous cases a hard error, and MS-12-007 ratchets
-the suppression count downward, but neither detects a misclassification whose
-statement names no code. MS-12-008 gives MS-12-006's own escape hatch,
-`protocol_kind_with_code_reference`, a ceiling of its own
-(`MAX_CODE_REFERENCE_SUPPRESSIONS`, 0 at introduction), so a suppression cannot
-move from one code to the other unseen.
+build-file formats all tagged as wire-protocol obligations. `spec-lint` prints
+the live carrier total (`[INFO] lint_suppress missing_story_reference: …`); it is
+computed from the specs, never committed. Suppressing the story-traceability gate
+is almost never the right response to it firing; a spec that cannot be traced to
+a user story is usually mis-classified, not story-less. MS-12-006 now makes the
+unambiguous cases a hard error, and MS-12-007's PR-only growth guard
+(`test_no_pr_adds_a_missing_story_suppression` in
+`test/architecture/test_spec_kind_ratchet.py`) fails any PR that adds a carrier,
+but neither detects a misclassification whose statement names no code. MS-12-008
+holds MS-12-006's own escape hatch, `protocol_kind_with_code_reference`, at no
+carrier at all, so a suppression cannot move from one code to the other unseen.
 
 #### Why MS-12-006 is scoped the way it is
 
@@ -163,9 +163,10 @@ consequences, each with a tool:
 - **The suppression goes with the old kind.** `scripts/relabel_spec_kinds.py`
   applies a `{spec_id: kind}` mapping and strips `missing_story_reference` from
   each item in one pass, preserving every other line byte for byte. The
-  protocol-coverage ceiling (`MAX_UNCOVERED_PROTOCOL_SPECS`) then drops too, since
-  a spec that leaves the protocol tier leaves that population; lower it to the new
-  live count in the same PR.
+  live uncovered total `spec-coverage` prints drops too, since a spec that leaves
+  the protocol tier leaves that population. The protocol-coverage guard never
+  counts a relabel out as an addition; a relabel *into* `protocol` needs a marker
+  in the same PR.
 
 ### Valid `priority:` Values — Underscores, Not Spaces
 
@@ -356,8 +357,9 @@ only end at zero:
    `.github/workflows/verification-debt-owners.yml`).
 3. **Zero is terminal.** Once no requirement of a kind carries a marker, delete
    that kind's owner entry; any marker of that kind is then a hard error, so the
-   kind cannot regrow debt. The growth guard (#4200) keeps new markers out
-   while an entry still exists.
+   kind cannot regrow debt. The growth guard (#4200), built on the shared
+   `added_since_base` helper in `vultron/metadata/specs/growth_guard.py`,
+   keeps new markers out while an entry still exists.
 4. **A relabel carries its verification with it.** A relabelled requirement's
    marker names the old kind's owner and fails; replace it with a
    `verification:` clause in the same change (MS-10-008).
@@ -367,22 +369,33 @@ why it cannot.
 
 ---
 
-## Protocol Coverage Ratchet
+## Protocol Coverage Guard
 
 ### Adding or Modifying a `kind: protocol` Entry Requires a Same-PR Marker Test
 
-(SR-05-005, ISSUE-2117)
+(SR-05-005, ISSUE-2117, ISSUE-4315)
 
-The CI ratchet (`MAX_UNCOVERED_PROTOCOL_SPECS` in
-`test/architecture/test_spec_coverage_ratchet.py`) counts uncovered
-protocol-kind IDs. Its ceiling can only be lowered, never raised. Adding or
-modifying a `kind: protocol` spec entry without a corresponding
-`@pytest.mark.spec("<ID>")` marker in a test raises the uncovered count and
-fails CI.
+The PR-only growth guard
+(`test_no_pr_adds_an_uncovered_protocol_spec` in
+`test/architecture/test_spec_coverage_ratchet.py`) compares the set of uncovered
+`kind: protocol` IDs at the merge base with `origin/main` (or
+`origin/$GITHUB_BASE_REF` in CI) against the working tree, and fails on each ID
+the branch added to it: a new protocol spec with no marker, removal of an ID's
+last `@pytest.mark.spec` marker, or a relabel into `kind: protocol` without one.
+A relabel out of protocol or a retired spec leaves the set and never fails it.
+No count is committed, so there is no constant to lower or raise; `spec-coverage`
+prints the live total.
 
 **Fix:** add `@pytest.mark.spec("<new-id>")` to a test in the same PR, before
 the branch lands. Run `spec-coverage` to verify coverage after adding the
 marker. See SR-05-004, SR-05-005.
+
+The guard skips, with the reason in the pytest summary, when no base ref
+resolves (a shallow clone, or no `origin/main`). CI checks out with
+`fetch-depth: 0` so it always runs there. The shared helper is
+`vultron/metadata/specs/growth_guard.py` (`added_since_base`); the
+`missing_story_reference` guard (MS-12-007) uses it too, and any new per-item
+debt guard should.
 
 `spec-coverage` reports `kind: protocol` IDs only. A `project`- or other-kind ID
 never appears in its output, covered or not, so an acceptance criterion reading
@@ -390,12 +403,10 @@ never appears in its output, covered or not, so an acceptance criterion reading
 asked this of VM-06-008). Write such a criterion as "a test carries
 `@pytest.mark.spec("<ID>")`" and check it with `grep`.
 
-### Never Raise the Ceiling — Use a Strict `xfail` for Not-Yet-Implemented Specs
+### Use a Strict `xfail` for Not-Yet-Implemented Specs
 
-`test_protocol_spec_coverage_floor` counts uncovered `kind: protocol` specs
-immediately. If no test carries `@pytest.mark.spec("SPEC-ID")`, the uncovered
-count rises above the ceiling and CI fails. The ceiling comment says "never
-raise it."
+A new `kind: protocol` spec with no test carrying `@pytest.mark.spec("SPEC-ID")`
+fails the guard on the PR that adds it, even when the behavior is not built yet.
 
 Pattern for a spec whose implementation does not yet exist: write a test
 asserting the not-yet-implemented behavior, then mark it
@@ -451,8 +462,8 @@ oblige that path, and no protocol-tier variant of the verification convention
 is needed. #4312 re-adjudicated the specs #3600 had relabeled to `project` on
 the strength of their `verification:` path (#3943) and returned the RFC-content
 ones to `protocol`; those that mapped to no existing user story carry
-`missing_story_reference` again, a one-time raise of the MS-12-007 ceiling that
-the story work in #3601 and #2717 burns down.
+`missing_story_reference` again, debt that the story work in #3601 and #2717
+burns down.
 
 The statement still has to be code-free **as written**. A rule that is RFC
 content but spells a protocol concept in this codebase's identifiers — a dotted
