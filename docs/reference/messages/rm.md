@@ -42,6 +42,9 @@ print(render_page("rm", heading=False))
   wire activity has no formal shorthand; it precedes *Report Submission*.
 - **Triggering transition:** none (object construction, not a state change).
 - **Wire activity:** `Create(VulnerabilityReport)`.
+- **Who may send:**
+  Any actor, whether or not it takes part in any case.
+  The receiver does not refuse a new report on the sender's standing (HP-01-010).
 - **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 
 ```python exec="true" idprefix=""
@@ -56,6 +59,9 @@ print(json2md(create_report()))
   containing a vulnerability report.
 - **Triggering transition:** emitted when the sender is Accepted (sender ∈ A).
 - **Wire activity:** `Offer(VulnerabilityReport)`.
+- **Who may send:**
+  Any actor, whether or not it takes part in any case.
+  The receiver does not refuse a new report on the sender's standing; it acts only when it is in the Offer's `to` (HP-01-010, HP-09-001).
 - **Proposed embargo terms:** the Offer may carry `proposedEmbargo`, an inline `EmbargoEvent` whose `context` is the report; the case owner compares it with its own default at case creation and the shorter wins (EP-04-003, EP-04-004).
 - **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),

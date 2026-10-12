@@ -6,6 +6,10 @@ are rendered from each ``SEMANTIC_REGISTRY`` entry: its ``page``, the
 shorthands and distinguishers on its occasions, and the mapping status derived
 from them (:mod:`vultron.metadata.msm._mapping`, ADR-0128).
 
+The occasion table that replaces these tables is generated, with its
+fragments, by :mod:`vultron.metadata.msm.occasions` (MSM-06-001); the pages
+move onto those fragments in #4431, and this renderer goes with them.
+
 Usage (in a ``markdown-exec`` Python block)::
 
     from vultron.metadata.msm.render import render_page
@@ -56,9 +60,9 @@ from vultron.metadata.msm._mapping import (
     MappingStatus,
     RowSpec,
 )
+from vultron.metadata.msm.occasions import format_pattern as _format_pattern
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.semantic_registry._entry import SemanticEntry
-from vultron.wire.as2.extractor._pattern import ActivityPattern
 
 # ---------------------------------------------------------------------------
 # Internal fast-lookup: MessageSemantics → SemanticEntry.
@@ -81,55 +85,6 @@ _PAGE_TITLES: dict[str, str] = {
     "case_proposal": "Case Proposal Wire Activities",
     "ledger_replication": "Ledger Replication Wire Activities",
 }
-
-
-def _type_name(value: object) -> str:
-    """Return the human-readable type name from a ``VOtype``, ``AOtype``, or
-    ``TAtype`` / ``IAtype`` enum value.
-
-    All four enums are ``StrEnum``; their string representation is the value
-    (e.g. ``"VulnerabilityReport"``, ``"Create"``).
-    """
-    return str(value)
-
-
-def _format_pattern(pattern: ActivityPattern) -> str:
-    """Render *pattern* as a compact wire-form string.
-
-    Examples::
-
-        Offer(VulnerabilityReport)
-        Accept(Invite(Event)[context=VulnerabilityCase])
-        Add(CaseStatus)[target=VulnerabilityCase]
-    """
-    act = _type_name(pattern.activity_)
-    parts: list[str] = []
-
-    if pattern.object_ is not None:
-        if isinstance(pattern.object_, ActivityPattern):
-            parts.append(f"({_format_pattern(pattern.object_)})")
-        else:
-            parts.append(f"({_type_name(pattern.object_)})")
-
-    qualifiers: list[str] = []
-    if pattern.target_ is not None:
-        if isinstance(pattern.target_, ActivityPattern):
-            qualifiers.append(f"target={_format_pattern(pattern.target_)}")
-        else:
-            qualifiers.append(f"target={_type_name(pattern.target_)}")
-    if pattern.context_ is not None:
-        if isinstance(pattern.context_, ActivityPattern):
-            qualifiers.append(f"context={_format_pattern(pattern.context_)}")
-        elif isinstance(pattern.context_, tuple):
-            # A tuple admits any of several subjects (VAM-05-001); render the
-            # alternatives, not the enum reprs.
-            alternatives = "|".join(_type_name(t) for t in pattern.context_)
-            qualifiers.append(f"context={alternatives}")
-        else:
-            qualifiers.append(f"context={_type_name(pattern.context_)}")
-
-    qualifier_str = "[" + ", ".join(qualifiers) + "]" if qualifiers else ""
-    return act + "".join(parts) + qualifier_str
 
 
 def _wire_form(entry: SemanticEntry) -> str:

@@ -15,6 +15,13 @@ Applies the MS-12 decision tree's outcome to the spec YAML (issues #3600 and
   instead. Giving both is an error: a story is what makes the suppression
   unnecessary (SR-11-003).
 
+The script never touches tests, and a relabel must not either: changing a
+spec's kind keeps the tests and ``@pytest.mark.spec`` markers that already
+verify it, whatever the destination kind (MS-12-011). A ``protocol`` spec
+relabeled to ``project`` keeps its markers although ``project`` does not
+require them. ``test_no_pr_drops_a_marker_while_changing_a_kind`` fails a PR
+whose relabeled ID lost every marker it had at the merge base.
+
 Text-manipulation approach: items are sliced, and the suppression removed,
 by the shared helpers in ``vultron.metadata.specs.yaml_items``. No YAML load/dump
 round-trip, so every other line of every file is preserved byte for byte.

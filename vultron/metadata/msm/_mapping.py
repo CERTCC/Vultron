@@ -30,22 +30,38 @@ the MSM-06-002 ratchet read.
 from __future__ import annotations
 
 import re
+from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
+from typing import Annotated, Final, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderExemption,
 )
 from vultron.core.models.events.base import MessageSemantics
+from vultron.metadata.base import repo_root
+from vultron.metadata.file_loading import (
+    display_path,
+    loads_yaml,
+    read_utf8,
+    validate,
+    yaml_node_positions,
+)
+from vultron.primitives import NonEmptyString
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.semantic_registry._entry import (
     DISPATCHER_FALLBACKS,
     SemanticEntry,
 )
 from vultron.semantic_registry._occasion import (
+    ANCHOR_PATTERN,
     FieldValue,
+    HowToGuide,
     MessagePage,
     Occasion,
     ProtocolShorthand,
@@ -117,10 +133,9 @@ def mapping_status(
     if len(shorthands) > 1:
         return MappingStatus.COLLAPSE
     shorthand = next(iter(shorthands))
-    carriers = sum(
-        1 for other in registry if shorthand in entry_shorthands(other)
-    )
-    return MappingStatus.EXPANSION if carriers > 1 else MappingStatus.DIRECT
+    if shorthand_is_shared(shorthand, registry):
+        return MappingStatus.EXPANSION
+    return MappingStatus.DIRECT
 
 
 def discriminator(occasions: Iterable[Occasion]) -> str | None:
@@ -154,6 +169,7 @@ SENT_BY_WORDING: dict[SenderEntitlementKind, str] = {
     SenderEntitlementKind.ACTIVE_PARTICIPANT: "an active participant",
     SenderEntitlementKind.INVITEE: "the invitee",
     SenderEntitlementKind.EXECUTING_ACTOR: "the receiving actor itself",
+    SenderEntitlementKind.ANY_ACTOR: "any actor",
 }
 
 #: The "Sent by" wording for a use case whose sender is not yet checked.
@@ -216,6 +232,73 @@ def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
         role.value.replace("_", " ") for role in occasion.usual_senders
     )
     return f"{wording} (usually: {usual})"
+
+
+# ---------------------------------------------------------------------------
+# Section heading and details link text (MSM-08-008).
+# ---------------------------------------------------------------------------
+
+
+def shorthand_is_shared(
+    shorthand: ProtocolShorthand, registry: Sequence[SemanticEntry]
+) -> bool:
+    """Return whether more than one entry in *registry* carries *shorthand*.
+
+    A shared shorthand is an expansion (``GI``, and ``RV``, ``RI`` and ``RC``,
+    which the Full-Case Invite replies carry too), so it names no one
+    occasion.
+    """
+    carriers = sum(
+        1 for entry in registry if shorthand in entry_shorthands(entry)
+    )
+    return carriers > 1
+
+
+def section_heading(
+    occasion: Occasion, registry: Sequence[SemanticEntry]
+) -> str:
+    """Return the heading of *occasion*'s section, which its link text reuses.
+
+    An occasion whose shorthand no other entry carries is headed by the formal
+    message and its shorthand, "Fix Readiness (CF)".  Any other occasion is
+    headed by its declared plain-English heading (MSM-08-008, DF-09-010).
+
+    Raises:
+        ValueError: When an occasion that needs a declared heading has none,
+            or one headed by its formal name declares one anyway, which would
+            be prose that renders nowhere.
+    """
+    shorthand = occasion.shorthand
+    if shorthand is None or shorthand_is_shared(shorthand, registry):
+        if occasion.heading is None:
+            raise ValueError(
+                f"occasion {occasion.anchor!r} has no shorthand of its own,"
+                " so it needs a plain-English heading (MSM-08-008)"
+            )
+        return occasion.heading
+    if occasion.heading is not None:
+        raise ValueError(
+            f"occasion {occasion.anchor!r} is headed by its formal name"
+            f" {shorthand.formal_name!r}, so its declared heading"
+            f" {occasion.heading!r} would render nowhere (MSM-08-008)"
+        )
+    return f"{shorthand.formal_name} ({shorthand.value})"
+
+
+def distinguished_by(occasion: Occasion) -> str | None:
+    """Render what tells *occasion* apart, as markdown, or ``None``.
+
+    A field value reads "`vf_state` = `VF`"; a state context reads
+    "EM state `NONE` or `PROPOSED`".  Enum members are named, not valued,
+    because a composite state such as ``CS_pxa.Pxa`` has no scalar value.
+    """
+    d = occasion.distinguisher
+    if isinstance(d, FieldValue):
+        return f"`{d.field}` = `{d.value.name}`"
+    if isinstance(d, StateContext):
+        states = " or ".join(f"`{state.name}`" for state in d.states)
+        return f"{d.machine.__name__} state {states}"
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -287,3 +370,152 @@ PAGE_ROWS: dict[str, tuple[RowSpec, ...]] = {
 SEMANTICS_TO_ROW: dict[MessageSemantics, RowSpec] = {
     row.semantics: row for row in ROW_SPECS
 }
+
+
+# ---------------------------------------------------------------------------
+# The occasion table: the committed YAML projection (ADR-0128).
+# ---------------------------------------------------------------------------
+
+#: The committed, generated occasion table.  Internal: publishing it as an
+#: interface belongs to protocol versioning (#2959).
+OCCASION_TABLE_PATH: Path = Path(__file__).with_name("occasions.yaml")
+
+#: The occasion table's format version, written into the file from the start
+#: so that a later reader can tell the shapes apart.
+OCCASION_TABLE_FORMAT_VERSION: Final = 1
+
+_ANCHOR = Annotated[str, Field(pattern=ANCHOR_PATTERN)]
+_RECORD = ConfigDict(frozen=True, extra="forbid")
+
+
+class HowToLink(BaseModel):
+    """The how-to guide whose steps send an occasion, with its page title."""
+
+    model_config = _RECORD
+
+    path: HowToGuide
+    title: NonEmptyString
+
+
+class OccasionRow(BaseModel):
+    """One occasion as the table and its section render it; all derived.
+
+    Attributes:
+        anchor: The section anchor on the group's message page.
+        heading: The section heading, which the details link text reuses
+            (MSM-08-008).
+        when: The sender's situation, completing "When…".
+        send: The wire summary, rendered from the entry's ``ActivityPattern``.
+        sent_by: The "Sent by" value (MSM-08-005).
+        distinguished_by: What tells the occasion apart, as markdown.
+        semantics: The ``SEMANTIC_REGISTRY`` entry the occasion belongs to.
+        shorthand: The formal protocol message it carries, if any.
+        status: The entry's mapping status (MSM-06-003).
+        description: What the activity does.
+        notes: Further prose for the section.
+        howto: The how-to guide whose steps send it.
+        example: The ``vocab_examples`` function that builds its example.
+    """
+
+    model_config = _RECORD
+
+    anchor: _ANCHOR
+    heading: NonEmptyString
+    when: NonEmptyString
+    send: NonEmptyString
+    sent_by: NonEmptyString
+    distinguished_by: NonEmptyString | None = None
+    semantics: MessageSemantics
+    shorthand: ProtocolShorthand | None = None
+    status: MappingStatus
+    description: NonEmptyString
+    notes: NonEmptyString | None = None
+    howto: HowToLink | None = None
+    example: NonEmptyString
+
+
+class OccasionGroup(BaseModel):
+    """The occasions of one message page, in registry (dispatch) order.
+
+    Attributes:
+        page: The message page the occasions' sections live on.
+        title: The group's title in the whole table.
+        mechanics: ``True`` for protocol mechanics, which follow the case
+            lifecycle groups.
+        occasions: The group's rows.
+    """
+
+    model_config = _RECORD
+
+    page: MessagePage
+    title: NonEmptyString
+    mechanics: bool
+    occasions: tuple[OccasionRow, ...] = Field(min_length=1)
+
+
+class OccasionTable(BaseModel):
+    """The whole occasion table, as committed in :data:`OCCASION_TABLE_PATH`.
+
+    Validation fails when a page has two groups, an anchor is not unique
+    (MSM-08-004), or the lifecycle groups do not all precede the mechanics.
+    """
+
+    model_config = _RECORD
+
+    format_version: Literal[1]
+    groups: tuple[OccasionGroup, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _pages_and_anchors_are_unique(self) -> OccasionTable:
+        problems: list[str] = []
+        pages = Counter(group.page for group in self.groups)
+        problems.extend(
+            f"page {page.value!r} has {count} groups"
+            for page, count in pages.items()
+            if count > 1
+        )
+        anchors = Counter(
+            row.anchor for group in self.groups for row in group.occasions
+        )
+        problems.extend(
+            f"anchor {anchor!r} is used {count} times (MSM-08-004)"
+            for anchor, count in anchors.items()
+            if count > 1
+        )
+        kinds = [group.mechanics for group in self.groups]
+        if kinds != sorted(kinds):
+            problems.append(
+                "a lifecycle group follows a protocol-mechanics group"
+            )
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
+
+def load_occasion_table(
+    path: Path = OCCASION_TABLE_PATH, *, root: Path | None = None
+) -> OccasionTable:
+    """Load and validate the occasion table YAML at *path* (MS-17).
+
+    Args:
+        path: The YAML file; defaults to the committed table.
+        root: Root the displayed path is made relative to; defaults to the
+            repository root.
+
+    Raises:
+        MetadataLoadError: When the file does not parse or does not
+            validate, naming ``path:line:col`` of the fault (a check across
+            the whole table, such as a duplicate anchor, names the path).
+        FileNotFoundError: When *path* does not exist.
+    """
+    shown_root = repo_root(Path(__file__).parent) if root is None else root
+    shown = display_path(path, shown_root)
+    text = read_utf8(path, shown)
+    return validate(
+        OccasionTable,
+        loads_yaml(text, Path(shown)),
+        path=path,
+        root=shown_root,
+        prefix="invalid occasion table",
+        positions=yaml_node_positions(text),
+    )

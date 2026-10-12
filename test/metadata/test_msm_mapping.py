@@ -75,6 +75,7 @@ def _occasion(index: int = 0, **overrides: Any) -> Occasion:
     fields: dict[str, Any] = {
         "when": f"stub situation {index} arises",
         "anchor": f"stub-{index}",
+        "heading": f"Stub situation {index}",
         "description": "Stands in for a real occasion.",
         "example": f"stub_example_{index}",
     }
@@ -218,6 +219,7 @@ def test_discriminator_names_fields_and_state_contexts_once_each():
         (SenderEntitlementKind.ACTIVE_PARTICIPANT, "an active participant"),
         (SenderEntitlementKind.INVITEE, "the invitee"),
         (SenderEntitlementKind.EXECUTING_ACTOR, "the receiving actor itself"),
+        (SenderEntitlementKind.ANY_ACTOR, "any actor"),
     ],
 )
 def test_sent_by_words_each_kind(kind: SenderEntitlementKind, wording: str):
