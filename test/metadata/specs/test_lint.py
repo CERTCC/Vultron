@@ -12,6 +12,7 @@ import pytest
 
 import vultron.metadata.specs.lint as lint_module
 import vultron.metadata.specs.verification as verification_module
+from test.metadata._adr_stubs import write_adr_stub
 from test.metadata.specs._helpers import write_yaml
 from test.metadata.specs.conftest import spec_file_data
 from vultron.metadata.specs.lint import lint
@@ -622,6 +623,15 @@ def _make_adr_dir(tmp_path, adr_numbers=None):
     return adr_dir
 
 
+def _write_successor_stub(adr_dir, num, supersedes):
+    """Write an accepted ADR that records the ADR it supersedes (MS-14-011).
+
+    A supersession link must be recorded on both ADRs, so a fixture retiring
+    an ADR also needs the successor-side ``supersedes`` entry.
+    """
+    write_adr_stub(adr_dir, f"{num}-stub.md", supersedes=supersedes)
+
+
 def test_lint_adr_ref_missing_emits_warn(tmp_path, capsys):
     """A rationale referencing ADR-0099 that has no file emits a [WARN]."""
     data = _minimal_spec(extra={"rationale": "Derived from ADR-0099."})
@@ -832,7 +842,8 @@ def test_lint_adr_invalid_status_is_hard_error(tmp_path, capsys):
 def test_lint_adr_superseded_status_ok(tmp_path):
     """A superseded ADR with a resolvable superseded_by target is valid."""
     write_yaml(tmp_path, _minimal_spec())
-    adr_dir = _make_adr_dir(tmp_path, ["0100"])  # replacement exists
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_successor_stub(adr_dir, "0100", supersedes="0099-stub.md")
     (adr_dir / "0099-stub.md").write_text(
         "---\nstatus: superseded\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\nsuperseded_by: 0100-stub.md\n---\n# x\n"
     )
@@ -843,7 +854,8 @@ def test_lint_adr_superseded_status_ok(tmp_path):
 def test_lint_adr_superseded_inline_form_ok(tmp_path):
     """The inline 'superseded by <link>' MADR form is accepted and resolved."""
     write_yaml(tmp_path, _minimal_spec())
-    adr_dir = _make_adr_dir(tmp_path, ["0100"])
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_successor_stub(adr_dir, "0100", supersedes="0099-stub.md")
     (adr_dir / "0099-stub.md").write_text(
         "---\nstatus: superseded by 0100-stub.md\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n---\n# x\n"
     )
@@ -932,9 +944,7 @@ def test_lint_structured_adr_ref_resolves_to_archived(tmp_path):
     (archived / "0099-stub.md").write_text(
         "---\nstatus: deprecated\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\nsuperseded_by: 0100-stub.md\n---\n# x\n"
     )
-    (adr_dir / "0100-stub.md").write_text(
-        "---\nstatus: accepted\ncreated: 2020-01-01\nupdated: 2020-01-01\nrevision: 1\n---\n# x\n"
-    )
+    _write_successor_stub(adr_dir, "0100", supersedes="ADR-0099")
     result = lint(tmp_path, adr_dir=adr_dir)
     assert result == 0
 
@@ -1907,18 +1917,20 @@ def test_protocol_should_suppress_advisory_story_warn(tmp_path, capsys):
 def _protocol_spec_naming_code(
     tmp_path,
     *,
-    field="verification",
+    field="statement",
     text=None,
     priority="MUST",
     kind="protocol",
 ):
     """Return (spec_dir, data): a story-less spec whose *field* names a real
-    ``test/`` file inside the fake repo, so only MS-12-006 can fire on it."""
+    ``test/`` file inside the fake repo, so only MS-12-006 can fire on it.
+
+    *field* defaults to ``statement``, the one field MS-12-006 scans."""
     repo, spec_dir = _repo_with_specs(tmp_path)
     (repo / "test" / "test_thing.py").write_text("")
     data = _minimal_spec_no_stories(priority=priority, kind=kind)
     data["groups"][0]["specs"][0][field] = (
-        text or "Covered by `test/test_thing.py`, which drives the transition."
+        text or "The transition MUST be driven by `test/test_thing.py`."
     )
     return spec_dir, data
 
@@ -1928,7 +1940,7 @@ def _ms12_lines(captured_err: str) -> list[str]:
 
 
 def test_protocol_no_stories_code_reference_is_hard_error(tmp_path, capsys):
-    """kind=protocol, no stories:, verification names test/…py → exit 1 (MS-12-006)."""
+    """kind=protocol, no stories:, statement names test/…py → exit 1 (MS-12-006)."""
     spec_dir, data = _protocol_spec_naming_code(tmp_path)
     data["groups"][0]["specs"][0]["lint_suppress"] = [
         "missing_story_reference"
@@ -1940,7 +1952,7 @@ def test_protocol_no_stories_code_reference_is_hard_error(tmp_path, capsys):
     lines = _ms12_lines(captured.err)
     assert len(lines) == 1
     assert "TST-01-001" in lines[0]
-    assert "verification" in lines[0]
+    assert "its statement" in lines[0]
     assert "test/test_thing.py" in lines[0]
     assert "protocol_kind_with_code_reference" in lines[0]
 
@@ -1965,6 +1977,28 @@ def test_protocol_code_reference_message_names_the_tree_not_a_kind(
     for kind in ("project", "process", "architecture"):
         assert f"kind: {kind}" not in line
         assert f"kind={kind}" not in line
+
+
+def test_protocol_code_reference_only_in_verification_passes(tmp_path, capsys):
+    """A story-less protocol spec naming code only in verification: is clean (MS-12-006).
+
+    MS-10-003 and MS-15-001 oblige a MUST's verification clause to name the
+    test that checks it; that path says nothing about whether the rule itself
+    is protocol content, so MS-12-006 scans the statement only (#3943).
+    """
+    spec_dir, data = _protocol_spec_naming_code(
+        tmp_path,
+        field="verification",
+        text="Covered by `test/test_thing.py`, which drives the transition.",
+    )
+    data["groups"][0]["specs"][0]["lint_suppress"] = [
+        "missing_story_reference"
+    ]
+    write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-12-006" not in captured.err
 
 
 def test_protocol_with_stories_and_code_reference_passes(tmp_path, capsys):

@@ -80,12 +80,20 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # seated at RM.ACCEPTED as REPORTER and seeded SIGNATORY); the live seating is
 # AddReporterParticipantNode, so the marker moved to the reporter tests in
 # test_case_proposal_received_tree.py that assert exactly that.
+# Raised once, 702 -> 725, by #4312, with maintainer approval. #3600 had
+# lowered this ceiling by moving story-less protocol specs to kind=project on
+# the strength of a test path in their verification: clause; #3943 ruled that
+# reading wrong, and #4312 returned the 71 RFC-content specs to protocol. 12
+# existing tests that verify them gained their markers; the 24 still unmarked
+# (mostly behaviour not yet built) re-enter this population, so the debt moved
+# back rather than grew. #4315 replaces this ceiling with a PR-only growth
+# guard.
 # Lower this constant as more @pytest.mark.spec markers are added;
 # never raise it to hide regressions in your own PR. Keep it pinned to the
 # actual count — slack between the two is room for uncovered specs to grow
 # unnoticed, which is the regression this ratchet exists to prevent.
 # ---------------------------------------------------------------------------
-MAX_UNCOVERED_PROTOCOL_SPECS = 702
+MAX_UNCOVERED_PROTOCOL_SPECS = 725
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"

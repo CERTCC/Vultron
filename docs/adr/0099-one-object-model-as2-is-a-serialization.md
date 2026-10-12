@@ -7,6 +7,12 @@ revision: 1
 deciders: Allen D. Householder
 consulted: notes/wire-core-boundary.md, notes/domain-model-separation.md
 stakeholder_type: [project-contributor]
+supersedes:
+  - 0017-domain-wire-object-separation.md
+  - 0082-wire-core-boundary-pairing-registry.md
+partially_supersedes:
+  - 0063-wire-rendering-port-for-core-objects.md
+  - 0074-wire-activity-artifact-immutability.md
 ---
 
 # One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy

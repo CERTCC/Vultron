@@ -9,6 +9,7 @@ consulted: notes/datalayer-design.md, notes/actor-knowledge-model.md, vultron/co
 informed: specs/datalayer.yaml, specs/architecture.yaml, specs/case-management.yaml, specs/case-proposal.yaml, specs/behavior-tree-integration.yaml, specs/em-behavior.yaml, specs/inbox-endpoint.yaml, specs/participant-case-replica.yaml, specs/idempotency.yaml, specs/case-bootstrap-trust.yaml
 stakeholder_type: [project-contributor]
 partially_superseded_by: 0109-a-container-emits-only-as-actors-it-hosts.md
+partially_supersedes: 0012-per-actor-datalayer-isolation.md
 ---
 
 # Give Each Actor Its Own Store; Delete the Unscoped DataLayer

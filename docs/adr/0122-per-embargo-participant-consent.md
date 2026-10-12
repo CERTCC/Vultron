@@ -14,6 +14,11 @@ consulted: >-
 informed: []
 supersedes: 0056-embargo-adherence-computed-field.md
 stakeholder_type: [project-contributor]
+partially_supersedes:
+  - 0048-pec-no-embargo-is-absence-not-pre-consent.md
+  - 0091-rename-pec-no-embargo-to-unbound.md
+  - 0093-signatory-declined-pec-transition.md
+  - 0118-pec-expired-and-unbound-exited-states.md
 ---
 
 # Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case

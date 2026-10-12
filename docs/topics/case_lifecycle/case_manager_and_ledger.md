@@ -90,7 +90,7 @@ Embargo invitations are not ledger entries, so they still reach that participant
 A participant checks each entry before it applies it.
 An entry that does not follow on from the participant's last entry is not applied.
 The participant tells the CASE_MANAGER where its history ends, so that the CASE_MANAGER can send what is missing ([SYNC-03-001, SYNC-03-002](../../reference/specs/protocol.md#sync-03)).
-Receiving the same entry twice changes nothing ([SYNC-03-003](../../reference/specs/project.md#sync-03-003)).
+Receiving the same entry twice changes nothing ([SYNC-03-003](../../reference/specs/protocol.md#sync-03-003)).
 
 Messages can still arrive in the wrong order, because the transport makes no promise about order.
 An entry that arrives ahead of a missing one is held rather than discarded ([SYNC-14-001](../../reference/specs/protocol.md#sync-14-001)).

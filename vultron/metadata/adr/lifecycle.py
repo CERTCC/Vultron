@@ -365,6 +365,34 @@ def _rename_sources(base: str) -> dict[Path, Path]:
     return out
 
 
+def edited_adrs(
+    paths: Iterable[Path], base: str
+) -> list[tuple[Path, str | None, str]]:
+    """Pair each edited ADR's text at ``base`` with its working-tree text.
+
+    Returns ``(path, old_text, new_text)`` for every path that is a decision
+    record present in the working tree; ``index.md``, ``README.md``, files
+    starting with ``_`` and deleted paths are skipped. A renamed path is
+    paired with the text of the path it had at ``base``, and a path with no
+    text at ``base`` (a new ADR) gets ``None``. Raises ``ValueError`` if
+    ``base`` is not a commit.
+
+    Shared by every check that judges an edit rather than the corpus, so each
+    one reads the merge base the same way.
+    """
+    verify_base(base)
+    renames = _rename_sources(base)
+    out: list[tuple[Path, str | None, str]] = []
+    for path in paths:
+        if path.name in _NON_ADR_FILES or path.name.startswith("_"):
+            continue
+        if not path.is_file():
+            continue
+        old_text = _text_at(base, renames.get(path, path))
+        out.append((path, old_text, path.read_text(encoding="utf-8")))
+    return out
+
+
 def check_paths(
     paths: Iterable[Path], base: str, today: _dt.date
 ) -> list[str]:
@@ -374,20 +402,9 @@ def check_paths(
     no text at ``base`` is a new ADR, held to the epoch rule. Raises
     ``ValueError`` if ``base`` is not a commit.
     """
-    verify_base(base)
-    renames = _rename_sources(base)
     faults: list[str] = []
-    for path in paths:
-        if path.name in _NON_ADR_FILES or path.name.startswith("_"):
-            continue
-        if not path.is_file():
-            continue
-        old_text = _text_at(base, renames.get(path, path))
-        faults.extend(
-            edit_faults(
-                path.name, old_text, path.read_text(encoding="utf-8"), today
-            )
-        )
+    for path, old_text, new_text in edited_adrs(paths, base):
+        faults.extend(edit_faults(path.name, old_text, new_text, today))
     return faults
 
 

@@ -265,6 +265,7 @@ def test_rm_validate_report_returns_accept(sample_offer, sample_actor):
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-02-004")
+@pytest.mark.spec("RF-02-003")
 def test_rm_validate_report_object_is_offer(sample_offer, sample_actor):
     result = rm_validate_report_activity(
         offer=sample_offer, actor=sample_actor
@@ -319,6 +320,7 @@ def test_rm_invalidate_report_returns_tentative_reject(
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-02-005")
+@pytest.mark.spec("RF-04-003")
 def test_rm_invalidate_report_object_is_offer(sample_offer, sample_actor):
     result = rm_invalidate_report_activity(
         offer=sample_offer, actor=sample_actor
@@ -375,6 +377,7 @@ def test_rm_close_report_returns_reject(sample_offer, sample_actor):
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-02-006")
+@pytest.mark.spec("RF-03-003")
 def test_rm_close_report_object_is_offer(sample_offer, sample_actor):
     result = rm_close_report_activity(offer=sample_offer, actor=sample_actor)
     assert result.object_ == sample_offer

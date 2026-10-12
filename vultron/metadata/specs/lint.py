@@ -14,7 +14,7 @@ import datetime as _dt
 import os
 import re
 import sys
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -173,7 +173,7 @@ def _check_adr_status(
 
 #: MS-15: a backticked token in a spec statement that looks like a
 #: repo-relative file path (has a directory separator and a known extension).
-_SPEC_PATH_RE = re.compile(
+SPEC_PATH_RE = re.compile(
     r"`([A-Za-z0-9_./-]+/[A-Za-z0-9_.-]+\.(?:py|ya?ml|md|json|toml))`"
 )
 
@@ -182,13 +182,13 @@ _SPEC_PATH_RE = re.compile(
 #: (e.g. ``devlogs/``) are excluded because they are frequently conceptual or
 #: context-specific (CI runner refs, runtime output dirs) and carry high
 #: false-positive risk.
-_SPEC_DIR_RE = re.compile(r"`((?:[A-Za-z0-9_.][A-Za-z0-9_.-]*/){2,})`")
+SPEC_DIR_RE = re.compile(r"`((?:[A-Za-z0-9_.][A-Za-z0-9_.-]*/){2,})`")
 
 #: Placeholder tokens that name a *shape* of path rather than a real one
 #: (e.g. `test_XXX_invariants.py`, `plan/history/YYMM/README.md`,
 #: `docs/adr/ADR-XXXX-foo.md`). Uppercase by convention, so a collision with a
 #: real path segment is implausible. Bracketed forms (`{YYMM}`, `<repo>`) need
-#: no entry here — :data:`_SPEC_PATH_RE` cannot match them in the first place.
+#: no entry here — :data:`SPEC_PATH_RE` cannot match them in the first place.
 _PATH_PLACEHOLDER_RE = re.compile(r"XXX|YYMM|NNNN")
 
 #: Placeholder *basenames* used in spec prose to illustrate a new file being
@@ -244,7 +244,7 @@ _SPEC_SYMBOL_RE = re.compile(r"`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)`")
 #: textual scan rather than an AST walk on purpose: a spec may legitimately
 #: name a symbol that appears only in a docstring, a comment, or a string
 #: literal, and none of those are bindings an AST pass would report.
-_SOURCE_SYMBOL_RE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
+SOURCE_SYMBOL_RE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
 
 #: Directories (relative to repo root) whose Python files legitimately cite
 #: synthetic fixture IDs and are therefore excluded from the phantom-ID scan.
@@ -306,8 +306,8 @@ def _check_phantom_paths(registry: SpecRegistry, repo_root: Path) -> list[str]:
     references paths that no longer exist.
 
     File references (backticked path with extension and ``/`` separator) use
-    :data:`_SPEC_PATH_RE`.  Directory references (two or more path segments
-    with a trailing ``/``) use :data:`_SPEC_DIR_RE`.  Single-segment directory
+    :data:`SPEC_PATH_RE`.  Directory references (two or more path segments
+    with a trailing ``/``) use :data:`SPEC_DIR_RE`.  Single-segment directory
     forms (e.g. ``devlogs/``) are excluded from the directory check because
     they are frequently conceptual or CI-context references with high
     false-positive risk.
@@ -332,20 +332,20 @@ def _check_phantom_paths(registry: SpecRegistry, repo_root: Path) -> list[str]:
     rather than exempted: neither is a valid repo-relative reference, and
     ``..`` would otherwise resolve outside the repository.
     """
-    resolver = _PathResolver(repo_root)
+    resolver = PathResolver(repo_root)
 
     errors: list[str] = []
     for spec_id, spec in registry.all_specs.items():
         if LintWarningCode.PHANTOM_PATH_REF in set(spec.lint_suppress or []):
             continue
         for field_label, text in _scanned_texts(spec):
-            for match in _SPEC_PATH_RE.findall(text):
+            for match in SPEC_PATH_RE.findall(text):
                 problem = resolver.problem_with(match)
                 if problem is not None:
                     errors.append(
                         f"{spec_id}: {field_label} references {problem}"
                     )
-            for match in _SPEC_DIR_RE.findall(text):
+            for match in SPEC_DIR_RE.findall(text):
                 problem = resolver.problem_with_dir(match)
                 if problem is not None:
                     errors.append(
@@ -377,7 +377,7 @@ def _scanned_texts(
     return texts
 
 
-class _PathResolver:
+class PathResolver:
     """Classifies a single backticked path match for :func:`_check_phantom_paths`.
 
     Holds the lazily-built tree-path index so it is walked at most once per
@@ -427,7 +427,7 @@ class _PathResolver:
         """Return an error fragment for directory ``match``, or ``None`` if it resolves.
 
         ``match`` is expected to have a trailing ``/`` as captured by
-        :data:`_SPEC_DIR_RE`.
+        :data:`SPEC_DIR_RE`.
         """
         path = match.rstrip("/")
         segments = path.split("/")
@@ -821,34 +821,42 @@ class _SourceScan:
         self.spec_id_citations: list[tuple[str, str]] = []
         self.symbols: set[str] = set()
 
-        for scan_root in (repo_root / "vultron", repo_root / "test"):
-            if not scan_root.is_dir():
+        for rel_str, text in iter_python_sources(repo_root):
+            if not path_is_under(rel_str, _SYMBOL_CORPUS_EXCLUDED_PATHS):
+                self.symbols.update(SOURCE_SYMBOL_RE.findall(text))
+
+            if any(
+                rel_str.startswith(d + "/") for d in _PHANTOM_ID_ALLOWLIST_DIRS
+            ):
                 continue
-            for py_file in sorted(scan_root.rglob("*.py")):
-                try:
-                    rel = py_file.relative_to(repo_root)
-                except ValueError:
-                    continue
-                rel_str = str(rel).replace("\\", "/")
-                text = py_file.read_text(encoding="utf-8", errors="replace")
+            seen_in_file: set[str] = set()
+            for match in _SPEC_ID_RE.finditer(text):
+                sid = match.group(0)
+                if sid not in seen_in_file:
+                    seen_in_file.add(sid)
+                    self.spec_id_citations.append((rel_str, sid))
 
-                if not any(
-                    rel_str == p or rel_str.startswith(p + "/")
-                    for p in _SYMBOL_CORPUS_EXCLUDED_PATHS
-                ):
-                    self.symbols.update(_SOURCE_SYMBOL_RE.findall(text))
 
-                if any(
-                    rel_str.startswith(d + "/")
-                    for d in _PHANTOM_ID_ALLOWLIST_DIRS
-                ):
-                    continue
-                seen_in_file: set[str] = set()
-                for match in _SPEC_ID_RE.finditer(text):
-                    sid = match.group(0)
-                    if sid not in seen_in_file:
-                        seen_in_file.add(sid)
-                        self.spec_id_citations.append((rel_str, sid))
+def iter_python_sources(repo_root: Path) -> Iterator[tuple[str, str]]:
+    """Yield ``(relative_path, text)`` for every Python file under ``vultron/`` and ``test/``.
+
+    The tree the phantom-reference checks resolve code symbols against —
+    :class:`_SourceScan` here, and the decision-record check in
+    :mod:`vultron.metadata.adr.added_refs` (MS-15-006). Paths are POSIX,
+    relative to ``repo_root``, and visited in sorted order; a missing tree is
+    skipped.
+    """
+    for scan_root in (repo_root / "vultron", repo_root / "test"):
+        if not scan_root.is_dir():
+            continue
+        for py_file in sorted(scan_root.rglob("*.py")):
+            rel = py_file.relative_to(repo_root).as_posix()
+            yield rel, py_file.read_text(encoding="utf-8", errors="replace")
+
+
+def path_is_under(rel_path: str, prefixes: Iterable[str]) -> bool:
+    """True when ``rel_path`` is one of ``prefixes`` or lies below one of them."""
+    return any(rel_path == p or rel_path.startswith(p + "/") for p in prefixes)
 
 
 def _check_phantom_spec_id_citations(
@@ -898,7 +906,7 @@ def _check_phantom_symbols(
     prefers a false negative over blocking a commit on a legitimate reference.
     The one exception to that preference is the whole-token corpus: a cited
     ``FOO`` whose only occurrence in source is as a fragment of a longer
-    identifier (``FOO_V2``) does *not* resolve, because :data:`_SOURCE_SYMBOL_RE`
+    identifier (``FOO_V2``) does *not* resolve, because :data:`SOURCE_SYMBOL_RE`
     captures whole ``\\b``-delimited runs. That is a deliberate true positive —
     ``FOO`` and ``FOO_V2`` are distinct symbols — not an oversight; suppress with
     ``lint_suppress`` if a spec genuinely means the longer name.

@@ -351,7 +351,7 @@ groups:
     - story_2022_016
   - id: CP-05-005
     priority: MUST
-    kind: project
+    kind: protocol
     statement: If the case-actor service successfully sends `Accept(as_CaseProposal)` but fails to send `Create(VulnerabilityCase)`,
       it MUST retry `Create(VulnerabilityCase)` independently. The `Accept` is irrevocable once sent and MUST NOT be resent
       on retry; only `Create(VulnerabilityCase)` requires retry.
@@ -365,6 +365,8 @@ groups:
       The Create's id is derived from the proposal, so a redelivery after the marker is cleared queues no second
       `Create(VulnerabilityCase)`; `TestARedeliveryAnnouncesTheCaseOnce` pins this after a late-tree failure and after
       a full success (#4146).
+    stories:
+    - story_2022_012
   - id: CP-05-006
     priority: MUST
     kind: protocol
