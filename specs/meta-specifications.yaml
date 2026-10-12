@@ -1050,29 +1050,33 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      An ADR's `status` MUST agree with the lifecycle epoch computed from its `updated` date
-      (ADR-0120): `proposed` under 72 hours, `accepted-provisional` from 72 hours to day 10, and
-      `accepted` from day 10 on. A human MAY override the computed value with a
-      `status_override:` field whose value is the reason. A pull request that materially edits an
-      ADR (its `updated` date changes, or the ADR is new) MUST leave the status on the epoch for
-      that date or carry an override, and a check comparing the pull request against its base MUST
-      fail it otherwise. No merge-blocking check may depend on today's date for an ADR the pull
-      request did not materially edit. A scheduled check MUST report every ADR whose status
-      disagrees with today's epoch through one tracking issue that closes itself when none
+      An ADR's `status` MUST be at least the lifecycle epoch computed for it (ADR-0120). Epoch 1
+      (`proposed`) ends at whichever comes first: day 14 after `updated`, or a spec requirement that cites the
+      ADR in `adr:` and is verified by a test file that exists (MS-14-010), counted in the tree
+      being checked: the pull request's head for a check on a pull request, `main` for the
+      scheduled check.
+      Epoch 3 (`accepted`) starts at day 28 after `updated`; between the two the epoch is 2
+      (`accepted-provisional`). A pull request that materially edits an ADR (its `updated` date
+      changes, or the ADR is new) MUST leave the status on the epoch for that date or carry a
+      `status_override:` whose value is a human's reason, and a check comparing the pull request
+      against its base MUST fail it otherwise. No merge-blocking check may depend on today's date
+      for an ADR the pull request did not materially edit. A scheduled check MUST report every ADR
+      whose status is behind today's epoch through one tracking issue that closes itself when none
       remain, and MUST NOT fail the build.
     rationale: >-
-      An ADR's status is the confidence signal agents read, and an unmaintained status drifts from
-      how settled the decision really is. Computing the expected value from `updated` makes the
-      drift mechanical to find; the override keeps a human's judgement (for example a merged
-      dependent implementation hardening an ADR early) above the clock. Boundaries are counted in
-      whole days (3 and 10) because `updated` is a date. An ADR crossing a boundary changes no
-      commit, so a merge-blocking check that read today's date would turn `main` and every open
-      pull request red at an arbitrary time (ADR-0110, 2026-10-08); the author of a material edit
-      owns the status on that date, and the clock's drift is reported instead (ARCH-18-004).
+      Elapsed time alone is the wrong signal that an ADR has had its chance to be revised; the
+      first test-verified dependent is, because the material test asks whether something built on
+      the old text would now be wrong. The timers are a backstop so every ADR hardens. A
+      merge-blocking check reading today's date would turn `main` red with no commit to blame
+      (ADR-0110, 2026-10-08), so the clock's drift is reported instead (ARCH-18-004). Boundaries
+      are counted in whole days (14 and 28) because `updated` is a date. The dependency is
+      counted on the pull request's head because the pull request that creates it must already
+      show its effect (MS-14-010).
     verification: >-
-      `test/metadata/test_adr_lifecycle.py` checks the epoch boundaries, the status comparison, that
-      a material edit and a new ADR must match their epoch or carry an override, that an edit
-      leaving `updated` alone passes, and the drift report. `test/metadata/specs/test_lint.py`
+      `test/metadata/test_adr_lifecycle.py` checks the 14- and 28-day boundaries, that a
+      test-verified dependent ends epoch 1 and is counted on the pull request's head, that a material edit and a new ADR must match their
+      epoch or carry an override, that an edit leaving `updated` alone passes, and that the drift
+      report lists an ADR behind its epoch and not one ahead of it. `test/metadata/specs/test_lint.py`
       checks that `spec-lint` does not fail a status the clock has made stale.
       `test/ci/test_adr_lifecycle_workflows.py` checks that `adr-lifecycle.yml` runs the edit check
       against the merge base on pull requests and that `adr-status-drift.yml` reports at least
@@ -1135,20 +1139,26 @@ groups:
     - documentation
     - tooling
   - id: MS-14-010
-    priority: SHOULD
+    priority: MUST
     kind: process
     statement: >-
-      `spec-lint` SHOULD report, as information, each ADR still in epoch 1 or 2 that a spec
-      requirement cites in `adr:` and verifies with a test file that exists, so a human can promote
-      the ADR early.
+      A pull request after which an ADR that is `proposed` on its base first has a test-verified
+      dependent (MS-14-007) MUST, in the same pull request, set that ADR's status to
+      `accepted-provisional`, and the check comparing the pull request against its base MUST fail it
+      otherwise. This holds however the dependent is created: by adding a requirement that cites
+      the ADR, by adding `adr:` or a verification to an existing requirement, or by adding the test
+      file a verification names.
     rationale: >-
-      A dependent implementation that passes its test is evidence the decision held, which is what
-      the clock stands in for. Reporting it costs nothing and leaves the promotion to the human,
-      who records it with `status_override`. The check sees that the named test file exists, not
-      that it passes; a passing run is the human's to confirm.
+      The dependency ends epoch 1 (MS-14-007), but it lands in a spec and a test, usually in a
+      pull request that never touches the ADR. The pull request that changed the facts owns the
+      status, as a material edit already does; leaving the flip to the scheduled drift report would
+      leave the ADR reading `proposed`, and free to rewrite, while code depends on it. The check
+      sees that the named test file exists, not that it passes.
     verification: >-
-      `test/metadata/test_adr_lifecycle.py` checks that the dependents are found and that only an
-      unsettled ADR is reported.
+      `test/metadata/test_adr_lifecycle.py` checks that the dependents are found, that a pull
+      request creating the first test-verified dependent of a `proposed` ADR fails unless it flips the
+      status, whether it adds a requirement, edits one or adds the named test file, and that one
+      adding a dependent of an ADR already past epoch 1 passes.
     relationships:
     - rel_type: depends_on
       spec_id: MS-14-007
@@ -1185,6 +1195,39 @@ groups:
       spec_id: MS-14-005
     adr:
     - ADR-0043
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-012
+    priority: MUST
+    kind: process
+    statement: >-
+      An ADR's status MUST only move forward through the epochs. A status ahead of the computed
+      epoch that the ADR already carried on the base stands: it is not a fault for the scheduled
+      check, nor for a pull request that does not materially edit the ADR, and a material edit
+      that restarts the timers keeps it under the `status_override:` that MS-14-007 and MS-14-009
+      already require of that edit. A pull request that changes `status` to a value ahead of the
+      epoch computed for it MUST add or change a `status_override:` whose value is a human's
+      reason; an override already on the base does not satisfy this. The check comparing the pull
+      request against its base MUST fail it otherwise.
+    rationale: >-
+      ADR-0120 exists so that a citation keeps meaning what it meant. When the timers were lengthened
+      (from 3 and 10 days to 14 and 28), ADRs already `accepted` under the old timers would have
+      computed as `accepted-provisional`; demoting them would loosen the edit tiers on decisions
+      agents had already built on. Treating the computed epoch as a floor covers that change and any
+      later one. The guard keeps a promotion ahead of the clock a visible human act rather than a
+      silent frontmatter edit, and an override left from an earlier, unrelated reason would make
+      every later promotion silent again.
+    verification: >-
+      `test/metadata/test_adr_lifecycle.py` checks that a status ahead of its epoch carried on the
+      base passes both the edit check and the drift report, and that a pull request moving a status
+      ahead of its epoch fails without a `status_override:`, fails when the override is unchanged
+      from the base, and passes when it adds or changes one.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-14-007
+    adr:
+    - ADR-0120
     tags:
     - documentation
     - tooling
