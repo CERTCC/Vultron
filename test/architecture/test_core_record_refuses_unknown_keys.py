@@ -28,6 +28,7 @@ from pydantic import ValidationError
 import vultron.adapters.outbox_dead_letter
 import vultron.adapters.outbox_sealed_body  # noqa: F401
 from test.support.core_vocab import import_all_core_models
+from test.support.subclasses import all_subclasses
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject, CoreRecord, with_record_id
 from vultron.core.models.retired_stored_fields import RetiredFieldsRecord
@@ -93,17 +94,10 @@ _SAMPLES: dict[str, dict[str, Any]] = {
 
 
 def _record_types() -> list[type[CoreRecord]]:
-    found: set[type[CoreRecord]] = set()
-    stack = [CoreRecord]
-    while stack:
-        for sub in stack.pop().__subclasses__():
-            if sub not in found:
-                found.add(sub)
-                stack.append(sub)
     return sorted(
         (
             cls
-            for cls in found
+            for cls in all_subclasses(CoreRecord)
             if not issubclass(cls, CoreObject)
             and not cls.__module__.startswith("test")
             and cls is not RetiredFieldsRecord

@@ -160,7 +160,7 @@ never mutated; a new record is appended with the updated dimension values.
 ## Wire Projection
 
 > **Superseded by [ADR-0099](../docs/adr/0099-one-object-model-as2-is-a-serialization.md)
-> (detail 5, SDO-01-004).** This section previously recommended matching the wire
+> (ARCH-25-005, SDO-01-004).** This section previously recommended matching the wire
 > JSON shape to the nested dimension structure, and routing projection through the
 > ADR-0082 pairing registry and adapter-side translator. Both recommendations are
 > cancelled. The rest of this note — the naming table, the `BaseModel`-not-`CoreObject`
@@ -195,7 +195,7 @@ Two consequences worth carrying:
   side. A reader that handles only the older two silently reports `None`, which is
   the issue #2262 / #2232 failure shape.
 
-There is no projection step for these types any more. ADR-0099 detail 3
+There is no projection step for these types any more. ARCH-25-003
 aliased `as_CaseStatus` and `as_ParticipantStatus` onto the core classes and
 deleted `from_core` / `to_core` with the paired classes; a `by_alias` dump of
 the core object is its AS2 form (ARCH-12-003). ARCH-12-005's relocation of

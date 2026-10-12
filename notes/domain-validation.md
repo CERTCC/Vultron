@@ -7,7 +7,8 @@ description: >
   and how helpers must fail fast when strict guarantees are violated.
 related_specs:
   - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-002, ARCH-12-003,
-    ARCH-15-001 through ARCH-15-004, ARCH-21-001 through ARCH-21-005)
+    ARCH-15-001 through ARCH-15-004, ARCH-21-001 through ARCH-21-005, ARCH-25-003,
+    ARCH-25-004)
   - specs/case-management.yaml (CM-18-005, CM-23-001, CM-23-012, CM-27-001
     through CM-27-003, CM-31-001)
   - specs/case-ledger-processing.yaml (CLP-07-002)
@@ -219,7 +220,7 @@ actor's corrupt row, and it must not cost the receiver the whole case.
 `_project_to_core_participant()` in
 `vultron/core/services/case_replica_seeding.py` therefore skips such an
 object with an ERROR rather than raising, and only what passes that check
-reaches the strict reader. Under ADR-0099 detail 3 there is no projection
+reaches the strict reader. Under ARCH-25-003 there is no projection
 step — a received status *is* the core `ParticipantStatus`, and a flat
 `rm_state` is refused at parse (ARCH-12-003) — so the check is an
 `isinstance`, never a duck-typed `to_core()` (ARCH-20-008). Making the reader
@@ -286,7 +287,7 @@ record (CM-31-001, ADR-0116).
 The wire branch stays lenient structurally, not by override: `as_Base` stands
 on `pydantic.BaseModel` directly and does not subclass `CoreRecord` or
 `CoreObject` (ARCH-12-001, ARCH-21-002), so the flag has no MRO path into it.
-Before ADR-0099 detail 4, both branches shared one root, and setting the flag
+Before ARCH-25-004, both branches shared one root, and setting the flag
 there was the one-line fix that looked right and was not: when measured it
 produced the largest blast radius of any variant (747 failed, 423 errors). Do
 not reintroduce a shared root, or make a wire class inherit a core root, to
