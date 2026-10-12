@@ -189,7 +189,7 @@ def test_a_case_carrying_the_moved_recommender_index_is_refused(
     assert "sender still using the old shape" in message
     # The replacement is not a field of the case, so the violation names the
     # key it read rather than sending the reader to a field the case lacks.
-    refusal = excinfo.value.errors()[0]["ctx"]["error"]
+    refusal = excinfo.value.errors()[0].get("ctx", {}).get("error")
     assert isinstance(refusal, VultronValidationError)
     assert [v.dimensions for v in refusal.violations] == [(old,)]
 
