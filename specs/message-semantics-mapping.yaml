@@ -657,17 +657,24 @@ groups:
   - id: MSM-06-001
     priority: MUST
     kind: process
-    statement: The shorthand-to-wire-form mapping tables in `docs/reference/messages/` MUST be rendered at build time from
-      the MSM spec registry joined against `SEMANTIC_REGISTRY`, and MUST NOT be hand-written markdown.
-    rationale: 'Hand-maintained mapping tables drift silently. The orphaned example JSON files under
-      `docs/reference/examples/` and the failing example blocks tracked by issue 2904 are what that drift looks like once
-      it has accumulated. Rendering from the registries makes divergence impossible rather than merely detectable.'
+    statement: The mapping tables in `docs/reference/messages/` MUST be committed `include-markdown` fragments generated
+      from `SEMANTIC_REGISTRY`, together with the occasion table YAML they are rendered from, and MUST NOT be hand-written
+      or rendered by a build-time `markdown_exec` block. A pre-commit `--check` hook MUST regenerate the YAML and every
+      fragment and fail on any difference from the committed files, including a committed fragment that nothing
+      generates.
+    rationale: 'Hand-maintained mapping tables drift silently, as the orphaned examples of issue 2904 showed. The tables
+      are generated and committed rather than rendered at build time because they are mostly links, and MkDocs neither
+      rewrites nor checks a `.md` link a `markdown_exec` block prints (ADR-0128). A generated file nothing compares with
+      a fresh generation is a hand-edited one; the hook makes divergence fail at commit time.'
     verification: >-
-      Inspection of `docs/reference/messages/*.md` confirms each mapping table is
-      produced by a `markdown_exec` block reading the spec and semantic registries,
-      following the `docs/reference/specs/*.md` pattern.
-    lint_suppress:
-    - phantom_path_ref
+      `uv run msm-occasions --check` exits 0, and
+      `test_committed_occasion_artifacts_are_in_sync` in
+      `test/metadata/test_msm_occasions.py` fails when the committed YAML or a
+      fragment under `docs/reference/messages/_occasions/` differs from a fresh
+      generation. Inspection of `docs/reference/messages/*.md` confirms each
+      mapping table is an `include-markdown` directive naming one of those
+      fragments. A wire example inside an occasion section carries no link and
+      is not a mapping table, so it may still render at build time.
   - id: MSM-06-002
     priority: MUST
     kind: process

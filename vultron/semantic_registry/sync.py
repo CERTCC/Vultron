@@ -60,6 +60,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Participant ends its participation in the case",
                 anchor="close-case",
+                heading="Close case",
                 description=(
                     "Leaves the case, moving the sender's RM state to Closed."
                 ),
@@ -83,6 +84,7 @@ ENTRIES: list[SemanticEntry] = [
                     "ledger"
                 ),
                 anchor="announce-case-ledger-entry",
+                heading="Announce case ledger entry",
                 description=(
                     "Fans out the newly committed ledger entry to each active "
                     "participant."
@@ -106,6 +108,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Participant's own ledger"
                 ),
                 anchor="reject-case-ledger-entry",
+                heading="Reject case ledger entry",
                 description=(
                     "Tells the Case Manager that the entry's previous hash "
                     "does not match the sender's ledger tail, and the Case "
