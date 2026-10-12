@@ -8,6 +8,7 @@ deciders: Allen D. Householder
 consulted: Vultron maintainers
 informed: Vultron implementers
 partially_superseded_by: 0106-versioning-machine-facing-interfaces.md
+lint_suppress: [status_prose_contradiction]
 stakeholder_type: [project-contributor]
 ---
 
@@ -97,3 +98,10 @@ Generated spec requirements: `vocabulary-model.yaml` VM-10-001, VM-10-002.
 
 Source issue: CONCERN-2105 — "no stable Vultron vocabulary namespace URI to
 cite (circulation blocker for draft spec)".
+
+## Amendment — 2026-10-12
+
+The status moved from `accepted-provisional` to `accepted` when its lifecycle epoch reached day 28 (ADR-0120, #4521).
+The caveat given in Decision Outcome still holds: the namespace URI is tied to the repository's current hosting location.
+It does not make the decision provisional, because a move to a custom domain or `w3id.org` is already planned as a new ADR that supersedes this one.
+How the namespace is versioned is now decided by ADR-0106, which partially supersedes this record.
