@@ -403,6 +403,19 @@ class ActorSession:
             ),
         )
 
+    def reject_case_ownership_transfer(
+        self, *, offer_id: str
+    ) -> WireActivityResult:
+        """Decline a case-ownership-transfer offer (reject-case-ownership-transfer)."""
+        return cast(
+            WireActivityResult,
+            self._post(
+                "reject-case-ownership-transfer",
+                {"offer_id": offer_id},
+                result_cls=WireActivityResult,
+            ),
+        )
+
     # -- demo-only triggers (path_prefix="demo") -------------------------
 
     def add_note_to_case(

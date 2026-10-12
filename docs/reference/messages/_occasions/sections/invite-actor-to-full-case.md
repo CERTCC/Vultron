@@ -8,6 +8,7 @@ Sends the Full-Case Invite, which asks the Participant to judge the case. It car
 - **Send:** `Invite(Actor)[target=VulnerabilityCase]`
 - **Sent by:** the case manager
 - **How-to:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

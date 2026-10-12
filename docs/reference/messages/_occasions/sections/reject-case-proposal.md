@@ -7,6 +7,7 @@ Rejects the case proposal. No case is opened.
 - **When…** a Case Actor Service declines to open the proposed case
 - **Send:** `Reject(CaseProposal)`
 - **Sent by:** the addressee of the case proposal
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

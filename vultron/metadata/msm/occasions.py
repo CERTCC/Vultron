@@ -43,10 +43,16 @@ sees (``vultron/metadata/AGENTS.md`` § Generate vs. Check).  The JSON example
 is the exception: it carries no link and its IDs are minted per run, so a
 section renders it with an exec block at build time.
 
-The fragments are in ``exclude_docs``: they are not pages of their own.  Built
-alone, a table's links would be checked against a page that does not yet
-include the sections they point to, and every fragment would publish a URL
-the project then has to keep.
+The fragments are in ``exclude_docs``: they are not pages of their own.  The
+message pages include them, and their links are checked there, against the
+host page that carries the sections they point to.  Built alone, a table's
+links would be checked against the wrong page, and every fragment would
+publish a URL the project then has to keep.
+
+Each section states its entry's mapping status, linked to the definition of
+the status values on ``docs/reference/messages/index.md`` (MSM-06-003).  The
+table does not carry it: its columns serve a sender choosing what to send, and
+the status describes the formal protocol's relation to the wire form.
 
 CLI (``uv run msm-occasions``):
     --check   exit 1 if the YAML or any fragment is stale or unexpected
@@ -76,6 +82,7 @@ from vultron.metadata.msm._mapping import (
     OCCASION_TABLE_FORMAT_VERSION,
     OCCASION_TABLE_PATH,
     HowToLink,
+    MappingStatus,
     OccasionGroup,
     OccasionRow,
     OccasionTable,
@@ -363,9 +370,21 @@ def formal_link(shorthand: ProtocolShorthand, prefix: str) -> str:
     return f"[{label}]({prefix}{target})"
 
 
+#: The message page that defines each mapping status value, and the anchor
+#: of that definition (MSM-06-003).
+STATUS_PAGE = "index.md"
+STATUS_ANCHOR = "mapping-status"
+
+
+def status_link(status: MappingStatus, prefix: str) -> str:
+    """Link *status* to its definition, from *prefix* away from the pages."""
+    return f"[{status.value}]({prefix}{STATUS_PAGE}#{STATUS_ANCHOR})"
+
+
 def render_section(row: OccasionRow) -> str:
     """Render *row*'s section, linking from ``FRAGMENT_DIR/sections``."""
-    to_reference = "../../../"
+    to_pages = "../../"
+    to_reference = "../" + to_pages
     facts = [
         f"- **When…** {row.when}",
         f"- **Send:** `{row.send}`",
@@ -382,6 +401,7 @@ def render_section(row: OccasionRow) -> str:
         facts.append(
             f"- **Formal definition:** {formal_link(row.shorthand, to_reference)}"
         )
+    facts.append(f"- **Mapping status:** {status_link(row.status, to_pages)}")
     blocks = [
         f"## {row.heading} {{ #{row.anchor} }}",
         row.description,
@@ -550,6 +570,8 @@ if __name__ == "__main__":
 __all__ = [
     "FRAGMENT_DIR",
     "FRAGMENT_MARKER",
+    "STATUS_ANCHOR",
+    "STATUS_PAGE",
     "TABLE_GROUPS",
     "WRITE_COMMAND",
     "YAML_PATH",
@@ -567,6 +589,7 @@ __all__ = [
     "render_section",
     "render_slice",
     "render_whole",
+    "status_link",
     "wire_summary",
     "write_artifacts",
 ]

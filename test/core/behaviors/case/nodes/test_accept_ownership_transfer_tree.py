@@ -113,7 +113,7 @@ def _accept_tree():
         case_id=CASE_ID,
         offer_id=OFFER_ID,
         sender_id=TRANSFEREE_ID,
-        accept_id=OFFER_ID,
+        answer_id=OFFER_ID,
     )
 
 

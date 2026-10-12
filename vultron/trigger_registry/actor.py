@@ -25,6 +25,7 @@ from vultron.core.use_cases.triggers.actor import (
     SvcOfferCaseOwnershipTransferUseCase,
     SvcOfferCaseParticipantRoleUseCase,
     SvcRejectCaseInviteUseCase,
+    SvcRejectCaseOwnershipTransferUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.full_case_invite import (
@@ -41,6 +42,7 @@ from vultron.core.use_cases.triggers.requests import (
     OfferCaseOwnershipTransferTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
     RejectCaseInviteTriggerRequest,
+    RejectCaseOwnershipTransferTriggerRequest,
     RejectFullCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
     TentativeRejectFullCaseInviteTriggerRequest,
@@ -155,5 +157,14 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=(*_ROLE, "TRIG-11-002"),
+    ),
+    TriggerEntry(
+        verb="reject-case-ownership-transfer",
+        request_model=RejectCaseOwnershipTransferTriggerRequest,
+        use_case_class=SvcRejectCaseOwnershipTransferUseCase,
+        result_type=ActivityResult,
+        exposure=TriggerExposure.GENERAL_PURPOSE,
+        bt_backed=True,
+        spec_ids=(*_ROLE, "TRIG-11-005"),
     ),
 ]

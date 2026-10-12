@@ -160,7 +160,7 @@ groups:
     semantics: create_case
     status: none
     description: Mints the vulnerability case, seats its initial participants and links the
-      report. The Case Manager sends the completed case once to the report submitter.
+      report.
     howto:
       path: howto/activitypub/activities/initialize_case.md
       title: How to Initialize a Case
@@ -233,7 +233,7 @@ groups:
     heading: Reject case ownership transfer
     when: an actor declines an offer of case ownership
     send: Reject(Offer(VulnerabilityCase))
-    sent_by: not yet checked
+    sent_by: the addressee of the vulnerability case
     semantics: reject_case_ownership_transfer
     status: none
     description: Declines the ownership transfer offer. The current Case Owner keeps the case.

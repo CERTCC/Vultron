@@ -156,8 +156,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Create case",
                 description=(
                     "Mints the vulnerability case, seats its initial "
-                    "participants and links the report. The Case Manager sends"
-                    " the completed case once to the report submitter."
+                    "participants and links the report."
                 ),
                 example="create_case",
                 howto=HowToGuide.INITIALIZE_CASE,
