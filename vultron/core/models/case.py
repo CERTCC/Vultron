@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar, Literal
 
@@ -29,6 +30,9 @@ from vultron.core.models._helpers import (
     _new_urn,
     most_recent_status,
     now_utc,
+)
+from vultron.core.models.actor_recommendation_record import (
+    ActorRecommendationRecord,
 )
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_ledger import compute_genesis_hash
@@ -44,6 +48,10 @@ from vultron.core.models.embargo_register import (
     replaces_violations,
 )
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.retired_stored_fields import (
+    RetiredFieldsRecord,
+    RetiredStoredField,
+)
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
@@ -92,7 +100,7 @@ def _genesis_published(data: dict[str, Any], inbound: bool) -> datetime | None:
     return parsed
 
 
-class VulnerabilityCase(CoreObject):
+class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
     """Domain representation of a vulnerability case.
 
     Canonical core type for a ``VulnerabilityCase``.  ``type_`` is
@@ -127,6 +135,15 @@ class VulnerabilityCase(CoreObject):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset(
         {"embargo_register"}
     )
+    # Who recommended whom is case bookkeeping, not part of the case file
+    # (CLP-07-014): the CASE_MANAGER keeps it as an ActorRecommendationRecord
+    # in its own store.  A stored case still carrying the old index is
+    # refused with a reset note rather than converted (#4448).
+    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+        "recommendation_recommender_index": RetiredStoredField(
+            "recommender_id", "#4448", ActorRecommendationRecord
+        ),
+    }
     # Every reference slot below carries ``NonEmptyString`` for its IRI form:
     # a blank reference names nothing, so it is refused at construction rather
     # than stored and dereferenced later (CS-08-001, ARCH-10-001).
@@ -158,9 +175,6 @@ class VulnerabilityCase(CoreObject):
     # The proposal Invite that relayed each *open* proposal (EP-09); an entry
     # leaves with its proposal (EP-08-003).
     pending_embargo_proposal_index: dict[NonEmptyString, NonEmptyString] = (
-        Field(default_factory=dict)
-    )
-    recommendation_recommender_index: dict[NonEmptyString, NonEmptyString] = (
         Field(default_factory=dict)
     )
     case_activity: list[NonEmptyString] = Field(default_factory=list)

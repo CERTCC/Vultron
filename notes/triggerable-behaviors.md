@@ -10,6 +10,7 @@ related_specs:
   - specs/datalayer.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/datalayer-design.md
   - notes/do-work-behaviors.md
   - notes/protocol-event-cascades.md
 relevant_packages:

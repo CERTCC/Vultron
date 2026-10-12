@@ -344,12 +344,13 @@ the page and the two derivations landed in #4429; the addressee is #4438:
 
 | Fact | Owner |
 |---|---|
-| when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes | `SemanticEntry.occasions` |
+| when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes, section heading (when no own shorthand) | `SemanticEntry.occasions` |
+| formal message name | `ProtocolShorthand.formal_name`, held to `formal_protocol/messages.md` by a test |
 | wire summary | the entry's `ActivityPattern`, rendered as today |
 | send to (addressee) | `SemanticEntry.occasions` (ADR-0129) |
 | sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
 | page | `SemanticEntry.page`, a `MessagePage` value |
-| `MappingStatus`, discriminator | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
+| `MappingStatus`, distinguished by | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
 | "Seen in" | the include directives on workflow pages |
 
 The value objects are in `vultron/semantic_registry/_occasion.py`. An occasion
@@ -364,16 +365,73 @@ MSM-01-006 give `RI`, `RV` and `RC` a second wire form, the full-case Invite rep
 of a participant that joined through an Invite, so those shorthands are
 expansions, not direct mappings. `Create(ProcessingFault)` and
 `Reject(CaseLedgerEntry)` declare `evolved`. The `Add(ParticipantStatus)`
-discriminator is now `vf_state / d_state`: `rm_state` distinguishes none of
-`CV`, `CF` and `CD`, so no occasion names it, and its RM role is the
-second-home row on `rm.md`.
+occasions are distinguished by `vf_state` and `d_state`: `rm_state`
+distinguishes none of `CV`, `CF` and `CD`, so no occasion names it, and its RM
+role is the second-home row on `rm.md`.
 
-The YAML file and the `include-markdown` fragments (the whole table, a slice per
-page, one per occasion) are generated, committed, and gated by a `--check` hook
-(#4430); `_mapping.py` becomes their loader and validator. That replaces
-MSM-06-001's build-time rendering, so the implementation revises MSM-06-001.
-Until it lands, the pages render as described below. The occasion requirements
-are MSM-08.
+### The generated artifacts (#4430)
+
+`uv run msm-occasions --write` (`vultron/metadata/msm/occasions.py`) projects
+the registry into `vultron/metadata/msm/occasions.yaml` and into fragments under
+`docs/reference/messages/_occasions/`: `lookup.md` (the whole table, one `##`
+group per page, lifecycle first and then mechanics), `lookup-<page>.md` (one
+page's slice) and `sections/<anchor>.md` (one section per occasion). The table
+fragments avoid the name `*table*.md`, which `lint-docs` exempts as generated,
+because their cells are occasion prose it must check (DF-09-007). The
+`msm-occasions-sync` pre-commit hook runs `--check`, and
+`test_committed_occasion_artifacts_are_in_sync` is the CI backstop (MSM-06-001,
+revised by #4430). `_mapping.py` holds the YAML's Pydantic models and
+`load_occasion_table`, which reports failures through `file_loading.py` (MS-17),
+locating a schema fault deep in the file by `yaml_node_positions`.
+The occasion requirements are MSM-08.
+
+Four choices there are not obvious from the code:
+
+- **Fragments render from the YAML, re-parsed, not from the registry.** So the
+  YAML carries every fact a fragment shows, and the later "Send to" (#4438) and
+  "Seen in" (#4432) columns are a field on `OccasionRow` plus a renderer change.
+- **The fragments are in `exclude_docs`.** Built alone, a table's links would be
+  checked against the wrong page, and each fragment would publish a URL.
+  `include-markdown` reads excluded files from disk, so the links are checked on
+  the host page, and `docs-frontmatter` treats an excluded file no page
+  includes as neither page nor fragment.
+- **The example stays an exec block inside the section fragment.** Its JSON
+  carries no link, and its IDs are minted per run, so a committed copy could
+  never pass `--check`.
+- **A pipe in a table's "Send" cell is a `<code>` element with entities.**
+  Python-Markdown keeps a backtick span whole and shows `\|` literally, GFM
+  splits the cell at a bare `|`, and `markdownlint --fix` rewrites an
+  unprotected `(Event)[context=…]` as a reversed link.
+
+### The pages that include them (#4431)
+
+`messages/index.md` opens with `lookup.md`, and each message page includes its
+slice and then one section per occasion. Hand-written text stays on the page
+around the includes: the introduction, an addendum after a section (triggering
+transition, second wire forms, refusal rules), and the sections for the
+shorthands with no dedicated wire activity. An addendum follows the section's
+JSON example, because the example is the section's last block. Sections follow
+the slice's dispatch order except on `em.md`, which keeps its earlier reading order
+and groups the Case Owner's two decisions under one heading with
+`heading-offset=1`.
+
+Two details are easy to get wrong:
+
+- **Include paths start with `./`.** `include-markdown` resolves a path without
+  a `./` or `../` prefix against `docs/`, not against the including page, so
+  `"_occasions/lookup.md"` finds nothing.
+- **The mapping status is in the section, not the table.** MSM-06-003 used to
+  ask for a status column on the old per-page mapping tables. The occasion
+  table's columns serve a sender, so each generated section states its
+  entry's status, linked to the definitions on `messages/index.md`; the spec
+  was revised to say so. `render.py` and its `render_page` went with the old
+  tables.
+
+`test_msm_occasions.py` checks the pages over their sources: each page includes
+its slice once, each section once and on no other page, every included section
+is a row of the slice, and no page has an exec block of its own (MSM-06-001,
+MSM-08-004). `mkdocs build --strict` and `docs-links` check that the links and
+anchors resolve once rendered.
 
 ### Planning decisions (#4418)
 
@@ -466,7 +524,12 @@ and no "you" (MSM-08-007). The details link names the formal message and code,
 "Fix Readiness (CF)", because the row's "Send" cell already gives the wire form
 and DF-09-010 wants the pair (MSM-08-008). An expansion is the exception: the
 `GI` rows link by section heading, because "General Inquiry (GI)" would label
-every row of the expansion alike, and DF-09-010 lets the heading stand in.
+every row of the expansion alike, and DF-09-010 lets the heading stand in. `RV`,
+`RI` and `RC` are expansions too (the Full-Case Invite replies carry them), so
+their rows link by heading with no shorthand, as DF-09-010 says; no exception
+is made for them (maintainer, #4430). The link text and the section heading are
+one string: the formal name and code when the shorthand is the occasion's own,
+otherwise the occasion's declared `heading`.
 
 **Each occasion's example shows its own distinguisher.** Until #4429 the CV, CF
 and CD sections of `cs.md` rendered the same `add_status_to_participant()`
@@ -483,21 +546,22 @@ states (the EM state that separates `EP` from `EV` on `Invite(Event)`)
 
 ## Examples are rendered at build time
 
-Today the pages use `markdown_exec` blocks calling
-`vultron.wire.as2.vocab.examples.vocab_examples`. Build-time rendering cannot go
-stale. ADR-0128 moves generated content to committed `include-markdown` fragments
-instead, because MkDocs does not rewrite a `.md` link printed from an exec block
-(`vultron/metadata/AGENTS.md`, Generate vs. Check) — and a lookup table is mostly
-links.
+The examples are `markdown_exec` blocks calling
+`vultron.wire.as2.vocab.examples.vocab_examples`, inside each generated
+occasion section. Build-time rendering cannot go stale, and an example carries
+no link. The tables are the part that moved: they are committed
+`include-markdown` fragments (#4430), because MkDocs does not rewrite a `.md`
+link printed from an exec block (`vultron/metadata/AGENTS.md`, Generate vs.
+Check) — and a lookup table is mostly links.
 
 Two patterns are easy to confuse. `docs/reference/specs/protocol.md` is the
 exemplar for the **mapping tables** — a thin `markdown_exec` shell over
 `vultron.metadata.specs.docs_render.render_for_kind`. It does *not* render wire
-examples. For the **examples** themselves, follow `docs/reference/messages/*.md`
-and `docs/reference/activitypub/objects.md`, which are the pages that call
-`vocab_examples`. A wire example *copied* into the how-to tree is a collapse
-re-forming; one *included* from the occasion's fragment is not (see the Diátaxis
-section above).
+examples. For the **examples** themselves, follow the generated sections under
+`docs/reference/messages/_occasions/sections/` and
+`docs/reference/activitypub/objects.md`, which call `vocab_examples`. A wire
+example *copied* into the how-to tree is a collapse re-forming; one *included*
+from the occasion's fragment is not (see the Diátaxis section above).
 
 A new example function needs a matching `obj_to_file` call in
 `vocab_examples.main()` or `test_vocab_examples_current.py` fails on the file-list

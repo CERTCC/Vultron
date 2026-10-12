@@ -48,8 +48,8 @@ class QueueEntry(SQLModel, table=True):
     Like :class:`VultronObjectRecord`, this carries no ``actor_id``: the queue
     lives in its owning actor's store.  Dropping the column also removes the
     class of bug where a queue was written under one actor-id spelling and read
-    under another (BUG-2026040901, and the ``outbox_list()`` /
-    ``clone_for_actor`` pitfall in ``notes/datalayer-design.md``).
+    under another (BUG-2026040901; see ``notes/datalayer-design.md``
+    § "One Actor Id Is One Database").
     """
 
     __tablename__ = "vultron_queue"  # type: ignore[assignment]

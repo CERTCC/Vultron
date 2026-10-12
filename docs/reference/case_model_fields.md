@@ -29,7 +29,6 @@ Defined in `vultron/core/models/case.py`.
 | `notes` | URIs of notes attached to the case |
 | `embargo_register` | One entry per embargo ever proposed on the case, appended and never removed: the embargo (object or URI), its status (`PROPOSED`, `ACTIVE`, `REJECTED`, `SUPERSEDED`, `CANCELLED` or `TERMINATED`) and the embargo an activated revision replaced. The case's Embargo Management (EM) state, its active embargo and its open proposals are all read from it (ADR-0122) |
 | `pending_embargo_proposal_index` | Map: embargo URI → the proposal activity that offered it, for open proposals only |
-| `recommendation_recommender_index` | Map: actor-recommendation URI → the participant who made it |
 | `case_activity` | Activity IDs recorded against this case (not the case ledger — see `genesis_hash`) |
 | `genesis_hash` | SHA-256 hash binding the ledger to this case's origin identity: the case id, creation time and owner (`attributed_to`), computed when the case is created; a replica keeps the hash it receives, or derives the same value from the carried case when none arrives ([CLP-08-002](specs/protocol.md#clp-08-002)) |
 | `stub_summary` | Owner-chosen, human-readable description of the case used as the `summary` of the `VulnerabilityCaseStub` carried in a stub Invite. Must be set before emitting an `Invite(Actor, target=VulnerabilityCaseStub)` — the factory raises if absent ([CM-17-010](specs/protocol.md#cm-17-010), [MV-10-001](specs/protocol.md#mv-10-001)) |

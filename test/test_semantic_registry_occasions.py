@@ -35,6 +35,7 @@ from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.metadata.markdown_tables import iter_tables
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
     find_matching_semantics,
@@ -60,6 +61,7 @@ def _occasion(**overrides: Any) -> Occasion:
     fields: dict[str, Any] = {
         "when": "a stub situation arises",
         "anchor": "stub-situation",
+        "heading": "Stub situation",
         "description": "Stands in for a real occasion.",
         "example": "stub_example",
     }
@@ -143,6 +145,44 @@ def test_occasion_rejects_usual_sender_that_is_not_a_cvd_role():
 def test_occasion_accepts_cvd_role_usual_senders():
     occasion = _occasion(usual_senders=(CVDRole.VENDOR, CVDRole.DEPLOYER))
     assert occasion.usual_senders == (CVDRole.VENDOR, CVDRole.DEPLOYER)
+
+
+@pytest.mark.spec("MSM-08-008")
+def test_occasion_without_shorthand_needs_a_heading():
+    with pytest.raises(ValidationError, match="heading"):
+        _occasion(heading=None)
+
+
+@pytest.mark.spec("MSM-08-008")
+def test_occasion_with_a_shorthand_may_omit_the_heading():
+    occasion = _occasion(heading=None, shorthand=ProtocolShorthand.CF)
+    assert occasion.heading is None
+
+
+def test_occasion_rejects_empty_heading():
+    with pytest.raises(ValidationError, match="heading"):
+        _occasion(heading="")
+
+
+def _formal_message_names() -> dict[str, str]:
+    """Read ``{code: name}`` from the formal message set's type tables."""
+    text = (_DOCS / "reference/formal_protocol/messages.md").read_text(
+        encoding="utf-8"
+    )
+    names: dict[str, str] = {}
+    for table in iter_tables(text):
+        if table.columns[:2] != ("Message Type", "Name"):
+            continue
+        for row in table.rows:
+            names[row[0].strip("$")] = row[1]
+    return names
+
+
+@pytest.mark.spec("MSM-08-008")
+def test_formal_names_match_the_formal_message_set():
+    documented = _formal_message_names()
+    declared = {s.value: s.formal_name for s in ProtocolShorthand}
+    assert declared == documented
 
 
 @pytest.mark.spec("MSM-08-006")
@@ -315,8 +355,8 @@ def test_occasion_anchors_are_unique_across_the_registry():
     """The uniqueness half of MSM-08-004.
 
     That each anchor resolves to one section on its page, and that each
-    section is referenced by a table row, is tested once the pages carry
-    occasion sections (#4431).
+    section is referenced by a table row, is tested over the pages in
+    ``test/metadata/test_msm_occasions.py``.
     """
     counts = Counter(occasion.anchor for _, occasion in _OCCASIONS)
     assert [a for a, n in counts.items() if n > 1] == []

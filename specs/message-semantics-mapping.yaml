@@ -657,17 +657,26 @@ groups:
   - id: MSM-06-001
     priority: MUST
     kind: process
-    statement: The shorthand-to-wire-form mapping tables in `docs/reference/messages/` MUST be rendered at build time from
-      the MSM spec registry joined against `SEMANTIC_REGISTRY`, and MUST NOT be hand-written markdown.
-    rationale: 'Hand-maintained mapping tables drift silently. The orphaned example JSON files under
-      `docs/reference/examples/` and the failing example blocks tracked by issue 2904 are what that drift looks like once
-      it has accumulated. Rendering from the registries makes divergence impossible rather than merely detectable.'
+    statement: The mapping tables in `docs/reference/messages/` MUST be committed `include-markdown` fragments generated
+      from `SEMANTIC_REGISTRY`, together with the occasion table YAML they are rendered from, and MUST NOT be hand-written
+      or rendered by a build-time `markdown_exec` block. A pre-commit `--check` hook MUST regenerate the YAML and every
+      fragment and fail on any difference from the committed files, including a committed fragment that nothing
+      generates.
+    rationale: 'Hand-maintained mapping tables drift silently, as the orphaned examples of issue 2904 showed. The tables
+      are generated and committed rather than rendered at build time because they are mostly links, and MkDocs neither
+      rewrites nor checks a `.md` link a `markdown_exec` block prints (ADR-0128). A generated file nothing compares with
+      a fresh generation is a hand-edited one; the hook makes divergence fail at commit time.'
     verification: >-
-      Inspection of `docs/reference/messages/*.md` confirms each mapping table is
-      produced by a `markdown_exec` block reading the spec and semantic registries,
-      following the `docs/reference/specs/*.md` pattern.
-    lint_suppress:
-    - phantom_path_ref
+      `uv run msm-occasions --check` exits 0, and
+      `test_committed_occasion_artifacts_are_in_sync` in
+      `test/metadata/test_msm_occasions.py` fails when the committed YAML or a
+      fragment under `docs/reference/messages/_occasions/` differs from a fresh
+      generation. `test_no_message_page_renders_its_table_at_build_time` in
+      the same module fails when any page under `docs/reference/messages/`
+      carries a `markdown_exec` block of its own, because each page includes
+      its table and its occasion sections as fragments. A wire example inside
+      an occasion section carries no link and is not a mapping table, so it
+      may still render at build time.
   - id: MSM-06-002
     priority: MUST
     kind: process
@@ -688,15 +697,21 @@ groups:
   - id: MSM-06-003
     priority: MUST
     kind: process
-    statement: Each mapping row MUST carry a status indicating whether the relationship is direct, a collapse of several
-      shorthands onto one wire activity, an expansion of one shorthand across several wire activities, or a mechanism that
-      evolved onto a different axis per MSM-05.
-    rationale: Reference material must state what is true, including divergence from the normative message set. A table that
-      shows only direct mappings and omits the rest reads as a complete correspondence and misleads implementers about both
-      the collapses and the evolved mechanisms.
+    statement: Each occasion section on a message page MUST state its entry's mapping status, indicating whether the
+      relationship is direct, a collapse of several shorthands onto one wire activity, an expansion of one shorthand across
+      several wire activities, a mechanism that evolved onto a different axis per MSM-05, or none, and the Message Types
+      page MUST define each status value. The occasion table need not carry the status, because its columns serve a sender
+      choosing what to send.
+    rationale: Reference material must state what is true, including divergence from the normative message set. Documentation
+      that shows only direct mappings and omits the rest reads as a complete correspondence and misleads implementers about
+      both the collapses and the evolved mechanisms. The status sits in each section, beside the formal definition it
+      qualifies, rather than in a table column a sender does not need.
     verification: >-
-      Inspection of the rendered pages confirms a status column is present and
-      populated for every row.
+      `test_every_section_links_its_mapping_status_to_its_definition` in
+      `test/metadata/test_msm_occasions.py` asserts that every generated
+      occasion section states its entry's status, linked to the definitions on
+      `docs/reference/messages/index.md`, and that the page defines every
+      `MappingStatus` value.
 - id: MSM-07
   title: Participant Embargo Consent (PEC) State Machine Coupling to EM Wire Activities
   description: >-

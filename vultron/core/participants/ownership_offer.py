@@ -32,6 +32,9 @@ The answer names one of two Offers:
 :func:`recorded_ownership_offer` returns that Offer and its protocol pair;
 the sender-entitlement guard reads the transferee and the open state from it,
 and the use case reads the new owner from it (never from the sender).
+:func:`open_ownership_offer` returns the case's Offer that is still open, if
+any, so the CASE_MANAGER can refuse a second one (CM-21-014);
+:func:`is_recorded_ownership_offer` tells a redelivered Offer from a new one.
 
 Spec: CM-21-005, CM-21-011, CM-21-013, CM-21-014, CLP-11-001.
 """
@@ -179,6 +182,17 @@ def recorded_ownership_offer(
             f"Ownership-transfer Offer recorded for case '{case_id}'",
             offer_id,
         )
+    return _recorded(dl, case_id, entry)
+
+
+def _recorded(
+    dl: CasePersistence, case_id: str, entry: CaseLedgerEntry
+) -> RecordedOwnershipOffer:
+    """The recorded Offer *entry* holds, with its pair read from the ledger.
+
+    Raises:
+        VultronNotFoundError: the recorded Offer names no transferee.
+    """
     transferee_id = _entry_target(entry)
     if transferee_id is None:
         raise VultronNotFoundError(
@@ -200,4 +214,52 @@ def recorded_ownership_offer(
     )
 
 
-__all__ = ["RecordedOwnershipOffer", "recorded_ownership_offer"]
+def is_recorded_ownership_offer(
+    dl: CasePersistence, case_id: str, offer_id: str
+) -> bool:
+    """Return ``True`` when *offer_id* is already ledgered as an Offer for *case_id*.
+
+    An Offer the ledger already records is a redelivery, not a new Offer
+    (HP-01-003): it is neither judged against the one-open-Offer rule nor
+    committed or forwarded again.
+    """
+    return any(
+        entry.log_object_id == offer_id
+        for entry in _offer_entries(dl, case_id)
+    )
+
+
+def open_ownership_offer(
+    dl: CasePersistence, case_id: str
+) -> RecordedOwnershipOffer | None:
+    """Return a recorded ownership-transfer Offer for *case_id* still open.
+
+    An Offer is open until the ledger holds an answer recorded after it
+    (CM-21-014, CLP-11-001), read through ``find_protocol_pair()`` with
+    ``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``.  The latest open Offer is
+    returned; ``None`` when every recorded Offer is answered.
+
+    An Offer that names no transferee could never be answered, so it does not
+    hold the case open.
+
+    Args:
+        dl: The CASE_MANAGER's store.
+        case_id: The case a new Offer names.  The caller has already ruled out
+            a redelivery (:func:`is_recorded_ownership_offer`), so every
+            recorded Offer is an earlier one.
+    """
+    for entry in reversed(_offer_entries(dl, case_id)):
+        if _entry_target(entry) is None:
+            continue
+        offer = _recorded(dl, case_id, entry)
+        if offer.answer_id is None:
+            return offer
+    return None
+
+
+__all__ = [
+    "RecordedOwnershipOffer",
+    "is_recorded_ownership_offer",
+    "open_ownership_offer",
+    "recorded_ownership_offer",
+]

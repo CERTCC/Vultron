@@ -866,6 +866,18 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def reject_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Offer(VulnerabilityCase))`` ownership-transfer activity.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-005).
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Processing fault (NACK)
     # -----------------------------------------------------------------------
