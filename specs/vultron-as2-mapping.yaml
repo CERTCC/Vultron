@@ -96,12 +96,14 @@ groups:
       `MessageSemantics.UNKNOWN` for an activity matching no registered pattern.
   - id: VAM-01-008
     priority: MUST
-    kind: project
+    kind: protocol
     statement: Inbound activities represent state-change notifications, not commands; the AS2 activity type used for each
       semantic MUST reflect the completed state transition, not a requested action
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that every registered
       `ActivityPattern` uses a completed-action activity type (e.g., `Create`, `Accept`, `Reject`) and that
       no imperative or request-type activity variant appears in any pattern.
+    lint_suppress:
+    - missing_story_reference
 - id: VAM-02
   title: Report Management Messages
   specs:

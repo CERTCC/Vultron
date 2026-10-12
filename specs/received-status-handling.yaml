@@ -757,7 +757,7 @@ groups:
       single-step adjacency applies only to local write nodes, not to either.
   - id: RSH-05-020
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >
       After adjudicating each dimension of a received
       `Add(ParticipantStatus, CaseParticipant)` independently, the receiver MUST
@@ -851,6 +851,9 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: RSH-05-001
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-05-021
     priority: MUST
     kind: protocol

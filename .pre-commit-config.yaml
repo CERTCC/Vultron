@@ -76,6 +76,13 @@ repos:
         files: ^docs/adr/.*\.md$
         exclude: ^docs/adr/(index|README)\.md$
 
+      - id: adr-added-reference-check
+        name: ADR edits add no unresolvable path or code symbol
+        entry: uv run python -m vultron.metadata.adr.added_refs
+        language: system
+        files: ^docs/adr/.*\.md$
+        exclude: ^docs/adr/(index|README)\.md$
+
       - id: validate-docs-page-frontmatter
         name: Validate docs page stakeholder_type and level
         entry: uv run python -m vultron.metadata.docs.page_frontmatter

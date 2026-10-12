@@ -93,11 +93,11 @@ knows first-hand.
 |---|---|
 | Order is never reversed: an event observed earlier never gets a higher `log_index` | [CLP-14-001](../../reference/specs/protocol.md#clp-14-001) |
 | Every entry carries a timestamp; none may be empty | [CLP-14-002](../../reference/specs/protocol.md#clp-14-002) |
-| Timestamps on consecutive recorded entries never move backwards as `log_index` increases | [CLP-14-003](../../reference/specs/project.md#clp-14-003) |
+| Timestamps on consecutive recorded entries never move backwards as `log_index` increases | [CLP-14-003](../../reference/specs/protocol.md#clp-14-003) |
 | Every entry in a ledger belongs to the same case | [CLP-14-004](../../reference/specs/protocol.md#clp-14-004) |
 | No two entries in a case share a `log_index` | [CLP-14-005](../../reference/specs/protocol.md#clp-14-005) |
-| No entry predates the case it belongs to | [CLP-14-006](../../reference/specs/project.md#clp-14-006) |
-| Index numbers have no holes: the genesis entry is 0 and each later entry is one more than the entry before it | [CLP-14-010](../../reference/specs/project.md#clp-14-010) |
+| No entry predates the case it belongs to | [CLP-14-006](../../reference/specs/protocol.md#clp-14-006) |
+| Index numbers have no holes: the genesis entry is 0 and each later entry is one more than the entry before it | [CLP-14-010](../../reference/specs/protocol.md#clp-14-010) |
 
 Because the index run has no holes, a hole means an entry is missing. Suppose
 a receiver gets an entry that does not extend its chain, and whose `log_index`
@@ -115,7 +115,7 @@ five minutes ahead or more than seven days old
 ([CLP-14-007](../../reference/specs/protocol.md#clp-14-007),
 [CLP-14-008](../../reference/specs/protocol.md#clp-14-008)). A deployment that knows
 its own clock conditions may tune both thresholds
-([CLP-14-009](../../reference/specs/project.md#clp-14-009)). These are sanity
+([CLP-14-009](../../reference/specs/protocol.md#clp-14-009)). These are sanity
 checks, not proof of honesty; a participant with a badly wrong clock can still
 produce a well-formed but misleading assertion.
 
@@ -146,11 +146,11 @@ The CASE_MANAGER can only record the order it sees. That places an obligation on
 each participant: send events in the order they happened.
 
 - If A caused B, send A first
-  ([CLP-15-001](../../reference/specs/project.md#clp-15-001)).
+  ([CLP-15-001](../../reference/specs/protocol.md#clp-15-001)).
 - Do not collect several related events and send them in an arbitrary order
   ([CLP-15-002](../../reference/specs/protocol.md#clp-15-002)).
 - Give B a timestamp no earlier than A's
-  ([CLP-15-003](../../reference/specs/project.md#clp-15-003)).
+  ([CLP-15-003](../../reference/specs/protocol.md#clp-15-003)).
 - Timestamp an event with when it happened, not when the batch went out or a
   retry was attempted
   ([CLP-15-004](../../reference/specs/protocol.md#clp-15-004)).
@@ -182,12 +182,12 @@ receiver that filled in the blank with its own clock could no longer tell what
 the sender claimed from what it invented — and every check above would then be
 comparing the CASE_MANAGER's clock against itself. A message without a claimed time
 is therefore rejected at the door
-([CLP-15-006](../../reference/specs/project.md#clp-15-006)).
+([CLP-15-006](../../reference/specs/protocol.md#clp-15-006)).
 
 A field that is present but empty carries no claimed time either. A blank
 `published` — an empty string, or one holding only whitespace — is refused the
 same way as an omitted one, and reports the same reason
-([MV-03-002](../../reference/specs/project.md#mv-03-002)).
+([MV-03-002](../../reference/specs/protocol.md#mv-03-002)).
 
 A value that is present and not blank but unreadable as a timestamp is a
 different fault. The CASE_MANAGER reports it as malformed data, not as a missing

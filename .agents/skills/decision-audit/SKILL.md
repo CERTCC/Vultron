@@ -175,8 +175,11 @@ approves the correction and disposition.
 2. Apply the correction to the candidate:
    - **ADR**: edit `docs/adr/NNNN-*.md` — reconcile `status:` per the decision
      tree in `notes/specs-vs-adrs.md`, correct the prose, and if retired set
-     `status: superseded` with a `superseded_by:` field and move the file to
-     `docs/adr/archived/` (see the ADR archive convention below); regenerate
+     `status: superseded` with a `superseded_by:` field, add the retired ADR
+     to the successor's `supersedes:` list (`partially_superseded_by:` and
+     `partially_supersedes:` when only one decision is replaced; MS-14-011),
+     and move the file to `docs/adr/archived/` (see the ADR archive
+     convention below); regenerate
      the index (`uv run python -m vultron.metadata.adr.index_gen --write`).
    - **Spec group**: edit the requirement(s) in `specs/*.yaml` — fix the
      statement/rationale, correct or remove a contradicting requirement (per
@@ -226,6 +229,8 @@ When archiving:
 - keep the original filename, move it under `docs/adr/archived/`;
 - set the file's `status: superseded` with a `superseded_by:` field (or
   `deprecated` with a rationale);
+- add the retired ADR to the successor's `supersedes:` list — the loader fails
+  a link recorded on only one side (MS-14-011);
 - update `docs/adr/index.md`: remove it from the active list and add it under
   the **Superseded / Archived** section with a forward link to the replacement.
 

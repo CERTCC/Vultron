@@ -137,17 +137,22 @@ def get_report(
 )
 def get_datalayer_contents(
     datalayer: DataLayer = Depends(get_actor_dl),
-) -> AS2JSONResponse:
+) -> dict[str, Any]:
+    """Return every stored object, keyed by id, as plain JSON.
+
+    The store holds bare ``CoreRecord`` bookkeeping rows beside AS2 objects,
+    so the whole-store dump is not an AS2 document and is served as
+    ``application/json`` rather than through ``AS2JSONResponse``
+    (ARCH-20-006).
+    """
     data = datalayer.all()
     if not isinstance(data, dict):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    return AS2JSONResponse(
-        {
-            k: v.model_dump(mode="json", exclude_none=True, by_alias=True)
-            for k, v in data.items()
-        }
-    )
+    return {
+        k: v.model_dump(mode="json", exclude_none=True, by_alias=True)
+        for k, v in data.items()
+    }
 
 
 @router.get(

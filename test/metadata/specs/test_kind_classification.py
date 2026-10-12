@@ -77,16 +77,17 @@ def test_token_is_not_widened_across_a_line_break():
     assert hit == ("statement", "test/architecture/test_x.py")
 
 
-def test_verification_is_scanned_after_statement():
-    """A clean statement does not shield a verification that names code."""
+def test_verification_is_not_scanned():
+    """A verification clause naming its test is not a code reference (#3943).
+
+    MS-10-003 and MS-15-001 oblige the path; it says nothing about whether the
+    rule is protocol content, so only the statement is scanned (MS-12-006).
+    """
     spec = _spec(verification="Covered by `test/demo/test_flow.py`")
-    assert code_reference_in(spec) == (
-        "verification",
-        "test/demo/test_flow.py",
-    )
+    assert code_reference_in(spec) is None
 
 
-def test_statement_hit_wins_over_verification_hit():
+def test_statement_hit_is_reported_whatever_verification_names():
     spec = _spec(
         statement="Nodes MUST be py_trees behaviours",
         verification="Covered by `test/demo/test_flow.py`",
