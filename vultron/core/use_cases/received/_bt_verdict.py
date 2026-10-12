@@ -57,6 +57,9 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
+    NoOpenOwnershipOfferNode,
+)
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
 )
@@ -230,6 +233,20 @@ def reference_edit_verdict(
     return verdict
 
 
+def _redelivery_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    guard_type: type[SenderIsOwnershipTransfereeNode]
+    | type[NoOpenOwnershipOfferNode],
+    verdict: HandlerResult,
+    fallback: str,
+) -> HandlerResult:
+    """``SKIPPED`` when *guard_type* failed the run as a redelivery."""
+    guard = find_node(tree, guard_type)
+    if guard is not None and guard.is_redelivery:
+        return HandlerResult.skipped(guard.feedback_message or fallback)
+    return verdict
+
+
 def ownership_answer_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     verdict: HandlerResult,
@@ -241,12 +258,31 @@ def ownership_answer_verdict(
     ledgered as closing its Offer, so nothing is re-applied.  That is the
     benign no-op of a redelivery, not a refusal (HP-01-003, CM-21-011).
     """
-    guard = find_node(tree, SenderIsOwnershipTransfereeNode)
-    if guard is not None and guard.is_redelivery:
-        return HandlerResult.skipped(
-            guard.feedback_message or "ownership-transfer answer redelivered"
-        )
-    return verdict
+    return _redelivery_verdict(
+        tree,
+        SenderIsOwnershipTransfereeNode,
+        verdict,
+        "ownership-transfer answer redelivered",
+    )
+
+
+def ownership_offer_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+) -> HandlerResult:
+    """Report a redelivered ownership-transfer Offer as ``SKIPPED``.
+
+    :class:`~vultron.core.behaviors.case.nodes.ownership_offer_guard.NoOpenOwnershipOfferNode`
+    fails with ``is_redelivery`` set when the CASE_MANAGER's ledger already
+    records the Offer, so it is neither judged against a newer open Offer nor
+    committed or forwarded again (HP-01-003, CM-21-014).
+    """
+    return _redelivery_verdict(
+        tree,
+        NoOpenOwnershipOfferNode,
+        verdict,
+        "ownership-transfer Offer redelivered",
+    )
 
 
 def rm_declaration_verdict(

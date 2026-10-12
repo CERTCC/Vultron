@@ -147,11 +147,16 @@ step MUST be one of that trigger's EM transitions (EMB-18-005). With several
 proposals open, EM leaves `PROPOSED` or `REVISE` only when the last one is off
 the table, so `reject` and `accept` have self-loops there, and activating one
 proposal leaves the others open as revisions (`accept: PROPOSED → REVISE`).
-Issue #4290 deleted the table with `EMAdapter` and `is_valid_em_transition()`.
-Issue #4449 restores it as data in `vultron/core/states/em.py` and refuses a
-step whose EM move is not in it (EMB-18-006). Until then
-`test/core/states/test_em_transition_table.py` holds the table and shows the
-register makes exactly its moves.
+The table is `EM_TRANSITIONS` in `vultron/core/states/em.py`, with
+`is_em_transition()` answering one `(trigger, source, dest)` and
+`create_em_machine()` / `em_transition_rows()` for tools that draw or export
+it. `apply_register_step()` names the step's EM trigger
+(`register_step_em_trigger()`; a step with none, or with more than one, is
+refused) and, after invariants 1–3, refuses a step whose EM move is not in the
+table (`em_move_violations()`, EMB-18-006). The check lives in the step, so
+the CASE_MANAGER and every replica apply it alike, and a later replay function
+inherits it. `test/core/states/test_em_transition_table.py` shows the register
+makes exactly the table's moves.
 
 **`CaseStatus.em` is a stamped copy.** The status still carries EM on the wire
 and inside `ParticipantStatus`, but the case writes it from the register: at

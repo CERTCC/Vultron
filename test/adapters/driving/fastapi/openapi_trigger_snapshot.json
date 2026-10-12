@@ -35,7 +35,7 @@
         "type": "object"
       },
       "AcceptCaseOwnershipTransferRequest": {
-        "description": "Request body for the accept-case-ownership-transfer trigger endpoint.\n\nEmits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back\nto the offering actor (TRIG-11-002).\n\nTRIG-03-001: Must include offer_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the accept-case-ownership-transfer trigger endpoint.\n\nEmits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor,\naddressed to the case's CASE_MANAGER (TRIG-11-002, CM-21-006).\n\nTRIG-03-001: Must include offer_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "offer_id": {
             "title": "Offer Id",
@@ -695,6 +695,20 @@
           "invite_id"
         ],
         "title": "RejectCaseInviteRequest",
+        "type": "object"
+      },
+      "RejectCaseOwnershipTransferRequest": {
+        "description": "Request body for the reject-case-ownership-transfer trigger endpoint.\n\nEmits ``Reject(Offer(VulnerabilityCase))`` from the requesting actor,\naddressed to the case's CASE_MANAGER (TRIG-11-005, CM-21-010).\n\nTRIG-03-001: Must include offer_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "properties": {
+          "offer_id": {
+            "title": "Offer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "offer_id"
+        ],
+        "title": "RejectCaseOwnershipTransferRequest",
         "type": "object"
       },
       "RejectEmbargoRequest": {
@@ -1710,7 +1724,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/accept-case-ownership-transfer": {
       "post": {
-        "description": "Emits an Accept(Offer(VulnerabilityCase)) from the accepting actor back to the offering actor.  The ownership transfer offer must already exist in the actor's DataLayer (TRIG-11-002).",
+        "description": "Emits an Accept(Offer(VulnerabilityCase)) from the accepting actor to the case's CASE_MANAGER.  The ownership transfer offer must already exist in the actor's DataLayer (TRIG-11-002, CM-21-006).",
         "operationId": "actors_trigger_accept_case_ownership_transfer",
         "parameters": [
           {
@@ -2604,6 +2618,59 @@
           }
         },
         "summary": "Reject a case invitation.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/reject-case-ownership-transfer": {
+      "post": {
+        "description": "Emits a Reject(Offer(VulnerabilityCase)) from the declining actor to the case's CASE_MANAGER, which ledgers and broadcasts the decline.  The ownership transfer offer must already exist in the actor's DataLayer (TRIG-11-005, CM-21-010, CM-21-012).",
+        "operationId": "actors_trigger_reject_case_ownership_transfer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectCaseOwnershipTransferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decline a case ownership transfer offer.",
         "tags": [
           "Triggers"
         ]

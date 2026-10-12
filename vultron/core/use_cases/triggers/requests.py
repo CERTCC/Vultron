@@ -59,6 +59,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     ProposeEmbargoRequest,
     ProposeEmbargoRevisionRequest,
     RejectCaseInviteRequest,
+    RejectCaseOwnershipTransferRequest,
     RejectEmbargoRequest,
     ReportTriggerRequest,
     SetStubSummaryRequest,
@@ -401,8 +402,18 @@ class AcceptCaseOwnershipTransferTriggerRequest(
 ):
     """Trigger request to accept a case ownership transfer offer.
 
-    Emits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back
-    to the offering actor (TRIG-11-002).
+    Emits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor,
+    addressed to the case's CASE_MANAGER (TRIG-11-002, CM-21-006).
+    """
+
+
+class RejectCaseOwnershipTransferTriggerRequest(
+    TriggerRequest[ActivityResult], RejectCaseOwnershipTransferRequest
+):
+    """Trigger request to decline a case ownership transfer offer.
+
+    Emits ``Reject(Offer(VulnerabilityCase))`` from the requesting actor,
+    addressed to the case's CASE_MANAGER (TRIG-11-005, CM-21-010).
     """
 
 
@@ -433,6 +444,7 @@ __all__ = [
     "ProposeEmbargoRevisionTriggerRequest",
     "ProposeEmbargoTriggerRequest",
     "RejectCaseInviteTriggerRequest",
+    "RejectCaseOwnershipTransferTriggerRequest",
     "RejectEmbargoTriggerRequest",
     "RejectReportTriggerRequest",
     "ResultT_co",
