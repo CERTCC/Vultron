@@ -1,18 +1,22 @@
 ---
 title: Spec Authoring Rules — Field Values, Lint Traps, and Coverage Gates
 status: active
+kind: guidance
 description: >
-  Mechanical rules for authoring spec YAML: the MS-12 decision tree for
-  choosing a `kind` and why copying neighbouring entries is the wrong
-  heuristic; the exact enum values spec-lint accepts for `kind`, `priority`,
-  and `rel_type`; keys that are silently dropped; the PR-only
-  protocol-coverage and suppression growth guards and the xfail pattern;
-  the audit passes required when retiring a name or splitting a compound
-  requirement; priority tiers (MS-02-003/004); and the per-requirement
-  `verification_debt` marker and its owner and
+  Mechanical rules for authoring spec YAML: the five kinds and the MS-12
+  decision tree for choosing one (who must obey a rule decides its kind,
+  ADR-0134), the split rule for a spec that mixes kinds, the rule that a
+  kind change keeps its tests and markers (MS-12-011), and why copying
+  neighbouring entries is the wrong heuristic; the exact enum values
+  spec-lint accepts for `kind`, `priority`, and `rel_type`; keys that are
+  silently dropped; the PR-only marker-coverage and suppression growth
+  guards and the xfail pattern; the audit passes required when retiring a
+  name or splitting a compound requirement; priority tiers (MS-02-003/004);
+  and the per-requirement `verification_debt` marker and its owner and
   terminal-state rules (MS-10-006..008); the rule that a verification clause
-  names a check that inspects its property (MS-10-009); and the
-  CASE_MANAGER-versus-CaseActor naming discriminator.
+  names a check that inspects its property (MS-10-009); the rule that a
+  guard against a mistake states the truth the mistake violates (MS-05-005);
+  and the CASE_MANAGER-versus-CaseActor naming discriminator.
 related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
@@ -51,46 +55,90 @@ rather than an `[ERROR]` line.
 
 ### Valid `kind:` Values
 
-The `kind:` field accepts exactly four values:
+The `kind:` field accepts exactly these values:
 
 ```text
-protocol  architecture  project  process
+protocol  foundation  architecture  project  process
 ```
 
 `implementation` is **NOT** valid and causes spec-lint to reject the file at
 commit time. The error may look like a YAML syntax error — it is not.
 
-- Use `kind: protocol` for external protocol obligations (what a Vultron
-  participant must do on the wire).
-- Use `kind: architecture` for structural constraints on the system (layering,
-  import rules, module boundaries).
-- Use `kind: project` for internal project conventions that do not affect
-  external protocol behavior.
-- Use `kind: process` for development process rules (testing, documentation,
-  CI).
+#### Who must obey a rule decides its kind
 
-These glosses come from *ISSUE-2258*.
+Who must obey a rule decides its kind; naming code never does (MS-12-002,
+[ADR-0134](../docs/adr/0134-who-must-obey-a-rule-decides-its-spec-kind.md),
+which partially supersedes ADR-0038). The five kinds:
+
+- **`protocol`** — the Vultron layer: Vultron's message forms on the wire
+  (including where ActivityStreams allows several forms and Vultron requires
+  one, e.g. Accept referencing the Offer), which messages are sent and when,
+  what a receiver does given its state (including on duplicate delivery), and
+  the state machines underlying those behaviors. State-machine states such as
+  `RM.CLOSED` are protocol constructs.
+- **`foundation`** — rules Vultron inherits from the standards beneath it:
+  ActivityStreams 2.0, ActivityPub, HTTP. Examples: addressing and delivery,
+  HTTP status codes, rules that only restate ActivityStreams (e.g. IDs are
+  opaque URIs). A tag records which standard — `as2`, `activitypub`, or `http`
+  — and spec-lint fails a `foundation` spec that carries none (MS-12-009). An
+  implementer reads `protocol` + `foundation`.
+- **`architecture`** — recommended structure that carries over to other
+  languages but is not required for compliance. Behavior trees, and "keep
+  protocol behavior inside the behavior tree", are here.
+- **`project`** — this codebase only: deployment choices (e.g. the
+  CASE_MANAGER as a separate actor from the case owner), performance and
+  operating limits, how a receiver records what it receives, core internals.
+- **`process`** — how we run this project: CI, GitHub workflow, agent
+  conventions, docs standards, spec authoring rules.
+
+**The ledger caveat.** The CASE_MANAGER role and case-ledger sync are
+`protocol` for now. Re-judge them if the protocol moves to a federated design
+with no CASE_MANAGER; until then, do not relabel them on the grounds that a
+federated Vultron would not need them.
 
 #### Apply the decision tree, not the neighbouring entries
 
-The four one-line glosses above are a summary, not the rule. The authoritative
-rule is the decision tree in **MS-12-001 … MS-12-005** (`meta-specifications.yaml`),
-established by [ADR-0038](../docs/adr/0038-four-tier-specification-taxonomy.md).
-Apply it in order and stop at the first match:
+The glosses above are a summary, not the rule. The authoritative rule is the
+decision tree in **MS-12** (`meta-specifications.yaml`). Split a mixed spec
+first (MS-12-010, below), then apply the questions in the order MS-12-005
+fixes and stop at the first match:
 
 1. About how the project is run — CI, workflow, agent conventions, docs
-   standards, spec authoring rules? → `process`
-2. References a language construct, library, file path, class, function,
-   module, or codebase mechanism (`py_trees`, `pydantic`, `vultron/`, `.py`,
-   `pytest`, BT nodes)? → `project`
-3. Must an independent implementer satisfy it to be Vultron-compliant, in any
-   language? → `protocol`
-4. None of the above — implementation-independent but not compliance-bearing?
-   → `architecture`
+   standards, spec authoring rules? → `process` (MS-12-001)
+2. Must only this codebase obey it — a deployment choice, an operating limit,
+   how a receiver records what it receives, a core internal? → `project`
+   (MS-12-002)
+3. Must every implementation obey it because Vultron inherits it from
+   ActivityStreams 2.0, ActivityPub, or HTTP? → `foundation`, tagged with the
+   standard (MS-12-009)
+4. Must every Vultron implementation, in any language, obey it to take part
+   in the protocol? → `protocol` (MS-12-003)
+5. None of the above — recommended structure, not required for compliance?
+   → `architecture` (MS-12-004)
 
-Step 2 is the one that gets skipped. A codebase reference disqualifies
-`protocol` **even when the surrounding requirement feels protocol-ish**, which
-is why the ordering is normative in MS-12-005 rather than advisory.
+A statement that names a file path, library, class, or BT node does **not**
+match step 2 for that reason. It is either a protocol rule spelled in this
+codebase's terms — reword it in protocol vocabulary — or a mixed spec — split
+it. Neither is relabeled.
+
+#### Split a spec that mixes kinds (MS-12-010)
+
+A spec that mixes kinds is split by what other participants can observe: the
+protocol half states what is emitted or observed; the project half states how
+our code does it. The **original ID keeps the protocol half**, reworded
+implementation-neutrally; the implementation detail gets a **new `project`
+ID** whose `relationships:` name the original. Keeping the original ID on the
+protocol half keeps its stories, test markers, and citations in place, so the
+PR-only growth guards (SR-05-005's uncovered protocol spec, MS-12-007's new
+`missing_story_reference`) do not trip. The new `project` ID needs no marker,
+but the markers already on the original stay where they are (MS-12-011).
+
+Worked example — default-embargo creation:
+
+- **Protocol (original ID):** other participants never observe the
+  intermediate Proposed state.
+- **Project (new ID, links back):** this codebase applies PROPOSE and ACCEPT
+  atomically in one behavior tree node.
 
 Do **not** infer a spec's `kind` by copying the entries around it. That heuristic
 is what produced the defect behind ISSUE-2601: MS-12 went unenforced from its
@@ -121,27 +169,32 @@ story has already demonstrated it is protocol, and its `verification:` field
 names a `test/…py` path *because MS-10-003 obliges every MUST to carry one and
 MS-15-001 obliges the path to resolve*. Applied to the whole protocol corpus the
 detector flags roughly half of it, and the majority of those hits are specs that
-are fully SR-11-compliant. The author's only available remedies would then be
-relabeling a genuine protocol spec as `project` or adding a suppression — the
-wrong-way ratchet described above, re-created by the check meant to stop it.
-Gating on the absence of a story confines the check to the population where a
-codebase reference actually indicates misclassification.
+are fully SR-11-compliant, and what they name is the test that MS-10-003
+obliges, not how the rule is met. Gating on the absence of a story confines the
+check to the population where a codebase reference most often means the
+statement needs rewording or splitting.
 
 **The token list excludes bare `module`, `class`, and `function`.** Those read as
 ordinary domain English in wire requirements — "a machine-readable failure
 class", "the same action class", "the actor's function in the CVD process". Left
-in, they flag two dozen genuine protocol statements and instruct the author to
-set `kind: project` on a pure wire obligation. `.py`, `vultron/`, `test/`,
-`scripts/`, `pytest`, `pydantic`, and `py_trees` carry no such second meaning.
+in, they flag two dozen genuine protocol statements that need no rewording.
+`.py`, `vultron/`, `test/`, `scripts/`, `pytest`, `pydantic`, and `py_trees`
+carry no such second meaning.
 The cost of the omission is a handful of true positives the check will not catch;
 those are MS-12-006's acknowledged blind spot, not an oversight.
 
-**The error names the whole tree, not `project`.** MS-12-002 is not always the
-right answer for a spec that names code: MS-12-005 gives MS-12-001 precedence,
-and `pytest`, `test/`, and `scripts/` land squarely in the CI-and-authoring-rules
-territory MS-12-001 claims for `process`. MS-12-006 and MS-12-007 are themselves
-the demonstration — both name those tokens, and both are correctly `process`. A
-message that prescribed `project` would send those specs to the wrong tier.
+**The error says reword or split, never relabel.** A code token in a protocol
+statement does not make the rule `project`: who must obey it decides that
+(MS-12-002). The token means the statement either spells a protocol rule in
+this codebase's terms, which is reworded, or also says how this codebase meets
+the rule, which is split (MS-12-010). A message that prescribed a kind would
+repeat the literal reading ADR-0134 rejected — PR #4520 (#3601) applied it and
+moved genuine protocol rules to `project`.
+
+**`foundation` is scanned too.** A `foundation` statement that names this
+codebase's code also says how this codebase meets an inherited rule, so it is a
+mixed spec: split it (MS-12-010). The suppression code keeps its
+`protocol_kind_with_code_reference` name, which specs already carry.
 
 The general lesson, from ISSUE-3480: **an enforced MUST advertises itself through
 full compliance in the artifacts; an unenforced one anti-advertises.** A rule at
@@ -165,10 +218,18 @@ consequences, each with a tool:
 - **The suppression goes with the old kind.** `scripts/relabel_spec_kinds.py`
   applies a `{spec_id: kind}` mapping and strips `missing_story_reference` from
   each item in one pass, preserving every other line byte for byte. The
-  live uncovered total `spec-coverage` prints drops too, since a spec that leaves
-  the protocol tier leaves that population. The protocol-coverage guard never
-  counts a relabel out as an addition; a relabel *into* `protocol` needs a marker
-  in the same PR.
+  live uncovered total `spec-coverage` prints drops too, since a spec that
+  leaves `protocol` and `foundation` leaves that population. The marker-coverage
+  guard never counts a relabel out as an addition, and a relabel from
+  `protocol` to `foundation` keeps its marker; a relabel *into* either kind from
+  another needs a marker in the same PR.
+- **Tests and markers stay (MS-12-011).** A kind change never removes the tests
+  or `@pytest.mark.spec` markers that already verify the spec, whatever the
+  destination kind: a relabel from `protocol` to `project` keeps both, though
+  `project` does not require them. The PR-only guard
+  `test_no_pr_drops_a_marker_while_changing_a_kind` (in
+  `test/architecture/test_spec_coverage_ratchet.py`) fails a PR in which a
+  relabeled ID lost every marker it had at the merge base.
 
 ### Valid `priority:` Values — Underscores, Not Spaces
 
@@ -372,20 +433,29 @@ why it cannot.
 
 ---
 
-## Protocol Coverage Guard
+## Marker Coverage Guard
 
-### Adding or Modifying a `kind: protocol` Entry Requires a Same-PR Marker Test
+### A `protocol` or `foundation` Entry Requires a Same-PR Marker Test
 
-(SR-05-005, ISSUE-2117, ISSUE-4315)
+(SR-05-005, ISSUE-2117, ISSUE-4315, ISSUE-4528)
+
+The guard covers `kind: protocol` and `kind: foundation` together: every rule an
+implementer must obey needs a test, whether Vultron defines it or inherits it
+(ADR-0134). The story gate (SR-11-003, SR-11-004) covers `protocol` only for
+now: user stories for behavior Vultron inherits from ActivityStreams, ActivityPub
+and HTTP are not yet backfilled (#2717, #4513), and the gate widens to
+`foundation` once they are. MS-12-006 covers both kinds.
 
 The PR-only growth guard
-(`test_no_pr_adds_an_uncovered_protocol_spec` in
+(`test_no_pr_adds_an_uncovered_implementer_spec` in
 `test/architecture/test_spec_coverage_ratchet.py`) compares the set of uncovered
-`kind: protocol` IDs at the merge base with `origin/main` (or
+`protocol` and `foundation` IDs at the merge base with `origin/main` (or
 `origin/$GITHUB_BASE_REF` in CI) against the working tree, and fails on each ID
-the branch added to it: a new protocol spec with no marker, removal of an ID's
-last `@pytest.mark.spec` marker, or a relabel into `kind: protocol` without one.
-A relabel out of protocol or a retired spec leaves the set and never fails it.
+the branch added to it: a new spec of either kind with no marker, removal of an
+ID's last `@pytest.mark.spec` marker, or a relabel into either kind without one.
+A relabel from `protocol` to `foundation` stays in the set, so it keeps its
+marker and never fails the guard. A relabel out of both kinds or a retired spec
+leaves the set and never fails it.
 No count is committed, so there is no constant to lower or raise; `spec-coverage`
 prints the live total.
 
@@ -400,8 +470,8 @@ resolves (a shallow clone, or no `origin/main`). CI checks out with
 `missing_story_reference` guard (MS-12-007) uses it too, and any new per-item
 debt guard should (#4200 is the next).
 
-`spec-coverage` reports `kind: protocol` IDs only. A `project`- or other-kind ID
-never appears in its output, covered or not, so an acceptance criterion reading
+`spec-coverage` reports `protocol` and `foundation` IDs only. An ID of any other
+kind never appears in its output, covered or not, so an acceptance criterion reading
 "`spec-coverage` shows `<ID>` covered" cannot be met for one (#3565's AC-6
 asked this of VM-06-008). Write such a criterion as "a test carries
 `@pytest.mark.spec("<ID>")`" and check it with `grep`.
@@ -452,6 +522,35 @@ or describe the one that does.
 
 Source: ISSUE-2982
 
+## A Guard States the Truth the Mistake Violates
+
+**Rule (MS-05-005):** when a requirement exists to stop an implementation
+mistake, state the domain truth the mistake violates, in the vocabulary of the
+requirement's kind. Don't write a ban on the mistake, or a correction of it in
+the code's terms. Put the bug that prompted it in `rationale:`, and let the
+regression test verify the positive rule. Such a requirement carries no marker,
+tag or field.
+
+**Why:** a bare "MUST NOT do the obvious wrong thing" reads as if the wrong
+thing were a live design option, and once SR-11-003's story gate extends to
+protocol MUST_NOT (#4517) a ban on a mistake gets only a contrived story. The
+positive truth reads as design and has a natural story. Deleting the
+requirement and keeping only the test is not the fix: agents read specs more
+often than tests, and RSH-08-001's mistake recurred while only code and tests
+guarded it.
+
+**How to apply:** write "a participant's assertion about itself is about
+itself, not about another actor". Don't write "the subject of a received-side
+RM write MUST be the sender, never the receiver": it is a positive MUST, but it
+is the code's correction, in the code's terms, inside a `protocol` spec. If the
+requirement mixes kinds, split it per MS-12-005 (see
+[`protocol` Means RFC Content](#protocol-means-rfc-content)): the meaning is
+`protocol`, and how our code records it is `project`. A guard with no domain
+truth behind it, a pure coding mistake with nothing another participant can
+observe, is not `protocol` (MS-12-003), or is only a regression test.
+
+Source: CONCERN-4530
+
 ## `protocol` Means RFC Content
 
 `protocol` is for what an RFC would contain: wire messages, the behaviours that
@@ -471,15 +570,17 @@ The statement still has to be code-free **as written**. A rule that is RFC
 content but spells a protocol concept in this codebase's identifiers — a dotted
 enum member (`CVDRole.CASE_OWNER`, `CS_vf.vf`), a wire class's Python name
 (`as_CaseProposal`, `RmInviteToCaseActivity`), a helper function, the
-`DataLayer` — matches MS-12-002 first and stays `project`, even though MS-12-006's
-narrow token list does not flag it. Protocol vocabulary is not a codebase
+`DataLayer` — is still `protocol`: every implementation must obey it, and naming
+code does not change that (MS-12-002). Its statement is reworded, even where
+MS-12-006's narrow token list does not flag it. Protocol vocabulary is not a codebase
 reference: AS2 wire types and field names, the protocol shorthands (`CP`,
 `ET`), state notation (`VFd···`) and bare semantic names
 (`INVITE_TO_EMBARGO_ON_CASE`) all appear in protocol statements. The remedy for
 a code-spelled protocol rule is to reword the statement in protocol vocabulary,
-which returns it to `protocol` with no relabel argument needed.
+and the remedy for one that also says how this codebase meets it is to split it
+(MS-12-010). Neither is relabeled.
 
-Source: ISSUE-4195, ISSUE-4312
+Source: ISSUE-4195, ISSUE-4312, ISSUE-4528
 
 ## Removed Requirements: Never Reuse an ID, Archive the Text
 

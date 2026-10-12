@@ -1,6 +1,7 @@
 ---
 title: Ownership Transfer Protocol — Routing and Cascade Model
 status: active
+kind: guidance
 description: >
   Implementation guidance for the ownership-transfer routing model introduced
   in ADR-0053: Offer, Accept and Reject MUST route through the CASE_MANAGER so
@@ -12,6 +13,8 @@ related_specs:
   - specs/event-driven-control-flow.yaml
   - specs/behavior-tree-integration.yaml
   - specs/triggerable-behaviors.yaml
+  - specs/handler-protocol.yaml
+  - specs/participant-case-replica.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
@@ -77,11 +80,54 @@ Accepting actor calls trigger: accept-case-ownership-transfer
 
 CASE_MANAGER inbox receives Accept
   → AcceptCaseOwnershipTransferReceivedUseCase (guarded-commit pattern):
+      sender: transferee of an open Offer it recorded      ← CM-21-011
+              (anyone else: REFUSED, nothing written or sent)
       guard:  receiving_actor_id == case_actor_id (skip if not the CASE_MANAGER)
-      1. AcceptCaseOwnershipTransferNode applies role changes (CM-21-001–004).
-      2. Commits CaseLedgerEntry (ownership-transferred).  ← CM-21-007
-      3. Announce(CaseLedgerEntry) → all participants.
+      1. Commits CaseLedgerEntry (ownership-transferred).  ← CM-21-007
+      2. Announce(CaseLedgerEntry) → all participants.
+      3. AcceptRecordedOwnershipOfferNode applies role changes (CM-21-001–004),
+         to the transferee the recorded Offer names, never the sender id.
 ```
+
+### The Accept's sender check (CM-21-011)
+
+`SenderIsOwnershipTransfereeNode` (in the shared sender-entitlement module,
+`NAMED_ACTOR` kind per ADR-0129) is two-sided:
+
+- **At the CASE_MANAGER** the Accept's object must resolve, through
+  `recorded_ownership_offer()` in `vultron/core/participants/ownership_offer.py`,
+  to an `offer_case_ownership_transfer` entry in its ledger. The sender must be
+  that entry's `target`, and `find_protocol_pair()` (with
+  `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`) must find no other answer
+  recorded after it. A second, different Accept is refused.
+- **A redelivery changes nothing.** The Accept that already closed the Offer,
+  delivered again, is not refused, but it must not re-run the transfer: by then
+  ownership may have moved on through a later Offer, and re-applying the old
+  Accept would hand it back with no ledger entry. The guard sets
+  `is_redelivery` and fails, so no effect runs, and `ownership_answer_verdict()`
+  reports the run `SKIPPED` (HP-01-003).
+- **At any other replica** the sender must be the CASE_MANAGER (PCR-03-001). A
+  replica still applies the change only from the ledger fan-out.
+
+**The transferee answers the forward, not the recorded Offer.** The Offer the
+CASE_MANAGER ledgers and the one it forwards to the transferee (CM-21-005) have
+different ids, and only the first is ledgered. `recorded_ownership_offer()`
+therefore also accepts a forward: an Offer in the CASE_MANAGER's store that it
+issued itself, for the same case and transferee, published no earlier than the
+recorded Offer it stands for (the latest such entry). Timestamps are
+second-precision, so a forward published in the same second as a later Offer
+to the same transferee resolves to that later Offer. That is safe: the later
+Offer names the same transferee, and its own open/answered state still decides.
+The Reject (#4475) reuses the same helper and guard.
+
+`find_protocol_pair()` anchors on the latest matching request and counts only
+a reply recorded *after* it (`log_index`), so an Accept of an earlier Offer does
+not close the next one.
+
+**The Offer itself is not sender-checked yet** (#4540): no CM-21 requirement
+names who may send it, so an actor can record an Offer naming itself and then
+accept it. The Accept guard is correct, but the record it trusts can be created
+by anyone until the Offer gets its own sender rule.
 
 ---
 
@@ -177,19 +223,28 @@ Audit any peer that reads `request.actor_id` where it means "who asked for this"
 ### AcceptCaseOwnershipTransferReceivedUseCase / ownership_transfer_tree.py
 
 `create_accept_ownership_transfer_tree()` MUST pass `case_id` to
-`create_receive_activity_tree` and include ONLY `AcceptCaseOwnershipTransferNode`
-in `replica_effects`:
+`create_receive_activity_tree`, pass `SenderIsOwnershipTransfereeNode` as its
+`sender_guard`, and include ONLY `AcceptRecordedOwnershipOfferNode` in
+`manager_effects` (RSH-08-003: the change is the CASE_MANAGER's to write):
 
 ```python
 tree = create_receive_activity_tree(
     name="AcceptOwnershipTransferBT",
     case_id=case_id,
+    sender_guard=SenderIsOwnershipTransfereeNode(...),
     precondition_guards=[],
-    replica_effects=[
-        AcceptCaseOwnershipTransferNode(case_id=case_id, new_owner_id=new_owner_id),
+    case_may_be_absent=True,
+    manager_effects=[
+        AcceptRecordedOwnershipOfferNode(case_id=case_id, offer_id=offer_id),
     ],
+    manager_case_id=case_id,
 )
 ```
+
+`AcceptRecordedOwnershipOfferNode` reads the new owner from the recorded Offer
+through the same `recorded_ownership_offer()` the guard uses, never from the
+sender id. `AcceptCaseOwnershipTransferNode` is the same transfer for a named
+new owner.
 
 `create_receive_activity_tree` already injects `GuardedCommitCaseLedgerEntryBT`
 (with `CheckIsCaseManagerNode`) as the canonical single-writer commit step.

@@ -1,9 +1,11 @@
 # Design Insights and Implementation Notes
 
-This directory captures **durable design insights** for the Vultron project.
-Unlike `plan/BUILD_LEARNINGS.md` (which is ephemeral), files here are
-committed to version control and MUST be kept up to date as the
-implementation evolves.
+This directory informs **work not yet done** (NF-08-001). It is not a history
+of the project: when the work a note informs lands, the note is archived or its
+still-useful content moves to `docs/`. Every note declares a `kind` —
+`guidance` (lasting rules and procedures), `plan` (design for unbuilt work,
+with `tracks:`), or `generated` (tool-written). Read
+`.agents/skills/shared/notes-writing-guide.md` before adding to any note.
 
 Archived notes sections (fully superseded or completed task logs) are in
 `plan/history/YYMM/note/` — archived via `append-history note` with source ID
@@ -1058,7 +1060,8 @@ Mechanical rules for authoring spec YAML: the MS-12 decision tree for choosing
 a `kind`, and why copying the neighbouring entries is the mechanism that spread
 misclassification rather than a safe shortcut; the exact enums `spec-lint`
 accepts for `kind`, `priority`, and `rel_type`; keys silently dropped by
-`spec-dump`; the PR-only protocol-coverage guard and its strict-`xfail` pattern; and
+`spec-dump`; the PR-only marker-coverage guard over `protocol` and `foundation`
+specs and its strict-`xfail` pattern; and
 the audit passes required when retiring a name or splitting a compound
 requirement; why a priority gate names a tier (`MUST_NOT` with `MUST`), never a
 keyword; and the four rules that make the per-requirement `verification_debt`
@@ -1098,12 +1101,9 @@ project and process requirements. Source: #4487, #2596–#2600.
 **Load when**: writing or citing a user story, mapping a `stories:` field,
 splitting a catch-all story, or changing the story index or traceability matrix.
 
-**`notes-frontmatter.md`**
-Design decisions for YAML frontmatter schema in `notes/*.md` files: required
-fields (`title`, `status`), valid `status` values, `superseded_by` rule, schema
-Pydantic model, loader, and pre-commit hook.
-**Load when**: adding frontmatter to a new notes file, modifying the frontmatter
-schema, or debugging `validate-notes-frontmatter` pre-commit failures.
+**`notes-frontmatter.md`** *(archived — `plan/history/2610/note/NOTES-notes-frontmatter--whole-file.md`)*
+Superseded by `specs/notes-frontmatter.yaml` and
+`.agents/skills/shared/notes-writing-guide.md`.
 
 **`spec-registry.md`** *(archived — `plan/history/2607/note/NOTES-spec-registry.md`)*
 Implemented — `specs/*.md` fully migrated to YAML; `vultron/metadata/specs/` is in place.

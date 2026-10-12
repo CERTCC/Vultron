@@ -1,6 +1,7 @@
 ---
 title: BT Cross-Cutting Mechanics
 status: active
+kind: guidance
 description: >
   Cross-cutting mechanics for py_trees BT integration: failure reason
   propagation, blackboard key semantics, execution-scoped key lifetime and

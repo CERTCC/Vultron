@@ -1,6 +1,19 @@
 ---
 title: Capability Shapes Design Notes
 status: active
+kind: plan
+tracks:
+  - "#1142"
+  - "#1143"
+  - "#1147"
+  - "#1845"
+  - "#1856"
+  - "#1893"
+  - "#1943"
+  - "#2450"
+  - "#3421"
+  - "#3423"
+  - "#3427"
 description: >
   Design guidance for capability shapes — the four abstract interface contracts that
   characterise how call-out points interact with the protocol. Covers the three-level

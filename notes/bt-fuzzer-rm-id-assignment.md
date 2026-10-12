@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: RM Vulnerability ID Assignment"
 status: active
+kind: guidance
 description: >
   Catalog of fuzzer (stub) BT nodes for the Vulnerability ID Assignment
   sub-workflow (`AssignVulIdBt`): CVE ID acquisition, publication readiness,

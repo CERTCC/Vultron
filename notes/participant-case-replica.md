@@ -1,6 +1,7 @@
 ---
 title: Participant Case Replica — Implementation Notes
 status: active
+kind: guidance
 description: "Design notes for participant case replicas: per-actor case copies and synchronization model."
 related_specs:
   - specs/architecture.yaml

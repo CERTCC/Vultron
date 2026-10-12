@@ -30,7 +30,7 @@ are the product**.
 | `notes/` | `notes/*.md` frontmatter | `NotesFrontmatter` |
 | `adr/` | `docs/adr/*.md` frontmatter | `AdrFrontmatter` |
 | `history/` | `plan/history/**/*.md`, `plan/incoming/learnings/*.md` | `HistoryEntryFrontmatter` |
-| `msm/` | a constant mapping table + the wire `SEMANTIC_REGISTRY` | — |
+| `msm/` | the `occasions` and `page` on each `SEMANTIC_REGISTRY` entry; derives mapping status and "Sent by" | — |
 | `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
 | `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md` (`glossary_index.py`); the built `site/` tree (`withheld.py`, `links.py`, `legacy_urls.py`, via `built_site.py`); each page's rendered HTML at build time (`anchor_ids.py`, an `on_page_content` hook under `hooks:` in `mkdocs.yml` — registers exec-emitted ids as anchor targets for `--strict`, #3735); the assembled `full.md` Markdown at build time (`full_page_links.py`, an `on_page_markdown` hook under `hooks:` — rewrites the Protocol Specification's same-section `page.md#fragment` links to in-page `#fragment` links on its single-page edition only, #4092); every `docs/**/*.md` page's `stakeholder_type`/`level` (`page_frontmatter.py`, DF-11) | `PageFrontmatter`, `WorkingRecordFrontmatter` (`page_schema.py`); publication axis: DOCBW-03-005; reference axis: DOCBW-03-007; continuity axis: DOCBW-03-008 |
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin; a branch diff (`size_bands.py`, `targeted_tests.py`) | — (selection rules: PAD-15; local test gate: PAD-18) |
@@ -166,13 +166,12 @@ back under the check. Only `statement`, `verification`, and behavioral
 step/condition text are scanned; `rationale` is exempt by design, because it
 narrates history and legitimately names things that were removed.
 
-A `kind: protocol` spec with no `stories:` whose `statement` names a `.py` file,
-a `vultron/`, `test/` or `scripts/` path, or `pytest`, `pydantic` or `py_trees`
-is a hard error too (MS-12-006). Only the `statement` is scanned: a
-`verification:` path is what MS-10-003 obliges, not a sign the rule is `project`
-(#3943). The fix is a corrected `kind:` via the MS-12-001 → MS-12-005 tree in
-order, not a suppression; `protocol_kind_with_code_reference` is for a genuinely
-incidental reference.
+A story-less `protocol` or `foundation` spec whose `statement` names a `.py`
+file, a `vultron/`, `test/` or `scripts/` path, or `pytest`, `pydantic` or
+`py_trees` is a hard error (MS-12-006; `verification:` is not scanned, #3943).
+Naming code does not decide a kind (MS-12-002): reword or split (MS-12-010),
+never relabel; suppress only a genuinely incidental reference. A `foundation`
+spec needs an `as2`/`activitypub`/`http` tag (MS-12-009).
 
 ## Changing a Linter Check
 
@@ -195,6 +194,6 @@ MS-10-005..008); never pin a committed count to its live value. Select by tier, 
 - `notes/spec-authoring-rules.md` — field enums, lint traps, coverage guard
 - `notes/specs-vs-adrs.md` — whether a rule belongs in a spec at all
 - `notes/history-management.md` — `append-history` and `plan/history/` layout
-- `notes/notes-frontmatter.md` — the notes frontmatter schema
+- `.agents/skills/shared/notes-writing-guide.md` — note kinds, `tracks:`, and how a note is written
 - `specs/spec-registry.yaml` (SR), `specs/meta-specifications.yaml` (MS),
   `specs/notes-frontmatter.yaml` (NF), `specs/history-management.yaml` (HM)

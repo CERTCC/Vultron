@@ -1,6 +1,7 @@
 ---
 title: "Received-Side Status Authorization: Two-Gate Design"
 status: active
+kind: guidance
 description: >
   Design notes for the two-gate authorization model that governs how a
   CASE_MANAGER adopts an inbound participant's reported CaseStatus as canonical

@@ -36,6 +36,7 @@ from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.seeding import _dl_key
 from vultron.demo.utils import DataLayerClient, ref_id
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -62,8 +63,9 @@ def _fetch_participant(
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor whose participant record to fetch.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
-            not the client's own actor.  Needed for a self-hosted CaseActor: it
-            shares its owner's container but not its store
+            not the client's own actor.  Needed for a co-hosted CaseActor (the
+            single-container exchange demos): it shares its owner's container
+            but not its store
             (ADR-0073#peer-records-in-knowers-store), so reading the owner's
             replica reports the owner's view of a
             participant, not the CaseActor's authoritative one.
@@ -232,7 +234,7 @@ def _check_participant_rm_state_in(
         label: Human-readable label for ``AssertionError`` messages.
         dl_actor_id: When provided, read from this actor's store on *client*
             instead of the client's own default store.  Needed when the
-            authoritative record is held by a self-hosted CaseActor rather
+            authoritative record is held by a co-hosted CaseActor rather
             than the container's primary actor (ADR-0073).
     """
     participant = _fetch_participant(
@@ -561,38 +563,71 @@ def verify_receiver_case_state(
     return final_case
 
 
-def verify_case_actor_unused(
-    case_actor_client: DataLayerClient | None,
+def verify_case_actor_holds_records(
+    case_actor_client: DataLayerClient,
     case_id: str,
-) -> None:
-    """Verify the dedicated CaseActor container remains unused in D5-2.
+) -> as_VulnerabilityCase:
+    """Verify the dedicated case-actor container holds the canonical case.
 
-    A CaseActor is a role a container wears (``CVDRole.CASE_MANAGER``) rather
-    than a per-case object (#1872), and each container self-hosts its own under
-    the stable ``case-actor`` slug (CP-08-002, CP-08-003).  In D5-2 the receiver
-    container is therefore the case manager for the case it creates, and the
-    standalone ``case-actor`` service — which participates in the Docker topology
-    for the multi-coordinator scenarios — must not hold that case.
+    Every actor container proposes its cases to the dedicated case-actor
+    container (CP-08-008, DEMOMA-06-004), so the ``VulnerabilityCase`` the
+    CaseActor accepted the proposal for must be in that container's CaseActor
+    store, with the CaseActor itself as a participant holding
+    ``CVDRole.CASE_MANAGER``.  The CaseActor *is* that participant (#1872); no
+    separate CaseActor service record is asserted.
+
+    A case found only on the report receiver's container would mean the receiver
+    created it locally — the co-located shortcut this topology retires.
 
     Args:
-        case_actor_client: Optional client connected to the dedicated
-            CaseActor container.  Must carry a bound ``actor_id`` (see
-            :func:`~vultron.demo.utils.case_actor_id_on`), because the read is
-            per-actor under ADR-0073.  When ``None`` the check is skipped.
-        case_id: Full URI of the case that should be absent.
+        case_actor_client: Client connected to the dedicated case-actor
+            container, bound to its CaseActor (see
+            :func:`~vultron.demo.utils.case_actor_id_on`), since the read is
+            per-actor under ADR-0073.
+        case_id: Full URI of the case the CaseActor should hold.
+
+    Returns:
+        The case as the CaseActor holds it.
 
     Raises:
-        AssertionError: If the case is unexpectedly present on the dedicated
-            CaseActor container.
+        AssertionError: If the case is absent from the CaseActor's store, or the
+            CaseActor is not a ``CASE_MANAGER`` participant in it.
+        ValueError: If *case_actor_client* is not bound to an actor.
     """
-    if case_actor_client is None:
-        return
-
-    case_actor_cases = case_actor_client.get(
-        case_actor_client.dl_path("VulnerabilityCases/")
-    )
-    if case_id in case_actor_cases:
-        raise AssertionError(
-            "Dedicated case-actor container unexpectedly persisted the D5-2"
-            " case"
+    case_actor_id = case_actor_client.actor_id
+    if not case_actor_id:
+        raise ValueError(
+            "verify_case_actor_holds_records needs a client bound to the"
+            " CaseActor: DataLayer reads are per-actor (ADR-0073)"
         )
+    try:
+        case_data = case_actor_client.get(case_actor_client.dl_path(case_id))
+    except httpx.HTTPStatusError as exc:
+        # Only a 404 means "absent"; any other status is a different fault and
+        # must not be reported as a proposal handled elsewhere.
+        if exc.response.status_code != httpx.codes.NOT_FOUND:
+            raise
+        raise AssertionError(
+            f"Dedicated case-actor container ({case_actor_client.base_url})"
+            f" does not hold case {case_id!r} in CaseActor {case_actor_id}'s"
+            " store: the proposal was not handled there (DEMOMA-06-004)"
+        ) from exc
+    case = as_VulnerabilityCase.model_validate(case_data)
+    participant = _fetch_participant(case_actor_client, case_id, case_actor_id)
+    if participant is None:
+        raise AssertionError(
+            f"CaseActor {case_actor_id} is not a participant in its own copy"
+            f" of case {case_id!r}"
+        )
+    if CVDRole.CASE_MANAGER not in participant.case_roles:
+        raise AssertionError(
+            f"CaseActor {case_actor_id} participates in case {case_id!r} with"
+            f" roles {participant.case_roles}, not CASE_MANAGER"
+        )
+    logger.info(
+        "Dedicated case-actor container holds case %s with CaseActor %s as"
+        " CASE_MANAGER",
+        case_id,
+        case_actor_id,
+    )
+    return case

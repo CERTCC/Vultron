@@ -1,6 +1,7 @@
 ---
 title: Outbox Notes
 status: active
+kind: guidance
 description: Implementation guidance for outbox addressing requirements.
 related_specs:
   - specs/outbox.yaml

@@ -1,6 +1,7 @@
 ---
 title: Hexagonal Architecture Overview
 status: active
+kind: guidance
 description: >
   Hexagonal architecture layer model, boundaries, rules, and review checklist
   for Vultron.

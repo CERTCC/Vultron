@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: Vulnerability Discovery"
 status: active
+kind: guidance
 description: >
   Catalog of fuzzer (stub) BT nodes for the Vulnerability Discovery workflow in
   the Vultron BT simulation.

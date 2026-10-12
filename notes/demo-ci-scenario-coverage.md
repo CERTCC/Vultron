@@ -1,6 +1,7 @@
 ---
 title: "Demo CI: Scenario Coverage Matrix and Minimum PR Validation Set"
 status: active
+kind: guidance
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml

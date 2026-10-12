@@ -52,6 +52,7 @@ def cast() -> demo._Cast:
         reporter=_session("reporter"),
         coordinator=_session("coordinator"),
         vendor=_session("vendor"),
+        case_manager=MagicMock(),
     )
 
 
@@ -67,9 +68,6 @@ def em_waits():
     """Stub the EM poll; the mock records ``(expected, active_embargo_id)``."""
     with (
         patch.object(phases, "wait_for_case_em_state") as wait,
-        patch.object(
-            phases, "resolve_case_actor_store_id", return_value="urn:manager"
-        ),
     ):
         yield wait
 
@@ -158,6 +156,7 @@ class TestPhaseOrder:
                 reporter_client=MagicMock(),
                 coordinator_client=MagicMock(),
                 vendor_client=MagicMock(),
+                case_actor_client=MagicMock(),
             )
 
         return order
@@ -208,10 +207,16 @@ class TestEmStateAfterEachPhase:
             revised = demo._phase_embargo_proposal(cast, case)
 
         helper.assert_called_once_with(
-            cast.reporter, cast.coordinator, cast.vendor, case
+            cast.reporter,
+            cast.coordinator,
+            cast.vendor,
+            case,
+            case_manager_client=cast.case_manager,
         )
         assert revised == "urn:embargo:revised"
         assert _states_asserted(em_waits) == [EM.ACTIVE]
+        # The canonical case is read on the dedicated case-actor container.
+        assert em_waits.call_args.args[0] is cast.case_manager
         assert (
             em_waits.call_args.kwargs["active_embargo_id"]
             == "urn:embargo:revised"
@@ -252,8 +257,11 @@ class TestEmStateAfterEachPhase:
         ):
             demo._phase_embargo_termination(cast, case)
 
-        terminate.assert_called_once_with(cast.coordinator, case)
+        terminate.assert_called_once_with(
+            cast.coordinator, case, case_manager_client=cast.case_manager
+        )
         assert _states_asserted(em_waits) == [EM.EXITED]
+        assert em_waits.call_args.args[0] is cast.case_manager
         read_through = [
             c.kwargs["client"] for c in replica_wait.call_args_list
         ]

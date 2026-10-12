@@ -1,6 +1,7 @@
 ---
 title: Domain Object Validation — Strict vs. Loose Boundaries
 status: active
+kind: guidance
 description: >
   Where in the pipeline domain objects transition from "loose" (possibly
   None/unresolved fields) to "strict" (all required fields guaranteed),
@@ -9,8 +10,8 @@ related_specs:
   - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-002, ARCH-12-003,
     ARCH-15-001 through ARCH-15-004, ARCH-21-001 through ARCH-21-005, ARCH-25-003,
     ARCH-25-004)
-  - specs/case-management.yaml (CM-18-005, CM-23-001, CM-23-012, CM-27-001
-    through CM-27-003, CM-31-001)
+  - specs/case-management.yaml (CM-18-005, CM-23-001, CM-23-012, CM-23-016,
+    CM-27-001 through CM-27-003, CM-31-001)
   - specs/case-ledger-processing.yaml (CLP-07-002)
   - specs/rm-behavior.yaml (RMB-14-004, RMB-14-005)
   - specs/participant-role-management.yaml (PRM-03-003)
@@ -467,11 +468,11 @@ impossible rather than merely fixed.
 
 **The write node keeps its own checks** (BTND-10-003). Do not reduce it to a
 delegate that assumes the guard ran: `CreateParticipantStatusNode` is reached
-from `develop_fix.py`, `deploy_fix.py`, `close_case_effect.py` and two sites
-in `leave.py` without passing through the guard, and for those paths its
-checks are the only validation. This does not double-report on the trigger
-path — the guard fails first and the enclosing `Sequence` aborts before the
-write node ticks.
+from `develop_fix.py`, `deploy_fix.py` and the Leave closure writer
+(`participant/rm_closure.py`, used twice by `leave/advance.py`) without passing
+through the guard, and for those paths its checks are the only validation.
+This does not double-report on the trigger path — the guard fails first and the
+enclosing `Sequence` aborts before the write node ticks.
 
 The composed evaluator covers the four `ParticipantStatus` dimensions (RM, VF,
 D and the case-level P/X/A) and nothing else. Embargo consent (PEC) is not one
@@ -628,9 +629,10 @@ has no close edge (VP-02-004), is written as `V → D → C`. The CASE_MANAGER's
 closure sites go through `RMClosureWriter` (`case/nodes/participant/rm_closure.py`),
 which walks `rm_closure_path()` with RM adjacency validation in force, so no
 closure write carries `force_rm_state`. The replica site that once made a third
-(`close_case_effect.py`) no longer writes RM state (see below). `test/architecture/test_rm_closure_no_force.py` pins
-that; the remaining `_RM_FORCE_QUARANTINE` entries are bootstrap writes only,
-which makes it a pinned exemption set rather than a ratchet (ARCH-18-005).
+(`close_case_effect.py`) is gone (see below).
+`test/architecture/test_rm_closure_no_force.py` pins that; the remaining
+`_RM_FORCE_QUARANTINE` entries are bootstrap writes only, which makes it a
+pinned exemption set rather than a ratchet (ARCH-18-005).
 If a new closure path seems to need the override, the RM table is wrong or the
 path is — do not add an exemption.
 
@@ -642,10 +644,17 @@ backs ([#4091](https://github.com/CERTCC/Vultron/issues/4091)). The ledger
 communicates each move as the Case Actor makes it: a `close_case` entry for the
 received `Leave`, then one `add_participant_status_to_participant` entry per
 transition it wrote, in order (CM-23-001). A replica applies those status entries
-through the ordinary participant-status effect, and `ApplyCloseCaseFromLedgerNode`
-changes no RM state. `close_case` (the act) and the status entries (its
-consequences) are different facts, so CLP-07-002 is not violated. If you add a
-replica-side writer that calls `rm_closure_path()`, you have rebuilt the defect.
+through the ordinary participant-status effect, and `close_case` has no replay
+slot at all, so applying it changes no RM state (#4210). `close_case` (the act)
+and the status entries (its consequences) are different facts, so CLP-07-002 is
+not violated. Each Leave advance node shares a `closure_steps` list with the
+`CommitRMClosureEntriesNode` after it (`case/nodes/leave/record.py`), so the
+record commits exactly the statuses that advance wrote; it does not re-derive
+them from the participant's history, which would re-record a status an earlier
+entry already carried. If you add a replica-side writer that calls
+`rm_closure_path()`, you have rebuilt the defect:
+`test/architecture/test_replica_never_walks_rm_closure_path.py` pins the
+modules that may name it.
 
 The scope rule is unchanged: each writing site advances exactly one named actor
 (the leaver, or the CASE_MANAGER closing its own lifecycle on owner Leave,

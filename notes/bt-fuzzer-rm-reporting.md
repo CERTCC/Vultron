@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: RM Reporting to Other Parties"
 status: active
+kind: guidance
 description: >
   Catalog of fuzzer (stub) BT nodes for the Reporting to Other Parties
   sub-workflow (`ReportToOthersBt`): coordinator/finder notification,

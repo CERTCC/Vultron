@@ -1,6 +1,7 @@
 ---
 title: Outbox Delivery Reliability
 status: active
+kind: guidance
 description: >
   Implementation guidance for the outbox delivery reliability hardening tasks:
   per-activity abort scope, 4xx terminal classification, timeout/jitter/pool

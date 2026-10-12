@@ -1,6 +1,18 @@
 ---
 title: User Story Catalog — Personas, Identity, Coverage, and the Protocol Story Gap
 status: active
+kind: plan
+tracks:
+  - "#4506"
+  - "#4507"
+  - "#4508"
+  - "#4510"
+  - "#4512"
+  - "#4513"
+  - "#4514"
+  - "#4516"
+  - "#4517"
+  - '#2717'
 description: >
   Design decisions for the user-story catalog under docs/reference/user_stories/:
   the persona hierarchy and the rule for choosing a speaker, story identity and

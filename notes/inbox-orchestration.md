@@ -1,6 +1,7 @@
 ---
 title: Inbox Orchestration — BT Module Design
 status: active
+kind: guidance
 description: >
   Design decisions and implementation guidance for the core BT-backed inbox
   orchestration module: why orchestration belongs in core/, adapter injection

@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Invite an Actor to a Case
@@ -120,9 +120,7 @@ If you are not the Case Owner but you know an actor belongs on the case, suggest
 
 !!! example "Try it: `vultron-demo invite-actor`"
 
-    ```bash
-    vultron-demo invite-actor
-    ```
+    {% include-markdown "./_demo_invite_actor.md" %}
 
     Or with Docker Compose:
 

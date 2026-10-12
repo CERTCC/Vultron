@@ -4,9 +4,9 @@ stakeholder_type: [project-contributor]
 
 # Project Specifications
 
-Specific to this Python codebase. Covers Python paths, Behavior Tree nodes,
-py_trees, pydantic models, factory names, module organization, and endpoint
-conventions.
+Rules that bind this codebase only.
+They cover deployment choices, such as running the CASE_MANAGER as an actor separate from the case owner, performance and operating limits, how a receiver records what it receives, and core internals.
+Naming a Python path, library, or class does not by itself make a rule a project rule: who must obey the rule decides its kind.
 
 ```python exec="true" idprefix=""
 import sys

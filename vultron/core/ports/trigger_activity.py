@@ -41,6 +41,7 @@ See also:
     - ``vultron/wire/as2/factories/AGENTS.md``
 """
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Any, Protocol
 
@@ -248,6 +249,7 @@ class TriggerActivityPort(Protocol):
         to: list[str] | None = None,
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
+        proposer_case_roles: Sequence[CVDRole] = (),
     ) -> tuple[str, str]:
         """Create and persist a ``Create(as_CaseProposal)`` activity.
 
@@ -265,6 +267,10 @@ class TriggerActivityPort(Protocol):
         DataLayer with its ``embargo_policy``: the CASE_MANAGER reads the
         CASE_OWNER's actor default from that inline profile and nowhere else
         (CP-01-010).
+
+        ``proposer_case_roles`` are the sender's own ``default_case_roles``,
+        stated on the proposal so the CASE_MANAGER can seat the sender with
+        them (CP-01-011, ADR-0133).
 
         Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
         Returns ``(activity_id, activity_dict)``.

@@ -1,6 +1,7 @@
 ---
 title: Demo Integration CI — Diagnostic Runbook
 status: active
+kind: guidance
 description: >
   Targeted diagnostic guide for agents troubleshooting Demo Integration CI
   failures. Covers the 3-layer diagnostic model, per-invariant diagnostic map,
@@ -255,8 +256,9 @@ identified which layer broke.
   reached `RM.CLOSED`, because its own closure transition was written to its
   store and never recorded as a ledger entry, so no replica could observe it.
   All five are now active guards. If one goes red, the CASE_MANAGER's terminal
-  entry is missing again: check that `CommitCaseActorRMClosedEntryNode` ran on
-  the owner-Leave path and that `CLOSE_CASE` still receives a `WireRenderPort`.
+  entry is missing again: check that `CommitRMClosureEntriesNode` ran for the
+  CASE_MANAGER on the owner-Leave path and that `CLOSE_CASE` still receives a
+  `WireRenderPort`.
   Every semantic gets one through `with_received_baseline_ports()` in
   `make_dispatcher()` (#3930); without it the Leave's own guarded commit raises
   `VultronWiringError`, while the RM.CLOSED node on its own skips its entry

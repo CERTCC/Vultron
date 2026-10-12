@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Advance a Case Through Report Management
@@ -117,6 +117,10 @@ Pick the closure activity that matches what exists.
 `RM.CLOSED` is terminal (ADR-0085).
 There is no rejoin, so send the closure only when you are finished with the case.
 
+Your own RM state does not change when you send the closure.
+The CASE_MANAGER records the `Leave`, then records each step that moves you to `RM.CLOSED` as its own ledger entry, and your replica applies those entries when they arrive (CM-23-001, CM-23-004).
+Do not write `RM.CLOSED` to your own replica in their place.
+
 What your closure does to the case depends on whether you are the Case Owner.
 
 - If you are **not** the Case Owner, only your own RM state advances to `RM.CLOSED`.
@@ -157,9 +161,7 @@ Each transition is committed to the case ledger, so the same `rm_state` should b
 
 !!! example "Try it: `vultron-demo manage-case`"
 
-    ```bash
-    vultron-demo manage-case
-    ```
+    {% include-markdown "./_demo_manage_case.md" %}
 
     Or with Docker Compose:
 

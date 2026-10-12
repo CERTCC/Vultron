@@ -89,6 +89,7 @@ class TestPhaseDumpCaseLedgersFvcv:
         vendor_client = _bound_client("vendor-2b71")
         coordinator_client = _bound_client("coordinator-4c05")
         vendor2_client = _bound_client("vendor2-8ade")
+        case_actor_client = _bound_client("case-actor")
 
         case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/fvcv-test-case"
@@ -100,6 +101,7 @@ class TestPhaseDumpCaseLedgersFvcv:
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
             vendor2_client=vendor2_client,
+            case_actor_client=case_actor_client,
             case=case,
         )
 
@@ -140,20 +142,27 @@ class TestPhaseDumpCaseLedgersFvcv:
             "vendor": "vendor-2b71",
             "coordinator": "coordinator-4c05",
             "vendor2": "vendor2-8ade",
+            "case-actor": "case-actor",
         }
 
-    def test_includes_case_actor_when_in_participant_index(
+    def test_reads_case_actor_ledger_from_dedicated_container(
         self, tmp_path, monkeypatch
     ):
+        """The canonical ledger comes from the case-actor container (DEMOMA-06-005).
+
+        Never from Vendor1's container: the CaseActor is not hosted there, and
+        Vendor1's replica is not the canonical ledger.
+        """
         finder_client = _bound_client("finder-9f3a")
         vendor_client = _bound_client("vendor-2b71")
         coordinator_client = _bound_client("coordinator-4c05")
         vendor2_client = _bound_client("vendor2-8ade")
+        case_actor_client = _bound_client("case-actor")
 
         case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/fvcv-with-ca",
             actor_participant_index={
-                "https://example.org/actors/case-actor-fvcv": (
+                "https://example.org/actors/case-actor": (
                     "https://example.org/cases/fvcv-with-ca/participants/case-actor"
                 )
             },
@@ -165,12 +174,17 @@ class TestPhaseDumpCaseLedgersFvcv:
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
             vendor2_client=vendor2_client,
+            case_actor_client=case_actor_client,
             case=case,
         )
 
+        log_path = "/actors/case-actor/demo/cases/fvcv-with-ca/log"
         assert any(
-            "/actors/case-actor-fvcv/demo/cases/fvcv-with-ca/log"
-            in call.args[0]
+            log_path in call.args[0]
+            for call in case_actor_client.get_list.call_args_list
+        )
+        assert not any(
+            log_path in call.args[0]
             for call in vendor_client.get_list.call_args_list
         )
 
@@ -614,6 +628,7 @@ class TestFvcvHandoffMilestoneAssertions:
             ),
         ):
             demo._phase_case_closure(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
@@ -675,6 +690,7 @@ class TestFvcvHandoffMilestoneAssertions:
             ),
         ):
             demo._phase_case_closure(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
@@ -739,6 +755,47 @@ def _otc_post_inbox(client, actor_slug: str, activity) -> None:
     )
 
 
+def _otc_record_offer(dl, offer, case_manager_id: str) -> None:
+    """Run the CASE_MANAGER's received Offer use case on *dl*, forward stubbed."""
+    from unittest.mock import MagicMock
+
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+    from vultron.core.models.events.actor import (
+        OfferCaseOwnershipTransferReceivedEvent,
+    )
+    from vultron.core.models.use_case_result import HandlerDisposition
+    from vultron.core.use_cases.received.actor.ownership import (
+        OfferCaseOwnershipTransferReceivedUseCase,
+    )
+    from vultron.semantic_registry import extract_event
+
+    forward = MagicMock()
+    forward.offer_case_ownership_transfer.return_value = (
+        f"{offer.id_}/forwarded",
+        "{}",
+    )
+    event = extract_event(offer).model_copy(
+        update={"receiving_actor_id": case_manager_id}
+    )
+    assert isinstance(event, OfferCaseOwnershipTransferReceivedEvent)
+    result = OfferCaseOwnershipTransferReceivedUseCase(
+        dl,
+        event,
+        trigger_activity=forward,
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+    assert result.disposition is HandlerDisposition.APPLIED, result
+    # The Offer's own fan-out and its stubbed forward are not this test's
+    # subject; drop them so nothing is delivered back into the Coordinator's
+    # own inbox while it handles the Accept.
+    while dl.outbox_pop() is not None:
+        pass
+
+
 @pytest.mark.spec("CM-21-007")
 class TestOwnershipTransferAnnounceReachesFinderAC5c:
     """AC-5c: Finder receives Announce(CaseLedgerEntry) after ownership transfer.
@@ -752,7 +809,8 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
 
     All three actors use isolated FastAPI apps wired via _TestClientRouter.
     The test seeds the case and participants directly on the Coordinator's
-    DataLayer, then delivers the Accept(Offer) to the Coordinator's inbox
+    DataLayer, has the Coordinator record the Vendor's Offer, then delivers
+    the Accept(Offer) to the Coordinator's inbox
     via HTTP POST.  The outbox drains automatically (TestClient processes
     BackgroundTasks synchronously), routing the Announce to Finder's inbox.
     Finder's DataLayer is then checked for an Announce whose object is a
@@ -883,18 +941,26 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
                     cdl.create(as_Service(id_=vendor_id, name="Vendor OTC"))
                     cdl.create(as_Service(id_=finder_id, name="Finder OTC"))
 
-                    # Seed the Offer on the Coordinator's DL (as if the
-                    # Vendor had already sent it and the Coordinator stored it).
+                    # The Coordinator records (ledgers) the Vendor's Offer, as
+                    # its received Offer use case does: an Accept is acted on
+                    # only for an Offer the CASE_MANAGER recorded (CM-21-011).
+                    # It runs in-process because the transferee is the
+                    # Coordinator itself, and its forward would be delivered
+                    # back into the inbox call that sent it.
                     case_wire = as_VulnerabilityCase.model_validate(
                         {"id": case_id, "name": case.name or "OTC Test Case"}
                     )
                     offer = offer_case_ownership_transfer_activity(
                         case=case_wire,
-                        target=coordinator_id,
+                        # Inline, as the inbox rehydrates it: the ledger
+                        # commit refuses a bare-id target (CLP-07).
+                        target=as_Service(
+                            id_=coordinator_id, name="Coordinator OTC"
+                        ),
                         actor=vendor_id,
                         to=[coordinator_id],
                     )
-                    cdl.create(offer)
+                    _otc_record_offer(cdl, offer, coordinator_id)
 
                     # Build and deliver Accept(Offer) to Coordinator's inbox.
                     # The Coordinator IS the CaseActor so it processes the
@@ -1717,7 +1783,7 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
 
         clients = {
             name: MagicMock(name=name)
-            for name in ("finder", "vendor", "coordinator")
+            for name in ("finder", "vendor", "coordinator", "case-actor")
         }
         for c in clients.values():
             c.get.return_value = {}
@@ -1797,14 +1863,12 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
                 return_value=self._actor("urn:test:case-actor"),
             ),
         ):
-            case_actor_client = MagicMock()
-            case_actor_client.get.return_value = {}
             mock_vc.model_validate.return_value = case
             demo._phase_ownership_handoff(
                 finder_client=clients["finder"],
                 vendor_client=clients["vendor"],
                 coordinator_client=clients["coordinator"],
-                case_actor_client=case_actor_client,
+                case_actor_client=clients["case-actor"],
                 finder=self._actor("urn:test:finder"),
                 vendor=self._actor("urn:test:vendor"),
                 vendor_in_vendor=self._actor("urn:test:vendor"),
@@ -1817,15 +1881,15 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
         return calls, clients
 
     def test_commit_is_awaited_on_the_case_actor_before_any_replica(self):
-        """Hop 1 first: the CaseActor's own ledger, through the host container."""
+        """Hop 1 first: the CaseActor's own ledger, on its own container."""
         calls, clients = self._run()
 
         kinds = [k for k, _ in calls]
         assert kinds[0] == "commit", kinds
         commit_kwargs = calls[0][1]
-        assert commit_kwargs["client"] is clients["vendor"], (
-            "the commit gate reads the CaseActor's store through the container"
-            " that hosts it (Vendor1's), not a replica"
+        assert commit_kwargs["client"] is clients["case-actor"], (
+            "the commit gate reads the CaseActor's store on the dedicated"
+            " case-actor container that hosts it, not Vendor1's replica"
         )
         assert commit_kwargs["event_type"] == self.COMMIT_EVENT
         assert kinds[1:] == [

@@ -70,7 +70,7 @@ groups:
     verification_debt: '#2574'
     statement: >-
       Spec entries MUST include a `kind` field from the `SpecKind` StrEnum; one of
-      `protocol`, `architecture`, `project`, `process`.
+      `protocol`, `foundation`, `architecture`, `project`, `process`.
   - id: SR-01-010
     priority: SHOULD
     kind: project
@@ -131,8 +131,14 @@ groups:
   - id: SR-02-005
     priority: MUST
     kind: project
-    verification_debt: '#2574'
-    statement: '`SpecKind` MUST include all four portability tiers: `protocol`, `architecture`, `project`, `process`.'
+    statement: >-
+      `SpecKind` MUST include all five portability tiers: `protocol`, `foundation`,
+      `architecture`, `project`, `process`.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_spec_kind_contains_exactly_five_tiers` fails when
+      a tier is missing, misspelled, or added without amending this requirement.
+    adr:
+    - ADR-0134
   - id: SR-02-006
     priority: MUST
     kind: project
@@ -508,31 +514,39 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      Tests that verify a protocol-tier requirement (spec items with kind equal to "protocol") MUST carry
-      `@pytest.mark.spec("<ID>")` linking the test to the requirement it exercises. Tests for other requirement kinds
-      SHOULD use the marker to enable coverage reporting by spec ID.
+      Tests that verify a requirement every implementation must obey (spec items with kind equal to "protocol" or
+      "foundation") MUST carry `@pytest.mark.spec("<ID>")` linking the test to the requirement it exercises. Tests for
+      other requirement kinds SHOULD use the marker to enable coverage reporting by spec ID.
     rationale: >-
-      Protocol-kind requirements are conformance-critical. Without a marker, coverage for those requirements is
-      unverifiable and the CI coverage guard (SR-05-005) cannot enforce it. The SHOULD for non-protocol kinds preserves
-      opt-in adoption for lower-stakes requirements.
+      Protocol- and foundation-kind requirements are conformance-critical. Without a marker, coverage for those
+      requirements is unverifiable and the CI coverage guard (SR-05-005) cannot enforce it. `foundation` is covered
+      with `protocol` because every rule an implementer must obey needs a test, whether Vultron defines it or inherits
+      it (ADR-0134). The SHOULD for other kinds preserves opt-in adoption for lower-stakes requirements.
+    adr:
+    - ADR-0134
   - id: SR-05-005
     priority: MUST
     kind: project
     statement: >-
-      No pull request may add an uncovered protocol-tier requirement: CI MUST fail a pull request when a `kind:
-      protocol` ID that no `@pytest.mark.spec` marker covers at the PR head was covered, or was not a protocol
-      requirement, at the merge base with the base branch, and MUST list each such ID. A requirement that leaves the
-      protocol tier or is retired is not an addition, and the check MUST NOT compare against a committed count.
+      No pull request may add an uncovered `protocol` or `foundation` requirement: CI MUST fail a pull request when a
+      `kind: protocol` or `kind: foundation` ID that no `@pytest.mark.spec` marker covers at the PR head was covered,
+      or was of neither kind, at the merge base with the base branch, and MUST list each such ID. A requirement that
+      leaves both kinds or is retired is not an addition, and the check MUST NOT compare against a committed count.
     rationale: >-
       A SHOULD-only marker rule produced near-zero adoption with no enforcement signal. Markers record coverage per
       item, so the check compares the uncovered set at the base with the set at the head and commits no number: a
       one-sided ceiling collects silent slack and a two-sided pin races every concurrent PR
-      (`notes/testing-pitfalls.md`). `spec-coverage` prints the live uncovered total.
+      (`notes/testing-pitfalls.md`). `spec-coverage` prints the live uncovered total. `foundation` is guarded with
+      `protocol` because every rule an implementer must obey needs a test (ADR-0134), and treating the two as one
+      set means a relabel from `protocol` to `foundation` is not a way around the guard.
     verification: >-
-      `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_adds_an_uncovered_protocol_spec` fails on each ID
+      `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_adds_an_uncovered_implementer_spec` fails on each ID
       uncovered since the merge base and runs in CI with full history, and `test/metadata/specs/test_growth_guard.py`
-      exercises the guard on fixture repositories for a new unmarked spec, a removed last marker, an unchanged corpus,
-      a relabel in and out, a retired spec, and the logged skip when no base ref is available.
+      exercises the guard on fixture repositories for a new unmarked protocol spec, a new unmarked foundation spec, a
+      removed last marker, an unchanged corpus, a relabel in and out, a relabel from protocol to foundation with and
+      without a marker, a retired spec, and the logged skip when no base ref is available.
+    adr:
+    - ADR-0134
   - id: SR-05-006
     priority: MUST
     kind: project
@@ -744,7 +758,7 @@ groups:
     kind: project
     statement: >-
       The selection that `--text` requires MUST be a set selector (`--topic`, `--group`, `--ids`,
-      or `--cross-cutting`) naming at least one value; an attribute filter such as `--kind` or
+      `--adr`, or `--cross-cutting`) naming at least one value; an attribute filter such as `--kind` or
       `--priority` MUST NOT satisfy it, and a set selector that names no values (`--topic ""`)
       MUST exit with status 2.
     rationale: >-
@@ -755,7 +769,8 @@ groups:
       unfiltered one. Both are typos, and both should say so.
     verification: >-
       `test/metadata/specs/test_spec_dump_cli.py` asserts `--text` with only an attribute filter
-      exits 2, and that an empty set selector exits 2 in both text and JSON modes.
+      exits 2, and that an empty set selector exits 2 in both text and JSON modes;
+      `test/metadata/specs/test_spec_dump_adr_selector.py` asserts the same for an empty `--adr`.
     relationships:
     - rel_type: refines
       spec_id: SR-07-014
@@ -780,6 +795,36 @@ groups:
       their own terms.
     tags:
     - documentation
+    - tooling
+  - id: SR-07-017
+    priority: MUST
+    kind: project
+    statement: >-
+      The `spec-dump` CLI MUST support an `--adr` set selector (a comma-separated list of
+      `ADR-NNNN` ids) that selects every requirement whose `adr:` field names one of them, and
+      that combines with the other selectors as a union. A value that is not an `ADR-NNNN` id,
+      or that names no record under the `docs/adr/` beside the spec directory (archived records
+      included), MUST exit with status 2 and name the value. For each named record that no
+      requirement cites in `adr:`, it MUST write a note to stderr that names the record and points
+      at its prose citations under `specs/` and `notes/`, and MUST still print the selection.
+    rationale: >-
+      `deepen-context` routes through decision records by reading the `adr:` edge backwards
+      instead of reading a record body (ADR-0127, MS-11-008), and agents do not read raw spec
+      YAML. Some live records are reached only by prose citation, so an empty selection for one
+      of them would read as "this record governs nothing"; the note says where its rule is stated
+      instead.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_adr_selector.py` asserts selection by one and by two
+      records, the union with `--ids` and `--deps`, JSON and `--text` output, `--adr` alone
+      satisfying `--text`, the stderr note and non-empty output for an uncited record, and
+      exit 2 for each malformed value, for an id that names no record, and when no record
+      directory sits beside the spec directory.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-07-008
+    adr:
+    - ADR-0127
+    tags:
     - tooling
 - id: SR-09
   title: Docs Renderer Kind Routing
@@ -1008,7 +1053,10 @@ groups:
       in the spec corpus. Making story coverage a hard-error gate for this tier ensures
       every binding protocol requirement can be traced back to at least one stakeholder
       need. Suppressibility preserves an escape hatch for implementation-detail MUSTs
-      with no direct story antecedent.
+      with no direct story antecedent. The gate covers `protocol` only for now: user
+      stories for behavior Vultron inherits from ActivityStreams, ActivityPub and HTTP
+      (`kind: foundation`) are not yet backfilled (#2717, #4513), and the gate widens to
+      `foundation` once they are (ADR-0134).
     relationships:
     - rel_type: refines
       spec_id: SR-11-001

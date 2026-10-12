@@ -1,6 +1,7 @@
 ---
 title: Testing Pitfalls and Patterns
 status: active
+kind: guidance
 description: >
   Full write-ups for pytest pitfalls in this repo: reading a killed run, the
   two-tier timeout guardrail and why the timeout *method* matters more than the
@@ -831,9 +832,9 @@ extractor (a function from a repository root to the set of item IDs in debt),
 runs it on the tree at the merge base with `origin/main` and on the working
 tree, and returns only the items the branch added. Removals and pre-existing
 items never fail it, so a sibling PR that fixes or adds a different item cannot
-turn this one red. Two guards use it (#4315): uncovered `kind: protocol` specs
-(SR-05-005, `test_spec_coverage_ratchet.py`) and `missing_story_reference`
-carriers (MS-12-007, `test_spec_kind_ratchet.py`); the planned
+turn this one red. Two guards use it (#4315): uncovered `protocol` and
+`foundation` specs (SR-05-005, `test_spec_coverage_ratchet.py`) and
+`missing_story_reference` carriers (MS-12-007, `test_spec_kind_ratchet.py`); the planned
 `verification_debt` guard (#4200) is meant to reuse it. A debt class already
 at zero needs no guard: assert the set is empty (MS-12-008).
 
@@ -843,7 +844,7 @@ Three properties to keep when adding one:
   reads (`git archive`), so the same extractor runs on both trees. A caller may
   pass the head set (`head=`) to read from an in-memory corpus (TB-13-001), but
   only through the extractor's own logic: an architecture test hands
-  `uncovered_protocol_ids` its `_corpus` sources via `test_sources=`. A head set
+  `uncovered_implementer_ids` its `_corpus` sources via `test_sources=`. A head set
   built some other way reports phantom additions.
 - **No base means skip, never pass.** With no `origin/$GITHUB_BASE_REF` or
   `origin/main`, or a shallow clone with no common history, the guard returns a

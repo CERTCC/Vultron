@@ -17,10 +17,11 @@
 
 Emits ``Leave(VulnerabilityCase)`` to the Case Actor inbox.  The Case Actor
 commits a ``close_case`` :class:`~vultron.core.models.case_ledger_entry
-.CaseLedgerEntry` and broadcasts it; each replica then advances the
-departing actor's RM state to ``RM.CLOSED`` via
-:class:`~vultron.core.behaviors.case.nodes.close_case_effect.ApplyCloseCaseFromLedgerNode`
-(ADR-0050, CM-23-002/CM-23-003).
+.CaseLedgerEntry` recording the Leave, then one
+``add_participant_status_to_participant`` entry per RM transition it writes
+for the departing actor, and broadcasts each.  Every replica advances the
+departing actor to ``RM.CLOSED`` only by applying those status entries
+(ADR-0050, CM-23-001, CM-23-002/CM-23-003).
 
 Per specs/case-management.yaml DEMOMA-07-001, CM-23-002, CM-23-003.
 """
@@ -49,13 +50,12 @@ class SvcLeaveCaseUseCase(SvcActivityTriggerBase):
     Actor can commit a ``close_case`` ledger entry and broadcast it.  The
     receiver-side role semantics (owner closes all, non-owner departs only)
     are applied in :func:`~vultron.core.behaviors.case.receive_close_case_tree
-    .create_close_case_received_tree` on the Case Actor, and fanned out to all
-    replicas via :class:`~vultron.core.behaviors.sync.nodes.effects
-    .ApplyCloseCaseFromLedgerNode`.
+    .create_close_case_received_tree` on the Case Actor, which records each RM
+    step as its own ledger entry and fans it out to every replica.
 
-    The sender does NOT update their own RM state here — RM.CLOSED is applied
-    on every replica when each replica receives the ``close_case`` ledger entry
-    via ``Announce(CaseLedgerEntry)`` (ADR-0050).
+    The sender does NOT update their own RM state here — its replica, like
+    every other, applies the status entries the Case Actor commits, received
+    via ``Announce(CaseLedgerEntry)`` (ADR-0050, CM-23-004).
     """
 
     def _prepare(self) -> None:

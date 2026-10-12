@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: RM Threat Monitoring"
 status: active
+kind: guidance
 description: >
   Catalog of fuzzer (stub) BT nodes for the Threat Monitoring sub-workflow
   (`MonitorThreatsBt`): active-threat detection, severity escalation,

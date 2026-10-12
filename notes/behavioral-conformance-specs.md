@@ -1,6 +1,7 @@
 ---
 title: Behavioral Conformance Specs — Design Decisions
 status: active
+kind: guidance
 description: >
   Design rationale and implementation plan for the behavioral conformance spec
   layer (RMB, EMB, CSB): ECA rules, schema extensions, and the relationship

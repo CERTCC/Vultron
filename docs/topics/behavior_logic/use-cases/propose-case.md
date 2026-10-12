@@ -53,7 +53,7 @@ The accepting service does eleven things, and the order is not interchangeable.
 | Resolve or create the case | A redelivered proposal (same proposal identifier) reuses its case rather than creating a second (CP-05-006); a new proposal identifier is a new request, and the case is reused only for the proposer that owns it (CP-05-008) |
 | Store the inline report | Everything downstream derives from it — the reporter Participant, its ledger entry, the consent seed |
 | Add itself as Participant | COORDINATOR and CASE_MANAGER, so the authority is in the roster |
-| Add the proposing actor | CASE_OWNER at `RM.RECEIVED`, plus whatever roles its configuration declares |
+| Add the proposing actor | CASE_OWNER at `RM.RECEIVED`, plus the roles its proposal states in `proposerCaseRoles` (CP-09-007) — never the accepting service's own configuration |
 | Add the reporter | At `RM.ACCEPTED` — the reporter has already accepted, by reporting |
 | Initialize the default embargo | A case begins embargoed rather than open (EP-04-001) |
 | Seed the owner's consent | An `AGREED` consent row for the default embargo, without an invitation round-trip |

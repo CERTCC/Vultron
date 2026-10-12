@@ -117,9 +117,9 @@ def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
       natively and fans them out (``CommitNativeLedgerEntriesNode``, ADR-0041
       AC-4); the port is that fan-out's only channel (ARCH-04-004), and its
       outbox order relative to ``Create(VulnerabilityCase)`` is CP-09-009's.
-    - ``CLOSE_CASE`` fans out ``case_fully_closed`` (CM-23-002) and renders the
-      CASE_MANAGER's own ``RM.CLOSED`` status into the snapshot CM-23-005
-      requires (``CommitCaseActorRMClosedEntryNode``, ISSUE-2505).
+    - ``CLOSE_CASE`` fans out ``case_fully_closed`` (CM-23-002) and renders
+      each RM closure status, the leaver's and the CASE_MANAGER's own, into
+      the snapshots CM-23-001/005 require (``CommitRMClosureEntriesNode``).
     """
 
     def _factory(dl: DataLayer) -> dict[str, Any]:
@@ -181,14 +181,14 @@ def _with_actor_config(kwargs: dict[str, Any]) -> dict[str, Any]:
 def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Resolve the local ``ActorConfig`` for ``CREATE_CASE_PROPOSAL``.
 
-    ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
-    CaseActor grants the proposing actor its real CVD roles alongside
-    ``CVDRole.CASE_OWNER`` (CFG-07-002, CFG-07-004).  Without it the node would
-    have to guess, and labelling a coordinator as ``CVDRole.VENDOR`` makes
-    downstream VFD fix-lifecycle checks demand a fix it never produces.
+    ``CreateCaseProposalReceivedUseCase`` reads the CaseActor's *own* settings
+    from it, such as the protocol default embargo (EP-04-005).  The proposing
+    actor's CVD roles are not among them: the proposer states those on the
+    proposal (CP-09-007, ADR-0133), because this configuration belongs to the
+    CaseActor's container and says nothing about the proposer.
 
     Falls back to omitting ``actor_config`` when config load fails, leaving the
-    receiver with ``CVDRole.CASE_OWNER`` only.
+    ``ActorConfig`` defaults in force.
 
     The trigger-activity port is needed only on the decline path, where
     ``_EmitRejectCaseProposalNode`` builds ``Reject(as_CaseProposal)`` through

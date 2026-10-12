@@ -1,6 +1,7 @@
 ---
 title: "Implementation Standards for Technical Documentation: The Diátaxis Framework"
 status: active
+kind: guidance
 description: >
   Implementation standards for Vultron technical documentation using the
   Diátaxis framework.

@@ -127,7 +127,7 @@ class CloseCaseReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for case closure"
+        "#4522", "no sender check defined for case closure"
     )
 
     def __init__(
@@ -149,9 +149,9 @@ class CloseCaseReceivedUseCase:
         # actor_config carries post_close_reply, the one policy point for the
         # reply to a Leave after case_fully_closed (ADR-0131).
         self._actor_config = actor_config or ActorConfig()
-        # wire_render_port renders the CASE_MANAGER's own RM.CLOSED
-        # ParticipantStatus into the canonical ledger snapshot CM-23-005
-        # requires (CommitCaseActorRMClosedEntryNode, ISSUE-2505).
+        # wire_render_port renders each RM closure status (the leaver's and,
+        # on owner Leave, the CASE_MANAGER's own) into the canonical ledger
+        # snapshots CM-23-001/005 require (CommitRMClosureEntriesNode).
         self._wire_render_port = wire_render_port
 
     def execute(self) -> HandlerResult:

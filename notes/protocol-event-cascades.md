@@ -1,6 +1,7 @@
 ---
 title: Protocol Event Cascades
 status: active
+kind: guidance
 description: >
   Event-driven causal model for protocol cascades; primary events, their
   automated downstream consequences, and gap inventory.

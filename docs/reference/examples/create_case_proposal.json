@@ -1,8 +1,8 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Create",
-  "id": "urn:uuid:adf8e223-4c9d-4d49-9748-21861f6188bb",
-  "name": "VendorCo Create urn:uuid:210d4319-618e-4300-835a-836f30f6db3c",
+  "id": "urn:uuid:a475a046-5dec-4fda-bad0-a06d8f7a753f",
+  "name": "VendorCo Create urn:uuid:27f3285b-0c54-41c3-82a9-c547dc899ab9",
   "to": [
     "https://example.org/case-actors/alpha"
   ],
@@ -10,15 +10,15 @@
     "id": "https://vultron.example/organizations/vendorco",
     "type": "Organization",
     "name": "VendorCo",
-    "published": "2026-10-01T21:21:49+00:00",
-    "updated": "2026-10-01T21:21:49+00:00",
+    "published": "2026-06-01T19:12:00+00:00",
+    "updated": "2026-06-01T19:12:00+00:00",
     "inbox": "https://vultron.example/organizations/vendorco/inbox",
     "outbox": "https://vultron.example/organizations/vendorco/outbox",
     "embargoPolicy": {
       "id": "https://vultron.example/organizations/vendorco/embargo-policy",
       "type": "EmbargoPolicy",
-      "published": "2026-10-01T21:21:49+00:00",
-      "updated": "2026-10-01T21:21:49+00:00",
+      "published": "2026-06-01T19:12:00+00:00",
+      "updated": "2026-06-01T19:12:00+00:00",
       "actorId": "https://vultron.example/organizations/vendorco",
       "inbox": "https://vultron.example/organizations/vendorco/inbox",
       "preferredDuration": "P45D",
@@ -29,21 +29,24 @@
   "object": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "CaseProposal",
-    "id": "urn:uuid:210d4319-618e-4300-835a-836f30f6db3c",
-    "published": "2026-10-01T21:21:49+00:00",
-    "updated": "2026-10-01T21:21:49+00:00",
+    "id": "urn:uuid:27f3285b-0c54-41c3-82a9-c547dc899ab9",
+    "published": "2026-10-12T17:58:21+00:00",
+    "updated": "2026-10-12T17:58:21+00:00",
     "summary": "Request case initialization for a new vulnerability.",
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "object": {
-      "id": "https://demo.vultron.local/VulnerabilityReport/0de6c460-c7f1-4ff2-a760-e9f81a414840",
+      "id": "https://demo.vultron.local/VulnerabilityReport/1c76202b-ae87-4c74-a130-578a4c11b5aa",
       "type": "VulnerabilityReport",
       "name": "FDR-8675309",
-      "published": "2026-10-01T21:21:49+00:00",
-      "updated": "2026-10-01T21:21:49+00:00",
+      "published": "2026-10-12T17:58:20+00:00",
+      "updated": "2026-10-12T17:58:20+00:00",
       "content": "I found a vulnerability!",
       "attributedTo": "https://vultron.example/users/finndervul",
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
     },
-    "target": "https://example.org/case-actors/alpha"
+    "target": "https://example.org/case-actors/alpha",
+    "proposerCaseRoles": [
+      "vendor"
+    ]
   }
 }

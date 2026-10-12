@@ -1,6 +1,7 @@
 ---
 title: "ActivityStreams: Case State Update and Advanced Patterns"
 status: active
+kind: guidance
 description: >
   Case state update path, CASE_MANAGER authoritativeness, DR-series named bugs,
   transitive activity patterns, base-typed serialization, invite response parsing,

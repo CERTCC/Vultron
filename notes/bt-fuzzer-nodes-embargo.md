@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: Embargo Management"
 status: active
+kind: guidance
 description: >
   Catalog of fuzzer (stub) BT nodes for the Embargo Management workflow in
   the Vultron BT simulation.

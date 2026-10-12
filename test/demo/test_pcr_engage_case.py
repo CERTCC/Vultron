@@ -74,10 +74,10 @@ def two_app_setup():
 
     Lifecycle:
       1. Patches ``VULTRON_SERVER__BASE_URL`` to ``{_OWNER_BASE}/api/v2``
-         and reloads the config cache so ``CreateCaseActorNode`` builds
-         the CaseActor ID using the owner's routable base URL (not the
-         default ``http://localhost:7999`` which lacks the ``/api/v2/``
-         prefix and therefore gets a 404 from the owner's ASGI app).
+         and reloads the config cache so IDs minted from the server base
+         URL use the owner's routable base URL (not the default
+         ``http://localhost:7999``, which lacks the ``/api/v2/`` prefix and
+         therefore gets a 404 from the owner's ASGI app).
       2. Enters both TestClient contexts (triggers lifespan startup).
       3. Configures the module-level default emitter to the shared router so
          all outbox_handler deliveries POST to each target TestClient inbox
@@ -98,10 +98,9 @@ def two_app_setup():
     # restores both on exit — the ordering footgun (#2086) is impossible
     # by construction (CFG-06-006).
     with config_override(
-        # Patch the server base URL so the CaseActor is created with the
-        # owner's routable base URL.  Without this, CreateCaseActorNode reads
-        # the default http://localhost:7999 which produces IDs like
-        # http://localhost:7999/actors/case-actor-... and the owner's app
+        # Patch the server base URL so IDs minted from it are routable to the
+        # owner's app.  Without this the default http://localhost:7999 yields
+        # IDs under http://localhost:7999/actors/... and the owner's app
         # returns 404 for /actors/ paths (it expects /api/v2/actors/).
         VULTRON_SERVER__BASE_URL=f"{_OWNER_BASE}/api/v2",
         # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig

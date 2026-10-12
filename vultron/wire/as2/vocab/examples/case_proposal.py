@@ -22,6 +22,7 @@ from datetime import timedelta
 
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Create,
@@ -47,6 +48,8 @@ def make_case_proposal() -> as_CaseProposal:
     - ``object_``: inline ``VulnerabilityReport`` (CP-01-004)
     - ``target``: case-actor service URI (CP-01-005)
     - ``summary``: optional description (CP-01-006)
+    - ``proposer_case_roles``: the vendor's own case roles, which the
+      case-actor seats it with alongside ``CASE_OWNER`` (CP-01-011)
     """
     report = gen_report()
     return as_CaseProposal(
@@ -54,6 +57,7 @@ def make_case_proposal() -> as_CaseProposal:
         object_=report,
         target=_CASE_ACTOR_URI,
         summary="Request case initialization for a new vulnerability.",
+        proposer_case_roles=[CVDRole.VENDOR],
     )
 
 

@@ -1,6 +1,7 @@
 ---
 title: Behavior Tree Integration Design Notes
 status: active
+kind: guidance
 tags: [bt, behavior-trees, py_trees, blackboard, BT-nodes, protocol-cascades]
 description: >
   BT design decisions, py_trees patterns, simulation-to-prototype translation

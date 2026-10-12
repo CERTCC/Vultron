@@ -1,6 +1,7 @@
 ---
 title: Actor Knowledge Model — Implementation Notes
 status: active
+kind: guidance
 description: >
   Design decisions and implementation guidance for the Actor Knowledge Model
   (IDEA-26041601/02).

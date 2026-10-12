@@ -145,3 +145,34 @@ class TestUnreplicatedActors:
             LedgerDumpReport(demo_name="x").as_manifest()["unreplicatedActors"]
             == []
         )
+
+
+class TestCaseActorDumpTarget:
+    """The CaseActor's ledger is dumped from the dedicated container (#1876)."""
+
+    def test_targets_the_dedicated_case_actor_container(self):
+        from vultron.demo.helpers.ledger_dump import case_actor_dump_target
+        from vultron.demo.utils import DataLayerClient, case_actor_id_on
+
+        base = "http://case-actor:7999/api/v2"
+        client = DataLayerClient(
+            base_url=base, actor_id=case_actor_id_on(base)
+        )
+
+        target = case_actor_dump_target(client)
+
+        assert target.actor_name == "case-actor"
+        assert target.client is client
+        assert target.route_key == "case-actor"
+
+    def test_route_key_follows_the_bound_actor(self):
+        """The key comes from the client's own actor id (ADR-0073)."""
+        from vultron.demo.helpers.ledger_dump import case_actor_dump_target
+        from vultron.demo.utils import DataLayerClient
+
+        client = DataLayerClient(
+            base_url="http://case-actor:7999/api/v2",
+            actor_id="http://case-actor:7999/api/v2/actors/case-actor-2",
+        )
+
+        assert case_actor_dump_target(client).route_key == "case-actor-2"

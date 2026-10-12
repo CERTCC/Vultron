@@ -1,6 +1,7 @@
 ---
 title: Stub Objects and Selective Disclosure
 status: active
+kind: guidance
 description: >
   Design notes for lightweight stub object representations in Vultron wire
   messages. The `VulnerabilityCase` stub is implemented and is the only

@@ -53,8 +53,9 @@ from vultron.core.behaviors.sync.nodes.conditions import (
 from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
-
-_OFFER_CASE_OWNERSHIP_TRANSFER_EVENT = "offer_case_ownership_transfer"
+from vultron.core.models.protocol_pair import (
+    OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE,
+)
 
 
 class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
@@ -94,7 +95,7 @@ class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == _OFFER_CASE_OWNERSHIP_TRANSFER_EVENT:
+        if entry.event_type == OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE:
             return Status.SUCCESS
         return Status.FAILURE
 

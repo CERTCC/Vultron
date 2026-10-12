@@ -1,6 +1,7 @@
 ---
 title: CI and GitHub Actions Workflow Authoring Pitfalls
 status: active
+kind: guidance
 description: >
   Pitfalls when writing or reading GitHub Actions workflows and the YAML that
   drives them: PyYAML's bare `on:` key, matrix booleans coerced to strings,

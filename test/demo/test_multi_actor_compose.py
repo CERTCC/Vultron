@@ -154,3 +154,67 @@ class TestMultiActorComposeHostPorts:
                 f"Service '{service_name}' container port must be 7999, "
                 f"got {container_part!r}."
             )
+
+
+#: The dedicated CaseActor container every actor container proposes to.
+_DEDICATED_CASE_ACTOR_URL = "http://case-actor:7999/api/v2"
+
+#: Every service that runs a Vultron API server, the case-actor container
+#: included (it points at itself).
+_API_SERVICES = (
+    "finder",
+    "vendor",
+    "coordinator",
+    "case-actor",
+    "actor5",
+    "actor6",
+)
+
+
+def _env(service: dict[str, Any]) -> dict[str, str]:
+    """Return a service's ``environment`` list as a name → value mapping."""
+    return dict(
+        entry.split("=", 1) for entry in service.get("environment", [])
+    )
+
+
+class TestDedicatedCaseActorTopology:
+    """Every container delegates its CaseActor to the dedicated one (#1876).
+
+    CP-08-003 and CP-08-008 require ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL``
+    to name the dedicated case-actor container, and DEMOMA-06-004 requires the
+    demo topology to use it.  A container pointing the URL at itself silently
+    restores the co-located shortcut this topology retires.
+    """
+
+    def test_every_api_service_names_the_dedicated_case_actor(self):
+        services = _load_compose()["services"]
+        for name in _API_SERVICES:
+            value = _env(services[name]).get(
+                "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL"
+            )
+            assert value == _DEDICATED_CASE_ACTOR_URL, (
+                f"Service '{name}' sets VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL"
+                f" to {value!r}, not the dedicated case-actor container"
+                f" {_DEDICATED_CASE_ACTOR_URL!r} (CP-08-008)."
+            )
+
+    def test_case_actor_service_hosts_that_url(self):
+        """The URL every container names is the case-actor container's own."""
+        env = _env(_load_compose()["services"]["case-actor"])
+        assert env["VULTRON_SERVER__BASE_URL"].rstrip("/") == (
+            _DEDICATED_CASE_ACTOR_URL
+        )
+        assert env["VULTRON_ACTOR_ID"] == (
+            f"{_DEDICATED_CASE_ACTOR_URL}/actors/case-actor"
+        )
+
+    def test_demo_runner_waits_for_the_case_actor(self):
+        runner = _load_compose()["services"]["demo-runner"]
+        assert runner["depends_on"]["case-actor"] == {
+            "condition": "service_healthy"
+        }
+        assert (
+            _env(runner)["VULTRON_CASE_ACTOR_BASE_URL"]
+            == _DEDICATED_CASE_ACTOR_URL
+        )

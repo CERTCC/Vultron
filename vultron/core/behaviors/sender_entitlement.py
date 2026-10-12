@@ -33,6 +33,10 @@ Entitlement kinds
   path, ISSUE-2667)
 - ``INVITEE`` — sender must be the sole ``to`` recipient of the recorded Invite
   it answers (EP-09-010, CM-11-017)
+- ``ANY_ACTOR`` — any actor may send it, whatever its standing in any case: a new
+  report, which precedes any case (HP-01-010, HP-01-011).
+  It is a declared rule, not an exemption, and has no condition node: there is
+  no standing to check, so no tree composes a sender guard for it.
 
 A kind names the entitlement at the CASE_MANAGER, where the assertion is
 adjudicated.
@@ -65,6 +69,10 @@ Nodes
   CASE_MANAGER (EP-09-003, EP-09-010, PCR-03-001, PCR-08)
 - ``SenderIsInviteeNode`` — guards that the sender is the sole ``to``
   recipient of the recorded Invite it answers (EP-09-010)
+- ``SenderIsOwnershipTransfereeNode`` — guards an answer to an
+  ownership-transfer Offer: at the CASE_MANAGER the sender must be the
+  transferee of the open Offer it recorded; at any other replica it must be
+  the CASE_MANAGER (``NAMED_ACTOR`` kind; CM-21-011, PCR-03-001)
 - ``SenderIsExecutingActorNode`` — guards that the sender equals the executing
   actor; merged from ``CheckSenderIsExecutingActorNode``
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
@@ -97,6 +105,10 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.ownership_offer import (
+    RecordedOwnershipOffer,
+    recorded_ownership_offer,
+)
 from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
@@ -104,7 +116,7 @@ from vultron.core.predicates.addressing import (
     same_actor_id,
 )
 from vultron.core.predicates.roles import has_case_owner_role
-from vultron.errors import VultronError
+from vultron.errors import VultronError, VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +151,8 @@ def _log_entry_from(activity: Any, node_name: str) -> CaseLedgerEntry:
 class SenderEntitlementKind(Enum):
     """The required sender role for a received activity.
 
-    Each kind corresponds to one condition node in this module.
+    Each kind corresponds to one condition node in this module, except
+    ``ANY_ACTOR``, which requires no standing and so has no guard.
     """
 
     CASE_MANAGER = auto()
@@ -159,6 +172,14 @@ class SenderEntitlementKind(Enum):
 
     INVITEE = auto()
     """Sender must be the sole ``to`` recipient of the recorded Invite."""
+
+    ANY_ACTOR = auto()
+    """Any actor may send it; no standing is required (HP-01-010).
+
+    Declared only by the use cases that receive a new report, which precedes
+    any case (HP-01-011).  It has no condition node, so no tree composes a
+    sender guard for it.
+    """
 
 
 @dataclass(frozen=True)
@@ -903,6 +924,146 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Condition node: NAMED_ACTOR (the transferee of a recorded ownership Offer)
+# ---------------------------------------------------------------------------
+
+
+class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
+    """Guard: sender may answer this ownership-transfer Offer to this receiver.
+
+    The entitlement depends on who receives the answer (CM-21-011,
+    CM-21-013, PCR-03-001):
+
+    - At the **CASE_MANAGER** the sender must be the transferee named in an
+      ownership-transfer Offer the CASE_MANAGER recorded for the case, and
+      the Offer must still be open: no other answer is ledgered for it
+      (CM-21-014).  The Offer is read from this store's ledger, never from
+      the copy the answer embeds, which the sender wrote.
+    - A **redelivery** of the answer that already closed the Offer is not a
+      refusal (HP-01-003), but it must change nothing: by then ownership may
+      have moved on through a later Offer, and re-applying the old answer
+      would hand it back with no ledger entry.  The guard sets
+      :attr:`is_redelivery` and fails, so nothing downstream runs, and the
+      handler reports the run as ``SKIPPED``.
+    - At **any other replica** the sender must be the CASE_MANAGER: a
+      participant takes case state from it alone.
+
+    A case this store does not hold, or one that names no CASE_MANAGER,
+    leaves nothing to establish the sender's standing against, so the sender
+    is refused.
+
+    The transferee is the addressee of the request, so the kind is
+    ``NAMED_ACTOR`` (ADR-0129).
+
+    Spec: CM-21-011, CM-21-013, CM-21-014, PCR-03-001, HP-01-006.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        offer_id: str | None,
+        sender_actor_id: str,
+        answer_id: str,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case the answer names.
+            offer_id: The Offer the answer names (``None`` when it names
+                none, which refuses at the CASE_MANAGER).
+            sender_actor_id: The answer's sender.
+            answer_id: The answer's own id, so a redelivery is recognised.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._offer_id = offer_id
+        self._sender_actor_id = sender_actor_id
+        self._answer_id = answer_id
+        self.is_redelivery = False
+        """``True`` when the last run found the answer already ledgered as
+        the one that closed the Offer: a benign no-op, not a refusal."""
+
+    def _refuse(self, reason: str) -> Status:
+        self.feedback_message = f"{reason} — REFUSED (CM-21-011, HP-01-006)"
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def _check_open_offer(self, offer: RecordedOwnershipOffer) -> Status:
+        """The CASE_MANAGER arm: the sender is the transferee of *offer*,
+        which no answer has closed yet."""
+        sender = self._sender_actor_id
+        if not same_actor_id(sender, offer.transferee_id):
+            return self._refuse(
+                f"Sender '{sender}' is not the transferee"
+                f" '{offer.transferee_id}' of ownership-transfer Offer"
+                f" '{offer.offer_id}'"
+            )
+        if offer.answer_id == self._answer_id:
+            self.is_redelivery = True
+            self.feedback_message = (
+                f"Answer '{self._answer_id}' already closed ownership-transfer"
+                f" Offer '{offer.offer_id}' — redelivery, nothing to apply"
+                " (HP-01-003)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        if offer.is_answered_other_than(self._answer_id):
+            return self._refuse(
+                f"Ownership-transfer Offer '{offer.offer_id}' for case"
+                f" '{self._case_id}' was already answered by"
+                f" '{offer.answer_id}'"
+            )
+        return Status.SUCCESS
+
+    def update(self) -> Status:
+        self.is_redelivery = False
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None and self.actor_id is not None
+
+        sender = self._sender_actor_id
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
+            # The sender's case, not ours: nothing to establish its standing
+            # against, which is a refusal and not a local anomaly.
+            return self._refuse(
+                f"Sender '{sender}' has no standing: this store holds no"
+                f" case '{self._case_id}'"
+            )
+        manager_id = resolve_case_manager_id(case, self.datalayer)
+        if manager_id is None:
+            return self._refuse(
+                f"Sender '{sender}' has no standing: case '{self._case_id}'"
+                " names no CASE_MANAGER"
+            )
+        if same_actor_id(self.actor_id, manager_id):
+            if self._offer_id is None:
+                return self._refuse(
+                    f"Sender '{sender}' answers no ownership-transfer Offer"
+                )
+            try:
+                offer = recorded_ownership_offer(
+                    self.datalayer, self._case_id, self._offer_id, manager_id
+                )
+            except VultronNotFoundError as exc:
+                return self._refuse(
+                    f"Sender '{sender}' answers Offer '{self._offer_id}',"
+                    f" which this CASE_MANAGER never recorded for case"
+                    f" '{self._case_id}' ({exc})"
+                )
+            return self._check_open_offer(offer)
+        if same_actor_id(sender, manager_id):
+            return Status.SUCCESS
+        return self._refuse(
+            f"Sender '{sender}' is not the CASE_MANAGER of case"
+            f" '{self._case_id}', the only actor a participant takes an"
+            " ownership change from (PCR-03-001)"
+        )
 
 
 # ---------------------------------------------------------------------------
