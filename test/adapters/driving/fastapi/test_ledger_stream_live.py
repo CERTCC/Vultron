@@ -75,7 +75,12 @@ def stream_dl() -> Iterator[SqliteDataLayer]:
 
 @pytest.fixture
 def base_url(stream_dl: SqliteDataLayer) -> Iterator[str]:
-    """Serve :func:`srv.build_app` with uvicorn on a worker thread."""
+    """Serve :func:`srv.build_app` with uvicorn on a worker thread.
+
+    Off the main thread no signal hook is installed, and uvicorn runs
+    lifespan shutdown only after open connections close, so a test MUST close
+    every stream it opens before this fixture sets ``should_exit``.
+    """
     with config_override(
         VULTRON_MODE="prototype",
         VULTRON_SERVER__LEDGER_STREAM_POLL_SECONDS="0.05",

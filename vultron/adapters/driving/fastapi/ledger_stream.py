@@ -34,8 +34,12 @@ Server shutdown
     server's own SIGINT/SIGTERM handler and sets a
     :class:`threading.Event` the moment the server is asked to exit; every
     open stream sees it on its next poll, sends ``event: close`` and ends.
-    The lifespan also sets the event on shutdown, for hosts that install no
-    signal handler (``TestClient``, a server run off the main thread).
+    The lifespan also sets the event on shutdown.  That covers
+    ``TestClient``, which reads a response to its end and so never holds a
+    stream open; it does not cover a uvicorn server run off the main thread
+    or stopped with ``should_exit``, whose lifespan shutdown waits for open
+    streams like any other.  Such a host must close its streams first or set
+    ``timeout_graceful_shutdown``.
 """
 
 import asyncio
@@ -74,6 +78,9 @@ def case_ledger_entries(
     dl: DataLayer, canonical_case_id: str
 ) -> list[CaseLedgerEntry]:
     """Return the case's ledger entries in *dl*, ascending by ``log_index``."""
+    # Reads every case's entries and filters here: the DataLayer port has no
+    # case-scoped query.  An open stream repeats this on every poll, a cost
+    # accepted for a prototype-only endpoint (notes/demo-interactive-ui.md).
     entries = [
         e
         for e in dl.list_objects("CaseLedgerEntry")
@@ -204,8 +211,10 @@ def install_shutdown_signal_hook(
 
     Signal handlers can only be installed from the main thread.  Off it (a
     ``TestClient`` lifespan, a server run in a worker thread) nothing is
-    installed and the returned undo is a no-op; the lifespan's own shutdown
-    then sets the event.
+    installed and the returned undo is a no-op.  The lifespan's own shutdown
+    then sets the event, but a uvicorn server reaches lifespan shutdown only
+    after its open connections close, so off the main thread an open stream
+    still holds it (see the module docstring).
 
     The undo restores each original handler, unless something has replaced
     the hook in the meantime.
