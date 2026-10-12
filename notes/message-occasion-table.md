@@ -3,16 +3,15 @@ title: "Message Occasion Table: Generated Fragments, Addressees and Sender Rules
 status: active
 kind: plan
 tracks:
-  - "#4430"
   - "#4431"
   - "#4432"
   - "#4438"
   - "#4417"
 description: >-
   Remaining design for the occasion lookup table (ADR-0128, ADR-0129): the
-  generated fragments replacing build-time rendering, how "Sent by" and
-  "Send to" are derived from the sender rule, the "When…" grammar, and typed
-  distinguishers. Occasions on `SemanticEntry` landed in #4429.
+  pages rebuilt on the generated fragments, how "Sent by" and "Send to" are
+  derived from the sender rule, the "When…" grammar, and typed distinguishers.
+  Occasions on `SemanticEntry` landed in #4429, the generated fragments in #4430.
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/handler-protocol.yaml
@@ -40,13 +39,15 @@ Distinguished by | Details. The formal shorthand is only the Details link text.
 
 ## Where each fact lives
 
-Nothing derivable is typed by hand. The occasions, `SemanticEntry.page` and the
-derived `MappingStatus` and discriminator landed in #4429 (rules in
-`notes/message-type-reference.md` § Occasions); the addressee is #4438.
+Nothing derivable is typed by hand. The occasions, `SemanticEntry.page`, the
+derived `MappingStatus` and discriminator (#4429) and the generated YAML and
+fragments (#4430) have landed (rules in `notes/message-type-reference.md`
+§ Occasions); the addressee is #4438.
 
 | Fact | Owner |
 |---|---|
-| when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes | `SemanticEntry.occasions` |
+| when, distinguishing value, anchor ID, description, example, how-to link, shorthand, notes, section heading (when no own shorthand) | `SemanticEntry.occasions` |
+| formal message name | `ProtocolShorthand.formal_name`, held to `formal_protocol/messages.md` by a test |
 | wire summary | the entry's `ActivityPattern`, rendered as today |
 | send to (addressee) | `SemanticEntry.occasions` (ADR-0129) |
 | sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
@@ -54,11 +55,9 @@ derived `MappingStatus` and discriminator landed in #4429 (rules in
 | `MappingStatus`, discriminator | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
 | "Seen in" | the include directives on workflow pages |
 
-The YAML file and the `include-markdown` fragments (whole table, a slice per page,
-one per occasion) are generated, committed, and gated by a `--check` hook (#4430);
-`_mapping.py` becomes their loader and validator. This replaces MSM-06-001's
-build-time rendering, because MkDocs does not rewrite a `.md` link printed from an
-exec block and a lookup table is mostly links.
+The pages still render their old tables until #4431 rebuilds them on the
+generated fragments; the fragments exist because MkDocs does not rewrite a `.md`
+link printed from an exec block, and a lookup table is mostly links.
 
 ## "Sent by" is the receiver's rule
 
@@ -107,8 +106,8 @@ exec block and a lookup table is mostly links.
   guides, so it follows the docs style guide, glossary terms, and no "you"
   (DF-09-008, MSM-08-007).
 - **Details link** names the formal message and code ("Fix Readiness (CF)")
-  (DF-09-010, MSM-08-008). `GI` rows link by section heading instead, since one
-  label would repeat on every row.
+  (DF-09-010, MSM-08-008). Expansion rows (`GI`, `RV`, `RI`, `RC`) link by
+  section heading instead, since one label would repeat on every row.
 - **A distinguisher is typed** (MSM-08-002): a field value checked against its
   enum, or a state context naming a state machine and states (the EM state
   separating `EP` from `EV` on `Invite(Event)`).

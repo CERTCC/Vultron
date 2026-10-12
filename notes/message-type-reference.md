@@ -136,9 +136,9 @@ how-to tree.
   `vultron.wire.as2.vocab.examples.vocab_examples`; follow
   `docs/reference/messages/*.md` and `docs/reference/activitypub/objects.md`.
   `docs/reference/specs/protocol.md` is the exemplar for **mapping tables**
-  (`render_for_kind`), not for examples. ADR-0128 moves generated content to
-  committed `include-markdown` fragments, because MkDocs does not rewrite links
-  printed from an exec block.
+  (`render_for_kind`), not for examples. Tables are committed `include-markdown`
+  fragments instead (ADR-0128, § Occasions), because MkDocs does not rewrite links
+  printed from an exec block; an example carries no link, so it stays an exec block.
 - A new example function needs a matching `obj_to_file` call in
   `vocab_examples.main()`, or `test/architecture/test_vocab_examples_current.py`
   fails. The generator randomizes IDs and timestamps, so generate into a temp
@@ -172,3 +172,31 @@ how-to tree.
   dispatch check alone passes an example carrying another occasion's field value.
 - Derived mapping rows follow registry order, which is dispatch order, not
   reading order.
+- **The occasion table is generated; never edit it by hand.** `uv run
+  msm-occasions --write` projects the registry into
+  `vultron/metadata/msm/occasions.yaml` and the fragments under
+  `docs/reference/messages/_occasions/`; the `msm-occasions-sync` hook runs
+  `--check`, and `test/metadata/test_msm_occasions.py` is the CI backstop
+  (MSM-06-001).
+- **Fragments render from the re-parsed YAML, not from the registry**, so the
+  YAML carries every fact a fragment shows; a new column is a field on
+  `OccasionRow` plus a renderer change.
+- **The fragments are in `exclude_docs`**: built alone, a table links to
+  anchors its page lacks until it includes the sections, and each fragment would
+  publish a URL. `include-markdown` still reads them from disk.
+- **The table fragments avoid the name `*table*.md`**: `lint-docs` exempts that
+  name as generated, and their cells are occasion prose it must check (DF-09-007).
+- **The example stays an exec block inside the section fragment**: its IDs are
+  minted per run, so a committed copy could never pass `--check`.
+- **A pipe in a "Send" cell is a `<code>` element with entities.**
+  Python-Markdown shows `\|` literally inside a backtick span, GFM splits the
+  cell at a bare `|`, and `markdownlint --fix` rewrites an unprotected
+  `(Event)[context=…]` as a reversed link.
+- **The formal message name is `ProtocolShorthand.formal_name`**, held to
+  `docs/reference/formal_protocol/messages.md` by
+  `test/test_semantic_registry_occasions.py`.
+- **An expansion's rows link by section heading, with no shorthand**
+  (DF-09-010, MSM-08-008). That covers `GI` and also `RV`, `RI` and `RC`, which
+  the Full-Case Invite replies carry; the link text and the heading are one
+  string (the formal name and code when the shorthand is the occasion's own,
+  otherwise the occasion's declared `heading`).

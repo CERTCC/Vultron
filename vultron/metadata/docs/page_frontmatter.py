@@ -20,6 +20,10 @@ Every ``docs/**/*.md`` file is one of three things:
 * a **reader-facing page** — everything else. It declares both keys
   (DF-11-001).
 
+A file matched by ``exclude_docs`` that no page includes is none of the three:
+MkDocs never builds it, so it has no reader until a page pulls it in. The
+generated occasion fragments wait there for their hosts (ADR-0128).
+
 A page included only from a ``start=`` marker (a user story on its
 traceability page, a worked example quoted by the specification's annexes) is
 still a page: it has a URL and readers of its own. A page included *whole* has
@@ -48,6 +52,7 @@ from pathlib import Path
 from pathspec.gitignore import GitIgnoreSpec
 
 from vultron.metadata.base import (
+    excluded_docs_spec,
     mkdocs_config,
     nav_exclusion_fault,
     nav_paths,
@@ -201,8 +206,18 @@ def classify_docs_tree(root: Path) -> DocsTree:
     }
     for appended in _auto_appended(root, docs_dir):
         fragments.setdefault(appended, ("every page (snippets auto_append)",))
+    # An excluded file is never built, so it has no reader of its own; until
+    # a page includes it (and it becomes a fragment above) it is neither.
+    # This holds for every `exclude_docs` pattern, not only the occasion
+    # fragments: a page excluded by mistake also leaves DF-11's scope, so
+    # widen `exclude_docs` only for files that are never pages.
+    excluded = excluded_docs_spec(mkdocs_config(root))
     return DocsTree(
-        pages=tuple(p for p in every if p not in fragments),
+        pages=tuple(
+            p
+            for p in every
+            if p not in fragments and not excluded.match_file(p)
+        ),
         fragments=fragments,
         whole_includes=whole_includes,
         navved=navved,

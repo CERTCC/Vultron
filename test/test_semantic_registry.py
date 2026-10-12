@@ -181,6 +181,7 @@ def _make_entry(
             Occasion(
                 when="a stub situation arises",
                 anchor="stub",
+                heading="Stub",
                 description="Stands in for a real occasion.",
                 example="stub_example",
             ),
