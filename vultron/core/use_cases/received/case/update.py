@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 class UpdateCaseReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for case updates"
+        "#4522", "no sender check defined for case updates"
     )
 
     def __init__(

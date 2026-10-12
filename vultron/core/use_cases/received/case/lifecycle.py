@@ -127,7 +127,7 @@ class CloseCaseReceivedUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for case closure"
+        "#4522", "no sender check defined for case closure"
     )
 
     def __init__(

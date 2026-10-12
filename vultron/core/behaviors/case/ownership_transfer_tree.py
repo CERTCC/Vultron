@@ -40,49 +40,79 @@ from vultron.core.behaviors.case.nodes.store_received_object import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsOwnershipTransfereeNode,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def create_accept_ownership_transfer_tree(
     case_id: str,
-    new_owner_id: str,
+    offer_id: str | None,
+    sender_id: str,
+    accept_id: str,
+    new_owner_id: str | None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``AcceptCaseOwnershipTransferReceivedUseCase``.
 
     Uses the standard ``create_receive_activity_tree`` factory to enforce the
-    CLP-10-006 ordering: guarded-commit (CaseLedgerEntry + Announce broadcast)
-    fires after ``AcceptCaseOwnershipTransferNode`` succeeds (CM-21-007).
+    CLP-10-006 ordering: the sender guard runs before anything is committed
+    (CM-21-011, HP-01-006), and the guarded commit (CaseLedgerEntry +
+    Announce broadcast) fires before ``AcceptCaseOwnershipTransferNode``
+    applies the change (CM-21-007).
 
     Args:
         case_id: URI of the case whose ownership is being transferred.
-        new_owner_id: URI of the actor accepting (and becoming) the new owner.
+        offer_id: The Offer the Accept names (the recorded Offer or the
+            CASE_MANAGER's forward of it).
+        sender_id: The Accept's sender.  The sender guard checks it: at the
+            CASE_MANAGER it must be the transferee of the open Offer it
+            recorded; at a replica it must be the CASE_MANAGER.
+        accept_id: The Accept's own id, so a redelivery is recognised.
+        new_owner_id: The transferee the recorded Offer names, or ``None``
+            when this store recorded no such Offer.  With ``None`` the tree
+            carries no transfer: the sender guard refuses at the CASE_MANAGER,
+            and a replica never applies the transfer from an Accept.
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
+    # RSH-08-003: the ownership change is canonical case state only the
+    # CASE_MANAGER writes; it is committed and replayed from the ledger
+    # (OwnershipTransfer slot), so a replica learns the new owner from the
+    # fan-out, not from a direct Accept (#3814).
+    manager_effects: list[py_trees.behaviour.Behaviour] = (
+        [
+            AcceptCaseOwnershipTransferNode(
+                case_id=case_id,
+                new_owner_id=new_owner_id,
+            )
+        ]
+        if new_owner_id is not None
+        else []
+    )
     tree = create_receive_activity_tree(
         name="AcceptOwnershipTransferBT",
         case_id=case_id,
+        sender_guard=SenderIsOwnershipTransfereeNode(
+            case_id=case_id,
+            offer_id=offer_id,
+            sender_actor_id=sender_id,
+            answer_id=accept_id,
+        ),
         precondition_guards=[],
         # A receiver that does not hold the case is simply not its
         # CASE_MANAGER (ADR-0087 Regime 3), for both the guarded commit and
         # the gated effect: read the absence as "not the CASE_MANAGER" at
         # debug rather than a Regime-1 anomaly.
         case_may_be_absent=True,
-        # RSH-08-003: the ownership change is canonical case state only the
-        # CASE_MANAGER writes; it is committed and replayed from the ledger
-        # (OwnershipTransfer slot), so a replica learns the new owner from the
-        # fan-out, not from a direct Accept (#3814).
-        manager_effects=[
-            AcceptCaseOwnershipTransferNode(
-                case_id=case_id,
-                new_owner_id=new_owner_id,
-            ),
-        ],
-        manager_case_id=case_id,
-        manager_gate_name="AcceptOwnershipTransferIfCaseManager",
-        manager_case_may_be_absent=True,
+        manager_effects=manager_effects,
+        manager_case_id=case_id if manager_effects else None,
+        manager_gate_name=(
+            "AcceptOwnershipTransferIfCaseManager" if manager_effects else None
+        ),
+        manager_case_may_be_absent=bool(manager_effects),
     )
     logger.debug(
         "Created AcceptOwnershipTransferBT for case='%s' new_owner='%s'",

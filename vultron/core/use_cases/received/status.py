@@ -88,7 +88,7 @@ def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
 
 class CreateCaseStatusReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for case status creation"
+        "#4522", "no sender check defined for case status creation"
     )
 
     def __init__(
@@ -126,7 +126,7 @@ class CreateCaseStatusReceivedUseCase:
 
 class AddCaseStatusToCaseReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for case status update"
+        "#4522", "no sender check defined for case status update"
     )
 
     def __init__(
@@ -215,7 +215,7 @@ class AddCaseStatusToCaseReceivedUseCase:
 
 class CreateParticipantStatusReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check defined for participant status creation"
+        "#4522", "no sender check defined for participant status creation"
     )
 
     def __init__(

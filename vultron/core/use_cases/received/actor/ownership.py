@@ -22,6 +22,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.ownership_offer import recorded_ownership_offer
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import (
@@ -34,6 +35,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager,
     verdict_from_bt,
 )
+from vultron.errors import VultronNotFoundError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -41,6 +43,7 @@ if TYPE_CHECKING:
 
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
+    SenderEntitlementKind,
     exempt,
 )
 
@@ -49,7 +52,7 @@ logger = logging.getLogger(__name__)
 
 class OfferCaseOwnershipTransferReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for ownership offer"
+        "#4522", "no sender check for ownership offer"
     )
 
     def __init__(
@@ -201,8 +204,19 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 
 
 class AcceptCaseOwnershipTransferReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for ownership accept"
+    """The CASE_MANAGER applies an accepted ownership transfer (CM-21-002).
+
+    At the CASE_MANAGER the sender must be the transferee named in an open
+    ownership-transfer Offer it recorded for the case; at any other replica
+    it must be the CASE_MANAGER (CM-21-011, PCR-03-001).  Anyone else is
+    ``REFUSED`` with ownership unchanged, nothing committed and nothing sent.
+    The new owner is read from the recorded Offer, never from the sender.
+    """
+
+    # The transferee is the addressee of the Offer (ADR-0129); the guard is
+    # two-sided: the CASE_MANAGER at a replica (PCR-03-001).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -218,13 +232,37 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         self._request: AcceptCaseOwnershipTransferReceivedEvent = request
         self._sync_port = sync_port
 
+    def _recorded_transferee(
+        self, case_id: str, offer_id: str | None
+    ) -> str | None:
+        """The new owner the recorded Offer names, or ``None`` if none is held.
+
+        Read from this store's ledger, never from the sender id or from the
+        Offer the Accept embeds (CM-21-011).  Whether the sender may accept it
+        is the sender guard's to decide, in the tree.
+        """
+        case = self._dl.read_case(case_id)
+        manager_id = (
+            resolve_case_manager_id(case, self._dl)
+            if case is not None
+            else None
+        )
+        if manager_id is None or offer_id is None:
+            return None
+        try:
+            offer = recorded_ownership_offer(
+                self._dl, case_id, offer_id, manager_id
+            )
+        except VultronNotFoundError:
+            return None
+        return offer.transferee_id
+
     def execute(self) -> HandlerResult:
         request = self._request
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
         case_id = request.case_id
-        new_owner_id = request.actor_id
         if case_id is None:
             logger.warning(
                 "accept_case_ownership_transfer: missing case_id on request"
@@ -232,8 +270,12 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             return HandlerResult.refused(
                 "Accept(ownership transfer) names no case"
             )
+        new_owner_id = self._recorded_transferee(case_id, request.object_id)
         tree = create_accept_ownership_transfer_tree(
             case_id=case_id,
+            offer_id=request.object_id,
+            sender_id=request.actor_id,
+            accept_id=request.activity_id,
             new_owner_id=new_owner_id,
         )
         bridge = BTBridge(
@@ -251,10 +293,11 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         )
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
-                "AcceptOwnershipTransferBT refused for case '%s' new_owner"
-                " '%s': %s",
+                "AcceptOwnershipTransferBT refused Accept '%s' from '%s' for"
+                " case '%s': %s",
+                request.activity_id,
+                request.actor_id,
                 case_id,
-                new_owner_id,
                 verdict.reason,
             )
         return verdict
@@ -262,7 +305,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
 
 class RejectCaseOwnershipTransferReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for ownership reject"
+        "#4475", "no sender check for ownership reject"
     )
 
     def __init__(
