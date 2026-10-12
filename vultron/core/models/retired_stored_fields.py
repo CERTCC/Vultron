@@ -13,14 +13,15 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Refuse a stored record that still carries a renamed field's old key.
+"""Refuse a stored record that still carries a renamed or moved field's old key.
 
 The project has no backwards-compatibility requirement for stored data, so a
 renamed persisted field gets no read alias and no conversion.  Left alone, a
 row written before the rename would not say what happened: ``CoreRecord``
 refuses unknown keys, but only as a bare "extra inputs are not permitted" (and
 a "field required" for the new name) that never says a rename happened.  A
-model that renames a stored field derives from :class:`RetiredFieldsRecord` and declares the old key in
+model that renames a stored field, or moves it to another model, derives from
+:class:`RetiredFieldsRecord` and declares the old key in
 ``retired_stored_fields``; loading a row that still holds it fails with a
 message naming the old shape and saying the store must be reset.  The
 datalayer logs that reason when it reads the row back as absent.
@@ -29,7 +30,7 @@ datalayer logs that reason when it reads the row back as absent.
 from collections.abc import Mapping
 from typing import Any, ClassVar, NamedTuple
 
-from pydantic import model_validator
+from pydantic import BaseModel, model_validator
 from pydantic.alias_generators import to_camel
 
 from vultron.core.models.base import CoreRecord
@@ -37,10 +38,26 @@ from vultron.errors import Violation, VultronValidationError
 
 
 class RetiredStoredField(NamedTuple):
-    """Where a retired stored key went, and the change that retired it."""
+    """Where a retired stored key went, and the change that retired it.
+
+    ``moved_to`` names the model that now holds ``replacement`` when the field
+    left this model altogether, e.g. case bookkeeping moved off the case into a
+    record of its own (#4448).  ``None`` means a rename within this model.
+    """
 
     replacement: str
     retired_by: str
+    moved_to: type[BaseModel] | None = None
+
+    def destination(self) -> str:
+        """The field the old key's value now lives in, for the refusal."""
+        if self.moved_to is None:
+            return repr(self.replacement)
+        return f"{self.moved_to.__name__}.{self.replacement}"
+
+    def change(self) -> str:
+        """What happened to the old key: a rename or a move."""
+        return "renamed it to" if self.moved_to is None else "moved it to"
 
 
 class RetiredFieldsRecord(CoreRecord):
@@ -68,10 +85,12 @@ class RetiredFieldsRecord(CoreRecord):
                 raise TypeError(
                     f"{cls.__name__} retires {old!r} but still declares it"
                 )
-            if field.replacement not in fields:
+            target = field.moved_to or cls
+            if field.replacement not in target.model_fields:
                 raise TypeError(
                     f"{cls.__name__} retires {old!r} in favour of"
-                    f" {field.replacement!r}, which it does not declare"
+                    f" {field.destination()}, which"
+                    f" {target.__name__} does not declare"
                 )
 
     @model_validator(mode="before")
@@ -82,7 +101,7 @@ class RetiredFieldsRecord(CoreRecord):
         violations = [
             Violation(
                 f"{key!r} is the stored shape before {field.retired_by}"
-                f" renamed it to {field.replacement!r}",
+                f" {field.change()} {field.destination()}",
                 (field.replacement,),
             )
             for old, field in cls.retired_stored_fields.items()
@@ -92,7 +111,7 @@ class RetiredFieldsRecord(CoreRecord):
         if violations:
             raise VultronValidationError(
                 f"{cls.__name__} carries a retired stored field; no"
-                " conversion is made, so a store written before the rename"
+                " conversion is made, so a store written before the change"
                 " must be reset",
                 violations=violations,
             )

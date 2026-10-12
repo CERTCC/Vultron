@@ -37,6 +37,9 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_receive_offer_case_participant_tree,
     create_reject_actor_recommendation_received_tree,
 )
+from vultron.core.models.actor_recommendation_record import (
+    ActorRecommendationRecord,
+)
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
     OfferCaseParticipantReceivedEvent,
@@ -181,8 +184,9 @@ def _require_recorded_recommendation(
 
     The transformed ``Offer(CaseParticipant)`` carries the original
     ``Offer(Actor)`` id as ``origin`` (CM-16-004), and the recommender behind
-    it is whatever ``recommendation_recommender_index`` recorded on the case
-    when that recommendation arrived.  CM-16-006/007 step 3 sends the decision
+    it is whatever :class:`ActorRecommendationRecord` this CASE_MANAGER kept
+    for the case when that recommendation arrived (case bookkeeping,
+    CLP-07-014).  CM-16-006/007 step 3 sends the decision
     to that recommender, so an Accept/Reject whose inner Offer names no
     ``origin``, or an ``origin`` the index does not hold, has nobody to notify
     and cannot be applied.
@@ -202,20 +206,17 @@ def _require_recorded_recommendation(
             activity_id,
             "no recommendation (its inner Offer has no origin)",
         )
-    case = dl.read_case(case_id)
-    recommender_id = (
-        case.recommendation_recommender_index.get(recommendation_id)
-        if case is not None
-        else None
+    record = dl.read(
+        ActorRecommendationRecord.build_id(case_id, recommendation_id)
     )
-    if not recommender_id:
+    if not isinstance(record, ActorRecommendationRecord):
         return _unrecorded_recommendation_refusal(
             verb,
             activity_id,
             f"a recommendation this CASE_MANAGER never recorded"
             f" ({recommendation_id})",
         )
-    return recommendation_id, recommender_id
+    return recommendation_id, record.recommender_id
 
 
 def _require_recorded_offer(

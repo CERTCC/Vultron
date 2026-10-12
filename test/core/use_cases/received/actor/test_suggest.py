@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for actor suggestion received use cases (ADR-0026 CaseActor-routed)."""
 
+import json
 import logging
 from typing import cast
 from unittest.mock import MagicMock
@@ -29,6 +30,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.actor_recommendation_record import (
+    ActorRecommendationRecord,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.suggest import (
@@ -223,15 +227,17 @@ class TestOfferActorToCaseReceivedUseCase:
         assert any("missing" in r.message.lower() for r in caplog.records)
         assert result.disposition is HandlerDisposition.REFUSED
 
-    def test_offer_actor_populates_recommendation_recommender_index(
+    @pytest.mark.spec("CLP-07-014")
+    def test_offer_actor_records_the_recommender_beside_the_case(
         self, make_payload, seed_case_manager
     ):
-        """AC-1 (write-side): execute() writes activity_id→recommender_id to core state.
+        """execute() records activity_id→recommender_id as case bookkeeping.
 
-        Verifies that OfferActorToCaseReceivedUseCase populates
-        VulnerabilityCase.recommendation_recommender_index so downstream
+        Verifies that OfferActorToCaseReceivedUseCase stores an
+        ActorRecommendationRecord in the CASE_MANAGER's own store so downstream
         Accept/Reject use cases can look up the recommender without re-reading
-        the stored wire Offer (ADR-0035 DL-06-002).
+        the stored wire Offer (ADR-0035 DL-06-002), and that the case itself
+        carries no recommender index (CLP-07-014, #4448).
         """
         dl, local_actor_id, case_id = self._setup_dl(seed_case_manager)
         recommender_id = "https://example.org/actors/finder"
@@ -255,15 +261,29 @@ class TestOfferActorToCaseReceivedUseCase:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
+        record = dl.read(
+            ActorRecommendationRecord.build_id(case_id, activity_id)
+        )
+        assert isinstance(record, ActorRecommendationRecord), (
+            "the CASE_MANAGER must record who made the recommendation after"
+            " OfferActorToCaseReceivedUseCase runs (ADR-0035 DL-06-002)"
+        )
+        assert record.recommender_id == recommender_id
         case = cast(VulnerabilityCase, dl.read(case_id))
         assert isinstance(case, VulnerabilityCase)
-        assert (
-            case.recommendation_recommender_index.get(activity_id)
-            == recommender_id
+        assert "recommendation_recommender_index" not in case.model_dump()
+        assert "recommendationRecommenderIndex" not in case.model_dump(
+            mode="json", by_alias=True
         ), (
-            "recommendation_recommender_index must map activity_id → recommender_id "
-            "after OfferActorToCaseReceivedUseCase runs (ADR-0035 DL-06-002)"
+            "who recommended whom is case bookkeeping and must not be"
+            " rendered into a case snapshot (CLP-07-014)"
         )
+        entries = dl.list_objects("CaseLedgerEntry")
+        assert entries, "the Offer's receipt must still be ledgered"
+        for entry in entries:
+            rendered = json.dumps(entry.model_dump(mode="json", by_alias=True))
+            assert "RecommenderIndex" not in rendered
+            assert "ActorRecommendationRecord" not in rendered
 
 
 class TestOfferActorToCaseAtNonCaseManager:
@@ -347,9 +367,8 @@ class TestOfferActorToCaseAtNonCaseManager:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        case = cast(VulnerabilityCase, dl.read(self._CASE_ID))
-        assert case.recommendation_recommender_index == {}, (
-            "the recommender index is the CASE_MANAGER's; a copy-holder"
+        assert dl.list_objects("ActorRecommendationRecord") == [], (
+            "the recommender record is the CASE_MANAGER's; a copy-holder"
             " must not write it"
         )
 
@@ -592,8 +611,7 @@ class TestSuggestionFromNonParticipant:
             "a suggestion from a non-participant must not be forwarded to the"
             " Case Owner"
         )
-        case = cast(VulnerabilityCase, dl.read(self._CASE_ID))
-        assert case.recommendation_recommender_index == {}
+        assert dl.list_objects("ActorRecommendationRecord") == []
         assert dl.list_objects("CaseLedgerEntry") == [], (
             "the refused Offer must not be ledgered as a case event"
         )
