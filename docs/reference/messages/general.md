@@ -22,26 +22,26 @@ The General shorthands cover messages not tied to a specific state change.
   Suggesting a Participant is a `GI` inquiry, not a case-management message.
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#other-message-types).
 
-{% include-markdown "./_occasions/sections/suggest-actor-to-case.md" %}
+{% include-markdown "./_occasions/sections/suggest-actor-to-case.md" heading-offset=1 %}
 
-{% include-markdown "./_occasions/sections/offer-case-participant.md" %}
+{% include-markdown "./_occasions/sections/offer-case-participant.md" heading-offset=1 %}
 
-The CASE_MANAGER forwards the recommendation to the Case Owner as `Offer(CaseParticipant)`, carrying the original recommendation's ID in `origin` and the default roles it assigned.
+The original recommendation's ID is carried in the Offer's `origin`.
 
-{% include-markdown "./_occasions/sections/accept-case-participant-offer.md" %}
+{% include-markdown "./_occasions/sections/accept-case-participant-offer.md" heading-offset=1 %}
 
 The Case Owner's decision goes back to the CASE_MANAGER, which relays the outcome to the recommender.
 
-{% include-markdown "./_occasions/sections/reject-case-participant-offer.md" %}
+{% include-markdown "./_occasions/sections/reject-case-participant-offer.md" heading-offset=1 %}
 
 This handshake is a `GI` inquiry rather than a role offer.
 For the `CVDRole` delegation that uses a dedicated object type, see [Offer case participant role](case_management.md#offer-case-participant-role).
 
-{% include-markdown "./_occasions/sections/create-note.md" %}
+{% include-markdown "./_occasions/sections/create-note.md" heading-offset=1 %}
 
-{% include-markdown "./_occasions/sections/add-note-to-case.md" %}
+{% include-markdown "./_occasions/sections/add-note-to-case.md" heading-offset=1 %}
 
-{% include-markdown "./_occasions/sections/remove-note-from-case.md" %}
+{% include-markdown "./_occasions/sections/remove-note-from-case.md" heading-offset=1 %}
 
 - **Who may send:** the CASE_MANAGER accepts `Remove(Note)[target=VulnerabilityCase]` from the note's author while that author is an active participant, or from the Case Owner.
   Any other sender is refused, and the note stays in the case.

@@ -33,7 +33,7 @@ The design rationale for keeping the two vocabularies distinct is recorded in [A
 
 ## The pages
 
-Each page opens with its slice of the occasion table.
+Each page includes its slice of the occasion table under an Occasions heading.
 One section per occasion follows, stating when it applies, the wire activity to send, who may send it, the field or state that distinguishes it, its mapping status, and a rendered example.
 The four formal-model pages end with a section for each shorthand that has no dedicated wire activity.
 

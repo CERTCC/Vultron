@@ -21,6 +21,7 @@ from typing import Any
 
 import pytest
 import yaml
+from markdown.extensions import toc  # type: ignore[import-untyped]
 
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.participant_status import ParticipantStatus
@@ -528,11 +529,19 @@ def test_every_fragment_link_is_a_relative_md_link_that_resolves():
     assert checked > 0
 
 
+_HEADING = re.compile(r"^#+ (.+?)\s*$", re.M)
+_EXPLICIT_ID = re.compile(r"\{\s*#([\w-]+)[^}]*\}$")
+
+
 def _slugs(page: Path) -> set[str]:
-    return {
-        re.sub(r"[^a-z0-9]+", "-", m.group(1).lower()).strip("-")
-        for m in re.finditer(r"^#+ (.+)$", page.read_text("utf-8"), re.M)
-    }
+    """The anchors *page*'s own headings take, as MkDocs' ``toc`` makes them:
+    an explicit ``{ #id }`` attribute, or else the ``toc`` slug of the text."""
+    slugs: set[str] = set()
+    for match in _HEADING.finditer(page.read_text("utf-8")):
+        title = match.group(1)
+        explicit = _EXPLICIT_ID.search(title)
+        slugs.add(explicit.group(1) if explicit else toc.slugify(title, "-"))
+    return slugs
 
 
 def test_formal_definition_links_name_an_existing_section():
@@ -566,6 +575,10 @@ def test_table_links_target_the_group_page_and_a_generated_section(table):
         assert seen == anchors, slice_path
 
 
+#: An opening code fence of any language that ``markdown_exec`` runs.
+_EXEC_FENCE = re.compile(r"^\s*(`{3,}|~{3,})[^\n]*\bexec=", re.M)
+
+
 @pytest.mark.spec("MSM-06-001")
 def test_no_message_page_renders_its_table_at_build_time():
     """No page under ``docs/reference/messages/`` prints a mapping table
@@ -574,7 +587,7 @@ def test_no_message_page_renders_its_table_at_build_time():
     rendering = sorted(
         page.name
         for page in _MESSAGES.glob("*.md")
-        if "```python exec=" in page.read_text(encoding="utf-8")
+        if _EXEC_FENCE.search(page.read_text(encoding="utf-8"))
     )
     assert rendering == []
 
@@ -584,12 +597,30 @@ def test_no_message_page_renders_its_table_at_build_time():
 # ---------------------------------------------------------------------------
 
 _INCLUDE = re.compile(r'\{%\s*include-markdown\s+"([^"]+)"')
+_COMMENT = re.compile(r"<!--.*?-->", re.S)
+
+
+def _raw_includes(page: Path) -> list[str]:
+    """The include paths *page* names outside HTML comments, as written."""
+    text = _COMMENT.sub("", page.read_text(encoding="utf-8"))
+    return _INCLUDE.findall(text)
 
 
 def _includes(page: Path) -> list[str]:
     """The fragments *page* includes, as paths relative to the pages."""
-    found = _INCLUDE.findall(page.read_text(encoding="utf-8"))
-    return [posixpath.normpath(path) for path in found]
+    return [posixpath.normpath(path) for path in _raw_includes(page)]
+
+
+def test_every_include_path_on_a_message_page_is_page_relative():
+    """``include-markdown`` resolves a path with no ``./`` or ``../`` prefix
+    against ``docs/``, not against the page, so every include names one."""
+    paths = [
+        (page.name, path)
+        for page in sorted(_MESSAGES.glob("*.md"))
+        for path in _raw_includes(page)
+    ]
+    assert paths
+    assert [p for p in paths if not p[1].startswith(("./", "../"))] == []
 
 
 def _section(anchor: str) -> str:

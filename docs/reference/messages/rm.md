@@ -61,7 +61,8 @@ An activity and an `Add(ParticipantStatus)` that report the same move record it 
 
 - **Triggering transition:** Received, Invalid, Deferred, or Accepted → Closed ({R,I,D,A} → C).
 - **Second wire form:** a participant that joined through an Invite closes with `Reject(Invite(Actor, target=VulnerabilityCase))` ([VAM-04-014](../specs/protocol.md#vam-04-014)); see [Reject Full-Case Invite](case_management.md#reject-full-case-invite).
-  An invitee that declines its stub Invite sends `Reject(Invite(Actor, target=VulnerabilityCaseStub))` ([CM-11-007](../specs/protocol.md#cm-11-007)); see [Reject invite to case](case_management.md#reject-invite-to-case).
+- **Stub Invite decline:** an invitee that declines its stub Invite sends `Reject(Invite(Actor, target=VulnerabilityCaseStub))`, which is not an `RC` message.
+  On receipt, the CASE_MANAGER moves the invitee's RM state to Closed ([CM-11-007](../specs/protocol.md#cm-11-007)); see [Reject invite to case](case_management.md#reject-invite-to-case).
 - **Fault axis:** the `Reject(Offer(VulnerabilityReport))` activity also appears as an ordinary refusal in the fault-and-acknowledgment mapping (MSM-05-003); see [Faults and Acknowledgments](faults_and_acknowledgements.md#asreject-is-overloaded).
 
 {% include-markdown "./_occasions/sections/report-accepted.md" %}

@@ -40,8 +40,7 @@ in a way that state-machine origin is not.
 
 In the example, the CASE_MANAGER refuses a status assertion that names an impossible state and reports the fault to the sender.
 
-Status: **evolved** — the formal shorthands have no dedicated wire counterpart;
-see [MSM-05-001](../specs/protocol.md#msm-05-001).
+The formal fault shorthands have no dedicated wire counterpart ([MSM-05-001](../specs/protocol.md#msm-05-001)).
 
 ### `as:Reject` is overloaded
 

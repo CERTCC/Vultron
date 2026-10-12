@@ -25,6 +25,7 @@ construction cannot see.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import re
 from pathlib import Path
 
 import pytest
@@ -79,10 +80,13 @@ def test_exempt_entries_name_no_page():
 def test_entry_appears_on_its_designated_page(entry: SemanticEntry):
     """The entry's page includes the section of each of its occasions."""
     assert entry.page is not None
-    text = (_MESSAGES / f"{entry.page.value}.md").read_text(encoding="utf-8")
+    page = (_MESSAGES / f"{entry.page.value}.md").read_text(encoding="utf-8")
+    text = re.sub(r"<!--.*?-->", "", page, flags=re.S)
     for occasion in entry.occasions:
         section = _FRAGMENTS / "sections" / f"{occasion.anchor}.md"
-        directive = f'"./{section.relative_to(_MESSAGES).as_posix()}"'
+        directive = (
+            f'include-markdown "./{section.relative_to(_MESSAGES).as_posix()}"'
+        )
         assert directive in text, occasion.anchor
 
 

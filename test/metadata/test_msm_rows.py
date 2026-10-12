@@ -2,7 +2,7 @@
 
 The per-page mapping tables these rows used to render were retired by #4431:
 the message pages include the occasion fragments instead (MSM-06-001).  The
-rows stay, as the derived status and discriminator of each entry.
+rows stay, as the derived page, shorthands and status of each entry.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -77,11 +77,10 @@ def test_wire_summary_of_a_none_status_entry_is_its_pattern():
 # ---------------------------------------------------------------------------
 
 
-def test_collapse_row_carries_every_shorthand_and_its_discriminator():
+def test_collapse_row_carries_every_shorthand():
     row = SEMANTICS_TO_ROW[MessageSemantics.ADD_CASE_STATUS_TO_CASE]
     assert row.status == MappingStatus.COLLAPSE
     assert set(row.shorthands) == {"CP", "CX", "CA"}
-    assert row.discriminator is not None and "pxa_state" in row.discriminator
 
 
 # ---------------------------------------------------------------------------

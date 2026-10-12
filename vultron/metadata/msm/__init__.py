@@ -31,7 +31,6 @@ Public API for the ``vultron.metadata.msm`` package:
 
 from vultron.metadata.msm._mapping import (
     EXEMPTED_SEMANTICS,
-    PAGE_ROWS,
     PAGE_SLUGS,
     ROW_SPECS,
     SEMANTICS_TO_ROW,
@@ -46,7 +45,6 @@ from vultron.metadata.msm._mapping import (
 
 __all__ = [
     "PAGE_SLUGS",
-    "PAGE_ROWS",
     "MappingStatus",
     "RowSpec",
     "ROW_SPECS",

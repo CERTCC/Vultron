@@ -350,7 +350,7 @@ the page and the two derivations landed in #4429; the addressee is #4438:
 | send to (addressee) | `SemanticEntry.occasions` (ADR-0129) |
 | sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
 | page | `SemanticEntry.page`, a `MessagePage` value |
-| `MappingStatus`, discriminator | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
+| `MappingStatus`, distinguished by | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
 | "Seen in" | the include directives on workflow pages |
 
 The value objects are in `vultron/semantic_registry/_occasion.py`. An occasion
@@ -365,9 +365,9 @@ MSM-01-006 give `RI`, `RV` and `RC` a second wire form, the full-case Invite rep
 of a participant that joined through an Invite, so those shorthands are
 expansions, not direct mappings. `Create(ProcessingFault)` and
 `Reject(CaseLedgerEntry)` declare `evolved`. The `Add(ParticipantStatus)`
-discriminator is now `vf_state / d_state`: `rm_state` distinguishes none of
-`CV`, `CF` and `CD`, so no occasion names it, and its RM role is the
-second-home row on `rm.md`.
+occasions are distinguished by `vf_state` and `d_state`: `rm_state`
+distinguishes none of `CV`, `CF` and `CD`, so no occasion names it, and its RM
+role is the second-home row on `rm.md`.
 
 ### The generated artifacts (#4430)
 
