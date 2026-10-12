@@ -8,6 +8,7 @@ Sends a Stub Invite carrying the case stub and the embargo terms the invitee wou
 - **Send:** `Invite(Actor)[target=VulnerabilityCaseStub]`
 - **Sent by:** not yet checked
 - **How-to:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

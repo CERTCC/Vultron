@@ -15,7 +15,7 @@ It is written for developers who are building actors that must interoperate with
 
 The page does not explain how to run the demo or why the case moves as it does.
 [Run the FV Demo](../tutorials/fv-demo.md) carries the run-it-yourself steps, and the [FV scenario narrative](../topics/scenarios/fv.md) carries the explanation in Coordinated Vulnerability Disclosure (CVD) terms.
-Every activity named below is documented, with its canonical example, on the [Message Reference](messages/index.md) pages linked from the tables.
+Each activity table links the occasion section on the [Message Types](messages/index.md) pages that documents the activity, with its canonical example.
 
 ---
 
@@ -80,16 +80,16 @@ sequenceDiagram
     note over F,CA: ✅ M3 — Vendor holds the authoritative final case state
 
     note over F,CA: Phase 4 — Fix lifecycle
-    V->>CA: Add(ParticipantStatus Vf), Add(ParticipantStatus VF) — Fix Readiness (CF)
+    V->>CA: Add(ParticipantStatus Vf), Add(ParticipantStatus VF) — Vendor Awareness (CV), Fix Readiness (CF)
     CA-->>V: Announce(CaseLedgerEntry) ×n
     CA-->>F: Announce(CaseLedgerEntry) ×n
     note over F,CA: ✅ M4, M5 — both replicas show CS includes F
 
     note over F,CA: Phase 5 — Publication and embargo teardown
-    V->>CA: Add(ParticipantStatus Pxa) — Public Awareness (CP)
-    CA->>V: Remove(EmbargoEvent) — Embargo Termination (ET)
-    CA->>F: Remove(EmbargoEvent) — Embargo Termination (ET)
-    F->>CA: Add(ParticipantStatus Pxa) — Public Awareness (CP)
+    V->>CA: Add(ParticipantStatus Pxa) — public awareness
+    CA->>V: Remove(Event) — Embargo Termination (ET)
+    CA->>F: Remove(Event) — Embargo Termination (ET)
+    F->>CA: Add(ParticipantStatus Pxa) — public awareness
     CA-->>V: Announce(CaseLedgerEntry) ×n
     CA-->>F: Announce(CaseLedgerEntry) ×n
     note over F,CA: ✅ M6 — CS.VFdPxa · EM.EXITED on both replicas
@@ -120,14 +120,14 @@ POST /api/v2/actors/{vendor_id}/trigger/engage-case
 
 ### Activities
 
-| Activity | Formal message | `MessageSemantics` | Direction | Documented on |
-|:---------|:---------------|:-------------------|:----------|:--------------|
-| `Offer(VulnerabilityReport)` | Report Submission (RS) | `SUBMIT_REPORT` | Finder → Vendor | [RM Messages](messages/rm.md) |
-| `Create(CaseProposal)` | Create Case Proposal | `CREATE_CASE_PROPOSAL` | Vendor → Case Actor | [Case Proposal Messages](messages/case_proposal.md) |
-| `Accept(CaseProposal)` | Accept Case Proposal | `ACCEPT_CASE_PROPOSAL` | Case Actor → Vendor | [Case Proposal Messages](messages/case_proposal.md) |
-| `Create(VulnerabilityCase)` | Create Case | `CREATE_CASE` | Case Actor → Vendor, Finder | [Case Management Messages](messages/case_management.md) |
-| `Accept(Offer(VulnerabilityReport))` | Report Valid (RV) | `VALIDATE_REPORT` | Vendor → Case Actor | [RM Messages](messages/rm.md) |
-| `Join(VulnerabilityCase)` | Report/Case Accepted (RA) | `ENGAGE_CASE` | Vendor → Case Actor | [RM Messages](messages/rm.md) |
+| Activity | Occasion | Direction |
+|:---------|:---------|:----------|
+| `Offer(VulnerabilityReport)` | [Report Submission (RS)](messages/rm.md#report-submission) | Finder → Vendor |
+| `Create(CaseProposal)` | [Create case proposal](messages/case_proposal.md#create-case-proposal) | Vendor → Case Actor |
+| `Accept(CaseProposal)` | [Accept case proposal](messages/case_proposal.md#accept-case-proposal) | Case Actor → Vendor |
+| `Create(VulnerabilityCase)` | [Create case](messages/case_management.md#create-case) | Case Actor → Vendor, Finder |
+| `Accept(Offer(VulnerabilityReport))` | [Validate report](messages/rm.md#report-valid) | Vendor → Case Actor |
+| `Join(VulnerabilityCase)` | [Report/Case Accepted (RA)](messages/rm.md#report-accepted) | Vendor → Case Actor |
 
 ### What happens
 
@@ -246,11 +246,11 @@ POST /api/v2/actors/{vendor_id}/demo/add-note-to-case
 
 ### Activities
 
-| Activity | Formal message | `MessageSemantics` | Direction | Documented on |
-|:---------|:---------------|:-------------------|:----------|:--------------|
-| `Create(Note)` | General Inquiry (GI) | `CREATE_NOTE` | Participant → Case Actor | [General Messages](messages/general.md) |
-| `Add(Note, target=VulnerabilityCase)` | General Inquiry (GI) | `ADD_NOTE_TO_CASE` | Participant → Case Actor | [General Messages](messages/general.md) |
-| `Announce(CaseLedgerEntry)` | Announce Case Ledger Entry | `ANNOUNCE_CASE_LEDGER_ENTRY` | Case Actor → every other participant | [Ledger Replication Messages](messages/ledger_replication.md) |
+| Activity | Occasion | Direction |
+|:---------|:---------|:----------|
+| `Create(Note)` | [Create note](messages/general.md#create-note) | Participant → Case Actor |
+| `Add(Note)[target=VulnerabilityCase]` | [Add note to case](messages/general.md#add-note-to-case) | Participant → Case Actor |
+| `Announce(CaseLedgerEntry)` | [Announce case ledger entry](messages/ledger_replication.md#announce-case-ledger-entry) | Case Actor → every other participant |
 
 ### What happens
 
@@ -277,9 +277,10 @@ POST /api/v2/actors/{vendor_id}/demo/notify-fix-ready
 
 ### Activities
 
-| Activity | Formal message | `MessageSemantics` | Direction | Documented on |
-|:---------|:---------------|:-------------------|:----------|:--------------|
-| `Add(ParticipantStatus, target=CaseParticipant)` | Fix Readiness (CF) | `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` | Vendor → Case Actor | [CS Messages](messages/cs.md) |
+| Activity | Occasion | Direction |
+|:---------|:---------|:----------|
+| `Add(ParticipantStatus)[target=CaseParticipant]`, `vf_state` = `Vf` | [Vendor Awareness (CV)](messages/cs.md#vendor-awareness) | Vendor → Case Actor |
+| `Add(ParticipantStatus)[target=CaseParticipant]`, `vf_state` = `VF` | [Fix Readiness (CF)](messages/cs.md#fix-readiness) | Vendor → Case Actor |
 
 ### What happens
 
@@ -309,15 +310,19 @@ POST /api/v2/actors/{finder_id}/demo/notify-published
 
 ### Activities
 
-| Activity | Formal message | `MessageSemantics` | Direction | Documented on |
-|:---------|:---------------|:-------------------|:----------|:--------------|
-| `Add(ParticipantStatus, target=CaseParticipant)` | Public Awareness (CP) | `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` | Vendor → Case Actor; Finder → Case Actor | [CS Messages](messages/cs.md) |
-| `Remove(EmbargoEvent, origin=VulnerabilityCase)` | Embargo Termination (ET) | `REMOVE_EMBARGO_EVENT_FROM_CASE` | Case Actor → Vendor, Finder | [EM Messages](messages/em.md) |
+| Activity | Occasion | Direction |
+|:---------|:---------|:----------|
+| `Add(ParticipantStatus)[target=CaseParticipant]`, its case status at `Pxa` | none yet; see the note below | Vendor → Case Actor; Finder → Case Actor |
+| `Remove(Event)` | [Embargo Termination (ET)](messages/em.md#embargo-termination) | Case Actor → Vendor, Finder |
+
+!!! note "Public awareness inside a participant status"
+    The demo reports public awareness as a participant status whose embedded case status carries `pxa_state` `Pxa`.
+    The occasion table has no row for that form yet ([#4569](https://github.com/CERTCC/Vultron/issues/4569)): its [Public Awareness (CP)](messages/cs.md#public-awareness) occasion is `Add(CaseStatus)[target=VulnerabilityCase]`.
 
 ### What happens
 
 1. The Vendor's trigger sends `Add(ParticipantStatus)` with the public-path state `Pxa`.
-2. The Case Actor records the status and, because the report of public awareness comes from the Case Owner, terminates the embargo: it sends `Remove(EmbargoEvent)` to every participant and commits an `add_case_status_to_case` entry carrying `EM.EXITED`.
+2. The Case Actor records the status and, because the report of public awareness comes from the Case Owner, terminates the embargo: it sends `Remove(Event)` to every participant and commits an `add_case_status_to_case` entry carrying `EM.EXITED`.
 3. The Finder's trigger sends its own `Add(ParticipantStatus)` with `Pxa`.
 
 ### Milestone M6
@@ -341,9 +346,9 @@ POST /api/v2/actors/{vendor_id}/demo/close-case
 
 ### Activities
 
-| Activity | Formal message | `MessageSemantics` | Direction | Documented on |
-|:---------|:---------------|:-------------------|:----------|:--------------|
-| `Leave(VulnerabilityCase)` | Close Case | `CLOSE_CASE` | Finder → Case Actor; Vendor → Case Actor | [Case Management Messages](messages/case_management.md) |
+| Activity | Occasion | Direction |
+|:---------|:---------|:----------|
+| `Leave(VulnerabilityCase)` | [Close case](messages/case_management.md#close-case) | Finder → Case Actor; Vendor → Case Actor |
 
 ### What happens
 

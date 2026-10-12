@@ -7,6 +7,7 @@ Adds a vulnerability report to the case named by the target.
 - **When…** the Case Owner links a further report to an existing case
 - **Send:** `Add(VulnerabilityReport)[target=VulnerabilityCase]`
 - **Sent by:** the case owner
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

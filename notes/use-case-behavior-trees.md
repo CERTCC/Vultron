@@ -11,7 +11,6 @@ related_specs:
   - specs/use-case-organization.yaml
 related_notes:
   - notes/bt-integration.md
-  - notes/domain-model-separation.md
   - notes/use-case-protocol.md
 relevant_packages:
   - transitions
