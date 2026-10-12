@@ -117,9 +117,9 @@ def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
       natively and fans them out (``CommitNativeLedgerEntriesNode``, ADR-0041
       AC-4); the port is that fan-out's only channel (ARCH-04-004), and its
       outbox order relative to ``Create(VulnerabilityCase)`` is CP-09-009's.
-    - ``CLOSE_CASE`` fans out ``case_fully_closed`` (CM-23-002) and renders the
-      CASE_MANAGER's own ``RM.CLOSED`` status into the snapshot CM-23-005
-      requires (``CommitCaseActorRMClosedEntryNode``, ISSUE-2505).
+    - ``CLOSE_CASE`` fans out ``case_fully_closed`` (CM-23-002) and renders
+      each RM closure status, the leaver's and the CASE_MANAGER's own, into
+      the snapshots CM-23-001/005 require (``CommitRMClosureEntriesNode``).
     """
 
     def _factory(dl: DataLayer) -> dict[str, Any]:

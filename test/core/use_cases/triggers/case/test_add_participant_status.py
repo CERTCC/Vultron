@@ -1140,10 +1140,11 @@ class TestCreateParticipantStatusNode:
     def test_write_node_validates_without_the_trigger_guard(self):
         """AC-3: constructed directly, the write node still refuses and reports.
 
-        Five production call sites reach this node without passing through
+        Production call sites reach this node without passing through
         ``ValidateTriggerTransitionsNode`` (``develop_fix.py``,
-        ``deploy_fix.py``, ``close_case_effect.py``, two in ``leave.py``), so
-        for those its check is the only validation.  ``_run_node()`` builds the
+        ``deploy_fix.py``, and the Leave closure writer
+        ``participant/rm_closure.py``), so for those its check is the only
+        validation.  ``_run_node()`` builds the
         node alone, reproducing that shape.
         """
         bt_result, result_out = self._run_node(
@@ -1178,14 +1179,11 @@ class TestCreateParticipantStatusNode:
         )
 
     def test_force_rm_state_exempts_only_the_rm_rule(self):
-        """The case-closure override advances RM past the ladder.
+        """The ``force_rm_state`` override advances RM past the ladder.
 
-        This is the behaviour ``close_case_effect.py`` and ``leave.py`` rely on
-        to advance a departing participant to ``RM.CLOSED``.  It is a sanctioned
-        self-declared-Leave override (CM-23-012, resolving #3106): the RM
-        adjacency rule is legitimately suppressed for the single departing actor.
-        The point of the test is that the exemption is narrow — every other rule
-        still applies.
+        Closure no longer uses it (RMB-14-005, ADR-0114); the bootstrap write
+        in ``proposal_reporter.py`` is its only user.  The point of the test is
+        that the exemption is narrow — every other rule still applies.
         """
         from vultron.core.behaviors.case.nodes.participant import (
             CreateParticipantStatusNode,

@@ -17,13 +17,11 @@ in its reason lands; see ``notes/spec-authoring-rules.md`` § "Never Raise the
 Ceiling — Use a Strict ``xfail``".
 """
 
-import inspect
 import pkgutil
 
 import pytest
 
 import vultron.core.ports as ports_pkg
-from vultron.core.behaviors.case.nodes import close_case_effect
 
 
 def _has_dereference_port() -> bool:
@@ -49,12 +47,3 @@ def test_a_port_dereferences_an_actor_by_reference():
 )
 def test_production_dereferences_an_object_by_api_call():
     assert _has_dereference_port()
-
-
-@pytest.mark.spec("CM-23-016")
-@pytest.mark.xfail(
-    strict=True,
-    reason="CM-23-016: the close-case fan-out still walks the RM table. Tracked by #4210 (source #4091).",
-)
-def test_replica_closure_does_not_re_derive_rungs_from_the_rm_table():
-    assert "RMClosureWriter" not in inspect.getsource(close_case_effect)
