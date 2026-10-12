@@ -249,6 +249,23 @@ Each citation is re-pointed to the narrowest new story that states its need. A
 citation stays on the old ID only when the general reading is genuinely what
 the requirement serves; the aim is zero. The old pages are marked superseded.
 
+## Implementation Tasks
+
+Created 2026-10-12 under Epic #2717, in dependency order; each is blocked by the
+ones it reads from.
+
+| Task | Does | Runs after |
+|---|---|---|
+| #4506 | Generated table and matrix, cited-story-exists lint, `story-gaps` report, TRACE spec amendments | — |
+| #4507 | Persona hierarchy in the glossary, seed `story_2026` pages, support level retired | #4506 |
+| #4514 | Per-file advisory for project and process requirements with no story | #4507 |
+| #4508 | Drafting: core protocol text | #4507, #4483 |
+| #4510 | Drafting: ledger and replication | #4507, #4484 |
+| #4512 | Drafting: case management and state machines | #4507, #4484 |
+| #4513 | Drafting: implementation architecture | #4507, #4485 |
+| #4516 | Split catch-all stories 088, 045, 014 | the four drafting Tasks |
+| #4517 | Gate covers `MUST_NOT`; last suppressions retired | the four drafting Tasks |
+
 ## Relation to other work under the Epic
 
 - **#4483–#4486** (rationale backfill by area) run first per area; see above.
