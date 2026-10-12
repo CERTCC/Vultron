@@ -296,25 +296,33 @@ MS-14). The `decision-audit` skill hunts for exactly this contradiction.
 
 ### ADR Lifecycle: Epochs and Edit Tiers
 
-ADR-0120 ties `status` to age. Frontmatter carries `created` (immutable),
-`updated` (material edits only) and `revision` (integer, bumped per material
-edit). Epochs are measured from `updated`:
+ADR-0120 ties `status` to how far a decision has been built on, with timers as a
+backstop. Frontmatter carries `created` (immutable), `updated` (material edits
+only) and `revision` (integer, bumped per material edit). The timers are
+measured from `updated`:
 
-| Epoch | Age | `status` | Editing |
+| Epoch | Ends | `status` | Editing |
 |---|---|---|---|
-| 1 | under 72 hours | `proposed` | edit in place freely |
-| 2 | 72 hours to day 10 | `accepted-provisional` | ask the human: edit in place or supersede |
-| 3 | day 10 onward | `accepted` | supersede (below) |
+| 1 | first test-verified dependent, or day 14 | `proposed` | edit in place freely |
+| 2 | day 28 | `accepted-provisional` | ask the human: edit in place or supersede |
+| 3 | never | `accepted` | supersede (below) |
 
-A merged dependent implementation may harden an ADR to epoch 3 early, and a
-human may override the computed status. Agents implement against `proposed`
-ADRs; the mandatory human touch is the epoch-2 ask.
+A **test-verified dependent** is a spec requirement that cites the ADR in `adr:`
+and whose verification names a test file that exists. The pull request that
+creates the first one (a new requirement, an `adr:` or verification added to an
+existing one, or the named test file) sets the ADR to `accepted-provisional` in
+the same change (MS-14-010). A material edit restarts the timers but not the
+dependency. Status only moves forward: the computed epoch is a floor, and a
+promotion ahead of it needs a `status_override:` the pull request adds or
+changes (MS-14-012). Agents implement against `proposed` ADRs; the mandatory
+human touch is the epoch-2 ask. The tooling for revision 2 is #4501; until it
+lands, the checks below still apply the old 3- and 10-day boundaries.
 
 **The clock never fails a merge-blocking check.** An ADR crossing a boundary
 changes no commit, so a check reading today's date turns `main` red with no one to
 blame (ADR-0110, 2026-10-08). A PR that materially edits an ADR (or adds one) owns
-its status on that date, enforced against the merge base. Every other drifted
-status is reported by the hourly `adr-status-drift` workflow through one
+its status on that date, enforced against the merge base. Every other status
+behind its epoch is reported by the hourly `adr-status-drift` workflow through one
 self-closing issue, and a human flips it (MS-14-007).
 
 **Edit tiers.** Editorial fixes and append-only annotations are allowed in any
@@ -329,7 +337,8 @@ own number.
 **What is checked (MS-14-007, MS-14-009, MS-14-010, MS-15-006).** Three fields
 are required on every ADR (MS-14-008); `date` is the older spelling of `created`
 and may stay.
-Epochs are counted in whole days (3 and 10) because `updated` is a date.
+Epochs are counted in whole days (3 and 10 today; 14 and 28 once #4501 lands)
+because `updated` is a date.
 
 - `spec-lint` fails an ADR whose `status` differs from its epoch, unless the ADR
   carries `status_override:` with the human's reason. Retired and rejected ADRs
