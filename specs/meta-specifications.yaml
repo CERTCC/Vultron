@@ -764,27 +764,28 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A ratchet test MUST assert that the number of specs carrying
-      `lint_suppress: [missing_story_reference]` — whether or not SR-11-003 would fire on
-      them — stays at or below a pinned ceiling, and that the ceiling is no higher than
-      the live count, so that raising it to accommodate new suppressions fails the test.
+      No pull request may add a `lint_suppress: [missing_story_reference]` carrier: a
+      PR-only growth guard MUST fail when a spec carries the code at the PR head but did not
+      at the merge base with the base branch, whether or not SR-11-003 would fire on it,
+      and MUST list each such spec. Removing a suppression MUST NOT fail the guard, and the
+      guard MUST NOT compare against a committed count.
     rationale: >-
-      Suppression is the escape hatch SR-11-003 deliberately provides, so it cannot be
-      forbidden outright — but an un-ratcheted escape hatch is how the corpus accumulated its
-      backlog. A decreasing ceiling keeps the remaining suppressions visible as debt. It is
-      asserted tight rather than merely sufficient because a test cannot otherwise notice its
-      own constant being edited upward; slack is headroom the corpus regrows into. Counting
-      every spec carrying the code surfaces dead suppressions too. The ceiling is down-only and
-      is its own ceiling, separate from the one for any other suppression code: the
-      `missing_story_reference` suppressions that remain after the kind reversal of #3943 are
-      counted on their own so they cannot trade places with another code's count.
-    verification: A ratchet test under `test/architecture/` fails both when the suppression count
-      exceeds its pinned constant and when the constant exceeds the live count, mirroring
-      `test/metadata/test_agents_md_size_ratchet.py::test_known_overage_ceilings_are_tight`.
+      Suppression is the escape hatch SR-11-003 provides, so it cannot be forbidden, but an
+      unguarded escape hatch is how the backlog accumulated. Each carrier is recorded on its
+      own spec, so the guard compares carrier sets and commits no number: a pinned count
+      races concurrent PRs and a one-sided ceiling collects slack (`notes/testing-pitfalls.md`).
+      Every carrier counts, dead ones too; `spec-lint` prints the total. MS-12-008 closes the
+      other code, so the two cannot trade places.
+    verification: >-
+      `test/architecture/test_spec_kind_ratchet.py::test_no_pr_adds_a_missing_story_suppression`
+      fails on each spec that gained the code since the merge base, and
+      `test/metadata/specs/test_growth_guard.py` exercises the guard on fixture repositories
+      for an added, removed and unchanged suppression, a relabel in and out, and the
+      logged skip when no base ref is available.
     relationships:
     - rel_type: constrains
       spec_id: SR-11-003
-      note: ratchets the suppression escape hatch SR-11-003 provides
+      note: guards the suppression escape hatch SR-11-003 provides against growth
     - rel_type: depends_on
       spec_id: SR-11-004
       note: the same suppression code silences this advisory, so dead suppressions are in scope
@@ -797,24 +798,24 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A ratchet test MUST hold the number of specs carrying
-      `lint_suppress: [protocol_kind_with_code_reference]` to a pinned ceiling under the
-      same two conditions MS-12-007 places on `missing_story_reference`: the live count
-      stays at or below the ceiling, and the ceiling is no higher than the live count.
+      A test MUST assert that no spec in the live corpus carries
+      `lint_suppress: [protocol_kind_with_code_reference]`.
     rationale: >-
-      MS-12-006 adds a second escape hatch next to the one MS-12-007 ratchets. If only one
-      of the two is counted, a pass can swap suppressions from the counted code to the
-      uncounted one: one total falls, the other grows, and every gate stays green.
-    verification: The ratchet in `test/architecture/test_spec_kind_ratchet.py` asserts both
-      conditions for `protocol_kind_with_code_reference` through the same parametrized tests
-      that assert them for `missing_story_reference`.
+      MS-12-006 adds a second escape hatch next to the one MS-12-007 guards. If only one of
+      the two is held, a pass can swap suppressions from the guarded code to the unguarded
+      one: one total falls, the other grows, and every gate stays green. The code has never
+      had a carrier, so it is held at that terminal value outright rather than by a growth
+      guard; admitting a carrier means amending this requirement.
+    verification: >-
+      `test/architecture/test_spec_kind_ratchet.py::test_no_spec_carries_protocol_kind_with_code_reference`
+      loads the live corpus and fails, naming each carrier, when any spec carries the code.
     relationships:
     - rel_type: refines
       spec_id: MS-12-007
-      note: applies MS-12-007's ceiling to MS-12-006's suppression code
+      note: closes MS-12-006's suppression code alongside the code MS-12-007 guards
     - rel_type: constrains
       spec_id: MS-12-006
-      note: ratchets the suppression escape hatch MS-12-006 provides
+      note: holds the suppression escape hatch MS-12-006 provides at no carrier
     adr:
     - ADR-0038
     tags:

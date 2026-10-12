@@ -88,7 +88,7 @@ def test_spec_reading_tests_carry_spec_corpus_marker() -> None:
     """Every test function that reads from specs/ MUST have @pytest.mark.spec_corpus.
 
     Violation means a specs-only PR will silently skip that test, potentially
-    missing a regression in the coverage ratchet or lint check (Bug #2903).
+    missing a regression in the coverage guard or lint check (Bug #2903).
     """
     violations: list[str] = []
 

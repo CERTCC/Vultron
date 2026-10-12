@@ -122,7 +122,7 @@ Use neutral names: `MockEnum`, `ExampleState`, `FixtureEnum`. Enforced by
 
 (SR-05-004, ISSUE-2117)
 
-Without a marker the CI uncovered-count ratchet (SR-05-005,
+Without a marker the PR-only coverage guard (SR-05-005,
 `test/architecture/test_spec_coverage_ratchet.py`) cannot enforce coverage, so
 the conformance-critical requirement becomes unverifiable. Add
 `@pytest.mark.spec("<ID>")` to every test exercising a `kind: protocol` entry;
