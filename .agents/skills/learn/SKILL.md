@@ -110,9 +110,12 @@ that the cost of a full scan is justified on every invocation.
    makes the two skills disagree about whether `learn` has input.
 
 3. Invoke `orient-agent` then `deepen-context` for full context: the spec map
-   plus the specs governing the learnings and Concerns in scope, plan files, docs/adr/, notes/, AGENTS.md, and a code scan. Because
-   Phase 0 has already refreshed the codebase docs, `orient-agent`/`deepen-context`
-   will read up-to-date architecture and structure information.
+   plus the specs governing the learnings and Concerns in scope, plan files,
+   notes/, AGENTS.md, and a code scan. `deepen-context` routes through
+   decision records by title and `adr:` edge only, so read in full any record
+   body this run writes to (Phase 4 below). Because Phase 0 has already
+   refreshed the codebase docs, `orient-agent`/`deepen-context` will read
+   up-to-date architecture and structure information.
 
 > `plan/incoming/learnings/` is an ephemeral queue. Files are moved to
 > `plan/history/YYMM/learning/` after archiving. Any critical insight
@@ -281,6 +284,8 @@ evaluated and rejected; skip it for uncontested rules (MS-11-002, MS-11-005).
 When both are created, cross-reference them: cite the ADR in the spec's per-requirement
 `rationale` field (per MS-11-004 — not the spec-group `description`), and list the
 generated spec IDs in the ADR's "More Information" section (MS-11-004).
+Read the body of every record you cross-reference before you edit it, and weigh
+it by `.agents/skills/shared/weighing-decision-records.md`.
 
 ### Phase 5 — Update Design Notes (`notes/`) and `docs/`
 

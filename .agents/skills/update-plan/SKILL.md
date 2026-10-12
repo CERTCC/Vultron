@@ -53,8 +53,10 @@ one rule: **route freely, calve only with a human.**
 ### Phase 1 — Load Context
 
 Invoke the `orient-agent` skill, then `deepen-context` to load the governing
-specs, relevant plan files, docs/adr/, notes/, AGENTS.md, and scan vultron/ and
-test/.
+specs, relevant plan files, notes/, AGENTS.md, and scan vultron/ and test/.
+`deepen-context` routes through decision records by title and `adr:` edge.
+Gap analysis compares specs and notes with the code, and leaves record bodies
+closed.
 
 Gap analysis needs broader spec coverage than one task. Walk the spec map
 from `orient-agent` one topic at a time with

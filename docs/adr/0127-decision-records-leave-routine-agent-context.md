@@ -177,4 +177,4 @@ This decision is realized by the implementation issues under concern #4389, in o
 
 Revisit if the structured `adr:` edges prove too sparse to replace the prose hints the loading step loses, or if the written exception list grows to the point that most work is covered by an exception — either would mean bodies are routine context again under another name.
 
-Generated spec requirements: none at this revision. The forward-only check will carry its own requirement, with a verification clause, in the pull request that builds it.
+Generated spec requirements: MS-11-007 (no detail-number citations), MS-15-006 and MS-15-007 (the forward-only reference check), MS-11-008 (the loading rule and its exception list) and SR-07-017 (the record-to-requirements selector the loading rule uses).

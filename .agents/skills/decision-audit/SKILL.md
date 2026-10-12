@@ -109,7 +109,9 @@ Invoke `deepen-context` with domain hints derived from the candidate's title.
 
 - **ADR candidate**: read the full ADR, every spec whose `rationale` or `adr:`
   edge cites it, the dependent notes files, and representative implementing
-  code.
+  code. `deepen-context` gives you the edges but not the body, because it
+  routes by title and `adr:` edge only. Read the body yourself and weigh it by
+  `.agents/skills/shared/weighing-decision-records.md`.
 - **Spec-group candidate**: read the whole group, its `relationships` targets
   and inbound references, the ADR(s) it derives from, and the code + tests that
   implement it. Pay special attention to whether the code actually does what
@@ -222,8 +224,9 @@ BODY   = What the decision claimed, what current understanding shows,
 ### ADR archive convention
 
 Retired ADRs live in `docs/adr/archived/` so agents do not meet outdated
-decisions in the default `docs/adr/` sweep (`deepen-context` reads
-`docs/adr/index.md` and the live `docs/adr/` set only).
+decisions when they route through records (`deepen-context` greps the live
+sections of `docs/adr/index.md`, and `adr-back-edges` audits only live
+records).
 When archiving:
 
 - keep the original filename, move it under `docs/adr/archived/`;

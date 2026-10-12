@@ -4,8 +4,9 @@ description: >
   Load task-specific context after the target issue is known. The caller
   passes focus hints (e.g., "wire layer", "BT integration", "embargo
   lifecycle") and this skill reads the relevant glossary sections, notes
-  files, ADRs, and codebase reference files, and loads the governing specs
-  (emitting a Spec manifest). Run after orient-agent, once the issue to be worked has been
+  files, and codebase reference files, routes through decision records by
+  title and `adr:` edge, and loads the governing specs (emitting a Spec
+  manifest). Run after orient-agent, once the issue to be worked has been
   selected and read. Replaces study-project-docs Phase B.
 ---
 
@@ -57,38 +58,65 @@ Always-relevant notes for implementation work:
 Read additional notes files based on focus hints. When in doubt, read
 rather than skip — missing context causes incorrect implementation.
 
-### Step 2 — Read relevant ADRs
+### Step 2 — Route through decision records by title and edge
 
-Read the ADR index (`docs/adr/index.md`), then identify and read any ADRs
-relevant to the current task. Focus on ADRs whose titles match the task's
-domain (e.g., behavior trees, hexagonal architecture, ActivityStreams,
-DataLayer). Read the full ADR file for any decision that is in scope — except
-that the largest ADRs run past 1000 lines, so for those grep for the task's
-terms and read the sections around the hits.
+A decision record (ADR) is history: what was decided and why, as of its date
+(ADR-0127). Specs and notes carry the current rule. Route through records by
+their titles and the `adr:` edges that requirements carry, and leave the bodies
+closed:
 
-**Weight each ADR by how settled it actually is — do not treat every ADR as
-equally solid fact.** An ADR that is genuinely `status: accepted`, not
-contradicted by its own prose, and not violated by the code prevents
-re-litigating a settled choice: build on it, don't reopen it. But an ADR is
-**challengeable — validate it against the current code before relying on it**
-when any of these hold:
+1. **Titles.** Grep the generated sections of `docs/adr/index.md`, from
+   `## Accepted ADRs` down, for the focus-hint terms. Each line gives a
+   record's number and title, and its section gives the status. The preamble
+   above those sections is authoring guidance, so skip it.
+2. **Edges.** Load the requirements that each in-scope record generated:
 
-- its `status:` is blank, `proposed`, `deprecated`, or `superseded`;
-- its `status:` says `accepted` but the prose hedges (e.g. "formed in sand",
-  "not concrete", "provisional", "forward-looking", "SHOULD refine this ADR");
-- the section it sits under in `docs/adr/index.md` disagrees with its own
-  `status:` field;
-- the code you are about to touch appears to contradict what the ADR asserts.
+   ```bash
+   PYTHONPATH= uv run spec-dump --adr ADR-NNNN,ADR-MMMM --text
+   ```
 
-When a relevant ADR is challengeable, say so to the caller and check the claim
-against the code rather than inheriting the premise. If the ADR looks wrong or
-stale — not just imprecise for your task — that is a landmine worth routing to
-the `decision-audit` skill rather than quietly working around it.
+   Carry their groups into Step 3 as selected groups. A requirement that
+   cites a `proposed` or `accepted-provisional` record rests on an unvalidated
+   decision, so say that to the caller.
+3. **Prose-only records.** Some live records have no `adr:` edge, and are
+   reached only by a citation in `specs/` or `notes/`. For each one,
+   `spec-dump` prints `note: no requirement names ADR-NNNN in adr:`. Run
+   `grep -rn ADR-NNNN specs/ notes/` and read the files it names in Step 1
+   or Step 3. They state the rule in full (MS-11-007). A record with no
+   citation at all is in `RECORD_ONLY_EXEMPTIONS`
+   (`vultron/metadata/adr/back_edges.py`). Those records are about how
+   decision records are kept, and routine work needs nothing from them.
+
+Step 2 is done when every in-scope record is routed. Each one goes to
+requirements via its edges, to the specs or notes that cite it, or is
+confirmed record-only. If the task turns on whether an alternative was already
+weighed and rejected, or a requirement and its record seem to disagree, hand
+it to the caller or to `decision-audit`. Those are questions about the record
+itself.
+
+#### Skills that read record bodies
+
+The routing above is for routine task context. The skills below make the
+record their object of work, so they keep full access and read bodies in
+full. Each one weighs what it reads by
+`.agents/skills/shared/weighing-decision-records.md`:
+
+| Skill | Why it reads bodies |
+|---|---|
+| `decision-audit` | It re-derives a record's premise adversarially, so the reasoning and the rejected options are the thing under audit. |
+| `create-architectural-decision-record` | It writes and revises records, and it must read the neighbouring records to avoid duplicates and to set `supersedes:` links. It lives outside this repository, in the user's skills. |
+| `domain-modeling` | It records and edits ADRs while sharpening the domain model, for the same reasons as record authoring. It lives outside this repository, in the user's skills. |
+| `learn` | It writes the "Generated spec requirements" line of a record's More Information section (MS-11-004), and decides whether a lesson is a spec or a record. |
+| `plan-issue` | It decides whether a plan needs a new record, and drafts one. It must read an existing record's considered options before it re-proposes a choice that was already settled. |
+| `pr-triage` | Its ADR check fails a change that contradicts a record without an amendment. That verdict needs the record's decision outcome. |
+
+If this list grows until most work falls under it, bodies are routine context
+again under another name. ADR-0127 names that as its revisit trigger.
 
 ### Step 3 — Load governing specs (REQUIRED)
 
-This step runs after notes and ADRs because they cite spec IDs and sharpen
-the focus hints; it runs before the code scan so requirements shape what
+This step runs after notes and the record routing because they cite spec IDs
+and sharpen the focus hints; it runs before the code scan so requirements shape what
 the scan looks for. Do not skip it, even for small tasks.
 
 Always pass `--text`. Without it every load is a single line of JSON, so
