@@ -2399,7 +2399,7 @@ groups:
       The EM transitions of EMB-18-005 MUST be held as one declarative table,
       and applying an embargo register step MUST refuse, with no write, a step
       whose EM move is not in it. The CASE_MANAGER and every replica MUST
-      apply the same check, as part of the one replay function (ADR-0124).
+      apply the same check, as part of the one apply function (ADR-0124).
     rationale: >-
       A check only in tests protects only the register states a test reaches.
       Refusing at the step makes a register defect fail when it happens, on

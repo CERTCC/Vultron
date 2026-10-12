@@ -29,7 +29,7 @@ The question: **how does the EM state machine relate to the embargo register, an
 ## Decision Drivers
 
 - The EM state machine is part of the protocol model and must not be broken by a change to how its state is stored.
-- EM is never set by fiat: it is computed from the register (ADR-0122), and the register changes only by replaying committed entries (ADR-0124).
+- EM is never set by fiat: it is computed from the register (ADR-0122), and the register changes only by applying committed entries (ADR-0124).
 - A defect in the register layer must surface as a refused change, not as a silent illegal EM move.
 - `PROPOSED` and `REVISE` are the same negotiation, differing only in whether an embargo is already in force.
 - A participant's consent is to an embargo's terms; a decision that does not change those terms should not discard it.
@@ -55,7 +55,7 @@ Chosen option: "The EM transition table is restored and every register change is
 EM is computed from the register with the derivation table of ADR-0122 and is never set directly.
 The EM transition table is normative: every register step maps to one EM trigger, and the EM state before and after the step MUST be one of the table's moves for that trigger.
 A step whose EM move is not in the table is refused with no write, in the same place a broken register invariant is refused.
-Because the check sits in the register step, the CASE_MANAGER and every replica apply it through the one replay function (ADR-0124).
+Because the check sits in the register step, the CASE_MANAGER and every replica apply it through the one apply function (ADR-0124).
 A step the register allows but the table refuses is a defect in the register layer, not a gap in the EM model.
 
 | Register step | EM trigger |
@@ -109,7 +109,7 @@ The owner reads the timed-out rows and decides.
 
 - ADR-0122 is amended: its "EM is derived from the register" section no longer retires the EM transition table, and points here.
   Its register, consent rows, derivation table and messages stand.
-- ADR-0124 is unchanged; the EM check is part of the replay function's register step.
+- ADR-0124 is not changed by this decision; the EM check is one of the starting-state checks its apply function makes when it applies a register entry (ADR-0124 revision 2).
 - EMB-06-001 (receive ER), EMB-02-001 (receive EA), EMB-04-001 (receive EJ) and EMB-05-001 (receive EC) are amended for the multi-proposal moves: each leaves EM in `PROPOSED` or `REVISE` while another proposal is open.
   EMB-16-001 is read the same way.
 
