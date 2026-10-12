@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import re
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -56,6 +57,28 @@ class ProtocolCoverageReport:
         return 100.0 * self.covered_count / self.total
 
 
+def marked_ids_in(sources: Iterable[str]) -> frozenset[str]:
+    """Spec IDs referenced by ``@pytest.mark.spec`` markers in *sources*.
+
+    Each item of *sources* is one file's text. A plain regex pass; no AST.
+    """
+    return frozenset(
+        m.group(1)
+        for source in sources
+        for m in SPEC_MARKER_RE.finditer(source)
+    )
+
+
+def _read_sources(test_root: Path) -> Iterator[str]:
+    for py_file in sorted(test_root.rglob("*.py")):
+        if "__pycache__" in py_file.parts:
+            continue
+        try:
+            yield py_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+
 def collect_marked_ids(test_root: Path) -> frozenset[str]:
     """Scan ``*.py`` files under *test_root* and return referenced spec IDs.
 
@@ -68,17 +91,23 @@ def collect_marked_ids(test_root: Path) -> frozenset[str]:
         Frozen set of all spec ID strings referenced by ``@pytest.mark.spec``
         markers found under *test_root*.
     """
-    ids: set[str] = set()
-    for py_file in sorted(test_root.rglob("*.py")):
-        if "__pycache__" in py_file.parts:
-            continue
-        try:
-            source = py_file.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        for m in SPEC_MARKER_RE.finditer(source):
-            ids.add(m.group(1))
-    return frozenset(ids)
+    return marked_ids_in(_read_sources(test_root))
+
+
+def _coverage_report(
+    registry: SpecRegistry, marked_ids: frozenset[str]
+) -> ProtocolCoverageReport:
+    protocol_ids = frozenset(
+        spec_id
+        for spec_id, spec in registry.all_specs.items()
+        if spec.kind == SpecKind.PROTOCOL
+    )
+    covered_ids = protocol_ids & marked_ids
+    return ProtocolCoverageReport(
+        total=len(protocol_ids),
+        covered_count=len(covered_ids),
+        uncovered=sorted(protocol_ids - covered_ids),
+    )
 
 
 def compute_protocol_coverage(
@@ -95,31 +124,30 @@ def compute_protocol_coverage(
         :class:`ProtocolCoverageReport` with covered/uncovered counts and the
         sorted list of uncovered protocol-kind spec IDs.
     """
-    protocol_ids = frozenset(
-        spec_id
-        for spec_id, spec in registry.all_specs.items()
-        if spec.kind == SpecKind.PROTOCOL
-    )
-    marked_ids = collect_marked_ids(test_root)
-    covered_ids = protocol_ids & marked_ids
-    uncovered = sorted(protocol_ids - covered_ids)
-    return ProtocolCoverageReport(
-        total=len(protocol_ids),
-        covered_count=len(covered_ids),
-        uncovered=uncovered,
-    )
+    return _coverage_report(registry, collect_marked_ids(test_root))
 
 
-def uncovered_protocol_ids(repo_root: Path) -> frozenset[str]:
+def uncovered_protocol_ids(
+    repo_root: Path, *, test_sources: Iterable[str] | None = None
+) -> frozenset[str]:
     """``kind: protocol`` IDs under *repo_root* that no test marker covers.
 
     The per-item extractor behind the SR-05-005 growth guard
     (:func:`vultron.metadata.specs.growth_guard.added_since_base`): it reads
     ``specs/`` and ``test/`` under *repo_root*, so the same function runs on
     the working tree and on a materialized base tree.
+
+    Args:
+        repo_root: Tree holding ``specs/`` (and ``test/`` unless
+            *test_sources* is given).
+        test_sources: Test file texts already in memory, used instead of
+            reading ``test/`` — the architecture suite passes its shared
+            corpus here (TB-13-001).
     """
-    report = compute_protocol_coverage(
-        load_registry(repo_root / "specs"), repo_root / "test"
+    if test_sources is None:
+        test_sources = _read_sources(repo_root / "test")
+    report = _coverage_report(
+        load_registry(repo_root / "specs"), marked_ids_in(test_sources)
     )
     return frozenset(report.uncovered)
 

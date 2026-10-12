@@ -128,6 +128,7 @@ def coverage_repo(tmp_path):
     )
 
 
+@pytest.mark.spec("SR-05-005")
 def test_coverage_unchanged_adds_nothing(coverage_repo):
     check = _coverage(coverage_repo)
     assert check.skipped is None
@@ -135,6 +136,7 @@ def test_coverage_unchanged_adds_nothing(coverage_repo):
     assert check.head_total == 1
 
 
+@pytest.mark.spec("SR-05-005")
 def test_coverage_new_protocol_spec_without_marker_is_added(coverage_repo):
     _write_specs(
         coverage_repo,
@@ -146,11 +148,13 @@ def test_coverage_new_protocol_spec_without_marker_is_added(coverage_repo):
     assert _coverage(coverage_repo).added == {"TST-01-004"}
 
 
+@pytest.mark.spec("SR-05-005")
 def test_coverage_removing_last_marker_is_added(coverage_repo):
     _write_markers(coverage_repo)
     assert _coverage(coverage_repo).added == {"TST-01-001"}
 
 
+@pytest.mark.spec("SR-05-005")
 def test_coverage_new_marker_is_not_an_addition(coverage_repo):
     _write_markers(coverage_repo, "TST-01-001", "TST-01-002")
     check = _coverage(coverage_repo)
@@ -158,6 +162,7 @@ def test_coverage_new_marker_is_not_an_addition(coverage_repo):
     assert check.head_total == 0
 
 
+@pytest.mark.spec("SR-05-005")
 def test_coverage_relabel_into_protocol_without_marker_is_added(coverage_repo):
     _write_specs(
         coverage_repo,
@@ -168,6 +173,7 @@ def test_coverage_relabel_into_protocol_without_marker_is_added(coverage_repo):
     assert _coverage(coverage_repo).added == {"TST-01-003"}
 
 
+@pytest.mark.spec("SR-05-005")
 def test_coverage_relabel_out_of_protocol_is_not_an_addition(coverage_repo):
     _write_specs(
         coverage_repo,
@@ -180,6 +186,7 @@ def test_coverage_relabel_out_of_protocol_is_not_an_addition(coverage_repo):
     assert check.head_total == 0
 
 
+@pytest.mark.spec("SR-05-005")
 def test_coverage_retired_spec_is_not_an_addition(coverage_repo):
     _write_specs(
         coverage_repo, _spec("TST-01-001"), _spec("TST-01-003", "project")
@@ -187,6 +194,7 @@ def test_coverage_retired_spec_is_not_an_addition(coverage_repo):
     assert _coverage(coverage_repo).added == frozenset()
 
 
+@pytest.mark.spec("SR-05-005")
 def test_coverage_committed_change_is_compared_from_merge_base(coverage_repo):
     """A committed branch change is caught, not only an uncommitted one."""
     _git(coverage_repo, "checkout", "-q", "-b", "feature")
@@ -195,6 +203,7 @@ def test_coverage_committed_change_is_compared_from_merge_base(coverage_repo):
     assert _coverage(coverage_repo).added == {"TST-01-001"}
 
 
+@pytest.mark.spec("SR-05-005")
 def test_coverage_without_base_ref_skips_with_logged_reason(
     coverage_repo, caplog
 ):
@@ -225,6 +234,7 @@ def suppression_repo(tmp_path):
     )
 
 
+@pytest.mark.spec("MS-12-007")
 def test_suppression_unchanged_adds_nothing(suppression_repo):
     check = _suppressions(suppression_repo)
     assert check.skipped is None
@@ -232,6 +242,7 @@ def test_suppression_unchanged_adds_nothing(suppression_repo):
     assert check.head_total == 1
 
 
+@pytest.mark.spec("MS-12-007")
 def test_suppression_gained_is_added(suppression_repo):
     _write_specs(
         suppression_repo,
@@ -242,6 +253,7 @@ def test_suppression_gained_is_added(suppression_repo):
     assert _suppressions(suppression_repo).added == {"TST-01-002"}
 
 
+@pytest.mark.spec("MS-12-007")
 def test_suppression_on_new_spec_is_added(suppression_repo):
     _write_specs(
         suppression_repo,
@@ -253,6 +265,7 @@ def test_suppression_on_new_spec_is_added(suppression_repo):
     assert _suppressions(suppression_repo).added == {"TST-01-004"}
 
 
+@pytest.mark.spec("MS-12-007")
 def test_suppression_removed_is_not_an_addition(suppression_repo):
     _write_specs(
         suppression_repo,
@@ -265,6 +278,7 @@ def test_suppression_removed_is_not_an_addition(suppression_repo):
     assert check.head_total == 0
 
 
+@pytest.mark.spec("MS-12-007")
 def test_suppression_relabel_in_with_suppression_is_added(suppression_repo):
     _write_specs(
         suppression_repo,
@@ -275,6 +289,7 @@ def test_suppression_relabel_in_with_suppression_is_added(suppression_repo):
     assert _suppressions(suppression_repo).added == {"TST-01-003"}
 
 
+@pytest.mark.spec("MS-12-007")
 def test_suppression_relabel_out_is_not_an_addition(suppression_repo):
     """``relabel_spec_kinds.py`` strips the suppression with the old kind."""
     _write_specs(
@@ -286,6 +301,7 @@ def test_suppression_relabel_out_is_not_an_addition(suppression_repo):
     assert _suppressions(suppression_repo).added == frozenset()
 
 
+@pytest.mark.spec("MS-12-007")
 def test_suppression_without_base_ref_skips_with_logged_reason(
     suppression_repo, caplog
 ):
@@ -361,20 +377,36 @@ def test_guarded_path_absent_at_base_reads_as_empty(tmp_path):
     assert _suppressions(repo).added == {"TST-01-001"}
 
 
-def test_base_unreadable_by_head_extractor_skips(suppression_repo):
-    """A schema migration can leave the base unreadable to HEAD's loader."""
+def test_extractor_error_on_base_tree_propagates(suppression_repo):
+    """A guard that cannot read the base must not read as a pass."""
 
     def extract(root: Path) -> frozenset[str]:
         if root != suppression_repo:
             raise ValueError("unknown field")
         return frozenset({"X"})
 
+    with pytest.raises(ValueError, match="unknown field"):
+        added_since_base(extract, repo_root=suppression_repo, paths=("specs",))
+
+
+def test_precomputed_head_is_used_instead_of_extracting(suppression_repo):
+    """A caller may pass the head set it built from an in-memory corpus."""
     check = added_since_base(
-        extract, repo_root=suppression_repo, paths=("specs",)
+        missing_story_suppression_carriers,
+        repo_root=suppression_repo,
+        paths=("specs",),
+        head=frozenset({"TST-01-001", "TST-01-009"}),
     )
-    assert check.skipped is not None
-    assert "unknown field" in check.skipped
-    assert check.added == frozenset()
+    assert check.added == {"TST-01-009"}
+    assert check.head_total == 2
+
+
+def test_in_memory_test_sources_match_the_tree_scan(coverage_repo):
+    """``test_sources`` yields the same set as reading ``test/`` from disk."""
+    sources = [p.read_text() for p in (coverage_repo / "test").rglob("*.py")]
+    assert uncovered_protocol_ids(
+        coverage_repo, test_sources=sources
+    ) == uncovered_protocol_ids(coverage_repo)
 
 
 def test_failure_message_lists_each_added_item(suppression_repo):

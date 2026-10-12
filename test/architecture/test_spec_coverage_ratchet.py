@@ -38,16 +38,26 @@ from vultron.metadata.specs.growth_guard import added_since_base
 
 #: The trees :func:`uncovered_protocol_ids` reads.
 _GUARDED_PATHS = ("specs", "test")
+_TEST_ROOT = _corpus.REPO_ROOT / "test"
 
 
 @pytest.mark.spec_corpus
 @pytest.mark.spec("SR-05-005")
 def test_no_pr_adds_an_uncovered_protocol_spec():
     """HEAD has no uncovered protocol ID that was covered or absent at base."""
+    # The head side reads test sources from the shared corpus (TB-13-001)
+    # through the same extractor the base side runs on its materialized tree.
+    head = uncovered_protocol_ids(
+        _corpus.REPO_ROOT,
+        test_sources=(
+            source for _, source in _corpus.all_sources(under=_TEST_ROOT)
+        ),
+    )
     check = added_since_base(
         uncovered_protocol_ids,
         repo_root=_corpus.REPO_ROOT,
         paths=_GUARDED_PATHS,
+        head=head,
     )
     if check.skipped:
         pytest.skip(check.skipped)

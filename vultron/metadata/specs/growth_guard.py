@@ -34,8 +34,8 @@ result carries ``skipped`` and the caller reports it (``pytest.skip``). CI
 checks out with ``fetch-depth: 0`` so the base resolves there.
 
 Consumers: the protocol-coverage guard (SR-05-005) and the
-``missing_story_reference`` guard (MS-12-007) under ``test/architecture/``;
-the ``verification_debt`` guard (#4200) is built on the same function.
+``missing_story_reference`` guard (MS-12-007) under ``test/architecture/``.
+The planned ``verification_debt`` guard (#4200) is meant to reuse it.
 """
 
 from __future__ import annotations
@@ -160,6 +160,7 @@ def added_since_base(
     repo_root: Path,
     paths: Sequence[str],
     base_ref: str | None = None,
+    head: frozenset[str] | None = None,
 ) -> GrowthCheck:
     """Items *extract* finds in the working tree but not at the merge base.
 
@@ -169,14 +170,18 @@ def added_since_base(
         paths: Repository-relative paths *extract* reads; only these are
             materialized for the base side.
         base_ref: Base branch ref; defaults to :func:`base_ref_name`.
+        head: The working-tree set, when the caller already computed it with
+            *extract*'s own logic from an in-memory corpus (TB-13-001);
+            ``None`` calls ``extract(repo_root)``.
 
     Returns:
-        A :class:`GrowthCheck`. When the base cannot be resolved, or the
-        base tree raises ``ValueError`` in *extract* (a branch that migrates
-        the schema), it carries ``skipped`` (also logged at WARNING) and an
-        empty ``added``. *extract* raising on the working tree propagates.
+        A :class:`GrowthCheck`. When the base cannot be resolved it carries
+        ``skipped`` (also logged at WARNING) and an empty ``added``. *extract*
+        raising on either tree propagates: a guard that cannot compare must
+        not read as a pass.
     """
-    head = extract(repo_root)
+    if head is None:
+        head = extract(repo_root)
     ref = base_ref or base_ref_name()
     with tempfile.TemporaryDirectory(prefix="growth-guard-") as tmp:
         try:
@@ -186,19 +191,7 @@ def added_since_base(
             reason = f"growth guard skipped: {exc}"
             logger.warning(reason)
             return GrowthCheck(None, frozenset(), len(head), skipped=reason)
-        try:
-            base_items = extract(Path(tmp))
-        except ValueError as exc:
-            # The HEAD extractor reads the base tree with HEAD's loaders; a
-            # branch that changes the schema and migrates every file can
-            # leave the base unreadable to them. The head side was already
-            # evaluated above, so a malformed head still fails loudly.
-            reason = (
-                f"growth guard skipped: the base tree at {base[:12]} cannot "
-                f"be read by this branch's extractor: {exc}"
-            )
-            logger.warning(reason)
-            return GrowthCheck(None, frozenset(), len(head), skipped=reason)
+        base_items = extract(Path(tmp))
     return GrowthCheck(base, head - base_items, len(head))
 
 

@@ -833,24 +833,27 @@ tree, and returns only the items the branch added. Removals and pre-existing
 items never fail it, so a sibling PR that fixes or adds a different item cannot
 turn this one red. Two guards use it (#4315): uncovered `kind: protocol` specs
 (SR-05-005, `test_spec_coverage_ratchet.py`) and `missing_story_reference`
-carriers (MS-12-007, `test_spec_kind_ratchet.py`); the `verification_debt`
-guard (#4200) is the third. A debt class already at zero needs no guard: assert
-the set is empty (MS-12-008).
+carriers (MS-12-007, `test_spec_kind_ratchet.py`); the planned
+`verification_debt` guard (#4200) is meant to reuse it. A debt class already
+at zero needs no guard: assert the set is empty (MS-12-008).
 
 Three properties to keep when adding one:
 
 - **The base side is materialized from git**, only the paths the extractor
-  reads (`git archive`), so the same extractor runs on both trees. Do not hand
-  the head side a cached or differently-built set; an extractor mismatch
-  reports phantom additions.
+  reads (`git archive`), so the same extractor runs on both trees. A caller may
+  pass the head set (`head=`) to read from an in-memory corpus (TB-13-001), but
+  only through the extractor's own logic: an architecture test hands
+  `uncovered_protocol_ids` its `_corpus` sources via `test_sources=`. A head set
+  built some other way reports phantom additions.
 - **No base means skip, never pass.** With no `origin/$GITHUB_BASE_REF` or
   `origin/main`, or a shallow clone with no common history, the guard returns a
   `skipped` reason and the test calls `pytest.skip(reason)`, so the gap shows in
   the summary. CI's `test` and `spec-tests` jobs check out with
   `fetch-depth: 0` for this reason; a guard in a new job needs the same.
-- **The base is read with the branch's loaders.** A branch that migrates the
-  spec schema can leave the base unreadable to them; a `ValueError` from the
-  base side skips with the reason rather than failing the migration PR.
+- **The base is read with the branch's loaders, and an error propagates.** A
+  branch that migrates the spec schema can leave the base unreadable to them;
+  the guard then errors rather than skipping, because a guard that cannot
+  compare must not read as a pass.
 
 ## Delete an Ephemeral Migration Check When the Migration Lands
 

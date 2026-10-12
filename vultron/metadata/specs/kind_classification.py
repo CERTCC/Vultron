@@ -16,7 +16,7 @@ carrying a corrected kind. Two mechanical checks close that gap:
   :func:`suppression_status_lines` prints the live totals from ``spec-lint``,
   so they are visible without being committed.
 
-The module sits beside ``lint.py`` rather than inside it so the ratchet can
+The module sits beside ``lint.py`` rather than inside it so the guards can
 import the very check the linter runs — one detector, two gates — and because
 ``lint.py`` is already past the module-size target (CS-18).
 

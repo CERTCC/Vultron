@@ -357,9 +357,10 @@ only end at zero:
    `.github/workflows/verification-debt-owners.yml`).
 3. **Zero is terminal.** Once no requirement of a kind carries a marker, delete
    that kind's owner entry; any marker of that kind is then a hard error, so the
-   kind cannot regrow debt. The growth guard (#4200), built on the shared
-   `added_since_base` helper in `vultron/metadata/specs/growth_guard.py`,
-   keeps new markers out while an entry still exists.
+   kind cannot regrow debt. The planned growth guard (#4200), meant to reuse
+   the shared `added_since_base` helper in
+   `vultron/metadata/specs/growth_guard.py`, keeps new markers out while an
+   entry still exists.
 4. **A relabel carries its verification with it.** A relabelled requirement's
    marker names the old kind's owner and fails; replace it with a
    `verification:` clause in the same change (MS-10-008).
@@ -395,7 +396,7 @@ resolves (a shallow clone, or no `origin/main`). CI checks out with
 `fetch-depth: 0` so it always runs there. The shared helper is
 `vultron/metadata/specs/growth_guard.py` (`added_since_base`); the
 `missing_story_reference` guard (MS-12-007) uses it too, and any new per-item
-debt guard should.
+debt guard should (#4200 is the next).
 
 `spec-coverage` reports `kind: protocol` IDs only. A `project`- or other-kind ID
 never appears in its output, covered or not, so an acceptance criterion reading
