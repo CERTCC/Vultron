@@ -180,6 +180,7 @@ class TestCoreEmbargoPolicyDurationParsing:
 class TestCoreEmbargoPolicySerialization:
     """Durations serialize to ISO 8601 strings in JSON mode — DUR-05-002."""
 
+    @pytest.mark.spec("DUR-01-002")
     def test_duration_serializes_to_iso8601(self):
         p = EmbargoPolicy(
             actor_id=ACTOR_ID,

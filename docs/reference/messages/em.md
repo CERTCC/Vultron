@@ -23,12 +23,18 @@ from vultron.metadata.msm.render import render_page
 print(render_page("em", heading=False))
 ```
 
+## Create Embargo Event
+
+- **Protocol role:** Mints the embargo event that carries the proposed terms. No formal shorthand; it precedes the `Invite` that proposes those terms.
+- **Triggering transition:** none (object construction).
+- **Wire activity:** `Create(Event)[context=VulnerabilityCase|VulnerabilityReport]` (VAM-05-001).
+- **How-to:** [How to Establish an Embargo](../../howto/activitypub/activities/establish_embargo.md).
+
 ## EP — Embargo Proposal
 
 - **Protocol role:** Proposes embargo terms (e.g. an expiration date/time).
 - **Triggering transition:** None or Proposed → Proposed ({N,P} → P).
-- **Wire activity:** `Invite(Event)[context=VulnerabilityCase]`.
-  `EP` **expands** across three wire activities in the prototype — `Create(Event)`, `Invite(Event)`, and `Announce(Event)` — as shown in the mapping table above.
+- **Wire activity:** `Invite(Event)[context=VulnerabilityCase]`, and no other (MSM-02-001).
 - **How-to:** [How to Establish an Embargo](../../howto/activitypub/activities/establish_embargo.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#em-message-types),
   [Transitions](../formal_protocol/transitions.md).
@@ -39,11 +45,11 @@ from vultron.wire.as2.vocab.examples.vocab_examples import propose_embargo, json
 print(json2md(propose_embargo()))
 ```
 
-### Announce Embargo
+## Announce Embargo
 
-`Announce(Event)` tells participants the terms of the active embargo. It also
-carries notice of a change significant enough to warrant attention beyond the
-corresponding `CaseStatus` message, such as an embargo being removed from a case.
+`Announce(Event)` tells participants the terms of the active embargo.
+It proposes nothing, so it carries no formal shorthand.
+It also carries notice of a change significant enough to warrant attention beyond the corresponding `CaseStatus` message, such as an embargo being removed from a case.
 
 When the CASE_MANAGER activates a revision that ends no later than the embargo it replaces, it sends `Announce(Event)` with the new terms directly to each bound signatory that no longer receives ledger entries (removed, or at RM `CLOSED`).
 That participant applies the new terms only when the CASE_MANAGER sent them.

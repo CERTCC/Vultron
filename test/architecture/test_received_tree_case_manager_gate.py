@@ -151,6 +151,10 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         ),
         (
             f"{_C}/nodes/suggest_actor/conditions.py",
+            "case_manager_admits_accepted_invitee_guard",
+        ),
+        (
+            f"{_C}/nodes/suggest_actor/conditions.py",
             "case_manager_admits_suggested_actor_guard",
         ),
         (f"{_E}/trigger_tree.py", "_by_role"),

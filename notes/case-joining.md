@@ -153,9 +153,15 @@ its authority to *commit* comes from its role (CLP-09), not from being active.
   writes no participant state and no ledger entry (CM-11-014).
 - **Re-invite.** Same record, fresh stub Invite, new deadline, with `inReplyTo`
   set to the earlier stub so the invitee has one live stub. Refused for a
-  participant at `CLOSED` — terminal, no rejoin (CM-11-015, ADR-0085). The
-  owner's trigger refuses it before anything is queued, and the CASE_MANAGER's
-  recommend-actor tree refuses an Offer that arrives anyway. The re-invite arm
+  participant at `CLOSED` — terminal, no rejoin (CM-11-015, ADR-0085) — and for
+  one that has already joined. For `CLOSED` the owner's trigger refuses it
+  before anything is queued, and the CASE_MANAGER's recommend-actor tree
+  refuses an Offer that arrives anyway. For a joined actor the recommend-actor
+  tree sends no Invite (the already-participant arm answers instead). The
+  Case Owner's `Accept(Offer(CaseParticipant))` is refused for a joined or
+  `CLOSED` actor, before the receipt commit (`SuggestedActorIsInvitableNode`,
+  CM-16-006), so no second Invite entry reaches the ledger for a record that
+  cannot take one. The re-invite arm
   sits ahead of the duplicate arms, because an inert record is on the roster and
   its stub is "in flight" until the invitee answers.
 - **Embargo changes during the invitation window.** The CASE_MANAGER re-issues
@@ -204,7 +210,7 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 - **`Add(CaseParticipant)` only reinstates.** It is refused for a participant
   that is not removed or never joined. The CASE_MANAGER no longer emits `Add`
   after a stub-Invite acceptance; replicas learn of a new member from the
-  `Accept(Invite)` entry (CM-31-012).
+  the ledger's entries for the messages exchanged (CM-31-012).
 - **Where the fact and the check live (#4079).** The fact is
   `CaseParticipant.removal_activity`: the id of the `Remove` activity, or
   `None` (`removed` reads it). The one check is
@@ -266,10 +272,38 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 - **No `Add` after a stub-Invite acceptance (#4081).** Neither the
   accept-invite tree nor the recommend-actor trees emit `Add(CaseParticipant)`
   or commit `add_case_participant`; `EmitAddCaseParticipantNode` is deleted.
-  The stub Invite's own `invite_actor_to_case` entry records the inert
-  record's creation (CM-11-006). In the accept-invite tree the full-case
-  Invite is now the first effect that commits after the join, so it carries
-  the #2898 ordering: after the case announce and the backfill.
+  The ledger holds the wire messages exchanged (ADR-0114), so a change that
+  already travels as a message needs no entry of its own, and a replica applies
+  each entry's effects through the functions the CASE_MANAGER uses, storing what
+  the entry carries, as received (ADR-0103, CLP-15-007). It derives nothing.
+- **Entries on the stub Invite path (#4384).**
+
+  | What happens | Entry | A replica |
+  |---|---|---|
+  | the CASE_MANAGER sends the stub Invite | `invite_actor_to_case` | applies nothing |
+  | the CASE_MANAGER creates the inert record and puts it on the roster | `create_case_participant` (the one new entry) | stores the record carried |
+  | the invitee sends `Accept(Invite(stub))`: consent signed, joined | `accept_invite_actor_to_case`, the Accept itself | applies the same writes, `updated` = the Accept's `published`; fails if it holds no record |
+  | VF to `Vf` (VENDOR role only) | `add_participant_status_to_participant` | stores the status |
+  | the invitee sends `Reject(Invite(stub))`: consent `DECLINED` | `reject_invite_actor_to_case`, the Reject itself | applies the same write |
+  | the record closes (RM `CLOSED`, vendor `Vf`) | `add_participant_status_to_participant` | stores the status |
+  | expiry | none | nothing changed (CM-11-014) |
+
+  The shared writes are in `core/participants/stub_reply.py`; the replica nodes
+  are `ApplyInviteAcceptFromLedgerNode` and `ApplyInviteRejectFromLedgerNode`
+  (`sync/nodes/stub_reply_effect.py`). The entries are built from the very
+  objects the CASE_MANAGER stored (`case/participant_ledger.py`), so ids and
+  times match. The Accept's VF status is committed by
+  `CommitInviteeAcceptEntriesNode` after the announce and the backfill, so it
+  reaches the invitee in chain order and not before its case seed (#2898), then
+  the full-case Invite follows. A replica seeded with the case replays the ledger
+  from genesis over a seed that may be ahead, so each write moves forward only.
+  VF is a vendor-only status: no other role's record, status or entry carries
+  one. The two-replica test compares the whole record of the CASE_MANAGER and
+  each replica after the Invite, the Accept and the Reject, for a vendor, a
+  non-vendor, and a case with and without an embargo in force. Not an entry
+  today: `case.recommendation_recommender_index` set on the `Offer(Actor, Case)`
+  path, whose receipt entry carries the same fact but no replica applies it
+  (#4295).
 - **Where the embargo-ending notices live (#4083).** The recipients are
   `embargo_ending_notice_recipients` (joined, a signatory to the ending
   embargo, removed or RM `CLOSED`). The decision is `embargo_ending_notice`:

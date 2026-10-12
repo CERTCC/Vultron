@@ -28,11 +28,14 @@ groups:
     - story_2022_014
   - id: DUR-01-002
     priority: MUST
-    kind: project
+    kind: protocol
     statement: Duration strings MUST be serialized as JSON strings, not as numbers
     verification: >-
       A unit test confirms that duration fields serialize to a JSON string type,
       not a numeric type, when serialized via the Pydantic model.
+    stories:
+    - story_2022_010
+    - story_2022_014
   - id: DUR-01-003
     priority: MUST
     kind: protocol

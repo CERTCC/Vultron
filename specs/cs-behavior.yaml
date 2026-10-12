@@ -1043,7 +1043,7 @@ groups:
   specs:
   - id: CSB-07-001
     priority: SHOULD
-    kind: project
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CE SHOULD
       emit CK to acknowledge receipt and SHOULD emit GI to inquire about the
@@ -1079,6 +1079,8 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-03-007
       note: 'CE shorthand wire-type mapping'
+    stories:
+    - story_2022_088
 
 - id: CSB-08
   title: Receive CK (CS Acknowledgment)
@@ -1116,7 +1118,7 @@ groups:
   specs:
   - id: CSB-09-001
     priority: SHOULD
-    kind: project
+    kind: protocol
     statement: >-
       A Vendor Participant entering CS Vendor Aware (q^cs ∈ Vfdpxa) with EM
       None (q^em ∈ N) SHOULD begin embargo negotiations promptly.
@@ -1143,10 +1145,12 @@ groups:
       note: >-
         Once a case has reached Vendor Aware, if the EM process has not started,
         it SHOULD begin as soon as possible
+    stories:
+    - story_2022_014
 
   - id: CSB-09-002
     priority: SHOULD
-    kind: project
+    kind: protocol
     statement: >-
       A Participant entering CS Vendor Aware SHOULD emit CV to announce the
       transition to other case Participants.
@@ -1174,6 +1178,8 @@ groups:
       note: >-
         CV messages SHOULD be sent only by Participants with direct knowledge
         of the notification
+    stories:
+    - story_2022_062
 
 - id: CSB-10
   title: Enter CS Fix Ready (F)
@@ -1183,7 +1189,7 @@ groups:
   specs:
   - id: CSB-10-001
     priority: SHOULD_NOT
-    kind: project
+    kind: protocol
     statement: >-
       A Participant entering CS Fix Ready (q^cs ∈ VFd···) SHOULD NOT start new
       embargo negotiations. If an embargo proposal is pending (q^em ∈ P), the
@@ -1208,10 +1214,12 @@ groups:
       note: >-
         Once a case has reached Fix Ready, new embargo negotiations SHOULD NOT
         start and pending embargoes SHOULD be rejected
+    stories:
+    - story_2022_014
 
   - id: CSB-10-002
     priority: SHOULD
-    kind: project
+    kind: protocol
     statement: >-
       A Participant entering CS Fix Ready SHOULD emit CF to announce the
       transition to other case Participants.
@@ -1233,6 +1241,8 @@ groups:
       expected: CF queued for case participants
     postconditions:
     - description: CF emitted; other Participants informed of F transition
+    stories:
+    - story_2022_062
 
 - id: CSB-11
   title: Enter CS Fix Deployed (D)
@@ -1242,7 +1252,7 @@ groups:
   specs:
   - id: CSB-11-001
     priority: SHOULD
-    kind: project
+    kind: protocol
     statement: >-
       A Participant entering CS Fix Deployed (q^cs ∈ VFD···) with an active
       embargo (q^em ∈ {A, R}) SHOULD terminate the embargo by emitting ET.
@@ -1273,10 +1283,12 @@ groups:
       note: >-
         By the time a fix has been deployed, any existing embargo SHOULD
         terminate
+    stories:
+    - story_2022_014
 
   - id: CSB-11-002
     priority: SHOULD
-    kind: project
+    kind: protocol
     statement: >-
       A Participant entering CS Fix Deployed SHOULD emit CD to announce the
       transition to other case Participants.
@@ -1298,6 +1310,8 @@ groups:
       expected: CD queued for case participants
     postconditions:
     - description: CD emitted; other Participants informed of D transition
+    stories:
+    - story_2022_062
 
 - id: CSB-12
   title: Enter CS Public Aware (P)
@@ -1356,7 +1370,7 @@ groups:
     - story_2022_081
   - id: CSB-12-002
     priority: MUST_NOT
-    kind: project
+    kind: protocol
     statement: >-
       A Participant entering CS Public Aware MUST NOT seek new embargoes or
       accept new embargo proposals for this case.
@@ -1376,10 +1390,13 @@ groups:
     - rel_type: satisfies
       spec_id: VP-14-001
       note: Once Public Awareness, new embargoes SHALL NOT be sought
+    stories:
+    - story_2022_014
+    - story_2022_023
 
   - id: CSB-12-003
     priority: SHOULD
-    kind: project
+    kind: protocol
     statement: >-
       A Participant entering CS Public Aware SHOULD emit CP to announce the
       transition to other case Participants if CP was not already the triggering
@@ -1404,6 +1421,8 @@ groups:
       expected: CP queued for case participants
     postconditions:
     - description: CP emitted; other Participants informed of P transition
+    stories:
+    - story_2022_081
 
 - id: CSB-13
   title: Enter CS Exploit Public (X)
@@ -1503,7 +1522,7 @@ groups:
     - story_2022_014
   - id: CSB-13-003
     priority: MUST_NOT
-    kind: project
+    kind: protocol
     statement: >-
       A Participant entering CS Exploit Public MUST NOT seek new embargoes or
       accept new embargo proposals for this case.
@@ -1523,6 +1542,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-14-002
       note: Once Exploit Publication, new embargoes SHALL NOT be sought
+    stories:
+    - story_2022_014
+    - story_2022_023
 
 - id: CSB-14
   title: Enter CS Attacks Observed (A)
@@ -1532,7 +1554,7 @@ groups:
   specs:
   - id: CSB-14-001
     priority: SHOULD
-    kind: project
+    kind: protocol
     statement: >-
       A Participant entering CS Attacks Observed (q^cs → ·····A) with an
       active embargo (q^em ∈ {A, R}) SHOULD terminate the embargo by emitting
@@ -1576,10 +1598,12 @@ groups:
     - rel_type: satisfies
       spec_id: VP-14-013
       note: Once Attacks observed, any existing embargo SHOULD terminate
+    stories:
+    - story_2022_014
 
   - id: CSB-14-002
     priority: SHOULD
-    kind: project
+    kind: protocol
     statement: >-
       A Participant entering CS Attacks Observed with CS not yet public
       (q^cs ∈ ···p·A) SHOULD also trigger CS→P and emit CP to announce public
@@ -1610,6 +1634,8 @@ groups:
       expected: CA queued for case participants
     postconditions:
     - description: CS is ···P·A; CP and CA emitted
+    stories:
+    - story_2022_081
 
   - id: CSB-14-003
     priority: MUST_NOT
@@ -1995,7 +2021,7 @@ groups:
   specs:
   - id: CSB-17-001
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       An implementation MUST treat exactly 32 compound CS states as valid: the
       cross product of the 4 valid VFD states (vfd, Vfd, VFd, VFD) and the 8
@@ -2022,6 +2048,9 @@ groups:
         reachable combinations, so the impossible ones are unrepresentable.
     adr:
     - ADR-0060
+    stories:
+    - story_2022_045
+    - story_2022_074
 
   - id: CSB-17-002
     priority: MUST
@@ -2215,7 +2244,7 @@ groups:
     - story_2022_074
   - id: CSB-17-006
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       An implementation MUST NOT allow a fix to be ready while the vendor is
       unaware (the vF compound state is impossible).
@@ -2227,10 +2256,13 @@ groups:
       test confirms that a vfd→VFd transition skipping V is rejected as an
       illegal VFD jump.
     testable: true
+    stories:
+    - story_2022_045
+    - story_2022_074
 
   - id: CSB-17-007
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       An implementation MUST NOT allow a fix to be deployed that was never
       ready (the fD compound state is impossible).
@@ -2242,6 +2274,9 @@ groups:
       test confirms that a vfd→VFD transition skipping V and F is rejected as an
       illegal VFD jump.
     testable: true
+    stories:
+    - story_2022_045
+    - story_2022_074
 
   - id: CSB-17-008
     priority: MUST
@@ -2369,7 +2404,7 @@ groups:
   specs:
   - id: CSB-18-001
     priority: MUST_NOT
-    kind: project
+    kind: protocol
     statement: >-
       A participant's composite state MUST NOT have the VFD F-bit set (q^cs ∈
       VFd··· or VFD···) while the participant's RM state is outside

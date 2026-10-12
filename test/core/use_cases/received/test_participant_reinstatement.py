@@ -28,6 +28,7 @@ through CM-31-013 once.  These cover the edges around them (ADR-0116, #4081,
   member from the ``Accept(Invite)`` entry alone (CM-31-012).
 """
 
+import json
 from itertools import pairwise
 from typing import Any
 
@@ -56,8 +57,12 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.case_participant_received_tree import (
     create_add_case_participant_received_tree,
+)
+from vultron.core.behaviors.case.ledger_snapshots import (
+    build_create_case_participant_snapshot,
 )
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
     ReinstateCaseParticipantReceivedNode,
@@ -73,10 +78,14 @@ from vultron.core.behaviors.embargo.nodes.reinvite import (
     InviteReinstatedParticipantToEmbargoNode,
     ReinviteStaleAccepterNode,
 )
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.participant_event_types import (
+    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+)
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -613,7 +622,7 @@ def test_a_removed_participant_replaying_its_accept_is_sent_nothing(
 
 
 # ---------------------------------------------------------------------------
-# #4081 AC-5 — replicas learn of a new member from the Accept(Invite) alone
+# #4081 AC-5 — replicas learn of a new member from the entries for each change
 # ---------------------------------------------------------------------------
 
 
@@ -626,8 +635,9 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
 
     The invitee's stub-Invite acceptance commits no ``add_case_participant``
     entry and enqueues no ``Add(CaseParticipant)``; the existing
-    participant's replica seats the new member from the ``Accept(Invite)``
-    entry it was sent.
+    participant's replica stores the new member's record from the
+    ``create_case_participant`` entry and its joined mark from the invitee's
+    own ``Accept(Invite)`` entry, as the CASE_MANAGER holds them.
     """
     case.dl.create(as_Organization(id_=NEWBIE))
     stub_invite = rm_invite_to_case_activity(
@@ -640,9 +650,26 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
     )
     case.dl.create(stub_invite)
     manager_case = case.read_case()
-    seed_inert_invitee(case.dl, manager_case, NEWBIE)
+    seeded = seed_inert_invitee(case.dl, manager_case, NEWBIE)
     case.dl.save(manager_case)
     replica = _replica(case, OTHER)
+    # The manager ledgers the record it created (ADR-0114): its own entry,
+    # carrying the record as stored, which the replica stores as received.
+    stored = case.dl.read(seeded.id_)
+    assert isinstance(stored, CaseParticipant)
+    commit_emitted_activity(
+        datalayer=case.dl,
+        actor_id=MANAGER,
+        case_id=CASE_ID,
+        activity_id=stored.id_,
+        activity_blob=json.dumps(
+            build_create_case_participant_snapshot(
+                stored, MANAGER, CASE_ID, As2WireRenderAdapter()
+            )
+        ),
+        event_type=CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+        sync_port=SyncActivityAdapter(case.dl),
+    )
 
     result = case.route(
         rm_accept_invite_to_case_activity(
@@ -664,6 +691,15 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
     seated = replica.read(CASE_ID)
     assert isinstance(seated, as_VulnerabilityCase)
     assert NEWBIE in seated.actor_participant_index
+    record = replica.read(seated.actor_participant_index[NEWBIE])
+    assert isinstance(record, CaseParticipant)
+    assert record.joined is True
+    # The whole record, as the manager holds it.
+    manager_record = case.dl.read(seated.actor_participant_index[NEWBIE])
+    assert isinstance(manager_record, CaseParticipant)
+    assert record.model_dump(mode="json") == manager_record.model_dump(
+        mode="json"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -844,5 +880,12 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
         kwargs |= {"invitee_id": VENDOR, "sender_id": OWNER}
     names = [node.name for node in factory(**kwargs).children]
 
-    guard = names.index("SuggestedActorNotRemovedIfCaseManager")
+    # The Accept tree's guard also refuses a joined or closed actor
+    # (CM-16-006), so it is a different composite from the recommend tree's.
+    guard_name = (
+        "SuggestedActorNotRemovedIfCaseManager"
+        if factory is create_recommend_actor_to_case_received_tree
+        else "AcceptedInviteeAdmittedIfCaseManager"
+    )
+    guard = names.index(guard_name)
     assert guard < names.index("GuardedCommitCaseLedgerEntryBT")

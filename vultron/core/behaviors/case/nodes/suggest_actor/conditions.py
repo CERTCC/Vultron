@@ -19,6 +19,9 @@ Node classes:
 
 - :class:`ActorAlreadyParticipantNode` — returns SUCCESS when the recommended
   actor is already a case participant (CM-16-009 / AC-7b).
+- :class:`SuggestedActorIsInvitableNode` — refuses the Case Owner's Accept of
+  a recommendation for an actor that has joined or is at ``RM.CLOSED``
+  (CM-11-015, CM-16-006).
 - :class:`InviteInFlightNode` — returns SUCCESS when an Invite to the
   recommended actor is in-flight (CM-16-009 / AC-7a).
 - :class:`PendingOfferCaseParticipantNode` — returns SUCCESS when an
@@ -31,6 +34,10 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
+)
+from vultron.core.behaviors.case.stub_invite_lifetime import (
+    awaiting_stub_reply,
+    invitee_record,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -146,6 +153,78 @@ class SuggestedActorIsNotRemovedNode(DataLayerConditionWithPorts):
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
+
+
+class SuggestedActorIsInvitableNode(DataLayerConditionWithPorts):
+    """Guard: the actor the Case Owner accepted has not joined and is not closed.
+
+    The Case Owner's ``Accept(Offer(CaseParticipant))`` makes the CASE_MANAGER
+    send a stub Invite and commit it.  An actor whose record shows it has
+    already joined, or is at ``RM.CLOSED``, is not invited again: the record
+    is the actor's one record in the case, ``RM.CLOSED`` is terminal
+    (CM-11-015, ADR-0085), and a joined actor has nothing left to answer.  So
+    the Accept is refused before the guarded commit, with a reason, and
+    nothing is written.  An actor with no record, or an inert one that has not
+    answered (:func:`awaiting_stub_reply`), passes.
+
+    Read-only, so it runs in ``precondition_guards`` behind the CASE_MANAGER
+    gate (CLP-10-009, RSH-08-003).  The predicate is the one the re-invite
+    arm uses; this guard adds no sender check (HP-01-006, ADR-0115).
+    """
+
+    def __init__(
+        self,
+        recommended_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommended_id = recommended_id
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: the CASE_MANAGER holds its case
+        record = invitee_record(self.datalayer, case, self.recommended_id)
+        if record is None or awaiting_stub_reply(record):
+            return Status.SUCCESS
+        state = "joined" if record.joined else "at RM.CLOSED"
+        self.feedback_message = (
+            f"actor '{self.recommended_id}' has already {state} in case"
+            f" '{self.case_id}' and is sent no further stub Invite"
+            " — REFUSED (CM-11-015, CM-16-006)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+def case_manager_admits_accepted_invitee_guard(
+    recommended_id: str, case_id: str
+) -> py_trees.composites.Selector:
+    """Precondition guard for the Case Owner's Accept of a recommendation.
+
+    The CASE_MANAGER runs :class:`SuggestedActorIsNotRemovedNode` (CM-31-013)
+    and then :class:`SuggestedActorIsInvitableNode`, so an Accept naming a
+    removed, joined or closed actor is refused before the guarded commit; a
+    replica skips both as ``SUCCESS`` (RSH-08-003).
+    """
+    return create_case_manager_gated_tree(
+        name="AcceptedInviteeAdmittedIfCaseManager",
+        case_id=case_id,
+        body_name="AcceptedInviteeAdmitted",
+        children=[
+            SuggestedActorIsNotRemovedNode(
+                recommended_id=recommended_id, case_id=case_id
+            ),
+            SuggestedActorIsInvitableNode(
+                recommended_id=recommended_id, case_id=case_id
+            ),
+        ],
+    )
 
 
 def case_manager_admits_suggested_actor_guard(

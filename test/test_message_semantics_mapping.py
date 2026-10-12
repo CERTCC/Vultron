@@ -23,6 +23,10 @@ on the wire; see `notes/message-type-reference.md` and ADR-0083 for the rational
 import pytest
 
 from vultron.core.models.events import MessageSemantics
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+    PEC_Trigger,
+)
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
@@ -223,6 +227,37 @@ def test_no_semantics_is_named_for_gk_or_ge():
     registered = _registered()
     assert MessageSemantics.CREATE_PROCESSING_FAULT in registered
     assert MessageSemantics.REJECT_CASE_LEDGER_ENTRY in registered
+
+
+@pytest.mark.spec("MSM-07-001")
+def test_no_semantics_or_registry_entry_is_named_for_a_pec_transition():
+    """PEC has no shorthand and no dispatch value of its own (MSM-07-001).
+
+    Every consent transition rides on an EM wire activity or is a lazy timer
+    event, so no ``MessageSemantics`` member names a PEC trigger or state.
+    ``INVITE`` is left out: the EM Invite (``INVITE_TO_EMBARGO_ON_CASE``) is the
+    wire activity that applies it (MSM-07-002), not a PEC-only value.
+    """
+    pec_tokens = tuple(
+        sorted(
+            {t.name for t in PEC_Trigger if t is not PEC_Trigger.INVITE}
+            | {s.name for s in EmbargoConsentState}
+            | {"CONSENT", "PEC"}
+        )
+    )
+    assert _members_matching(pec_tokens) == frozenset()
+    # No registry entry is named for a PEC transition either: no entry's
+    # semantics, event class or use-case class carries a PEC token.
+    for entry in SEMANTIC_REGISTRY:
+        names = (
+            entry.semantics.name,
+            getattr(entry.event_class, "__name__", ""),
+            getattr(entry.use_case_class, "__name__", ""),
+        )
+        named_pec = [
+            n for n in names if any(t in n.upper() for t in pec_tokens)
+        ]
+        assert not named_pec, entry.semantics
 
 
 # ---------------------------------------------------------------------------

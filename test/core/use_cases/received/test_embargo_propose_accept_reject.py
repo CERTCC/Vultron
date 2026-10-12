@@ -698,6 +698,8 @@ class TestInviteToEmbargoReceivedPxaGuard:
     CASE_ID = "https://example.org/cases/c-ep-pxa"
     EMBARGO_ID = f"{CASE_ID}/embargo_events/e1"
 
+    @pytest.mark.spec("CSB-12-002")
+    @pytest.mark.spec("CSB-13-003")
     @pytest.mark.parametrize("pxa_state_name", _PXA_INELIGIBLE_STATES)
     def test_pxa_set_blocks_ep_processing(self, make_payload, pxa_state_name):
         """invite_to_embargo_on_case does not run BT when P/X/A is set (EMB-01-002)."""

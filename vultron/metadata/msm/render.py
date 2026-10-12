@@ -29,7 +29,7 @@ Column semantics:
 The *many-to-many* relationship is expressed as follows:
 
 - A shorthand appearing in **multiple rows** is an expansion (one shorthand,
-  many wire forms — e.g. ``GI`` or ``EP``).
+  many wire forms — e.g. ``GI``).
 - **Multiple shorthands in one row** is a collapse (many shorthands, one wire
   form — e.g. ``CP CX CA`` → ``Add(CaseStatus)``).
 """

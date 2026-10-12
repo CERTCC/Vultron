@@ -6,8 +6,8 @@ specs that suppressed the story-traceability gate (SR-11-003) instead of
 carrying a corrected kind. Two mechanical checks close that gap:
 
 - :func:`check_protocol_kind_code_references` — MS-12-006. A ``kind: protocol``
-  spec that traces to no user story and whose ``statement`` or ``verification``
-  names an unambiguous codebase construct is a hard error.
+  spec that traces to no user story and whose ``statement`` names an
+  unambiguous codebase construct is a hard error.
 - :func:`count_suppressions` — the live per-code carrier count behind the
   MS-12-007 (``missing_story_reference``) and MS-12-008
   (``protocol_kind_with_code_reference``) ratchets in
@@ -21,11 +21,15 @@ import the very check the linter runs — one detector, two gates — and becaus
 Scope decisions, each measured against the live corpus (the derivation is in
 ``notes/spec-authoring-rules.md`` § "Why MS-12-006 is scoped the way it is"):
 
+- **Only the ``statement`` is scanned.** ``protocol`` means RFC content
+  (MS-12-003), and whether a rule is RFC content is a property of the rule. A
+  ``verification:`` clause names the test that checks the rule, and names a
+  ``test/`` path because MS-10-003 and MS-15-001 oblige it to; scanning it
+  relabeled some ninety wire and state-machine obligations to ``project``
+  (#3943).
 - **Only story-less specs are scanned.** A protocol spec that traces to a user
-  story has demonstrated it is protocol, and its ``verification:`` names a
-  ``test/`` path because MS-10-003 and MS-15-001 oblige it to. Scanning the
-  whole protocol corpus flagged roughly half of it, most of them fully
-  SR-11-compliant.
+  story has demonstrated it is protocol. Scanning the whole protocol corpus
+  flagged roughly half of it, most of them fully SR-11-compliant.
 - **The token list is the closed set MS-12-006 names.** Bare ``module``,
   ``class`` and ``function`` read as domain English in wire requirements ("a
   machine-readable failure class") and are excluded.
@@ -67,11 +71,13 @@ _CODE_REFERENCE_RE = re.compile(
 _TOKEN_HEAD_RE = re.compile(r"[\w./-]*\Z")
 _TOKEN_TAIL_RE = re.compile(r"[\w./-]*")
 
-#: The two fields MS-12-006 scans. Behavioral ``steps``, preconditions and
-#: postconditions are deliberately not included, unlike the MS-15 phantom
-#: checks in ``lint.py``: an ECA step carries protocol shorthand, and the
-#: requirement names ``statement`` and ``verification`` only.
-_SCANNED_FIELDS = ("statement", "verification")
+#: The one field MS-12-006 scans. ``verification`` is excluded because it
+#: names the test that checks a rule, which MS-10-003 and MS-15-001 oblige it
+#: to do, and says nothing about whether the rule is protocol content (#3943).
+#: Behavioral ``steps``, preconditions and postconditions are excluded too,
+#: unlike the MS-15 phantom checks in ``lint.py``: an ECA step carries protocol
+#: shorthand, and the requirement names ``statement`` only.
+_SCANNED_FIELDS = ("statement",)
 
 
 def code_reference_in(
@@ -80,8 +86,7 @@ def code_reference_in(
     """Return ``(field, token)`` for the first MS-12-006 token in *spec*.
 
     ``token`` is widened to the whole path or dotted name the match belongs to.
-    Returns ``None`` when neither scanned field references a codebase
-    construct.
+    Returns ``None`` when no scanned field references a codebase construct.
     """
     for field in _SCANNED_FIELDS:
         text: str = getattr(spec, field) or ""

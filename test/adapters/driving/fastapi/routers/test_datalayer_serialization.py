@@ -28,6 +28,8 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer as _reset_datalayer,
 )
 from vultron.adapters.driving.fastapi.main import app
+from vultron.adapters.driving.fastapi.responses import AS2_CONTENT_TYPE
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -203,6 +205,29 @@ def test_get_vulnerability_report_includes_all_fields(client, datalayer):
         f"Response missing 'content' field. Keys: {list(data.keys())}"
     )
     assert data["content"] == "Test vulnerability content"
+
+
+def test_datalayer_contents_is_plain_json_not_as2(client, datalayer):
+    """ARCH-20-006: the whole-store dump is not served as an AS2 document.
+
+    The store holds bare ``CoreRecord`` bookkeeping rows such as
+    ``VultronOfferRecord`` beside AS2 objects.  By-alias dumping those has no
+    AS2 shape, so the route serves ``application/json``, never
+    ``application/activity+json``.
+    """
+    record = VultronOfferRecord(
+        offer_id="urn:uuid:offer-1",
+        offer_actor_id=ACTOR_ID,
+        report_id="urn:uuid:report-1",
+    )
+    datalayer.create(record)
+
+    response = client.get(f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/")
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("application/json")
+    assert AS2_CONTENT_TYPE not in response.headers["content-type"]
+    assert record.id_ in response.json()
 
 
 def test_test_datalayer_uses_in_memory_storage(datalayer):

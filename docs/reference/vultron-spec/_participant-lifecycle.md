@@ -135,7 +135,7 @@ The request follows the removal pipeline: only the Case Owner may send it, the r
 Reinstatement clears the removal fact.
 The participant does not accept again, because it never withdrew.
 The CASE_MANAGER MUST refuse an `Add` that names a participant that is not removed or that never joined the case: `Add` does not seat a new member, and an actor joins only by accepting its stub Invite.
-For the same reason the CASE_MANAGER does not send `Add(CaseParticipant)` when an invitee accepts its stub Invite; every replica creates the inert record from the stub Invite's ledger entry and marks it joined from the `Accept(Invite)` entry ([CM-31-012](../specs/protocol.md#cm-31-012)).
+For the same reason the CASE_MANAGER does not send `Add(CaseParticipant)` when an invitee accepts its stub Invite; the ledger holds the messages exchanged (the Invite, the CASE_MANAGER's creation of the inert record, then the invitee's Accept, which is the entry for its consent and `joined` mark), and every replica applies what the entries carry ([CM-31-012](../specs/protocol.md#cm-31-012)).
 
 When the reinstated participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order, so its copy of the ledger joins the chain with no gap ([CM-10-006](../specs/protocol.md#cm-10-006)).
 A participant reinstated into a case whose active embargo it has not accepted stays inert.

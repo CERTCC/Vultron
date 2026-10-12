@@ -1034,7 +1034,7 @@ Why the formal message set (shorthands partitioned by state machine) and the
 AS2 wire vocabulary (`SEMANTIC_REGISTRY`) are different shapes, and how the
 many-to-many mapping between them is documented. Contains the full collapse
 inventory (CV/CF on `vf_state`, CP/CX/CA on `pxa_state`, EV/EJ/EC onto EP/ER/EA),
-the expansion inventory (GI, EP, and the `Create`+`Add` split), the fault
+the expansion inventory (GI and the `Create`+`Add` split), the fault
 trichotomy (not-understood / declined / needs-explanation), the cumulative
 hash-chain acknowledgement model, the `docs/reference/messages/` page
 architecture, and the MSM-03 post-mortem on `CV`/`CF`/`CD` being mapped to the

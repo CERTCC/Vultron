@@ -49,7 +49,7 @@ flowchart LR
 2. The actor answers `Accept(Invite(Actor))` to the CASE_MANAGER.
    The CASE_MANAGER commits the `Accept` as a ledger entry and seats the actor.
 3. The CASE_MANAGER sends the new participant the case and the ledger it missed, then the full-case Invite that asks it to judge the case.
-   Every other replica creates the inert record from the stub Invite's ledger entry and marks it joined from the `Accept(Invite(Actor))` entry.
+   The ledger holds the messages exchanged: the CASE_MANAGER's entry for creating the inert record, then the invitee's `Accept(Invite(Actor))` itself, which every other replica applies, and the CASE_MANAGER's entry for a vendor's VF status.
 
 If all participants are known when the case is created, seat them inline on the `Create(VulnerabilityCase)` activity instead — see [How to Initialize a Case](initialize_case.md).
 

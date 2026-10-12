@@ -86,6 +86,8 @@ As Case Owner, answer the forwarded offer, addressing the reply to the CASE_MANA
 The CASE_MANAGER acts on a decision only when the Case Owner sent it.
 It refuses a reply from any other sender, invites no one, and tells the recommender nothing.
 The actor it invites is the one named in the `Offer(CaseParticipant)` it forwarded, never the one named in your reply.
+It also refuses an `Accept` for an actor that has already joined or has closed its record, and it commits and sends nothing for it.
+The same holds for an actor the case has removed.
 
 !!! warning "Replying to the recommender skips the record"
 

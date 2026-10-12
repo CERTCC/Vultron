@@ -66,6 +66,8 @@ Do not add another such citation. An ADR citing a numbered detail of another ADR
 **An aged code reference in an ADR body is not a defect.**
 Per [ADR-0127](0127-decision-records-leave-routine-agent-context.md), the existing stale paths and symbols across the corpus are not a backlog and no scrub is owed: a reference in a record's context or validation prose is an accurate account of the code as it then stood.
 Enforcement is forward-only — a reference newly written into an ADR should resolve on the day it is written.
+The `adr-added-reference-check` pre-commit hook and its pull-request twin fail a backticked path or code symbol that an edit adds and that resolves nowhere, and never judge a reference already on the merge base (MS-15-006).
+A record that deliberately names a removed symbol opts out with `lint_suppress: [phantom_symbol_ref]`, or `[phantom_path_ref]` for a path (MS-15-007).
 
 **How to edit an ADR**: follow the edit tiers in [ADR-0120](0120-adr-lifecycle-epochs-and-edit-tiers.md), which key off how long ago the ADR was last materially changed.
 Editorial fixes and appended annotations are allowed at any time and change neither `updated` nor `revision`.
@@ -114,7 +116,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0005 Use ActivityStreams Vocabulary as the basis for Vultron Message Formats](0005-activitystreams-vocabulary-as-vultron-message-format.md)
 - [ADR-0006 Vultron Release Versioning](0006-use-calver-for-project-versioning.md)
 - [ADR-0007 Introduce a Behavior Dispatcher Between Inbox Handling and Behavior Execution](0007-use-behavior-dispatcher.md)
-- [ADR-0008 Use py_trees for Behavior Tree Execution in Handler Integration](0008-use-py-trees-for-handler-bt-integration.md)
+- [ADR-0008 Use py_trees for Behavior Tree Execution in Handler Integration](0008-use-py-trees-for-handler-bt-integration.md) — partially supersedes 0003-build-custom-python-bt-engine.md
 - [ADR-0009 Adopt Hexagonal Architecture (Ports and Adapters) for Vultron](0009-hexagonal-architecture.md)
 - [ADR-0010 Standardize Object IDs to URI Form](0010-standardize-object-ids.md)
 - [ADR-0011 Remove API v1 and consolidate vocabulary examples into API v2](0011-remove-api-v1.md)
@@ -144,7 +146,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy](0038-four-tier-specification-taxonomy.md)
 - [ADR-0039 Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
 - [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce UseCaseRequest](0040-use-case-result-envelope.md)
-- [ADR-0041 CASE_MANAGER-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md) *(revision 2)*
+- [ADR-0041 CASE_MANAGER-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md) *(revision 2)* — supersedes 0015-create-case-at-report-receipt.md
 - [ADR-0042 Deliver All Inter-Actor Communication over HTTP; Retire the In-Process ASGI Delivery Shortcut](0042-http-only-inter-actor-delivery.md) — partially superseded by 0109-a-container-emits-only-as-actors-it-hosts.md
 - [ADR-0043 Use the ADR `status` Field as the Confidence Signal (Extend Its Vocabulary Rather Than Add a New Field)](0043-adr-status-as-confidence-signal.md)
 - [ADR-0044 Adopt py_trees Typed Ports for BT Node Blackboard Contracts](0044-py-trees-typed-ports-adoption.md)
@@ -173,7 +175,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0069 Adopt certcc.github.io/Vultron as the Initial Vultron Vocabulary Namespace Host](0069-vultron-namespace-uri.md) *(provisional)* — partially superseded by 0106-versioning-machine-facing-interfaces.md
 - [ADR-0071 CVE Eligibility: Reference Baseline over Normative Citation or Implementation-Defined](0071-cna-eligibility-reference-baseline.md)
 - [ADR-0072 Use a Dedicated `stories:` Field for Spec-to-Story Traceability (Not `relationships:`)](0072-stories-field-for-spec-to-story-traceability.md)
-- [ADR-0073 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0073-per-actor-storage-isolation.md) — partially superseded by 0109-a-container-emits-only-as-actors-it-hosts.md
+- [ADR-0073 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0073-per-actor-storage-isolation.md) — partially superseded by 0109-a-container-emits-only-as-actors-it-hosts.md; partially supersedes 0012-per-actor-datalayer-isolation.md
 - [ADR-0074 Treat Wire Activities as Immutable Artifacts; Freeze at Receipt and at Factory Seal](0074-wire-activity-artifact-immutability.md) — partially superseded by 0099-one-object-model-as2-is-a-serialization.md
 - [ADR-0075 Split Per-Participant VFD Tracking into Separate Vendor-Path and Deployer-Path Sub-Machines](0075-split-vfd-state-machine.md)
 - [ADR-0076 Security-Significant Call-Out Gates Default to `RequireCaseOwnerApproval`](0076-security-significant-gates-default-require-case-owner-approval.md)
@@ -195,26 +197,26 @@ General information about architectural decision records is available at <https:
 - [ADR-0094 Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them](0094-ruff-replaces-flake8-isort-black.md)
 - [ADR-0095 Received-Side `HandlerResult` Carries a Handler Disposition Across the Dispatcher Boundary](0095-received-side-handler-result.md)
 - [ADR-0096 A Protocol Default Embargo Replaces the Pre-Case Phase](0096-protocol-default-embargo.md) *(revision 2)*
-- [ADR-0097 The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern](0097-capability-layer-four-shapes-and-core-declared-contracts.md)
+- [ADR-0097 The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern](0097-capability-layer-four-shapes-and-core-declared-contracts.md) — partially supersedes 0024-coordination-agent-taxonomy.md
 - [ADR-0098 Demo scenarios self-register at import time; every scenario table and the CI matrix become derived artifacts](0098-demo-scenarios-self-register.md)
-- [ADR-0099 One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy](0099-one-object-model-as2-is-a-serialization.md)
+- [ADR-0099 One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy](0099-one-object-model-as2-is-a-serialization.md) — supersedes 0017-domain-wire-object-separation.md, 0082-wire-core-boundary-pairing-registry.md; partially supersedes 0063-wire-rendering-port-for-core-objects.md, 0074-wire-activity-artifact-immutability.md
 - [ADR-0100 There Is No Multi-Candidate Embargo Poll; Open Proposals Resolve in Earliest-Expiration Order](0100-no-multi-candidate-embargo-poll.md)
 - [ADR-0101 Spec Item Format Is Field Presence, Not a Class Choice; a Bare Item Cannot Be a `BehavioralSpec`](0101-spec-item-format-is-field-presence.md)
 - [ADR-0102 Organize reader-facing documentation by stakeholder type and invisible prerequisite level](0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md) *(provisional)*
 - [ADR-0103 An Object's Time Is Carried, Never Minted by the Receiver](0103-object-time-is-carried-never-minted.md)
 - [ADR-0104 The Interactive Demo UI Is a React/ReactFlow Operator-Side Ledger Watcher, Fed by a Prototype-Only SSE Stream](0104-interactive-demo-ui-live-ledger-watcher.md)
-- [ADR-0106 Version Each Machine-Facing Interface Independently of the Release Tag](0106-versioning-machine-facing-interfaces.md) *(provisional)*
+- [ADR-0106 Version Each Machine-Facing Interface Independently of the Release Tag](0106-versioning-machine-facing-interfaces.md) *(provisional)* — partially supersedes 0069-vultron-namespace-uri.md
 - [ADR-0108 One Move, One Mover: Case State Flows Through the Case Manager and the Ledger, Whatever Message Carried It](0108-one-move-one-mover-case-state-flows-through-the-case-manager-and-the-ledger.md)
-- [ADR-0109 A Container Emits Only as Actors It Hosts; a Participant Asks the CaseActor to Act](0109-a-container-emits-only-as-actors-it-hosts.md)
+- [ADR-0109 A Container Emits Only as Actors It Hosts; a Participant Asks the CaseActor to Act](0109-a-container-emits-only-as-actors-it-hosts.md) — partially supersedes 0021-caseactor-inbox-routing-canonical-ledger.md, 0042-http-only-inter-actor-delivery.md, 0073-per-actor-storage-isolation.md
 - [ADR-0110 The Trigger Driving Port Is One `trigger()` Method over a Verb Registry, Returning a Typed Result Bound to the Request](0110-trigger-dispatcher-port-over-verb-registry.md)
 - [ADR-0111 Intake Is the First Stage of a Received-Side Tree: Record What Arrived Before Judging It](0111-intake-is-the-first-received-side-stage.md)
 - [ADR-0112 Per-Recipient Ordered Outbox Delivery: One Drain per Actor, One In-Flight Row per Recipient](0112-per-recipient-ordered-outbox-delivery.md)
 - [ADR-0113 Embargo Negotiation Relays Through the CASE_MANAGER; the Ledger Carries State but Never Asks](0113-embargo-revision-negotiation-relays-through-the-case-manager.md)
-- [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md)
+- [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md) *(revision 2)*
 - [ADR-0117 The Per-Case Genesis Hash Is Anchored to the Case Owner, Not the CaseActor](0117-genesis-hash-is-anchored-to-the-case-owner.md)
 - [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0120 ADR Lifecycle: Three Epochs and Tiered Edits](0120-adr-lifecycle-epochs-and-edit-tiers.md) *(provisional)*
-- [ADR-0121 A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants](0121-joined-participant-judges-the-case-by-full-case-invite.md) *(provisional)*
+- [ADR-0121 A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants](0121-joined-participant-judges-the-case-by-full-case-invite.md) *(provisional)* — supersedes 0070-invited-actor-rm-triage-via-ledger-backfill.md, 0084-participant-assertion-authority.md
 - [ADR-0123 An Embargo Invite May Name Its Terms by URI](0123-embargo-invite-may-name-its-terms-by-uri.md) *(provisional)*
 
 ## Proposed ADRs
@@ -223,14 +225,15 @@ General information about architectural decision records is available at <https:
 - [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md)
 - [ADR-0107 A Case Ledger Entry Is a Postmark on the Received Envelope; References Resolve by Dereference](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
 - [ADR-0115 Received Handlers Check the Sender's Entitlement, Declared Once per Use Case and Composed by the Receive-Tree Factory](0115-received-handlers-check-sender-entitlement.md)
-- [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md)
+- [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 2)*
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md)
-- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 3)*
+- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 3)* — supersedes 0056-embargo-adherence-computed-field.md; partially supersedes 0048-pec-no-embargo-is-absence-not-pre-consent.md, 0091-rename-pec-no-embargo-to-unbound.md, 0093-signatory-declined-pec-transition.md, 0118-pec-expired-and-unbound-exited-states.md
 - [ADR-0124 The Case Is a Projection of Its Ledger: One Replay Function for the CASE_MANAGER and Every Replica](0124-case-is-a-projection-of-its-ledger.md)
 - [ADR-0125 A Case Splits by Its Owner Proposing a Child Case: the Child Links Its Parent and Inherits the Embargo Terms Only](0125-case-split-child-case-inherits-the-embargo-only.md)
 - [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)*
 - [ADR-0127 Decision Records Leave Routine Agent Context; Specs and Notes Carry the Current State](0127-decision-records-leave-routine-agent-context.md)
 - [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
+- [ADR-0129 A Sender Rule States Every Position on Both Sides, and Is the Source of "Sent By"](0129-a-sender-rule-states-every-position-on-both-sides-and-is-the-source-of-sent-by.md)
 
 ## Rejected ADRs
 
@@ -247,5 +250,5 @@ Each is listed here with a forward link to its replacement.
 - [ADR-0056 `embargo_adherence` Is a Computed Property Derived from PEC State](archived/0056-embargo-adherence-computed-field.md) — superseded by 0122-per-embargo-participant-consent.md
 - [ADR-0062 Normalise Wire → Core at Ingress, and Enforce It Again at the Persistence Boundary](archived/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md) — superseded by 0082-wire-core-boundary-pairing-registry.md
 - [ADR-0070 Reuse `validate-report` for Invited Actors; Derive `VultronOfferRecord` from Ledger Backfill](archived/0070-invited-actor-rm-triage-via-ledger-backfill.md) — superseded by 0121-joined-participant-judges-the-case-by-full-case-invite.md
-- [ADR-0082 Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys](archived/0082-wire-core-boundary-pairing-registry.md) — superseded by 0099-one-object-model-as2-is-a-serialization.md
+- [ADR-0082 Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys](archived/0082-wire-core-boundary-pairing-registry.md) — superseded by 0099-one-object-model-as2-is-a-serialization.md; supersedes 0062-normalise-wire-to-core-at-both-ingress-and-persistence.md
 - [ADR-0084 Participant Status Is Self-Declaratory, With Narrow Externally-Evidenced On-Behalf Exceptions](archived/0084-participant-assertion-authority.md) — superseded by 0121-joined-participant-judges-the-case-by-full-case-invite.md

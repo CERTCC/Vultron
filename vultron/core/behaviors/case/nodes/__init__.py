@@ -92,7 +92,6 @@ from vultron.core.behaviors.case.nodes.intake import (
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     AdvanceInviteeVFToVendorAwareNode,
-    ApplyInviteRejectToParticipantNode,
     CreateInertInviteeParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
@@ -106,6 +105,10 @@ from vultron.core.behaviors.case.nodes.invite_participant import (
 )
 from vultron.core.behaviors.case.nodes.invite_participant_persist import (
     ActivateInviteeParticipantNode,
+    CommitInviteeAcceptEntriesNode,
+)
+from vultron.core.behaviors.case.nodes.invite_reject_participant import (
+    ApplyInviteRejectToParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.invite_response import (
     EmitAcceptCaseInviteNode,
@@ -297,6 +300,7 @@ __all__ = [
     "InviteeHasParticipantRecordNode",
     # invite_participant_persist (leaf nodes)
     "ActivateInviteeParticipantNode",
+    "CommitInviteeAcceptEntriesNode",
     # invite_ledger_backfill (leaf nodes)
     "CapturePreCommitBackfillTargetNode",
     "BackfillCanonicalLedgerToInviteeNode",

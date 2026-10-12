@@ -13,7 +13,7 @@ description: >
   flat-field reject-guard, and why persisted rows are unaffected.
 related_specs:
   - architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-18-002, ARCH-20,
-    ARCH-20-001, ARCH-20-002, ARCH-20-003, ARCH-20-004, ARCH-21-002)
+    ARCH-20-001, ARCH-20-002, ARCH-20-003, ARCH-20-004, ARCH-20-006, ARCH-21-002)
   - vocabulary-model.yaml (VM-10-001, VM-08-002)
   - case-ledger-processing.yaml (CLP-07-011, CLP-07-006, CLP-07-009, CLP-07-010)
   - status-dimension-objects.yaml (SDO-03-003, SDO-03-005)
@@ -189,7 +189,7 @@ the re-enumeration warning below.
 |---|---|---|
 | 1 | `core/behaviors/case/ledger_snapshots.py` (`obj_to_inline_dict`, `build_add_participant_status_snapshot`) | Dumped core objects `by_alias=True` for CASE_MANAGER-synthesized bootstrap snapshots; hand-patched `consent` → `emConsentState`. Callers are `nodes/proposal_ledger.py` and `nodes/leave/record.py`. |
 | 2 | `core/use_cases/_helpers.py` (`_inline_snapshot_reference_value`) | Dumped `dl.read()` results `by_alias=True` for CLP-07-006 inlining. `dl.read()` returns **core** objects per DL-05-001, so the alias generator was doing the wire projection here too. |
-| 3 | `adapters/driving/fastapi/routers/actors/_routes.py` (`get_actor`, siblings) | `AS2JSONResponse(cls.model_validate(data).model_dump(mode="json", by_alias=True, exclude_none=True))` where `cls` is a **core** actor class — so core aliases shaped an externally-visible AS2 actor document. Must route through `as_*` classes (ARCH-20-006). |
+| 3 | `adapters/driving/fastapi/routers/actors/_routes.py` (`get_actor`, siblings) | `AS2JSONResponse(cls.model_validate(data).model_dump(mode="json", by_alias=True, exclude_none=True))` where `cls` is a **core** actor class — so core aliases shaped an externally-visible AS2 actor document. Resolved: under ADR-0099 detail 3 the core actor class *is* the AS2 class, so its own `by_alias` dump is the document; ARCH-20-006 now forbids serving any model that is not a `CoreObject` or `as_Base`, and `AS2JSONResponse` refuses one. |
 | 4 | `vultron/demo/utils.py` | Same pattern, demo-only. |
 | 5 | `core/behaviors/status/nodes/dimension_filter.py` (`_to_core_status`) | **Depended on the shim, not the alias generator.** Dumped a wire status `by_alias=True` and revalidated it through core `ParticipantStatus`, relying on `_migrate_flat_fields` to accept flat `rmState` (ARCH-20-007). Resolved: under ADR-0099 detail 3 the wire status *is* `ParticipantStatus`, so the function is now a bare `isinstance` check — no dump, no `to_core()` (ARCH-20-008, #3840). Added by ADR-0061, so it post-dated CONCERN-2260. |
 

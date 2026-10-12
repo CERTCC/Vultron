@@ -1209,18 +1209,21 @@ class TestInviteActorUseCases:
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
         # Entry 2 (accept_invite): committed before invitee is registered —
-        #   fan-out does NOT include the invitee.
+        #   fan-out does NOT include the invitee.  It is the invitee's own
+        #   Accept message, which is the entry for its consent and `joined`.
         # Backfill: runs BEFORE any further commit (CM-17-004 step 3 precedes
         #   any further fan-out to the invitee), so its target is the receipt
         #   entry (2) and it sends entries 0, 1, 2 in log order.
-        # Entry 3 (invite_actor_to_full_case): the first entry committed after
-        #   the invitee is persisted AND after the backfill — its fan-out
-        #   INCLUDES the invitee, who receives it as the next entry in chain
-        #   order, not out of order ahead of genesis (#2898).  No
+        # Then the vendor's VF status (3), the CASE_MANAGER's own
+        #   add_participant_status_to_participant entry, committed after the
+        #   backfill so the invitee receives it in chain order, not ahead of
+        #   genesis (#2898), and last the full-case Invite (4).  No
         #   add_case_participant entry is committed (CM-31-012).
-        # So invitee receives: [0, 1, 2 (backfill), 3 (fan-out)].
-        assert announced_log_indices == [0, 1, 2, 3]
-        assert announced_entries[3].event_type == "invite_actor_to_full_case"
+        assert announced_log_indices == [0, 1, 2, 3, 4]
+        assert [e.event_type for e in announced_entries[3:]] == [
+            "add_participant_status_to_participant",
+            "invite_actor_to_full_case",
+        ]
         assert "add_case_participant" not in {
             e.event_type for e in dl.list_objects("CaseLedgerEntry")
         }
@@ -1643,9 +1646,15 @@ class TestInviteActorUseCases:
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
         # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
-        # the new accept_invite entry (2) to all participants via sync_port.
+        # the new accept_invite entry (2) to all participants via sync_port,
+        # then the vendor's VF status (3) follows.
         # This holds even when trigger_activity (announce port) is missing.
-        assert [entry.log_index for entry in announced_entries] == [0, 1, 2]
+        assert [entry.log_index for entry in announced_entries] == [
+            0,
+            1,
+            2,
+            3,
+        ]
 
         state_id = VultronReplicationState(
             case_id=case.id_, peer_id=invitee_id

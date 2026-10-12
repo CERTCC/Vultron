@@ -253,7 +253,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # the tree succeeds. _require_case would fail the tree instead, which
         # is wrong disposition here (ADR-0114, CM-11-007).
         (
-            f"{_NODES}/invite_inert_participant.py",
+            f"{_NODES}/invite_reject_participant.py",
             "ApplyInviteRejectToParticipantNode.update",
         ),
     }

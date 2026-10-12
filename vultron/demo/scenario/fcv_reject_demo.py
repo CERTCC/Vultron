@@ -359,9 +359,10 @@ def _phase_invite_vendor_reject(
         # DEMOMA-27-002, CM-11-006: Vendor IS in actor_participant_index from the
         # Invite-send moment (inert record created by CreateInertInviteeParticipantNode).
         # Finder and Coordinator must also be present.  Read from the CaseActor's
-        # store: the inert record is the CASE_MANAGER's alone, and a replica
-        # learns of a member only from its Accept(Invite) entry (CM-31-012),
-        # which a rejecting invitee never produces.
+        # store: a replica stores the record the CASE_MANAGER's
+        # create_case_participant entry carries (ADR-0114), but this scenario
+        # checks the CASE_MANAGER's own record, the one
+        # CreateInertInviteeParticipantNode writes.
         with demo_check(
             "Vendor in actor_participant_index after invite (inert record, CM-11-006)"
         ):
