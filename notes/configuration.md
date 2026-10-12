@@ -220,7 +220,7 @@ actor-policy defaults used by BT nodes and the production adapter:
   (BTND-05-002) and does not need to be listed here. A report receiver states
   these roles on its `Create(CaseProposal)` as `proposerCaseRoles`, and the
   CaseActor seats it with them; the CaseActor never reads its own
-  `default_case_roles` for a proposer (CP-01-011, CP-09-007, ADR-0132).
+  `default_case_roles` for a proposer (CP-01-011, CP-09-007, ADR-0133).
 - `case_actor_service_url`: base URL of the dedicated CaseActor container
   (e.g., `http://case-actor:7999/api/v2`). Required for any actor whose BT
   may run the `engage-case` path (i.e., case-creating actors). Absence causes

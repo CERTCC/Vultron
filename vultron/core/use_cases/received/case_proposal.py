@@ -159,7 +159,7 @@ class CreateCaseProposalReceivedUseCase:
         self._sync_port = sync_port
         # The CaseActor's own configuration (its protocol default embargo,
         # EP-04-005).  The proposer's CVD roles are not in it: they ride on the
-        # proposal (CP-09-007, ADR-0132).
+        # proposal (CP-09-007, ADR-0133).
         self._actor_config = actor_config
         self._wire_render_port = wire_render_port
         # Needed only on the decline path: _EmitRejectCaseProposalNode builds

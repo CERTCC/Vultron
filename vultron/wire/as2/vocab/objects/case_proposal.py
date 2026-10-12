@@ -82,7 +82,7 @@ class as_CaseProposal(as_VultronObject):
             proposed embargo terms (EP-04-004) reach case creation.
         proposer_case_roles: The CVD roles the proposer holds in a case it
             owns, copied from its own ``ActorConfig.default_case_roles``
-            (CP-01-011, ADR-0132).  The CASE_MANAGER seats the proposer with
+            (CP-01-011, ADR-0133).  The CASE_MANAGER seats the proposer with
             these plus ``CASE_OWNER``.  Never ``CASE_MANAGER`` (CP-01-012).
     """
 
@@ -174,7 +174,7 @@ class as_CaseProposal(as_VultronObject):
         ),
     )
 
-    # CP-01-011, ADR-0132: the proposer's own roles, which the CASE_MANAGER
+    # CP-01-011, ADR-0133: the proposer's own roles, which the CASE_MANAGER
     # cannot read anywhere else — it runs in another container and has no read
     # into the proposer's configuration (ADR-0073).  Empty means "CASE_OWNER
     # only", which is what a receiver with no default_case_roles gets.

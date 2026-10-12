@@ -1482,7 +1482,7 @@ class TestOwnerRolesComeFromTheProposal:
     """The owner's non-CASE_OWNER roles are the ones its proposal states.
 
     The proposer copies them from its own ``ActorConfig.default_case_roles``
-    (CFG-07-002) onto ``proposerCaseRoles`` (CP-01-011, ADR-0132).  The
+    (CFG-07-002) onto ``proposerCaseRoles`` (CP-01-011, ADR-0133).  The
     CaseActor used to read its *own* configuration instead, which was the
     receiver's only while the two shared a container; on the dedicated
     case-actor container a Vendor was seated as ``CASE_OWNER`` alone and its

@@ -50,7 +50,7 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     # the extractor refuse a Create(CaseProposal) without one (ADR-0032).
     proposer_profile: CoreActor
     # The CVD roles the proposer states for itself on the proposal (CP-01-011,
-    # ADR-0132), from its own ``default_case_roles``.  The parse edge has
+    # ADR-0133), from its own ``default_case_roles``.  The parse edge has
     # already refused a claim to ``CASE_MANAGER`` (CP-01-012).  Empty seats the
     # proposer as ``CASE_OWNER`` only.
     proposer_case_roles: list[CVDRole] = Field(default_factory=list)

@@ -87,7 +87,7 @@ class _ProposalsMixin:
         Create's ``actor`` (CP-01-010): it is the only place the CASE_MANAGER
         reads the CASE_OWNER's actor default from.  ``proposer_case_roles`` ride
         on the proposal for the same reason: they are the only place it reads
-        the CASE_OWNER's CVD roles from (CP-01-011, ADR-0132).
+        the CASE_OWNER's CVD roles from (CP-01-011, ADR-0133).
 
         Per CP-04-001, CP-04-002.
 

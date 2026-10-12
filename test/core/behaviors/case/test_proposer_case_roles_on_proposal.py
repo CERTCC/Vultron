@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The report receiver states its own case roles on the proposal (ADR-0132).
+"""The report receiver states its own case roles on the proposal (ADR-0133).
 
 The chain this pins:
 
@@ -24,7 +24,7 @@ The chain this pins:
 3. the extractor hands the roles to the CaseActor's use case on the event.
 
 The CaseActor then seats the receiver with them (CP-09-007); that end is
-covered in ``test_case_proposal_received_tree.py``.  Before ADR-0132 the
+covered in ``test_case_proposal_received_tree.py``.  Before ADR-0133 the
 CaseActor read its *own* configuration, which was the receiver's only while
 both ran in one container (#1876).
 """

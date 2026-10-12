@@ -51,7 +51,7 @@ def _effective_case_roles(
     """Return the effective case roles for the case owner participant.
 
     Prepends the roles the proposer stated on its proposal to ``CASE_OWNER``,
-    deduplicating while preserving order (CP-09-007, ADR-0132).  Moved here
+    deduplicating while preserving order (CP-09-007, ADR-0133).  Moved here
     from the deleted ``participant.owner`` module in issue #4353.
     """
     return list(dict.fromkeys([*proposer_case_roles, CVDRole.CASE_OWNER]))
@@ -206,7 +206,7 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
     them as CASE_OWNER at RM.RECEIVED in its own DataLayer.
 
     The receiver's additional CVD roles are the ones it stated on its proposal
-    (*case_roles*, CP-09-007, ADR-0132), which it copied from its own
+    (*case_roles*, CP-09-007, ADR-0133), which it copied from its own
     ``ActorConfig.default_case_roles`` (CFG-07-002).  This node never reads its
     own configuration for them: the CaseActor may run in another container
     (DEMOMA-06-004), and its configuration says nothing about the receiver.
@@ -288,7 +288,7 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             return Status.SUCCESS
 
-        # Roles come from the proposal (CP-09-007, ADR-0132) so role guards
+        # Roles come from the proposal (CP-09-007, ADR-0133) so role guards
         # (e.g. CheckVendorRoleNode) work for a VENDOR-role owner without
         # mislabelling a coordinator owner as a VENDOR.
         participant = CaseParticipant(

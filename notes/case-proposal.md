@@ -447,7 +447,7 @@ In `docker/docker-compose-multi-actor.yml` every actor container, and the
   the topology with `verify_case_actor_holds_records`, and every scenario dumps
   the `case-actor` ledger from that container (DEMOMA-06-005).
 
-- **The owner's roles ride on the proposal** (ADR-0132, CP-01-011,
+- **The owner's roles ride on the proposal** (ADR-0133, CP-01-011,
   CP-09-007). The CaseActor once read its *own* `default_case_roles` to seat the
   report receiver, which only gave the right answer while it ran in the
   receiver's container. Now the receiver copies its roles onto

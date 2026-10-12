@@ -65,7 +65,7 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
 
     The proposal states this actor's ``default_case_roles`` (CFG-07-002), which
     the CASE_MANAGER seats it with alongside ``CASE_OWNER`` (CP-01-011,
-    CP-09-007, ADR-0132).
+    CP-09-007, ADR-0133).
 
     Per specs/case-proposal.yaml CP-04-001, CP-04-002 and ADR-0041.
     """
@@ -121,7 +121,7 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
                     case_actor_id=case_actor_id,
                     offer_id=offer_id,
                     offer_actor_id=offer_actor_id,
-                    # CP-01-011, ADR-0132: this actor's own roles, which the
+                    # CP-01-011, ADR-0133: this actor's own roles, which the
                     # CASE_MANAGER cannot read from its own configuration.
                     proposer_case_roles=get_config().actor.default_case_roles,
                 )

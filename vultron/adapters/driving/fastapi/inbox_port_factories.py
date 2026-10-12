@@ -184,7 +184,7 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     ``CreateCaseProposalReceivedUseCase`` reads the CaseActor's *own* settings
     from it, such as the protocol default embargo (EP-04-005).  The proposing
     actor's CVD roles are not among them: the proposer states those on the
-    proposal (CP-09-007, ADR-0132), because this configuration belongs to the
+    proposal (CP-09-007, ADR-0133), because this configuration belongs to the
     CaseActor's container and says nothing about the proposer.
 
     Falls back to omitting ``actor_config`` when config load fails, leaving the

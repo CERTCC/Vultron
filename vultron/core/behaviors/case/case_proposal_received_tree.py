@@ -16,7 +16,7 @@ entries last (CP-09-009):
 
   1. Resolve (or create) the case, attributed to the proposer (CP-09-001)
   2. Add the proposer as CASE_OWNER at RM.RECEIVED, plus the roles it
-     stated on the proposal (AC-1, CP-09-007, ADR-0132)
+     stated on the proposal (AC-1, CP-09-007, ADR-0133)
   3. Add reporter as participant at RM.ACCEPTED (AC-2)
   4. Initialize the default embargo, seeding the CASE_OWNER as a signatory
      (AC-3, CM-14-003); record any pending revision as owed (EP-04-011)
@@ -301,7 +301,7 @@ def create_case_proposal_received_tree(
             ``protocol_default_embargo_duration`` is the fallback embargo
             when no actor default applies (EP-04-005); ``None`` uses the
             ``ActorConfig`` default.  It says nothing about the proposer, so
-            its ``default_case_roles`` are not read (ADR-0132).
+            its ``default_case_roles`` are not read (ADR-0133).
         call_out: Bundle supplying the ``EvaluateCaseProposal`` admission
             call-out point.  Defaults to ``CASE_PROPOSAL_DETERMINISTIC``, whose
             backend always succeeds, so an unconfigured deployment admits every
