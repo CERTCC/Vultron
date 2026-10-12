@@ -17,7 +17,7 @@
 Unit tests for outbox handler pure helper functions.
 
 Covers: ``_extract_recipients`` and ``_format_object`` over the parsed sealed
-body, and the ADR-0099 detail 8 check that ``VultronActivity`` declares every
+body, and the ARCH-25-008 check that ``VultronActivity`` declares every
 AS2 key a wire activity dumps.
 
 Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
@@ -29,6 +29,7 @@ Spec coverage:
 import pytest
 from pydantic import BaseModel
 
+from test.support.model_keys import accepted_keys, dumped_keys
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 
 # ---------------------------------------------------------------------------
@@ -98,23 +99,8 @@ def test_format_object_handles_object_without_id():
 
 
 # ---------------------------------------------------------------------------
-# VultronActivity declares every wire activity key (ADR-0099 detail 8)
+# VultronActivity declares every wire activity key (ARCH-25-008)
 # ---------------------------------------------------------------------------
-
-
-def _accepted_keys(model: type[BaseModel]) -> set[str]:
-    """Every input key *model* accepts: field names plus their aliases."""
-    from pydantic import AliasChoices
-
-    keys: set[str] = set()
-    for name, info in model.model_fields.items():
-        keys.add(name)
-        for alias in (info.alias, info.validation_alias):
-            if isinstance(alias, str):
-                keys.add(alias)
-            elif isinstance(alias, AliasChoices):
-                keys.update(c for c in alias.choices if isinstance(c, str))
-    return keys
 
 
 def _wire_activity_classes() -> list[type[BaseModel]]:
@@ -142,17 +128,12 @@ def test_vultron_activity_accepts_every_wire_activity_key(
     ``VultronActivity`` inherits ``extra="forbid"`` from ``CoreObject``, so an
     undeclared AS2 key makes a received activity unstorable as a core
     activity.  ``as_Question``'s ``anyOf``/``oneOf``/``closed`` did exactly
-    that to the CBT-03-004 replay Question (ADR-0099 detail 8).
+    that to the CBT-03-004 replay Question (ARCH-25-008).
     """
     from vultron.core.models.activity import VultronActivity
 
-    dumped = {
-        info.serialization_alias or info.alias or name
-        for name, info in wire_cls.model_fields.items()
-        if not info.exclude
-    }
-    missing = dumped - _accepted_keys(VultronActivity)
+    missing = dumped_keys(wire_cls) - accepted_keys(VultronActivity)
     assert not missing, (
         f"{wire_cls.__name__} dumps keys VultronActivity forbids: "
-        f"{sorted(missing)} — declare them (ADR-0099 detail 8)"
+        f"{sorted(missing)} — declare them (ARCH-25-008)"
     )

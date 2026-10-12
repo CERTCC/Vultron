@@ -25,6 +25,7 @@ import logging
 from datetime import datetime
 
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants._lookup import iter_case_participants
 from vultron.core.services.embargo_lifecycle.pec import (
     _consent_change,
     _PecEffectsMixin,
@@ -350,6 +351,45 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
             participant.consent_for(embargo_id) == EmbargoConsentState.INVITED
         )
         return is_expired, needs_apply
+
+    def pending_invitations(
+        self, case_id: str
+    ) -> list[tuple[CaseParticipant, str]]:
+        """Every embargo invitation on *case_id* still awaiting a reply.
+
+        Read-only.  Returns one ``(participant, embargo_id)`` pair per
+        consent row that is ``INVITED`` and whose register entry is not final
+        — the rows :meth:`record_invite_expiry` would move.  A row for a
+        final entry is frozen (ADR-0122), so it is not pending: nothing can
+        answer or expire it.  The owner-close settle step (CM-23-014) expires
+        each pair without waiting for its deadline.
+
+        Every participant record counts, joined or not: a pending invitation
+        is a row on a record, not an addressee (CM-10-007 governs who is
+        sent to, not whose rows are read).  Ordered by the case's
+        participants, then by each record's rows, so the entries a caller
+        commits come out in a stable order.
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase``.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+        """
+        case = self._read_case(case_id)
+        pending: list[tuple[CaseParticipant, str]] = []
+        for participant in iter_case_participants(case, self._persistence):
+            for row in participant.embargo_consents:
+                if row.state != EmbargoConsentState.INVITED:
+                    continue
+                entry = case.embargo_register_entry(row.embargo_id)
+                if (
+                    entry is not None
+                    and entry.status in FINAL_REGISTER_STATUSES
+                ):
+                    continue
+                pending.append((participant, row.embargo_id))
+        return pending
 
     def record_invite_expiry(
         self,

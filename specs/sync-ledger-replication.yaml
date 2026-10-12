@@ -224,11 +224,11 @@ groups:
     kind: protocol
     statement: >-
       When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD include the
-      hash of its last accepted canonical recorded log entry as a parameter in the activity's
+      hash of the last canonical recorded log entry it has applied as a parameter in the activity's
       context field
     verification: >-
       Integration tests in `test/demo/` confirm that messages from Participant Actors
-      to the CASE_MANAGER include the last accepted canonical log hash in the
+      to the CASE_MANAGER include the last applied canonical log hash in the
       activity context field.
     stories:
     - story_2022_045

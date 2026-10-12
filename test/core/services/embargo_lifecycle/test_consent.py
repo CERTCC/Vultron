@@ -670,6 +670,43 @@ def test_an_invited_row_for_a_final_entry_never_times_out(
     assert _consents_of(dl, pid)[rev_id] == "INVITED"
 
 
+@pytest.mark.spec("CM-23-014")
+def test_pending_invitations_lists_every_open_invited_row(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Every INVITED row on an open entry, whatever its deadline (CM-23-014)."""
+    owner, dl = owner_and_dl
+    case, _invitee, pid, active_id, rev_id = _invited_to_two(
+        dl, owner, active_deadline_in_days=365, revision_deadline_in_days=-1
+    )
+
+    pending = EmbargoLifecycle(persistence=dl).pending_invitations(case.id_)
+
+    assert [(p.id_, embargo_id) for p, embargo_id in pending] == [
+        (pid, active_id),
+        (pid, rev_id),
+    ]
+
+
+@pytest.mark.spec("CM-23-014")
+def test_pending_invitations_skips_frozen_and_answered_rows(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """A row on a final entry is frozen, and a TIMED_OUT row is answered."""
+    owner, dl = owner_and_dl
+    case, invitee, _pid, active_id, rev_id = _invited_to_two(
+        dl, owner, active_deadline_in_days=5, revision_deadline_in_days=5
+    )
+    reject(case, rev_id)
+    dl.save(case)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    lifecycle.record_invite_expiry(
+        case_id=case.id_, actor_id=invitee.id_, embargo_id=active_id
+    )
+
+    assert lifecycle.pending_invitations(case.id_) == []
+
+
 # ---------------------------------------------------------------------------
 # honour_late_accept — EMB-17-001, ADR-0118
 # ---------------------------------------------------------------------------

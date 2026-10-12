@@ -17,7 +17,7 @@
     Do NOT use `VultronAS2Object` — that name is retired. See ARCH-14-002.
   - `TypeAlias` companion types also use the `as_` prefix:
     `as_VulnerabilityCaseRef`, `as_CaseParticipantRef`, etc. See ARCH-14-003.
-  - **IMPORTANT — this changed with ADR-0099 detail 3.** For a *domain* type
+  - **IMPORTANT — this changed with ADR-0099 (ARCH-25-003).** For a *domain* type
     there is now only one class, and `as_X` is a `TypeAlias` onto it:
     `as_VulnerabilityCase is VulnerabilityCase` is `True`. All 27 paired
     classes were collapsed (#3487, #3488), so an `as_` prefix on a domain name
@@ -193,7 +193,7 @@ namespace does not declare Vultron-specific types (`VulnerabilityCase`,
 `EmbargoEvent`, etc.); using it alone means receivers cannot resolve those type
 names. The Vultron context document imports AS2 internally, so citing only the
 Vultron URI is both correct and sufficient. Domain types are core
-`CoreObject`s (ADR-0099 detail 3), not `as_VultronObject` subclasses: they get
+`CoreObject`s (ARCH-25-003), not `as_VultronObject` subclasses: they get
 the same context from `CoreObject`'s `by_alias` serializer, not from delivery
 (#3490). See VM-10-001, ADR-0069.
 *Source: CONCERN-2105*
