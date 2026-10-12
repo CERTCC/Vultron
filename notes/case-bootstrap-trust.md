@@ -2,7 +2,7 @@
 title: Case Bootstrap Trust — Implementation Notes
 status: active
 description: >
-  Design notes for trust establishment at non-owner sites: creator-signed
+  Design notes for trust establishment at non-owner sites: receiver-signed
   bootstrap for the original report path, invite-based bootstrap for
   late joiners, and CASE_MANAGER authority after trust establishment.
 related_specs:
@@ -39,11 +39,11 @@ relevant_packages:
 |---|---|---|
 | What establishes first trust for the original report-submission path? | The report receiver sends a one-time `Create(VulnerabilityCase)` to the report submitter, as itself (ADR-0132). | The report submitter already knows who received the report; the bootstrap reuses that trust anchor to introduce the CASE_MANAGER safely. |
 | Is `Announce(VulnerabilityCase)` still the first snapshot for that path? | No. After bootstrap, later snapshots come from the CASE_MANAGER via `Announce`. | Keeps initial trust establishment separate from ongoing single-writer replication. |
-| What must be in the bootstrap payload? | A full case snapshot naming the case creator/owner, the CASE_MANAGER, and the report submitter when they are already in the loop. | The receiver needs both the case state and the identities required for future trust checks. |
+| What must be in the bootstrap payload? | A full case snapshot naming the report receiver (Case Owner), the CASE_MANAGER, and the report submitter when they are already in the loop. | The receiver needs both the case state and the identities required for future trust checks. |
 | What roles should those participants carry? | Case creator/owner gets `CASE_OWNER`; CASE_MANAGER gets `COORDINATOR`. | Distinguishes ownership from coordination authority. |
 | Is an extra ack needed before CASE_MANAGER updates are trusted? | No. Local validation of the bootstrap is enough. | Avoids an unnecessary extra round trip. |
 | What if a CASE_MANAGER update arrives before bootstrap? | Queue briefly, do not apply it, then drop and warn if bootstrap never arrives. | Tolerates reordering without making ordering skew a protocol failure. |
-| Who gets the replay request if bootstrap times out? | The original report receiver / case creator. | The CASE_MANAGER is not trusted yet; the replay request asks for the trust-establishing message. |
+| Who gets the replay request if bootstrap times out? | The original report receiver. | The CASE_MANAGER is not trusted yet; the replay request asks for the trust-establishing message. |
 | How do late joiners establish trust? | `InviteActorToCase` from the case creator establishes trust; then the CASE_MANAGER may `Announce` the case. | Late joiners have no prior report relationship to anchor trust. |
 | Can ordinary updates replace the trusted CASE_MANAGER? | No. CASE_MANAGER rotation requires an explicit transfer workflow. | Prevents silent authority takeover. |
 | Do encrypted/authenticated DMs replace this bootstrap? | No. They secure transport, but they do not authorize a newly introduced CASE_MANAGER for a case. | Sender authenticity alone is weaker than case-specific authority. |
@@ -60,11 +60,10 @@ case and its CASE_MANAGER.
 
 ```text
 report_submitter -> Offer(VulnerabilityReport) -> report_receiver
-report_receiver == case_creator
 
-case_creator -> Create(VulnerabilityCase full snapshot) -> report_submitter
-(case_creator is the report receiver; when the CASE_MANAGER is another actor,
-the snapshot names it and the receiver relays the CASE_MANAGER's case, ADR-0132)
+report_receiver -> Create(VulnerabilityCase full snapshot) -> report_submitter
+(when the CASE_MANAGER is another actor, the snapshot names it and the receiver
+relays the CASE_MANAGER's case, ADR-0132)
 report_submitter validates:
   - sender == report_receiver
   - case references the submitted report
@@ -94,7 +93,7 @@ should already contain enough information for the receiver to accept future
 CASE_MANAGER updates without another handshake:
 
 1. The full inline `VulnerabilityCase`
-2. A participant record for the case creator / owner with `CASE_OWNER`
+2. A participant record for the report receiver / Case Owner with `CASE_OWNER`
 3. A participant record for the CASE_MANAGER with `COORDINATOR`
 4. A participant record for the report submitter when they are already a live
    participant in the case
@@ -112,7 +111,8 @@ case during bootstrap.
 After a valid bootstrap, persist all of the following together:
 
 - `report_id -> case_id`
-- `case_id -> case_creator_id`
+- `case_id -> case_creator_id` (the report receiver that introduced the case;
+  the CASE_MANAGER is recorded separately)
 - `case_id -> case_manager_id`
 
 This prevents the receiver from having to re-derive trust from later traffic
@@ -145,10 +145,10 @@ uses a short bounded queue:
 3. The message is queued briefly and remains unapplied.
 4. If bootstrap arrives in time, normal validation may resume.
 5. If bootstrap does not arrive, drop the queued message, log a warning, and
-   ask the case creator to replay bootstrap.
+   ask the report receiver to replay bootstrap.
 
 The replay request should be a generic `Question` directed to the original
-report receiver / case creator. The semantics are "please resend the
+report receiver. The semantics are "please resend the
 bootstrap `Create(VulnerabilityCase)` for this report/case relationship."
 
 ---
@@ -178,7 +178,7 @@ CASE_MANAGER: Create(VulnerabilityCase, actor=case_manager, inline participants)
 Receiver: Create(VulnerabilityCase, actor=receiver, full inline snapshot,
           names the CASE_MANAGER) -> Reporter
   -> Reporter checks the sender against the Offer it wrote, then records the
-     report-to-case link, the receiver as case creator, and the named CASE_MANAGER
+     report-to-case link, the receiver's identity, and the named CASE_MANAGER
 
 CASE_MANAGER: Announce(...) -> Reporter   (accepted: the introduction named it)
 ```

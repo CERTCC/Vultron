@@ -10,7 +10,8 @@ consulted: >-
   CBT-01-005; specs/case-management.yaml CM-12-003, CM-22-001
 informed: []
 stakeholder_type: [project-contributor]
-partially_supersedes: 0041-caseactor-authoritative-case-initialization.md
+partially_supersedes:
+  - 0041-caseactor-authoritative-case-initialization.md
 ---
 
 # The Report Receiver Introduces the CASE_MANAGER to the Reporter
@@ -60,10 +61,11 @@ Chosen option: "The receiver sends the reporter a full `Create(VulnerabilityCase
    The message carries the full case with every participant inline, and it names the CASE_MANAGER the receiver delegated case maintenance to.
    It references the reporter's submitted report.
 2. The reporter trusts that message only when a record the reporter wrote earlier ties the report to the sender.
-   It then stores the report-to-case link, the sender as case creator, and the named CASE_MANAGER (CBT-01-006).
+   It then stores the report-to-case link, the sender's identity, and the named CASE_MANAGER (CBT-01-006).
 3. The CASE_MANAGER no longer addresses the reporter in its `Create(VulnerabilityCase)`.
    It sends that message to the Case Owner only.
    Its first message to the reporter is a later `Announce`, which the reporter accepts because the introduction named it.
+   A reporter that receives the `Announce` before the introduction holds it under CBT-03-001 and CBT-03-002, as for any early CASE_MANAGER message.
 4. `Accept(Offer(VulnerabilityReport))` and `RK` keep their receipt and validation meaning.
    `Announce` keeps its meaning as the CASE_MANAGER's sync.
 5. The `direct` bootstrap route, which trusts a sender because its own snapshot names it, is removed.
@@ -93,4 +95,4 @@ The CASE_MANAGER stays the creator and the authoritative source of the case, and
 ## More Information
 
 Source: #4473, which settles the trust anchor for #4472.
-Docs and spec rewording follows from this decision: CBT-01-001, CBT-01-005, CM-12-003, CM-22-001, CP-09-001, and Protocol Specification §4.5 and §5.4.2.
+Docs and spec rewording follows from this decision: CBT-01-001, CBT-01-005, CM-12-003, CM-22-001, and Protocol Specification §4.5 and §5.4.2.

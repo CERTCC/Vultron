@@ -23,9 +23,9 @@ groups:
     rationale: The submitter chose the report receiver and wrote a record of that choice before the case existed. A case
       that arrives first from an actor the submitter never addressed gives it nothing to check the sender against, and a
       roster the sender wrote is not an anchor. The receiver already knows the CASE_MANAGER, so it vouches for it.
-    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that when a case is created
-      in response to an `Offer(VulnerabilityReport)`, a `Create(VulnerabilityCase)` from the report receiver is dispatched
-      to the original report submitter's inbox.
+    verification: '`test_report_receiver_sends_the_reporter_the_case` in `test/demo/test_case_proposal_round_trip.py` confirms
+      that when a case is created in response to an `Offer(VulnerabilityReport)`, the only `Create(VulnerabilityCase)` the
+      original report submitter holds comes from the report receiver. It is a strict `xfail` until #4511 lands.'
     relationships:
     - rel_type: refines
       spec_id: CM-12-001
@@ -104,7 +104,7 @@ groups:
       which the sender wrote, MUST NOT serve as that record.
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that a
       `Create(VulnerabilityCase)` from an unexpected sender or without a matching report reference is rejected and does
-      not establish CASE_MANAGER trust.
+      not establish CASE_MANAGER trust. The record-it-wrote-itself rule is verified by CBT-01-011's test.
     relationships:
     - rel_type: refines
       spec_id: PCR-05-001
@@ -118,10 +118,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: After validating the bootstrap `Create(VulnerabilityCase)`, the receiving actor MUST persist the report-to-case
-      link, the trusted case-creator identity, and the trusted CASE_MANAGER identity for that relationship.
+      link, the report receiver's identity (the actor that introduced the case), and the trusted CASE_MANAGER identity for that
+      relationship.
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that after a valid bootstrap
-      `Create(VulnerabilityCase)`, the receiver's DataLayer contains the report-to-case link, the trusted case-creator
-      identity, and the trusted CASE_MANAGER identity for that relationship.
+      `Create(VulnerabilityCase)`, the receiver's DataLayer contains the report-to-case link, the report receiver's identity,
+      and the trusted CASE_MANAGER identity for that relationship.
     relationships:
     - rel_type: refines
       spec_id: PCR-05-001
@@ -217,8 +218,8 @@ groups:
       CASE_MANAGER MUST NOT address its `Create(VulnerabilityCase)` to the
       original report submitter. That activity goes to the report receiver (the
       Case Owner), which relays the introduction (CBT-01-001). The CASE_MANAGER's
-      first message to the submitter is an `Announce`, sent after the submitter
-      has accepted the introduction.
+      first message to the submitter is an `Announce`. A submitter that receives
+      it before the introduction holds it under CBT-03-001 and CBT-03-002.
     rationale: >-
       The submitter never addressed the CASE_MANAGER, so a `Create` from it
       cannot be checked against anything the submitter wrote (CBT-01-005).
@@ -226,10 +227,10 @@ groups:
       one trust anchor for the submitter and removes the route that trusted a
       sender because its own snapshot named it (ADR-0132).
     verification: >-
-      Tests confirm that the CASE_MANAGER's `Create(VulnerabilityCase)` has the
-      report receiver as its only addressee, that the submitter receives a
-      `Create(VulnerabilityCase)` from the report receiver, and that the
-      submitter accepts a later CASE_MANAGER `Announce`.
+      `test_case_manager_create_is_addressed_to_the_owner_only` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts that
+      the CASE_MANAGER's `Create(VulnerabilityCase)` has the report receiver as
+      its only addressee. It is a strict `xfail` until #4511 lands.
     adr:
     - ADR-0132
     relationships:
@@ -237,8 +238,9 @@ groups:
       spec_id: CBT-01-001
     - rel_type: refines
       spec_id: CBT-01-005
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_090
+    - story_2022_088
   - id: CBT-01-011
     priority: MUST
     kind: protocol
@@ -251,16 +253,20 @@ groups:
       The sender wrote the snapshot, so a roster in it proves nothing about the
       sender's authority (ADR-0132; `notes/participant-case-replica.md`).
     verification: >-
-      A test sends `Create(VulnerabilityCase)` from an actor no local anchor
-      names, with a snapshot naming that sender as CASE_MANAGER, and asserts a
-      refusal and an empty case store (CBT-05-002).
+      `test_bootstrap_from_an_actor_no_anchor_names_is_refused` in
+      `test/core/use_cases/received/case/test_helpers.py` sends
+      `Create(VulnerabilityCase)` from an actor no local anchor names, with a
+      snapshot naming that sender as CASE_MANAGER, and asserts a refusal and an
+      empty case store. It is a strict `xfail` until #4511 lands.
     adr:
     - ADR-0132
     relationships:
     - rel_type: refines
       spec_id: CBT-01-005
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_035
+    - story_2022_089
+    - story_2022_090
 - id: CBT-02
   title: Post-Bootstrap Update Authority
   specs:
@@ -415,10 +421,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: Tests MUST verify that pre-bootstrap CASE_MANAGER messages remain unapplied, expire safely, and lead to a replay
-      request to the case creator.
+      request to the report receiver.
     verification: Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that pre-bootstrap CASE_MANAGER messages
       remain unapplied, that the pre-bootstrap queue expiry is handled safely, and that expiry triggers a replay request
-      to the case creator.
+      to the report receiver.
     stories:
     - story_2022_090
     - story_2022_088
