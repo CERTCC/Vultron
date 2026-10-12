@@ -1833,7 +1833,7 @@ groups:
     - story_2022_107
   - id: CSB-15-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       A DEPLOYER-only actor (holds CVDRole.DEPLOYER but not CVDRole.VENDOR)
       attempting the d→D transition MUST be permitted to proceed only when at least
@@ -1892,8 +1892,6 @@ groups:
     tags:
     - state-machine
     - protocol
-    lint_suppress:
-    - missing_story_reference
 - id: CSB-16
   title: CS Write-Boundary Transition Validation
   description: >-

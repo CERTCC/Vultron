@@ -28,8 +28,10 @@ groups:
     - ADR-0122
   - id: SDO-01-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms no dimension object class is registered in `CORE_VOCABULARY`
+      or declares an `id_` field.
     statement: Dimension objects MUST NOT be registered in CORE_VOCABULARY or given an id_ field.
     rationale: They are always embedded in CaseStatus or ParticipantStatus, which already carries identity. Independent registration
       would create unnecessary schema complexity. See ADR-0036.
@@ -107,8 +109,10 @@ groups:
     - story_2022_088
   - id: SDO-02-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms each dimension object's `transition()` returns a new instance
+      and leaves `self` unchanged.
     statement: transition() MUST NOT mutate self. The caller MUST use the returned dimension object as the updated state.
     rationale: Mutation of embedded Pydantic models is fragile and inconsistent with the append-only history model. See ADR-0036.
     adr:
@@ -179,8 +183,10 @@ groups:
     - story_2022_107
   - id: SDO-03-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms `CaseStatus` and `ParticipantStatus` define none of the
+      retired flat enum fields as aliases or shim properties.
     statement: The old flat enum fields (em_state, pxa_state, rm_state, vfd_state, em_consent_state) MUST NOT be retained
       as aliases or shim properties after the migration is complete.
     rationale: Keeping both representations creates an extended half-migrated state and perpetuates the flat-enum problem.

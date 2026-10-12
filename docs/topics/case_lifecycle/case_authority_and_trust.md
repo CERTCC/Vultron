@@ -410,7 +410,7 @@ A sender that received one after close would read it as an answer to its request
 `Reject(Leave)` already means "close declined", so it cannot be misread.
 
 A new case proposal is not a late message about the case, because it names a report, not a case.
-When a proposal resolves to a closed case, the CASE_MANAGER answers it with `Reject(CaseProposal)` under either setting, and records nothing for the case ([CP-05-006](../../reference/specs/protocol.md#cp-05-006), [CP-05-008](../../reference/specs/protocol.md#cp-05-008)).
+When a proposal resolves to a closed case, the CASE_MANAGER answers it with `Reject(CaseProposal)` under either setting, and records nothing for the case ([CP-05-006](../../reference/specs/project.md#cp-05-006), [CP-05-008](../../reference/specs/protocol.md#cp-05-008)).
 That reply is a decision on the proposal, so it cannot be misread either.
 
 The boundary stops new writes, not reads.
@@ -432,7 +432,7 @@ For that reason the Case Owner should leave last, after the other participants h
 ## Closed is terminal, so defer instead
 
 RM `CLOSED` has no way out.
-Once a participant reaches it, no further RM change is possible for that participant in that case ([RMB-14-006](../../reference/specs/protocol.md#rmb-14-006)).
+Once a participant reaches it, no further RM change is possible for that participant in that case ([RMB-14-006](../../reference/specs/project.md#rmb-14-006)).
 There is no rejoin: making `CLOSED` reversible would need a second lifecycle for one participant record, and the protocol does not define one ([ADR-0085](../../adr/0085-case-lifecycle-boundaries.md)).
 
 A participant that expects to come back should move to RM `DEFERRED` instead ([RMB-14-007](../../reference/specs/protocol.md#rmb-14-007)).

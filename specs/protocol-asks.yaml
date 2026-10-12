@@ -153,7 +153,7 @@ groups:
     - ADR-0080
   - id: ASK-02-004
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >
       A gated interaction tree MUST NOT read authorization state from an
       outstanding-ask register; it MUST read it from the case ledger.

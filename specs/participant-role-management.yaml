@@ -89,7 +89,7 @@ groups:
     - story_2022_063
   - id: PRM-02-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`add_role()` MUST raise `KeyError` when `raise_when_present=True` and the given role is already present in
       the participant''s role set.'
     rationale: 'Callers that require strict single-assignment semantics (e.g. role initialization guards) need a fail-fast
@@ -99,8 +99,6 @@ groups:
       `KeyError` when the participant already holds that role.
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
   - id: PRM-02-004
     priority: MUST
     kind: protocol
@@ -132,7 +130,7 @@ groups:
     - story_2022_066
   - id: PRM-02-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`remove_role()` MUST raise `KeyError` when `raise_when_missing=True` and the given role is not present in
       the participant''s role set.'
     rationale: 'Callers that rely on strict presence checks before removal need a fail-fast path.'
@@ -141,8 +139,6 @@ groups:
       `KeyError` when the participant does not hold that role.
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
 - id: PRM-03
   title: Core Layer Rules
   specs:
@@ -160,7 +156,7 @@ groups:
     - tooling
   - id: PRM-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Passing `case_roles=[...]` as a constructor argument when creating a CaseParticipant instance is permitted
       and does not violate PRM-03-001; the prohibition applies only to post-construction attribute mutation.'
     rationale: 'Constructor arguments are the canonical way to initialise an immutable value-object. This clarification prevents
@@ -170,8 +166,6 @@ groups:
       constructs successfully and `participant.roles` returns the initial role list.
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
   - id: PRM-03-003
     priority: MUST_NOT
     kind: project

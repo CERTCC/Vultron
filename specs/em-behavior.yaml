@@ -275,8 +275,13 @@ groups:
     - story_2022_023
   - id: EMB-02-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/core/use_cases/received/test_embargo_owner_decision.py::test_an_activation_with_pxa_set_is_refused_uncommitted`
+      and
+      `test/core/use_cases/received/test_embargo_relay_replay.py::test_a_case_manager_with_pxa_set_rejects_a_participants_acceptance`
+      confirm an activation with a PXA bit set is refused before commit and answered
+      with ER where the rule calls for one.
     statement: >-
       A Participant MUST NOT process EA to transition EM to Active when the case
       is already public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or
@@ -1628,8 +1633,10 @@ groups:
     - story_2022_006
   - id: EMB-15-006
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/core/behaviors/embargo/test_response_decision_tree.py::TestBTBridgeIntegration::test_case_owner_skips_case_owner_approves_call_out`
+      confirms the case owner's response bypasses the approval call-out.
     statement: >-
       When the deciding actor holds `CVDRole.CASE_OWNER`, the owner's stated
       response is authoritative and the seam MUST NOT require external approval.

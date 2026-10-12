@@ -697,8 +697,9 @@ def sr_11_003_gate_applies(kind: SpecKind, priority: RFC2119Priority) -> bool:
 
     SR-11-003 is the one recorded exception to MS-02-003: it is deliberately
     ``MUST``-only, not MUST-tier, because the protocol ``MUST_NOT``s with no
-    ``stories:`` are still being adjudicated (#3601) and the gate extends to
-    them as #2717's closing step once their stories exist — see the spec's
+    ``stories:`` still await their stories (#3601 adjudicated them; #2717
+    holds the list) and the gate extends to them as #2717's closing step once
+    their stories exist — see the spec's
     ``note:``. This is the only place that decision is written down;
     ``scripts/backfill_stories.py`` selects through it too, so the exception
     cannot drift into a second hand-written copy. When it is retired, replace

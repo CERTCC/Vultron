@@ -373,8 +373,11 @@ groups:
       assertions (see CLP-04-007).
   - id: CLP-05-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms local tracking and duplicate-detection markers are held in
+      per-actor stores such as `PendingAssertionStore` and that no code path constructs
+      a `CaseLedgerEntry` for one.
     statement: Implementations MUST NOT write local-only tracking markers or
       duplicate-detection markers as `CaseLedgerEntry` objects of any kind; such
       markers belong in ephemeral per-actor stores (e.g., `PendingAssertionStore`),
@@ -392,8 +395,10 @@ groups:
     - ADR-0018
   - id: CLP-06-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms no participant-membership or case-state reconstruction path
+      reads the pending-assertion store; reconstruction reads the canonical ledger only.
     statement: Pending assertion state MUST NOT be treated as canonical case history
       and MUST NOT be used as the authoritative source for participant membership
       or case state reconstruction
@@ -401,47 +406,43 @@ groups:
     - ADR-0018
   - id: CLP-06-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Implementations that provide pending assertion suppression MUST support
       a configurable timeout; the default timeout SHOULD be 180 seconds
     verification: A unit test confirms that the pending assertion suppression store's
       timeout defaults to 180 seconds and that a constructor argument overrides the
       default to any positive value.
-    lint_suppress:
-    - missing_story_reference
     adr:
     - ADR-0018
   - id: CLP-06-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: When a pending assertion reaches timeout without matching canonical
       confirmation, it MUST transition to a timed-out state and the system MUST emit
       an error log
     verification: A unit test confirms that when a pending assertion's suppression
       window elapses without a matching canonical confirmation, the entry transitions
       to a timed-out state and the system emits an error-level log message.
-    lint_suppress:
-    - missing_story_reference
     adr:
     - ADR-0018
   - id: CLP-06-005
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms the pending-assertion timeout path only marks the entry timed
+      out and logs, and never queues a fresh assertion emission.
     statement: Pending assertion timeout handling MUST NOT automatically retry assertion
       emission; follow-up emission decisions MUST be made by subsequent behavior evaluation
     adr:
     - ADR-0018
   - id: CLP-06-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A pending assertion entry MUST be cleared when a matching canonical
       `CaseLedgerEntry(recorded|rejected)` is observed
     verification: A unit test confirms that when a `CaseLedgerEntry` with either `disposition="recorded"`
       or `disposition="rejected"` arrives matching a pending assertion, that assertion
       entry is immediately removed from the pending store.
-    lint_suppress:
-    - missing_story_reference
     adr:
     - ADR-0018
 - id: CLP-07
@@ -594,8 +595,11 @@ groups:
     - story_2022_089
   - id: CLP-07-004
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms no code path commits a `CaseLedgerEntry` for a diagnostic,
+      demo checkpoint, verification marker or other per-actor observability event; such
+      events go to the process log.
     statement: The canonical case ledger MUST NOT contain runtime diagnostics, demo
       checkpoints, synthetic verification markers, troubleshooting events, or any
       per-actor observability content; such content belongs in the per-actor process
@@ -839,7 +843,7 @@ groups:
     - story_2022_046
   - id: CLP-09-002
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: The canonical commit operation MUST NOT be invoked directly (bare,
       unguarded) from any production call site outside the guarded-commit composition
       itself.
@@ -981,7 +985,7 @@ groups:
     - ADR-0021
   - id: CLP-10-004
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: The `announce_case_ledger_entry` event type MUST NOT appear in `EXPECTED_EVENT_TYPES`
       for the case-actor canonical log; `Announce(CaseLedgerEntry)` is the replication
       envelope that carries canonical entries to participants and cannot itself be
@@ -1547,8 +1551,10 @@ groups:
     - story_2022_088
   - id: CLP-11-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms `find_protocol_pair()` and `PendingAssertionStore` remain
+      separate, with neither delegating to nor wrapping the other.
     statement: '`find_protocol_pair()` (durable, DataLayer-backed) and `PendingAssertionStore`
       (ephemeral, in-memory suppression) MUST NOT be unified. They serve distinct
       purposes: `find_protocol_pair` determines canonical open/closed state from the
@@ -1565,7 +1571,7 @@ groups:
     - ADR-0080
   - id: CLP-11-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`ProtocolPair` MUST be the shared value type for both `find_protocol_pair()`
       and `PendingAssertionStore`. Named reply-type constants (`OFFER_CASE_PARTICIPANT_REPLY_TYPES`,
       `INVITE_ACTOR_TO_CASE_REPLY_TYPES`) MUST be used when constructing or querying
@@ -1573,8 +1579,6 @@ groups:
     verification: Static analysis (grep) confirms that all call sites constructing
       or querying a `ProtocolPair` use the named constants `OFFER_CASE_PARTICIPANT_REPLY_TYPES`
       or `INVITE_ACTOR_TO_CASE_REPLY_TYPES` rather than inline event-type strings.
-    lint_suppress:
-    - missing_story_reference
   - id: CLP-11-004
     priority: SHOULD
     kind: protocol

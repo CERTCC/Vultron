@@ -300,7 +300,7 @@ groups:
     - story_2022_023
   - id: EP-04-002
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >-
       The implementation MUST apply both the PROPOSE and ACCEPT state machine triggers atomically
       within `InitializeDefaultEmbargoNode`. The intermediate `EM.PROPOSED` state MUST NOT

@@ -187,7 +187,7 @@ groups:
       name when no explicit value is provided to the constructor.
   - id: VM-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       A wire-layer class that presents its own class-name-derived AS2 `type` value MUST
       narrow the `type_` field to a `Literal[...]` matching that value, unless VM-01-007's
@@ -218,12 +218,12 @@ groups:
       spec_id: VM-03-001
     - rel_type: refines
       spec_id: VM-01-001
-    lint_suppress:
-    - missing_story_reference
   - id: VM-03-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/wire/as2/vocab/base/test_registry.py::TestSetTypeFromClassName` confirms the
+      class-name-derived type strips the `as_` prefix.
     statement: '`as_type` values MUST NOT start with `"as_"` in serialized wire output'
     relationships:
     - rel_type: constrains
@@ -434,8 +434,10 @@ groups:
       camelCase keys rather than Python snake_case names.
   - id: VM-07-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms no `object_to_record()` call site passes an object whose
+      `as_type` starts with `"as_"`.
     statement: '`object_to_record()` MUST NOT be called on an object whose `as_type` starts with `"as_"`'
   - id: VM-07-004
     priority: MUST
@@ -503,7 +505,7 @@ groups:
       spec_id: VM-08-001
   - id: VM-08-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       An emitted wire Activity blob MUST be produced by the factory as a complete, frozen object
       before being handed to any port or adapter. The exact blob returned to core MUST be used
@@ -522,8 +524,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VM-08-001
-    lint_suppress:
-    - missing_story_reference
 - id: VM-09
   title: Unknown Message Handling
   specs:

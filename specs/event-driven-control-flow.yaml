@@ -99,8 +99,11 @@ groups:
     - story_2022_106
   - id: EDF-03-005
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms each cascade lives in the receiving actor's own tree and is
+      triggered by receipt of the peer's outgoing activity, with no cascade logic copied
+      between actors.
     statement: Cascade logic MUST NOT be duplicated between actors; each actor's BT handles its own local cascade, triggered
       by receipt of the peer's outgoing activity.
 - id: EDF-04

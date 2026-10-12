@@ -147,12 +147,10 @@ groups:
     - story_2022_100
   - id: OX-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Delivery MUST occur after the generating handler completes
     verification: Integration tests confirm that outbox delivery does not begin until the inbox handler returns, and
       the HTTP response is sent before delivery is attempted.
-    lint_suppress:
-    - missing_story_reference
   - id: OX-03-003
     priority: MUST_NOT
     kind: protocol

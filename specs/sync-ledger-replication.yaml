@@ -305,13 +305,11 @@ groups:
       interval are exposed as configurable parameters.
   - id: SYNC-05-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Default values for retry and backoff parameters MUST be documented
     verification: >-
       Inspection of the replication adapter documentation or configuration schema
       confirms that default retry and backoff parameter values are documented.
-    lint_suppress:
-    - missing_story_reference
   - id: SYNC-05-004
     priority: MUST
     kind: protocol
@@ -447,15 +445,13 @@ groups:
   specs:
   - id: SYNC-07-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Unit tests MUST cover append-only semantics: entries are immutable, hashes are unique, and predecessor hash
       references are set correctly'
     verification: >-
       Unit tests confirm append-only semantics: entries are immutable once committed,
       content hashes are unique, and each entry's prev_log_hash correctly
       references its predecessor.
-    lint_suppress:
-    - missing_story_reference
   - id: SYNC-07-002
     priority: MUST
     kind: project
@@ -476,20 +472,22 @@ groups:
       duplicates, and the leader retries after rejection.
   - id: SYNC-07-004
     priority: MUST
-    kind: protocol
-    verification_debt: '#3612'
-    lint_suppress:
-    - missing_story_reference
+    kind: project
+    verification: >-
+      `test/core/models/test_pending_assertion.py` holds the marked suites covering add,
+      is_suppressed, clear, timeout expiry, zero-timeout disable and the
+      expire_timed_out sweep.
     statement: >-
       Unit tests MUST cover pending-assertion suppression semantics: add,
       is_suppressed, clear, timeout expiry, zero-timeout disable, and the
       expire_timed_out sweep helper.
   - id: SYNC-07-005
     priority: MUST
-    kind: protocol
-    verification_debt: '#3612'
-    lint_suppress:
-    - missing_story_reference
+    kind: project
+    verification: >-
+      `test/core/models/test_pending_assertion.py::TestRegistry` covers distinct
+      per-actor stores, the configurable timeout applied on first creation, and
+      `_reset_stores` cleanup.
     statement: >-
       Unit tests MUST cover per-actor pending-assertion store isolation via
       the module-level registry: distinct store instances per actor, configurable
@@ -655,8 +653,10 @@ groups:
       longer suppressed
   - id: SYNC-11-004
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/core/behaviors/embargo/nodes/test_terminate.py::TestTeardownAsk::test_the_manager_reaching_the_ask_is_a_wiring_fault`
+      confirms the CASE_MANAGER's path never reaches the pending-assertion store.
     statement: >-
       The CASE_MANAGER MUST NOT use the pending-assertion store for its own ledger commits;
       the CASE_MANAGER's DataLayer idempotency check already guards against duplicate commits
@@ -745,8 +745,10 @@ groups:
     - story_2022_045
   - id: SYNC-13-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/adapters/driving/fastapi/test_ingress_ledger_entry_routing.py::test_ingress_routes_ledger_entry_without_prestoring_entry`
+      confirms the ingress adapter does not persist the inline `CaseLedgerEntry`.
     statement: Adapter, wire, transport, and message-parsing code MUST NOT create, save, or otherwise persist a
       `CaseLedgerEntry` to the DataLayer.
     rationale: Ingress code delivers the message; it does not write the ledger. Any ingress write would bypass the
@@ -780,8 +782,11 @@ groups:
     - story_2022_088
   - id: SYNC-13-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/adapters/driving/fastapi/test_ingress_ledger_entry_routing.py::test_ingress_routes_ledger_entry_without_prestoring_entry`
+      confirms routing resolves an inbound `Announce(CaseLedgerEntry)` from the
+      in-memory entry without pre-storing it.
     statement: >-
       Message ingress MUST NOT use the canonical ledger/DataLayer store as a scratch or
       lookup cache for routing, semantic classification, or rehydration of an inbound
@@ -897,8 +902,10 @@ groups:
     - story_2022_045
   - id: SYNC-14-005
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms the out-of-order holding area is a separate gap buffer and
+      that a buffered entry is persisted as a `CaseLedgerEntry` only when it is drained.
     statement: >-
       The out-of-order holding area MUST NOT be the canonical ledger/DataLayer store; a
       buffered entry MUST NOT be persisted as a CaseLedgerEntry until it is drained (i.e.

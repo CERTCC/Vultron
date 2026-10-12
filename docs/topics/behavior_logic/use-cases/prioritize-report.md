@@ -99,7 +99,7 @@ Departing a case is a different step with a different message.
 | [RMB-13-001](../../../reference/specs/protocol.md#rmb-13-001) | A Participant MUST be in `RM.ACCEPTED` before sending Report Status (RS) to another Participant |
 | [RMB-13-002](../../../reference/specs/protocol.md#rmb-13-002) | A Participant entering `RM.ACCEPTED` SHOULD emit RA |
 | [RMB-13-003](../../../reference/specs/protocol.md#rmb-13-003) | A Participant in `RM.ACCEPTED` SHOULD perform active work on the report |
-| [RMB-15-001](../../../reference/specs/protocol.md#rmb-15-001) | An RM write MUST validate the transition before persisting |
+| [RMB-15-001](../../../reference/specs/project.md#rmb-15-001) | An RM write MUST validate the transition before persisting |
 
 RMB-13-001 is the constraint with the longest reach.
 Only a Participant in `RM.ACCEPTED` may submit the report onward to another party, so engaging is the gate on the entire multi-party expansion of a case.

@@ -175,8 +175,10 @@ groups:
     - missing_story_reference
   - id: ENC-03-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms decryption runs as its own stage ahead of parsing and that the
+      semantic extraction code contains no decryption logic.
     statement: >-
       The decryption layer MUST be separate from semantic extraction logic; the two concerns
       MUST NOT be mixed

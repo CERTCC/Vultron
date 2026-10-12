@@ -994,9 +994,10 @@ groups:
       per-spec via `lint_suppress: [missing_story_reference]`.
     note: >-
       Deliberately MUST-only for now, which is the one exception MS-02-003 records.
-      Protocol MUST_NOTs with no `stories:` are adjudicated in #3601, and the gate
-      extends to `priority: MUST_NOT` as #2717's closing step once their stories exist.
-    tracking_issue: '#3601 (adjudication); #2717 (MUST_NOT extension)'
+      #3601 adjudicated the protocol MUST_NOTs with no `stories:`; #2717 holds the
+      confirmed list, and the gate extends to `priority: MUST_NOT` as #2717's
+      closing step once their stories exist.
+    tracking_issue: '#2717 (MUST_NOT extension)'
     verification: >-
       `test/metadata/specs/test_lint.py::test_protocol_must_no_stories_is_hard_error`,
       `::test_protocol_must_with_stories_passes`, and

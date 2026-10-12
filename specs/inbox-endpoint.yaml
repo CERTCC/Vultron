@@ -131,7 +131,7 @@ groups:
     - missing_story_reference
   - id: IE-03-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The default maximum request body size MUST be documented in the deployment
       configuration reference.
@@ -144,8 +144,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: IE-03-002
-    lint_suppress:
-    - missing_story_reference
 - id: IE-04
   title: Activity Validation
   specs:

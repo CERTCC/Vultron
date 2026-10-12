@@ -89,7 +89,7 @@ print(json2md(invalidate_report()))
 - **Triggering transition:** Received or Invalid → Valid ({R,I} → V).
 - **Wire activity:** `Accept(Offer(VulnerabilityReport))`.
   A participant that joined through an Invite sends `Accept(Invite(Actor, target=VulnerabilityCase))` instead, answering the full-case Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)).
-  It never validates the original report Offer ([CM-11-020](../specs/protocol.md#cm-11-020)).
+  It never validates the original report Offer ([CM-11-020](../specs/project.md#cm-11-020)).
 - **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
   [Transitions](../formal_protocol/transitions.md).

@@ -259,7 +259,7 @@ sends nothing, so recovery waits on the replay that reject triggers, or on the
 next entry that fails to match the tail. The cooldown above may delay either.
 
 The holding area is deliberately **not** the ledger
-([SYNC-14-005](../../reference/specs/protocol.md#sync-14-005)). Across Vultron,
+([SYNC-14-005](../../reference/specs/project.md#sync-14-005)). Across Vultron,
 the presence of an entry in an actor's own store means *this entry is committed
 and its effects are applied*
 ([SYNC-13-001](../../reference/specs/protocol.md#sync-13-001)). A held entry is

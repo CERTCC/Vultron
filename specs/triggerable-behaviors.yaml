@@ -82,8 +82,10 @@ groups:
     statement: 'The following participant management behaviors SHOULD be individually triggerable via the trigger API: suggest-actor-to-case, accept-case-invite, reject-case-invite, invite-actor-to-case, accept-actor-recommendation'
   - id: TRIG-02-006
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection of the router mounting confirms add-note-to-case, close-case and
+      sync-log-entry are mounted only under `/demo/` and only when demo mode is enabled.
     statement: 'The following behaviors exist only to support demo and prototype scenarios. They are exposed under the `/demo/` URL prefix (see TRIG-09-001) and MUST NOT be mounted in production mode (see TRIG-09-002): add-note-to-case, close-case, sync-log-entry'
   - id: TRIG-02-007
     priority: SHOULD
@@ -253,7 +255,7 @@ groups:
       requirement's definitions when the row is added.
   - id: TRIG-08-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: General-purpose triggers MUST be exposed under the path prefix `/actors/{actor_id}/trigger/{behavior-name}`
       (TRIG-01-001)
     verification: >-
@@ -261,19 +263,15 @@ groups:
       route-to-registry test asserts that each general-purpose row is mounted
       under `/actors/{actor_id}/trigger/` and that no route under that prefix
       lacks a general-purpose row.
-    lint_suppress:
-    - missing_story_reference
   - id: TRIG-08-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Demo-only triggers MUST be exposed under the path prefix `/actors/{actor_id}/demo/{behavior-name}` (see TRIG-09-001)
     verification: >-
       Every row of the trigger registry (TRIG-12-004) declares its exposure; the
       route-to-registry test asserts that each demo-only row is mounted under
       `/actors/{actor_id}/demo/` and that no route under that prefix lacks a
       demo-only row.
-    lint_suppress:
-    - missing_story_reference
   - id: TRIG-08-005
     priority: MUST
     kind: project
@@ -323,15 +321,13 @@ groups:
       dependency as general-purpose triggers.
   - id: TRIG-09-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Demo trigger endpoints MUST use an OpenAPI tag that visually distinguishes them from general-purpose triggers
       in the Swagger UI (e.g., `tags=["Demo Triggers"]` vs `tags=["Triggers"]`)
     verification: >-
       Inspection of the FastAPI application's OpenAPI schema confirms that demo
       trigger endpoints carry a distinct tag (e.g., "Demo Triggers") separate
       from the tag used by general-purpose endpoints.
-    lint_suppress:
-    - missing_story_reference
 - id: TRIG-10
   title: Generalized Object Triggers and Type-Specific Wrappers
   specs:
@@ -372,8 +368,10 @@ groups:
       performing type-specific input validation.
   - id: TRIG-10-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_demo_triggers.py::TestDemoAddNoteToCaseNotAtTriggerPrefix`
+      confirms add-note-to-case is absent from the `/trigger/` path.
     statement: '`add-note-to-case` MUST NOT be exposed as a general `/trigger/` endpoint; it MUST be moved to `/demo/add-note-to-case`
       as a demo-only convenience wrapper around `add-object-to-case`'
     relationships:
@@ -381,8 +379,11 @@ groups:
       spec_id: TRIG-08-004
   - id: TRIG-10-004
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_demo_triggers.py::TestDemoSyncLogEntry::test_returns_202_with_the_entry_identity`
+      confirms sync-log-entry is served under `/demo/`; inspection of the trigger router
+      confirms it is not mounted under `/trigger/`.
     statement: '`sync-log-entry` MUST NOT be exposed as a general `/trigger/` endpoint; it MUST be moved to `/demo/sync-log-entry`'
     rationale: In a correct implementation, SYNC log entries are committed automatically as a cascade effect of every state-changing
       operation. An explicit trigger exists only to let the demo script inject entries manually. A future production "force-sync"

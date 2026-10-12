@@ -922,7 +922,7 @@ groups:
       writer resolves its subject actor by falling back to the blackboard `actor_id`.
   - id: BTND-10-006
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >-
       Report-scoped RM state recorded before a case exists MUST NOT be persisted as a
       ParticipantStatus. It MUST be recorded on the report's `ReportCaseLink`.
