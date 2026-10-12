@@ -1,6 +1,11 @@
 ---
 title: "Do-Work Behaviors: Scope and Implementation Notes"
 status: active
+kind: plan
+tracks:
+  - "#1143"
+  - "#1147"
+  - "#1161"
 description: >
   Scope boundaries for 'do work' behaviors in the Vultron prototype;
   identifies which behaviors are unimplemented stubs.

@@ -1,6 +1,7 @@
 ---
 title: Testing Pitfalls and Patterns
 status: active
+kind: guidance
 description: >
   Full write-ups for pytest pitfalls in this repo: reading a killed run, the
   two-tier timeout guardrail and why the timeout *method* matters more than the

@@ -1,6 +1,7 @@
 ---
 title: Specs vs. ADRs — Delineation Guidelines
 status: active
+kind: guidance
 related_specs:
   - specs/meta-specifications.yaml (MS-11-007, MS-14)
   - specs/architecture.yaml (ARCH-25)

@@ -1,6 +1,7 @@
 ---
 title: Status Dimension Objects
 status: active
+kind: guidance
 description: >
   Design guidance for per-machine dimension objects decomposed from CaseStatus
   and ParticipantStatus: naming, BaseModel contract, immutable transition()

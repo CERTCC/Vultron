@@ -1,6 +1,7 @@
 ---
 title: "Wire/Core Boundary — The Four Duplications and Why One Object Model Replaced the Pairing Registry"
 status: active
+kind: guidance
 tags: [wire, core, boundary, vocabulary, pairing, translation, pydantic]
 description: >
   Diagnosis of the wire/core boundary problem: the four duplications, the measured

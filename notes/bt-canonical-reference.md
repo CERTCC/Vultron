@@ -1,6 +1,7 @@
 ---
 title: Canonical CVD Protocol Behavior Tree Reference
 status: active
+kind: guidance
 description: >
   Authoritative structural reference for the canonical CVD Protocol Behavior
   Tree: trunk-removed-branches model, node symbol legend, subtree map, Prioritize

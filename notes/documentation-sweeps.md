@@ -1,6 +1,7 @@
 ---
 title: Documentation Sweeps — Verification Budget
 status: active
+kind: guidance
 description: >
   Why relocating a documentation claim is not the same as verifying it,
   how mechanical sweeps surface defects as a side effect, and what agents

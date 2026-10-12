@@ -1,6 +1,7 @@
 ---
 title: CaseProposal Protocol
 status: active
+kind: guidance
 description: >
   Design rationale, protocol flow, and implementation guidance for the
   CaseProposal mechanism: a new AS2 object and message flow that separates

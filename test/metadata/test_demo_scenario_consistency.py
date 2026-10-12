@@ -494,9 +494,10 @@ def test_partition_reports_an_incomplete_planned_row(
     alone leaves ``DEMOMA-16-015`` behind, and the row still names *a* spec ID.
     """
     target = prose_root / PLANNED_REGISTER
-    text = target.read_text()
-    assert text.count(cell) >= 1
-    target.write_text(text.replace(cell, "", 1))
+    # Edit the body only: the note's ``tracks:`` frontmatter also names issues.
+    front, sep, body = target.read_text().partition("\n---\n")
+    assert body.count(cell) >= 1
+    target.write_text(front + sep + body.replace(cell, "", 1))
     problems = partition_problems(root=prose_root)
     assert any(expected in problem for problem in problems)
 

@@ -1,6 +1,7 @@
 ---
 title: Site Information Architecture — Stakeholder Types, Levels, and Routing
 status: active
+kind: guidance
 description: >
   How reader-facing documentation is organized: the argument the site must win,
   the stakeholder types, the invisible 100-500 prerequisite levels, and the

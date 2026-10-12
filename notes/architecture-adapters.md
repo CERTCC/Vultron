@@ -1,6 +1,7 @@
 ---
 title: Adapter Patterns and Boundary Invariants
 status: active
+kind: guidance
 description: >
   Adapter category details, outbound activity construction via driven ports,
   DataLayer scope boundaries, and the uniform-HTTP inter-actor delivery model

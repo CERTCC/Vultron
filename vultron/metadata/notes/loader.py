@@ -14,7 +14,12 @@ from vultron.metadata.file_loading import (
     load_frontmatter,
     validate,
 )
-from vultron.metadata.notes.schema import NotesFrontmatter
+from vultron.metadata.notes.schema import (
+    GENERATED_MARKER,
+    GENERATED_MARKER_PATTERN,
+    NoteKind,
+    NotesFrontmatter,
+)
 
 SKIP_FILES = {"README.md"}
 
@@ -52,9 +57,16 @@ def load_notes_registry(
                 "missing YAML frontmatter", path=display_path(path, root)
             )
 
-        key = str(path.relative_to(root))
-        registry[key] = validate(
-            NotesFrontmatter, post.metadata, path=path, root=root
-        )
+        note = validate(NotesFrontmatter, post.metadata, path=path, root=root)
+        if (
+            note.kind == NoteKind.GENERATED
+            and not GENERATED_MARKER_PATTERN.match(post.content)
+        ):
+            raise MetadataLoadError(
+                f"kind 'generated' requires the body to start with "
+                f"{GENERATED_MARKER!r} naming its generator (NF-01-011)",
+                path=display_path(path, root),
+            )
+        registry[str(path.relative_to(root))] = note
 
     return registry

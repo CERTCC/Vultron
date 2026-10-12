@@ -1,6 +1,7 @@
 ---
 title: Configuration Management — Implementation Notes
 status: active
+kind: guidance
 description: Design decisions for YAML-backed Pydantic configuration loading in Vultron.
 related_specs:
   - specs/case-ledger-processing.yaml

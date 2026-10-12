@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: Inbound Message Handling"
 status: active
+kind: guidance
 description: >
   Catalog of fuzzer (stub) BT nodes for the Inbound Message Handling workflow
   in the Vultron BT simulation.

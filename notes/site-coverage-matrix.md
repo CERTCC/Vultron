@@ -1,6 +1,7 @@
 ---
 title: Site Coverage Matrix — Stakeholder Type × Level
 status: active
+kind: generated
 description: >
   Generated count of reader-facing docs/ pages per stakeholder_type and level
   (DF-11-008). A gap here is planning input, never a merge blocker.

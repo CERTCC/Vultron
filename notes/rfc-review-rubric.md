@@ -6,6 +6,7 @@ description: >
   fragments) against the codebase, system specs, notes, and design. Apply each
   round of revision; extend as new issue classes emerge.
 status: active
+kind: guidance
 related_specs:
   - specs/docs-build-workflow.yaml
   - specs/diataxis-requirements.yaml

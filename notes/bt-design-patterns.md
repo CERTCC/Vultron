@@ -1,6 +1,7 @@
 ---
 title: Behavior Tree Design Patterns
 status: active
+kind: guidance
 description: >
   Idiomatic BT construction patterns from Colledanchise & Ögren; applies to
   simulation and prototype BT implementations.

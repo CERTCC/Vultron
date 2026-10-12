@@ -1,6 +1,7 @@
 ---
 title: FV Demo Design
 status: active
+kind: guidance
 description: >
   Authoritative design note for the FV (Finder + Vendor) CVD demo.
   Covers the complete workflow from report submission through case closure,

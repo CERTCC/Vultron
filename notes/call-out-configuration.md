@@ -1,6 +1,7 @@
 ---
 title: "Call-Out Point Configuration System — Backend Selection Design"
 status: active
+kind: guidance
 description: >
   Design decisions for how running code selects backend factories for call-out
   point nodes in BT tree builders. Covers the three-mode model, domain bundle

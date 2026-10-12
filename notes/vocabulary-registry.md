@@ -1,6 +1,7 @@
 ---
 title: "Vocabulary Registry — Design and Migration Notes"
 status: active
+kind: guidance
 tags: [vocabulary, registry, wire, as2, deserialization, migration]
 description: >
   Design decisions and migration path for the AS2 vocabulary registry

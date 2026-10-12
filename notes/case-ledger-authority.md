@@ -1,6 +1,7 @@
 ---
 title: Case Ledger Authority and Assertion Recording
 status: active
+kind: guidance
 description: "Authority model for the case activity log: trusted timestamps, assertion recording, and authority chain."
 related_specs:
   - specs/architecture.yaml

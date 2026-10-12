@@ -1,6 +1,7 @@
 ---
 title: Lifecycle-Staged Domain Types
 status: active
+kind: guidance
 description: >
   Design guidance for lifecycle-staged domain types anchored on guaranteed-field
   changes: the field-set governing principle, the three-class analysis, the

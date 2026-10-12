@@ -118,7 +118,7 @@ class AdrStatus(StrEnum):
 
     A retired ADR uses ``SUPERSEDED`` with a separate ``superseded_by:``
     frontmatter field (the project convention, see
-    ``notes/notes-frontmatter.md``). The linter also tolerates the inline MADR
+    ``specs/notes-frontmatter.yaml`` NF-01-004). The linter also tolerates the inline MADR
     form ``superseded by <link>`` by normalising it to ``SUPERSEDED`` before
     the enum check.
     """

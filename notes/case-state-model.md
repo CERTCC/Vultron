@@ -1,6 +1,7 @@
 ---
 title: Case State Model Notes
 status: active
+kind: guidance
 description: "CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append-only history, and canonical CaseLedgerEntry history."
 related_specs:
   - specs/architecture.yaml (ARCH-12-002)
