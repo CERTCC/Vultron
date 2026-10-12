@@ -28,7 +28,7 @@ validated, ``Create(CaseProposal)`` delivered, CaseActor creates the case) so
 that the transfer workflow can be demonstrated in isolation.
 
 This corresponds to the workflow documented in:
-    docs/howto/activitypub/activities/transfer_ownership.md
+    docs/topics/case_lifecycle/ownership_transfer.md
 
 When run as a script, this module will:
 1. Check if the API server is available
@@ -40,7 +40,7 @@ When run as a script, this module will:
 Routing model (ADR-0053):
 Both the ``Offer(VulnerabilityCase)`` and the response to it are addressed to
 the **CaseActor's** inbox, never to the transferee or the offerer directly
-(CM-21-005, CM-21-006).  The CaseActor records the Offer, commits a
+(CM-21-005, CM-21-006, CM-21-010).  The CaseActor records the Offer, commits a
 ``CaseLedgerEntry``, broadcasts ``Announce(CaseLedgerEntry)`` to every
 participant — which is how actors outside the negotiation, such as the finder,
 learn a transfer is pending — and only then forwards a **new** Offer of its own
@@ -52,8 +52,13 @@ properties rather than by the original offer's id (EDF-06-004).
 import logging
 from collections.abc import Callable, Sequence
 
-from vultron.demo.helpers.polling import wait_for_case_attributed_to
+from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.polling import (
+    wait_for_case_attributed_to,
+    wait_for_event_type_in_ledger,
+)
 from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.verification import recipient_ids
 from vultron.demo.helpers.workflow import (
     await_forwarded_ownership_transfer_offer,
     seat_participant_through_stub_invite,
@@ -66,20 +71,12 @@ from vultron.demo.utils import (
     demo_step,
     log_case_state,
     logfmt,
-    post_to_inbox_and_wait,
     seed_peer,
     setup_demo_logging,
-    verify_object_stored,
 )
 
 # Vultron imports
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import (
-    accept_case_ownership_transfer_activity,
-    offer_case_ownership_transfer_activity,
-    reject_case_ownership_transfer_activity,
-)
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -151,35 +148,35 @@ def _vendor_offers_ownership(
     vendor: as_Actor,
     coordinator: as_Actor,
     case_actor_id: str,
-) -> as_Offer:
-    """Send the vendor's ownership-transfer Offer to the CaseActor's inbox.
+) -> None:
+    """The vendor offers ownership to the coordinator through its trigger.
 
-    ``actor`` is the CaseActor and ``attributed_to`` the vendor: the CaseActor
-    is the sender of record for a delegated case message, and the vendor is the
-    participant whose intent it carries (CM-24-001, CM-24-002).  Addressing it
-    to the vendor instead is what made receivers reject the Offer in #2142.
-
-    Returns:
-        The Offer that was sent.
+    The ``offer-case-ownership-transfer`` trigger (TRIG-11-001, DEMOMA-05-001)
+    has the CaseActor send the Offer with ``attributed_to`` the vendor: the
+    CaseActor is the sender of record for a delegated case message, and the
+    vendor is the participant whose intent it carries (CM-24-001, CM-24-002).
+    Addressing it to the vendor instead is what made receivers reject the
+    Offer in #2142.  The demo gates on the CaseActor's ledger entry for it,
+    the cause of the forward the next step waits for (EDF-06).
     """
-    offer = offer_case_ownership_transfer_activity(
-        case,
-        actor=case_actor_id,
-        attributed_to=vendor.id_,
-        # Inline actor object, not a bare URI: the ledger entry's
-        # payloadSnapshot.target must be resolvable without a second lookup,
-        # and CommitCaseLedgerEntryNode rejects a bare id string.
-        target=coordinator,
-        to=[case_actor_id],
-        content=f"Offering to transfer ownership of {case.name} to you.",
+    offer = (
+        ActorSession(client=client, actor=vendor)
+        .with_case(case)
+        .quiet()
+        .offer_case_ownership_transfer(
+            transferee_id=coordinator.id_,
+            content=f"Offering to transfer ownership of {case.name} to you.",
+        )
+        .activity
     )
-    logger.info("Sending offer to the CaseActor: %s", logfmt(offer))
-    post_to_inbox_and_wait(client, case_actor_id, offer)
-    with demo_check("Ownership offer recorded by the CaseActor (CM-21-005)"):
-        # The CaseActor's store, not the vendor's: the Offer is addressed to
-        # the CaseActor, so that is the replica that records it (ADR-0073).
-        verify_object_stored(client, offer.id_, actor_id=case_actor_id)
-    return offer
+    logger.info("Vendor offered ownership: %s", logfmt(offer))
+    with demo_gate("Ownership offer recorded by the CaseActor (CM-21-005)"):
+        wait_for_event_type_in_ledger(
+            client=client,
+            case_id=case.id_,
+            event_type="offer_case_ownership_transfer",
+            dl_actor_id=case_actor_id,
+        )
 
 
 def demo_transfer_ownership_accept(
@@ -196,12 +193,13 @@ def demo_transfer_ownership_accept(
     2. Vendor offers case ownership to coordinator
        (OfferCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-005)
     3. CaseActor forwards a new Offer to the coordinator; the demo discovers it
-    4. Coordinator accepts (AcceptCaseOwnershipTransferActivity → **CaseActor**
-       inbox, CM-21-006)
+    4. Coordinator accepts through its ``accept-case-ownership-transfer``
+       trigger (AcceptCaseOwnershipTransferActivity → **CaseActor** inbox,
+       CM-21-006, TRIG-11-002)
     5. Verify case.attributed_to is updated to coordinator
 
     This follows the accept branch in
-    docs/howto/activitypub/activities/transfer_ownership.md.
+    docs/topics/case_lifecycle/ownership_transfer.md.
     """
     logger.info("=" * 80)
     logger.info("DEMO: Transfer Ownership — Accept Path")
@@ -229,35 +227,32 @@ def demo_transfer_ownership_accept(
     with demo_gate(
         "Step 3: CaseActor forwarded the Offer to the coordinator (CM-21-005)"
     ):
-        forwarded_offer = await_forwarded_ownership_transfer_offer(
-            client,
-            case=case,
-            transferee=coordinator,
-            case_actor_id=case_actor_id,
+        forwarded_offer_id = await_forwarded_ownership_transfer_offer(
+            client, case=case, transferee=coordinator
         )
-        logger.info("Forwarded offer id: %s", forwarded_offer.id_)
+        logger.info("Forwarded offer id: %s", forwarded_offer_id)
 
         with demo_step("Step 4: Coordinator accepts ownership transfer"):
-            # The forwarded offer's id, not the vendor's original: the CaseActor
-            # minted a new Offer, and only the forwarded one exists on the
-            # coordinator's replica (CM-21-005).
-            accept = accept_case_ownership_transfer_activity(
-                forwarded_offer,
-                actor=coordinator.id_,
-                to=[case_actor_id],
-                content=(f"Accepting ownership of {case.name}."),
+            # Through the coordinator's own trigger (DEMOMA-05-001,
+            # TRIG-11-002), naming the forwarded offer's id, not the vendor's
+            # original: the CaseActor minted a new Offer, and only the
+            # forwarded one exists on the coordinator's replica (CM-21-005).
+            accept = (
+                ActorSession(client=client, actor=coordinator)
+                .quiet()
+                .accept_case_ownership_transfer(offer_id=forwarded_offer_id)
+                .activity
             )
-            logger.info("Sending accept to the CaseActor: %s", logfmt(accept))
-            post_to_inbox_and_wait(client, case_actor_id, accept)
+            logger.info("Coordinator sent accept: %s", logfmt(accept))
 
         with demo_step(
             "Step 5: Verify case ownership transferred to coordinator"
         ):
             with demo_check("Case attributed_to updated to coordinator"):
-                # Poll rather than read once: the CaseActor commits the receipt,
-                # fans out Announce(CaseLedgerEntry) to every participant and
-                # applies the role change in a background task, so a single read
-                # after post_to_inbox_and_wait's fixed 1 s sleep races it.
+                # Poll rather than read once: the Accept reaches the CaseActor
+                # through the coordinator's outbox, and the CaseActor commits
+                # the receipt, fans out Announce(CaseLedgerEntry) and applies
+                # the role change in a background task, so a single read races it.
                 wait_for_case_attributed_to(
                     client=client.model_copy(
                         update={"actor_id": case_actor_id}
@@ -286,12 +281,14 @@ def demo_transfer_ownership_reject(
     2. Vendor offers case ownership to coordinator
        (OfferCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-005)
     3. CaseActor forwards a new Offer to the coordinator; the demo discovers it
-    4. Coordinator rejects (RejectCaseOwnershipTransferActivity → **CaseActor**
-       inbox — the reply goes back to the sender of the forwarded Offer)
-    5. Verify case.attributed_to remains with vendor
+    4. Coordinator rejects through its ``reject-case-ownership-transfer``
+       trigger (RejectCaseOwnershipTransferActivity → **CaseActor** inbox,
+       CM-21-010, TRIG-11-005)
+    5. Once the CaseActor has ledgered the Reject (CM-21-012), verify
+       case.attributed_to remains with vendor
 
     This follows the reject branch in
-    docs/howto/activitypub/activities/transfer_ownership.md.
+    docs/topics/case_lifecycle/ownership_transfer.md.
     """
     logger.info("=" * 80)
     logger.info("DEMO: Transfer Ownership — Reject Path")
@@ -319,35 +316,47 @@ def demo_transfer_ownership_reject(
     with demo_gate(
         "Step 3: CaseActor forwarded the Offer to the coordinator (CM-21-005)"
     ):
-        forwarded_offer = await_forwarded_ownership_transfer_offer(
-            client,
-            case=case,
-            transferee=coordinator,
-            case_actor_id=case_actor_id,
+        forwarded_offer_id = await_forwarded_ownership_transfer_offer(
+            client, case=case, transferee=coordinator
         )
-        logger.info("Forwarded offer id: %s", forwarded_offer.id_)
+        logger.info("Forwarded offer id: %s", forwarded_offer_id)
 
         with demo_step("Step 4: Coordinator rejects ownership transfer"):
-            reject = reject_case_ownership_transfer_activity(
-                forwarded_offer,
-                actor=coordinator.id_,
-                to=[case_actor_id],
-                content=(f"Declining ownership of {case.name}."),
+            # Through the coordinator's own trigger (DEMOMA-05-001,
+            # TRIG-11-005), naming the forwarded offer's id: only the
+            # forward exists on the coordinator's replica (CM-21-005).
+            reject_result = (
+                ActorSession(client=client, actor=coordinator)
+                .quiet()
+                .reject_case_ownership_transfer(offer_id=forwarded_offer_id)
             )
-            logger.info("Sending reject to the CaseActor: %s", logfmt(reject))
-            post_to_inbox_and_wait(client, case_actor_id, reject)
+            reject = reject_result.activity
+            logger.info("Coordinator sent reject: %s", logfmt(reject))
+            with demo_check(
+                "Reject addressed to the CaseActor, not the offerer (CM-21-010)"
+            ):
+                recipients = recipient_ids(reject.to)
+                if recipients != [case_actor_id]:
+                    raise ValueError(
+                        f"Expected the Reject addressed to '{case_actor_id}',"
+                        f" got: {recipients}"
+                    )
+
+    # Gate on the cause (EDF-06): the CaseActor ledgers the decline and
+    # broadcasts it (CM-21-012), so its entry is the observable that the
+    # Reject was processed.  Only then is "owner unchanged" a statement about
+    # a processed decline rather than about a Reject not yet read.
+    with demo_gate(
+        "CaseActor committed reject_case_ownership_transfer (CM-21-012)"
+    ):
+        wait_for_event_type_in_ledger(
+            client=client,
+            case_id=case.id_,
+            event_type="reject_case_ownership_transfer",
+            dl_actor_id=case_actor_id,
+        )
 
         with demo_step("Step 5: Verify case ownership unchanged"):
-            # Temporal, deliberately (EDF-06-006): this asserts a *non*-change,
-            # and there is nothing to poll for — a rejection commits no ledger
-            # entry and mutates no state, so `RejectCaseOwnershipTransferReceived`
-            # leaves no observable at all.  The check is therefore weaker than the
-            # accept path's: it can pass because the Reject has not been processed
-            # yet rather than because it was processed and declined.  Giving the
-            # reject path an observable needs a spec decision on whether a
-            # rejection is a ledgered event — CM-21 specifies routing for the
-            # Offer and Accept but says nothing about the Reject.  See
-            # plan/incoming/learnings/20260901-2789-reject-ownership-transfer-routing-unspecified.md
             with demo_check("Case attributed_to still vendor"):
                 final_case = log_case_state(
                     client, case.id_, "after reject", actor_id=case_actor_id

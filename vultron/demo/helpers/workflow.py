@@ -63,7 +63,6 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
     add_report_to_case_activity,
-    offer_case_ownership_transfer_activity,
     parse_submit_report_offer,
     reject_embargo_proposal_activity,
     rm_submit_report_activity,
@@ -1035,57 +1034,36 @@ def await_forwarded_ownership_transfer_offer(
     client: DataLayerClient,
     case: as_VulnerabilityCase,
     transferee: as_Actor,
-    case_actor_id: str,
     timeout_seconds: float = 90.0,
-) -> as_Offer:
-    """Gate on the CaseActor's forwarded ownership-transfer Offer and return it.
+) -> str:
+    """Gate on the CaseActor's forwarded ownership-transfer Offer; return its id.
 
     Under ADR-0053 the offering actor addresses its ``Offer(VulnerabilityCase)``
     to the CaseActor, which records it and then emits a **new** Offer of its own
     to the transferee (CM-21-005).  The consequent therefore has a new identity:
     polling the transferee's store for the *original* offer id never matches
     (EDF-06-004, issue #2178).  This helper discovers the forwarded Offer by its
-    properties instead, then rebuilds it so it can be accepted or rejected.
-
-    The rebuild goes through
-    :func:`~vultron.wire.as2.factories.offer_case_ownership_transfer_activity`
-    for the same reason
-    ``TriggerActivityAdapter._offer_from_core_record`` does: the accept/reject
-    factories require an ``_OfferCaseOwnershipTransferActivity`` with an inline
-    ``as_VulnerabilityCase``, which a plain ``as_Offer`` read back from the
-    DataLayer is not.
+    properties instead.  The transferee answers it through its accept or reject
+    trigger, which takes the forwarded id (TRIG-11-002, TRIG-11-005).
 
     Args:
         client: DataLayerClient for the container hosting the actors.
         case: The case whose ownership is being transferred.
         transferee: The actor being offered ownership.
-        case_actor_id: The CaseActor's URI; used as the ``actor`` fallback when
-            the stored Offer's own ``actor`` cannot be read.
         timeout_seconds: Maximum time to wait for the forwarded Offer.
 
     Returns:
-        The forwarded Offer, carrying the **forwarded** activity id.
+        The **forwarded** Offer's activity id, as the transferee holds it.
 
     Raises:
         AssertionError: If no forwarded Offer arrives within *timeout_seconds*.
     """
     transferee_client = client.model_copy(update={"actor_id": transferee.id_})
-    forwarded_id = find_ownership_transfer_offer_for_actor(
+    return find_ownership_transfer_offer_for_actor(
         client=transferee_client,
         case_id=case.id_,
         transferee_id=transferee.id_,
         timeout_seconds=timeout_seconds,
-    )
-    stored = get_offer_from_datalayer(client, transferee.id_, forwarded_id)
-    case_ref = as_VulnerabilityCase.model_validate(
-        {"id": case.id_, "name": case.name}
-    )
-    return offer_case_ownership_transfer_activity(
-        case_ref,
-        target=transferee.id_,
-        id_=forwarded_id,
-        actor=ref_id(stored.actor) or case_actor_id,
-        attributed_to=ref_id(stored.attributed_to),
     )
 
 
