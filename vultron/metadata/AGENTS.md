@@ -192,7 +192,7 @@ MS-10-005..008); never pin a committed count to its live value. Select by tier, 
 
 ## Related
 
-- `notes/spec-authoring-rules.md` — field enums, lint traps, coverage ratchet
+- `notes/spec-authoring-rules.md` — field enums, lint traps, coverage guard
 - `notes/specs-vs-adrs.md` — whether a rule belongs in a spec at all
 - `notes/history-management.md` — `append-history` and `plan/history/` layout
 - `notes/notes-frontmatter.md` — the notes frontmatter schema

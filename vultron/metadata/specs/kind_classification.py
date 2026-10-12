@@ -8,13 +8,15 @@ carrying a corrected kind. Two mechanical checks close that gap:
 - :func:`check_protocol_kind_code_references` — MS-12-006. A ``kind: protocol``
   spec that traces to no user story and whose ``statement`` names an
   unambiguous codebase construct is a hard error.
-- :func:`count_suppressions` — the live per-code carrier count behind the
-  MS-12-007 (``missing_story_reference``) and MS-12-008
-  (``protocol_kind_with_code_reference``) ratchets in
-  ``test/architecture/test_spec_kind_ratchet.py``;
-  :func:`count_missing_story_suppressions` is the MS-12-007 shorthand.
+- :func:`suppression_carriers` — the specs carrying a ``lint_suppress`` code.
+  :func:`missing_story_suppression_carriers` is the per-item extractor behind
+  the MS-12-007 PR-only growth guard, and the MS-12-008 assertion in
+  ``test/architecture/test_spec_kind_ratchet.py`` holds the
+  ``protocol_kind_with_code_reference`` carriers at none.
+  :func:`suppression_status_lines` prints the live totals from ``spec-lint``,
+  so they are visible without being committed.
 
-The module sits beside ``lint.py`` rather than inside it so the ratchet can
+The module sits beside ``lint.py`` rather than inside it so the guards can
 import the very check the linter runs — one detector, two gates — and because
 ``lint.py`` is already past the module-size target (CS-18).
 
@@ -42,8 +44,9 @@ Scope decisions, each measured against the live corpus (the derivation is in
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
-from vultron.metadata.specs.registry import SpecRegistry
+from vultron.metadata.specs.registry import SpecRegistry, load_registry
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
     LintWarningCode,
@@ -136,35 +139,54 @@ def check_protocol_kind_code_references(registry: SpecRegistry) -> list[str]:
     return errors
 
 
-def count_suppressions(registry: SpecRegistry, code: LintWarningCode) -> int:
-    """Number of specs whose ``lint_suppress:`` carries *code*.
+def suppression_carriers(
+    registry: SpecRegistry, code: LintWarningCode
+) -> frozenset[str]:
+    """IDs of the specs whose ``lint_suppress:`` carries *code*.
 
-    Counts every carrier, whether or not the suppressed check would fire on
+    Every carrier counts, whether or not the suppressed check would fire on
     it, so a suppression left behind on a spec that no longer needs it still
     shows up as debt rather than vanishing (MS-12-007, MS-12-008).
     """
-    return sum(
-        1
-        for spec in registry.all_specs.values()
+    return frozenset(
+        spec_id
+        for spec_id, spec in registry.all_specs.items()
         if code in set(spec.lint_suppress or [])
     )
 
 
-def count_missing_story_suppressions(registry: SpecRegistry) -> int:
-    """Number of specs carrying ``lint_suppress: [missing_story_reference]``.
+def missing_story_suppression_carriers(repo_root: Path) -> frozenset[str]:
+    """Carriers of ``missing_story_reference`` in ``specs/`` under *repo_root*.
 
-    Counts every carrier, whether or not SR-11-003 would fire on it
-    (MS-12-007), so a suppression left behind on a spec that is no longer a
-    ``kind: protocol`` MUST still shows up as debt rather than vanishing.
+    The per-item extractor behind the MS-12-007 growth guard
+    (:func:`vultron.metadata.specs.growth_guard.added_since_base`).
     """
-    return count_suppressions(
-        registry, LintWarningCode.MISSING_STORY_REFERENCE
+    return suppression_carriers(
+        load_registry(repo_root / "specs"),
+        LintWarningCode.MISSING_STORY_REFERENCE,
     )
+
+
+#: The suppression codes whose carrier totals ``spec-lint`` reports.
+_REPORTED_SUPPRESSIONS = (
+    LintWarningCode.MISSING_STORY_REFERENCE,
+    LintWarningCode.PROTOCOL_KIND_WITH_CODE_REFERENCE,
+)
+
+
+def suppression_status_lines(registry: SpecRegistry) -> list[str]:
+    """One ``[INFO]`` line per MS-12 suppression code with its live total."""
+    return [
+        f"[INFO] lint_suppress {code.value}: "
+        f"{len(suppression_carriers(registry, code))} spec(s) carry it"
+        for code in _REPORTED_SUPPRESSIONS
+    ]
 
 
 __all__ = [
     "check_protocol_kind_code_references",
     "code_reference_in",
-    "count_missing_story_suppressions",
-    "count_suppressions",
+    "missing_story_suppression_carriers",
+    "suppression_carriers",
+    "suppression_status_lines",
 ]

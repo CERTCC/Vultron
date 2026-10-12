@@ -60,6 +60,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Full history: the PR-only growth guards in test/architecture/
+          # compare against the merge base with origin/$GITHUB_BASE_REF and
+          # skip when a shallow clone has none (SR-05-005, MS-12-007, #4315).
+          fetch-depth: 0
           fetch-tags: true
       - uses: ./.github/actions/debounce-main-push
       - name: Set up Python and uv

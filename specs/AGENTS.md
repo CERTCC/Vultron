@@ -118,14 +118,13 @@ that bite most often:
   error. Which one to pick is a decision tree, not a judgment call: apply
   MS-12-001 → MS-12-005 in order (see `notes/spec-authoring-rules.md`), and do
   not infer a `kind` from the surrounding entries in the same file.
-- **`lint_suppress: [missing_story_reference]`** — a ratcheted escape hatch,
-  not a free one. MS-12-007 pins the corpus-wide count to a ceiling that can
-  only fall (`MAX_MISSING_STORY_SUPPRESSIONS` in
-  `test/architecture/test_spec_kind_ratchet.py`), so adding a suppression fails
-  the ratchet unless another one is removed. If SR-11-003 fires on a new entry,
-  the usual fix is a corrected `kind:`, not a suppression. The same holds for
-  MS-12-006's `protocol_kind_with_code_reference` (MS-12-008,
-  `MAX_CODE_REFERENCE_SUPPRESSIONS`, pinned at 0).
+- **`lint_suppress: [missing_story_reference]`** — a guarded escape hatch,
+  not a free one. MS-12-007's PR-only growth guard
+  (`test/architecture/test_spec_kind_ratchet.py`) fails any PR that adds the
+  code to a spec that lacked it at the merge base; removing one never fails.
+  If SR-11-003 fires on a new entry, the usual fix is a corrected `kind:`, not
+  a suppression. MS-12-006's `protocol_kind_with_code_reference` is closed
+  outright: no spec may carry it (MS-12-008).
 - **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
   is a FATAL registry load error. A `MUST_NOT` is the MUST tier (MS-02-003), so
   it needs a `verification:` clause exactly as a `MUST` does (MS-10-003).
@@ -147,9 +146,9 @@ that bite most often:
   asserts no ordering. Read the format off the fields — never off `isinstance`,
   and never off the `behavioral` tag.
 - **Adding or modifying a `kind: protocol` entry** requires a same-PR
-  `@pytest.mark.spec("<ID>")` marker (SR-05-004, SR-05-005) — the
-  `MAX_UNCOVERED_PROTOCOL_SPECS` ceiling can only be lowered, never raised. If
-  the implementation does not exist yet, use the strict-`xfail` pattern.
+  `@pytest.mark.spec("<ID>")` marker (SR-05-004, SR-05-005): a PR-only growth
+  guard fails on each protocol ID the branch leaves uncovered. If the
+  implementation does not exist yet, use the strict-`xfail` pattern.
 
 After adding any new key to a spec YAML, verify it appears in
 `PYTHONPATH= uv run spec-dump --ids <ID>` output before treating it as persisted.
