@@ -21,9 +21,12 @@ Covers the three CaseProposal message flows:
 
 from typing import Literal
 
+from pydantic import Field
+
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.enums.roles import CVDRole
 
 
 class CreateCaseProposalReceivedEvent(VultronEvent):
@@ -46,6 +49,11 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     # for this case and no other (EP-04-003).  Required: the parse edge and
     # the extractor refuse a Create(CaseProposal) without one (ADR-0032).
     proposer_profile: CoreActor
+    # The CVD roles the proposer states for itself on the proposal (CP-01-011,
+    # ADR-0132), from its own ``default_case_roles``.  The parse edge has
+    # already refused a claim to ``CASE_MANAGER`` (CP-01-012).  Empty seats the
+    # proposer as ``CASE_OWNER`` only.
+    proposer_case_roles: list[CVDRole] = Field(default_factory=list)
 
     @property
     def proposal_id(self) -> str | None:

@@ -25,7 +25,6 @@ DEMOMA-06-004).  Two harness obligations follow, both tested here:
   (:func:`~vultron.demo.helpers.verification.verify_case_actor_holds_records`).
 """
 
-import importlib
 from collections.abc import Callable
 from typing import Any
 from unittest.mock import patch
@@ -34,7 +33,6 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
-import vultron.demo.utils as demo_utils
 from test.demo._helpers import make_client, make_testclient_call
 from vultron.demo.helpers.seeding import (
     reset_containers,
@@ -71,7 +69,6 @@ def patch_datalayer_call(client: TestClient, base: str):
         yield
     finally:
         mp.undo()
-        importlib.reload(demo_utils)
 
 
 def _hosted_actor_ids(client: DataLayerClient) -> set[str]:

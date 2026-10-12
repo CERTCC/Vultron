@@ -238,6 +238,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
 - [ADR-0129 A Sender Rule States Every Position on Both Sides, and Is the Source of "Sent By"](0129-a-sender-rule-states-every-position-on-both-sides-and-is-the-source-of-sent-by.md)
 - [ADR-0130 EM Is Computed From the Embargo Register Under the EM Transition Table](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md) *(revision 2)*
+- [ADR-0132 The Report Receiver States Its Case Roles on the Case Proposal](0132-the-report-receiver-states-its-case-roles-on-the-case-proposal.md)
 
 ## Rejected ADRs
 

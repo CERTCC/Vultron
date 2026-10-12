@@ -157,9 +157,9 @@ class CreateCaseProposalReceivedUseCase:
         # rather than inheriting whatever port a previous execution left on
         # the blackboard (BT-17-007 restores it, so normally: none).
         self._sync_port = sync_port
-        # CFG-07-002/CFG-07-004: the CVD roles the proposing actor receives
-        # alongside CVDRole.CASE_OWNER come from the local actor config, not a
-        # hard-coded assumption that every report receiver is a vendor.
+        # The CaseActor's own configuration (its protocol default embargo,
+        # EP-04-005).  The proposer's CVD roles are not in it: they ride on the
+        # proposal (CP-09-007, ADR-0132).
         self._actor_config = actor_config
         self._wire_render_port = wire_render_port
         # Needed only on the decline path: _EmitRejectCaseProposalNode builds
@@ -273,6 +273,7 @@ class CreateCaseProposalReceivedUseCase:
             actor_config=self._actor_config,
             inline_report=inline_report,
             call_out=self._call_out,
+            proposer_case_roles=request.proposer_case_roles,
         )
         result = BTBridge(
             datalayer=self._dl,

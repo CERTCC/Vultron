@@ -181,14 +181,14 @@ def _with_actor_config(kwargs: dict[str, Any]) -> dict[str, Any]:
 def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Resolve the local ``ActorConfig`` for ``CREATE_CASE_PROPOSAL``.
 
-    ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
-    CaseActor grants the proposing actor its real CVD roles alongside
-    ``CVDRole.CASE_OWNER`` (CFG-07-002, CFG-07-004).  Without it the node would
-    have to guess, and labelling a coordinator as ``CVDRole.VENDOR`` makes
-    downstream VFD fix-lifecycle checks demand a fix it never produces.
+    ``CreateCaseProposalReceivedUseCase`` reads the CaseActor's *own* settings
+    from it, such as the protocol default embargo (EP-04-005).  The proposing
+    actor's CVD roles are not among them: the proposer states those on the
+    proposal (CP-09-007, ADR-0132), because this configuration belongs to the
+    CaseActor's container and says nothing about the proposer.
 
     Falls back to omitting ``actor_config`` when config load fails, leaving the
-    receiver with ``CVDRole.CASE_OWNER`` only.
+    ``ActorConfig`` defaults in force.
 
     The trigger-activity port is needed only on the decline path, where
     ``_EmitRejectCaseProposalNode`` builds ``Reject(as_CaseProposal)`` through

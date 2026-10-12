@@ -38,7 +38,8 @@ That is how a Reporter's proposed embargo terms reach the case-actor (EP-04-004)
 - **Wire activity:** `Create(CaseProposal)` sent to the service's inbox.
   Its `actor` is the proposing actor's full profile inline, not a URI, and its `id` is the proposal's `attributedTo`.
   The profile carries the proposer's `embargoPolicy` when it has published one, which is the Case Owner's actor default (EP-04-003); the case-actor reads the default from that profile alone, and refuses an `actor` that is a bare URI, a Link, an untyped or non-actor object, or a profile naming another actor, at the parse edge (CP-01-010).
-- **Spec:** CP-01-010, CP-03-001, CP-04-001.
+  The proposal's `proposerCaseRoles` lists the CVD roles the proposer holds in a case it owns, from its own configuration; the case-actor seats the proposer with those roles plus `CASE_OWNER`, and refuses a proposal that claims `CASE_MANAGER` (CP-01-011, CP-01-012, [ADR-0132](../../adr/0132-the-report-receiver-states-its-case-roles-on-the-case-proposal.md)).
+- **Spec:** CP-01-010, CP-01-011, CP-01-012, CP-03-001, CP-04-001.
 - **Example artifact:** [create_case_proposal.json](../examples/create_case_proposal.json).
 
 ```python exec="true" idprefix=""

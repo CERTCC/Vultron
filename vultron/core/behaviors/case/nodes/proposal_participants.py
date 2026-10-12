@@ -24,11 +24,11 @@ Register the CaseActor (COORDINATOR + CASE_MANAGER) and the report receiver
 """
 
 import logging
+from collections.abc import Sequence
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
@@ -45,15 +45,16 @@ from vultron.enums.roles import CVDRole
 logger = logging.getLogger(__name__)
 
 
-def _effective_case_roles(actor_config: ActorConfig | None) -> list[CVDRole]:
+def _effective_case_roles(
+    proposer_case_roles: Sequence[CVDRole],
+) -> list[CVDRole]:
     """Return the effective case roles for the case owner participant.
 
-    Prepends any ``default_case_roles`` from *actor_config* to ``CASE_OWNER``,
-    deduplicating while preserving order.  Moved here from the deleted
-    ``participant.owner`` module in issue #4353.
+    Prepends the roles the proposer stated on its proposal to ``CASE_OWNER``,
+    deduplicating while preserving order (CP-09-007, ADR-0132).  Moved here
+    from the deleted ``participant.owner`` module in issue #4353.
     """
-    base_roles = actor_config.default_case_roles if actor_config else []
-    return list(dict.fromkeys([*base_roles, CVDRole.CASE_OWNER]))
+    return list(dict.fromkeys([*proposer_case_roles, CVDRole.CASE_OWNER]))
 
 
 class AddCaseActorParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
@@ -204,11 +205,13 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
     original vulnerability report).  Per ADR-0041 AC-1, the CaseActor adds
     them as CASE_OWNER at RM.RECEIVED in its own DataLayer.
 
-    The receiver's additional CVD roles come from
-    ``ActorConfig.default_case_roles`` (CFG-07-002, CFG-07-004) — the same
-    source the pre-ADR-0041 receiver-side ``CreateCaseOwnerParticipant`` used.
-    They must not be hard-coded: a coordinator that receives a report is a
-    CASE_OWNER but never a VENDOR, and giving it ``CVDRole.VENDOR`` makes
+    The receiver's additional CVD roles are the ones it stated on its proposal
+    (*case_roles*, CP-09-007, ADR-0132), which it copied from its own
+    ``ActorConfig.default_case_roles`` (CFG-07-002).  This node never reads its
+    own configuration for them: the CaseActor may run in another container
+    (DEMOMA-06-004), and its configuration says nothing about the receiver.
+    They must not be hard-coded either: a coordinator that receives a report is
+    a CASE_OWNER but never a VENDOR, and giving it ``CVDRole.VENDOR`` makes
     downstream VFD fix-lifecycle guards demand a fix it will never produce.
 
     Reads ``case_id`` from the blackboard (written by ResolveCaseIdSelector).
@@ -218,13 +221,13 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
         self,
         owner_uri: str,
         report_id: str | None,
-        actor_config: ActorConfig | None = None,
+        case_roles: Sequence[CVDRole] = (),
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._owner_uri = owner_uri
         self._report_id = report_id
-        self._actor_config = actor_config
+        self._case_roles = tuple(case_roles)
         # Pre-build the initial status node (BTND-10-004, ADR-0089).
         # actor_id is set here so execute_with_setup can use actor_id=self.actor_id
         # (the CaseActor's store) without BTBridge cloning an empty owner store.
@@ -285,15 +288,13 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             return Status.SUCCESS
 
-        # Roles come from the local ActorConfig (CFG-07-002, CFG-07-004) so
-        # role guards (e.g. CheckVendorRoleNode) work for a VENDOR-role owner
-        # without mislabelling a coordinator owner as a VENDOR.  A future
-        # spec amendment should carry role hints in the CaseProposal itself
-        # so the CaseActor does not have to rely on co-located configuration.
+        # Roles come from the proposal (CP-09-007, ADR-0132) so role guards
+        # (e.g. CheckVendorRoleNode) work for a VENDOR-role owner without
+        # mislabelling a coordinator owner as a VENDOR.
         participant = CaseParticipant(
             attributed_to=self._owner_uri,
             context=case_id,
-            case_roles=_effective_case_roles(self._actor_config),
+            case_roles=_effective_case_roles(self._case_roles),
             participant_statuses=[],
         )
 

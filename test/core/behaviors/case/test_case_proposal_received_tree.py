@@ -949,12 +949,14 @@ def _make_full_event(
     *,
     report_id: str | None = _REPORT_URI,
     actor: str | CoreActor | None = None,
+    proposer_case_roles: list | None = None,
 ):
     """Build a CreateCaseProposalReceivedEvent with an optional report URI.
 
     ``actor`` is the Create's ``actor``: the proposing actor's full profile
     inline, without a policy, by default (CP-01-010); a URI to exercise the
-    refusal of a reference.
+    refusal of a reference.  ``proposer_case_roles`` is what the proposal
+    states as the proposer's own roles (CP-01-011).
     """
     if actor is None:
         actor = _vendor_profile()
@@ -967,6 +969,7 @@ def _make_full_event(
         attributed_to=_VENDOR_URI,
         object_=report_id or "https://example.org/reports/none",
         target=_CASE_ACTOR_URI,
+        proposer_case_roles=proposer_case_roles or [],
     )
     activity = as_Create(
         actor=actor,
@@ -996,12 +999,15 @@ def _run_full_bt(
     actor_config=None,
     *,
     actor: str | CoreActor | None = None,
+    proposer_case_roles: list | None = None,
 ) -> HandlerResult:
     from vultron.core.use_cases.received.case_proposal import (
         CreateCaseProposalReceivedUseCase,
     )
 
-    event = _make_full_event(make_payload, actor=actor)
+    event = _make_full_event(
+        make_payload, actor=actor, proposer_case_roles=proposer_case_roles
+    )
     return CreateCaseProposalReceivedUseCase(
         dl,
         event,
@@ -1471,47 +1477,45 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
 
 @pytest.mark.spec("CP-09-007")
 @pytest.mark.spec("CP-09-008")
-class TestOwnerRolesComeFromActorConfig:
-    """The owner's non-CASE_OWNER roles come from ``ActorConfig`` (CFG-07-002).
+@pytest.mark.spec("CP-01-011")
+class TestOwnerRolesComeFromTheProposal:
+    """The owner's non-CASE_OWNER roles are the ones its proposal states.
 
-    Regression guard: the node used to hard-code ``[CASE_OWNER, VENDOR]``.
-    That mislabelled a coordinator that receives a report as a vendor, after
-    which VFD fix-lifecycle checks demanded a fix the coordinator never
-    produces (fccv-extension M6/M7 failure).
+    The proposer copies them from its own ``ActorConfig.default_case_roles``
+    (CFG-07-002) onto ``proposerCaseRoles`` (CP-01-011, ADR-0132).  The
+    CaseActor used to read its *own* configuration instead, which was the
+    receiver's only while the two shared a container; on the dedicated
+    case-actor container a Vendor was seated as ``CASE_OWNER`` alone and its
+    fix-readiness report was refused (#1876).
+
+    Regression guard, too: the node once hard-coded ``[CASE_OWNER, VENDOR]``,
+    which mislabelled a coordinator as a vendor (fccv-extension M6/M7).
     """
 
-    def test_vendor_config_yields_vendor_role(self, make_payload):
-        from vultron.config.actor import ActorConfig
+    @staticmethod
+    def _dl() -> SqliteDataLayer:
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        return dl
+
+    def test_vendor_proposal_yields_vendor_role(self, make_payload):
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=_CASE_ACTOR_URI,
-        )
-        _seed_report(dl)
-        _run_full_bt(
-            make_payload,
-            dl,
-            actor_config=ActorConfig(default_case_roles=[CVDRole.VENDOR]),
-        )
+        dl = self._dl()
+        _run_full_bt(make_payload, dl, proposer_case_roles=[CVDRole.VENDOR])
 
         roles = _owner_roles(dl)
         assert CVDRole.CASE_OWNER in roles
         assert CVDRole.VENDOR in roles
 
-    def test_coordinator_config_does_not_yield_vendor_role(self, make_payload):
-        from vultron.config.actor import ActorConfig
+    def test_coordinator_proposal_does_not_yield_vendor_role(
+        self, make_payload
+    ):
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=_CASE_ACTOR_URI,
-        )
-        _seed_report(dl)
+        dl = self._dl()
         _run_full_bt(
-            make_payload,
-            dl,
-            actor_config=ActorConfig(default_case_roles=[CVDRole.COORDINATOR]),
+            make_payload, dl, proposer_case_roles=[CVDRole.COORDINATOR]
         )
 
         roles = _owner_roles(dl)
@@ -1521,15 +1525,30 @@ class TestOwnerRolesComeFromActorConfig:
             f"a coordinator must not be labelled VENDOR, got {roles}"
         )
 
-    def test_no_actor_config_yields_case_owner_only(self, make_payload):
+    def test_case_actor_config_does_not_supply_owner_roles(self, make_payload):
+        """The CaseActor's own configuration says nothing about the proposer."""
+        from vultron.config.actor import ActorConfig
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=_CASE_ACTOR_URI,
+        dl = self._dl()
+        _run_full_bt(
+            make_payload,
+            dl,
+            actor_config=ActorConfig(default_case_roles=[CVDRole.VENDOR]),
+            proposer_case_roles=[CVDRole.COORDINATOR],
         )
-        _seed_report(dl)
-        _run_full_bt(make_payload, dl, actor_config=None)
+
+        roles = _owner_roles(dl)
+        assert CVDRole.VENDOR not in roles, (
+            f"the CaseActor's config leaked into the owner's roles: {roles}"
+        )
+        assert CVDRole.COORDINATOR in roles
+
+    def test_no_stated_roles_yields_case_owner_only(self, make_payload):
+        from vultron.enums.roles import CVDRole
+
+        dl = self._dl()
+        _run_full_bt(make_payload, dl)
 
         roles = _owner_roles(dl)
         assert roles == [CVDRole.CASE_OWNER]

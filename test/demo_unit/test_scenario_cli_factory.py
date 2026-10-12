@@ -108,13 +108,18 @@ _CASE_ACTOR_ID_SCENARIOS = frozenset({"fvcv-handoff", "fccv-handoff"})
 #: come from the compose environment rather than being left to the demo.
 _ID_ENVVAR_SCENARIO = "fcvcv"
 
-#: ``fv`` colocates the CaseActor on the third container; every other scenario
-#: that has one gives it a container of its own on 7905.
+#: Every scenario names the dedicated CaseActor container (#1876).  Its local
+#: default is 7905, except where that port is already another role's: ``fv``
+#: has only three containers and keeps 7903, and ``fcvcv`` gives 7905 to V2.
 _CASE_ACTOR_PORTS = {
     "fv": "http://localhost:7903/api/v2",
+    "fvv": "http://localhost:7905/api/v2",
     "fcv": "http://localhost:7905/api/v2",
     "fcv-reject": "http://localhost:7905/api/v2",
+    "fcvcv": "http://localhost:7906/api/v2",
+    "fvcv-extension": "http://localhost:7905/api/v2",
     "fvcv-handoff": "http://localhost:7905/api/v2",
+    "fccv-extension": "http://localhost:7905/api/v2",
     "fccv-handoff": "http://localhost:7905/api/v2",
     "rcv-embargo": "http://localhost:7905/api/v2",
     "rcvv-embargo": "http://localhost:7905/api/v2",
@@ -568,8 +573,8 @@ class TestDeclaredDivergences:
         }
         assert with_env == {_ID_ENVVAR_SCENARIO}
 
-    def test_fv_colocates_the_case_actor_on_a_different_port(self) -> None:
-        """``fv``'s CaseActor default is 7903; the others' is 7905."""
+    def test_every_scenario_declares_the_case_actor(self) -> None:
+        """Each scenario has a ``case-actor`` role, at its declared default."""
         actual = {
             spec.name: role.default_url
             for spec in discover_scenarios()

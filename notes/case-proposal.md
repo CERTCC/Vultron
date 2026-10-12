@@ -25,6 +25,7 @@ related_notes:
   - notes/datalayer-design.md
   - notes/case-bootstrap-trust.md
   - notes/fv-demo.md
+  - notes/configuration.md
 relevant_packages:
   - vultron/wire/as2/vocab/objects
   - vultron/core/models/events
@@ -444,6 +445,15 @@ In `docker/docker-compose-multi-actor.yml` every actor container, and the
   (for the invite path), or read it via `case_manager_store`. The FV demo checks
   the topology with `verify_case_actor_holds_records`, and every scenario dumps
   the `case-actor` ledger from that container (DEMOMA-06-005).
+
+- **The owner's roles ride on the proposal** (ADR-0132, CP-01-011,
+  CP-09-007). The CaseActor once read its *own* `default_case_roles` to seat the
+  report receiver, which only gave the right answer while it ran in the
+  receiver's container. Now the receiver copies its roles onto
+  `proposerCaseRoles`. The CaseActor seats it with those plus `CASE_OWNER`, and
+  the parse edge refuses a `CASE_MANAGER` claim (CP-01-012). Any other fact the
+  CaseActor needs about a proposer follows the same rule: it travels on the
+  proposal or the inline profile, because no CaseActor config or store holds it.
 
 **Not the end state.** One pre-provisioned CaseActor serving every case is a
 stepping stone. CaseActor Spawning (#1092, with #811–#813) replaces it with a

@@ -140,7 +140,7 @@ ROLES: list[ActorRole] = [
     ActorRole(
         name="case-actor",
         url_env="VULTRON_CASE_ACTOR_BASE_URL",
-        default_url="http://localhost:7903/api/v2",
+        default_url="http://localhost:7905/api/v2",
         url_help="Base URL of the CaseActor container API "
         "(env: VULTRON_CASE_ACTOR_BASE_URL).",
     ),

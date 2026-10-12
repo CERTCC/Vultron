@@ -5,6 +5,7 @@ kind: guidance
 description: Design decisions for YAML-backed Pydantic configuration loading in Vultron.
 related_specs:
   - specs/case-ledger-processing.yaml
+  - specs/case-proposal.yaml
   - specs/configuration.yaml
   - specs/embargo-policy.yaml
 relevant_packages:
@@ -16,6 +17,7 @@ relevant_packages:
   - vultron/core
 related_notes:
   - notes/case-ledger-authority.md
+  - notes/case-proposal.md
   - notes/demo-interactive-ui.md
   - notes/embargo-default-semantics.md
   - notes/testing-pitfalls.md
@@ -215,7 +217,10 @@ actor-policy defaults used by BT nodes and the production adapter:
 - `default_case_roles`: list of CVD role strings (e.g. `["coordinator"]`)
   assigned to the local actor when it creates or takes ownership of a case.
   `CVDRole.CASE_OWNER` is always appended at participant-creation time
-  (BTND-05-002) and does not need to be listed here.
+  (BTND-05-002) and does not need to be listed here. A report receiver states
+  these roles on its `Create(CaseProposal)` as `proposerCaseRoles`, and the
+  CaseActor seats it with them; the CaseActor never reads its own
+  `default_case_roles` for a proposer (CP-01-011, CP-09-007, ADR-0132).
 - `case_actor_service_url`: base URL of the dedicated CaseActor container
   (e.g., `http://case-actor:7999/api/v2`). Required for any actor whose BT
   may run the `engage-case` path (i.e., case-creating actors). Absence causes

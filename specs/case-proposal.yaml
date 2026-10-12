@@ -169,6 +169,51 @@ groups:
     adr:
     - ADR-0096
     - ADR-0107
+  - id: CP-01-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `as_CaseProposal` MUST carry, as `proposerCaseRoles`, the CVD roles the proposing actor
+      holds in a case it owns, copied from its own `ActorConfig.default_case_roles`
+      (CFG-07-002). An absent or empty `proposerCaseRoles` states no role beyond
+      `CASE_OWNER`.
+    rationale: >-
+      The CASE_MANAGER seats the proposer with these roles (CP-09-007) and has no other
+      source for them: it may run in a different container, and it cannot read another
+      actor's configuration or store (ADR-0073). Carrying them follows the rule CP-01-010
+      applies to the proposer's embargo policy.
+    verification: >-
+      Tests confirm that a proposal built by the report receiver carries its
+      `default_case_roles` as `proposerCaseRoles`, and that the field round-trips
+      through the wire form.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-001
+    - rel_type: depends_on
+      spec_id: CFG-07-002
+    adr:
+    - ADR-0132
+    stories:
+    - story_2022_063
+  - id: CP-01-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A `Create(as_CaseProposal)` whose `proposerCaseRoles` names `CASE_MANAGER` MUST be
+      refused at the parse edge with a reason naming the fault.
+    rationale: >-
+      Only the CaseActor holds `CASE_MANAGER`. A proposer that could state it would seat
+      itself as the manager of the case it proposes.
+    verification: >-
+      Tests confirm that parsing an `as_CaseProposal` whose `proposerCaseRoles` includes
+      `CASE_MANAGER` raises a validation error naming CP-01-012.
+    relationships:
+    - rel_type: constrains
+      spec_id: CP-01-011
+    adr:
+    - ADR-0132
+    stories:
+    - story_2022_063
 - id: CP-02
   title: MessageSemantics Values
   specs:
@@ -775,16 +820,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Any additional CVD roles the report receiver holds MUST come from
-      `ActorConfig.default_case_roles` (CFG-07-002).
+      Any additional CVD roles the report receiver holds MUST be the ones its proposal states
+      in `proposerCaseRoles` (CP-01-011), which come from the receiver's own
+      `ActorConfig.default_case_roles` (CFG-07-002). The CASE_MANAGER MUST NOT take them from
+      its own configuration.
     rationale: >-
       Explicit role configuration is the only reliable source; a report receiver
-      may be a coordinator rather than a vendor, so role inference is unsound.
-    verification: Unit tests `test_vendor_config_yields_vendor_role` and `test_coordinator_config_does_not_yield_vendor_role` in
-      `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm roles come from `ActorConfig.default_case_roles`.
+      may be a coordinator rather than a vendor, so role inference is unsound. The
+      configuration is the receiver's, and the CASE_MANAGER may run in another
+      container, so its own configuration says nothing about the receiver (ADR-0132).
+    verification: Unit tests `test_vendor_proposal_yields_vendor_role`, `test_coordinator_proposal_does_not_yield_vendor_role`
+      and `test_case_actor_config_does_not_supply_owner_roles` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the roles come from the proposal.
     relationships:
     - rel_type: refines
       spec_id: CP-09-002
+    - rel_type: depends_on
+      spec_id: CP-01-011
+    adr:
+    - ADR-0132
     stories:
     - story_2022_063
     - story_2022_093
