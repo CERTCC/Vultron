@@ -28,6 +28,8 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.actor.ownership import (
@@ -1033,7 +1035,8 @@ def test_accept_after_the_offer_deadline_is_refused(make_payload):
 
     assert late.disposition is HandlerDisposition.REFUSED
     case = dl.read("https://example.org/cases/case_ot_deadline")
-    assert case is not None and case.attributed_to == _VENDOR_ID
+    assert isinstance(case, VulnerabilityCase)
+    assert case.attributed_to == _VENDOR_ID
 
 
 @pytest.mark.spec("CM-21-017")
@@ -1063,7 +1066,9 @@ def test_new_offer_after_an_expired_one_ledgers_the_expiry(make_payload):
 
     assert second is HandlerDisposition.APPLIED
     event_types = [
-        entry.event_type for entry in dl.list_objects("CaseLedgerEntry")
+        entry.event_type
+        for entry in dl.list_objects("CaseLedgerEntry")
+        if isinstance(entry, CaseLedgerEntry)
     ]
     assert any("expir" in event_type for event_type in event_types), (
         event_types
