@@ -7,8 +7,8 @@ description: >
   completeness doctrine, and the incoming-learnings index, and queries Project
   #24 for Schedule=Now items. Run this at the start of every workflow skill
   before selecting or reading a specific issue. Task-specific context —
-  requirements, notes, ADRs, glossary sections, code — is loaded afterwards
-  by deepen-context. Replaces study-project-docs Phase A.
+  requirements, notes, decision-record routing, glossary sections, code — is
+  loaded afterwards by deepen-context. Replaces study-project-docs Phase A.
 ---
 
 # Skill: Orient Agent

@@ -81,7 +81,7 @@ closed:
 3. **Prose-only records.** Some live records have no `adr:` edge, and are
    reached only by a citation in `specs/` or `notes/`. For each one,
    `spec-dump` prints `note: no requirement names ADR-NNNN in adr:`. Run
-   `grep -rln ADR-NNNN specs/ notes/` and read the files it names in Step 1
+   `grep -rn ADR-NNNN specs/ notes/` and read the files it names in Step 1
    or Step 3. They state the rule in full (MS-11-007). A record with no
    citation at all is in `RECORD_ONLY_EXEMPTIONS`
    (`vultron/metadata/adr/back_edges.py`). Those records are about how
@@ -96,9 +96,9 @@ itself.
 
 #### Skills that read record bodies
 
-The narrowing above is for routine task context. It does not say "stop
-reading records". These skills make the record their object of work, so they
-read bodies in full. Each one weighs what it reads by
+The routing above is for routine task context. The skills below make the
+record their object of work, so they keep full access and read bodies in
+full. Each one weighs what it reads by
 `.agents/skills/shared/weighing-decision-records.md`:
 
 | Skill | Why it reads bodies |

@@ -98,9 +98,9 @@ Routine task context does not load record bodies. `deepen-context` Step 2 finds
 in-scope records by title in the generated sections of `docs/adr/index.md`, then
 loads the requirements each one generated with `spec-dump --adr ADR-NNNN`. That
 reads the structured `adr:` edge backwards, from record to requirements
-(SR-07-017). Those requirements then feed spec selection, which is the job the
-body's prose citations used to do. Nothing new is generated: the title index and
-the `adr:` fields already exist and are already checked.
+(SR-07-017). Those requirements then feed spec selection. Nothing new is
+generated: the title index and the `adr:` fields already exist and are already
+checked.
 
 A live record with only a prose back-edge (below) has no `adr:` edge, so
 `--adr` selects nothing for it. `spec-dump` prints a note naming the record, and
@@ -110,13 +110,11 @@ it is found by title. Only the edge hop is replaced, by a grep. Converting such 
 citation to an `adr:` edge, wherever a requirement covers the decision, makes the
 record reachable by the tool as well.
 
-Some skills make the record their object of work and still read bodies in full.
-Examples are decision auditing, record authoring, `learn` (it writes the
-generated-requirements line) and issue planning. The list and each skill's
-reason live in one place, the "Skills that read record bodies" table in
-`deepen-context`. Every listed skill weighs what it reads by
+Some skills make the record their object of work and keep full access to
+bodies. Which ones, and why, live in one place: the exception table in
+`deepen-context` Step 2. Every listed skill weighs what it reads by
 `.agents/skills/shared/weighing-decision-records.md`, which holds the
-challengeable-record rules that used to sit in Step 2. MS-11-008 makes the rule
+challengeable-record rules. MS-11-008 makes the rule
 enforceable, and `test/metadata/test_routine_context_skips_adr_bodies.py` reads
 the skill text: it fails a skill off the list that instructs reading a body, and
 a list missing a required skill or a reason. If the list grows until most work

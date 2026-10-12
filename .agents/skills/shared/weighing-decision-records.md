@@ -3,7 +3,7 @@
 Apply this whenever you read a decision record (ADR) body. Routine task
 context reaches records only by title and by the `adr:` edges on requirements
 (`deepen-context` Step 2). The skills that read bodies in full are listed
-there, and each one weighs what it reads by the rules below.
+there, and each one weighs what it reads by these rules.
 
 A record says what was decided and why, as of when it was written. It is
 history, not a description of today's code (ADR-0127). The rules below are
@@ -26,10 +26,10 @@ challengeable record against the current code before you rely on it:
 - the code you are about to touch appears to contradict what the record
   asserts.
 
-When a relevant record is challengeable, tell the caller and check the claim
-against the code. Do not take on its premise unchecked. If the record looks
-wrong or stale (not just imprecise for your task), it is a landmine. Send it to
-the `decision-audit` skill and do not quietly work around it.
+When a relevant record is challengeable, tell the caller and check its claim
+against the code before you build on it. If the record looks wrong or stale
+(not just imprecise for your task), it is a landmine: name it to the caller and
+route it to the `decision-audit` skill.
 
 ## A stale code reference is not a challenge
 
