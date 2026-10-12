@@ -67,6 +67,9 @@ from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
 )
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsOwnershipTransfereeNode,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -224,6 +227,25 @@ def reference_edit_verdict(
         refusal = not_case_manager_refusal(tree, dl, case_id)
         if refusal is not None:
             return refusal
+    return verdict
+
+
+def ownership_answer_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+) -> HandlerResult:
+    """Report a redelivered ownership-transfer answer as ``SKIPPED``.
+
+    :class:`~vultron.core.behaviors.sender_entitlement.SenderIsOwnershipTransfereeNode`
+    fails with ``is_redelivery`` set when the answer is the one already
+    ledgered as closing its Offer, so nothing is re-applied.  That is the
+    benign no-op of a redelivery, not a refusal (HP-01-003, CM-21-011).
+    """
+    guard = find_node(tree, SenderIsOwnershipTransfereeNode)
+    if guard is not None and guard.is_redelivery:
+        return HandlerResult.skipped(
+            guard.feedback_message or "ownership-transfer answer redelivered"
+        )
     return verdict
 
 

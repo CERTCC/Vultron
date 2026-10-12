@@ -143,3 +143,25 @@ def test_stale_forward_stands_for_its_own_offer_not_a_later_one(dl):
 
     assert offer.offer_id == "urn:offer:1"
     assert offer.is_answered_other_than("urn:accept:late")
+
+
+@pytest.mark.spec("CM-21-011")
+def test_same_second_forward_resolves_to_the_later_offer_for_its_transferee(
+    dl,
+):
+    """Times are second-precision, so a same-second tie picks the later Offer.
+
+    It is safe because the later Offer names the same transferee, and its own
+    answered state still decides whether an answer through the old forward is
+    admitted.
+    """
+    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
+    _ledger(dl, 1, "urn:accept:1", "accept_case_ownership_transfer", _T0)
+    _ledger(dl, 2, "urn:offer:2", "offer_case_ownership_transfer", _T0)
+    _forward(dl, "urn:forward:1", _MANAGER, _T0)
+
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
+
+    assert offer.offer_id == "urn:offer:2"
+    assert offer.transferee_id == _TRANSFEREE
+    assert offer.pair.is_pending()

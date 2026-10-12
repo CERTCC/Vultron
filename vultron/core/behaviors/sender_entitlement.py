@@ -928,9 +928,13 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
       ownership-transfer Offer the CASE_MANAGER recorded for the case, and
       the Offer must still be open: no other answer is ledgered for it
       (CM-21-014).  The Offer is read from this store's ledger, never from
-      the copy the answer embeds, which the sender wrote.  A redelivery of
-      the answer that closed the Offer is the same answer and passes, so the
-      handler can report it idempotently (HP-01-003).
+      the copy the answer embeds, which the sender wrote.
+    - A **redelivery** of the answer that already closed the Offer is not a
+      refusal (HP-01-003), but it must change nothing: by then ownership may
+      have moved on through a later Offer, and re-applying the old answer
+      would hand it back with no ledger entry.  The guard sets
+      :attr:`is_redelivery` and fails, so nothing downstream runs, and the
+      handler reports the run as ``SKIPPED``.
     - At **any other replica** the sender must be the CASE_MANAGER: a
       participant takes case state from it alone.
 
@@ -967,6 +971,9 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
         self._offer_id = offer_id
         self._sender_actor_id = sender_actor_id
         self._answer_id = answer_id
+        self.is_redelivery = False
+        """``True`` when the last run found the answer already ledgered as
+        the one that closed the Offer: a benign no-op, not a refusal."""
 
     def _refuse(self, reason: str) -> Status:
         self.feedback_message = f"{reason} — REFUSED (CM-21-011, HP-01-006)"
@@ -975,23 +982,33 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
 
     def _check_open_offer(self, offer: RecordedOwnershipOffer) -> Status:
         """The CASE_MANAGER arm: the sender is the transferee of *offer*,
-        which no other answer has closed."""
+        which no answer has closed yet."""
         sender = self._sender_actor_id
-        if offer.is_answered_other_than(self._answer_id):
-            return self._refuse(
-                f"Ownership-transfer Offer '{offer.offer_id}' for case"
-                f" '{self._case_id}' was already answered by"
-                f" '{offer.answer_id}'"
-            )
         if not same_actor_id(sender, offer.transferee_id):
             return self._refuse(
                 f"Sender '{sender}' is not the transferee"
                 f" '{offer.transferee_id}' of ownership-transfer Offer"
                 f" '{offer.offer_id}'"
             )
+        if offer.answer_id == self._answer_id:
+            self.is_redelivery = True
+            self.feedback_message = (
+                f"Answer '{self._answer_id}' already closed ownership-transfer"
+                f" Offer '{offer.offer_id}' — redelivery, nothing to apply"
+                " (HP-01-003)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        if offer.is_answered_other_than(self._answer_id):
+            return self._refuse(
+                f"Ownership-transfer Offer '{offer.offer_id}' for case"
+                f" '{self._case_id}' was already answered by"
+                f" '{offer.answer_id}'"
+            )
         return Status.SUCCESS
 
     def update(self) -> Status:
+        self.is_redelivery = False
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None and self.actor_id is not None

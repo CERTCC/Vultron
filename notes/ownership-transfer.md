@@ -99,8 +99,13 @@ CASE_MANAGER inbox receives Accept
   to an `offer_case_ownership_transfer` entry in its ledger. The sender must be
   that entry's `target`, and `find_protocol_pair()` (with
   `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`) must find no other answer
-  recorded after it. A redelivery of the Accept that closed it is the same
-  answer and passes (HP-01-003); a second, different Accept is refused.
+  recorded after it. A second, different Accept is refused.
+- **A redelivery changes nothing.** The Accept that already closed the Offer,
+  delivered again, is not refused, but it must not re-run the transfer: by then
+  ownership may have moved on through a later Offer, and re-applying the old
+  Accept would hand it back with no ledger entry. The guard sets
+  `is_redelivery` and fails, so no effect runs, and `ownership_answer_verdict()`
+  reports the run `SKIPPED` (HP-01-003).
 - **At any other replica** the sender must be the CASE_MANAGER (PCR-03-001). A
   replica still applies the change only from the ledger fan-out.
 
@@ -109,11 +114,20 @@ CASE_MANAGER ledgers and the one it forwards to the transferee (CM-21-005) have
 different ids, and only the first is ledgered. `recorded_ownership_offer()`
 therefore also accepts a forward: an Offer in the CASE_MANAGER's store that it
 issued itself, for the same case and transferee, published no earlier than the
-recorded Offer it stands for (the latest such entry). The Reject (#4475) reuses
-the same helper and guard.
+recorded Offer it stands for (the latest such entry). Timestamps are
+second-precision, so a forward published in the same second as a later Offer
+to the same transferee resolves to that later Offer. That is safe: the later
+Offer names the same transferee, and its own open/answered state still decides.
+The Reject (#4475) reuses the same helper and guard.
 
-`find_protocol_pair()` counts only a reply recorded *after* the request
-(`log_index`), so an Accept of an earlier Offer does not close the next one.
+`find_protocol_pair()` anchors on the latest matching request and counts only
+a reply recorded *after* it (`log_index`), so an Accept of an earlier Offer does
+not close the next one.
+
+**The Offer itself is not sender-checked yet** (#4540): no CM-21 requirement
+names who may send it, so an actor can record an Offer naming itself and then
+accept it. The Accept guard is correct, but the record it trusts can be created
+by anyone until the Offer gets its own sender rule.
 
 ---
 

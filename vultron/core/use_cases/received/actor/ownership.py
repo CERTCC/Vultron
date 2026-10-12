@@ -32,6 +32,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
     intake_verdict,
     not_case_manager,
+    ownership_answer_verdict,
     verdict_from_bt,
 )
 
@@ -50,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 class OfferCaseOwnershipTransferReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for ownership offer"
+        "#4540", "no sender check for ownership offer"
     )
 
     def __init__(
@@ -209,6 +210,8 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
     it must be the CASE_MANAGER (CM-21-011, PCR-03-001).  Anyone else is
     ``REFUSED`` with ownership unchanged, nothing committed and nothing sent.
     The new owner is read from the recorded Offer, never from the sender.
+    A redelivery of the Accept that already closed the Offer changes nothing
+    and is ``SKIPPED`` (HP-01-003).
     """
 
     # The transferee is the addressee of the Offer (ADR-0129); the guard is
@@ -259,8 +262,9 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        verdict = verdict_from_bt(
-            tree, result, label="AcceptOwnershipTransferBT"
+        verdict = ownership_answer_verdict(
+            tree,
+            verdict_from_bt(tree, result, label="AcceptOwnershipTransferBT"),
         )
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(

@@ -342,3 +342,24 @@ class TestFindProtocolPairOrdering:
 
         assert first.reply_object_id == REPLY_ID_A
         assert second.is_pending()
+
+    @pytest.mark.spec("CLP-11-001")
+    def test_a_repeated_request_is_not_closed_by_the_earlier_reply(self, dl):
+        """When the same object is requested again, the latest request counts.
+
+        The reply to the first request does not close the second.
+        """
+        _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_A, REQUEST_TYPE, ACTOR_ID)
+        _seed_ledger_entry(
+            dl, CASE_ID, REPLY_ID_A, "reject_offer_case_participant", ACTOR_ID
+        )
+        _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_A, REQUEST_TYPE, ACTOR_ID)
+
+        pair = dl.find_protocol_pair(
+            case_id=CASE_ID,
+            request_event_type=REQUEST_TYPE,
+            object_id=OBJECT_ID_A,
+            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+        )
+
+        assert pair.is_pending()

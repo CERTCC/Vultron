@@ -1174,7 +1174,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         assert _event_types(dl) == entries_after_first
 
     @pytest.mark.spec("HP-01-003")
-    def test_redelivered_accept_is_not_refused(self, make_payload):
+    def test_redelivered_accept_is_skipped(self, make_payload):
         """The Accept that closed the Offer, delivered again, is the same answer."""
         case_id = "https://example.org/cases/case_ot_redelivered"
         dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
@@ -1190,9 +1190,143 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         again = _accept(dl, make_payload, offer, accept=accept)
 
         assert first.disposition is HandlerDisposition.APPLIED
-        assert again.disposition is not HandlerDisposition.REFUSED
+        assert again.disposition is HandlerDisposition.SKIPPED
         assert _event_types(dl) == entries_after_first
         assert _owner(dl, case_id) == _COORDINATOR_ID
+
+    @pytest.mark.spec("CM-21-011")
+    @pytest.mark.spec("HP-01-003")
+    def test_replayed_accept_does_not_undo_a_later_transfer(
+        self, make_payload
+    ):
+        """An old Accept, replayed after ownership moved on, changes nothing.
+
+        The vendor offers the case to the coordinator, who accepts; the
+        coordinator then offers it back, and the vendor accepts.  The
+        coordinator's first Accept, delivered again, must not hand the case
+        back to it: the ledger records the vendor as owner, so re-applying the
+        old Accept would split the case record from the ledger.
+        """
+        case_id = "https://example.org/cases/case_ot_replay"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, first = deliver(
+            _COORDINATOR_ID, "https://example.org/activities/offer_replay_1"
+        )
+        old_accept = accept_case_ownership_transfer_activity(
+            first, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
+        )
+        assert (
+            _accept(dl, make_payload, first, accept=old_accept).disposition
+            is HandlerDisposition.APPLIED
+        )
+        _, second = deliver(
+            _VENDOR_ID,
+            "https://example.org/activities/offer_replay_2",
+            offerer=_COORDINATOR_ID,
+        )
+        assert (
+            _accept(dl, make_payload, second, sender=_VENDOR_ID).disposition
+            is HandlerDisposition.APPLIED
+        )
+        roles_before = _owner_roles(dl, case_id)
+        entries_before = _event_types(dl)
+        outbox_before = dl.outbox_list()
+
+        replay = _accept(dl, make_payload, first, accept=old_accept)
+
+        assert replay.disposition is HandlerDisposition.SKIPPED
+        _assert_nothing_changed(dl, case_id, roles_before, entries_before)
+        assert dl.outbox_list() == outbox_before
+
+    @staticmethod
+    def _plant_forged_forward(dl, case_id: str, target: str, forward_id: str):
+        """Store an Offer that claims the CASE_MANAGER forwarded it.
+
+        Inbound inline objects are stored by id, so a sender can plant one.
+        """
+        case = dl.read(case_id)
+        assert isinstance(case, VulnerabilityCase)
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+        forged = offer_case_ownership_transfer_activity(
+            case,
+            target=as_Service(id_=target, name="Forged"),
+            actor=_CASE_ACTOR_ID,
+            id_=forward_id,
+        )
+        dl.create(forged)
+        return forged
+
+    @pytest.mark.spec("CM-21-011")
+    def test_forged_forward_naming_the_impostor_is_refused(self, make_payload):
+        """A planted 'forward' stands for no Offer the CASE_MANAGER recorded."""
+        case_id = "https://example.org/cases/case_ot_forged_self"
+        impostor = "https://example.org/users/mallory"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        deliver(_COORDINATOR_ID, "https://example.org/activities/offer_fs")
+        forged = self._plant_forged_forward(
+            dl, case_id, impostor, "https://example.org/activities/forged_fs"
+        )
+        roles_before = _owner_roles(dl, case_id)
+        entries_before = _event_types(dl)
+        outbox_before = dl.outbox_list()
+
+        result = _accept(dl, make_payload, forged, sender=impostor)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None and "never recorded" in result.reason
+        _assert_nothing_changed(dl, case_id, roles_before, entries_before)
+        assert dl.outbox_list() == outbox_before
+
+    @pytest.mark.spec("CM-21-011")
+    def test_forged_forward_naming_the_transferee_is_refused(
+        self, make_payload
+    ):
+        """A planted 'forward' of a real Offer still needs its transferee."""
+        case_id = "https://example.org/cases/case_ot_forged_other"
+        impostor = "https://example.org/users/mallory"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        deliver(_COORDINATOR_ID, "https://example.org/activities/offer_fo")
+        forged = self._plant_forged_forward(
+            dl,
+            case_id,
+            _COORDINATOR_ID,
+            "https://example.org/activities/forged_fo",
+        )
+        roles_before = _owner_roles(dl, case_id)
+        entries_before = _event_types(dl)
+        outbox_before = dl.outbox_list()
+
+        result = _accept(dl, make_payload, forged, sender=impostor)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "is not the transferee" in result.reason
+        _assert_nothing_changed(dl, case_id, roles_before, entries_before)
+        assert dl.outbox_list() == outbox_before
+
+    @pytest.mark.spec("CM-21-011")
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AssertionError,
+        reason="The ownership-transfer Offer is not sender-checked, so an"
+        " actor can record an Offer naming itself and accept it. Tracked by"
+        " #4540.",
+    )
+    def test_offer_from_a_non_owner_cannot_win_ownership(self, make_payload):
+        """An actor off the roster offers the case to itself, then accepts."""
+        case_id = "https://example.org/cases/case_ot_self_offer"
+        impostor = "https://example.org/users/mallory"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, offer = deliver(
+            impostor,
+            "https://example.org/activities/offer_self",
+            offerer=impostor,
+        )
+
+        _accept(dl, make_payload, offer, sender=impostor)
+
+        assert _owner(dl, case_id) == _VENDOR_ID
 
     @pytest.mark.spec("CM-21-014")
     def test_accept_of_a_later_offer_is_applied_after_an_earlier_answer(

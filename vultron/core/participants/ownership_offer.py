@@ -123,6 +123,11 @@ def _forwarded_entry(
     A forward is an Offer in this store that *issuer_id* (the CASE_MANAGER)
     sent, for *case_id*, naming a transferee; it forwards the latest Offer
     for that transferee recorded no later than the forward was published.
+
+    Both times are second-precision (``now_utc``), so a forward published in
+    the same second as a later Offer to the same transferee is recorded
+    resolves to that later Offer.  That is safe: the later Offer names the
+    same transferee, and its own open or answered state still decides.
     """
     forward = dl.read(offer_id)
     if forward is None or _type_name(forward) != "Offer":

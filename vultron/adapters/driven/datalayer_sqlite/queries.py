@@ -337,8 +337,9 @@ def find_protocol_pair(
 
     Two-pass scan of ``CaseLedgerEntry`` objects scoped to *case_id*:
 
-    1. Locate the request entry whose ``event_type == request_event_type``
-       **and** ``log_object_id == object_id``.
+    1. Locate the latest request entry whose
+       ``event_type == request_event_type`` **and**
+       ``log_object_id == object_id``.
     2. Search, in ``log_index`` order, for the first reply entry recorded
        after that request whose ``event_type`` is in *reply_event_types*.
        A reply recorded before the request answered an earlier one: a case
@@ -367,14 +368,16 @@ def find_protocol_pair(
         key=lambda e: getattr(e, "log_index", 0),
     )
 
-    request_index = next(
+    # The latest matching request: when the same object is requested again,
+    # a reply to the earlier request must not close the later one.
+    request_index = max(
         (
             getattr(e, "log_index", 0)
             for e in case_entries
             if getattr(e, "event_type", None) == request_event_type
             and getattr(e, "log_object_id", None) == object_id
         ),
-        None,
+        default=None,
     )
     request_found = request_index is not None
 
