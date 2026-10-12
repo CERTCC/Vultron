@@ -389,13 +389,18 @@ groups:
       one would answer a proposal the requester may already have expired. A new proposal
       that names an already-accepted report is governed by CP-05-008 (#3977).
       The closed-case exception follows CM-23-013: the stored `Accept` would reach the
-      accept path, which writes to the case. A `Reject` cannot mislead here, because only
-      the Case Owner can re-deliver the proposal, and the Case Owner closed the case itself
+      accept path, which writes to the case. The `Reject` declines only the re-delivery; it
+      does not revoke the stored `Accept` (CP-05-005), and the case that `Accept` created
+      still exists, closed. It cannot be read as a reversal: the re-delivering proposer
+      already holds the `Accept`, and the `Reject` tells it only that nothing more will be
+      done for the proposal. That proposer is usually the Case Owner who closed the case;
+      after an ownership transfer it may be a former owner, and the reading is the same
       (#4464). Whether a closed case can be reopened, or a new case created for its report,
       is the reopen design (#3066), not this requirement.
     verification: A duplicate `Create(as_CaseProposal)` after acceptance produces an outbound `Accept(as_CaseProposal)`
       identical to the stored original including its `id`, and no second `VulnerabilityCase`. A duplicate after the case is
-      fully closed produces `Reject(as_CaseProposal)`, no outbound `Accept`, and no new `CaseLedgerEntry` for the case.
+      fully closed produces `Reject(as_CaseProposal)`, no outbound `Accept`, no new `CaseLedgerEntry` for the case, and no
+      change to case or participant state.
     adr:
     - ADR-0080
     relationships:
@@ -447,10 +452,14 @@ groups:
       A fully closed case accepts no further writes (CM-23-013, ADR-0085), so the owner's
       new proposal is declined rather than answered from the closed case; reopening it, or
       creating a fresh case for the report, is left to the reopen design (#3066, #4464).
+      The record of the decline is keyed on the proposal, not the case, so writing it is
+      neither a `CaseLedgerEntry` nor a change to case or participant state, and CM-23-013
+      does not bar it.
     verification: A second proposal from the case's owner, under a new identifier, yields a new `Accept` naming the existing
       case and no second case. A proposal for the same report from a different proposer yields a separate case owned by that
       proposer, and the first case gains no participant. A new proposal from the owner of a fully closed case yields
-      `Reject(as_CaseProposal)`, no `Accept`, no new case, and no new `CaseLedgerEntry` for the closed case.
+      `Reject(as_CaseProposal)`, no `Accept`, no new case, no new `CaseLedgerEntry` for the closed case, and no change to case
+      or participant state.
     adr:
     - ADR-0080
     relationships:

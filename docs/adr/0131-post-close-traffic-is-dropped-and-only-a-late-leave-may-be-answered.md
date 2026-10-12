@@ -81,3 +81,9 @@ Option C was rejected: it would send misreadable replies by default.
 - CM-23-013, CM-23-017 — the post-close rule and its reference-implementation policy point.
 - VP-03-013 — recipients may ignore messages of any class on closed cases.
 - #4162, #4065, #3060 — the issues this decision closes.
+
+## Clarification (2026-10-12)
+
+A `Create(CaseProposal)` names a report, not a case, so it is not a late activity for the case in the sense of this decision.
+Its answer after close is set by CP-05-006 and CP-05-008: when the proposal resolves to a fully closed case, the CASE_MANAGER declines it with `Reject(CaseProposal)`, under both settings, and records nothing for the case (CM-23-013, #4464).
+That reply is a decision on the proposal, so it cannot be misread.
