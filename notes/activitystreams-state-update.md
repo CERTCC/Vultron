@@ -13,6 +13,7 @@ related_specs:
   - specs/semantic-extraction.yaml
   - specs/response-format.yaml
   - specs/case-management.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/bt-integration.md
@@ -54,10 +55,9 @@ treating it as authoritative (see `specs/case-management.yaml` CM-06-002,
 CM-06-004).
 
 No actor sends `Update(VulnerabilityCase)` to the CASE_MANAGER: an inbound
-one resolves to `UNKNOWN` and is refused, because applying it changed the case
-with no ledger entry (CLP-07-013, #4443). A CASE_MANAGER change to a case field
-is its own ledger entry, and the ledger fan-out carries it to participants
-(CM-06-001).
+one resolves to `UNKNOWN` and is refused (#4443). A CASE_MANAGER change to a
+case field is its own ledger entry, and the ledger fan-out carries it to
+participants (CLP-07-013, CM-06-001).
 
 **Cross-reference**: `specs/case-management.yaml` CM-02-002, CM-06.
 

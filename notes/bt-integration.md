@@ -477,11 +477,9 @@ writes nothing.
 The factory commits only when it is given a `case_id`, and CLP-10-013 requires
 the commit exactly when the received `(type, object)` pair is a canonical payload
 signature (`_CANONICAL_PAYLOAD_SIGNATURES`) — otherwise the CASE_MANAGER would
-refuse its own commit. `Update(VulnerabilityCase)` has no received tree at
-all: it changed the case with no entry, which CLP-07-013 forbids, so the
-received path was removed and an inbound one resolves to `UNKNOWN` and is
-refused (#4443). The wire class survives only as the snapshot of a
-CASE_MANAGER-authored consequence entry.
+refuse its own commit. `Update(VulnerabilityCase)` has no received tree: an
+inbound one resolves to `UNKNOWN` and is refused (#4443). The wire class is
+only the snapshot of a CASE_MANAGER-authored consequence entry (CLP-07-013).
 
 One canonical signature also passes `case_id=None` (#4304):
 `Announce(VulnerabilityCase)`. Only the CASE_MANAGER sends it and only a

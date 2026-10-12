@@ -166,3 +166,39 @@ class TestBroadcastCaseUpdateNodePorts:
         bt_scenario.assert_failure(
             result, reason=f"case '{CASE_ID}' not found"
         )
+
+    @pytest.mark.spec("CBT-01-007")
+    @pytest.mark.spec("CM-06-001")
+    def test_refused_announce_is_a_reported_failure(
+        self, bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An ``Announce`` the adapter refuses is this node's FAILURE.
+
+        The adapter will not build an ``Announce(VulnerabilityCase)`` that
+        cannot embed every report the case names (CBT-01-007).  That refusal
+        is a reported outcome of the node, not an exception escaping
+        ``update()`` as an internal error of the whole tree (BT-HELPER-01).
+        """
+        from vultron.core.behaviors.case.nodes import update as update_nodes
+        from vultron.errors import VultronError
+
+        def _refuse(*_args: object, **_kwargs: object) -> None:
+            raise VultronError("report not in this store")
+
+        monkeypatch.setattr(update_nodes, "broadcast_case_update", _refuse)
+        bt_scenario.seed(
+            VulnerabilityCase(
+                id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+            )
+        )
+
+        result = bt_scenario.run(
+            BroadcastCaseUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
+            excluded_actor_ids=set(),
+        )
+
+        bt_scenario.assert_failure(
+            result, reason=f"could not broadcast case '{CASE_ID}'"
+        )
+        assert bt_scenario.dl.outbox_list() == [], "nothing was announced"

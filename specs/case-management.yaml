@@ -647,7 +647,9 @@ groups:
     rationale: >-
       Every change the CASE_MANAGER makes to the case file is its own ledger entry
       (CLP-07-013), so the ledger fan-out is the notice: each change reaches the
-      active participants as `Announce(CaseLedgerEntry)`. No participant sends
+      active participants as `Announce(CaseLedgerEntry)`. The CASE_MANAGER also
+      announces the updated case as `Announce(VulnerabilityCase)` after admitting
+      a participant's engagement. No participant sends
       the CASE_MANAGER an `Update(VulnerabilityCase)`; one that arrives is refused
       as unmatched (CLP-02-013, #4443).
     verification: >-

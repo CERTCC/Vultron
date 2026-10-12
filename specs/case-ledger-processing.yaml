@@ -1180,9 +1180,10 @@ groups:
       is not a ledgered assertion: no production code sends it, it has no protocol
       story, and `Announce(CaseLedgerEntry)` fan-out already carries every ledgered
       case change (ADR-0108). Its received path then changed the case with no
-      entry, which CLP-07-013 forbids, so it was removed (#4443). The `Announce(VulnerabilityCase)`
-      receiver is never the CASE_MANAGER, so a `case_id` would only make the
-      commit gate skip (#4304). `Add(CaseParticipant)` was exempt until #4081 made
+      entry, which CLP-07-013 forbids, so it was removed (#4443). The
+      `Announce(VulnerabilityCase)` receiver is never the CASE_MANAGER, so a
+      `case_id` would only make the commit gate skip (#4304).
+      `Add(CaseParticipant)` was exempt until #4081 made
       it the Case Owner''s reinstatement request: its commit landed together with
       its replica apply node (`ApplyReinstateCaseParticipantFromLedgerNode`,
       RSH-08-004), so it now commits. The `Reject(Offer)` and `TentativeReject(Offer)` trees
@@ -1206,9 +1207,10 @@ groups:
       contained `ValidateRMTransitionNode` after `GuardedCommit`, masked by a `_rm_was_carried_forward()`
       workaround. `add_case_status_tree` previously used a plain `py_trees.Sequence`
       with no commit at all. Both were corrected in ISSUE-2254.'
-    verification: 'A tree for a canonical signature passes `case_id` and the ordering ratchet finds the commit
-      after the guards. A receive-side test per committing tree asserts the CASE_MANAGER
-      commits the entry once, any other receiver skips it, and a refused activity
+    verification: 'A tree for a canonical signature passes `case_id` and the
+      ordering ratchet finds the commit after the guards. A receive-side test per
+      committing tree asserts the CASE_MANAGER commits the entry once, any other
+      receiver skips it, and a refused activity
       leaves no entry; the `Announce(VulnerabilityCase)` tree is asserted to have
       no commit child.'
     adr:
