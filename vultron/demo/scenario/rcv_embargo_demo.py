@@ -146,7 +146,7 @@ Workflow:
   3. Vendor advances to fix ready (VFd).
   4. Coordinator terminates the embargo (EM.EXITED).
   5. All participants report publication.
-  6. All participants close the case (RM.CLOSED on all replicas).
+  6. All participants close the case (every RM.CLOSED in the Case Actor's store).
   7. Case ledgers are dumped for the invariant harness.
 """
 

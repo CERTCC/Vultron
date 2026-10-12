@@ -205,6 +205,18 @@ on the authority and broke in replication — start at Layer 2. They were one
 aggregate test under one `xfail` until ISSUE-3385; splitting them is what lets a
 future known defect be scoped to the one property it owns.
 
+**`per_actor_replica_rm_closed_termination` checks a leaver's own closure
+only.** A participant at RM `CLOSED` is sent nothing after the entries that
+record its own closure (CM-23-004, #4212), so no participant replica holds every
+closure. The check reads each leaver's last own-closure entry off the
+`case-actor` log (`own_closure_tail_index`, the reading the live closure
+`demo_check` uses) and asserts the leaver's replica ends exactly there, with the
+leaver itself at `CLOSED`. A replica that ends later was sent content after it
+left; one that ends earlier missed its own closure step. Invariant 7 remains the
+check that every participant closed, on the `case-actor` log. The late-joiner
+checks (invariant 8, below) likewise compare only up to the late actor's own
+last entry.
+
 **Invariant 8 is scenario-local, not universal — and there is more than one of
 it.** Late-joiner backfill has to name a specific early actor and late actor,
 which differ per scenario, so the factory cannot inject it. Instead every

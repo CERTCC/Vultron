@@ -571,8 +571,12 @@ class TestFvcvHandoffMilestoneAssertions:
             "urn:test:coordinator",
         ], f"Unexpected publication order: {call_order}"
 
-    def test_phase_case_closure_calls_verify_case_closed(self):
-        """_phase_case_closure calls verify_case_closed at M7."""
+    def test_phase_case_closure_runs_the_closure_milestone(self):
+        """_phase_case_closure runs the shared closure milestone (CM-23-004).
+
+        The milestone checks the CASE_MANAGER's store and each leaver's own
+        replica inside ``close_case_owner_last``; the scenario only names it.
+        """
         import contextlib
 
         finder_client = self._client()
@@ -600,11 +604,8 @@ class TestFvcvHandoffMilestoneAssertions:
 
         with (
             patch.object(ActorSession, "close_case"),
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(demo, "verify_case_closed") as mock_m7,
-            patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
+            patch.object(demo, "close_case_owner_last") as mock_m7,
             patch.object(
                 demo,
                 "demo_check",
@@ -628,7 +629,8 @@ class TestFvcvHandoffMilestoneAssertions:
                 coordinator_in_coordinator=coordinator_in_coordinator,
                 case=case,
             )
-        mock_m7.assert_called()
+        mock_m7.assert_called_once()
+        assert mock_m7.call_args.kwargs.get("milestone") is None
 
     def test_phase_case_closure_coordinator_closes_last(self):
         """Coordinator (case owner) must close after Vendor1, Vendor2, and Finder."""
@@ -661,11 +663,7 @@ class TestFvcvHandoffMilestoneAssertions:
             patch.object(
                 ActorSession, "close_case", autospec=True
             ) as mock_close,
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(demo, "verify_case_closed"),
-            patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 demo,
                 "demo_check",

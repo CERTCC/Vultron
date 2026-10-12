@@ -343,8 +343,12 @@ class TestFccvExtensionMilestoneAssertions:
             )
         mock_m7.assert_called()
 
-    def test_phase_case_closure_calls_verify_case_closed(self):
-        """_phase_case_closure calls verify_case_closed at M8."""
+    def test_phase_case_closure_runs_the_closure_milestone(self):
+        """_phase_case_closure runs the shared closure milestone (CM-23-004).
+
+        The milestone checks the CASE_MANAGER's store and each leaver's own
+        replica inside ``close_case_owner_last``; the scenario only names it.
+        """
         import contextlib
 
         finder_client = self._client()
@@ -368,11 +372,8 @@ class TestFccvExtensionMilestoneAssertions:
 
         with (
             patch.object(ActorSession, "close_case"),
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(demo, "verify_case_closed") as mock_m8,
-            patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
+            patch.object(demo, "close_case_owner_last") as mock_m8,
             patch.object(
                 demo,
                 "demo_check",
@@ -390,7 +391,8 @@ class TestFccvExtensionMilestoneAssertions:
                 finder_in_finder=finder_in_finder,
                 case=case,
             )
-        mock_m8.assert_called()
+        mock_m8.assert_called_once()
+        assert mock_m8.call_args.kwargs.get("milestone") == "M8"
 
 
 @pytest.mark.spec("CLP-08-005")
@@ -979,6 +981,11 @@ class TestFccvExtensionPhase1DrainViaSharedHelper:
         ]
         assert kwargs["case_id"] == case.id_
         assert kwargs["phase_label"] == "Phase 1 drain before Phase 2"
-        # The drain is a causal gate for Phase 2 (EDF-06-005): the helper's
-        # default, so the scenario must not pass causal=False.
-        assert "causal" not in kwargs
+        # The drain is a causal gate for Phase 2 (EDF-06-005), the helper's
+        # only mode.
+        assert set(kwargs) == {
+            "auth_client",
+            "replicas",
+            "case_id",
+            "phase_label",
+        }

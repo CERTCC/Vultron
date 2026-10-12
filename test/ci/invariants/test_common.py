@@ -1361,46 +1361,77 @@ class TestCheckPerActorReplicaNoRmStateOscillation:
 
 
 class TestCheckPerActorReplicaRmClosedTermination:
-    """Replica-side counterpart of invariant 7 — the property ISSUE-2505 owned."""
+    """Replica-side counterpart of invariant 7, under CM-23-004.
 
-    def test_passes_on_valid_multi_actor_replicas(self):
-        replicas = {
-            "case-actor": _vendor_entries_valid(),
-            "vendor": _vendor_entries_valid(),
-        }
-        assert check_per_actor_replica_rm_closed_termination(replicas) == []
+    A closed participant is sent nothing after the entries recording its own
+    closure, so each leaver's replica is checked for its own closure only.
+    """
 
-    def test_detects_participant_never_reaching_closed(self):
-        """A replica whose participant never reaches CLOSED is flagged."""
-        entries = [_status_entry(0, "ACCEPTED", "VF", "Pxa")]
-        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
-        violations = check_per_actor_replica_rm_closed_termination(replicas)
-        assert violations
-        assert "vendor" in violations[0]
+    _MANAGER = "https://example.org/actors/case-actor"
+    _NAMES = {
+        "actor-a": "vendor",
+        "actor-b": "finder",
+        "case-actor": "case-actor",
+    }
 
-    def test_detects_case_manager_stuck_at_accepted(self):
-        """A replica that never observed the CASE_MANAGER's closure is flagged.
+    def _close(self, log_idx: int, actor_id: str) -> dict:
+        return _entry(
+            log_idx,
+            _SHA256(f"close:{log_idx}"),
+            _SHA256(f"prev:{log_idx}"),
+            event_type="close_case",
+            payload={"actor": actor_id},
+        )
 
-        This is the ISSUE-2505 shape specifically: the participant closes, but
-        the replica's view of the authority stays at ``RM.ACCEPTED`` because the
-        CASE_MANAGER's own ``RM.CLOSED`` transition was never committed as a
-        ledger entry (CM-23-005).
-        """
-        case_manager = "https://example.org/actors/case-actor"
-        entries = [
-            _status_entry(0, "ACCEPTED", "VF", "Pxa", case_manager),
-            _status_entry(1, "CLOSED", "VF", "PXA", _ACTOR_A_ID),
+    def _authority(self) -> list[dict]:
+        """Finder leaves, then the owner (vendor); the manager closes last."""
+        return [
+            _status_entry(0, "ACCEPTED", "VF", "Pxa", _ACTOR_A_ID),
+            _status_entry(1, "ACCEPTED", "VF", "Pxa", _ACTOR_B_ID),
+            self._close(2, _ACTOR_B_ID),
+            _status_entry(3, "CLOSED", "VF", "PXA", _ACTOR_B_ID),
+            self._close(4, _ACTOR_A_ID),
+            _status_entry(5, "CLOSED", "VF", "PXA", _ACTOR_A_ID),
+            _status_entry(6, "CLOSED", "VF", "PXA", self._MANAGER),
+            _entry(
+                7,
+                _SHA256("fully:7"),
+                _SHA256("prev:7"),
+                event_type="case_fully_closed",
+                payload={"actor": _ACTOR_A_ID},
+            ),
         ]
-        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
-        violations = check_per_actor_replica_rm_closed_termination(replicas)
-        assert violations
-        assert case_manager in violations[0]
 
-    def test_actor_without_status_entries_is_exempt(self):
-        h0 = _SHA256("nonstatus:0")
-        nonstatus = [_entry(0, h0, GENESIS_HASH, event_type="create_case")]
-        replicas = {"case-actor": _vendor_entries_valid(), "vendor": nonstatus}
-        assert check_per_actor_replica_rm_closed_termination(replicas) == []
+    def _check(self, **replicas: list[dict]) -> list[str]:
+        return check_per_actor_replica_rm_closed_termination(
+            {"case-actor": self._authority(), **replicas}, self._NAMES
+        )
+
+    @pytest.mark.spec("CM-23-004")
+    def test_each_replica_ending_at_its_own_closure_passes(self):
+        """The finder never sees the owner close; the owner never sees the end."""
+        authority = self._authority()
+        assert self._check(finder=authority[:4], vendor=authority[:6]) == []
+
+    @pytest.mark.spec("CM-23-004")
+    def test_an_entry_after_the_own_closure_is_flagged(self):
+        """A closed participant sent case_fully_closed is a CM-23-004 breach."""
+        violations = self._check(vendor=self._authority())
+        assert len(violations) == 1
+        assert "vendor" in violations[0]
+        assert "logIndex=7, expected 5" in violations[0]
+
+    def test_a_replica_short_of_its_own_closure_is_flagged(self):
+        """The leaver must receive its own closure step (CM-23-001)."""
+        violations = self._check(finder=self._authority()[:3])
+        assert any("expected 3" in v for v in violations)
+        assert any(
+            "final RM state" in v and "'ACCEPTED'" in v for v in violations
+        )
+
+    def test_an_actor_that_never_left_is_left_to_invariant_7(self):
+        nonstatus = [_entry(0, _SHA256("n:0"), GENESIS_HASH, "create_case")]
+        assert self._check(bystander=nonstatus) == []
 
 
 class TestCheckPerActorReplicaParticipantStatusSchemaCompleteness:

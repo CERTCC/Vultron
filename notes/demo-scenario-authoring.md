@@ -451,12 +451,26 @@ of them at `RM.CLOSED`. A trigger returns 202 before its effect commits, so
 script order alone does not put the owner's `Leave` after the others on the
 ledger (EDF-06-002).
 
-After the owner leaves, the helper runs `verify_case_closure_recorded` from
-`vultron/demo/helpers/milestones.py` in its own `demo_check`. That check reads
-the CASE_MANAGER's ledger. It asserts that each departure is recorded at
-`RM.CLOSED` before `case_fully_closed`, and that no later entry records a
-participant's act. Pass the scenario's milestone label (`milestone="M7"`); the
-scenario adds only its replica checks.
+After the owner leaves, the helper runs the whole closure milestone, each part
+in its own `demo_check`, all read where the CASE_MANAGER lives
+(`case_manager_client` in `vultron/demo/helpers/polling.py`, which finds the
+dedicated case-actor container when there is one, DEMOMA-06-004):
+
+1. `verify_case_closure_recorded` (`vultron/demo/helpers/milestones.py`): each
+   departure is recorded at `RM.CLOSED` before `case_fully_closed`, and no later
+   entry records a participant's act.
+2. `verify_case_closed`: every participant is `RM.CLOSED` in the CASE_MANAGER's
+   store.
+3. For each leaver, the owner included: its own replica holds the ledger through
+   the last entry recording its own closure and nothing after it, and reads
+   itself `RM.CLOSED`.
+
+A participant at RM `CLOSED` is sent nothing after the entries that record its
+own closure (CM-23-004), so no participant replica holds every closure. Do not
+add an "all participants `RM.CLOSED` on every replica" check, or a close-phase
+coverage wait to the CASE_MANAGER's tail: both wait for entries a closed
+replica is never sent. Pass the scenario's milestone label (`milestone="M7"`);
+the scenario adds no closure checks of its own.
 
 Rules:
 
@@ -468,4 +482,4 @@ Rules:
   `test/ci/invariants/test_narrative_edges.py` checks that the edge rejects an
   owner-first closure.
 
-Source: #4163, CM-23-015
+Source: #4163, #4212, CM-23-015, CM-23-004

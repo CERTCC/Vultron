@@ -14,10 +14,12 @@
 """The shared closure phase: the Case Owner leaves last (CM-23-015).
 
 Covers :func:`vultron.demo.helpers.closure.close_case_owner_last` against the
-real ``demo_gate`` (``vultron/demo/AGENTS.md`` § causal gating, rule 8), and
-the ledger half of the closure milestone,
+real ``demo_gate`` (``vultron/demo/AGENTS.md`` § causal gating, rule 8), the
+ledger half of the closure milestone,
 :func:`vultron.demo.helpers.milestones.case_closure_violations` and
-:func:`~vultron.demo.helpers.milestones.verify_case_closure_recorded`.
+:func:`~vultron.demo.helpers.milestones.verify_case_closure_recorded`, and the
+CM-23-004 checks: every participant ``RM.CLOSED`` in the CASE_MANAGER's store,
+and each leaver's own replica ending at its own closure.
 """
 
 from unittest.mock import MagicMock, patch
@@ -26,12 +28,16 @@ import pytest
 
 import vultron.demo.utils as demo_utils
 from vultron.core.states.rm import RM
-from vultron.demo.helpers import closure, milestones
+from vultron.demo.helpers import closure, milestones, polling
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.milestones import (
     case_closure_violations,
+    own_closure_tail_index,
     verify_case_closure_recorded,
 )
+from vultron.demo.helpers.polling import case_manager_client
+from vultron.demo.helpers.sync import wait_for_replica_ledger_ending_at
+from vultron.demo.utils import DataLayerClient
 
 _CASE = "urn:uuid:case"
 _MANAGER = "http://owner:7999/api/v2/actors/case-actor"
@@ -66,7 +72,12 @@ def _case() -> MagicMock:
 
 class TestCloseCaseOwnerLast:
     def _run(
-        self, others, owner, wait_side_effect=None, ledger_side_effect=None
+        self,
+        others,
+        owner,
+        wait_side_effect=None,
+        ledger_side_effect=None,
+        own_side_effect=None,
     ):
         sent: list[str] = []
         session_cls = MagicMock(
@@ -75,12 +86,11 @@ class TestCloseCaseOwnerLast:
             )
         )
         authority = MagicMock()
+        self.manager = MagicMock()
         with (
             patch.object(closure, "ActorSession", session_cls),
             patch.object(
-                closure,
-                "resolve_case_actor_store_id",
-                return_value=_MANAGER,
+                closure, "case_manager_client", return_value=self.manager
             ) as resolve,
             patch.object(
                 closure,
@@ -92,6 +102,13 @@ class TestCloseCaseOwnerLast:
                 "verify_case_closure_recorded",
                 side_effect=ledger_side_effect,
             ) as recorded,
+            patch.object(closure, "verify_case_closed") as closed,
+            patch.object(
+                closure, "case_manager_ledger", return_value=["ledger"]
+            ),
+            patch.object(
+                closure, "_verify_own_closure", side_effect=own_side_effect
+            ) as own_closure,
         ):
             departed = close_case_owner_last(
                 case=_case(),
@@ -101,6 +118,8 @@ class TestCloseCaseOwnerLast:
                 milestone="M7",
             )
         self.recorded = recorded
+        self.closed = closed
+        self.own_closure = own_closure
         return sent, departed, wait, resolve, authority
 
     @pytest.mark.spec("CM-23-015")
@@ -121,11 +140,10 @@ class TestCloseCaseOwnerLast:
         resolve.assert_called_once_with(authority, _CASE)
         assert [c.kwargs for c in wait.call_args_list] == [
             {
-                "client": authority,
+                "client": self.manager,
                 "case_id": _CASE,
                 "actor_id": actor_id,
                 "expected_states": {RM.CLOSED},
-                "dl_actor_id": _MANAGER,
             }
             for actor_id in (_FINDER, _VENDOR)
         ]
@@ -141,18 +159,57 @@ class TestCloseCaseOwnerLast:
         assert sent == [_FINDER]
         assert departed == [_FINDER]
         self.recorded.assert_not_called()
+        self.closed.assert_not_called()
+        self.own_closure.assert_not_called()
         (failure,) = demo_utils._demo_failures
         assert failure.startswith("GATE FAILED")
         assert "CM-23-015" in failure
 
     @pytest.mark.spec("CM-23-015")
     def test_ledger_check_runs_after_the_owner_leaves(self):
-        _, departed, _, _, authority = self._run(
-            [_leaver(_FINDER)], _leaver(_OWNER)
-        )
+        _, departed, _, _, _ = self._run([_leaver(_FINDER)], _leaver(_OWNER))
         self.recorded.assert_called_once_with(
-            client=authority, case_id=_CASE, departed_actor_ids=departed
+            client=self.manager, case_id=_CASE, departed_actor_ids=departed
         )
+
+    @pytest.mark.spec("CM-23-004")
+    def test_every_closure_is_verified_in_the_case_managers_store(self):
+        """All participants RM.CLOSED is read where the CASE_MANAGER lives."""
+        self._run([_leaver(_FINDER)], _leaver(_OWNER))
+        self.closed.assert_called_once_with(
+            case_manager_client=self.manager, case_id=_CASE
+        )
+
+    @pytest.mark.spec("CM-23-004")
+    def test_each_leaver_checks_its_own_replica_owner_included(self):
+        """No replica is checked for anyone else's closure (CM-23-004)."""
+        finder, vendor, owner = (
+            _leaver(_FINDER),
+            _leaver(_VENDOR),
+            _leaver(_OWNER),
+        )
+        self._run([finder, vendor], owner)
+        assert [c.args[0] for c in self.own_closure.call_args_list] == [
+            finder,
+            vendor,
+            owner,
+        ]
+        assert all(
+            c.args[2] == ["ledger"] for c in self.own_closure.call_args_list
+        )
+
+    def test_a_leaver_whose_replica_lags_is_one_check_failure(self):
+        """An own-closure check failure is recorded and the next one runs."""
+        self._run(
+            [_leaver(_FINDER)],
+            _leaver(_OWNER),
+            own_side_effect=[AssertionError("finder lags"), None],
+        )
+        assert self.own_closure.call_count == 2
+        (failure,) = demo_utils._demo_failures
+        assert not failure.startswith("GATE FAILED")
+        assert "replica holds its own closure" in failure
+        assert "finder lags" in failure
 
     def test_ledger_check_failure_is_recorded_under_the_milestone(self):
         """A ledger-order failure is a check, not a gate: it is recorded once."""
@@ -369,3 +426,171 @@ class TestVerifyCaseClosureRecorded:
         message = str(exc.value)
         assert "logIndex=8 'add_note_to_case'" in message
         assert f"no 'close_case' entry for {_VENDOR!r}" in message
+
+
+# ---------------------------------------------------------------------------
+# CM-23-004: each leaver's replica ends at its own closure
+# ---------------------------------------------------------------------------
+
+
+class TestOwnClosureTailIndex:
+    @pytest.mark.spec("CM-23-004")
+    def test_tail_is_the_leavers_last_closure_step(self):
+        ledger = _owner_last_ledger()
+        assert own_closure_tail_index(ledger, _FINDER) == 3
+        # The owner stops at its own step; the CASE_MANAGER's step and
+        # case_fully_closed come after it.
+        assert own_closure_tail_index(ledger, _OWNER) == 5
+
+    def test_status_entries_before_the_leave_do_not_count(self):
+        """An earlier status entry is not part of the closure."""
+        ledger = [
+            _status(0, _FINDER, "ACCEPTED"),
+            _entry(1, "close_case", _OWNER),
+        ]
+        assert own_closure_tail_index(ledger, _FINDER) is None
+        assert own_closure_tail_index(ledger, _OWNER) == 1
+
+    def test_order_is_read_from_log_index(self):
+        assert own_closure_tail_index(_owner_last_ledger()[::-1], _FINDER) == 3
+
+
+class TestVerifyOwnClosure:
+    def test_waits_for_the_prefix_then_its_own_rm_closed(self):
+        leaver = _leaver(_FINDER)
+        with (
+            patch.object(closure, "wait_for_replica_ledger_ending_at") as ends,
+            patch.object(closure, "wait_for_participant_rm_state") as rm,
+        ):
+            closure._verify_own_closure(leaver, _case(), _owner_last_ledger())
+        ends.assert_called_once_with(leaver.client, _CASE, 3)
+        rm.assert_called_once_with(
+            client=leaver.client,
+            case_id=_CASE,
+            actor_id=_FINDER,
+            expected_states={RM.CLOSED},
+        )
+
+    def test_a_leave_the_ledger_lacks_is_reported(self):
+        with pytest.raises(AssertionError, match="no close_case entry"):
+            closure._verify_own_closure(
+                _leaver(_VENDOR), _case(), _owner_last_ledger()
+            )
+
+
+class TestWaitForReplicaLedgerEndingAt:
+    def _client(self, indices: list[int]) -> MagicMock:
+        client = MagicMock()
+        client.actor_id = _FINDER
+        client.get.return_value = {
+            str(i): {"case_id": _CASE, "log_index": i} for i in indices
+        }
+        return client
+
+    @pytest.mark.spec("CM-23-004")
+    def test_passes_when_the_replica_ends_at_its_closure(self):
+        wait_for_replica_ledger_ending_at(self._client([0, 1, 2, 3]), _CASE, 3)
+
+    @pytest.mark.spec("CM-23-004")
+    def test_an_entry_after_the_closure_is_reported(self):
+        with pytest.raises(AssertionError, match=r"holds entries \[4\]"):
+            wait_for_replica_ledger_ending_at(
+                self._client([0, 1, 2, 3, 4]), _CASE, 3
+            )
+
+    def test_a_gap_times_out(self):
+        with pytest.raises(AssertionError):
+            wait_for_replica_ledger_ending_at(
+                self._client([0, 2, 3]), _CASE, 3, timeout_seconds=0.05
+            )
+
+
+class TestCaseManagerClient:
+    def _client(self, actor_id: str) -> DataLayerClient:
+        return DataLayerClient(
+            base_url=actor_id.rsplit("/actors/", 1)[0], actor_id=actor_id
+        )
+
+    @pytest.mark.spec("CM-23-004")
+    def test_co_hosted_case_actor_reads_the_same_container(self):
+        client = self._client(_OWNER)
+        with patch.object(
+            polling, "find_case_actor_participant_id", return_value=_MANAGER
+        ):
+            manager = case_manager_client(client, _CASE)
+        assert manager.base_url == client.base_url
+        assert manager.actor_id == _MANAGER
+
+    @pytest.mark.spec("CM-23-004", "DEMOMA-06-004")
+    def test_dedicated_case_actor_container_is_read_where_it_lives(self):
+        dedicated = "http://case-actor:7999/api/v2/actors/case-actor"
+        client = self._client(_FINDER)
+        with patch.object(
+            polling, "find_case_actor_participant_id", return_value=dedicated
+        ):
+            manager = case_manager_client(client, _CASE)
+        assert manager.base_url == "http://case-actor:7999/api/v2"
+        assert manager.actor_id == dedicated
+        assert client.actor_id == _FINDER  # the caller's client is unchanged
+
+    def test_no_case_actor_is_an_error_not_a_replica_fallback(self):
+        with patch.object(
+            polling, "find_case_actor_participant_id", return_value=None
+        ):
+            with pytest.raises(AssertionError, match="no CaseActor"):
+                case_manager_client(self._client(_OWNER), _CASE)
+
+
+class TestVerifyCaseClosed:
+    def _run(self, rm_by_actor: dict[str, str]) -> None:
+        index = {actor: f"{actor}/participant" for actor in rm_by_actor}
+        client = MagicMock()
+        client.get.return_value = {
+            "id": _CASE,
+            "type": "VulnerabilityCase",
+            "attributedTo": _OWNER,
+            "actorParticipantIndex": index,
+        }
+        records = {
+            index[actor]: {
+                "id": index[actor],
+                "type": "CaseParticipant",
+                "attributedTo": actor,
+                "context": _CASE,
+                "joined": True,
+                "participantStatuses": [
+                    {
+                        "type": "ParticipantStatus",
+                        "attributedTo": actor,
+                        "context": _CASE,
+                        "rmState": rm,
+                    }
+                ],
+            }
+            for actor, rm in rm_by_actor.items()
+        }
+        with (
+            patch.object(milestones, "wait_for_all_participants_rm_closed"),
+            patch.object(
+                milestones,
+                "_fetch_participant_data",
+                side_effect=lambda _c, p_id: records[p_id],
+            ),
+        ):
+            milestones.verify_case_closed(
+                case_manager_client=client, case_id=_CASE
+            )
+
+    @pytest.mark.spec("CM-23-004")
+    def test_passes_when_every_record_is_closed(self):
+        self._run({_OWNER: "CLOSED", _FINDER: "CLOSED", _MANAGER: "CLOSED"})
+
+    @pytest.mark.spec("CM-23-004")
+    def test_names_every_open_participant(self):
+        with pytest.raises(AssertionError) as exc:
+            self._run(
+                {_OWNER: "CLOSED", _FINDER: "ACCEPTED", _MANAGER: "ACCEPTED"}
+            )
+        assert _FINDER in str(exc.value)
+        assert _MANAGER in str(exc.value)
+        assert _OWNER not in str(exc.value)

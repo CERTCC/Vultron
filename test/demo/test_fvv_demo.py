@@ -40,7 +40,7 @@ from test.demo._helpers import (
 )
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
-from vultron.demo.helpers import invite_chain
+from vultron.demo.helpers import closure, invite_chain
 from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
@@ -378,10 +378,11 @@ class TestCoverageWaitInsideDemoCheck:
     """Regression: a bare wait_for_contiguous_ledger_coverage outside a demo
     context crashed the demo with exit code 1 when it timed out.
 
-    The closure phase now routes the wait through the shared
-    ``wait_for_replica_ledger_coverage`` helper (DEMOMA-23-005), which wraps
-    each per-replica poll in ``demo_check`` itself, so a timeout accumulates to
-    _demo_failures and lets the ledger dump run (exit 0 with a failure summary).
+    The closure phase's coverage wait is each leaver's own-closure check in
+    ``close_case_owner_last``, which runs the shared
+    ``wait_for_replica_ledger_ending_at`` helper inside a ``demo_check``
+    (DEMOMA-23-005, CM-23-004), so a timeout accumulates to _demo_failures and
+    lets the ledger dump run (exit 0 with a failure summary).
     """
 
     def test_coverage_wait_timeout_accumulates_to_demo_failures_not_raises(
@@ -405,9 +406,8 @@ class TestCoverageWaitInsideDemoCheck:
 
         case_id = "https://example.org/cases/bug-a-regression"
 
-        # Build minimal mocks that satisfy _phase_case_closure's early calls
-        # (actor_closes_case, wait_for_all_participants_rm_closed, verify_case_closed,
-        # _get_log_entries_for_case) without triggering real HTTP.
+        # Build minimal mocks that satisfy _phase_case_closure's calls
+        # without triggering real HTTP.
         client = MagicMock()
 
         def _named_actor(name: str) -> MagicMock:
@@ -438,17 +438,24 @@ class TestCoverageWaitInsideDemoCheck:
         }
 
         initial_failures = len(utils_module._demo_failures)
+        # The CASE_MANAGER's ledger: one close_case per leaver, so each
+        # leaver's own-closure check reaches the coverage wait.
+        ledger = [
+            {
+                "case_id": case_id,
+                "log_index": index,
+                "event_type": "close_case",
+                "payload_snapshot": {"actor": actor.id_},
+            }
+            for index, actor in enumerate((vendor2, finder, vendor))
+        ]
+        real_own_closure = closure._verify_own_closure
 
         with (
             patch.object(ActorSession, "close_case"),
-            patch(
-                "vultron.demo.scenario.fvv_demo.wait_for_all_participants_rm_closed"
-            ),
             stub_closure_gate(),
-            patch("vultron.demo.scenario.fvv_demo.verify_case_closed"),
-            patch(
-                "vultron.demo.scenario.fvv_demo.wait_for_event_type_in_ledger"
-            ),
+            patch.object(closure, "_verify_own_closure", real_own_closure),
+            patch.object(closure, "case_manager_ledger", return_value=ledger),
             patch(
                 "vultron.demo.helpers.sync.wait_for_contiguous_ledger_coverage",
                 side_effect=AssertionError(
@@ -475,10 +482,10 @@ class TestCoverageWaitInsideDemoCheck:
                     f"_phase_case_closure: {exc}"
                 )
 
-        # The failure must be accumulated, not raised.
-        assert len(utils_module._demo_failures) > initial_failures, (
-            "Expected the coverage-wait timeout to be recorded in _demo_failures"
-        )
+        # The failure must be accumulated, not raised: once per leaver.
+        failures = utils_module._demo_failures[initial_failures:]
+        assert len(failures) == 3, failures
+        assert all("coverage timeout" in f for f in failures), failures
 
 
 # ---------------------------------------------------------------------------
@@ -837,8 +844,12 @@ class TestFvvMilestoneAssertions:
             )
         mock_m6.assert_called()
 
-    def test_phase_case_closure_calls_verify_case_closed(self):
-        """_phase_case_closure calls verify_case_closed at M7."""
+    def test_phase_case_closure_runs_the_closure_milestone(self):
+        """_phase_case_closure runs the shared closure milestone (CM-23-004).
+
+        The milestone checks the CASE_MANAGER's store and each leaver's own
+        replica inside ``close_case_owner_last``; the scenario only names it.
+        """
         import contextlib
 
         finder_client = self._client()
@@ -863,11 +874,8 @@ class TestFvvMilestoneAssertions:
 
         with (
             patch.object(ActorSession, "close_case"),
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(demo, "verify_case_closed") as mock_m7,
-            patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
+            patch.object(demo, "close_case_owner_last") as mock_m7,
             patch.object(
                 demo,
                 "demo_check",
@@ -886,7 +894,8 @@ class TestFvvMilestoneAssertions:
                 finder_in_finder=finder_in_finder,
                 case=case,
             )
-        mock_m7.assert_called()
+        mock_m7.assert_called_once()
+        assert mock_m7.call_args.kwargs.get("milestone") == "M7"
 
 
 @pytest.mark.spec("CLP-08-005")

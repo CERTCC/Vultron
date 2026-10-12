@@ -44,7 +44,6 @@ from vultron.demo.helpers.ledger_dump import (
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
-    verify_case_closed,
     verify_fix_ready,
     verify_publicly_disclosed,
 )
@@ -53,11 +52,9 @@ from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
     find_case_actor_participant_id,
     find_cp_offer_for_case,
-    wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
-    wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
     wait_for_participant_vf_state,
 )
@@ -854,46 +851,6 @@ def _phase_case_closure(
             CaseLeaver(client=finder_client, actor=finder_in_finder),
         ],
         owner=CaseLeaver(client=vendor_client, actor=vendor_in_vendor),
-    )
-
-    with demo_check("M8: all participants RM.CLOSED on all replicas"):
-        wait_for_all_participants_rm_closed(
-            client=vendor_client,
-            case_id=case.id_,
-        )
-        wait_for_all_participants_rm_closed(
-            client=finder_client,
-            case_id=case.id_,
-        )
-        verify_case_closed(
-            receiver_client=vendor_client,
-            reporter_client=finder_client,
-            case_id=case.id_,
-        )
-
-    with demo_check(
-        "close_case entry present on authoritative actor (vendor1)"
-    ):
-        wait_for_event_type_in_ledger(
-            client=vendor_client,
-            case_id=case.id_,
-            event_type="close_case",
-        )
-    # Temporal (EDF-06-006): after close_case the authority's outbox fans out
-    # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
-    # but the ledger dump depends on it. Bounded per replica by
-    # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
-    wait_for_replica_ledger_coverage(
-        auth_client=vendor_client,
-        replicas=[
-            (finder_client, "Finder"),
-            (coordinator_client, "Coordinator"),
-            (vendor2_client, "Vendor2"),
-        ],
-        case_id=case.id_,
-        late_joiners=(vendor2_client,),
-        phase_label="close phase",
-        causal=False,
     )
 
 

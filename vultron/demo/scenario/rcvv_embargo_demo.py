@@ -169,7 +169,7 @@ Workflow:
   5. Both vendors advance to fix ready (VFd).
   6. Reporter reports publication; CS.P ends the embargo (EM.EXITED) with no
      deliberate termination.
-  7. All participants close the case (RM.CLOSED on all replicas).
+  7. All participants close the case (every RM.CLOSED in the Case Actor's store).
   8. Case ledgers are dumped for the invariant harness.
 """
 

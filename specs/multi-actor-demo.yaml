@@ -284,7 +284,10 @@ groups:
       actor: demo-script
       action: >-
         Verify case close: all participants RM.CLOSED and case closed
-      expected: All participants RM state = CLOSED; case record marked closed
+      expected: >-
+        All participants RM state = CLOSED in the CASE_MANAGER's store; case
+        record marked closed; each participant's replica ends at the entries
+        recording its own closure (CM-23-004)
     postconditions:
     - description: >-
         All checkpoints verified; FV scenario complete in final state VFDPxa
@@ -395,19 +398,27 @@ groups:
   - id: DEMOMA-07-003
     priority: MUST
     kind: project
-    verification_debt: '#2573'
     statement: >-
       The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST
       implement the following ordered steps as a BT Sequence:
       (1) verify the activity actor is a known case participant (precondition guard),
       (2) update the participant status record,
-      (3) propagate the update to all other case participants via Announce(CaseLedgerEntry)
-      fan-out (per ADR-0019 and SYNC-02-002) — NOT via a direct raw Add(ParticipantStatus)
-      re-broadcast,
+      (3) propagate the update to the other case participants that receive case content
+      (CM-10-004, CM-23-004) via Announce(CaseLedgerEntry) fan-out (per ADR-0019 and
+      SYNC-02-002) — NOT via a direct raw Add(ParticipantStatus) re-broadcast,
       (4) if CS.P is newly set by the Case Owner, trigger embargo teardown automatically,
       (5) if all participants are RM.CLOSED, close the case automatically.
       Each step MUST be implemented as a distinct BT node or subtree so that the protocol
       logic is visible in the tree structure and not hidden inside node update() methods.
+    verification: >-
+      Unit tests on the received tree confirm the status entry is committed and fanned
+      out as Announce(CaseLedgerEntry) with no raw Add(ParticipantStatus)
+      re-broadcast.  Unit tests on the shared recipient selection
+      (`test/core/participants/test_recipients.py`) and the fan-out
+      (`test/core/behaviors/sync/nodes/test_fanout_embargo_gate.py`) confirm the
+      fan-out skips a participant at RM.CLOSED except for an entry recording its own
+      closure (CM-23-004); the demo closure check verifies every participant's
+      RM.CLOSED in the CASE_MANAGER's store, not on every replica.
     testable: true
     trigger:
       type: message_received
@@ -429,10 +440,13 @@ groups:
       actor: case_actor
       action: >-
         Commit a canonical CaseLedgerEntry and fan-out Announce(CaseLedgerEntry)
-        to all known case participants
+        to the case's content recipients (CM-10-004, CM-23-004)
       expected: >-
-        All peers receive the status update via the canonical log path
-        (ADR-0019, SYNC-02-002); no raw Add(ParticipantStatus) re-broadcast emitted
+        Every active peer not at RM.CLOSED receives the status update via the
+        canonical log path (ADR-0019, SYNC-02-002), and so does a closed
+        participant the entry records the closure of; no other closed
+        participant receives it, and no raw Add(ParticipantStatus) re-broadcast
+        is emitted
     - order: 4
       actor: case_actor
       action: >-
@@ -2903,7 +2917,10 @@ groups:
     - order: 7
       actor: demo-script
       action: case_closure phase — close the case on every participant
-      expected: RM.CLOSED on every participant's replica
+      expected: >-
+        RM.CLOSED for every participant in the CASE_MANAGER's store; each
+        participant's replica ends at the entries recording its own closure
+        (CM-23-004)
     - order: 8
       actor: demo-script
       action: dump_case_ledgers phase
@@ -3237,7 +3254,10 @@ groups:
     - order: 6
       actor: demo-script
       action: case_closure phase — close the case on every participant
-      expected: RM.CLOSED on every participant's replica
+      expected: >-
+        RM.CLOSED for every participant in the CASE_MANAGER's store; each
+        participant's replica ends at the entries recording its own closure
+        (CM-23-004)
     - order: 7
       actor: demo-script
       action: dump_case_ledgers phase
@@ -3567,7 +3587,10 @@ groups:
     - order: 7
       actor: demo-script
       action: case_closure phase — close the case on every participant
-      expected: RM.CLOSED on every participant's replica
+      expected: >-
+        RM.CLOSED for every participant in the CASE_MANAGER's store; each
+        participant's replica ends at the entries recording its own closure
+        (CM-23-004)
     - order: 8
       actor: demo-script
       action: dump_case_ledgers phase
@@ -3929,17 +3952,21 @@ groups:
     kind: project
     statement: >-
       Every wait for a set of replicas to reach contiguous ledger coverage of an
-      authority's tail — whether as the causal gate before the notes phase or as
-      the temporal check after case closure — MUST be performed through a shared
-      helper in `vultron/demo/helpers/sync.py` that reads the authority tail,
-      iterates the replicas, applies the named ledger-coverage timeout constants
-      from `vultron/demo/helpers/polling.py` (a default budget and a wider
-      late-joiner budget, neither below any budget a scenario carried before
-      the loop was shared), and wraps each per-replica wait in a demo context
-      internally.
+      authority's tail, such as the causal gate before the notes phase, MUST be
+      performed through a shared helper in `vultron/demo/helpers/sync.py` that
+      reads the authority tail, iterates the replicas, applies the named
+      ledger-coverage timeout constants from `vultron/demo/helpers/polling.py`
+      (a default budget and a wider late-joiner budget, neither below any budget
+      a scenario carried before the loop was shared), and wraps each per-replica
+      wait in a demo context internally. After case closure no replica covers
+      the authority's tail, because a closed participant is sent nothing after
+      the entries recording its own closure (CM-23-004); the closure-phase wait
+      that a departed participant's replica ends at its own closure MUST also be
+      performed through a helper in `vultron/demo/helpers/sync.py`.
     rationale: >-
       The same read-tail-then-poll-replicas block was repeated in every scenario
-      module, once before the notes phase and once after closure. Its timeouts
+      module, once before the notes phase and once after closure (the
+      post-closure copy is now the shared own-closure check, #4212). Its timeouts
       were literals that drifted independently — by module, by replica label,
       and in some modules by being omitted so the primitive's default applied —
       and the gate-versus-check choice had to be fixed module by module in one

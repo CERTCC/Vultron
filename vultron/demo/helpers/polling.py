@@ -1244,6 +1244,53 @@ def resolve_case_actor_store_id(
     return case_actor_id
 
 
+def case_manager_client(
+    client: DataLayerClient, case_id: str
+) -> DataLayerClient:
+    """Return a client that reads *case_id*'s CASE_MANAGER's own store.
+
+    The CASE_MANAGER's store is the one place every participant's closure is
+    verified (CM-23-004): a participant at RM ``CLOSED`` is sent no entry
+    after the ones recording its own closure, so its replica, and the Case
+    Owner's, never converges on later closures or ``case_fully_closed``.
+
+    The CaseActor is found through *client* (any container holding the
+    case).  When it is co-hosted with *client*'s actor the result reads the
+    same container, scoped to the CaseActor's store.  Otherwise it reads the
+    container the CaseActor's own id names — the dedicated ``case-actor``
+    container of the Docker topology (DEMOMA-06-004) — rather than falling
+    back to *client*'s replica, which would wait for entries it is never
+    sent.
+
+    Args:
+        client: DataLayerClient for any container holding the case.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+
+    Returns:
+        A copy of *client* addressed at the CaseActor's container and bound
+        to the CaseActor's store.
+
+    Raises:
+        AssertionError: If the case names no CaseActor participant, so there
+            is no CASE_MANAGER store to read.
+    """
+    case_actor_id = find_case_actor_participant_id(client, case_id)
+    if case_actor_id is None:
+        raise AssertionError(
+            f"case {case_id!r} names no CaseActor participant readable"
+            f" through {client.base_url}; cannot read the CASE_MANAGER's"
+            " store (CM-23-004)"
+        )
+    if resolve_case_actor_store_id(client, case_id) is not None:
+        return client.model_copy(update={"actor_id": case_actor_id})
+    return client.model_copy(
+        update={
+            "base_url": parse_id(case_actor_id)["base_url"].rstrip("/"),
+            "actor_id": case_actor_id,
+        }
+    )
+
+
 def wait_for_object_stored(
     client: DataLayerClient,
     obj_id: str,

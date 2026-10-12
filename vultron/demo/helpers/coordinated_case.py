@@ -52,24 +52,20 @@ from vultron.demo.helpers.ledger_dump import (
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
-    verify_case_closed,
     verify_fix_ready,
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.polling import (
     PARTICIPANT_JOIN_TIMEOUT,
-    wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
-    wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
     wait_for_participant_vf_state,
 )
 from vultron.demo.helpers.seeding import get_actor_by_id
 from vultron.demo.helpers.sync import (
     run_sync_verification_phase,
-    wait_for_replica_ledger_coverage,
 )
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
@@ -500,49 +496,6 @@ def everyone_closes_case(
         owner=CaseLeaver(
             client=coordinator_client, actor=coordinator_in_coordinator
         ),
-    )
-
-    with demo_check("M7: all participants RM.CLOSED on all replicas"):
-        wait_for_all_participants_rm_closed(
-            client=coordinator_client,
-            case_id=case.id_,
-        )
-        wait_for_all_participants_rm_closed(
-            client=reporter_client,
-            case_id=case.id_,
-        )
-        verify_case_closed(
-            receiver_client=coordinator_client,
-            reporter_client=reporter_client,
-            case_id=case.id_,
-        )
-
-    with demo_check(
-        "close_case entry present on authoritative actor (coordinator)"
-    ):
-        wait_for_event_type_in_ledger(
-            client=coordinator_client,
-            case_id=case.id_,
-            event_type="close_case",
-        )
-    # Temporal (EDF-06-006): after close_case the authority's outbox fans out
-    # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
-    # but the ledger dump depends on it. Bounded per replica by
-    # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
-    wait_for_replica_ledger_coverage(
-        auth_client=coordinator_client,
-        replicas=[
-            (reporter_client, "Reporter"),
-            (vendor_client, "Vendor"),
-            *((client, label) for label, client, _ in later_vendors),
-        ],
-        case_id=case.id_,
-        late_joiners=(
-            vendor_client,
-            *(client for _, client, _ in later_vendors),
-        ),
-        phase_label="close phase",
-        causal=False,
     )
 
 

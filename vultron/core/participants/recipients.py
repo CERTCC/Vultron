@@ -18,9 +18,13 @@ exist, and they differ on purpose (ADR-0114 § "Inert and active"):
 
 - :func:`case_content_recipients` — *case content*: ledger entries, case
   announcements, status broadcasts, embargo announcements.  Only **active**
-  participants (:meth:`VulnerabilityCase.is_active_participant`, CM-10-004).
-  ``skip_closed=True`` also leaves out participants at RM ``CLOSED``, for
-  the fan-out that names CM-23-004.
+  participants (:meth:`VulnerabilityCase.is_active_participant`, CM-10-004)
+  whose closure is not recorded: a participant at RM ``CLOSED`` is sent no
+  case content (CM-23-004).
+- :func:`ledger_entry_recipients` — the recipients of one ledger entry's
+  fan-out: :func:`case_content_recipients`, plus each closed participant the
+  entry is *about* — the ``close_case`` entry and the status entries that
+  record its own closure (CM-23-001, CM-23-004).
 - :func:`inactive_joined_participants` — the joined participants that are
   not active, whose ledger streams are paused and backfilled on admission
   (CM-10-005, CM-10-006): the active embargo withholds them, or they were
@@ -56,10 +60,12 @@ holds every other module to that.
 """
 
 import logging
-from collections.abc import Callable, Collection, Iterator
+from collections.abc import Callable, Collection, Iterable, Iterator
 
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_persistence import CasePersistence
 
 logger = logging.getLogger(__name__)
@@ -100,6 +106,18 @@ def _select(
     entitled: Callable[[CaseParticipant], bool],
     audience: str,
 ) -> list[tuple[str, CaseParticipant]]:
+    return _select_with_actor(
+        case, dl, excluding, lambda _actor_id, p: entitled(p), audience
+    )
+
+
+def _select_with_actor(
+    case: VulnerabilityCase,
+    dl: CasePersistence,
+    excluding: Collection[str],
+    entitled: Callable[[str, CaseParticipant], bool],
+    audience: str,
+) -> list[tuple[str, CaseParticipant]]:
     recipients: list[tuple[str, CaseParticipant]] = []
     for actor_id, record in _roster_records(case, dl):
         if actor_id in excluding:
@@ -113,7 +131,7 @@ def _select(
                 audience,
             )
             continue
-        if entitled(record):
+        if entitled(actor_id, record):
             recipients.append((actor_id, record))
         else:
             logger.debug(
@@ -125,30 +143,36 @@ def _select(
     return recipients
 
 
+def _receives_case_content(
+    case: VulnerabilityCase, record: CaseParticipant
+) -> bool:
+    """True when *record* is sent case content (CM-10-004, CM-23-004).
+
+    Active, and its closure not recorded: a participant at RM ``CLOSED``
+    has left and is sent nothing further.
+    """
+    return case.is_active_participant(record) and not record.rm_closed
+
+
 def case_content_participants(
     case: VulnerabilityCase,
     dl: CasePersistence,
     *,
     excluding: Collection[str] = (),
-    skip_closed: bool = False,
 ) -> list[tuple[str, CaseParticipant]]:
-    """Return ``(actor_id, record)`` for *case*'s active participants.
+    """Return ``(actor_id, record)`` for *case*'s case-content recipients.
 
     The same selection as :func:`case_content_recipients`, with the record
     each actor ID resolved to, for a caller that narrows the recipients
     further by a record field (a role, say).  Reading the record again
     would lose an inline-only record this selection already resolved.
     """
-    if skip_closed:
-        return _select(
-            case,
-            dl,
-            excluding,
-            lambda p: case.is_active_participant(p) and not p.rm_closed,
-            "open case-content",
-        )
     return _select(
-        case, dl, excluding, case.is_active_participant, "case-content"
+        case,
+        dl,
+        excluding,
+        lambda p: _receives_case_content(case, p),
+        "case-content",
     )
 
 
@@ -157,33 +181,143 @@ def case_content_recipients(
     dl: CasePersistence,
     *,
     excluding: Collection[str] = (),
-    skip_closed: bool = False,
 ) -> list[str]:
-    """Return the actor IDs of *case*'s active participants (CM-10-004).
+    """Return the actor IDs *case*'s content is sent to (CM-10-004, CM-23-004).
 
     The recipients of every case-content send — ledger fan-out, case
     announcements, case-update broadcasts and embargo announcements — minus
     *excluding* (typically the sender).  Roster order is kept.
 
-    With *skip_closed*, a participant that has recorded RM ``CLOSED`` is
-    left out as well (CM-23-004).  The default keeps it: a closed
-    participant's replica still learns how the case ended (CM-23-002).
+    Only active participants (CM-10-004), and of those only the ones whose
+    closure is not recorded: a participant at RM ``CLOSED`` has left and is
+    sent nothing further (CM-23-004).  The one exception is the ledger
+    entries that record its own closure, which
+    :func:`ledger_entry_recipients` adds for the fan-out of exactly those
+    entries.  A closed signatory is told of an embargo's early end directly
+    instead (:func:`embargo_ending_notice_recipients`, CM-31-009).
     """
     return [
         actor_id
         for actor_id, _record in case_content_participants(
-            case, dl, excluding=excluding, skip_closed=skip_closed
+            case, dl, excluding=excluding
         )
     ]
+
+
+_CLOSE_CASE_EVENT_TYPE = MessageSemantics.CLOSE_CASE.value
+_PARTICIPANT_STATUS_EVENT_TYPE = (
+    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value
+)
+
+
+def _snapshot_actor_id(entry: CaseLedgerEntry) -> str | None:
+    """The actor the entry's snapshot attributes its activity to."""
+    actor = entry.payload_snapshot.get("actor")
+    if isinstance(actor, dict):
+        actor = actor.get("id") or actor.get("id_")
+    return actor if isinstance(actor, str) and actor else None
+
+
+def entry_records_own_closure(
+    entry: CaseLedgerEntry, actor_id: str, record: CaseParticipant
+) -> bool:
+    """True when *entry* records the closure of *actor_id* itself (CM-23-001).
+
+    The entries a leaving participant is still sent once it is at RM
+    ``CLOSED`` (CM-23-004): the ``close_case`` entry that records its own
+    ``Leave``, and the ``add_participant_status_to_participant`` entries
+    whose status is one of its own — the closure steps the CASE_MANAGER
+    writes for it.  The entry is identified by its subject being the
+    recipient, never by the recipient's status, which is already
+    ``CLOSED`` when the last of those entries is fanned out.
+
+    A closed participant writes no status of its own (CM-23-001), so every
+    status entry about it that is committed after its closure is one of
+    those steps.
+    """
+    if entry.event_type == _CLOSE_CASE_EVENT_TYPE:
+        return _snapshot_actor_id(entry) == actor_id
+    if entry.event_type == _PARTICIPANT_STATUS_EVENT_TYPE:
+        return any(
+            status.id_ == entry.log_object_id
+            for status in record.participant_statuses
+        )
+    return False
+
+
+def ledger_entry_recipients(
+    case: VulnerabilityCase,
+    dl: CasePersistence,
+    entry: CaseLedgerEntry,
+    *,
+    excluding: Collection[str] = (),
+) -> list[str]:
+    """Return the actor IDs *entry*'s fan-out is sent to (CM-23-004).
+
+    :func:`case_content_recipients`, plus each active participant at RM
+    ``CLOSED`` whose own closure *entry* records
+    (:func:`entry_records_own_closure`): a leaving participant receives the
+    ``close_case`` entry and every status entry the CASE_MANAGER commits
+    for its closure, the one that reaches ``CLOSED`` included, and nothing
+    after them, ``case_fully_closed`` included.  The exception never widens
+    entitlement: an inert or removed participant is not sent these entries
+    either (CM-10-004).  Roster order is kept, minus *excluding*.
+    """
+    return [
+        actor_id
+        for actor_id, _record in _select_with_actor(
+            case,
+            dl,
+            excluding,
+            lambda actor_id, p: (
+                case.is_active_participant(p)
+                and (
+                    not p.rm_closed
+                    or entry_records_own_closure(entry, actor_id, p)
+                )
+            ),
+            "ledger fan-out",
+        )
+    ]
+
+
+def closed_participant_ledger_cutoff(
+    case: VulnerabilityCase,
+    dl: CasePersistence,
+    actor_id: str,
+    entries: Iterable[CaseLedgerEntry],
+) -> int | None:
+    """Return the last ``log_index`` a closed *actor_id* may be sent.
+
+    ``None`` when *actor_id* is not at RM ``CLOSED`` (or is not listed, or
+    its record does not resolve): no closure cutoff applies.  For a closed
+    participant, the index of the last entry in *entries* that records its
+    own closure (:func:`entry_records_own_closure`), or ``-1`` when none
+    does.  A replay answering a closed participant's
+    ``Reject(CaseLedgerEntry)`` stops there, so the replay sends it no more
+    than the fan-out does (CM-23-004).
+    """
+    participant_id = case.actor_participant_index.get(actor_id)
+    if participant_id is None:
+        return None
+    record = _resolve_record(case, dl, participant_id)
+    if record is None or not record.rm_closed:
+        return None
+    cutoff = -1
+    for entry in entries:
+        if entry_records_own_closure(entry, actor_id, record):
+            cutoff = max(cutoff, entry.log_index)
+    return cutoff
 
 
 def inert_participants(
     case: VulnerabilityCase, dl: CasePersistence
 ) -> set[str]:
-    """Return the roster actor IDs of *case* that are not active.
+    """Return the roster actor IDs of *case* that are sent no case content.
 
     The complement of :func:`case_content_recipients` over the roster, for a
-    caller that reports whom a send withheld content from.
+    caller that reports whom a send withheld content from: the participants
+    that are not active (CM-10-004) and those at RM ``CLOSED`` (CM-23-004).
     """
     active = set(case_content_recipients(case, dl))
     return set(case.actor_participant_index) - active
@@ -194,7 +328,6 @@ def inactive_joined_participants(
     dl: CasePersistence,
     *,
     excluding: Collection[str] = (),
-    skip_closed: bool = False,
 ) -> list[str]:
     """Return the actor IDs of the joined participants that are not active.
 
@@ -204,16 +337,18 @@ def inactive_joined_participants(
     on admission (CM-10-005, CM-10-006); a removed participant is admitted
     when the fact is cleared (CM-31-011).  A participant that has not joined
     is left out: it is inert whatever the embargo, and its case copy and
-    ledger arrive through the join path (ADR-0114).  A roster entry whose
-    record cannot be read is left out too; :func:`case_content_recipients`
-    already names it.  Roster order is kept; *excluding* and *skip_closed*
-    narrow the roster as they do there.
+    ledger arrive through the join path (ADR-0114).  A participant at RM
+    ``CLOSED`` is left out too: it has left, so it is sent nothing further
+    and has no stream to pause or backfill (CM-23-004).  A roster entry
+    whose record cannot be read is left out as well;
+    :func:`case_content_recipients` already names it.  Roster order is
+    kept, minus *excluding*.
     """
     withheld: list[str] = []
     for actor_id, record in _roster_records(case, dl):
         if actor_id in excluding or record is None or not record.joined:
             continue
-        if skip_closed and record.rm_closed:
+        if record.rm_closed:
             continue
         if not case.is_active_participant(record):
             withheld.append(actor_id)
@@ -368,7 +503,14 @@ def is_case_content_recipient(
     For a send addressed to one actor named by the triggering message rather
     than chosen from the roster: the ledger replay a
     ``Reject(CaseLedgerEntry)`` asks for and the genesis case seed (#4042).
-    The joiner's case copy and ledger backfill (#4048) gate on it too.
+    The joiner's case copy and ledger backfill (#4048) gate on it too, and
+    the sender guards read it as "the case vouches for this sender".
+
+    It does not apply the RM ``CLOSED`` filter of
+    :func:`case_content_recipients`: a closed participant may still be owed
+    the entries that record its own closure, so the replay caps what it
+    sends a closed peer with :func:`closed_participant_ledger_cutoff`
+    instead (CM-23-004).
     """
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id is None:

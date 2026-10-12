@@ -47,6 +47,7 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (  # noqa: F401
     _poll_until,
+    case_manager_client,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_participants,
@@ -187,7 +188,7 @@ Workflow (six phases; titles match docs/tutorials/fv-demo.md):
   5. Publication and embargo teardown (M6): Vendor and Finder report
      publication; embargo terminates (EM.EXITED).
   6. Case closure (M7): the Finder closes the case, then the Vendor, the
-     Case Owner, closes it last (RM.CLOSED on both replicas).
+     Case Owner, closes it last (every RM.CLOSED in the Case Actor's store).
 """
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
@@ -429,15 +430,14 @@ def verify_m6_state(
     )
 
 
-def verify_m7_state(
-    vendor_client: DataLayerClient,
-    finder_client: DataLayerClient,
-    case_id: str,
-) -> None:
-    """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_case_closed`."""
+def verify_m7_state(vendor_client: DataLayerClient, case_id: str) -> None:
+    """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_case_closed`.
+
+    Read in the CASE_MANAGER's store, found through *vendor_client*
+    (CM-23-004): no participant replica holds every closure.
+    """
     return verify_case_closed(
-        receiver_client=vendor_client,
-        reporter_client=finder_client,
+        case_manager_client=case_manager_client(vendor_client, case_id),
         case_id=case_id,
     )
 
@@ -795,51 +795,6 @@ def _phase_case_closure(
         others=[CaseLeaver(client=finder_client, actor=finder_in_finder)],
         owner=CaseLeaver(client=vendor_client, actor=vendor_in_vendor),
     )
-
-    with demo_check("M7: all participants RM.CLOSED on both replicas"):
-        wait_for_all_participants_rm_closed(
-            client=vendor_client,
-            case_id=case.id_,
-        )
-        wait_for_all_participants_rm_closed(
-            client=finder_client,
-            case_id=case.id_,
-        )
-        verify_case_closed(
-            receiver_client=vendor_client,
-            reporter_client=finder_client,
-            case_id=case.id_,
-        )
-
-    # Wait for finder to receive all canonical ledger entries (including the
-    # close_case tail) before _phase_dump_case_ledgers writes devlog files.
-    # AutoClose fans out Announce(CaseLedgerEntry) as an async BackgroundTask;
-    # intermediate entries may arrive after the tail (issue #1434).
-    #
-    # Bug B fix: wait for close_case entry on the authoritative actor before
-    # reading the tail, so we don't snapshot a tail that omits close_case.
-    with demo_gate("close_case entry present on authoritative actor (vendor)"):
-        wait_for_event_type_in_ledger(
-            client=vendor_client,
-            case_id=case.id_,
-            event_type="close_case",
-        )
-        # Temporal (EDF-06-006): after close_case the authority's outbox fans out
-        # Announce(CaseLedgerEntry) to each replica via BackgroundTasks; nothing
-        # but the ledger dump depends on it. Bounded per replica by
-        # LEDGER_COVERAGE_TIMEOUT / LATE_JOINER_COVERAGE_TIMEOUT (EDF-06-008).
-        wait_for_replica_ledger_coverage(
-            auth_client=vendor_client,
-            replicas=[(finder_client, "Finder")],
-            case_id=case.id_,
-            phase_label="close phase",
-            causal=False,
-        )
-
-
-# ---------------------------------------------------------------------------
-# Case log export
-# ---------------------------------------------------------------------------
 
 
 def _phase_dump_case_ledgers(
