@@ -371,7 +371,10 @@ own number.
 Three fields are required on every ADR (MS-14-008); `date` is the older spelling
 of `created` and may stay. Epochs are counted in whole days (14 and 28) because
 `updated` is a date. Retired and rejected ADRs have no epoch. A
-`status_override:` with a human's reason holds a status off its epoch.
+`status_override:` with a human's reason holds a status off its epoch. The
+reason is a human's, written for that one ADR: a tooling rollout or an agent
+never writes a placeholder override, because an override hides the ADR from
+the drift report and nothing would ever prompt the promised review (#4521).
 
 - `spec-lint` never fails a status the clock has made stale (MS-14-007). It
   warns on a `proposed` ADR with a test-verified dependent and no override,
