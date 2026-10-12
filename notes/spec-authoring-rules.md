@@ -53,7 +53,7 @@ rather than an `[ERROR]` line.
 
 ### Valid `kind:` Values
 
-The `kind:` field accepts exactly five values:
+The `kind:` field accepts exactly these values:
 
 ```text
 protocol  foundation  architecture  project  process
@@ -166,17 +166,15 @@ story has already demonstrated it is protocol, and its `verification:` field
 names a `test/…py` path *because MS-10-003 obliges every MUST to carry one and
 MS-15-001 obliges the path to resolve*. Applied to the whole protocol corpus the
 detector flags roughly half of it, and the majority of those hits are specs that
-are fully SR-11-compliant. The author's only available remedies would then be
-relabeling a genuine protocol spec as `project` or adding a suppression — the
-wrong-way ratchet described above, re-created by the check meant to stop it.
-Gating on the absence of a story confines the check to the population where a
-codebase reference actually indicates misclassification.
+are fully SR-11-compliant, and what they name is the test that MS-10-003
+obliges, not how the rule is met. Gating on the absence of a story confines the
+check to the population where a codebase reference most often means the
+statement needs rewording or splitting.
 
 **The token list excludes bare `module`, `class`, and `function`.** Those read as
 ordinary domain English in wire requirements — "a machine-readable failure
 class", "the same action class", "the actor's function in the CVD process". Left
-in, they flag two dozen genuine protocol statements and instruct the author to
-set `kind: project` on a pure wire obligation. `.py`, `vultron/`, `test/`,
+in, they flag two dozen genuine protocol statements that need no rewording. `.py`, `vultron/`, `test/`,
 `scripts/`, `pytest`, `pydantic`, and `py_trees` carry no such second meaning.
 The cost of the omission is a handful of true positives the check will not catch;
 those are MS-12-006's acknowledged blind spot, not an oversight.

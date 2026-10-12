@@ -279,7 +279,7 @@ def test_render_for_kind_cross_links_resolve():
     never sees a link an exec block prints, so nothing in the build validates
     the Related column (``notes/documentation-strategy.md`` § "Exec-Block
     Anchors Are Invisible to --strict, Too"). This test is that check, over
-    the real ``specs/`` registry and all four kind pages. SR-09-002 routes a
+    the real ``specs/`` registry and every kind page. SR-09-002 routes a
     requirement to its own kind's page only, so a same-page ``#x`` must be an
     id on this page and a ``../slug/#x`` an id on that slug's page. Zero
     collected links is a failure, not a pass (DF-09-009).
@@ -602,26 +602,37 @@ def test_render_for_kind_may_material_icon(general_registry):
 # ---------------------------------------------------------------------------
 
 
+def _carried_kinds(registry) -> set[SpecKind]:
+    return {spec.kind for spec in registry.all_specs.values()}
+
+
 @pytest.mark.spec_corpus
 @pytest.mark.parametrize("kind", list(SpecKind))
 def test_render_for_kind_real_registry_produces_output(
     kind: SpecKind, real_registry
 ):
-    """Every SpecKind renders its specs, or the notice when it has none yet.
-
-    ``foundation`` carries no spec until the corpus sweep relabels the
-    inherited-standard rules (ADR-0133), so its page shows the notice.
-    """
+    """Every SpecKind some spec carries renders its spec IDs."""
+    if kind not in _carried_kinds(real_registry):
+        pytest.skip(f"no spec carries kind {kind.value!r} yet")
     md = render_for_kind(kind.value, real_registry)
-    carried = any(
-        spec.kind == kind for spec in real_registry.all_specs.values()
-    )
-    if not carried:
-        assert "No requirements yet" in md
-        return
     assert re.search(r"[A-Z]{2,8}-\d{2}-\d{3}", md), (
         f"No spec IDs found in rendered output for kind={kind.value!r}"
     )
+
+
+@pytest.mark.spec_corpus
+@pytest.mark.parametrize("kind", list(SpecKind))
+def test_render_for_kind_real_registry_empty_kind_shows_notice(
+    kind: SpecKind, real_registry
+):
+    """A SpecKind no spec carries yet renders the notice, so its page builds.
+
+    ``foundation`` carries no spec until the corpus sweep relabels the
+    inherited-standard rules (ADR-0133).
+    """
+    if kind in _carried_kinds(real_registry):
+        pytest.skip(f"kind {kind.value!r} has specs")
+    assert "No requirements yet" in render_for_kind(kind.value, real_registry)
 
 
 # ---------------------------------------------------------------------------

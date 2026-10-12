@@ -1,7 +1,7 @@
 """MS-12 kind-classification enforcement for the spec registry.
 
-ADR-0038's ``SpecKind`` decision tree (MS-12-001 … MS-12-005) went unenforced
-from its adoption until issue #2601, and the corpus accreted ``kind: protocol``
+ADR-0038's ``SpecKind`` decision tree (then MS-12-001 … MS-12-005) went
+unenforced from its adoption until issue #2601, and the corpus accreted ``kind: protocol``
 specs that suppressed the story-traceability gate (SR-11-003) instead of
 carrying a corrected kind. ADR-0133 then settled what the tree asks: who must
 obey a rule decides its kind, and naming code never does (MS-12-002). These
@@ -143,8 +143,7 @@ def check_protocol_kind_code_references(registry: SpecRegistry) -> list[str]:
             f"spec (MS-12-010): this ID keeps the rule other participants can "
             f"observe, and how this codebase meets it moves to a new project "
             f"ID that links back. If the reference is genuinely incidental, "
-            f"suppress "
-            f"with lint_suppress: [protocol_kind_with_code_reference]."
+            f"suppress with lint_suppress: [protocol_kind_with_code_reference]."
         )
     return errors
 

@@ -201,7 +201,7 @@ This gate operationalizes two existing rules:
 
 - **MS-05-004**: Requirements must be declarative — describing *what* the
   system must do, not *how* it is implemented internally.
-- **MS-12** (five-kind taxonomy, ADR-0133): A requirement that cannot pass
+- **MS-12** (kind taxonomy, ADR-0133): A requirement that cannot pass
   the `protocol`, `foundation`, or `architecture` tier tests is `project` or
   `process` kind.
   If it also fails the externally-visible test — i.e., only this codebase

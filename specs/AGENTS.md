@@ -98,8 +98,8 @@ When updating specs per LEARN_prompt instructions:
 different implementation of the Vultron protocol notice if this requirement
 were violated?" If **no**, the requirement is an internal convention — route
 it to `AGENTS.md`, not `specs/`. This test operationalizes MS-05-004
-(declarative requirements) and the five-kind taxonomy (MS-12): if it fails
-the protocol or architecture tier tests, it belongs in `project` or `process`
+(declarative requirements) and the kind taxonomy (MS-12): if it fails
+the protocol, foundation, or architecture tier tests, it belongs in `project` or `process`
 kind — and if it also fails the externally-visible test, it belongs in
 `AGENTS.md` rather than specs at all.
 
