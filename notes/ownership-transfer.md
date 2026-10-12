@@ -16,6 +16,7 @@ related_specs:
   - specs/handler-protocol.yaml
   - specs/participant-case-replica.yaml
   - specs/received-status-handling.yaml
+  - specs/vultron-as2-mapping.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
@@ -520,10 +521,23 @@ CASE_MANAGER inbox receives Reject
 One open Offer per case would let a transferee who never answers block every
 later transfer, so an Offer can also close without an answer (#4490):
 
-- **Withdrawal (CM-21-015, TRIG-11-006).** The owner that made an open Offer
-  sends `Undo(Offer(VulnerabilityCase))` to the CASE_MANAGER through the
-  `withdraw-case-ownership-transfer` trigger. The CASE_MANAGER ledgers and
-  broadcasts it like a Reject; anyone else's Undo is refused.
+- **Withdrawal (CM-21-015, TRIG-11-006) — implemented.** The owner that made
+  an open Offer sends `Undo(Offer(VulnerabilityCase))` to the CASE_MANAGER
+  through the `withdraw-case-ownership-transfer` trigger, from its own
+  identity (not delegated), naming the Offer it made. The CASE_MANAGER
+  ledgers it as `undo_case_ownership_transfer` and broadcasts it like a
+  Reject (`UndoCaseOwnershipTransferReceivedUseCase`,
+  `create_undo_ownership_transfer_tree`). The sender guard is
+  `SenderIsOwnershipOffererNode`: the sender must be the participant the
+  recorded Offer speaks for (its `attributedTo`, else its `actor`, read from
+  the ledger entry) and still hold `CASE_OWNER`. It shares
+  `SenderIsOwnershipOfferPartyNode` with the transferee's guard, so a
+  withdrawal of a closed Offer is refused and a redelivered one is
+  `SKIPPED`. The entry closes the Offer because
+  `undo_case_ownership_transfer` is in
+  `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, and it is `NO_REPLICA_EFFECT`
+  for the same reason as the Reject. `("Undo", "Offer")` is a canonical,
+  owner-authored payload signature.
 - **Deadline (CM-21-016, TRIG-11-007).** The Offer may carry an activity-level
   `end_time`, the deadline to answer, set through the offer trigger. It means
   what `Invite.end_time` means for an embargo (CM-28-001), with one difference:
@@ -533,9 +547,12 @@ later transfer, so an Offer can also close without an answer (#4490):
 - **Expiry (CM-21-017).** The CASE_MANAGER finds an expired Offer lazily, when
   it next processes an answer, an Undo or a new Offer for the case, and commits
   a distinct expiry entry before acting. Replicas learn the expiry from that
-  entry and never compute one, as for embargo Invite expiry (CM-28-014).
+  entry and never compute one, as for embargo Invite expiry (CM-28-014). The
+  expiry entry's `event_type` joins `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`
+  and every "is it open?" reader follows.
 
-Implementation: #4491.
+Implementation: #4491 (withdrawal landed first; the deadline and expiry
+follow).
 
 Why this was ever an open question, and why it should not have been: see
 [case-ledger-authority.md § Two Meanings of "Reject"](case-ledger-authority.md#two-meanings-of-reject).

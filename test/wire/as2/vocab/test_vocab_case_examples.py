@@ -310,6 +310,18 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
         self.assertEqual(activity.actor, coordinator.id_)
         self.assertIsInstance(activity.object_, as_Offer)
 
+    def test_undo_case_ownership_transfer(self):
+        activity = examples.undo_case_ownership_transfer()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+
+        self.assertEqual(activity.type_, "Undo")
+        # The offerer withdraws its own Offer (CM-21-015).
+        self.assertEqual(activity.actor, vendor.id_)
+        offer = activity.object_
+        assert isinstance(offer, as_Offer)
+        self.assertEqual(offer.actor, vendor.id_)
+
     def test_announce_case(self):
         activity = examples.announce_case()
         self.assertIsInstance(activity, as_Activity)

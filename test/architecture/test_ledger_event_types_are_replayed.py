@@ -176,6 +176,11 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " changes no owner or role; the open state is read from the ledger"
         " itself, not from replica state (CM-21-012, CM-21-014)"
     ),
+    MS.UNDO_CASE_OWNERSHIP_TRANSFER.value: (
+        "the offerer's withdrawal closes the ownership-transfer Offer and"
+        " changes no owner or role; the open state is read from the ledger"
+        " itself, not from replica state (CM-21-014, CM-21-015)"
+    ),
     MS.OFFER_CASE_PARTICIPANT_ROLE.value: (
         "the CASE_MANAGER records the role-delegation offer as an assertion"
         " (ADR-0039, CLP-07-001), but an offer is a proposal, not the grant;"

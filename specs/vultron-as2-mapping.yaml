@@ -496,6 +496,23 @@ groups:
     stories:
     - story_2022_066
     - story_2022_006
+  - id: VAM-04-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `UNDO_CASE_OWNERSHIP_TRANSFER` MUST be represented as
+      `Undo(Offer(VulnerabilityCase))`: the Case Owner's withdrawal of an open
+      ownership-transfer Offer (CM-21-015).
+    verification: >-
+      A unit test confirms that `Undo(Offer(VulnerabilityCase))` matches
+      `UndoCaseOwnershipTransferActivityPattern`, which wraps
+      `OfferCaseOwnershipTransferActivityPattern` inside an `Undo` outer pattern,
+      and resolves to `UNDO_CASE_OWNERSHIP_TRANSFER`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-015
+    stories:
+    - story_2022_050
 - id: VAM-05
   title: Embargo Management Messages
   specs:

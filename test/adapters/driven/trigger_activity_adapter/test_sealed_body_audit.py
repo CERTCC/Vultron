@@ -489,6 +489,11 @@ RECIPES: dict[str, Recipe] = {
             offer_id=w.ownership_offer_id(), actor=_PEER, to=[_ACTOR]
         )
     ),
+    "withdraw_case_ownership_transfer": lambda w: (
+        w.adapter.withdraw_case_ownership_transfer(
+            offer_id=w.ownership_offer_id(), actor=_PEER, to=[_ACTOR]
+        )
+    ),
     # faults
     "emit_processing_fault": lambda w: w.adapter.emit_processing_fault(
         actor=_ACTOR,

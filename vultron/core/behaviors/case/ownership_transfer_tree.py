@@ -22,6 +22,9 @@ Provides:
 - :func:`create_reject_ownership_transfer_tree` — BT for
   ``RejectCaseOwnershipTransferReceivedUseCase``: the Accept's tree with no
   effects, so the declined Offer is ledgered and closed (CM-21-012).
+- :func:`create_undo_ownership_transfer_tree` — BT for
+  ``UndoCaseOwnershipTransferReceivedUseCase``: the offerer's withdrawal,
+  ledgered like the Reject so it closes the Offer (CM-21-015).
 - :func:`create_offer_ownership_transfer_tree` — BT for
   ``OfferCaseOwnershipTransferReceivedUseCase``; passes
   ``ForwardOfferToTransfereeNode`` as ``manager_effects`` so the factory's
@@ -48,6 +51,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
+    SenderIsOwnershipOffererNode,
     SenderIsOwnershipTransfereeNode,
 )
 
@@ -88,7 +92,7 @@ def create_accept_ownership_transfer_tree(
             case_id=case_id,
             offer_id=offer_id,
             sender_actor_id=sender_id,
-            answer_id=answer_id,
+            reply_id=answer_id,
         ),
         precondition_guards=[],
         # A receiver that does not hold the case is simply not its
@@ -150,7 +154,7 @@ def create_reject_ownership_transfer_tree(
             case_id=case_id,
             offer_id=offer_id,
             sender_actor_id=sender_id,
-            answer_id=answer_id,
+            reply_id=answer_id,
         ),
         precondition_guards=[],
         # As for the Accept: a receiver not holding the case is not its
@@ -159,6 +163,53 @@ def create_reject_ownership_transfer_tree(
     )
     logger.debug(
         "Created RejectOwnershipTransferBT for case='%s' offer='%s'",
+        case_id,
+        offer_id,
+    )
+    return tree
+
+
+def create_undo_ownership_transfer_tree(
+    case_id: str,
+    offer_id: str | None,
+    sender_id: str,
+    undo_id: str,
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for ``UndoCaseOwnershipTransferReceivedUseCase``.
+
+    The offerer withdraws an open Offer (CM-21-015).  The sender guard admits
+    only the Case Owner that made an open Offer the CASE_MANAGER recorded;
+    the guarded commit ledgers the withdrawal and broadcasts
+    ``Announce(CaseLedgerEntry)``.  That entry closes the Offer (CM-21-014),
+    so a later Accept or Reject of it is refused and the case may be offered
+    again.  Ownership is unchanged.
+
+    Args:
+        case_id: URI of the case the withdrawn Offer would have transferred.
+        offer_id: The Offer the Undo names.
+        sender_id: The Undo's sender: at the CASE_MANAGER it must be the
+            offerer, still the Case Owner; at a replica, the CASE_MANAGER.
+        undo_id: The Undo's own id, so a redelivery is recognised.
+
+    Returns:
+        A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
+    """
+    tree = create_receive_activity_tree(
+        name="UndoOwnershipTransferBT",
+        case_id=case_id,
+        sender_guard=SenderIsOwnershipOffererNode(
+            case_id=case_id,
+            offer_id=offer_id,
+            sender_actor_id=sender_id,
+            reply_id=undo_id,
+        ),
+        precondition_guards=[],
+        # As for the Reject: no effect follows the commit, and a receiver
+        # not holding the case is not its CASE_MANAGER (ADR-0087 Regime 3).
+        case_may_be_absent=True,
+    )
+    logger.debug(
+        "Created UndoOwnershipTransferBT for case='%s' offer='%s'",
         case_id,
         offer_id,
     )

@@ -36,11 +36,13 @@ from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
+    UndoCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     offer_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
+    undo_case_ownership_transfer_activity,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -802,7 +804,7 @@ def _ownership_offer_harness(make_payload, case_id: str, forward=False):
     The roster holds the CASE_MANAGER, the vendor as Case Owner and the
     coordinator as a plain participant.  Returns ``(dl, deliver,
     trigger_activity)``; ``deliver(transferee_id, offer_id, end_time=None,
-    offerer=_VENDOR_ID)`` runs the received Offer use case and returns its
+    offerer=_VENDOR_ID, attributed_to=None)`` runs the received Offer use case and returns its
     disposition with the Offer as sent.  With ``forward=True`` the real
     trigger adapter mints and stores the forwarded Offer (CM-21-005) in
     place of the mock.
@@ -836,7 +838,11 @@ def _ownership_offer_harness(make_payload, case_id: str, forward=False):
         offer_id: str,
         end_time: datetime | None = None,
         offerer: str = _VENDOR_ID,
+        attributed_to: str | None = None,
     ) -> tuple[HandlerDisposition, Any]:
+        extra = (
+            {} if attributed_to is None else {"attributed_to": attributed_to}
+        )
         offer = offer_case_ownership_transfer_activity(
             case,
             target=as_Service(id_=transferee_id, name="Transferee"),
@@ -844,6 +850,7 @@ def _ownership_offer_harness(make_payload, case_id: str, forward=False):
             to=[_CASE_ACTOR_ID],
             id_=offer_id,
             end_time=end_time,
+            **extra,
         )
         result = OfferCaseOwnershipTransferReceivedUseCase(
             dl,
@@ -1202,7 +1209,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         again = _accept(dl, make_payload, offer)
 
         assert again.disposition is HandlerDisposition.REFUSED
-        assert again.reason is not None and "already answered" in again.reason
+        assert again.reason is not None and "already closed" in again.reason
         assert _event_types(dl) == entries_after_first
 
     @pytest.mark.spec("HP-01-003")
@@ -1593,7 +1600,7 @@ class TestRejectOfOwnershipTransfer:
         late = _accept(dl, make_payload, offer)
 
         assert late.disposition is HandlerDisposition.REFUSED
-        assert late.reason is not None and "already answered" in late.reason
+        assert late.reason is not None and "already closed" in late.reason
         _assert_nothing_changed(dl, case_id, roles_before, entries_before)
 
     @pytest.mark.spec("CM-21-013")
@@ -1614,7 +1621,7 @@ class TestRejectOfOwnershipTransfer:
         late = _reject(dl, make_payload, offer)
 
         assert late.disposition is HandlerDisposition.REFUSED
-        assert late.reason is not None and "already answered" in late.reason
+        assert late.reason is not None and "already closed" in late.reason
         assert _event_types(dl) == entries_before
         assert _owner(dl, case_id) == _COORDINATOR_ID
 
@@ -1754,3 +1761,330 @@ def test_transferee_takes_the_forward_of_an_open_offer(make_payload):
 
     assert result.disposition is HandlerDisposition.APPLIED
     assert transferee.read(forward.id_) is not None
+
+
+# ---------------------------------------------------------------------------
+# CM-21-015: the offerer withdraws an open Offer with Undo(Offer); the
+# withdrawal is ledgered, sender-checked, and closes the Offer (CM-21-014).
+# ---------------------------------------------------------------------------
+
+
+def _undo(dl, make_payload, offer, sender=_VENDOR_ID, undo=None):
+    """Deliver the offerer's (or *sender*'s) Undo of *offer* to *dl*."""
+    if undo is None:
+        undo = undo_case_ownership_transfer_activity(
+            offer, actor=sender, to=[_CASE_ACTOR_ID]
+        )
+    return UndoCaseOwnershipTransferReceivedUseCase(
+        dl,
+        make_payload(undo, receiving_actor_id=dl.actor_id),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+
+
+class TestWithdrawalOfOwnershipTransfer:
+    """CM-21-015: the ownership-transfer Undo at the CASE_MANAGER."""
+
+    @pytest.mark.spec("CM-21-015")
+    def test_offerer_withdrawal_is_ledgered_and_broadcast(self, make_payload):
+        """The withdrawal commits an entry and announces it; ownership stays."""
+        case_id = "https://example.org/cases/case_ot_undo"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, offer = deliver(
+            _COORDINATOR_ID, "https://example.org/activities/offer_undo"
+        )
+        roles_before = _owner_roles(dl, case_id)
+        outbox_before = dl.outbox_list()
+
+        result = _undo(dl, make_payload, offer)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert _event_types(dl).count("undo_case_ownership_transfer") == 1
+        assert _announces(dl, outbox_before), (
+            "the Undo's entry must be broadcast as Announce(CaseLedgerEntry)"
+        )
+        assert _owner(dl, case_id) == _VENDOR_ID
+        assert _owner_roles(dl, case_id) == roles_before
+
+    @pytest.mark.spec("CM-21-015")
+    @pytest.mark.spec("CM-24-002")
+    def test_delegated_offer_is_withdrawn_by_the_participant_it_speaks_for(
+        self, make_payload
+    ):
+        """The offer trigger sends the Offer as the CASE_MANAGER, attributed
+        to the Case Owner; that Case Owner is the one who may withdraw it."""
+        case_id = "https://example.org/cases/case_ot_undo_delegated"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        disposition, offer = deliver(
+            _COORDINATOR_ID,
+            "https://example.org/activities/offer_undo_delegated",
+            offerer=_CASE_ACTOR_ID,
+            attributed_to=_VENDOR_ID,
+        )
+        assert disposition is HandlerDisposition.APPLIED
+
+        result = _undo(dl, make_payload, offer)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert "undo_case_ownership_transfer" in _event_types(dl)
+
+    @pytest.mark.spec("CM-21-015")
+    @pytest.mark.spec("HP-01-006")
+    def test_withdrawal_from_a_non_offerer_changes_nothing(self, make_payload):
+        """The transferee cannot withdraw the Offer made to it."""
+        case_id = "https://example.org/cases/case_ot_undo_impostor"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, offer = deliver(
+            _COORDINATOR_ID, "https://example.org/activities/offer_undo_imp"
+        )
+        roles_before = _owner_roles(dl, case_id)
+        entries_before = _event_types(dl)
+        outbox_before = dl.outbox_list()
+
+        result = _undo(dl, make_payload, offer, sender=_COORDINATOR_ID)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "is not the offerer" in result.reason
+        _assert_nothing_changed(dl, case_id, roles_before, entries_before)
+        assert dl.outbox_list() == outbox_before
+        # The Offer is still open: its transferee may still accept it.
+        assert (
+            _accept(dl, make_payload, offer).disposition
+            is HandlerDisposition.APPLIED
+        )
+
+    @pytest.mark.spec("CM-21-015")
+    def test_withdrawal_from_an_offerer_that_is_not_case_owner_is_refused(
+        self, make_payload
+    ):
+        """Only a Case Owner withdraws: an Offer made by a non-owner (which
+        the CASE_MANAGER does not yet refuse, #4540) cannot be withdrawn by
+        it."""
+        case_id = "https://example.org/cases/case_ot_undo_not_owner"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, offer = deliver(
+            "https://example.org/users/vendor2",
+            "https://example.org/activities/offer_undo_not_owner",
+            offerer=_COORDINATOR_ID,
+        )
+        entries_before = _event_types(dl)
+
+        result = _undo(dl, make_payload, offer, sender=_COORDINATOR_ID)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "does not hold CASE_OWNER" in result.reason
+        assert _event_types(dl) == entries_before
+
+    @pytest.mark.spec("CM-21-015")
+    def test_withdrawal_of_an_offer_never_recorded_is_refused(
+        self, make_payload
+    ):
+        case_id = "https://example.org/cases/case_ot_undo_unrecorded"
+        dl, _, _ = _ownership_offer_harness(make_payload, case_id)
+        case = dl.read_case(case_id)
+        assert case is not None
+        offer = offer_case_ownership_transfer_activity(
+            case,
+            target=_COORDINATOR_ID,
+            actor=_VENDOR_ID,
+            id_="https://example.org/activities/offer_undo_unrecorded",
+        )
+
+        result = _undo(dl, make_payload, offer)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "never recorded" in result.reason
+        assert _event_types(dl) == []
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CM-21-015")
+    def test_redelivered_withdrawal_is_skipped(self, make_payload):
+        """The Undo that closed the Offer, delivered again, changes nothing."""
+        case_id = "https://example.org/cases/case_ot_undo_again"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, offer = deliver(
+            _COORDINATOR_ID, "https://example.org/activities/offer_undo_again"
+        )
+        undo = undo_case_ownership_transfer_activity(
+            offer, actor=_VENDOR_ID, to=[_CASE_ACTOR_ID]
+        )
+        first = _undo(dl, make_payload, offer, undo=undo)
+        entries_after_first = _event_types(dl)
+        outbox_after_first = dl.outbox_list()
+
+        again = _undo(dl, make_payload, offer, undo=undo)
+
+        assert first.disposition is HandlerDisposition.APPLIED
+        assert again.disposition is HandlerDisposition.SKIPPED
+        assert _event_types(dl) == entries_after_first
+        assert dl.outbox_list() == outbox_after_first
+
+    @pytest.mark.spec("CM-21-015")
+    @pytest.mark.parametrize("answer", ["accept", "reject"])
+    def test_withdrawal_of_an_answered_offer_is_refused(
+        self, make_payload, answer
+    ):
+        """An Offer already closed by its transferee cannot be withdrawn."""
+        case_id = f"https://example.org/cases/case_ot_{answer}_then_undo"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, offer = deliver(
+            _COORDINATOR_ID,
+            f"https://example.org/activities/offer_{answer}_undo",
+        )
+        reply = _accept if answer == "accept" else _reject
+        assert (
+            reply(dl, make_payload, offer).disposition
+            is HandlerDisposition.APPLIED
+        )
+        entries_before = _event_types(dl)
+        outbox_before = dl.outbox_list()
+
+        late = _undo(dl, make_payload, offer)
+
+        assert late.disposition is HandlerDisposition.REFUSED
+        assert late.reason is not None and "already closed" in late.reason
+        assert _event_types(dl) == entries_before
+        assert dl.outbox_list() == outbox_before
+
+    @pytest.mark.spec("CM-21-015")
+    def test_second_withdrawal_of_a_withdrawn_offer_is_refused(
+        self, make_payload
+    ):
+        """A different Undo of an Offer already withdrawn is not a redelivery."""
+        case_id = "https://example.org/cases/case_ot_undo_twice"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, offer = deliver(
+            _COORDINATOR_ID, "https://example.org/activities/offer_undo_twice"
+        )
+        assert (
+            _undo(dl, make_payload, offer).disposition
+            is HandlerDisposition.APPLIED
+        )
+        entries_before = _event_types(dl)
+
+        second = _undo(dl, make_payload, offer)
+
+        assert second.disposition is HandlerDisposition.REFUSED
+        assert second.reason is not None
+        assert "already closed" in second.reason
+        assert _event_types(dl) == entries_before
+
+    @pytest.mark.spec("CM-21-014")
+    @pytest.mark.spec("CM-21-015")
+    @pytest.mark.parametrize("answer", ["accept", "reject"])
+    def test_answer_after_a_withdrawal_is_refused(self, make_payload, answer):
+        """A withdrawn Offer is closed: its transferee can no longer answer."""
+        case_id = f"https://example.org/cases/case_ot_undo_then_{answer}"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        _, offer = deliver(
+            _COORDINATOR_ID,
+            f"https://example.org/activities/offer_undo_{answer}",
+        )
+        assert (
+            _undo(dl, make_payload, offer).disposition
+            is HandlerDisposition.APPLIED
+        )
+        roles_before = _owner_roles(dl, case_id)
+        entries_before = _event_types(dl)
+
+        reply = _accept if answer == "accept" else _reject
+        late = reply(dl, make_payload, offer)
+
+        assert late.disposition is HandlerDisposition.REFUSED
+        assert late.reason is not None and "already closed" in late.reason
+        _assert_nothing_changed(dl, case_id, roles_before, entries_before)
+
+    @pytest.mark.spec("CM-21-014")
+    @pytest.mark.spec("CM-21-015")
+    def test_new_offer_after_a_withdrawal_is_admitted(self, make_payload):
+        """A withdrawal closes the Offer, so the case may be offered again."""
+        case_id = "https://example.org/cases/case_ot_undo_reoffer"
+        dl, deliver, trigger_activity = _ownership_offer_harness(
+            make_payload, case_id
+        )
+        _, first = deliver(
+            _COORDINATOR_ID, "https://example.org/activities/offer_undo_re_1"
+        )
+        assert (
+            _undo(dl, make_payload, first).disposition
+            is HandlerDisposition.APPLIED
+        )
+
+        second, offer = deliver(
+            "https://example.org/users/vendor2",
+            "https://example.org/activities/offer_undo_re_2",
+        )
+
+        assert second is HandlerDisposition.APPLIED
+        assert trigger_activity.offer_case_ownership_transfer.call_count == 2
+        assert (
+            _accept(
+                dl,
+                make_payload,
+                offer,
+                sender="https://example.org/users/vendor2",
+            ).disposition
+            is HandlerDisposition.APPLIED
+        )
+
+    def test_withdrawal_naming_no_case_is_refused(self, make_payload):
+        dl, _, _ = _ownership_offer_harness(
+            make_payload, "https://example.org/cases/case_ot_undo_nocase"
+        )
+        # Only the fields the use case reads before refusing.
+        event = MagicMock(
+            case_id=None,
+            receiving_actor_id=None,
+            activity_id="https://example.org/activities/undo_nocase",
+            actor_id=_VENDOR_ID,
+        )
+
+        result = UndoCaseOwnershipTransferReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None and "names no case" in result.reason
+        assert _event_types(dl) == []
+
+
+class TestWithdrawalAtAReplica:
+    """PCR-03-001: a replica takes the Undo only from the CASE_MANAGER."""
+
+    @pytest.mark.spec("CM-21-015")
+    @pytest.mark.spec("PCR-03-001")
+    def test_withdrawal_from_the_offerer_is_refused_at_a_replica(
+        self, make_payload
+    ):
+        case_id = "https://example.org/cases/case_ot_undo_replica_refused"
+        dl, offer = _vendor_replica(case_id)
+        roles_before = _owner_roles(dl, case_id)
+
+        result = _undo(dl, make_payload, offer)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None and "CASE_MANAGER" in result.reason
+        _assert_nothing_changed(dl, case_id, roles_before, [])
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-21-015")
+    @pytest.mark.spec("PCR-03-001")
+    def test_withdrawal_from_the_case_manager_changes_nothing_at_a_replica(
+        self, make_payload
+    ):
+        """Admitted, but a replica commits nothing and keeps the owner."""
+        case_id = "https://example.org/cases/case_ot_undo_replica_admitted"
+        dl, offer = _vendor_replica(case_id)
+        roles_before = _owner_roles(dl, case_id)
+
+        result = _undo(dl, make_payload, offer, sender=_CASE_ACTOR_ID)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        _assert_nothing_changed(dl, case_id, roles_before, [])

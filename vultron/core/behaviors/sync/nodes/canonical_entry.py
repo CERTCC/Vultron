@@ -65,6 +65,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("TentativeReject", "Offer"),  # invalidate_report (RI)
     ("Reject", "Offer"),  # close_report (RC)
     ("Read", "Offer"),  # ack_report (RK, ADR-0021)
+    # The Case Owner's withdrawal of an ownership-transfer Offer (CM-21-015),
+    # the only Undo(Offer) semantic today; a second one would share this
+    # signature.  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
+    ("Undo", "Offer"),
     ("Add", "Note"),
     ("Remove", "Note"),  # remove_note_from_case
     ("Add", "VulnerabilityReport"),  # add_report_to_case

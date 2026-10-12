@@ -31,6 +31,7 @@ from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
+    UndoCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,

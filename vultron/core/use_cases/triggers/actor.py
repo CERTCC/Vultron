@@ -40,6 +40,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     reject_case_invite_trigger_bt,
     reject_case_ownership_transfer_trigger_bt,
     suggest_actor_to_case_trigger_bt,
+    withdraw_case_ownership_transfer_trigger_bt,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
@@ -67,6 +68,7 @@ from vultron.core.use_cases.triggers.requests import (
     RejectCaseInviteTriggerRequest,
     RejectCaseOwnershipTransferTriggerRequest,
     SuggestActorToCaseTriggerRequest,
+    WithdrawCaseOwnershipTransferTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
@@ -512,12 +514,12 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
 
 
 class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
-    """The transferee answers an ownership-transfer Offer it holds.
+    """An actor replies to an ownership-transfer Offer it holds.
 
-    Shared by the accept and reject triggers: both read the Offer by id from
-    the transferee's own store and emit their answer to the case's
-    CASE_MANAGER (CM-21-006, CM-21-010).  Subclasses build the tree and name
-    the verb they log.
+    Shared by the transferee's accept and reject triggers and the offerer's
+    withdraw trigger: each reads the Offer by id from the actor's own store
+    and emits its reply to the case's CASE_MANAGER (CM-21-006, CM-21-010,
+    CM-21-015).  Subclasses build the tree and name the verb they log.
     """
 
     _verb: ClassVar[str]
@@ -526,7 +528,8 @@ class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
     def _prepare(self) -> None:
         request = cast(
             AcceptCaseOwnershipTransferTriggerRequest
-            | RejectCaseOwnershipTransferTriggerRequest,
+            | RejectCaseOwnershipTransferTriggerRequest
+            | WithdrawCaseOwnershipTransferTriggerRequest,
             self._request,
         )
         actor = resolve_actor(request.actor_id, self._dl)
@@ -591,6 +594,26 @@ class SvcRejectCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return reject_case_ownership_transfer_trigger_bt(
+            offer_id=self._offer_id,
+            case_id=self._case_id,
+            captured=self._captured,
+        )
+
+
+class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
+    """Withdraw an open case ownership transfer offer (trigger-side path).
+
+    Emits ``Undo(Offer(VulnerabilityCase))`` from the offering Case Owner to
+    the case's CASE_MANAGER (TRIG-11-006, CM-21-015), which admits it only
+    from the offerer of an Offer still open, ledgers it and broadcasts the
+    withdrawal.  The trigger does not pre-judge that: the CASE_MANAGER's
+    ledger is what says whether the Offer is open (CM-21-014).
+    """
+
+    _verb = "withdrew"
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return withdraw_case_ownership_transfer_trigger_bt(
             offer_id=self._offer_id,
             case_id=self._case_id,
             captured=self._captured,

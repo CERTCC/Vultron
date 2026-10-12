@@ -10,11 +10,12 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The recorded ownership-transfer Offer an answer names (CM-21-011, CM-21-013).
+"""The recorded ownership-transfer Offer a reply names (CM-21-011, CM-21-013).
 
-An answer to an ownership-transfer ``Offer(VulnerabilityCase)`` — the
-transferee's ``Accept`` or ``Reject`` — is acted on by the CASE_MANAGER only
-for an Offer it recorded for that case and that is still open.  "Recorded"
+A reply to an ownership-transfer ``Offer(VulnerabilityCase)`` — the
+transferee's ``Accept`` or ``Reject``, or the offerer's ``Undo`` withdrawing
+it (CM-21-015) — is acted on by the CASE_MANAGER only for an Offer it
+recorded for that case and that is still open.  "Recorded"
 means ledgered: the CASE_MANAGER commits an ``offer_case_ownership_transfer``
 entry when it admits the Offer, and whether the Offer is still open is read
 from the same ledger (CM-21-014, CLP-11-001).
@@ -30,13 +31,14 @@ The answer names one of two Offers:
   Offer was recorded.
 
 :func:`recorded_ownership_offer` returns that Offer and its protocol pair;
-the sender-entitlement guard reads the transferee and the open state from it,
-and the use case reads the new owner from it (never from the sender).
+the sender-entitlement guards read the transferee, the offerer and the open
+state from it, and the use case reads the new owner from it (never from the
+sender).
 :func:`open_ownership_offer` returns the case's Offer that is still open, if
 any, so the CASE_MANAGER can refuse a second one (CM-21-014);
 :func:`is_recorded_ownership_offer` tells a redelivered Offer from a new one.
 
-Spec: CM-21-005, CM-21-011, CM-21-013, CM-21-014, CLP-11-001.
+Spec: CM-21-005, CM-21-011, CM-21-013, CM-21-014, CM-21-015, CLP-11-001.
 """
 
 from dataclasses import dataclass
@@ -49,6 +51,7 @@ from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES,
     ProtocolPair,
 )
+from vultron.core.models.wire_keys import wire_key
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronNotFoundError
 
@@ -63,18 +66,32 @@ class RecordedOwnershipOffer:
             which may differ from the id the answer names (its forward).
         transferee_id: The actor the Offer names as the new owner, read from
             the ledger entry's ``target``.
+        offerer_id: The participant that made the Offer, read from the ledger
+            entry: its ``attributedTo`` when the CASE_MANAGER sent it on that
+            participant's behalf (CM-24-002), else its ``actor``.  ``None``
+            when the entry names neither.
         pair: The Offer's request/reply state, read from the ledger.
     """
 
     case_id: str
     offer_id: str
     transferee_id: str
+    offerer_id: str | None
     pair: ProtocolPair
 
     @property
     def answer_id(self) -> str | None:
-        """The ledgered answer that closed the Offer, or ``None`` while open."""
+        """The ledgered entry that closed the Offer, or ``None`` while open.
+
+        Any event type in ``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``
+        closes it: the transferee's answer or the offerer's withdrawal.
+        """
         return self.pair.reply_object_id
+
+    @property
+    def closed_by_event_type(self) -> str | None:
+        """The ``event_type`` of the entry that closed the Offer, if any."""
+        return self.pair.reply_event_type
 
     def is_answered_other_than(self, answer_id: str) -> bool:
         """Return ``True`` when another answer has already closed the Offer.
@@ -101,6 +118,19 @@ def _offer_entries(dl: CasePersistence, case_id: str) -> list[CaseLedgerEntry]:
 def _entry_target(entry: CaseLedgerEntry) -> str | None:
     """The transferee the ledgered Offer names (its ``target``)."""
     return _as_id(entry.payload_snapshot.get("target"))
+
+
+def _entry_offerer(entry: CaseLedgerEntry) -> str | None:
+    """The participant the ledgered Offer speaks for.
+
+    A delegated Offer carries the CASE_MANAGER as ``actor`` and the
+    requesting participant as ``attributedTo`` (CM-24-001, CM-24-002); an
+    Offer the participant sent itself carries it as ``actor``.
+    """
+    snapshot = entry.payload_snapshot
+    return _as_id(snapshot.get(wire_key("attributed_to"))) or _as_id(
+        snapshot.get("actor")
+    )
 
 
 def _type_name(obj: object) -> str | None:
@@ -210,6 +240,7 @@ def _recorded(
         case_id=case_id,
         offer_id=entry.log_object_id,
         transferee_id=transferee_id,
+        offerer_id=_entry_offerer(entry),
         pair=pair,
     )
 
@@ -234,10 +265,11 @@ def open_ownership_offer(
 ) -> RecordedOwnershipOffer | None:
     """Return a recorded ownership-transfer Offer for *case_id* still open.
 
-    An Offer is open until the ledger holds an answer recorded after it
-    (CM-21-014, CLP-11-001), read through ``find_protocol_pair()`` with
-    ``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``.  The latest open Offer is
-    returned; ``None`` when every recorded Offer is answered.
+    An Offer is open until the ledger holds an answer or a withdrawal
+    recorded after it (CM-21-014, CM-21-015, CLP-11-001), read through
+    ``find_protocol_pair()`` with ``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``.
+    The latest open Offer is returned; ``None`` when every recorded Offer is
+    closed.
 
     An Offer that names no transferee could never be answered, so it does not
     hold the case open.
