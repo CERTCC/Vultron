@@ -138,7 +138,7 @@ groups:
       `test/metadata/specs/test_schema.py::test_spec_kind_contains_exactly_five_tiers` fails when
       a tier is missing, misspelled, or added without amending this requirement.
     adr:
-    - ADR-0133
+    - ADR-0134
   - id: SR-02-006
     priority: MUST
     kind: project
@@ -521,9 +521,9 @@ groups:
       Protocol- and foundation-kind requirements are conformance-critical. Without a marker, coverage for those
       requirements is unverifiable and the CI coverage guard (SR-05-005) cannot enforce it. `foundation` is covered
       with `protocol` because every rule an implementer must obey needs a test, whether Vultron defines it or inherits
-      it (ADR-0133). The SHOULD for other kinds preserves opt-in adoption for lower-stakes requirements.
+      it (ADR-0134). The SHOULD for other kinds preserves opt-in adoption for lower-stakes requirements.
     adr:
-    - ADR-0133
+    - ADR-0134
   - id: SR-05-005
     priority: MUST
     kind: project
@@ -537,7 +537,7 @@ groups:
       item, so the check compares the uncovered set at the base with the set at the head and commits no number: a
       one-sided ceiling collects silent slack and a two-sided pin races every concurrent PR
       (`notes/testing-pitfalls.md`). `spec-coverage` prints the live uncovered total. `foundation` is guarded with
-      `protocol` because every rule an implementer must obey needs a test (ADR-0133), and treating the two as one
+      `protocol` because every rule an implementer must obey needs a test (ADR-0134), and treating the two as one
       set means a relabel from `protocol` to `foundation` is not a way around the guard.
     verification: >-
       `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_adds_an_uncovered_implementer_spec` fails on each ID
@@ -546,7 +546,7 @@ groups:
       removed last marker, an unchanged corpus, a relabel in and out, a relabel from protocol to foundation with and
       without a marker, a retired spec, and the logged skip when no base ref is available.
     adr:
-    - ADR-0133
+    - ADR-0134
   - id: SR-05-006
     priority: MUST
     kind: project
@@ -1055,7 +1055,7 @@ groups:
       with no direct story antecedent. The gate covers `protocol` only for now: user
       stories for behavior Vultron inherits from ActivityStreams, ActivityPub and HTTP
       (`kind: foundation`) are not yet backfilled (#2717, #4513), and the gate widens to
-      `foundation` once they are (ADR-0133).
+      `foundation` once they are (ADR-0134).
     relationships:
     - rel_type: refines
       spec_id: SR-11-001

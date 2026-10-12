@@ -183,7 +183,7 @@ def test_a_kind_with_no_owner_has_no_marker_to_add(kind):
 def test_ownerless_kind_is_reported_not_marked(tmp_path, capsys):
     """An unverified MUST of a kind with no owner fails and stays unmarked.
 
-    ``foundation`` starts with no owner entry (ADR-0133), so the script can
+    ``foundation`` starts with no owner entry (ADR-0134), so the script can
     only send the item to a ``verification:`` clause (MS-10-007).
     """
     assert SpecKind.FOUNDATION not in VERIFICATION_DEBT_OWNERS

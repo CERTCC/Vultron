@@ -3,7 +3,7 @@
 ADR-0038's ``SpecKind`` decision tree (then MS-12-001 … MS-12-005) went
 unenforced from its adoption until issue #2601, and the corpus accreted ``kind: protocol``
 specs that suppressed the story-traceability gate (SR-11-003) instead of
-carrying a corrected kind. ADR-0133 then settled what the tree asks: who must
+carrying a corrected kind. ADR-0134 then settled what the tree asks: who must
 obey a rule decides its kind, and naming code never does (MS-12-002). These
 mechanical checks back it:
 

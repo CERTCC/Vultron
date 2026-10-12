@@ -115,6 +115,8 @@ services:
       # Seed config: registers local actor + peers on first seed run.
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-finder.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
+      # CP-08-003, CP-08-008: proposals go to the dedicated case-actor container.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
     volumes:
       # Bind-mount application source so code changes take effect without
       # rebuilding the image.  uvicorn --reload picks them up automatically.
@@ -140,11 +142,9 @@ services:
       # DEMOMA-15-001: vendor actors must hold CVDRole.VENDOR so verify_fix_ready
       # and verify_fix_deployed can confirm the fix lifecycle precondition.
       - VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor"]
-      # CP-08-003: vendor self-hosts its CaseActors until #1700 is resolved
-      # (CreateCaseActorServiceNode writes to the local DataLayer, not the
-      # remote case-actor container).  Set to http://case-actor:7999/api/v2
-      # once outbox-mediated remote creation is implemented.
-      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://vendor:7999/api/v2
+      # CP-08-003, CP-08-008: case proposals go to the dedicated case-actor
+      # container (DEMOMA-06-004).  Every actor container names the same one.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
     volumes:
       - "../vultron:/app/vultron"
       - vendor-data:/app/data
@@ -162,8 +162,8 @@ services:
       - VULTRON_ACTOR_ID=http://coordinator:7999/api/v2/actors/coordinator
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-coordinator.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
-      # CP-08-003: coordinator self-hosts its CaseActors until #1700 is resolved.
-      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://coordinator:7999/api/v2
+      # CP-08-003, CP-08-008: proposals go to the dedicated case-actor container.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
     volumes:
       - "../vultron:/app/vultron"
       - coordinator-data:/app/data
@@ -172,18 +172,18 @@ services:
       - "${COORDINATOR_HOST_PORT:-0}:7999"
 
   # ── CaseActor ─────────────────────────────────────────────────────────────
-  # Hosts the CaseActor that manages case state and broadcasts updates
-  # to all case participants.  For D5-2 (FV scenario), CaseActor MAY
-  # run in the vendor container instead; this dedicated service is required
-  # for D5-3 and later (three-actor scenarios).
+  # Hosts the CaseActor — the participant holding CVDRole.CASE_MANAGER — for
+  # every case in every scenario (DEMOMA-06-004).  Each actor container's
+  # VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL names this container, so a report
+  # receiver's Create(CaseProposal) is delivered here, and this container's
+  # DataLayer holds the canonical case and its ledger.
   #
-  # CaseActor instantiation strategy (D5-1-G3):
-  #   - Container identity: VultronService actor pre-seeded with a fixed
-  #     VULTRON_ACTOR_ID on first `vultron-demo seed` run.
-  #   - Per-case CaseActor records are created by CreateCaseActorNode
-  #     at case creation time.  Currently written to the local DataLayer of
-  #     whichever container runs the BT (#1700); the intent is for all
-  #     containers to delegate to this dedicated case-actor container.
+  # One identity, many cases: http://case-actor:7999/api/v2/actors/case-actor
+  # (#1872).  The demo-runner's reset wipes it with every other record, then
+  # re-seeds it (seed_case_actor_identity), because no container auto-seeds.
+  #
+  # A pre-provisioned singleton is a stepping stone, not the end state: CaseActor
+  # Spawning (#1092) replaces it with one spawned CaseActor process per case.
   case-actor:
     <<: *actor-service
     environment:
@@ -193,6 +193,9 @@ services:
       - VULTRON_ACTOR_ID=http://case-actor:7999/api/v2/actors/case-actor
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-case-actor.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
+      # Points at itself (CP-08-008): the CaseActor it hosts is the one every
+      # container proposes to.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
     volumes:
       - "../vultron:/app/vultron"
       - case-actor-data:/app/data
@@ -222,8 +225,8 @@ services:
       # DEMOMA-15-001: actor5 defaults to Vendor2 in fvv/fvcv-* scenarios;
       # seed with CVDRole.VENDOR so fix-lifecycle helpers can validate it.
       - VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor"]
-      # CP-08-003: actor5 self-hosts its CaseActors until #1700 is resolved.
-      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://actor5:7999/api/v2
+      # CP-08-003, CP-08-008: proposals go to the dedicated case-actor container.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
     volumes:
       - "../vultron:/app/vultron"
       - actor5-data:/app/data
@@ -248,8 +251,8 @@ services:
       # DEMOMA-19-001: actor6 hosts V2 (VendorDeployer) with both VENDOR and
       # DEPLOYER roles so it can traverse the full VFD fix-deploy path.
       - VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor","deployer"]
-      # CP-08-003: actor6 self-hosts its CaseActors until #1700 is resolved.
-      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://actor6:7999/api/v2
+      # CP-08-003, CP-08-008: proposals go to the dedicated case-actor container.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
     volumes:
       - "../vultron:/app/vultron"
       - actor6-data:/app/data
@@ -293,6 +296,9 @@ services:
       - VULTRON_CASE_ACTOR_BASE_URL=http://case-actor:7999/api/v2
       - VULTRON_VENDOR2_BASE_URL=http://actor5:7999/api/v2
       - VULTRON_VENDOR_DEPLOYER_BASE_URL=http://actor6:7999/api/v2
+      # The CaseActor the actor containers propose to, so demo-side helpers
+      # that ask "which CaseActor does a report go to?" answer as they do.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
       # Run the selected multi-actor demo non-interactively. Override DEMO
       # at runtime (for example, DEMO=fvv) to switch scenarios.
       - DEMO=${DEMO:-fv}

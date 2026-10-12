@@ -77,7 +77,7 @@ to become obsolete. Write the stable principle with enough room that a
 foreseeable change does not require rewriting the record, and keep the current,
 changeable policy in the governing specs and notes that cite the ADR.
 
-ADR-0133 is the worked example. It states that checks protecting implementers
+ADR-0134 is the worked example. It states that checks protecting implementers
 apply to the implementer-facing kinds. Which kind each check covers today is
 written in SR-05-004/005, SR-11-003/004 and MS-12-006, because the story gate is
 expected to widen once stories for inherited behavior exist. A record that fixed
@@ -216,7 +216,7 @@ This gate operationalizes two existing rules:
 
 - **MS-05-004**: Requirements must be declarative — describing *what* the
   system must do, not *how* it is implemented internally.
-- **MS-12** (kind taxonomy, ADR-0133): A requirement that cannot pass
+- **MS-12** (kind taxonomy, ADR-0134): A requirement that cannot pass
   the `protocol`, `foundation`, or `architecture` tier tests is `project` or
   `process` kind.
   If it also fails the externally-visible test — i.e., only this codebase
@@ -387,7 +387,10 @@ own number.
 Three fields are required on every ADR (MS-14-008); `date` is the older spelling
 of `created` and may stay. Epochs are counted in whole days (14 and 28) because
 `updated` is a date. Retired and rejected ADRs have no epoch. A
-`status_override:` with a human's reason holds a status off its epoch.
+`status_override:` with a human's reason holds a status off its epoch. The
+reason is a human's, written for that one ADR: a tooling rollout or an agent
+never writes a placeholder override, because an override hides the ADR from
+the drift report and nothing would ever prompt the promised review (#4521).
 
 - `spec-lint` never fails a status the clock has made stale (MS-14-007). It
   warns on a `proposed` ADR with a test-verified dependent and no override,

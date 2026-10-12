@@ -1983,7 +1983,7 @@ def test_protocol_code_reference_message_advises_reword_or_split(
     """The message says reword or split, never relabel, and names no kind (MS-12-006).
 
     Who must obey a rule decides its kind, and naming code never does
-    (MS-12-002, ADR-0133): a code token in a protocol statement means the
+    (MS-12-002, ADR-0134): a code token in a protocol statement means the
     statement is spelled in this codebase's terms or mixes in how this
     codebase meets the rule, so the remedy is to reword it or split it
     (MS-12-010), not to move the rule to another kind.

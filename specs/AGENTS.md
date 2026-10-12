@@ -116,7 +116,7 @@ that bite most often:
 - **`kind:`** — exactly `protocol`, `foundation`, `architecture`, `project`,
   `process`. `implementation` is not valid, and the rejection can read like a
   YAML syntax error. Who must obey a rule decides its kind; naming code never
-  does (MS-12-002, ADR-0133). Split a spec that mixes kinds (MS-12-010), then
+  does (MS-12-002, ADR-0134). Split a spec that mixes kinds (MS-12-010), then
   apply the MS-12 tree in MS-12-005's order (see
   `notes/spec-authoring-rules.md`), and do not infer a `kind` from the
   surrounding entries in the same file. A `foundation` spec carries the tag of

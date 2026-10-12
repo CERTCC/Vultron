@@ -208,7 +208,7 @@ def test_coverage_relabel_out_of_protocol_is_not_an_addition(coverage_repo):
 
 @pytest.mark.spec("SR-05-005")
 def test_coverage_new_foundation_spec_without_marker_is_added(coverage_repo):
-    """foundation is guarded with protocol (ADR-0133)."""
+    """foundation is guarded with protocol (ADR-0134)."""
     _write_specs(
         coverage_repo,
         _spec("TST-01-001"),

@@ -16,8 +16,10 @@
 """Store-local ``RM.CLOSED`` advances for a received Leave(VulnerabilityCase).
 
 Both nodes here write a ``ParticipantStatus`` to the *local* DataLayer and
-nothing else.  Recording the CASE_MANAGER's transition on the ledger is a
-separate concern — see :mod:`.record`.
+nothing else.  Recording each transition on the ledger is a separate concern
+— see :mod:`.record`.  Each node reports the statuses it wrote through its
+``closure_steps`` list, which the tree shares with the record node that
+commits them, one entry per step (CM-23-001, CM-23-005).
 
 Per ADR-0050, ADR-0051, and specs/case-management.yaml CM-23-002/CM-23-003.
 """
@@ -65,18 +67,33 @@ class AdvanceParticipantToRMClosedNode(
         self,
         leaving_actor_id: str,
         case_id: str,
+        closure_steps: list[str],
         name: str | None = None,
     ) -> None:
+        """Create the node.
+
+        Args:
+            leaving_actor_id: The actor whose ``Leave`` is being applied.
+            case_id: The case it leaves.
+            closure_steps: Emptied on each tick, then filled with the id of
+                each status written, in order, for the
+                :class:`~.record.CommitRMClosureEntriesNode` that commits them
+                (CM-23-001).  Required, so no closure write can be built
+                without a list for its record to read (ISSUE-2505).
+            name: Node name.
+        """
         _name = name or self.__class__.__name__
         super().__init__(name=_name)
         self._leaving_actor_id = leaving_actor_id
         self._case_id = case_id
+        self._closure_steps = closure_steps
         # Pre-build the status writers (BTND-10-004: no construction in
         # update()).  The closure is written as ordinary RM transitions, so a
         # Leave from VALID is V -> D -> C (RMB-14-005, CM-23-012).
         self._closure = RMClosureWriter(name=_name)
 
     def update(self) -> Status:
+        self._closure_steps.clear()
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -123,6 +140,7 @@ class AdvanceParticipantToRMClosedNode(
             participant_id,
             self._case_id,
             actor_id=self._leaving_actor_id,
+            steps_out=self._closure_steps,
         )
         if closed != Status.SUCCESS:
             self.logger.warning(
@@ -165,18 +183,29 @@ class AdvanceCaseActorToRMClosedNode(
         self,
         case_actor_id: str,
         case_id: str,
+        closure_steps: list[str],
         name: str | None = None,
     ) -> None:
+        """Create the node.
+
+        Args:
+            case_actor_id: The CASE_MANAGER closing its own lifecycle.
+            case_id: The case being closed.
+            closure_steps: As for :class:`AdvanceParticipantToRMClosedNode`.
+            name: Node name.
+        """
         _name = name or self.__class__.__name__
         super().__init__(name=_name)
         self._case_actor_id = case_actor_id
         self._case_id = case_id
+        self._closure_steps = closure_steps
         # Pre-build the status writers (BTND-10-004: no construction in
         # update()).  The closure is written as ordinary RM transitions, so a
         # Leave from VALID is V -> D -> C (RMB-14-005, CM-23-012).
         self._closure = RMClosureWriter(name=_name)
 
     def update(self) -> Status:
+        self._closure_steps.clear()
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -221,6 +250,7 @@ class AdvanceCaseActorToRMClosedNode(
             participant_id,
             self._case_id,
             actor_id=self._case_actor_id,
+            steps_out=self._closure_steps,
         )
         if closed != Status.SUCCESS:
             self.logger.warning(

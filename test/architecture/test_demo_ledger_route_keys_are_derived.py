@@ -26,8 +26,9 @@ behind, so the loss is silent and total.
 
 The route key must come from something that knows which actor was used:
 :func:`~vultron.demo.helpers.ledger_dump.replica_route_key` (from the client's
-``actor_id``), :func:`~vultron.demo.helpers.ledger_dump.resolve_case_actor_route_key`
-(from the case's participant index), or ``strip_id_prefix`` on an actor object.
+``actor_id``, which
+:func:`~vultron.demo.helpers.ledger_dump.case_actor_dump_target` also uses for
+the dedicated case-actor container), or ``strip_id_prefix`` on an actor object.
 
 Like ``test_demo_case_actor_clients_are_bound.py``, this reads the scenario
 sources rather than running them: every test under ``test/demo/`` is marked

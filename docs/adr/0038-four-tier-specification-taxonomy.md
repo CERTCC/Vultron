@@ -6,7 +6,7 @@ updated: 2026-07-21
 revision: 1
 deciders: Vultron maintainers
 consulted: Audio review of the Vultron specification corpus, July 2026
-partially_superseded_by: 0133-who-must-obey-a-rule-decides-its-spec-kind.md
+partially_superseded_by: 0134-who-must-obey-a-rule-decides-its-spec-kind.md
 stakeholder_type: [project-contributor]
 ---
 

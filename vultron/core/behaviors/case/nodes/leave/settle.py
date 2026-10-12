@@ -108,7 +108,7 @@ class ExpirePendingInvitesOnCloseNode(
     """Expire every embargo Invite still awaiting a reply (CM-23-014).
 
     Runs in the owner-close sequence after
-    :class:`~vultron.core.behaviors.case.nodes.leave.record.CommitCaseActorRMClosedEntryNode`
+    :class:`~vultron.core.behaviors.case.nodes.leave.record.CommitRMClosureEntriesNode`
     and before ``case_fully_closed``.  For each pending invitation that
     :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.pending_invitations`
     returns, it runs one commit → effect tree as a nested tree, so every
@@ -131,7 +131,7 @@ class ExpirePendingInvitesOnCloseNode(
     invitee sent nothing, so ``published`` is the CASE_MANAGER's own clock.
 
     **Recording is best-effort**, for the reason
-    :meth:`~vultron.core.behaviors.case.nodes.leave.record.CommitCaseActorRMClosedEntryNode._best_effort`
+    :meth:`~vultron.core.behaviors.case.nodes.leave.record.CommitRMClosureEntriesNode._best_effort`
     gives: a FAILURE here would skip ``case_fully_closed``, and the enclosing
     Selector would read it as a non-owner Leave.  A commit the nested tree
     refuses is logged as a WARNING and the next invitation is tried.  An

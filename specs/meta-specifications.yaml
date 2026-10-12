@@ -217,6 +217,22 @@ groups:
     rationale: Declarative requirements avoid constraining implementation unnecessarily.
     tags:
     - documentation
+  - id: MS-05-005
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: A requirement written to guard against an implementation mistake MUST state the domain truth the mistake
+      violates, in the vocabulary of its kind; it MUST NOT be phrased as a prohibition of the mistake, or as a correction
+      of the mistake in another kind's vocabulary.
+    rationale: 'A bare prohibition reads as if the mistake were a plausible design, and once SR-11-003 extends to protocol
+      MUST_NOT (#4517) it needs a contrived story. The positive truth is design an implementer can follow, and the
+      regression test verifies it. RSH-08-001 is the worked case: the rule is that a participant''s assertion about
+      itself is about itself, not about another actor, and the mistake it guards against recurred (ADR-0089,
+      CONCERN-3473). The bug that prompted such a requirement belongs in its rationale; the requirement carries no
+      marker, tag or field saying it is a guard. A guard with no domain truth behind it is not `protocol` (MS-12-003),
+      or is only a regression test.'
+    tags:
+    - documentation
 - id: MS-07
   title: Cross-References and Sources
   specs:
@@ -746,7 +762,7 @@ groups:
       spec_id: MS-12-005
       note: applies only when MS-12-001 did not already match
     adr:
-    - ADR-0133
+    - ADR-0134
     tags:
     - documentation
   - id: MS-12-003
@@ -766,9 +782,9 @@ groups:
       Behaviour that only changes how one implementation is built is not. State-machine states
       such as `RM.CLOSED` are protocol constructs. The CASE_MANAGER role and case-ledger sync are
       `protocol` for now; they are re-judged if the protocol moves to a federated design with no
-      CASE_MANAGER (ADR-0133).
+      CASE_MANAGER (ADR-0134).
     adr:
-    - ADR-0133
+    - ADR-0134
     tags:
     - documentation
   - id: MS-12-004
@@ -798,7 +814,7 @@ groups:
       replacement kind, so its error message cannot route a spec around this ordering. Covered by
       `test/metadata/specs/test_lint.py::test_protocol_code_reference_message_advises_reword_or_split`.
     adr:
-    - ADR-0133
+    - ADR-0134
     tags:
     - documentation
   - id: MS-12-006
@@ -823,7 +839,7 @@ groups:
       `verification` field names the test that checks a rule, and naming a test file there says
       nothing about whether the rule itself is protocol content. `foundation` is scanned too: a
       foundation rule whose statement names this codebase's code also says how this codebase
-      meets it, so it is a mixed spec to split (MS-12-010, ADR-0133). The suppression code keeps
+      meets it, so it is a mixed spec to split (MS-12-010, ADR-0134). The suppression code keeps
       its `protocol_` name, which specs already carry.
     verification: Unit tests in `test/metadata/specs/test_lint.py` cover the hard error for a
       protocol and for a foundation spec, the reword-or-split message, the story-bearing exemption, and the suppression path, and
@@ -839,7 +855,7 @@ groups:
       note: shares the story-traceability population; the absence of stories gates both
     adr:
     - ADR-0038
-    - ADR-0133
+    - ADR-0134
     tags:
     - documentation
     - tooling
@@ -931,7 +947,7 @@ groups:
       spec_id: MS-12-005
       note: applies only when MS-12-001 and MS-12-002 did not already match
     adr:
-    - ADR-0133
+    - ADR-0134
     tags:
     - documentation
     - tooling
@@ -956,7 +972,7 @@ groups:
       spec_id: MS-12-005
       note: the split MS-12-005 runs before the decision tree
     adr:
-    - ADR-0133
+    - ADR-0134
     tags:
     - documentation
   - id: MS-12-011
@@ -983,7 +999,7 @@ groups:
       spec_id: MS-12-005
       note: constrains how the kind the decision tree assigns is applied
     adr:
-    - ADR-0133
+    - ADR-0134
     tags:
     - documentation
     - tooling

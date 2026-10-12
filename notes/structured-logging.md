@@ -213,8 +213,8 @@ from the #1988 implementation:
   the nodes that call it (`TransitionParticipantRMtoAccepted`,
   `TransitionRMtoValid`, …), reading the before-state from the latest
   `ParticipantStatus` and falling back to `RM.START`.
-  `CreateParticipantStatusNode` is the second path — `leave.py`,
-  `case/nodes/close_case_effect.py` (`ApplyCloseCaseFromLedgerNode`), and
+  `CreateParticipantStatusNode` is the second path — the Leave closure writer
+  (`case/nodes/participant/rm_closure.py`, used by `leave/advance.py`) and
   `add_participant_status_trigger_tree.py` set `rm_state=` on it directly
   without going through the helper — so it logs the RM line itself. A new
   RM-writing node MUST route through one of these two, or its transition will

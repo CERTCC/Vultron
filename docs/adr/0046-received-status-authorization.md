@@ -1,6 +1,5 @@
 ---
-status: accepted-provisional
-status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
+status: accepted
 date: 2026-07-30
 created: 2026-07-30
 revision: 1
@@ -8,6 +7,7 @@ updated: 2026-08-11
 deciders: Allen D. Householder
 consulted: Claude Sonnet 4.6
 informed: []
+lint_suppress: [status_prose_contradiction]
 stakeholder_type: [project-contributor]
 ---
 
@@ -194,3 +194,9 @@ the outbound emit invariant (`EmitCaseStatusUpdateNode`) is pending
 
 Generated spec requirements: `specs/received-status-handling.yaml` RSH-01
 through RSH-04.
+
+## Amendment — 2026-10-12
+
+The status moved from `accepted-provisional` to `accepted` when its lifecycle epoch reached day 28 (ADR-0120, #4521).
+The reason given above for the provisional status no longer holds: the outbound emit invariant is implemented by `EmitCaseStatusUpdateNode` in `vultron/core/behaviors/case_status_snapshot.py`, and CONCERN-1667 is closed.
+The "Status is `accepted-provisional`" sentence in More Information is kept as the record of the status when it was written.

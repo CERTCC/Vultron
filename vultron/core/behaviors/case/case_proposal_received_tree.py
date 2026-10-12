@@ -15,8 +15,8 @@ ADR-0041, emits the outbound activities, and commits the canonical ledger
 entries last (CP-09-009):
 
   1. Resolve (or create) the case, attributed to the proposer (CP-09-001)
-  2. Add the proposer as CASE_OWNER at RM.RECEIVED, plus any
-     ``ActorConfig.default_case_roles`` (AC-1)
+  2. Add the proposer as CASE_OWNER at RM.RECEIVED, plus the roles it
+     stated on the proposal (AC-1, CP-09-007, ADR-0133)
   3. Add reporter as participant at RM.ACCEPTED (AC-2)
   4. Initialize the default embargo, seeding the CASE_OWNER as a signatory
      (AC-3, CM-14-003); record any pending revision as owed (EP-04-011)
@@ -89,6 +89,7 @@ Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``,
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import py_trees
@@ -150,6 +151,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 )
 from vultron.core.behaviors.replica_emit_exemptions import CASE_PROPOSAL
 from vultron.core.models.report import VulnerabilityReport
+from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
@@ -167,6 +169,7 @@ def create_case_proposal_received_tree(
     actor_config: ActorConfig | None = None,
     inline_report: VulnerabilityReport | None = None,
     call_out: "CaseProposalCallOutBundle | None" = None,
+    proposer_case_roles: Sequence[CVDRole] = (),
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
@@ -234,8 +237,8 @@ def create_case_proposal_received_tree(
       3. ``AddCaseActorParticipantNode`` — CaseActor registered as
          COORDINATOR + CASE_MANAGER (ADR-0041)
       4. ``AddOwnerParticipantNode`` — proposing actor added as
-         CASE_OWNER (plus ``actor_config.default_case_roles``) at RM.RECEIVED
-         (ADR-0041 AC-1)
+         CASE_OWNER (plus *proposer_case_roles*) at RM.RECEIVED
+         (ADR-0041 AC-1, CP-09-007)
       5. ``AddReporterParticipantNode`` — reporter added at RM.ACCEPTED
          (ADR-0041 AC-2)
       6. ``InitializeDefaultEmbargoNode`` — default embargo initialized
@@ -294,19 +297,19 @@ def create_case_proposal_received_tree(
             provenance arrives (``offerId``/``offerActorId``, CP-01-007), which
             the ``add_report_to_case`` ledger entry needs and this CaseActor
             cannot look up for itself.
-        actor_config: Optional local actor configuration.  Its
-            ``default_case_roles`` determine the CVD roles the proposing
-            (report-receiving) actor is given alongside ``CVDRole.CASE_OWNER``
-            (CFG-07-002, CFG-07-004).  When ``None`` the receiver gets
-            ``CVDRole.CASE_OWNER`` only.  Its
+        actor_config: Optional configuration of the CaseActor itself.  Its
             ``protocol_default_embargo_duration`` is the fallback embargo
             when no actor default applies (EP-04-005); ``None`` uses the
-            ``ActorConfig`` default.
+            ``ActorConfig`` default.  It says nothing about the proposer, so
+            its ``default_case_roles`` are not read (ADR-0133).
         call_out: Bundle supplying the ``EvaluateCaseProposal`` admission
             call-out point.  Defaults to ``CASE_PROPOSAL_DETERMINISTIC``, whose
             backend always succeeds, so an unconfigured deployment admits every
             well-formed proposal exactly as it did before this seam existed
             (BT-23-001, BT-23-011).
+        proposer_case_roles: The CVD roles the proposer stated on the proposal
+            (CP-01-011), given to it alongside ``CVDRole.CASE_OWNER``
+            (CP-09-007).  Empty gives ``CVDRole.CASE_OWNER`` only.
 
     Returns:
         The root ``Sequence`` (intake, then the idempotency Selector), ready
@@ -357,7 +360,7 @@ def create_case_proposal_received_tree(
             AddOwnerParticipantNode(
                 owner_uri=proposer_uri,
                 report_id=report_id,
-                actor_config=actor_config,
+                case_roles=proposer_case_roles,
             ),
             # ADR-0041 AC-2: add reporter at RM.ACCEPTED
             AddReporterParticipantNode(report_id=report_id),

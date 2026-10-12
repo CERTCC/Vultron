@@ -182,7 +182,7 @@ def test_compute_counts_protocol_specs_only(
 
 @pytest.mark.spec("SR-05-004")
 def test_compute_counts_foundation_specs(tmp_path, test_dir_no_markers):
-    """foundation specs are guarded with protocol ones (ADR-0133)."""
+    """foundation specs are guarded with protocol ones (ADR-0134)."""
     data = copy.deepcopy(_PROTOCOL_YAML)
     data["groups"][0]["specs"][2]["kind"] = "foundation"
     data["groups"][0]["specs"][2]["tags"] = ["http"]

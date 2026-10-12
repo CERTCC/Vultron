@@ -1052,7 +1052,7 @@ def test_load_registry_process_kind(tmp_path):
 
 
 def test_load_registry_foundation_kind_with_standard_tag(tmp_path):
-    """kind: foundation and its standard tag load through load_registry (ADR-0133)."""
+    """kind: foundation and its standard tag load through load_registry (ADR-0134)."""
     data = {
         "id": "FD",
         "title": "Foundation spec file",

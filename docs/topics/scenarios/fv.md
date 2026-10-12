@@ -61,7 +61,7 @@ directly with no coordinator.
 
 - **Finder** — discovers the vulnerability and submits the report; in the case it holds the Reporter role, because the protocol has no Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
 - **Vendor** — receives the report; validates, engages, and owns the case.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. The Vendor's platform hosts it, but its authority comes from the role, not from where it runs.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs.
 
 ## Protocol narrative
 
@@ -129,7 +129,8 @@ No participant deploys a fix in this scenario: deployment is a Deployer's step, 
 ### 8. All participants close the case
 
 Both the Finder and the Vendor indicate that their participation in the case is complete.
-Each closure is recorded as a `close_case` entry in the ledger.
+Each departure is recorded as a `close_case` entry in the ledger, followed by one participant status entry for each step the Case Actor takes to move that participant to RM `CLOSED`.
+Every replica moves the participant only by applying those status entries.
 The Finder leaves first.
 The Vendor is the Case Owner, so it leaves last: its departure also closes the case, and a departure sent after that is not recorded.
 The Case Actor records its own closure as a participant status entry, then records `case_fully_closed`, the last entry for a participant's act.

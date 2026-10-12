@@ -19,13 +19,20 @@ Implements receiver-side role semantics for Leave(VulnerabilityCase):
 
 - **Owner Leave** (sender holds ``CVDRole.CASE_OWNER``): advances the leaving
   participant to ``RM.CLOSED``, advances the CaseActor to ``RM.CLOSED``,
-  expires every embargo Invite still awaiting a reply (CM-23-014),
+  committing one status entry per RM transition for each (CM-23-001,
+  CM-23-005), expires every embargo Invite still awaiting a reply (CM-23-014),
   commits a ``case_fully_closed`` CaseLedgerEntry, and fans out to
   non-RM.CLOSED participants (CM-23-002, CM-23-004) — **unless** an embargo is
   still live, in which case the close is declined with an ``as:Reject`` and
   none of the closure effects run (CM-23-011).
-- **Non-owner Leave**: advances only the leaving participant to ``RM.CLOSED``;
-  the case remains open for remaining participants (CM-23-003).
+- **Non-owner Leave**: advances only the leaving participant to ``RM.CLOSED``,
+  committing one status entry per RM transition; the case remains open for
+  remaining participants (CM-23-003).
+
+Every RM closure step the CASE_MANAGER writes is its own ledger entry, after
+the ``close_case`` entry that records the Leave.  A replica applies those
+status entries and never works out a closure path itself; applying
+``close_case`` changes no RM state (CM-23-001, CM-23-016).
 - **Any Leave after ``case_fully_closed``**: the factory's post-close guard
   refuses it ahead of both arms, so no ``close_case`` entry is committed or
   fanned out and no one advances (CM-23-013).  Under
@@ -52,7 +59,7 @@ from vultron.core.behaviors.case.nodes.leave import (
     LATE_LEAVE_DECLINE,
     AdvanceCaseActorToRMClosedNode,
     AdvanceParticipantToRMClosedNode,
-    CommitCaseActorRMClosedEntryNode,
+    CommitRMClosureEntriesNode,
     EmitRejectCloseCaseNode,
     ExpirePendingInvitesOnCloseNode,
 )
@@ -79,6 +86,71 @@ from vultron.core.models._helpers import claimed_published_iso
 from vultron.core.predicates.case_closure import CASE_FULLY_CLOSED_EVENT_TYPE
 
 logger = logging.getLogger(__name__)
+
+
+def _close_and_record(
+    case_id: str,
+    closing_actor_id: str,
+    label: str,
+    *,
+    case_manager: bool = False,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The advance for *closing_actor_id* and the record of its steps.
+
+    The two nodes share one ``closure_steps`` list: the advance fills it
+    with the id of each status it writes, and the record commits one
+    ``add_participant_status_to_participant`` entry per id, in order
+    (CM-23-001, CM-23-005).
+    """
+    closure_steps: list[str] = []
+    advance: py_trees.behaviour.Behaviour = (
+        AdvanceCaseActorToRMClosedNode(
+            case_actor_id=closing_actor_id,
+            case_id=case_id,
+            closure_steps=closure_steps,
+            name=f"Advance{label}ToRMClosed",
+        )
+        if case_manager
+        else AdvanceParticipantToRMClosedNode(
+            leaving_actor_id=closing_actor_id,
+            case_id=case_id,
+            closure_steps=closure_steps,
+            name=f"Advance{label}ToRMClosed",
+        )
+    )
+
+    def _record(name: str) -> CommitRMClosureEntriesNode:
+        return CommitRMClosureEntriesNode(
+            closing_actor_id=closing_actor_id,
+            case_id=case_id,
+            closure_steps=closure_steps,
+            name=name,
+        )
+
+    # A refused step stops the walk, but the steps written before it stay
+    # in the store, so they are recorded before the failure propagates:
+    # the CASE_MANAGER commits an entry for every transition it writes
+    # (CM-23-001), whether or not the closure completes.
+    return [
+        py_trees.composites.Selector(
+            name=f"Advance{label}OrRecordPartial",
+            memory=False,
+            children=[
+                advance,
+                py_trees.composites.Sequence(
+                    name=f"Record{label}PartialClosure",
+                    memory=False,
+                    children=[
+                        _record(f"Commit{label}PartialRMClosureEntries"),
+                        py_trees.behaviours.Failure(
+                            name=f"{label}ClosureIncomplete"
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        _record(f"Commit{label}RMClosureEntries"),
+    ]
 
 
 def create_close_case_received_tree(
@@ -137,8 +209,9 @@ def create_close_case_received_tree(
                 │       ├── OwnerLeaveSeq (Sequence)        # Owner path (CM-23-002)
                 │       │   ├── SenderIsCaseOwnerNode        # guard: sender IS CASE_OWNER
                 │       │   ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
+                │       │   ├── CommitRMClosureEntriesNode   # step 1 on the ledger (CM-23-001)
                 │       │   ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
-                │       │   ├── CommitCaseActorRMClosedEntryNode  # step 2 on the ledger (CM-23-005)
+                │       │   ├── CommitRMClosureEntriesNode   # step 2 on the ledger (CM-23-005)
                 │       │   ├── ExpirePendingInvitesOnCloseNode   # settle pending Invites (CM-23-014)
                 │       │   └── CommitCaseFullyClosedBT (Sequence)  # steps 3-4: commit + fan-out
                 │       │       ├── RequireSyncPortNode             # refuse before writing
@@ -147,7 +220,8 @@ def create_close_case_received_tree(
                 │       │       ├── PersistCaseFullyClosedEntry     # step 3c: write to DataLayer
                 │       │       └── FanOutLogEntryNode              # step 4: fan-out
                 │       └── NonOwnerLeaveFallbackSeq (Sequence)  # Non-owner (CM-23-003)
-                │           └── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
+                │           ├── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
+                │           └── CommitRMClosureEntriesNode   # each step on the ledger (CM-23-001)
                 └── DeclineOwnerCloseIfEmbargoed (Sequence)  # CM-23-011 decline arm
                     ├── CheckIsCaseOwner → HasCaseStatuses
                     │        → ReadEmState → IsCloseBlockedByActiveEmbargo  # decline decision
@@ -181,6 +255,13 @@ def create_close_case_received_tree(
     therefore leaves the case untouched and only emits the ``as:Reject``
     (CM-23-011).
 
+    The owner arm's ledger order is therefore: ``close_case``, the Case
+    Owner's status entries, the CASE_MANAGER's own status entries, one
+    expired-invitation entry per pending embargo Invite, then
+    ``case_fully_closed`` (CM-23-002, CM-23-014).  Each advance shares a
+    ``closure_steps`` list with the record node after it, so the record
+    commits exactly the statuses that advance wrote, in order.
+
     Running under ``actor_id=receiving_actor_id`` means
     ``CheckIsCaseManagerNode`` naturally gates the commit to the actor that
     holds ``CVDRole.CASE_MANAGER`` — no identity comparison needed in Python.
@@ -202,7 +283,7 @@ def create_close_case_received_tree(
             ``Reject(Leave(VulnerabilityCase))``; ``DROP`` sends nothing.
         receiving_actor_id: Actor URI of the receiving actor.  Used as the
             ``case_actor_id`` argument of :class:`AdvanceCaseActorToRMClosedNode`
-            and :class:`CommitCaseActorRMClosedEntryNode`, so that on owner Leave
+            and the closing actor of its :class:`CommitRMClosureEntriesNode`, so that on owner Leave
             the CaseActor's own RM state is advanced *and* that transition is
             recorded as a canonical ledger entry (CM-23-005).  When ``None``,
             both are omitted and the CaseActor's closure is neither applied nor
@@ -217,12 +298,6 @@ def create_close_case_received_tree(
             case_id=case_id,
             precondition_guards=[],
         )
-
-    advance_leaving_participant = AdvanceParticipantToRMClosedNode(
-        leaving_actor_id=sender_actor_id,
-        case_id=case_id,
-        name="AdvanceLeavingParticipantToRMClosed",
-    )
 
     case_fully_closed_commit = py_trees.composites.Sequence(
         name="CommitCaseFullyClosedBT",
@@ -268,50 +343,40 @@ def create_close_case_received_tree(
         ],
     )
 
+    # CM-23-002 step 1: the Case Owner's closure, each step on the ledger.
     owner_leave_children: list[py_trees.behaviour.Behaviour] = [
         SenderIsCaseOwnerNode(
             sender_actor_id=sender_actor_id,
             case_id=case_id,
             name="CheckIsCaseOwnerForLeave",
         ),
-        AdvanceParticipantToRMClosedNode(
-            leaving_actor_id=sender_actor_id,
-            case_id=case_id,
-            name="AdvanceOwnerToRMClosed",
-        ),
+        *_close_and_record(case_id, sender_actor_id, "Owner"),
     ]
     if receiving_actor_id is not None:
-        owner_leave_children.append(
-            AdvanceCaseActorToRMClosedNode(
-                case_actor_id=receiving_actor_id,
-                case_id=case_id,
-                name="AdvanceCaseActorToRMClosed",
-            )
-        )
-        # The advance above is store-local. Without this entry the CASE_MANAGER
-        # stays RM.ACCEPTED on every replica forever (ISSUE-2505): no effect
-        # node derives its closure, because ``close_case`` names the departing
-        # actor and ``case_fully_closed`` is attributed to the owner.
+        # CM-23-002 step 2: the CASE_MANAGER's own closure.  The advance is
+        # store-local; without its entries the CASE_MANAGER stays RM.ACCEPTED
+        # on every replica forever (ISSUE-2505): no effect node derives its
+        # closure, because ``close_case`` names the departing actor and
+        # ``case_fully_closed`` is attributed to the owner.
         #
-        # The node records best-effort — it warns and returns SUCCESS rather
-        # than failing. That is load-bearing *here*, not merely defensive: this
-        # Sequence runs the entry before ``case_fully_closed``, so a FAILURE
-        # would skip steps 3 and 4, and the Selector below would then read the
-        # failed owner arm as "the sender is not the Case Owner" and report
-        # SUCCESS down the non-owner path — a half-closed case with no
-        # diagnostic. Do not "harden" the node into failing without first
-        # making this arm's failure propagate past that Selector.
-        owner_leave_children.append(
-            CommitCaseActorRMClosedEntryNode(
-                case_actor_id=receiving_actor_id,
-                case_id=case_id,
-                name="CommitCaseActorRMClosedEntry",
+        # Every record node is best-effort — it warns and returns SUCCESS
+        # rather than failing. That is load-bearing *here*, not merely
+        # defensive: this Sequence runs the entries before
+        # ``case_fully_closed``, so a FAILURE would skip steps 3 and 4, and the
+        # Selector below would then read the failed owner arm as "the sender
+        # is not the Case Owner" and report SUCCESS down the non-owner path —
+        # a half-closed case with no diagnostic. Do not "harden" the node into
+        # failing without first making this arm's failure propagate past that
+        # Selector.
+        owner_leave_children.extend(
+            _close_and_record(
+                case_id, receiving_actor_id, "CaseActor", case_manager=True
             )
         )
         # CM-23-014: after close a pending Invite can only expire, so expire
         # each one now, while its entry can still precede case_fully_closed,
         # rather than leave the CASE_MANAGER waiting on its RSVP deadline.
-        # Best-effort for the same reason as the entry above.
+        # Best-effort for the same reason as the entries above.
         owner_leave_children.append(
             ExpirePendingInvitesOnCloseNode(
                 case_id=case_id, name="ExpirePendingInvitesOnClose"
@@ -331,7 +396,10 @@ def create_close_case_received_tree(
             py_trees.composites.Sequence(
                 name="NonOwnerLeaveFallbackSeq",
                 memory=False,
-                children=[advance_leaving_participant],
+                # CM-23-003: only the leaver closes, each step on the ledger.
+                children=_close_and_record(
+                    case_id, sender_actor_id, "LeavingParticipant"
+                ),
             ),
         ],
     )

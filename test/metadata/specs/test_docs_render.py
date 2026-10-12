@@ -178,7 +178,7 @@ def test_render_for_kind_with_no_specs_renders_a_notice(general_registry):
     """A valid kind no spec carries renders a notice, not an error.
 
     Every kind has a page (test_kind_page_coverage.py), and a new kind such as
-    ``foundation`` has no specs until the corpus is swept (ADR-0133), so the
+    ``foundation`` has no specs until the corpus is swept (ADR-0134), so the
     docs build must not fail on it.
     """
     output = render_for_kind("process", general_registry)
@@ -628,7 +628,7 @@ def test_render_for_kind_real_registry_empty_kind_shows_notice(
     """A SpecKind no spec carries yet renders the notice, so its page builds.
 
     ``foundation`` carries no spec until the corpus sweep relabels the
-    inherited-standard rules (ADR-0133).
+    inherited-standard rules (ADR-0134).
     """
     if kind in _carried_kinds(real_registry):
         pytest.skip(f"kind {kind.value!r} has specs")

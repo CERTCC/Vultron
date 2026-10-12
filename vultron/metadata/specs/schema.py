@@ -176,7 +176,7 @@ class Trigger(BaseModel):
 
 
 class SpecKind(StrEnum):
-    """Portability tier for a spec requirement (SR-02-005, ADR-0133).
+    """Portability tier for a spec requirement (SR-02-005, ADR-0134).
 
     Who must obey a rule decides its kind; naming a codebase construct never
     does (MS-12-002). A spec that mixes kinds is split before it is classified
@@ -268,7 +268,7 @@ class SpecTag(StrEnum):
 
 
 #: The kinds every Vultron implementation must obey: the kinds an implementer
-#: reads (ADR-0133). The marker-coverage guard (SR-05-004, SR-05-005) and the
+#: reads (ADR-0134). The marker-coverage guard (SR-05-004, SR-05-005) and the
 #: code-reference detector (MS-12-006) cover both; the story gate (SR-11-003)
 #: names its own population.
 IMPLEMENTER_KINDS: frozenset[SpecKind] = frozenset(

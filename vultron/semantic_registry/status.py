@@ -16,6 +16,7 @@ Covers both case-level and participant-level status entries.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
@@ -23,13 +24,23 @@ from vultron.core.models.events.status import (
     CreateCaseStatusReceivedEvent,
     CreateParticipantStatusReceivedEvent,
 )
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
     AddParticipantStatusToParticipantReceivedUseCase,
     CreateCaseStatusReceivedUseCase,
     CreateParticipantStatusReceivedUseCase,
 )
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import (
+    FieldValue,
+    HowToGuide,
+    MessagePage,
+    Occasion,
+    ProtocolShorthand,
+)
 from vultron.wire.as2.extractor import (
     AddCaseStatusToCasePattern,
     AddParticipantStatusToParticipantPattern,
@@ -55,6 +66,22 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} created a case status record",
         wire_activity_class=_CreateCaseStatusActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant is about to announce a change to the public"
+                    " state of the case"
+                ),
+                anchor="create-case-status",
+                description=(
+                    "Mints a case status object carrying `em_state` and "
+                    "`pxa_state`. It precedes the Add."
+                ),
+                example="create_case_status",
+                howto=HowToGuide.STATUS_UPDATES,
+            ),
+        ),
+        page=MessagePage.CS,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_CASE_STATUS_TO_CASE,
@@ -64,6 +91,59 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} updated the case status",
         wire_activity_class=_AddStatusToCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant learns that the public knows of the "
+                    "vulnerability"
+                ),
+                anchor="public-awareness",
+                description=(
+                    "Announces evidence that the vulnerability is known to the"
+                    " public."
+                ),
+                example="add_public_awareness_to_case",
+                distinguisher=FieldValue(
+                    object_type=CaseStatus, field="pxa_state", value=CS_pxa.Pxa
+                ),
+                howto=HowToGuide.STATUS_UPDATES,
+                shorthand=ProtocolShorthand.CP,
+            ),
+            Occasion(
+                when=(
+                    "a Participant learns that an exploit for the "
+                    "vulnerability is public"
+                ),
+                anchor="exploit-public",
+                description=(
+                    "Announces evidence that an exploit is publicly available."
+                ),
+                example="add_exploit_public_to_case",
+                distinguisher=FieldValue(
+                    object_type=CaseStatus, field="pxa_state", value=CS_pxa.PXa
+                ),
+                howto=HowToGuide.STATUS_UPDATES,
+                shorthand=ProtocolShorthand.CX,
+            ),
+            Occasion(
+                when=(
+                    "a Participant observes attacks that exploit the "
+                    "vulnerability"
+                ),
+                anchor="attacks-observed",
+                description=(
+                    "Announces evidence that attackers are exploiting the "
+                    "vulnerability."
+                ),
+                example="add_attacks_observed_to_case",
+                distinguisher=FieldValue(
+                    object_type=CaseStatus, field="pxa_state", value=CS_pxa.pxA
+                ),
+                howto=HowToGuide.STATUS_UPDATES,
+                shorthand=ProtocolShorthand.CA,
+            ),
+        ),
+        page=MessagePage.CS,
     ),
     # Participant status
     SemanticEntry(
@@ -74,6 +154,22 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} created a participant status record",
         wire_activity_class=_CreateStatusForParticipantActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant is about to announce a change to its own "
+                    "state in the case"
+                ),
+                anchor="create-participant-status",
+                description=(
+                    "Mints a participant status object carrying `rm_state`, "
+                    "`vf_state` and `d_state`. It precedes the Add."
+                ),
+                example="create_participant_status",
+                howto=HowToGuide.STATUS_UPDATES,
+            ),
+        ),
+        page=MessagePage.CS,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
@@ -83,5 +179,59 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} updated {object}'s participant status",
         wire_activity_class=_AddStatusToParticipantActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Vendor becomes aware of the vulnerability",
+                anchor="vendor-awareness",
+                description=(
+                    "Announces that the report has reached the Vendor whose "
+                    "participant record is the target."
+                ),
+                example="add_vendor_awareness_to_participant",
+                distinguisher=FieldValue(
+                    object_type=ParticipantStatus,
+                    field="vf_state",
+                    value=CS_vf.Vf,
+                ),
+                howto=HowToGuide.STATUS_UPDATES,
+                shorthand=ProtocolShorthand.CV,
+                usual_senders=(CVDRole.VENDOR,),
+            ),
+            Occasion(
+                when="a Vendor has a fix ready",
+                anchor="fix-readiness",
+                description=(
+                    "Announces that the Vendor whose participant record is the"
+                    " target has a fix ready."
+                ),
+                example="add_fix_readiness_to_participant",
+                distinguisher=FieldValue(
+                    object_type=ParticipantStatus,
+                    field="vf_state",
+                    value=CS_vf.VF,
+                ),
+                howto=HowToGuide.STATUS_UPDATES,
+                shorthand=ProtocolShorthand.CF,
+                usual_senders=(CVDRole.VENDOR,),
+            ),
+            Occasion(
+                when="a Deployer has deployed the fix",
+                anchor="fix-deployed",
+                description=(
+                    "Announces that the Deployer whose participant record is "
+                    "the target has deployed the fix."
+                ),
+                example="add_fix_deployment_to_participant",
+                distinguisher=FieldValue(
+                    object_type=ParticipantStatus,
+                    field="d_state",
+                    value=CS_d.D,
+                ),
+                howto=HowToGuide.STATUS_UPDATES,
+                shorthand=ProtocolShorthand.CD,
+                usual_senders=(CVDRole.DEPLOYER,),
+            ),
+        ),
+        page=MessagePage.CS,
     ),
 ]

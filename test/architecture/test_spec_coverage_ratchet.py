@@ -15,7 +15,7 @@
 """PR-only growth guard: @pytest.mark.spec coverage of implementer-kind specs.
 
 No PR may add an uncovered ``kind: protocol`` or ``kind: foundation``
-requirement (SR-05-005, ADR-0133). The guard evaluates
+requirement (SR-05-005, ADR-0134). The guard evaluates
 :func:`~vultron.metadata.specs.coverage.uncovered_implementer_ids` at the merge
 base with the base branch and at the working tree, and fails on each ID
 uncovered now that was covered, or was of neither kind, at the base: a new

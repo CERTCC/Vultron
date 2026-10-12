@@ -431,7 +431,7 @@ class TestRequirementsText:
 
 
 # ---------------------------------------------------------------------------
-# --kind accepts every SpecKind, including foundation (ADR-0133)
+# --kind accepts every SpecKind, including foundation (ADR-0134)
 # ---------------------------------------------------------------------------
 
 FOUNDATION_YAML = {

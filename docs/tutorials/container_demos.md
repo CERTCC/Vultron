@@ -103,6 +103,8 @@ Once the images exist, compose:
 3. starts `demo-runner`, which resets state, seeds actors, drives the workflow, verifies each milestone, and exits, and
 4. stops the whole stack when `demo-runner` exits, propagating its exit code.
 
+Every scenario uses `case-actor`: it hosts the Case Actor that manages each case and holds its canonical ledger.
+
 !!! success "Success indicator"
 
     Every scenario ends with its own banner, `<SCENARIO> DEMO COMPLETE ✓`, followed by a note on what it demonstrated.

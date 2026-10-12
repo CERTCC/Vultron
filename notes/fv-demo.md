@@ -58,13 +58,16 @@ aware, no exploit public, no active attacks.
 |--------|---------|-----------|
 | Reporter (Finder) | REPORTER | `finder` container |
 | Vendor | VENDOR, CASE_OWNER | `vendor` container |
-| Case Actor | CASE_MANAGER | `vendor` container (separate actor record) |
+| Case Actor | CASE_MANAGER | dedicated `case-actor` container |
 
-**Docker topology**: two containers only (`finder`, `vendor`). The Case Actor
-is an actor record co-located in the vendor container with its own distinct
-actor ID and inbox URL (e.g.,
-`http://vendor:7999/api/v2/actors/{case_actor_uuid}`). No separate
-`case-actor` container is used for the FV demo.
+**Docker topology**: three containers (`finder`, `vendor`, `case-actor`). The
+Vendor proposes the case to the dedicated container's CaseActor,
+`http://case-actor:7999/api/v2/actors/case-actor` (DEMOMA-06-004, CP-08-008).
+That container holds the canonical case and ledger. After Phase 2 the demo
+checks that it holds the case with its CaseActor as the CASE_MANAGER participant
+(`verify_case_actor_holds_records`). The `case-actor` ledger is dumped from
+there (DEMOMA-06-005). See `notes/case-proposal.md` § "The Dedicated
+Case-Actor Container".
 
 ### CASE_MANAGER vs CASE_ACTOR terminology
 
