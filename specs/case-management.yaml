@@ -550,10 +550,10 @@ groups:
       VulnerabilityReport, VulnerabilityCase, VulnerabilityRecord, CaseReference, CaseActor,
       CaseParticipant, and ParticipantStatus MUST be distinct, non-interchangeable object
       types, and a message MUST NOT carry one of them where another is expected.
-    verification: Static analysis (mypy) confirms that `VulnerabilityReport`,
-      `VulnerabilityCase`, `VulnerabilityRecord`, `CaseReference`, `CaseActor`,
-      `CaseParticipant`, and `ParticipantStatus` are declared as distinct non-interchangeable
-      types.
+    verification: >-
+      `test/core/models/test_distinct_domain_types.py` confirms that the serialized form of
+      each of the seven types validates as that type and is refused with a validation
+      error when parsed as any of the other six.
     lint_suppress:
     - missing_story_reference
   - id: CM-05-013
@@ -569,7 +569,9 @@ groups:
     verification: >-
       Static analysis (mypy) confirms that `VulnerabilityReport`, `VulnerabilityCase`,
       `VulnerabilityRecord`, `CaseReference`, `CaseActor`, `CaseParticipant`, and
-      `ParticipantStatus` are declared as distinct non-interchangeable types.
+      `ParticipantStatus` are declared as distinct types that no typed signature accepts in
+      place of one another, and `test/core/models/test_distinct_domain_types.py` confirms
+      that each type's serialized form is refused when parsed as any of the other six.
     relationships:
     - rel_type: implements
       spec_id: CM-05-001
@@ -1608,8 +1610,12 @@ groups:
       embargo is already recorded as agreed (for an Accept) or declined (for a Reject) MUST
       have no further effect: the receiver MUST NOT change any state for it and MUST NOT
       emit any activity in response.
-    verification: A unit test confirms that a repeated embargo accept on an already-`AGREED` consent row returns success without re-running state machine transitions or emitting
-      invalid-transition warnings.
+    verification: >-
+      `test_a_redelivered_embargo_answer_has_no_effect` in
+      `test/core/use_cases/received/test_embargo_propose_accept_reject.py` delivers an
+      answered `Accept` or `Reject` of an embargo Invite to the CASE_MANAGER a second time
+      and confirms the redelivery leaves the case, the sender's participant record, the
+      ledger and the outbox unchanged.
     lint_suppress:
     - missing_story_reference
   - id: CM-13-009
@@ -1624,9 +1630,13 @@ groups:
       How this codebase meets CM-13-005; split from it so CM-13-005 states only what other
       participants observe (MS-12-010).
     verification: >-
-      A unit test confirms that a repeated embargo accept on an already-`AGREED` consent row
-      returns success without re-running state machine transitions or emitting
-      invalid-transition warnings.
+      `test_a_fresh_repeat_of_an_embargo_answer_changes_no_consent` in
+      `test/core/use_cases/received/test_embargo_propose_accept_reject.py` confirms that a
+      new `Accept` or `Reject` from a participant whose row is already `AGREED` or
+      `DECLINED` leaves the case and the row unchanged, and
+      `test_accept_embargo_invite_idempotent` in
+      `test/core/services/embargo_lifecycle/test_answers.py` confirms that a second accept
+      of an `AGREED` row reports no participant or case change.
     relationships:
     - rel_type: implements
       spec_id: CM-13-005

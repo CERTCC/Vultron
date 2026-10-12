@@ -74,8 +74,12 @@ groups:
       When accepting an offered object, the `object` of the `Accept` activity MUST be the
       Offer activity itself, not the underlying object being offered, and the Offer MUST be
       carried inline as a full object, not as a bare ID.
-    verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
-      passing a bare string ID as the `object` of an `Accept` activity raises a validation error at construction time.
+    verification: >-
+      In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
+      `test_accept_refuses_the_offered_object_in_place_of_the_offer` confirms that an
+      `Accept` given the offered object instead of the Offer raises a validation error,
+      `TestBareStringObjectRejected` confirms that a bare string ID raises one, and
+      `TestInlineTypedObjectAccepted` confirms that the inline Offer is accepted.
     stories:
     - story_2022_048
     - story_2022_054
@@ -103,9 +107,13 @@ groups:
       When accepting an Invite, the `object` of the `Accept` activity MUST be the Invite
       activity itself, carried inline as a full object, not the case, embargo, or any other
       domain object.
-    verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that an
-      `Accept` response to an `Invite` carries the full inline invite object and that a bare string ID raises a
-      validation error.
+    verification: >-
+      In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
+      `TestInlineTypedObjectAccepted` confirms that an `Accept` of an `Invite` carries the
+      full inline Invite, `TestBareStringObjectRejected` confirms that a bare string ID
+      raises a validation error, and
+      `test_accept_refuses_the_offered_object_in_place_of_the_offer` confirms that the case
+      or embargo in place of the Invite raises one.
     relationships:
     - rel_type: refines
       spec_id: RF-02-002

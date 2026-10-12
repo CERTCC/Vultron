@@ -1782,7 +1782,12 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_close_case_role_semantics.py::TestCaseActorRMClosedRecordingIsRoleGated::test_non_case_manager_receiver_commits_no_canonical_entry`
       confirms that a receiver which does not hold the CASE_MANAGER role commits no
-      canonical ledger entry when it processes a case closure.
+      canonical ledger entry when it processes a case closure, and
+      `test_guarded_commit_tree_skips_commit_for_non_manager` and
+      `test_guarded_commit_tree_calls_commit_for_case_manager` in
+      `test/core/behaviors/case/nodes/test_guarded_commit_tree.py` confirm that the
+      guarded ledger commit, through which every canonical state change is recorded,
+      runs for the CASE_MANAGER and is skipped for any other actor.
     relationships:
     - rel_type: refines
       spec_id: VP-02-001
