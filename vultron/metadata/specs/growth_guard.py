@@ -171,8 +171,8 @@ def added_since_base(
             materialized for the base side.
         base_ref: Base branch ref; defaults to :func:`base_ref_name`.
         head: The working-tree set, when the caller already computed it with
-            *extract*'s own logic from an in-memory corpus (TB-13-001);
-            ``None`` calls ``extract(repo_root)``.
+            *extract*'s own logic from an in-memory corpus (the shared
+            architecture-test corpus); ``None`` calls ``extract(repo_root)``.
 
     Returns:
         A :class:`GrowthCheck`. When the base cannot be resolved it carries

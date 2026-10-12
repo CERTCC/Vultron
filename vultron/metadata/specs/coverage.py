@@ -142,7 +142,7 @@ def uncovered_protocol_ids(
             *test_sources* is given).
         test_sources: Test file texts already in memory, used instead of
             reading ``test/`` — the architecture suite passes its shared
-            corpus here (TB-13-001).
+            ``test/architecture/_corpus.py`` sources here.
     """
     if test_sources is None:
         test_sources = _read_sources(repo_root / "test")
