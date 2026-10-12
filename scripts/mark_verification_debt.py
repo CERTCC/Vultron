@@ -75,11 +75,19 @@ _KIND_RE = re.compile(r"^(\s+)kind:\s*\S+")
 _DEBT_RE = re.compile(r"^(\s+)verification_debt:")
 
 
-def owner_for(kind: SpecKind, file_stem: str) -> str:
-    """The issue a new marker on an item of *kind* in *file_stem* names."""
+def owner_for(kind: SpecKind, file_stem: str) -> str | None:
+    """The issue a new marker on an item of *kind* in *file_stem* names.
+
+    ``None`` when *kind* has no owner entry: its backlog is closed, so a
+    marker of that kind is a hard error (MS-10-007) and the item needs a
+    ``verification:`` clause instead.
+    """
     if kind is SpecKind.PROJECT:
         return _PROJECT_FILE_OWNERS.get(file_stem, _PROJECT_DEFAULT_OWNER)
-    (owner,) = VERIFICATION_DEBT_OWNERS[kind]
+    owners = VERIFICATION_DEBT_OWNERS.get(kind)
+    if not owners:
+        return None
+    (owner,) = owners
     return owner
 
 
@@ -92,6 +100,7 @@ class Tally:
     suppressions_removed: int = 0
     wrong_owner: list[str] = field(default_factory=list)
     kind_not_found: list[str] = field(default_factory=list)
+    ownerless: list[str] = field(default_factory=list)
 
 
 # Raw parsed YAML is untyped by nature; ``Any`` here is the YAML boundary. The
@@ -140,6 +149,9 @@ def _sync_item(
         return lines
 
     owner = owner_for(kind, file_stem)
+    if owner is None:
+        tally.ownerless.append(item.spec_id)
+        return lines
     for at, ln in enumerate(lines):
         m = _KIND_RE.match(ln)
         if m and m.group(1) == item.field_indent:
@@ -212,6 +224,13 @@ def main(argv: list[str]) -> int:
         print(
             "marker names another kind's owner (MS-10-008 — add a "
             f"verification: clause): {sorted(tally.wrong_owner)}",
+            file=sys.stderr,
+        )
+        failed = True
+    if tally.ownerless:
+        print(
+            "kind has no verification-debt owner, so no marker may be added "
+            f"(MS-10-007 — add a verification: clause): {sorted(tally.ownerless)}",
             file=sys.stderr,
         )
         failed = True

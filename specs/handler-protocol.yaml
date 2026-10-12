@@ -166,8 +166,8 @@ groups:
       `REFUSED` with a reason naming the missing entitlement when it cannot. Entitlement is
       the sender's standing, not the receiver's: the governing group's sender clause names
       it per message (CM-11-017, CM-16-019, CM-21-011, CM-30-001, CM-30-002, CP-06-005,
-      SYNC-03-005), and a receiver role check such as the CASE_MANAGER gate (BT-17-001)
-      never satisfies it.
+      HP-01-010, SYNC-03-005), and a receiver role check such as the CASE_MANAGER gate
+      (BT-17-001) never satisfies it.
     rationale: >-
       A received activity is an assertion about the sender's state (HP-00-001), so the
       first question is whether the sender may assert it. An audit found handlers that let
@@ -272,6 +272,54 @@ groups:
     - rel_type: refines
       spec_id: HP-01-007
     adr:
+    - ADR-0129
+  - id: HP-01-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST accept a new report, sent as `Offer(VulnerabilityReport)` (`RS`) or
+      `Create(VulnerabilityReport)`, from any actor, whether or not that actor takes part
+      in any case, and MUST NOT refuse it on the sender's standing. Only the addressing
+      rules apply to it (HP-01-005, HP-09-001).
+    rationale: >-
+      A report precedes any case, so the sender has no participant record or role to hold,
+      and anyone who finds a vulnerability must be able to report it. Decided by the
+      maintainer on #4325.
+    verification: >-
+      Tests marked `HP-01-010` drive the report-creation and report-submission handlers
+      with a sender that is not a participant of the receiver's case and assert the report
+      is kept and the handler reports `APPLIED`.
+    stories:
+    - story_2022_012
+    - story_2022_038
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    adr:
+    - ADR-0115
+  - id: HP-01-011
+    priority: MUST
+    kind: project
+    statement: >-
+      `CreateReportReceivedUseCase` and `SubmitReportReceivedUseCase` MUST declare the
+      `ANY_ACTOR` entitlement kind for HP-01-010, not an exemption, and no other received
+      use case MAY declare it.
+    rationale: >-
+      `ANY_ACTOR` states a decided rule with no guard to compose, so it is a kind rather
+      than an exemption: the occasion table's "Sent by" can render it (MSM-08-005), and the
+      exemption list keeps only the checks that are still missing. Restricting it to the
+      two new-report use cases stops it from becoming an exemption under another name.
+    verification: >-
+      The HP-01-007 ratchet in `test/architecture/test_sender_entitlement_ratchet.py`,
+      marked `HP-01-011`, asserts that exactly these two received use cases declare
+      `ANY_ACTOR`.
+    relationships:
+    - rel_type: implements
+      spec_id: HP-01-010
+    - rel_type: refines
+      spec_id: HP-01-007
+    adr:
+    - ADR-0115
     - ADR-0129
 - id: HP-02
   title: Semantic Verification

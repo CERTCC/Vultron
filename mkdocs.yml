@@ -158,6 +158,7 @@ nav:
     - Specifications:
       - 'reference/specs/index.md'
       - Protocol: 'reference/specs/protocol.md'
+      - Foundation: 'reference/specs/foundation.md'
       - Architecture: 'reference/specs/architecture.md'
   - Research:
     - 'research/index.md'
