@@ -59,6 +59,8 @@ stakeholder_type: [project-contributor]
   - `spec-backstop` → `vultron.metadata.specs.backstop:main` (spec groups governing the changed code, checked against a Spec manifest)
   - `glossary-index` → `vultron.metadata.docs.glossary_index:main` (term index of `docs/reference/glossary.md`)
   - `adr-index` → `vultron.metadata.adr.index_gen:main`
+  - `adr-back-edges` → `vultron.metadata.adr.back_edges:main`.
+    It reports each live decision record that no requirement's `adr:` edge and no `specs/` or `notes/` citation points back to, unless it is in the record-only exemption set, and each exemption that is no longer needed.
   - `docs-frontmatter` → `vultron.metadata.docs.page_frontmatter:main`.
     It validates the `stakeholder_type` and `level` every `docs/` page declares (DF-11-001), skipping include fragments.
     It also fails a working-record page that is in the nav or matched by no `not_in_nav` pattern (DF-11-003).
