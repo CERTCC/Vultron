@@ -712,8 +712,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `POST /actors/` MUST reject with 422 an `actor_id` whose scheme and authority do not match the
-      node's configured base URL, and MUST NOT create a store or actor record for it. A peer actor
+      `POST /actors/` MUST reject with 422 an absolute `actor_id` whose authority (host and port)
+      differs from that of the node's configured base URL, and MUST NOT create a store or actor
+      record for it. A peer actor
       MUST instead be registered through `POST /actors/{actor_id}/peers/`, which writes the peer's
       actor record into the store of the hosted actor named in the path (DL-07-007), answers 404 when
       that path names no actor this node hosts, and is idempotent: registering a peer id that the
@@ -728,9 +729,10 @@ groups:
       spec_id: DL-07-007
     verification: >-
       `test/adapters/driving/fastapi/routers/test_actors.py::TestCreateActor::test_a_foreign_absolute_id_is_rejected`
-      asserts the 422 and that no actor is created; `TestRegisterPeer` asserts the peer lands in the
-      hosted actor's store, that a second registration returns 200 with the existing record, that the
-      peer is absent from `GET /actors/`, and that an unhosted path actor returns 404.
+      asserts the 422, that no actor is listed and that no store is opened for the id;
+      `TestRegisterPeer` asserts the peer record lands in the hosted actor's store and that the peer
+      gets no store of its own, that a second registration returns 200 with the existing record,
+      that the peer is absent from `GET /actors/`, and that an unhosted path actor returns 404.
     tags:
     - persistence
     adr:

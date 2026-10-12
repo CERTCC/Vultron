@@ -100,6 +100,27 @@ class TestAuditBackEdges:
         assert report.homeless == ("ADR-0100", "ADR-0101")
 
 
+class TestCorpusTexts:
+    def test_reads_only_specs_and_notes_text_files(self, tmp_path):
+        """Only ``specs/`` and ``notes/`` Markdown and YAML can carry a back-edge."""
+        files = {
+            "specs/a.yaml": "spec-yaml",
+            "specs/nested/b.yml": "spec-yml",
+            "notes/c.md": "note-md",
+            "notes/d.py": "note-py",
+            "docs/e.md": "docs-md",
+            "plan/f.md": "plan-md",
+        }
+        for rel, text in files.items():
+            path = tmp_path / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+
+        texts = back_edges._corpus_texts(tmp_path)
+
+        assert sorted(texts) == ["note-md", "spec-yaml", "spec-yml"]
+
+
 class TestLiveRecords:
     @pytest.mark.parametrize(
         "status",
