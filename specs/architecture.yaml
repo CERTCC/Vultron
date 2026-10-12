@@ -1626,8 +1626,8 @@ groups:
       The aliases already separate the two spellings, so a second naming scheme buys nothing
       (YAGNI). Declaring the generator per class let some promoted types ship `attributed_to`
       on the wire while their siblings shipped `attributedTo`, invisible until a peer could not
-      read the payload; declaring it once and holding the projected key set with a
-      closed-world test removes that failure.
+      read the payload; declaring it once, and testing that no projected key is a Python
+      field name, removes that failure.
     verification: >-
       `test/architecture/test_core_no_as2_spellings.py` asserts no module under
       `vultron/core/` types an AS2 spelling;
