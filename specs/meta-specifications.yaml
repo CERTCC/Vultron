@@ -1222,7 +1222,9 @@ groups:
       `test/metadata/test_adr_lifecycle.py` checks that a status ahead of its epoch carried on the
       base passes both the edit check and the drift report, and that a pull request moving a status
       ahead of its epoch fails without a `status_override:`, fails when the override is unchanged
-      from the base, and passes when it adds or changes one.
+      from the base, and passes when it adds or changes one, including a status revived from
+      `rejected` or `deprecated`. It also checks that a status moved back fails with or without
+      an override.
     relationships:
     - rel_type: depends_on
       spec_id: MS-14-007
