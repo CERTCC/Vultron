@@ -14,12 +14,14 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""Native canonical-ledger commit leaf node for the CaseProposal received tree.
+"""Native canonical-ledger commit leaf node for a newly created case.
 
 Commits the genesis ``create_case`` entry plus the report, participant-status
-and case-status entries the CaseActor authors during initialization
-(ADR-0041 AC-4). Composed by ``create_case_proposal_received_tree``
-(BTND-07-003).
+and case-status entries the CASE_MANAGER authors during initialization
+(ADR-0041 AC-4, CLP-07-013).  It is the one creation commit: composed by
+``create_case_proposal_received_tree`` and by the create-case trigger's
+``create_case_trigger_bt``, so a case created either way commits the same
+entry sequence (BTND-07-003).
 """
 
 import logging
@@ -58,7 +60,11 @@ CREATE_CASE_EVENT_TYPE = "create_case"
 
 
 class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
-    """Commit canonical ledger entries natively for CaseActor initialization.
+    """Commit canonical ledger entries natively for a new case's initialization.
+
+    The CASE_MANAGER runs it: the CaseActor on the proposal path, the
+    creating actor on the create-case trigger path, where *owner_uri* is that
+    same actor.
 
     Commits entries in causal order per ADR-0041 AC-4:
 
@@ -375,7 +381,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             self.feedback_message = (
                 f"genesis create_case ledger commit failed for case"
                 f" '{case_id}' — the CASE_MANAGER ledger has no root;"
-                " Accept and Create were already queued (CP-09-009)"
+                " the creation messages were already queued (CP-09-009)"
             )
             logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

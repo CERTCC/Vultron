@@ -652,7 +652,10 @@ CLP-12.*
 The CASE_MANAGER commits every case-initialization ledger entry **natively**, in
 `CommitNativeLedgerEntriesNode` inside
 `vultron/core/behaviors/case/nodes/proposal_ledger.py`, while handling the
-inbound `Create(as_CaseProposal)`.  Causal order:
+inbound `Create(as_CaseProposal)`.  The create-case trigger composes the same
+node (`create_case_trigger_tree.py`), its creator being owner and CASE_MANAGER,
+so both creation paths commit one sequence; do not add a second copy (#4440,
+CLP-07-013).  Causal order:
 
 1. `create_case` — `Create(VulnerabilityCase)`, `actor` = CASE_MANAGER
 2. `add_report_to_case` — `Add(VulnerabilityReport)`, `actor` = CASE_MANAGER
@@ -673,10 +676,10 @@ VFD replication timing, and it would break the "`log_index` order *is* causal
 order" property below.
 
 **Fail-fast on genesis, best-effort after.** Step 1 is the root of the
-CASE_MANAGER's hash chain; if it fails the node returns FAILURE so the enclosing
-Sequence aborts before `Accept`/`Create` are emitted, rather than telling the
-vendor a case exists with no canonical ledger.  Steps 2–4 log a warning and
-continue.
+CASE_MANAGER's hash chain; if it fails the node returns FAILURE, so the
+enclosing Sequence fails and the handler reports it.  The node runs after the
+`Create` is queued (CM-14-011, CP-09-009), so the failure is surfaced, not
+prevented.  Steps 2–4 log a warning and continue.
 
 **Why step 4 uses the vendor URI.** The vendor is who set the genesis case
 status, so the snapshot names the vendor as `actor`.  That is a provenance
