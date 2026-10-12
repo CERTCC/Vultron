@@ -423,9 +423,10 @@ class InvalidateReportReceivedUseCase:
 
 
 class AckReportReceivedUseCase:
-    # The specs name the sender of RK, the actor the Offer(Report) was
-    # addressed to (RMB-01-001, CM-11-018), but not how the CASE_MANAGER,
-    # which holds no OfferRecord, checks it; #4325 holds that question.
+    # RK's sender is the recipient of the RS it acknowledges, the actor the
+    # Offer(Report) was addressed to (RMB-01-001, VP-03-009).  No spec says
+    # how the CASE_MANAGER, which holds no OfferRecord (CP-01-007), checks
+    # that; #4325 holds the question.
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
         "#4325",
         "the CASE_MANAGER side of the RK sender rule is not yet specified",

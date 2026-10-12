@@ -34,9 +34,9 @@ Entitlement kinds
 - ``INVITEE`` — sender must be the sole ``to`` recipient of the recorded Invite
   it answers (EP-09-010, CM-11-017)
 - ``ANY_ACTOR`` — any actor may send it, whatever its standing in any case: a new
-  report, which precedes any case (HP-01-010).
+  report, which precedes any case (HP-01-010, HP-01-011).
   It is a declared rule, not an exemption, and has no condition node: there is
-  no standing to check, so the factory composes no sender guard.
+  no standing to check, so no tree composes a sender guard for it.
 
 A kind names the entitlement at the CASE_MANAGER, where the assertion is
 adjudicated.
@@ -169,7 +169,8 @@ class SenderEntitlementKind(Enum):
     """Any actor may send it; no standing is required (HP-01-010).
 
     Declared only by the use cases that receive a new report, which precedes
-    any case.  It has no condition node, so no sender guard is composed.
+    any case (HP-01-011).  It has no condition node, so no tree composes a
+    sender guard for it.
     """
 
 

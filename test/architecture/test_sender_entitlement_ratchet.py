@@ -184,7 +184,7 @@ def test_old_node_name_removed_from_former_module(module_path, class_name):
 
 
 # ---------------------------------------------------------------------------
-# HP-01-010: ANY_ACTOR is reserved for the two new-report use cases
+# HP-01-011: ANY_ACTOR is reserved for the two new-report use cases
 # ---------------------------------------------------------------------------
 
 #: The received use cases HP-01-010 entitles any actor to send to.
@@ -193,7 +193,7 @@ ANY_ACTOR_USE_CASES = frozenset(
 )
 
 
-@pytest.mark.spec("HP-01-010")
+@pytest.mark.spec("HP-01-011")
 def test_any_actor_is_declared_only_by_new_report_use_cases():
     """``ANY_ACTOR`` declares no check, so it must not spread as an exemption."""
     declaring = {
@@ -204,5 +204,5 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
     }
     assert declaring == ANY_ACTOR_USE_CASES, (
         "Only the use cases receiving a new report may declare ANY_ACTOR "
-        f"(HP-01-010); found {sorted(declaring)}"
+        f"(HP-01-011); found {sorted(declaring)}"
     )

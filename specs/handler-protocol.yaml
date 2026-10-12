@@ -277,28 +277,47 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Any actor MAY send a new report, as `Offer(VulnerabilityReport)` (`RS`) or
-      `Create(VulnerabilityReport)`, whether or not it takes part in any case. A receiver
-      MUST NOT refuse either on the sender's standing; only the addressing rules apply
-      (HP-01-005, HP-09-001). Their received use cases MUST declare the `ANY_ACTOR`
-      entitlement kind, which no other received use case may declare, and not an exemption.
+      A receiver MUST accept a new report, sent as `Offer(VulnerabilityReport)` (`RS`) or
+      `Create(VulnerabilityReport)`, from any actor, whether or not that actor takes part
+      in any case, and MUST NOT refuse it on the sender's standing. Only the addressing
+      rules apply to it (HP-01-005, HP-09-001).
     rationale: >-
       A report precedes any case, so the sender has no participant record or role to hold,
-      and anyone who finds a vulnerability must be able to report it. Declaring that as a
-      kind rather than an exemption records it as a decided rule, which the occasion
-      table's "Sent by" can render (MSM-08-005), and keeps the exemption list for checks
-      that are still missing. Decided by the maintainer on #4325.
+      and anyone who finds a vulnerability must be able to report it. Decided by the
+      maintainer on #4325.
     verification: >-
-      Tests marked `HP-01-010` drive `CreateReportReceivedUseCase` and
-      `SubmitReportReceivedUseCase` with a sender that is a participant of no case and
-      assert the report is kept and the handler reports `APPLIED`. The HP-01-007 ratchet
-      asserts these two are the only received use cases that declare `ANY_ACTOR`.
+      Tests marked `HP-01-010` drive the report-creation and report-submission handlers
+      with a sender that is not a participant of the receiver's case and assert the report
+      is kept and the handler reports `APPLIED`.
     stories:
     - story_2022_012
     - story_2022_038
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
+    adr:
+    - ADR-0115
+  - id: HP-01-011
+    priority: MUST
+    kind: project
+    statement: >-
+      `CreateReportReceivedUseCase` and `SubmitReportReceivedUseCase` MUST declare the
+      `ANY_ACTOR` entitlement kind for HP-01-010, not an exemption, and no other received
+      use case MAY declare it.
+    rationale: >-
+      `ANY_ACTOR` states a decided rule with no guard to compose, so it is a kind rather
+      than an exemption: the occasion table's "Sent by" can render it (MSM-08-005), and the
+      exemption list keeps only the checks that are still missing. Restricting it to the
+      two new-report use cases stops it from becoming an exemption under another name.
+    verification: >-
+      The HP-01-007 ratchet in `test/architecture/test_sender_entitlement_ratchet.py`,
+      marked `HP-01-011`, asserts that exactly these two received use cases declare
+      `ANY_ACTOR`.
+    relationships:
+    - rel_type: implements
+      spec_id: HP-01-010
+    - rel_type: refines
+      spec_id: HP-01-007
     adr:
     - ADR-0115
     - ADR-0129

@@ -111,6 +111,32 @@ class TestUseCaseExecution:
         assert result == HandlerResult.applied()
 
 
+_FINDER_ID = "https://example.org/users/finder"
+_RECEIVER_ID = "https://test.example/api/v2/actors/test-actor"
+
+
+def _run_create_report(
+    report_id: str,
+    activity_id: str,
+    sender_id: str = _FINDER_ID,
+    dl: SqliteDataLayer | None = None,
+) -> tuple[HandlerResult, SqliteDataLayer]:
+    """Run ``CreateReportReceivedUseCase`` for ``Create(Report)`` from *sender_id*."""
+    activity = VultronActivity(
+        id_=activity_id, type_="Create", actor=sender_id
+    )
+    event = CreateReportReceivedEvent(
+        semantic_type=MessageSemantics.CREATE_REPORT,
+        activity_id=activity_id,
+        actor_id=sender_id,
+        object_=VulnerabilityReport(id_=report_id),
+        activity=activity,
+    )
+    if dl is None:
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER_ID)
+    return CreateReportReceivedUseCase(dl, event).execute(), dl
+
+
 class TestCreateReportNoStandaloneParticipantStatus:
     """CreateReportReceivedUseCase must NOT create standalone ParticipantStatus.
 
@@ -120,27 +146,10 @@ class TestCreateReportNoStandaloneParticipantStatus:
 
     def test_create_report_does_not_persist_participant_status(self):
         """CreateReportReceivedUseCase stores the report and activity only."""
-        report = VulnerabilityReport(
-            id_="https://example.org/reports/r-persist-1"
+        _, dl = _run_create_report(
+            "https://example.org/reports/r-persist-1",
+            "https://example.org/activities/create-p1",
         )
-        activity = VultronActivity(
-            id_="https://example.org/activities/create-p1",
-            type_="Create",
-            actor="https://example.org/users/finder",
-        )
-        event = CreateReportReceivedEvent(
-            semantic_type=MessageSemantics.CREATE_REPORT,
-            activity_id="https://example.org/activities/create-p1",
-            actor_id="https://example.org/users/finder",
-            object_=report,
-            activity=activity,
-        )
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        CreateReportReceivedUseCase(dl, event).execute()
 
         all_statuses = dl.get_all("ParticipantStatus")
         assert all_statuses == [], (
@@ -150,27 +159,10 @@ class TestCreateReportNoStandaloneParticipantStatus:
 
     def test_create_report_still_stores_report_and_activity(self):
         """CreateReportReceivedUseCase still stores the report and activity."""
-        report = VulnerabilityReport(
-            id_="https://example.org/reports/r-store-1"
+        _, dl = _run_create_report(
+            "https://example.org/reports/r-store-1",
+            "https://example.org/activities/create-store-1",
         )
-        activity = VultronActivity(
-            id_="https://example.org/activities/create-store-1",
-            type_="Create",
-            actor="https://example.org/users/finder",
-        )
-        event = CreateReportReceivedEvent(
-            semantic_type=MessageSemantics.CREATE_REPORT,
-            activity_id="https://example.org/activities/create-store-1",
-            actor_id="https://example.org/users/finder",
-            object_=report,
-            activity=activity,
-        )
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
-        )
-        CreateReportReceivedUseCase(dl, event).execute()
 
         stored_report = dl.read("https://example.org/reports/r-store-1")
         assert stored_report is not None, (
@@ -179,39 +171,31 @@ class TestCreateReportNoStandaloneParticipantStatus:
 
 
 class TestCreateReportSenderEntitlement:
-    """Any actor may send a new report (HP-01-010)."""
+    """Any actor may send a new report (HP-01-010, HP-01-011)."""
+
+    STRANGER_ID = "https://example.org/users/stranger"
 
     @pytest.mark.spec("HP-01-010")
-    def test_sender_outside_any_case_is_applied(self):
-        """A sender that takes part in no case still has its report kept."""
-        report = VulnerabilityReport(
-            id_="https://example.org/reports/r-stranger-1"
+    def test_sender_outside_the_receivers_case_is_applied(self):
+        """A sender in none of the receiver's cases still has its report kept."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER_ID)
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/c-other", attributed_to=_RECEIVER_ID
         )
-        activity = VultronActivity(
-            id_="https://example.org/activities/create-stranger-1",
-            type_="Create",
-            actor="https://example.org/users/stranger",
-        )
-        event = CreateReportReceivedEvent(
-            semantic_type=MessageSemantics.CREATE_REPORT,
-            activity_id=activity.id_,
-            actor_id="https://example.org/users/stranger",
-            object_=report,
-            activity=activity,
-            receiving_actor_id="https://test.example/api/v2/actors/receiver",
-        )
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/receiver",
+        dl.save(case)
+        assert self.STRANGER_ID not in case.actor_participant_index
+
+        result, dl = _run_create_report(
+            "https://example.org/reports/r-stranger-1",
+            "https://example.org/activities/create-stranger-1",
+            sender_id=self.STRANGER_ID,
+            dl=dl,
         )
 
-        result = CreateReportReceivedUseCase(dl, event).execute()
-
-        assert dl.list_objects("VulnerabilityCase") == []
         assert result.disposition == HandlerDisposition.APPLIED
-        assert dl.read(report.id_) is not None
+        assert dl.read("https://example.org/reports/r-stranger-1") is not None
 
-    @pytest.mark.spec("HP-01-010")
+    @pytest.mark.spec("HP-01-011")
     def test_declares_any_actor(self):
         assert (
             CreateReportReceivedUseCase.sender_entitlement
