@@ -164,3 +164,57 @@ def test_bootstrap_bare_uri_participant_is_refused(make_payload):
     assert result.disposition == HandlerDisposition.REFUSED
     assert result.reason is not None and "CBT-05-008" in result.reason
     assert dl.read(_CASE_ID) is None
+
+
+# ---------------------------------------------------------------------------
+# CBT-01-011: a bootstrap from an actor no local anchor names is refused, even
+# when its snapshot names the sender CASE_MANAGER. Tracked by #4511 (ADR-0132).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="CBT-01-011: the `direct` bootstrap route still trusts a sender "
+    "its own snapshot names CASE_MANAGER. Tracked by #4511.",
+)
+@pytest.mark.spec("CBT-01-011")
+def test_bootstrap_from_an_actor_no_anchor_names_is_refused(make_payload):
+    """A snapshot that names its sender CASE_MANAGER does not make it trusted."""
+    _VENDOR_ID = "https://vendor.example.org/actors/vendor-cbt01011"
+    _IMPOSTOR_ID = "https://impostor.example.org/actors/mgr-cbt01011"
+    _FINDER_ID = "https://finder.example.org/actors/finder-cbt01011"
+    _CASE_ID = "https://example.org/cases/case-cbt01011"
+    _REPORT_ID = "https://example.org/reports/report-cbt01011"
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_FINDER_ID)
+    dl.create(VulnerabilityReport(id_=_REPORT_ID, attributed_to=_FINDER_ID))
+    # The finder wrote this anchor: it sent the report to the vendor.
+    dl.save(
+        VultronReportCaseLink(report_id=_REPORT_ID, case_creator_id=_VENDOR_ID)
+    )
+    impostor = CoreCaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
+        id_=f"{_CASE_ID}/participants/impostor",
+        attributed_to=_IMPOSTOR_ID,
+        context=_CASE_ID,
+    )
+    finder = CoreCaseParticipant(
+        case_roles=[CVDRole.REPORTER],
+        id_=f"{_CASE_ID}/participants/finder",
+        attributed_to=_FINDER_ID,
+        context=_CASE_ID,
+    )
+    case = as_VulnerabilityCase(
+        id_=_CASE_ID,
+        name="CBT-01-011 unanchored sender",
+        case_participants=[impostor, finder],
+    )
+    case.actor_participant_index[_IMPOSTOR_ID] = impostor.id_
+    case.actor_participant_index[_FINDER_ID] = finder.id_
+    activity = create_case_activity(case, actor=_IMPOSTOR_ID)
+    event = make_payload(activity, receiving_actor_id=_FINDER_ID)
+
+    result = CreateCaseReceivedUseCase(dl, event).execute()
+
+    assert result.disposition == HandlerDisposition.REFUSED
+    assert dl.read(_CASE_ID) is None
