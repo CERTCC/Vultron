@@ -68,9 +68,24 @@ The CASE_MANAGER then records the completed transfer in the ledger and sends the
 The new owner's own copy of the case is updated by that same entry; nothing is delivered to it separately.
 
 A refusal is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)), and ownership stays where it was.
-What the CASE_MANAGER does after a refusal is not yet specified.
-Today it only logs the refusal: no ledger entry records it, and the participant who made the offer is not told.
-Whether a refusal should be recorded, how the offerer learns of it, and whether the case can be offered again are tracked in [#3748](https://github.com/CERTCC/Vultron/issues/3748).
+The protocol treats a refusal like an acceptance: the CASE_MANAGER records it in the ledger and sends the entry to every participant, which is how the participant who made the offer learns of it ([CM-21-012](../../reference/specs/protocol.md#cm-21-012)).
+Only the proposed owner named in the offer may refuse it ([CM-21-013](../../reference/specs/protocol.md#cm-21-013)).
+The prototype does not do this yet: today it only logs the refusal, and no ledger entry records it ([#4475](https://github.com/CERTCC/Vultron/issues/4475)).
+
+## Offering again, withdrawing, and the deadline
+
+A case has at most one open offer at a time ([CM-21-014](../../reference/specs/protocol.md#cm-21-014)).
+An offer stays open until the ledger records that it was accepted, refused, withdrawn, or expired.
+Once it is closed, the owner may offer the case again to anyone, including a participant that refused, with nothing to clear first.
+
+The owner that made an offer may withdraw it while it is open, by sending an `Undo` of the offer to the CASE_MANAGER ([CM-21-015](../../reference/specs/protocol.md#cm-21-015)).
+An offer may also carry an `end_time`, the deadline to answer it ([CM-21-016](../../reference/specs/protocol.md#cm-21-016)).
+The deadline is binding: the CASE_MANAGER refuses an acceptance or refusal it processes after the deadline, so every participant knows who decides for the case once it passes.
+This is stricter than the deadline on an embargo invitation, which is a strong suggestion.
+The CASE_MANAGER notices an expired offer the next time it handles something for that case, and records the expiry in the ledger before it acts ([CM-21-017](../../reference/specs/protocol.md#cm-21-017)).
+
+Without withdrawal and the deadline, a proposed owner that never answered would block every later transfer of the case.
+None of this is implemented in the prototype yet ([#4475](https://github.com/CERTCC/Vultron/issues/4475), [#4491](https://github.com/CERTCC/Vultron/issues/4491)).
 
 ---
 

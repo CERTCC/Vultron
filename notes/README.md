@@ -909,13 +909,17 @@ the development loop, or deciding which skill to run next.
 
 **`ownership-transfer.md`**
 Implementation guidance for the ownership-transfer routing model (ADR-0053):
-Offer and Accept MUST route through the CASE_MANAGER; correct flow for
+Offer, Accept and Reject MUST route through the CASE_MANAGER; correct flow for
 `EmitOfferCaseOwnershipTransferNode`, `EmitAcceptCaseOwnershipTransferNode`,
 `OfferCaseOwnershipTransferReceivedUseCase`, and the cascade wiring in
-`ownership_transfer_tree.py`. Includes the demo workaround removal checklist.
+`ownership_transfer_tree.py`; the ledgered Reject path, the one-open-offer
+rule, and withdrawal and the binding deadline. Includes the demo workaround
+removal checklist.
 **Load when**: implementing ownership-transfer routing fixes (CM-21-005,
-CM-21-006, CM-21-007), auditing transfer routing in demos, or understanding
-why the CASE_MANAGER must be the intermediary for ownership transfers.
+CM-21-006, CM-21-007), the Reject path, re-offering, withdrawal or expiry
+(CM-21-010 – CM-21-017),
+auditing transfer routing in demos, or understanding why the CASE_MANAGER must
+be the intermediary for ownership transfers.
 
 **`coordination-agents.md`**
 Design guidance for capability shapes — the four abstract interface contracts
