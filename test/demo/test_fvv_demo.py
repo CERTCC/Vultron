@@ -176,15 +176,23 @@ class TestResetContainersFvv:
         finder_client.get.return_value = {}
         vendor_client.get.return_value = {}
         vendor2_client.get.return_value = {}
+        case_actor_client = MagicMock()
+        case_actor_client.get.return_value = {}
 
-        with patch(
-            "vultron.demo.scenario.fvv_demo.reset_datalayer",
-            return_value={"status": "ok"},
-        ) as reset_mock:
+        with (
+            patch(
+                "vultron.demo.scenario.fvv_demo.reset_datalayer",
+                return_value={"status": "ok"},
+            ) as reset_mock,
+            patch(
+                "vultron.demo.helpers.seeding.seed_case_actor_identity"
+            ) as seed_mock,
+        ):
             demo.reset_containers(
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 vendor2_client=vendor2_client,
+                case_actor_client=case_actor_client,
             )
 
         reset_mock.assert_has_calls(
@@ -192,8 +200,12 @@ class TestResetContainersFvv:
                 call(client=finder_client),
                 call(client=vendor_client),
                 call(client=vendor2_client),
+                call(client=case_actor_client),
             ]
         )
+        # Vendor1 proposes the case to the dedicated CaseActor, so the reset
+        # must re-create its identity (DEMOMA-06-004).
+        seed_mock.assert_called_once_with(case_actor_client)
 
 
 # ---------------------------------------------------------------------------
@@ -458,6 +470,7 @@ class TestCoverageWaitInsideDemoCheck:
         ):
             try:
                 demo._phase_case_closure(
+                    case_actor_client=MagicMock(),
                     finder_client=client,
                     vendor_client=client,
                     vendor2_client=client,
@@ -697,6 +710,7 @@ class TestFvvMilestoneAssertions:
         ):
             mock_vc.model_validate.return_value = case
             demo._phase_report_submission(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 vendor2_client=vendor2_client,
@@ -875,6 +889,7 @@ class TestFvvMilestoneAssertions:
             ),
         ):
             demo._phase_case_closure(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 vendor2_client=vendor2_client,
@@ -983,6 +998,7 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
         ):
             mock_vc.model_validate.return_value = case
             demo._phase_report_submission(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 vendor2_client=vendor2_client,
@@ -1279,6 +1295,7 @@ class TestFvvInviteChainSkipsDependents:
         ):
             mock_vc.model_validate.return_value = case
             demo._phase_report_submission(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 vendor2_client=vendor2_client,
@@ -1323,4 +1340,156 @@ class TestFvvInviteChainSkipsDependents:
             if c.kwargs.get("client") is vendor2_client
         ], "replica_wait ran for the skipped dependent: " + str(
             replica_wait.call_args_list
+        )
+
+
+# ---------------------------------------------------------------------------
+# Dedicated case-actor container routing (#1876, DEMOMA-06-004/005)
+# ---------------------------------------------------------------------------
+
+
+class TestFvvDedicatedCaseActorRouting:
+    """CASE_MANAGER reads and acts go to the dedicated case-actor container.
+
+    The CaseActor is not hosted by Vendor1's container, and Vendor1's replica is
+    not the CASE_MANAGER's store, so every authority read, the CASE_MANAGER's
+    ``stub_summary`` seed and the canonical ledger dump name the case-actor
+    client.
+    """
+
+    @staticmethod
+    def _actor(id_: str) -> MagicMock:
+        actor = MagicMock()
+        actor.id_ = id_
+        return actor
+
+    def test_closure_reads_departures_through_case_actor_client(self):
+        case_actor_client = MagicMock()
+        vendor_client = MagicMock()
+        case = MagicMock()
+        case.id_ = "urn:test:case"
+        vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        finder = self._actor("urn:test:finder")
+
+        with (
+            patch.object(demo, "close_case_owner_last") as close_mock,
+            patch.object(demo, "wait_for_all_participants_rm_closed"),
+            patch.object(demo, "verify_case_closed"),
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
+        ):
+            demo._phase_case_closure(
+                finder_client=MagicMock(),
+                vendor_client=vendor_client,
+                vendor2_client=MagicMock(),
+                vendor=vendor,
+                vendor_in_vendor=vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2,
+                finder=finder,
+                finder_in_finder=finder,
+                case=case,
+                case_actor_client=case_actor_client,
+            )
+
+        assert (
+            close_mock.call_args.kwargs["authority_client"]
+            is case_actor_client
+        )
+
+    def test_report_submission_routes_case_manager_to_case_actor_client(self):
+        case_actor_client = MagicMock()
+        vendor_client = MagicMock()
+        finder = self._actor("urn:test:finder")
+        vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        case = MagicMock()
+        case.id_ = "urn:test:case"
+
+        with (
+            patch.object(demo, "reset_containers") as reset_mock,
+            patch.object(
+                demo,
+                "seed_containers_fvv",
+                return_value=(finder, vendor, vendor2),
+            ),
+            patch.object(
+                demo, "get_actor_by_id", side_effect=[vendor, vendor2]
+            ),
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock()),
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_finder_case"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "run_case_invite_chain") as chain_mock,
+            patch.object(demo, "run_invite_path_rm_triage") as triage_mock,
+            patch.object(demo, "verify_case_active"),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=MagicMock(),
+                vendor_client=vendor_client,
+                vendor2_client=MagicMock(),
+                case_actor_client=case_actor_client,
+                finder_id=None,
+                vendor_id=None,
+                vendor2_id=None,
+            )
+
+        assert (
+            reset_mock.call_args.kwargs["case_actor_client"]
+            is case_actor_client
+        )
+        assert (
+            chain_mock.call_args.kwargs["case_manager_client"]
+            is case_actor_client
+        )
+        assert triage_mock.call_args.kwargs["auth_client"] is case_actor_client
+
+    def test_dump_reads_case_actor_ledger_from_dedicated_container(
+        self, tmp_path, monkeypatch
+    ):
+        def bound(slug: str) -> MagicMock:
+            client = MagicMock()
+            client.actor_id = f"https://example.org/actors/{slug}"
+            client.get_list.return_value = [{"logIndex": 0}]
+            return client
+
+        vendor_client = bound("vendor")
+        case_actor_client = bound("case-actor")
+        case = demo.as_VulnerabilityCase(
+            id_="https://example.org/cases/fvv-ca",
+            actor_participant_index={
+                "https://example.org/actors/case-actor": (
+                    "https://example.org/cases/fvv-ca/participants/ca"
+                )
+            },
+        )
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+
+        demo._phase_dump_case_ledgers(
+            finder_client=bound("finder"),
+            vendor_client=vendor_client,
+            vendor2_client=bound("vendor2"),
+            finder=self._actor("https://example.org/actors/finder"),
+            vendor=self._actor("https://example.org/actors/vendor"),
+            vendor2=self._actor("https://example.org/actors/vendor2"),
+            case=case,
+            case_actor_client=case_actor_client,
+        )
+
+        log_path = "/actors/case-actor/demo/cases/fvv-ca/log"
+        assert any(
+            log_path in c.args[0]
+            for c in case_actor_client.get_list.call_args_list
+        )
+        assert not any(
+            log_path in c.args[0]
+            for c in vendor_client.get_list.call_args_list
         )

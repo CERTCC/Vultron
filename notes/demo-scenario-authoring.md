@@ -384,7 +384,7 @@ unit test. The guard was never missing; the single place to fix it was.
    the failure must not be left for a replica-side check to misattribute.
    Scenario-specific extras
    — the two-actor fv scenario's check that the dedicated case-actor container
-   stayed unused — follow the helper call as separate steps. A scenario with no
+   holds the case — follow the helper call as separate steps. A scenario with no
    participant expectation (fcv-reject) declares none and no participant wait
    runs.
 3. A scenario module never calls `wait_for_contiguous_ledger_coverage` or

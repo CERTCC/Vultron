@@ -35,6 +35,7 @@ from vultron.wire.as2.extractor._builders import (
     proposed_embargo_from,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +134,20 @@ def extract_intent(
                 " actor default (CP-01-010)"
             )
         extra_kwargs["proposer_profile"] = actor
+
+    if "proposer_case_roles" in event_class.model_fields:
+        # The proposer's own roles ride on the proposal (CP-01-011, ADR-0133):
+        # the CASE_MANAGER has no other way to learn them.  as_CaseProposal
+        # refused a CASE_MANAGER claim when it was parsed (CP-01-012).  Any
+        # other object is refused rather than read as "no roles", which would
+        # seat the owner as CASE_OWNER alone without a sound.
+        if not isinstance(obj, as_CaseProposal):
+            raise VultronParseValidationError(
+                f"Create(CaseProposal) {activity.id_!r} carries no parsed"
+                f" CaseProposal (got {type(obj).__name__}); its"
+                " proposerCaseRoles cannot be read (CP-01-011)"
+            )
+        extra_kwargs["proposer_case_roles"] = list(obj.proposer_case_roles)
 
     return cast(
         AnyReceivedEvent,
