@@ -10,6 +10,7 @@ related_specs:
   - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/case-joining.md
   - notes/case-proposal.md
   - notes/demo-interactive-ui.md
   - notes/activitystreams-semantics.md
@@ -258,6 +259,40 @@ because replicas need the actual asserted content to reconstruct state.
 
 ---
 
+## Every Change Is an Entry; Replicas Copy (ADR-0124, CLP-07-013)
+
+Two replicas at the same ledger position hold identical case files. That holds
+by construction only if the replica decides nothing, so:
+
+- **One act can commit several entries.** The act's entry comes first. Each
+  further change it causes is its own CASE_MANAGER-authored entry, in write
+  order: `Create(Object)` for a record it brings into existence, `Update(Object)`
+  for a changed one, each carrying the object in full. Sending a stub Invite is
+  the Invite's entry plus a `Create(CaseParticipant)` for the inert invitee.
+- **An act whose activity states the change is that change's entry.**
+  `Add(Note, target=Case)` carrying the note is applied by copying it, and an
+  invitee's `Accept` of the stub Invite is the entry for its own consent row and
+  `joined` mark (CM-31-012). No second entry records either again (CLP-07-002).
+- **A replica copies.** Applying an entry mints no id, reads no clock, reads no
+  policy or state outside the case, and runs no lifecycle logic (CM-23-016).
+  Lifecycle and policy code runs on the CASE_MANAGER, before the commit, and
+  only there.
+- **Case file vs. case bookkeeping (CLP-07-014).** The recommendation index,
+  offer records and pending markers are the CASE_MANAGER's working records. They
+  are not ledgered, not replicated, and never read to compute a case-file value.
+- **No allow-list.** A write with no entry is a defect, not an exception.
+  `NO_REPLICA_EFFECT` in `test/architecture/test_ledger_event_types_are_replayed.py`
+  records committed types that change nothing a replica holds; it is not a
+  place to park an unreplayed write.
+
+**Pitfall: "one act, one entry".** CLP-09-003 once said a use case produces
+"exactly one canonical commit", and ADR-0116 dropped the invitee's participant
+entry as redundant. Both left the second change an act causes with nowhere to be
+recorded, and replicas rebuilt it with their own ids and times (#4425; the
+stub-Invite record was fixed by #4396).
+
+---
+
 ## `pending_assertions`: Local Decision-Suppression Memory (Epic #788)
 
 Epic #788 (#789–#792, completed) made canonical `CaseLedgerEntry` the sole source
@@ -298,9 +333,11 @@ requirements belong in `specs/case-ledger-processing.yaml`.
 ## Canonical Entry Criteria: What Belongs in the Log
 
 The canonical case ledger is a **protocol ledger**, not a process log. It records
-exactly one entry per CASE_MANAGER-accepted protocol-significant assertion. Each
-entry's `payloadSnapshot` is the verbatim AS2 activity that was asserted (or a
-deterministic canonical normalization of it).
+one entry per CASE_MANAGER-accepted protocol-significant assertion, whose
+`payloadSnapshot` is the verbatim AS2 activity that was asserted (or a
+deterministic canonical normalization of it), followed by one CASE_MANAGER-authored
+`Create`/`Update` entry per further change the act makes to the case file
+(CLP-07-013; see "Every Change Is an Entry; Replicas Copy" above).
 
 Concretely:
 
