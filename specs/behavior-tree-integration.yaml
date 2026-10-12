@@ -47,6 +47,8 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: Simulation code in `vultron/bt/` MUST remain unchanged
+    adr:
+    - ADR-0003
 - id: BT-03
   title: State Management
   specs:

@@ -22,13 +22,6 @@ from vultron.metadata.adr.back_edges import (
 from vultron.metadata.adr.schema import AdrFrontmatter
 from vultron.metadata.specs.schema import AdrStatus
 
-#: Live records known to have no back-edge yet. A ratchet with terminal value
-#: empty: ADR-0003 was left out of #4410 on purpose (its AC-5), and #4459 gives
-#: it a home now that #4391 narrowed it to the legacy simulator.
-#:
-#: owner: #4459
-KNOWN_HOMELESS_RECORDS: frozenset[str] = frozenset({"ADR-0003"})
-
 _A = LiveRecord(adr_id="ADR-0100", file_name="0100-alpha.md")
 _B = LiveRecord(adr_id="ADR-0101", file_name="0101-beta.md")
 
@@ -185,12 +178,11 @@ def test_every_live_record_has_a_back_edge_or_an_exemption(real_registry):
         "Remove these from RECORD_ONLY_EXEMPTIONS — they now have a back-edge "
         f"or are no longer live records: {report.stale_exemptions}"
     )
-    assert set(report.homeless) == KNOWN_HOMELESS_RECORDS, (
+    assert report.homeless == (), (
         "Live decision records with no back-edge from specs/ or notes/: give "
         "each an adr: edge on the requirement that covers it, state its "
         "decision in a spec or note citing it, or (only for a one-time process "
         "choice, MS-11-006) add it to RECORD_ONLY_EXEMPTIONS. "
         "See notes/specs-vs-adrs.md. "
-        f"Got {sorted(report.homeless)}, expected "
-        f"{sorted(KNOWN_HOMELESS_RECORDS)}."
+        f"Got {list(report.homeless)}."
     )
