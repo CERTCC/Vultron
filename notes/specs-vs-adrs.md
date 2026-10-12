@@ -70,6 +70,21 @@ list) and drift-prone detail (counts, metrics, `file.py:line` citations). The
 human-facing version of this is `docs/adr/index.md` § "Revising vs. amending an
 ADR"; the editing mechanics are the Edit Tiers section below.
 
+### An ADR records what stays invariant
+
+An ADR records what stays invariant. It must not state a decision already known
+to become obsolete. Write the stable principle with enough room that a
+foreseeable change does not require rewriting the record, and keep the current,
+changeable policy in the governing specs and notes that cite the ADR.
+
+ADR-0133 is the worked example. It states that checks protecting implementers
+apply to the implementer-facing kinds. Which kind each check covers today is
+written in SR-05-004/005, SR-11-003/004 and MS-12-006, because the story gate is
+expected to widen once stories for inherited behavior exist. A record that fixed
+"the story gate is `protocol`-only" would be obsolete the day that happens.
+
+Source: ISSUE-4528 (maintainer review of PR #4538)
+
 ### An aged code reference in an ADR body is not a defect, and there is no scrub
 
 This is the consequence most likely to be re-derived as work, so it is stated

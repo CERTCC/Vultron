@@ -41,7 +41,10 @@ is the one materialized from git, not the working tree.
 
 Consumers: the marker-coverage guard (SR-05-005) and the
 ``missing_story_reference`` guard (MS-12-007) under ``test/architecture/``.
-The planned ``verification_debt`` guard (#4200) is meant to reuse it.
+The planned ``verification_debt`` guard (#4200) is meant to reuse it. A guard
+that must see both trees at once, rather than a set difference, uses
+:func:`compare_with_base` directly: the kind-change marker guard (MS-12-011)
+compares each ID's kind and marker at the base with the working tree.
 """
 
 from __future__ import annotations
@@ -105,6 +108,24 @@ class GrowthCheck:
             f"If this lists items the branch did not touch, the local base "
             f"ref may be stale: run `git fetch origin` and retry."
         )
+
+
+@dataclass(frozen=True)
+class BaseComparison[T]:
+    """What one reader saw at the merge base and in the working tree.
+
+    Attributes:
+        base: The merge-base commit read, or ``None`` if skipped.
+        base_value: The reader's result on the base tree, or ``None`` if
+            skipped.
+        head_value: The reader's result on the working tree.
+        skipped: Why the base was not read, or ``None`` if it was.
+    """
+
+    base: str | None
+    base_value: T | None
+    head_value: T
+    skipped: str | None = None
 
 
 def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
@@ -182,6 +203,51 @@ def materialize_tree(
         tar.extractall(dest, filter="data")
 
 
+def compare_with_base[T](
+    read: Callable[[Path], T],
+    *,
+    repo_root: Path,
+    paths: Sequence[str],
+    base_ref: str | None = None,
+    head: T | None = None,
+    require_base: bool | None = None,
+) -> BaseComparison[T]:
+    """Run *read* on the merge-base tree and on the working tree.
+
+    The shared machinery behind :func:`added_since_base`, for a guard that
+    must compare the two results itself rather than take a set difference.
+    Arguments, skipping and errors are as :func:`added_since_base` documents;
+    *head* is the working-tree result, when the caller already computed it.
+    """
+    if head is None:
+        head = read(repo_root)
+    if require_base is None:
+        require_base = running_in_ci()
+    ref = base_ref or base_ref_name()
+    with tempfile.TemporaryDirectory(prefix="growth-guard-") as tmp:
+        try:
+            base = resolve_merge_base(repo_root, ref)
+            materialize_tree(repo_root, base, paths, Path(tmp))
+        except BaseUnavailableError as exc:
+            if require_base:
+                raise
+            reason = f"growth guard skipped: {exc}"
+            logger.warning(reason)
+            return BaseComparison(None, None, head, skipped=reason)
+        try:
+            base_value = read(Path(tmp))
+        except Exception as exc:
+            raise BaseExtractionError(
+                f"the growth guard could not read the merge base "
+                f"{base[:12]} ({ref}): {exc}. That tree is materialized from "
+                f"git and read with this branch's loaders, so a path in the "
+                f"error names the base copy, not the working tree. If this "
+                f"branch changes the format the extractor reads, make the "
+                f"loader accept the old form as well, so it can read the base."
+            ) from exc
+    return BaseComparison(base, base_value, head)
+
+
 def added_since_base(
     extract: Extractor,
     *,
@@ -216,37 +282,27 @@ def added_since_base(
             that cannot compare must not read as a pass. An error from
             *extract* on the working tree propagates unchanged.
     """
-    if head is None:
-        head = extract(repo_root)
-    if require_base is None:
-        require_base = running_in_ci()
-    ref = base_ref or base_ref_name()
-    with tempfile.TemporaryDirectory(prefix="growth-guard-") as tmp:
-        try:
-            base = resolve_merge_base(repo_root, ref)
-            materialize_tree(repo_root, base, paths, Path(tmp))
-        except BaseUnavailableError as exc:
-            if require_base:
-                raise
-            reason = f"growth guard skipped: {exc}"
-            logger.warning(reason)
-            return GrowthCheck(None, frozenset(), len(head), skipped=reason)
-        try:
-            base_items = extract(Path(tmp))
-        except Exception as exc:
-            raise BaseExtractionError(
-                f"the growth guard could not read the merge base "
-                f"{base[:12]} ({ref}): {exc}. That tree is materialized from "
-                f"git and read with this branch's loaders, so a path in the "
-                f"error names the base copy, not the working tree. If this "
-                f"branch changes the format the extractor reads, make the "
-                f"loader accept the old form as well, so it can read the base."
-            ) from exc
-    return GrowthCheck(base, head - base_items, len(head))
+    seen = compare_with_base(
+        extract,
+        repo_root=repo_root,
+        paths=paths,
+        base_ref=base_ref,
+        head=head,
+        require_base=require_base,
+    )
+    head_items = seen.head_value
+    if seen.base_value is None:
+        return GrowthCheck(
+            None, frozenset(), len(head_items), skipped=seen.skipped
+        )
+    return GrowthCheck(
+        seen.base, head_items - seen.base_value, len(head_items)
+    )
 
 
 __all__ = [
     "BASE_REF_ENV",
+    "BaseComparison",
     "BaseExtractionError",
     "BaseUnavailableError",
     "CI_ENV",
@@ -255,6 +311,7 @@ __all__ = [
     "GrowthCheck",
     "added_since_base",
     "base_ref_name",
+    "compare_with_base",
     "materialize_tree",
     "resolve_merge_base",
     "running_in_ci",

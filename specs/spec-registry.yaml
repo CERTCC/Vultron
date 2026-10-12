@@ -538,9 +538,7 @@ groups:
       one-sided ceiling collects silent slack and a two-sided pin races every concurrent PR
       (`notes/testing-pitfalls.md`). `spec-coverage` prints the live uncovered total. `foundation` is guarded with
       `protocol` because every rule an implementer must obey needs a test (ADR-0133), and treating the two as one
-      set means a relabel from `protocol` to `foundation` is not a way around the guard. The story gate (SR-11-003)
-      stays `protocol`-only, because user stories describe Vultron behavior and inherited ActivityStreams,
-      ActivityPub and HTTP rules are not Vultron behavior.
+      set means a relabel from `protocol` to `foundation` is not a way around the guard.
     verification: >-
       `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_adds_an_uncovered_implementer_spec` fails on each ID
       uncovered since the merge base and runs in CI with full history, and `test/metadata/specs/test_growth_guard.py`
@@ -1054,7 +1052,10 @@ groups:
       in the spec corpus. Making story coverage a hard-error gate for this tier ensures
       every binding protocol requirement can be traced back to at least one stakeholder
       need. Suppressibility preserves an escape hatch for implementation-detail MUSTs
-      with no direct story antecedent.
+      with no direct story antecedent. The gate covers `protocol` only for now: user
+      stories for behavior Vultron inherits from ActivityStreams, ActivityPub and HTTP
+      (`kind: foundation`) are not yet backfilled (#2717, #4513), and the gate widens to
+      `foundation` once they are (ADR-0133).
     relationships:
     - rel_type: refines
       spec_id: SR-11-001

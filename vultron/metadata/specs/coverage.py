@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import argparse
 import re
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -38,7 +38,7 @@ from vultron.metadata.specs.registry import (
     find_repo_root,
     load_registry,
 )
-from vultron.metadata.specs.schema import IMPLEMENTER_KINDS
+from vultron.metadata.specs.schema import IMPLEMENTER_KINDS, SpecKind
 
 SPEC_MARKER_RE = re.compile(r'@pytest\.mark\.spec\(["\']([^"\']+)["\']\)')
 
@@ -152,6 +152,53 @@ def uncovered_implementer_ids(
         load_registry(repo_root / "specs"), marked_ids_in(test_sources)
     )
     return frozenset(report.uncovered)
+
+
+@dataclass(frozen=True)
+class KindAndMarker:
+    """One spec ID's kind, and whether any test marker covers it."""
+
+    kind: SpecKind
+    marked: bool
+
+
+def kinds_and_markers(
+    repo_root: Path, *, test_sources: Iterable[str] | None = None
+) -> dict[str, KindAndMarker]:
+    """Every spec ID under *repo_root* with its kind and marker state.
+
+    The reader behind the MS-12-011 kind-change guard, run on the working tree
+    and on a materialized base tree by
+    :func:`vultron.metadata.specs.growth_guard.compare_with_base`. Arguments
+    are as :func:`uncovered_implementer_ids` documents.
+    """
+    if test_sources is None:
+        test_sources = _read_sources(repo_root / "test")
+    marked = marked_ids_in(test_sources)
+    registry = load_registry(repo_root / "specs")
+    return {
+        spec_id: KindAndMarker(spec.kind, spec_id in marked)
+        for spec_id, spec in registry.all_specs.items()
+    }
+
+
+def markers_dropped_by_kind_change(
+    base: Mapping[str, KindAndMarker], head: Mapping[str, KindAndMarker]
+) -> frozenset[str]:
+    """IDs that changed kind and lost the marker they had at *base* (MS-12-011).
+
+    Whatever the destination kind, a kind change keeps the tests that already
+    verify the spec. An ID retired at *head* is not reported: retirement is not
+    a kind change.
+    """
+    return frozenset(
+        spec_id
+        for spec_id, was in base.items()
+        if was.marked
+        and (now := head.get(spec_id)) is not None
+        and now.kind != was.kind
+        and not now.marked
+    )
 
 
 def main() -> None:

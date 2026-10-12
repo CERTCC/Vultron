@@ -2050,8 +2050,25 @@ def test_protocol_code_reference_suppressed(tmp_path, capsys):
     assert "MS-12-006" not in captured.err
 
 
-def test_non_protocol_kind_with_code_reference_not_flagged(tmp_path, capsys):
-    """MS-12-006 scans protocol specs only; a project spec may name code."""
+@pytest.mark.spec("MS-12-006")
+def test_foundation_no_stories_code_reference_is_hard_error(tmp_path, capsys):
+    """A foundation spec naming this codebase's code is a mixed spec (MS-12-006)."""
+    spec_dir, data = _protocol_spec_naming_code(tmp_path, kind="foundation")
+    data["groups"][0]["specs"][0]["tags"] = ["http"]
+    write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    (line,) = _ms12_lines(capsys.readouterr().err)
+    assert result == 1
+    assert "TST-01-001" in line
+    assert "kind=foundation" in line
+    assert "MS-12-010" in line
+
+
+def test_non_implementer_kind_with_code_reference_not_flagged(
+    tmp_path, capsys
+):
+    """MS-12-006 scans protocol and foundation specs only; a project spec may
+    name code."""
     spec_dir, data = _protocol_spec_naming_code(tmp_path, kind="project")
     write_yaml(spec_dir, data)
     result = lint(spec_dir)

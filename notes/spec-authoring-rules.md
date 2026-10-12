@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Mechanical rules for authoring spec YAML: the five kinds and the MS-12
   decision tree for choosing one (who must obey a rule decides its kind,
-  ADR-0133), the split rule for a spec that mixes kinds, and why copying
+  ADR-0133), the split rule for a spec that mixes kinds, the rule that a
+  kind change keeps its tests and markers (MS-12-011), and why copying
   neighbouring entries is the wrong heuristic; the exact enum values
   spec-lint accepts for `kind`, `priority`, and `rel_type`; keys that are
   silently dropped; the PR-only marker-coverage and suppression growth
@@ -128,7 +129,8 @@ implementation-neutrally; the implementation detail gets a **new `project`
 ID** whose `relationships:` name the original. Keeping the original ID on the
 protocol half keeps its stories, test markers, and citations in place, so the
 PR-only growth guards (SR-05-005's uncovered protocol spec, MS-12-007's new
-`missing_story_reference`) do not trip.
+`missing_story_reference`) do not trip. The new `project` ID needs no marker,
+but the markers already on the original stay where they are (MS-12-011).
 
 Worked example — default-embargo creation:
 
@@ -188,6 +190,11 @@ the rule, which is split (MS-12-010). A message that prescribed a kind would
 repeat the literal reading ADR-0133 rejected — PR #4520 (#3601) applied it and
 moved genuine protocol rules to `project`.
 
+**`foundation` is scanned too.** A `foundation` statement that names this
+codebase's code also says how this codebase meets an inherited rule, so it is a
+mixed spec: split it (MS-12-010). The suppression code keeps its
+`protocol_kind_with_code_reference` name, which specs already carry.
+
 The general lesson, from ISSUE-3480: **an enforced MUST advertises itself through
 full compliance in the artifacts; an unenforced one anti-advertises.** A rule at
 half adoption reads to the next author as "no rule here" — worse than one at zero
@@ -215,6 +222,13 @@ consequences, each with a tool:
   guard never counts a relabel out as an addition, and a relabel from
   `protocol` to `foundation` keeps its marker; a relabel *into* either kind from
   another needs a marker in the same PR.
+- **Tests and markers stay (MS-12-011).** A kind change never removes the tests
+  or `@pytest.mark.spec` markers that already verify the spec, whatever the
+  destination kind: a relabel from `protocol` to `project` keeps both, though
+  `project` does not require them. The PR-only guard
+  `test_no_pr_drops_a_marker_while_changing_a_kind` (in
+  `test/architecture/test_spec_coverage_ratchet.py`) fails a PR in which a
+  relabeled ID lost every marker it had at the merge base.
 
 ### Valid `priority:` Values — Underscores, Not Spaces
 
@@ -426,8 +440,10 @@ why it cannot.
 
 The guard covers `kind: protocol` and `kind: foundation` together: every rule an
 implementer must obey needs a test, whether Vultron defines it or inherits it
-(ADR-0133). The story gate (SR-11-003) stays `protocol`-only, because user
-stories describe Vultron behavior and inherited rules are not Vultron behavior.
+(ADR-0133). The story gate (SR-11-003, SR-11-004) covers `protocol` only for
+now: user stories for behavior Vultron inherits from ActivityStreams, ActivityPub
+and HTTP are not yet backfilled (#2717, #4513), and the gate widens to
+`foundation` once they are. MS-12-006 covers both kinds.
 
 The PR-only growth guard
 (`test_no_pr_adds_an_uncovered_implementer_spec` in

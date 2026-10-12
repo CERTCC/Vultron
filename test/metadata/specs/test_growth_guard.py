@@ -14,7 +14,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from vultron.metadata.specs.coverage import uncovered_implementer_ids
+from vultron.metadata.specs.coverage import (
+    kinds_and_markers,
+    markers_dropped_by_kind_change,
+    uncovered_implementer_ids,
+)
 from vultron.metadata.specs.growth_guard import (
     BASE_REF_ENV,
     CI_ENV,
@@ -23,6 +27,7 @@ from vultron.metadata.specs.growth_guard import (
     BaseUnavailableError,
     added_since_base,
     base_ref_name,
+    compare_with_base,
     running_in_ci,
 )
 from vultron.metadata.specs.kind_classification import (
@@ -115,6 +120,15 @@ def _no_ci_base_ref(monkeypatch):
     """Run as a local checkout would, even when the suite runs in CI."""
     monkeypatch.delenv(BASE_REF_ENV, raising=False)
     monkeypatch.delenv(CI_ENV, raising=False)
+
+
+def _kind_change_drops(repo: Path) -> frozenset[str] | None:
+    seen = compare_with_base(
+        kinds_and_markers, repo_root=repo, paths=("specs", "test")
+    )
+    if seen.base_value is None:
+        return None
+    return markers_dropped_by_kind_change(seen.base_value, seen.head_value)
 
 
 # --- implementer-coverage guard (SR-05-005) ---------------------------------
@@ -266,6 +280,67 @@ def test_coverage_without_base_ref_skips_with_logged_reason(
     assert "origin/main" in check.skipped
     assert check.added == frozenset()
     assert check.skipped in caplog.text
+
+
+# --- kind-change marker guard (MS-12-011) -----------------------------------
+
+
+@pytest.mark.spec("MS-12-011")
+def test_kind_change_dropping_its_marker_is_reported(coverage_repo):
+    """protocol -> project still keeps the marker it had."""
+    _write_specs(
+        coverage_repo,
+        _spec("TST-01-001", "project"),
+        _spec("TST-01-002"),
+        _spec("TST-01-003", "project"),
+    )
+    _write_markers(coverage_repo)
+    assert _kind_change_drops(coverage_repo) == {"TST-01-001"}
+
+
+@pytest.mark.spec("MS-12-011")
+def test_kind_change_keeping_its_marker_is_not_reported(coverage_repo):
+    _write_specs(
+        coverage_repo,
+        _spec("TST-01-001", "project"),
+        _spec("TST-01-002"),
+        _spec("TST-01-003", "project"),
+    )
+    assert _kind_change_drops(coverage_repo) == frozenset()
+
+
+@pytest.mark.spec("MS-12-011")
+def test_marker_dropped_without_kind_change_is_not_this_guards(tmp_path):
+    """Dropping a project spec's marker with no relabel is not MS-12-011."""
+    repo = _repo(tmp_path, [_spec("TST-01-001", "project")], ["TST-01-001"])
+    _write_markers(repo)
+    assert _kind_change_drops(repo) == frozenset()
+
+
+@pytest.mark.spec("MS-12-011")
+def test_kind_change_of_unmarked_spec_is_not_reported(coverage_repo):
+    _write_specs(
+        coverage_repo,
+        _spec("TST-01-001"),
+        _spec("TST-01-002", "project"),
+        _spec("TST-01-003", "project"),
+    )
+    assert _kind_change_drops(coverage_repo) == frozenset()
+
+
+@pytest.mark.spec("MS-12-011")
+def test_retired_marked_spec_is_not_a_kind_change(coverage_repo):
+    _write_specs(
+        coverage_repo, _spec("TST-01-002"), _spec("TST-01-003", "project")
+    )
+    _write_markers(coverage_repo)
+    assert _kind_change_drops(coverage_repo) == frozenset()
+
+
+@pytest.mark.spec("MS-12-011")
+def test_kind_change_guard_without_base_ref_skips(coverage_repo):
+    _git(coverage_repo, "update-ref", "-d", "refs/remotes/origin/main")
+    assert _kind_change_drops(coverage_repo) is None
 
 
 # --- missing_story_reference guard (MS-12-007) -------------------------------

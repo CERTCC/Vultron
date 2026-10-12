@@ -7,9 +7,9 @@ carrying a corrected kind. ADR-0133 then settled what the tree asks: who must
 obey a rule decides its kind, and naming code never does (MS-12-002). These
 mechanical checks back it:
 
-- :func:`check_protocol_kind_code_references` — MS-12-006. A ``kind: protocol``
-  spec that traces to no user story and whose ``statement`` names an
-  unambiguous codebase construct is a hard error.
+- :func:`check_implementer_kind_code_references` — MS-12-006. A ``kind:
+  protocol`` or ``kind: foundation`` spec that traces to no user story and
+  whose ``statement`` names an unambiguous codebase construct is a hard error.
 - :func:`check_foundation_standard_tags` — MS-12-009. A ``kind: foundation``
   spec names the standard it inherits from with one of
   :data:`~vultron.metadata.specs.schema.FOUNDATION_STANDARD_TAGS`.
@@ -55,6 +55,7 @@ from pathlib import Path
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
 from vultron.metadata.specs.schema import (
     FOUNDATION_STANDARD_TAGS,
+    IMPLEMENTER_KINDS,
     BehavioralSpec,
     LintWarningCode,
     SpecKind,
@@ -111,10 +112,14 @@ def code_reference_in(
     return None
 
 
-def check_protocol_kind_code_references(registry: SpecRegistry) -> list[str]:
-    """Hard errors for story-less protocol specs that name code (MS-12-006).
+def check_implementer_kind_code_references(
+    registry: SpecRegistry,
+) -> list[str]:
+    """Hard errors for story-less implementer specs that name code (MS-12-006).
 
-    The population is ``kind: protocol`` with no ``stories:``. Priority is not
+    The population is ``kind: protocol`` or ``kind: foundation``
+    (:data:`IMPLEMENTER_KINDS`) with no ``stories:``. A foundation spec that
+    names this codebase's code is a mixed spec, split as MS-12-010 directs. Priority is not
     a gate — MS-12-006, unlike SR-11-003, applies to every tier — so a SHOULD
     or MAY that names a ``test/`` path is reported too. Suppressible per spec
     via ``lint_suppress: [protocol_kind_with_code_reference]``.
@@ -125,7 +130,7 @@ def check_protocol_kind_code_references(registry: SpecRegistry) -> list[str]:
     """
     errors: list[str] = []
     for spec_id, spec in registry.all_specs.items():
-        if spec.kind != SpecKind.PROTOCOL or spec.stories:
+        if spec.kind not in IMPLEMENTER_KINDS or spec.stories:
             continue
         if LintWarningCode.PROTOCOL_KIND_WITH_CODE_REFERENCE in set(
             spec.lint_suppress or []
@@ -136,7 +141,7 @@ def check_protocol_kind_code_references(registry: SpecRegistry) -> list[str]:
             continue
         field, token = hit
         errors.append(
-            f"{spec_id}: kind=protocol with no stories: but its {field} "
+            f"{spec_id}: kind={spec.kind.value} with no stories: but its {field} "
             f"references the codebase construct '{token}' (MS-12-006). "
             f"Naming code does not decide a spec's kind (MS-12-002). Reword "
             f"the statement so any implementation could obey it, or split the "
@@ -153,8 +158,9 @@ def check_foundation_standard_tags(registry: SpecRegistry) -> list[str]:
 
     A ``foundation`` rule is inherited from a standard beneath Vultron, and its
     effective tags (its own, or its file's when it has none of its own) MUST
-    name which one with at least one of :data:`FOUNDATION_STANDARD_TAGS`. Not suppressible: the tag is what
-    lets a reader trace the rule to the standard that owns it.
+    name which one with at least one of :data:`FOUNDATION_STANDARD_TAGS`. Not
+    suppressible: the tag is what lets a reader trace the rule to the standard
+    that owns it.
     """
     wanted = ", ".join(sorted(tag.value for tag in FOUNDATION_STANDARD_TAGS))
     return [
@@ -214,7 +220,7 @@ def suppression_status_lines(registry: SpecRegistry) -> list[str]:
 
 __all__ = [
     "check_foundation_standard_tags",
-    "check_protocol_kind_code_references",
+    "check_implementer_kind_code_references",
     "code_reference_in",
     "missing_story_suppression_carriers",
     "suppression_carriers",

@@ -29,14 +29,25 @@ No count is committed, so concurrent PRs cannot race on it (#4315,
 PR"). ``spec-coverage`` prints the live uncovered total. When no base ref is
 available the test skips with the reason; under GitHub Actions it fails.
 
-Spec: SR-05-005.
+A second guard, :func:`test_no_pr_drops_a_marker_while_changing_a_kind`,
+holds the MS-12-011 rule: a spec whose kind changes keeps the markers it had,
+whatever the destination kind.
+
+Specs: SR-05-005, MS-12-011.
 """
 
 import pytest
 
 from test.architecture import _corpus
-from vultron.metadata.specs.coverage import uncovered_implementer_ids
-from vultron.metadata.specs.growth_guard import added_since_base
+from vultron.metadata.specs.coverage import (
+    kinds_and_markers,
+    markers_dropped_by_kind_change,
+    uncovered_implementer_ids,
+)
+from vultron.metadata.specs.growth_guard import (
+    added_since_base,
+    compare_with_base,
+)
 
 #: The trees :func:`uncovered_implementer_ids` reads.
 _GUARDED_PATHS = ("specs", "test")
@@ -68,4 +79,34 @@ def test_no_pr_adds_an_uncovered_implementer_spec():
         'Add @pytest.mark.spec("<ID>") to the test that verifies each one, '
         "in this PR. If the behaviour is not built yet, use the strict-xfail "
         "pattern in notes/spec-authoring-rules.md § Marker Coverage Guard.",
+    )
+
+
+@pytest.mark.spec_corpus
+@pytest.mark.spec("MS-12-011")
+def test_no_pr_drops_a_marker_while_changing_a_kind():
+    """No ID that changed kind since the base lost the marker it had there."""
+    head = kinds_and_markers(
+        _corpus.REPO_ROOT,
+        test_sources=(
+            source for _, source in _corpus.all_sources(under=_TEST_ROOT)
+        ),
+    )
+    seen = compare_with_base(
+        kinds_and_markers,
+        repo_root=_corpus.REPO_ROOT,
+        paths=_GUARDED_PATHS,
+        head=head,
+    )
+    if seen.skipped is not None:
+        pytest.skip(seen.skipped)
+    assert seen.base_value is not None
+    dropped = markers_dropped_by_kind_change(seen.base_value, head)
+    assert not dropped, (
+        f"{len(dropped)} spec(s) changed kind and lost the "
+        f"@pytest.mark.spec marker they had at the merge base "
+        f"(MS-12-011): {sorted(dropped)}. A kind change keeps the tests that "
+        f"already verify a spec, whatever the destination kind: restore the "
+        f"marker. If this lists specs the branch did not touch, run "
+        f"`git fetch origin` and retry."
     )

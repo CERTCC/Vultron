@@ -37,7 +37,7 @@ import pytest
 from test.architecture import _corpus
 from vultron.metadata.specs.growth_guard import added_since_base
 from vultron.metadata.specs.kind_classification import (
-    check_protocol_kind_code_references,
+    check_implementer_kind_code_references,
     missing_story_suppression_carriers,
     suppression_carriers,
 )
@@ -58,7 +58,7 @@ def test_live_corpus_has_no_unsuppressed_protocol_kind_code_references():
     suppression — naming code does not decide a kind (MS-12-002).
     """
     registry = load_registry(_SPEC_DIR)
-    errors = check_protocol_kind_code_references(registry)
+    errors = check_implementer_kind_code_references(registry)
     assert errors == [], (
         f"{len(errors)} story-less protocol spec(s) reference code "
         f"(MS-12-006). Reword or split each (MS-12-010); do not relabel:\n"

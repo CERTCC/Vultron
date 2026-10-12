@@ -268,8 +268,9 @@ class SpecTag(StrEnum):
 
 
 #: The kinds every Vultron implementation must obey: the kinds an implementer
-#: reads, and the kinds whose every requirement needs a test marker (SR-05-004,
-#: SR-05-005, ADR-0133). The story gate (SR-11-003) stays ``protocol``-only.
+#: reads (ADR-0133). The marker-coverage guard (SR-05-004, SR-05-005) and the
+#: code-reference detector (MS-12-006) cover both; the story gate (SR-11-003)
+#: names its own population.
 IMPLEMENTER_KINDS: frozenset[SpecKind] = frozenset(
     {SpecKind.PROTOCOL, SpecKind.FOUNDATION}
 )
