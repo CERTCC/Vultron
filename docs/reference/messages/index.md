@@ -9,33 +9,33 @@ contents: generated
 
 # Message Types
 
-Vultron describes its protocol messages in two vocabularies, and they do not
-correspond one-to-one:
+Each row of the table below is an [occasion](../glossary.md#messaging-and-protocol): a situation in a Coordinated Vulnerability Disclosure (CVD) case that a sender conveys with a wire activity.
+The row names the activity to send, who may send it, and the section that documents it.
+Where several rows share one activity, a field value or the receiver's Embargo Management (EM) state tells them apart.
+The groups follow the case lifecycle, then the protocol mechanics that carry it.
 
-- The **formal message set** is 28 shorthand symbols, partitioned by which state
-  machine a message belongs to — Report Management (RM), Embargo Management (EM),
-  Case State (CS), and General (GI). It is normative and versioned with the
-  protocol. See [Message Types](../formal_protocol/messages.md) and
-  [Transitions](../formal_protocol/transitions.md).
-- The **AS2 wire vocabulary** is the set of ActivityStreams 2.0 (AS2) activities
-  the prototype sends and receives, keyed by `MessageSemantics`. See the
-  [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md).
+{% include-markdown "./_occasions/lookup.md" %}
 
-The mapping between the two is **many-to-many in both directions**, and roughly
-half the wire vocabulary has no formal shorthand at all. A shorthand and a wire
-activity are not interchangeable names for one thing. The design rationale for
-keeping the two vocabularies distinct is recorded in
-[ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)
-and explained in
-[Activity Vocabulary Design](../../topics/activity_vocabulary_design.md), which
-also covers the verb choices and the `Create`/`Add` split that produce the
-collapses and expansions cataloged here.
+## Two vocabularies
+
+Vultron describes its protocol messages in two vocabularies, and they do not correspond one-to-one:
+
+- The **formal message set** is 28 shorthand symbols, partitioned by which state machine a message belongs to — Report Management (RM), Embargo Management (EM), Case State (CS), and General (GI).
+  It is normative and versioned with the protocol.
+  See [Message Types](../formal_protocol/messages.md) and [Transitions](../formal_protocol/transitions.md).
+- The **AS2 wire vocabulary** is the set of ActivityStreams 2.0 (AS2) activities the prototype sends and receives, keyed by `MessageSemantics`.
+  See the [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md).
+
+The mapping between the two is **many-to-many in both directions**, and roughly half the wire vocabulary has no formal shorthand at all.
+A shorthand and a wire activity are not interchangeable names for one thing.
+The design rationale for keeping the two vocabularies distinct is recorded in [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md).
+[Activity Vocabulary Design](../../topics/activity_vocabulary_design.md) explains it, along with the verb choices and the `Create`/`Add` split that produce the collapses and expansions cataloged here.
 
 ## The pages
 
-Each page opens with a rendered mapping table and then gives one section per
-message type, stating protocol role, triggering transition, the wire activity
-that conveys it, any discriminating payload field, and a rendered example.
+Each page opens with its slice of the occasion table.
+One section per occasion follows, stating when it applies, the wire activity to send, who may send it, the field or state that distinguishes it, its mapping status, and a rendered example.
+The four formal-model pages end with a section for each shorthand that has no dedicated wire activity.
 
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
@@ -50,31 +50,25 @@ that conveys it, any discriminating payload field, and a rendered example.
 
 <!-- END GENERATED SECTION CONTENTS -->
 
-## How to read the mapping tables
+## Mapping status
 
-Every row joins one `MessageSemantics` wire activity to its formal shorthand(s).
-The **Status** column states the kind of relationship:
+Each occasion section states its entry's **mapping status**, the relationship between the wire activity and the formal shorthands:
 
 | Status | Meaning |
 |---|---|
 | `direct` | One shorthand maps to exactly one wire activity. |
-| `collapse` | Several shorthands share one wire activity. Multiple shorthands appear in a single row; the **Discriminator** column names the payload field (or context) that distinguishes them. |
-| `expansion` | One shorthand is realized by several wire activities. The same shorthand appears in more than one row. |
+| `collapse` | Several shorthands share one wire activity. A field value or the receiver's state distinguishes them, as the section's **Distinguished by** line states. |
+| `expansion` | One shorthand is realized by several wire activities, so the same shorthand appears in more than one section. |
 | `evolved` | The shorthand's purpose is served by a mechanism partitioned on a different axis (fault reporting or cumulative acknowledgment), not by a dedicated wire activity. |
-| `—` | The wire activity has no formal shorthand counterpart. |
+| `none` | The wire activity has no formal shorthand counterpart. |
 
-Reading the many-to-many relationship from a table:
+Two examples show the many-to-many relationship:
 
-- **Multiple shorthands in one row** is a collapse — for example `CP CX CA`
-  ride a single `Add(CaseStatus)`, discriminated by `pxa_state`.
-- **One shorthand across multiple rows** is an expansion — for example `GI`
-  spans the note lifecycle and the actor-suggestion exchange.
+- `CP`, `CX` and `CA` are a collapse: all three ride `Add(CaseStatus)`, distinguished by `pxa_state`.
+- `GI` is an expansion: it spans the note lifecycle and the actor-suggestion exchange.
 
-The `evolved` shorthands (`RE`, `EE`, `CE`, `GE`, `EK`, `CK`, `GK`) have no
-dedicated wire activity. Faults are conveyed by `Create(ProcessingFault)`,
-`as:Reject`, or `Create(Note)`, partitioned by failure mode. Acknowledgment of
-ledger-replicated state is cumulative and implicit through hash-chain continuity;
-`RK` survives as a real wire activity because report submission is not
-ledger-replicated. See
-[ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)
-for the full treatment.
+The shorthands `RE`, `EE`, `CE`, `GE`, `EK`, `CK` and `GK` have no dedicated wire activity.
+Faults are conveyed by `Create(ProcessingFault)`, `as:Reject`, or `Create(Note)`, partitioned by failure mode.
+Acknowledgment of ledger-replicated state is cumulative and implicit through hash-chain continuity.
+`RK` survives as a real wire activity because report submission is not ledger-replicated.
+[Faults and Acknowledgments](faults_and_acknowledgements.md) describes both mechanisms, and [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) records the decision.

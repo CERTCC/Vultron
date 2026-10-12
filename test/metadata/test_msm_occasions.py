@@ -50,6 +50,9 @@ from vultron.semantic_registry._occasion import (
 _ROOT = Path(__file__).parents[2]
 _DOCS = _ROOT / "docs"
 _FRAGMENTS = _ROOT / gen.FRAGMENT_DIR
+_MESSAGES = _FRAGMENTS.parent
+#: The fragment directory as the pages' include directives name it.
+_FROM_PAGES = _FRAGMENTS.relative_to(_MESSAGES).as_posix()
 _LINK = re.compile(r"\]\(([^)\s]+)\)")
 
 
@@ -544,8 +547,8 @@ def test_table_links_target_the_group_page_and_a_generated_section(table):
     """Each Details link in a committed slice names its group's page and the
     anchor of one of that group's rows, whose section fragment exists.
 
-    Whether the anchor resolves on the page itself waits for #4431, which
-    includes the sections there.
+    That the page includes that section is
+    ``test_each_message_page_includes_its_slice_and_each_section_once``.
     """
     for group in table.groups:
         slice_path = _FRAGMENTS / f"lookup-{group.page.value}.md"
@@ -564,20 +567,108 @@ def test_table_links_target_the_group_page_and_a_generated_section(table):
 
 
 @pytest.mark.spec("MSM-06-001")
-@pytest.mark.xfail(
-    strict=True,
-    reason="#4431 moves the message pages onto the generated fragments",
-)
 def test_no_message_page_renders_its_table_at_build_time():
-    """The end state MSM-06-001 requires: no page under
-    ``docs/reference/messages/`` prints a mapping table from an exec block.
-    #4431 must remove this marker when it rebuilds the pages."""
+    """No page under ``docs/reference/messages/`` prints a mapping table
+    from an exec block (MSM-06-001).  Its examples render inside the
+    included sections, so a page carries no exec block of its own."""
     rendering = sorted(
         page.name
-        for page in (_DOCS / "reference/messages").glob("*.md")
-        if "render_page(" in page.read_text(encoding="utf-8")
+        for page in _MESSAGES.glob("*.md")
+        if "```python exec=" in page.read_text(encoding="utf-8")
     )
     assert rendering == []
+
+
+# ---------------------------------------------------------------------------
+# The pages that include the fragments (MSM-08-004, #4431).
+# ---------------------------------------------------------------------------
+
+_INCLUDE = re.compile(r'\{%\s*include-markdown\s+"([^"]+)"')
+
+
+def _includes(page: Path) -> list[str]:
+    """The fragments *page* includes, as paths relative to the pages."""
+    found = _INCLUDE.findall(page.read_text(encoding="utf-8"))
+    return [posixpath.normpath(path) for path in found]
+
+
+def _section(anchor: str) -> str:
+    return f"{_FROM_PAGES}/sections/{anchor}.md"
+
+
+def _slice(page: str) -> str:
+    return f"{_FROM_PAGES}/lookup-{page}.md"
+
+
+@pytest.mark.spec("MSM-06-001")
+def test_the_message_types_page_opens_with_the_whole_table():
+    """AC-1 of #4431: the whole table comes before the page's first ``##``."""
+    text = (_MESSAGES / "index.md").read_text(encoding="utf-8")
+    directive = text.index(f'"./{_FROM_PAGES}/lookup.md"')
+    assert directive < text.index("\n## ")
+    assert _includes(_MESSAGES / "index.md") == [f"{_FROM_PAGES}/lookup.md"]
+
+
+@pytest.mark.spec("MSM-08-004")
+def test_each_message_page_includes_its_slice_and_each_section_once(table):
+    """Each occasion anchor resolves to exactly one section on its page: the
+    page includes the section once, no other message page includes it, and
+    no hand-written heading on the page takes the same anchor."""
+    owners: dict[str, list[str]] = {}
+    for page in sorted(_MESSAGES.glob("*.md")):
+        for path in _includes(page):
+            owners.setdefault(path, []).append(page.stem)
+    for group in table.groups:
+        page = _MESSAGES / f"{group.page.value}.md"
+        included = _includes(page)
+        assert included.count(_slice(group.page.value)) == 1, page
+        hand_written = _slugs(page)
+        for row in group.occasions:
+            assert owners.get(_section(row.anchor)) == [page.stem], row.anchor
+            assert row.anchor not in hand_written, (page, row.anchor)
+
+
+@pytest.mark.spec("MSM-08-004")
+def test_every_included_section_is_referenced_by_a_row_of_its_page(table):
+    """Every occasion section a page includes is the target of a Details
+    link in the slice that page includes, and the page includes nothing
+    else from the fragment directory."""
+    by_page = {group.page.value: group for group in table.groups}
+    for page in sorted(_MESSAGES.glob("*.md")):
+        if page.stem == "index":
+            continue
+        included = [
+            p for p in _includes(page) if p.startswith(f"{_FROM_PAGES}/")
+        ]
+        group = by_page[page.stem]
+        slice_path = _MESSAGES / _slice(page.stem)
+        targets = _LINK.findall(slice_path.read_text(encoding="utf-8"))
+        resolved = [_resolve(slice_path, target) for target in targets]
+        linked = {anchor for path, anchor in resolved if path == page}
+        sections = {
+            Path(path).stem
+            for path in included
+            if path.startswith(f"{_FROM_PAGES}/sections/")
+        }
+        assert sections == linked == {row.anchor for row in group.occasions}
+        assert len(included) == len(sections) + 1, page
+
+
+@pytest.mark.spec("MSM-06-003")
+def test_every_section_links_its_mapping_status_to_its_definition(table):
+    """A section states its entry's status, linked to the definitions on the
+    Message Types page, which carry every status value."""
+    index = _MESSAGES / gen.STATUS_PAGE
+    assert gen.STATUS_ANCHOR in _slugs(index)
+    text = index.read_text(encoding="utf-8")
+    for status in MappingStatus:
+        assert f"| `{status.value}` |" in text, status
+    for _, row in _rows(table).values():
+        section = gen.render_section(row)
+        assert (
+            f"- **Mapping status:** [{row.status.value}]"
+            f"(../../{gen.STATUS_PAGE}#{gen.STATUS_ANCHOR})"
+        ) in section, row.anchor
 
 
 def test_no_fragment_is_exempt_from_lint_docs():

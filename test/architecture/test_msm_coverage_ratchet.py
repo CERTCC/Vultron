@@ -25,10 +25,12 @@ construction cannot see.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from pathlib import Path
+
 import pytest
 
 from vultron.core.models.events.base import MessageSemantics
-from vultron.metadata.msm import render_page
+from vultron.metadata.msm import occasions as gen
 from vultron.metadata.msm._mapping import (
     EXEMPTED_SEMANTICS,
     PAGE_SLUGS,
@@ -36,6 +38,9 @@ from vultron.metadata.msm._mapping import (
 )
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.semantic_registry._entry import SemanticEntry
+
+_FRAGMENTS = Path(__file__).parents[2] / gen.FRAGMENT_DIR
+_MESSAGES = _FRAGMENTS.parent
 
 _PAGED: list[SemanticEntry] = [
     e for e in SEMANTIC_REGISTRY if e.semantics not in EXEMPTED_SEMANTICS
@@ -72,10 +77,13 @@ def test_exempt_entries_name_no_page():
 @pytest.mark.spec("MSM-06-002")
 @pytest.mark.parametrize("entry", _PAGED, ids=lambda e: e.semantics.name)
 def test_entry_appears_on_its_designated_page(entry: SemanticEntry):
-    """The entry's page renders a row for it."""
+    """The entry's page includes the section of each of its occasions."""
     assert entry.page is not None
-    rendered = render_page(entry.page.value, heading=False)
-    assert f"| `{entry.semantics.name}` |" in rendered
+    text = (_MESSAGES / f"{entry.page.value}.md").read_text(encoding="utf-8")
+    for occasion in entry.occasions:
+        section = _FRAGMENTS / "sections" / f"{occasion.anchor}.md"
+        directive = f'"./{section.relative_to(_MESSAGES).as_posix()}"'
+        assert directive in text, occasion.anchor
 
 
 @pytest.mark.spec("MSM-06-002")

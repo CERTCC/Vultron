@@ -390,11 +390,11 @@ Four choices there are not obvious from the code:
 - **Fragments render from the YAML, re-parsed, not from the registry.** So the
   YAML carries every fact a fragment shows, and the later "Send to" (#4438) and
   "Seen in" (#4432) columns are a field on `OccasionRow` plus a renderer change.
-- **The fragments are in `exclude_docs`.** Built alone, a table's links point at
-  anchors its page does not have until it includes the sections (#4431), and
-  each fragment would publish a URL. `include-markdown` reads excluded files from
-  disk, and `docs-frontmatter` treats an excluded file no page includes as
-  neither page nor fragment.
+- **The fragments are in `exclude_docs`.** Built alone, a table's links would be
+  checked against the wrong page, and each fragment would publish a URL.
+  `include-markdown` reads excluded files from disk, so the links are checked on
+  the host page, and `docs-frontmatter` treats an excluded file no page
+  includes as neither page nor fragment.
 - **The example stays an exec block inside the section fragment.** Its JSON
   carries no link, and its IDs are minted per run, so a committed copy could
   never pass `--check`.
@@ -403,8 +403,35 @@ Four choices there are not obvious from the code:
   splits the cell at a bare `|`, and `markdownlint --fix` rewrites an
   unprotected `(Event)[context=…]` as a reversed link.
 
-Until #4431 rebuilds the pages on these fragments, the pages still render their
-old tables as described below.
+### The pages that include them (#4431)
+
+`messages/index.md` opens with `lookup.md`, and each message page includes its
+slice and then one section per occasion. Hand-written text stays on the page
+around the includes: the introduction, an addendum after a section (triggering
+transition, second wire forms, refusal rules), and the sections for the
+shorthands with no dedicated wire activity. An addendum follows the section's
+JSON example, because the example is the section's last block. Sections follow
+the slice's dispatch order except on `em.md`, which keeps its earlier reading order
+and groups the Case Owner's two decisions under one heading with
+`heading-offset=1`.
+
+Two details are easy to get wrong:
+
+- **Include paths start with `./`.** `include-markdown` resolves a path without
+  a `./` or `../` prefix against `docs/`, not against the including page, so
+  `"_occasions/lookup.md"` finds nothing.
+- **The mapping status is in the section, not the table.** MSM-06-003 used to
+  ask for a status column on the old per-page mapping tables. The occasion
+  table's columns serve a sender, so each generated section states its
+  entry's status, linked to the definitions on `messages/index.md`; the spec
+  was revised to say so. `render.py` and its `render_page` went with the old
+  tables.
+
+`test_msm_occasions.py` checks the pages over their sources: each page includes
+its slice once, each section once and on no other page, every included section
+is a row of the slice, and no page has an exec block of its own (MSM-06-001,
+MSM-08-004). `mkdocs build --strict` and `docs-links` check that the links and
+anchors resolve once rendered.
 
 ### Planning decisions (#4418)
 
@@ -519,8 +546,8 @@ states (the EM state that separates `EP` from `EV` on `Invite(Event)`)
 
 ## Examples are rendered at build time
 
-The examples are still `markdown_exec` blocks calling
-`vultron.wire.as2.vocab.examples.vocab_examples`, now inside each generated
+The examples are `markdown_exec` blocks calling
+`vultron.wire.as2.vocab.examples.vocab_examples`, inside each generated
 occasion section. Build-time rendering cannot go stale, and an example carries
 no link. The tables are the part that moved: they are committed
 `include-markdown` fragments (#4430), because MkDocs does not rewrite a `.md`
@@ -530,11 +557,11 @@ Check) — and a lookup table is mostly links.
 Two patterns are easy to confuse. `docs/reference/specs/protocol.md` is the
 exemplar for the **mapping tables** — a thin `markdown_exec` shell over
 `vultron.metadata.specs.docs_render.render_for_kind`. It does *not* render wire
-examples. For the **examples** themselves, follow `docs/reference/messages/*.md`
-and `docs/reference/activitypub/objects.md`, which are the pages that call
-`vocab_examples`. A wire example *copied* into the how-to tree is a collapse
-re-forming; one *included* from the occasion's fragment is not (see the Diátaxis
-section above).
+examples. For the **examples** themselves, follow the generated sections under
+`docs/reference/messages/_occasions/sections/` and
+`docs/reference/activitypub/objects.md`, which call `vocab_examples`. A wire
+example *copied* into the how-to tree is a collapse re-forming; one *included*
+from the occasion's fragment is not (see the Diátaxis section above).
 
 A new example function needs a matching `obj_to_file` call in
 `vocab_examples.main()` or `test_vocab_examples_current.py` fails on the file-list

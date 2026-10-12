@@ -10,6 +10,7 @@ Announces evidence that the vulnerability is known to the public.
 - **Distinguished by:** `pxa_state` = `Pxa`
 - **How-to:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [Public Awareness (CP)](../../../formal_protocol/messages.md#cs-message-types)
+- **Mapping status:** [collapse](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

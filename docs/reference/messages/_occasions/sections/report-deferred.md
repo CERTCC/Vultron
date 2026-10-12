@@ -9,6 +9,7 @@ Ignores the case, moving the sender's RM state to Deferred. Deferring is a case-
 - **Sent by:** an active participant
 - **How-to:** [How to Advance a Case Through Report Management](../../../../howto/activitypub/activities/manage_case.md)
 - **Formal definition:** [Report/Case Deferred (RD)](../../../formal_protocol/messages.md#rm-message-types)
+- **Mapping status:** [direct](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

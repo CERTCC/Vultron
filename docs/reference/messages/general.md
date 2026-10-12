@@ -7,105 +7,49 @@ description: >
 
 # General (GI) Messages
 
-The General shorthands cover messages not tied to a specific state change. `GI`
-**expands** across the note lifecycle and the actor-suggestion handshake; the
-mapping table below lists each wire activity it covers.
+The General shorthands cover messages not tied to a specific state change.
+`GI` **expands** across the note lifecycle and the actor-suggestion handshake; the occasion table below lists each wire activity it covers.
 
-## Message mapping
+## Occasions
 
-```python exec="true" idprefix=""
-from vultron.metadata.msm.render import render_page
-
-# heading=False omits render_page's "## <model> Messages" heading so it does
-# not duplicate this page's H1. The table is the #2998-rendered artifact.
-print(render_page("general", heading=False))
-```
+{% include-markdown "./_occasions/lookup-general.md" %}
 
 ## GI — General Inquiry
 
-- **Protocol role:** Communicates non-state-change information — asking or
-  answering a question, requesting a status update or a draft review,
-  suggesting a Participant for a case, or resolving a loss of state
-  synchronization.
+- **Protocol role:** Communicates non-state-change information — asking or answering a question, requesting a status update or a draft review, suggesting a Participant for a case, or resolving a loss of state synchronization.
 - **Triggering transition:** none (any time).
-- **Wire activities:** `GI` expands across the note lifecycle
-  (`Create(Note)`, `Add(Note)[target=VulnerabilityCase]`,
-  `Remove(Note)[target=VulnerabilityCase]`) and the actor-suggestion handshake
-  (`Offer(Actor)[target=VulnerabilityCase]`,
-  `Offer(CaseParticipant)[target=VulnerabilityCase]`, and its `Accept`/`Reject`).
+- **Wire activities:** `GI` expands across the actor-suggestion handshake and the note lifecycle, one section each below.
   Suggesting a Participant is a `GI` inquiry, not a case-management message.
-- **Who may send:**
-  The CASE_MANAGER accepts `Remove(Note)[target=VulnerabilityCase]` from the note's author while that author is an active participant, or from the Case Owner.
-  It accepts `Add(VulnerabilityReport)[target=VulnerabilityCase]` only from the Case Owner.
-  Any other sender is refused, and the note stays in the case or the report stays out of it.
-  A participant replica accepts either message only from the CASE_MANAGER, because replicas learn of the change from the ledger entry the CASE_MANAGER fans out.
-- **How-to:** [How to Post a Status Update or a Case Note](../../howto/activitypub/activities/status_updates.md)
-  (notes); [How to Suggest an Actor for a Case](../../howto/activitypub/activities/suggest_actor.md)
-  (actor suggestion).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#other-message-types).
 
-A note minted for a case:
+{% include-markdown "./_occasions/sections/suggest-actor-to-case.md" %}
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_note, json2md
+{% include-markdown "./_occasions/sections/offer-case-participant.md" %}
 
-print(json2md(create_note()))
-```
+The CASE_MANAGER forwards the recommendation to the Case Owner as `Offer(CaseParticipant)`, carrying the original recommendation's ID in `origin` and the default roles it assigned.
 
-The same note attached to the case:
+{% include-markdown "./_occasions/sections/accept-case-participant-offer.md" %}
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_note_to_case, json2md
+The Case Owner's decision goes back to the CASE_MANAGER, which relays the outcome to the recommender.
 
-print(json2md(add_note_to_case()))
-```
-
-The note withdrawn from the case:
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import remove_note_from_case, json2md
-
-print(json2md(remove_note_from_case()))
-```
-
-Suggesting an actor for a case:
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import recommend_actor, json2md
-
-print(json2md(recommend_actor()))
-```
-
-The CASE_MANAGER forwards the recommendation to the Case Owner as
-`Offer(CaseParticipant)`, carrying the original recommendation's ID in `origin`
-and the default roles it assigned:
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_participant, json2md
-
-print(json2md(offer_case_participant()))
-```
-
-The Case Owner's decision goes back to the CASE_MANAGER, which relays the outcome
-to the recommender:
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import accept_case_participant_offer, json2md
-
-print(json2md(accept_case_participant_offer()))
-```
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_participant_offer, json2md
-
-print(json2md(reject_case_participant_offer()))
-```
+{% include-markdown "./_occasions/sections/reject-case-participant-offer.md" %}
 
 This handshake is a `GI` inquiry rather than a role offer.
-For the `CVDRole` delegation that uses a dedicated object type, see
-[Case Management Messages](case_management.md).
+For the `CVDRole` delegation that uses a dedicated object type, see [Offer case participant role](case_management.md#offer-case-participant-role).
 
-## GK — General Acknowledgment
+{% include-markdown "./_occasions/sections/create-note.md" %}
+
+{% include-markdown "./_occasions/sections/add-note-to-case.md" %}
+
+{% include-markdown "./_occasions/sections/remove-note-from-case.md" %}
+
+- **Who may send:** the CASE_MANAGER accepts `Remove(Note)[target=VulnerabilityCase]` from the note's author while that author is an active participant, or from the Case Owner.
+  Any other sender is refused, and the note stays in the case.
+  A participant replica accepts it only from the CASE_MANAGER, because replicas learn of the change from the ledger entry the CASE_MANAGER fans out.
+
+## Formal messages with no dedicated wire activity
+
+### GK — General Acknowledgment
 
 - **Protocol role:** Acknowledges receipt of a `GI` message.
 - **Triggering transition:** any valid `GI` message.
@@ -114,7 +58,7 @@ For the `CVDRole` delegation that uses a dedicated object type, see
   ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#other-message-types).
 
-## GE — General Error
+### GE — General Error
 
 - **Protocol role:** Indicates a general error has occurred.
 - **Triggering transition:** any unexpected `GI` message.
