@@ -7,6 +7,7 @@ Tells the sender that its message was received but not understood. It names the 
 - **When…** a Participant has received a message it cannot process
 - **Send:** `Create(ProcessingFault)`
 - **Sent by:** not yet checked
+- **Mapping status:** [evolved](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

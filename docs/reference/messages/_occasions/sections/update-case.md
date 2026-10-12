@@ -7,6 +7,7 @@ Sends the changed case object, for example after a title edit or an applied owne
 - **When…** the Case Manager has recorded a change to the case object
 - **Send:** `Update(VulnerabilityCase)`
 - **Sent by:** not yet checked
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

@@ -9,6 +9,7 @@ Rejects the Full-Case Invite, which records RM Closed. It carries the sender's o
 - **Sent by:** the invitee
 - **How-to:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)
 - **Formal definition:** [Report Closed (RC)](../../../formal_protocol/messages.md#rm-message-types)
+- **Mapping status:** [expansion](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

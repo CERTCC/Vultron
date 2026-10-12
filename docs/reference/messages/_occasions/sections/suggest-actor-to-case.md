@@ -9,6 +9,7 @@ Recommends an actor to the Case Manager for the case named by the target.
 - **Sent by:** an active participant
 - **How-to:** [How to Suggest an Actor for a Case](../../../../howto/activitypub/activities/suggest_actor.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
+- **Mapping status:** [expansion](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

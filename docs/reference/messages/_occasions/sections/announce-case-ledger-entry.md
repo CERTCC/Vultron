@@ -7,6 +7,7 @@ Fans out the newly committed ledger entry to each active participant.
 - **When…** the Case Manager has committed a case event to the case ledger
 - **Send:** `Announce(CaseLedgerEntry)`
 - **Sent by:** the case manager
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

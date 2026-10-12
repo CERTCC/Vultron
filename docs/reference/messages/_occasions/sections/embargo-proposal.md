@@ -10,6 +10,7 @@ Proposes embargo terms, such as an end date and time.
 - **Distinguished by:** EM state `NONE` or `PROPOSED`
 - **How-to:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)
 - **Formal definition:** [Embargo Proposal (EP)](../../../formal_protocol/messages.md#em-message-types)
+- **Mapping status:** [collapse](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (
