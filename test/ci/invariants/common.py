@@ -41,6 +41,7 @@ from vultron.demo.helpers.ledger_dump import (
     DUMP_MANIFEST_FILENAME,
     default_devlogs_root,
 )
+from vultron.demo.helpers.milestones import case_closure_violations
 from vultron.enums.roles import CVDRole
 
 # ---------------------------------------------------------------------------
@@ -652,6 +653,76 @@ def check_rm_closed_termination(
         for p, s in latest_rm.items()
         if s.upper() not in ("CLOSED", "RM.CLOSED")
     ]
+
+
+#: The dump manifest's ``actorName`` of the CASE_MANAGER's replica.
+_CASE_ACTOR_NAME = "case-actor"
+
+
+def _recorded_ids(entry: dict) -> list[str]:
+    """Every actor id *entry*'s snapshot names: its actor and its subject."""
+    snap = payload(entry)
+    found: list[object] = [snap.get("actor")]
+    nested = snap.get("object")
+    if isinstance(nested, dict):
+        found.append(nested.get("attributedTo") or nested.get("attributed_to"))
+    ids: list[str] = []
+    for value in found:
+        ref = (
+            value.get("id") or value.get("@id")
+            if isinstance(value, dict)
+            else value
+        )
+        if isinstance(ref, str) and ref:
+            ids.append(ref)
+    return ids
+
+
+def check_no_participant_act_after_case_fully_closed(
+    replicas: dict[str, list[dict]],
+    actor_names: Mapping[str, str],
+) -> list[str]:
+    """No entry after ``case_fully_closed`` records a participant's act.
+
+    The whole-scenario form of the CM-23-013 write boundary: on the
+    CASE_MANAGER's exported ledger, ``case_fully_closed`` appears exactly once,
+    and every later entry is the CASE_MANAGER's own (CM-23-002, CM-23-015).
+    The ledger judgement is
+    :func:`~vultron.demo.helpers.milestones.case_closure_violations`, the same
+    one each scenario's closure ``demo_check`` runs live, so the two cannot
+    drift apart.
+
+    The CASE_MANAGER is the actor the dump manifest names ``case-actor``; its
+    full id is read back from the ledger, where its own ``RM.CLOSED`` status
+    entry names it (CM-23-005).
+
+    Args:
+        replicas: The scenario's exported replicas, by actor name.
+        actor_names: ``{routeKey: actorName}`` from the dump manifest
+            (:func:`load_actor_names`).
+    """
+    entries = [
+        {
+            "log_index": log_index(e),
+            "event_type": event_type(e),
+            "payload_snapshot": payload(e),
+        }
+        for e in auth_entries(replicas)
+    ]
+    route_key = next(
+        (rk for rk, name in actor_names.items() if name == _CASE_ACTOR_NAME),
+        None,
+    )
+    case_manager_id = next(
+        (
+            actor_id
+            for e in auth_entries(replicas)
+            for actor_id in _recorded_ids(e)
+            if route_key is not None and strip_id_prefix(actor_id) == route_key
+        ),
+        None,
+    )
+    return case_closure_violations(entries, [], case_manager_id)
 
 
 def check_late_joiner_has_full_history(

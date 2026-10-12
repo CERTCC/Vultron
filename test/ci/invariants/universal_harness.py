@@ -47,6 +47,7 @@ from test.ci.invariants.common import (
     check_log_starts_at_genesis,
     check_nested_objects_inlined,
     check_no_gaps_in_log_indices,
+    check_no_participant_act_after_case_fully_closed,
     check_no_rejected_invite_entries,
     check_no_rm_state_oscillation,
     check_non_empty_payload_snapshots,
@@ -186,6 +187,24 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         violations = check_rm_closed_termination(replicas)
         assert not violations, (
             f"Participants not in RM=CLOSED at log end: {violations}"
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_18_no_participant_act_after_case_fully_closed(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Nothing a participant does is recorded after case_fully_closed.
+
+        CM-23-013, CM-23-015: every participant leaves before the Case Owner,
+        so the CASE_MANAGER's ledger holds one ``case_fully_closed`` entry and
+        no later entry records a participant's act.
+        """
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_no_participant_act_after_case_fully_closed(
+            replicas, load_actor_names(request.module._DEMO_NAME)
+        )
+        assert not violations, (
+            "Post-close write boundary violated:\n" + "\n".join(violations)
         )
 
     @pytest.mark.case_ledger_invariants
@@ -400,6 +419,7 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         "test_invariant_5_expected_event_types_present": test_invariant_5_expected_event_types_present,
         "test_invariant_6_no_rm_state_oscillation": test_invariant_6_no_rm_state_oscillation,
         "test_invariant_7_log_terminates_all_rm_closed": test_invariant_7_log_terminates_all_rm_closed,
+        "test_invariant_18_no_participant_act_after_case_fully_closed": test_invariant_18_no_participant_act_after_case_fully_closed,
         "test_invariant_9_participant_status_schema_completeness": test_invariant_9_participant_status_schema_completeness,
         "test_invariant_10_nested_objects_inlined_in_payload": test_invariant_10_nested_objects_inlined_in_payload,
         "test_invariant_11_payload_context_uses_case_uri": test_invariant_11_payload_context_uses_case_uri,

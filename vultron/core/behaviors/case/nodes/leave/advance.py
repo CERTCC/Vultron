@@ -153,9 +153,9 @@ class AdvanceCaseActorToRMClosedNode(
     .CaseParticipant` record from the DataLayer and appends a new
     :class:`~vultron.core.models.participant_status.ParticipantStatus` entry
     for each ordinary RM transition to ``RM.CLOSED`` (:class:`RMClosureWriter`,
-    RMB-14-005).  Only executed on the owner Leave path, as
-    the penultimate step before emitting the ``case_fully_closed`` ledger entry
-    (CM-23-002 step 2; ADR-0051).
+    RMB-14-005).  Only executed on the owner Leave path, before emitting the
+    ``case_fully_closed`` entry that marks the owner-close write boundary
+    (CM-23-002 step 2, CM-23-013; ADR-0051, ADR-0085).
 
     Idempotent: returns ``SUCCESS`` without modification if the Case Actor is
     already at ``RM.CLOSED``.

@@ -26,6 +26,9 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.case.nodes.post_close import (
+    CaseOpenToExternalWritesNode,
+)
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.note.create_note_tree import create_note_tree
 from vultron.core.behaviors.note.nodes import (
@@ -172,10 +175,11 @@ class TestCreateNoteTree:
         # CASE_MANAGER gate as the last child; the Note object is still saved
         # ungated.
         tree = create_note_tree(note_obj=note, case_id=CASE_ID)
-        assert len(tree.children) == 3
+        assert len(tree.children) == 4
         assert isinstance(tree.children[0], IntakeReceivedActivityNode)
-        assert isinstance(tree.children[1], SaveNoteNode)
-        gate = tree.children[2]
+        assert isinstance(tree.children[1], CaseOpenToExternalWritesNode)
+        assert isinstance(tree.children[2], SaveNoteNode)
+        gate = tree.children[3]
         assert isinstance(gate, CaseManagerGate)
         assert isinstance(gate.gated_branch, AttachNoteToCaseNode)
 
