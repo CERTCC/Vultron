@@ -118,7 +118,8 @@ KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset()
 #    own initiative.  The four ``case_manager_admits_*_guard`` composites
 #    are gate-wrapped read-only conditions passed as a received tree's
 #    ``precondition_guards`` (the embargo Invite tree, the participant
-#    removal and reinstatement trees, the two suggest-actor trees): they
+#    removal and reinstatement trees, the two suggest-actor trees, the
+#    ownership-transfer Offer tree's one-open-Offer guard): they
 #    hold no effect and no emit, which is all BT-17-008 governs (#4301
 #    keeps their direct gate).  The admission backfill is a CM-10-006
 #    follow-on that the embargo Accept use case runs on its own, given no
@@ -144,6 +145,10 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         (
             f"{_C}/nodes/case_participant_received.py",
             "case_manager_admits_removal_guard",
+        ),
+        (
+            f"{_C}/nodes/ownership_offer_guard.py",
+            "case_manager_admits_ownership_offer_guard",
         ),
         (
             f"{_C}/nodes/participant_reinstatement.py",

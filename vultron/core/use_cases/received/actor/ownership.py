@@ -3,6 +3,8 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
+import py_trees
+
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
@@ -10,6 +12,7 @@ from vultron.core.behaviors.case.nodes.store_received_object import (
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
     create_offer_ownership_transfer_tree,
+    create_reject_ownership_transfer_tree,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
@@ -158,6 +161,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
                 "OfferCaseOwnershipTransfer",
                 request.activity_id,
             ),
+            offer_id=request.activity_id,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -202,6 +206,50 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         return verdict
 
 
+def _run_ownership_answer(
+    *,
+    dl: CaseOutboxPersistence,
+    request: AcceptCaseOwnershipTransferReceivedEvent
+    | RejectCaseOwnershipTransferReceivedEvent,
+    tree: py_trees.behaviour.Behaviour,
+    label: str,
+    sync_port: SyncActivityPort | None,
+    wire_render_port: "WireRenderPort | None",
+) -> HandlerResult:
+    """Run the receive tree of a transferee's answer and read its verdict.
+
+    Shared by the Accept and the Reject: a redelivery of the answer that
+    already closed the Offer is ``SKIPPED`` (HP-01-003); a refusal is logged
+    at WARNING with the sender and the case.
+    """
+    receiving_actor_id = resolve_receiving_actor_id(
+        dl, request.receiving_actor_id
+    )
+    bridge = BTBridge(
+        datalayer=dl,
+        wire_render_port=wire_render_port,
+        sync_port=sync_port,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=receiving_actor_id,
+        activity=request,
+    )
+    verdict = ownership_answer_verdict(
+        tree, verdict_from_bt(tree, result, label=label)
+    )
+    if verdict.disposition is HandlerDisposition.REFUSED:
+        logger.warning(
+            "%s refused '%s' from '%s' for case '%s': %s",
+            label,
+            request.activity_id,
+            request.actor_id,
+            request.case_id,
+            verdict.reason,
+        )
+    return verdict
+
+
 class AcceptCaseOwnershipTransferReceivedUseCase:
     """The CASE_MANAGER applies an accepted ownership transfer (CM-21-002).
 
@@ -235,13 +283,12 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
         case_id = request.case_id
         if case_id is None:
             logger.warning(
-                "accept_case_ownership_transfer: missing case_id on request"
+                "accept_case_ownership_transfer: '%s' from '%s' names no case",
+                request.activity_id,
+                request.actor_id,
             )
             return HandlerResult.refused(
                 "Accept(ownership transfer) names no case"
@@ -252,35 +299,35 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             sender_id=request.actor_id,
             accept_id=request.activity_id,
         )
-        bridge = BTBridge(
-            datalayer=self._dl,
-            wire_render_port=self._wire_render_port,
-            sync_port=self._sync_port,
-        )
-        result = bridge.execute_with_setup(
+        return _run_ownership_answer(
+            dl=self._dl,
+            request=request,
             tree=tree,
-            actor_id=receiving_actor_id,
-            activity=request,
+            label="AcceptOwnershipTransferBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
-        verdict = ownership_answer_verdict(
-            tree,
-            verdict_from_bt(tree, result, label="AcceptOwnershipTransferBT"),
-        )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "AcceptOwnershipTransferBT refused Accept '%s' from '%s' for"
-                " case '%s': %s",
-                request.activity_id,
-                request.actor_id,
-                case_id,
-                verdict.reason,
-            )
-        return verdict
 
 
 class RejectCaseOwnershipTransferReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4475", "no sender check for ownership reject"
+    """The CASE_MANAGER ledgers a declined ownership transfer (CM-21-012).
+
+    The sender rule is the Accept's (CM-21-013): at the CASE_MANAGER the
+    sender must be the transferee named in an open ownership-transfer Offer
+    it recorded for the case; at any other replica it must be the
+    CASE_MANAGER.  Anyone else is ``REFUSED`` with nothing committed and
+    nothing sent, and the Offer stays open.
+
+    An admitted Reject commits a ``reject_case_ownership_transfer`` entry and
+    broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every
+    replica (CM-21-014) and is how the offerer learns of the decline.
+    Ownership is unchanged.  A redelivery of the Reject that already closed
+    the Offer is ``SKIPPED`` (HP-01-003).
+    """
+
+    # The same two-sided transferee rule as the Accept (ADR-0129).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -297,11 +344,36 @@ class RejectCaseOwnershipTransferReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        logger.info(
-            "Actor '%s' rejected ownership transfer offer '%s' — ownership unchanged",
-            request.actor_id,
-            request.offer_id,
+        case_id = request.case_id
+        if case_id is None:
+            logger.warning(
+                "reject_case_ownership_transfer: '%s' from '%s' names no case",
+                request.activity_id,
+                request.actor_id,
+            )
+            return HandlerResult.refused(
+                "Reject(ownership transfer) names no case"
+            )
+        tree = create_reject_ownership_transfer_tree(
+            case_id=case_id,
+            offer_id=request.offer_id,
+            sender_id=request.actor_id,
+            reject_id=request.activity_id,
         )
-        return HandlerResult.skipped(
-            "ownership transfer declined; nothing to undo"
+        verdict = _run_ownership_answer(
+            dl=self._dl,
+            request=request,
+            tree=tree,
+            label="RejectOwnershipTransferBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
         )
+        if verdict.disposition is HandlerDisposition.APPLIED:
+            logger.info(
+                "Actor '%s' rejected ownership transfer offer '%s' for case"
+                " '%s' — ownership unchanged",
+                request.actor_id,
+                request.offer_id,
+                case_id,
+            )
+        return verdict

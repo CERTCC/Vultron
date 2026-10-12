@@ -74,16 +74,31 @@ The previous owner keeps any other roles it held and stays a participant in the 
 The CASE_MANAGER then records the completed transfer in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).
 The new owner's own copy of the case is updated by that same entry; nothing is delivered to it separately.
 
-A refusal is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)), and ownership stays where it was.
+```text
+Declining actor sends trigger: reject-case-ownership-transfer
+  → Reject(Offer(VulnerabilityCase))
+      to: [case_actor_id]     ← MUST route through Case Actor (CM-21-010)
+
+Case Actor inbox receives Reject:
+  0. Checks the sender is the proposed owner of an open
+     offer it recorded (anyone else: refused).          ← CM-21-013
+  1. Commits CaseLedgerEntry (transfer-declined).       ← CM-21-012
+  2. Announce(CaseLedgerEntry) → all participants.
+```
+
+The proposed owner refuses an offer with the `reject-case-ownership-transfer` trigger ([TRIG-11-005](../../reference/specs/protocol.md#trig-11-005)), and the refusal is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)).
 The protocol treats a refusal like an acceptance: the CASE_MANAGER records it in the ledger and sends the entry to every participant, which is how the participant who made the offer learns of it ([CM-21-012](../../reference/specs/protocol.md#cm-21-012)).
-Only the proposed owner named in the offer may refuse it ([CM-21-013](../../reference/specs/protocol.md#cm-21-013)).
-The prototype does not do this yet: today it only logs the refusal, and no ledger entry records it ([#4475](https://github.com/CERTCC/Vultron/issues/4475)).
+Only the proposed owner named in an open offer may refuse it ([CM-21-013](../../reference/specs/protocol.md#cm-21-013)).
+The CASE_MANAGER refuses a refusal from anyone else, records nothing for it, and the offer stays open.
+Ownership stays where it was: the ledger entry closes the offer, and no participant's copy of the case changes in any other way.
 
 ## Offering again, withdrawing, and the deadline
 
 A case has at most one open offer at a time ([CM-21-014](../../reference/specs/protocol.md#cm-21-014)).
 An offer stays open until the ledger records that it was accepted, refused, withdrawn, or expired.
+While it is open, the CASE_MANAGER refuses a new offer for the case, and neither records nor forwards it.
 Once it is closed, the owner may offer the case again to anyone, including a participant that refused, with nothing to clear first.
+A closed offer cannot be answered again: an acceptance after a refusal, or a refusal after an acceptance, is refused.
 
 The owner that made an offer may withdraw it while it is open, by sending an `Undo` of the offer to the CASE_MANAGER ([CM-21-015](../../reference/specs/protocol.md#cm-21-015)).
 An offer may also carry an `end_time`, the deadline to answer it ([CM-21-016](../../reference/specs/protocol.md#cm-21-016)).
@@ -92,7 +107,7 @@ This is stricter than the deadline on an embargo invitation, which is a strong s
 The CASE_MANAGER notices an expired offer the next time it handles something for that case, and records the expiry in the ledger before it acts ([CM-21-017](../../reference/specs/protocol.md#cm-21-017)).
 
 Without withdrawal and the deadline, a proposed owner that never answered would block every later transfer of the case.
-None of this is implemented in the prototype yet ([#4475](https://github.com/CERTCC/Vultron/issues/4475), [#4491](https://github.com/CERTCC/Vultron/issues/4491)).
+The prototype does not implement withdrawal or the deadline yet ([#4491](https://github.com/CERTCC/Vultron/issues/4491)), so until then an offer is closed only by an acceptance or a refusal.
 
 ---
 

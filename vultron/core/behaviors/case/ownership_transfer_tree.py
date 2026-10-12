@@ -19,17 +19,24 @@ Provides:
 
 - :func:`create_accept_ownership_transfer_tree` — BT for
   ``AcceptCaseOwnershipTransferReceivedUseCase``.
+- :func:`create_reject_ownership_transfer_tree` — BT for
+  ``RejectCaseOwnershipTransferReceivedUseCase``: the Accept's tree with no
+  effects, so the declined Offer is ledgered and closed (CM-21-012).
 - :func:`create_offer_ownership_transfer_tree` — BT for
   ``OfferCaseOwnershipTransferReceivedUseCase``; passes
   ``ForwardOfferToTransfereeNode`` as ``manager_effects`` so the factory's
   CASE_MANAGER gate lets only the CaseActor forward the offer (CM-21-005,
-  ADR-0053, BT-17-008).
+  ADR-0053, BT-17-008), and refuses the Offer at the CASE_MANAGER while an
+  earlier one for the case is open (CM-21-014).
 """
 
 import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
+    case_manager_admits_ownership_offer_guard,
+)
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptRecordedOwnershipOfferNode,
     ForwardOfferToTransfereeNode,
@@ -110,11 +117,60 @@ def create_accept_ownership_transfer_tree(
     return tree
 
 
+def create_reject_ownership_transfer_tree(
+    case_id: str,
+    offer_id: str | None,
+    sender_id: str,
+    reject_id: str,
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for ``RejectCaseOwnershipTransferReceivedUseCase``.
+
+    The Accept's tree with no effects: the sender guard admits only the
+    transferee of an open Offer the CASE_MANAGER recorded (CM-21-013), and the
+    guarded commit ledgers the Reject and broadcasts
+    ``Announce(CaseLedgerEntry)`` (CM-21-012, CLP-02-012).  That entry closes
+    the Offer (CM-21-014); ownership is unchanged, so nothing else is written.
+
+    Args:
+        case_id: URI of the case the declined Offer would have transferred.
+        offer_id: The Offer the Reject names (the recorded Offer or the
+            CASE_MANAGER's forward of it).
+        sender_id: The Reject's sender, checked as for the Accept.
+        reject_id: The Reject's own id, so a redelivery is recognised.
+
+    Returns:
+        A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
+    """
+    tree = create_receive_activity_tree(
+        name="RejectOwnershipTransferBT",
+        case_id=case_id,
+        # The Accept's sender rule (CM-21-013): the same guard, so a closed
+        # Offer refuses either answer and a redelivery is recognised.
+        sender_guard=SenderIsOwnershipTransfereeNode(
+            case_id=case_id,
+            offer_id=offer_id,
+            sender_actor_id=sender_id,
+            answer_id=reject_id,
+        ),
+        precondition_guards=[],
+        # As for the Accept: a receiver not holding the case is not its
+        # CASE_MANAGER (ADR-0087 Regime 3).
+        case_may_be_absent=True,
+    )
+    logger.debug(
+        "Created RejectOwnershipTransferBT for case='%s' offer='%s'",
+        case_id,
+        offer_id,
+    )
+    return tree
+
+
 def create_offer_ownership_transfer_tree(
     case_id: str | None,
     transferee_id: str | None,
     original_actor_id: str | None,
     store_offer: StoreReceivedObjectNode | None = None,
+    offer_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``OfferCaseOwnershipTransferReceivedUseCase``.
 
@@ -137,6 +193,10 @@ def create_offer_ownership_transfer_tree(
             trigger reads back by id (DL-06); it runs before the gated
             forward, after the guards and the commit (CLP-10-017,
             CLP-10-019).
+        offer_id: The received Offer's id.  With a case, the CASE_MANAGER
+            refuses it while an earlier ownership-transfer Offer for the case
+            is open (CM-21-014); a redelivery of the same Offer is not an
+            earlier one.
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -157,10 +217,17 @@ def create_offer_ownership_transfer_tree(
                 original_actor_id=original_actor_id,
             )
         )
+    precondition_guards: list[py_trees.behaviour.Behaviour] = []
+    if case_id is not None and offer_id is not None:
+        precondition_guards.append(
+            case_manager_admits_ownership_offer_guard(
+                case_id=case_id, offer_id=offer_id
+            )
+        )
     tree = create_receive_activity_tree(
         name="OfferOwnershipTransferBT",
         case_id=case_id,
-        precondition_guards=[],
+        precondition_guards=precondition_guards,
         replica_effects=replica_effects,
         manager_effects=manager_effects,
         manager_case_id=case_id if manager_effects else None,

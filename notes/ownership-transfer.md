@@ -118,11 +118,16 @@ recorded Offer it stands for (the latest such entry). Timestamps are
 second-precision, so a forward published in the same second as a later Offer
 to the same transferee resolves to that later Offer. That is safe: the later
 Offer names the same transferee, and its own open/answered state still decides.
-The Reject (#4475) reuses the same helper and guard.
+The Reject reuses the same helper and guard (CM-21-013): its tree
+(`create_reject_ownership_transfer_tree`) is the Accept's with no effects, and
+`_run_ownership_answer` in the received use-case module reads both verdicts.
 
 `find_protocol_pair()` anchors on the latest matching request and counts only
 a reply recorded *after* it (`log_index`), so an Accept of an earlier Offer does
-not close the next one.
+not close the next one. Because the Accept and the Reject share
+`OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, either answer closes the Offer for
+the other: an Accept after a Reject (or the reverse) is refused as "already
+answered".
 
 **The Offer itself is not sender-checked yet** (#4540): no CM-21 requirement
 names who may send it, so an actor can record an Offer naming itself and then
@@ -273,13 +278,17 @@ Vendor1's proves only that the offerer's replica caught up (EDF-06-002).
 
 ### transfer_ownership_demo.py (exchange demo)
 
-The single-container exchange demo shows the same routing at the wire level:
-`Offer` and the `Accept`/`Reject` that answers it are POSTed to the **CASE_MANAGER's**
-inbox, and the transferee's copy is discovered with
-`await_forwarded_ownership_transfer_offer` (a `find_ownership_transfer_offer_for_actor`
-scan plus a factory rebuild, since the accept/reject factories need an
-`_OfferCaseOwnershipTransferActivity` and the DataLayer reads back a plain
-`as_Offer`).
+The single-container exchange demo drives every step through its actor's
+trigger (DEMOMA-05-001): the vendor's `offer-case-ownership-transfer`, then the
+coordinator's `accept-case-ownership-transfer` or
+`reject-case-ownership-transfer`. Each lands in the **CASE_MANAGER's** inbox
+through the outbox, and the transferee's copy is discovered with
+`await_forwarded_ownership_transfer_offer` (a
+`find_ownership_transfer_offer_for_actor` scan). The demo gates on the
+CASE_MANAGER's ledger entries (`offer_case_ownership_transfer`,
+`reject_case_ownership_transfer`) rather than on a timed read (EDF-06): the
+reject path's "owner unchanged" check means nothing until the Reject is known
+to have been processed.
 
 Two preconditions are easy to get wrong here and both fail far from their cause:
 
@@ -461,8 +470,8 @@ authoritative runtime enforcement.
 
 ## The Reject Path (CM-21-010, CM-21-012 – CM-21-014)
 
-Settled by #3748. A declined transfer follows the same shape as an accepted one;
-nothing about it is a special case.
+Settled by #3748, built by #4475. A declined transfer follows the same shape as
+an accepted one; nothing about it is a special case.
 
 ```text
 Transferee calls trigger: reject-case-ownership-transfer      ← TRIG-11-005
@@ -482,17 +491,24 @@ CASE_MANAGER inbox receives Reject
 - **The offerer learns of the decline from the broadcast.** It is no longer a
   recipient of the Reject itself (CM-21-010), and needs no separate notice.
 - **Replicas change no state.** `attributed_to` and every `CASE_OWNER` role stay
-  as they were. The entry's effect is that the Offer is now closed.
+  as they were. The entry's effect is that the Offer is now closed, which every
+  reader learns from the ledger itself, so `reject_case_ownership_transfer` is
+  declared `NO_REPLICA_EFFECT` (RSH-08-004) rather than given a replay slot.
 - **"Open" is read from the ledger.** An Offer is open until the ledger holds an
   Accept, Reject, withdrawal or expiry entry for it, found through `find_protocol_pair()`
-  with an ownership-transfer reply-types constant beside the existing ones
-  (CLP-11-001, CLP-11-003). The `VultronOwnershipTransferOfferRecord` on a
-  replica is case bookkeeping (CLP-07-014) and is never the source of that
-  answer.
+  with `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES` (CLP-11-001, CLP-11-003). The
+  `VultronOwnershipTransferOfferRecord` on a replica is case bookkeeping
+  (CLP-07-014) and is never the source of that answer.
 - **One open Offer per case (CM-21-014).** The CASE_MANAGER refuses a new
   ownership-transfer Offer while an earlier one is open. Once it is closed the
   owner may offer again to anyone, the decliner included, with no waiting period
-  and nothing to clear.
+  and nothing to clear. The check is `NoOpenOwnershipOfferNode`
+  (`core/behaviors/case/nodes/ownership_offer_guard.py`), reading
+  `open_ownership_offer()` in `core/participants/ownership_offer.py`, a
+  precondition guard behind a CASE_MANAGER gate
+  (`case_manager_admits_ownership_offer_guard`). The gate is load-bearing: the
+  transferee runs the same Offer tree on the forward it receives, and its
+  replica already holds the ledgered Offer that forward stands for, still open.
 
 ## Withdrawal and Deadline (CM-21-015 – CM-21-017)
 

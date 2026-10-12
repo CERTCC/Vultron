@@ -181,7 +181,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ),
         (
             f"{_NODES}/ownership_transfer.py",
-            "EmitAcceptCaseOwnershipTransferNode._call_factory",
+            "_EmitOwnershipAnswerNode._call_factory",
         ),
         # R3 — the genesis ``create_case`` entry is committed alongside case
         # creation, so the case is not readable yet on that one commit. Absence

@@ -38,6 +38,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_case_ownership_transfer_trigger_bt,
     offer_case_ownership_transfer_trigger_bt,
     reject_case_invite_trigger_bt,
+    reject_case_ownership_transfer_trigger_bt,
     suggest_actor_to_case_trigger_bt,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import invitee_record
@@ -64,6 +65,7 @@ from vultron.core.use_cases.triggers.requests import (
     OfferCaseOwnershipTransferTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
     RejectCaseInviteTriggerRequest,
+    RejectCaseOwnershipTransferTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
@@ -509,16 +511,19 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         )
 
 
-class SvcAcceptCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
-    """Accept a case ownership transfer offer (trigger-side path).
+class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
+    """The transferee answers an ownership-transfer Offer it holds.
 
-    Emits ``Accept(Offer(VulnerabilityCase))`` from the accepting actor back
-    to the offering actor (TRIG-11-002).
+    Shared by the accept and reject triggers: both read the Offer by id from
+    the transferee's own store and emit their answer to the case's
+    CASE_MANAGER (CM-21-006, CM-21-010).  Subclasses build the tree.
     """
 
     def _prepare(self) -> None:
         request = cast(
-            AcceptCaseOwnershipTransferTriggerRequest, self._request
+            AcceptCaseOwnershipTransferTriggerRequest
+            | RejectCaseOwnershipTransferTriggerRequest,
+            self._request,
         )
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
@@ -544,6 +549,14 @@ class SvcAcceptCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
             )
         self._case_id = raw_case_id
 
+
+class SvcAcceptCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
+    """Accept a case ownership transfer offer (trigger-side path).
+
+    Emits ``Accept(Offer(VulnerabilityCase))`` from the accepting actor to
+    the case's CASE_MANAGER (TRIG-11-002, CM-21-006).
+    """
+
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return accept_case_ownership_transfer_trigger_bt(
             offer_id=self._offer_id,
@@ -554,6 +567,29 @@ class SvcAcceptCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
     def _handle_result(self) -> None:
         logger.info(
             "Actor '%s' accepted case ownership transfer offer '%s'",
+            self._actor_id,
+            self._offer_id,
+        )
+
+
+class SvcRejectCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
+    """Decline a case ownership transfer offer (trigger-side path).
+
+    Emits ``Reject(Offer(VulnerabilityCase))`` from the declining actor to
+    the case's CASE_MANAGER (TRIG-11-005, CM-21-010), which ledgers it and
+    broadcasts the decline (CM-21-012).
+    """
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return reject_case_ownership_transfer_trigger_bt(
+            offer_id=self._offer_id,
+            case_id=self._case_id,
+            captured=self._captured,
+        )
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' rejected case ownership transfer offer '%s'",
             self._actor_id,
             self._offer_id,
         )
