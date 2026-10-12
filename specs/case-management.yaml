@@ -3859,7 +3859,9 @@ groups:
     verification: >-
       A unit test replays a ledger whose entries skip a rung that a table walk would
       insert, and asserts the replica's per-actor status history equals the ledger's and
-      that no step the ledger lacks is written.
+      that no step the ledger lacks is written. A unit test applies one entry to two
+      fresh replicas and asserts they write identical records, every id and time
+      included, so a minted id or a clock read fails it.
     relationships:
     - rel_type: extends
       spec_id: CM-23-001
@@ -4895,12 +4897,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An accepted removal MUST be recorded as exactly one ledger entry: the Case Owner's received
-      `Remove(CaseParticipant)`, committed by the receive pipeline (CLP-10-006).
+      An accepted removal MUST be recorded by the Case Owner's received `Remove(CaseParticipant)`
+      as its entry, committed by the receive pipeline (CLP-10-006).
       `("Remove", "CaseParticipant")` MUST be a canonical ledger signature, and the CASE_MANAGER MUST
       NOT commit a second entry of its own for the same removal.
     rationale: >-
-      One move gets one entry, authored by the actor that made it, so the ledger shows the removal as
+      The Remove states the change, so it is the change's entry (CLP-07-013), authored by the actor
+      that made it, and no second entry records it again. The ledger therefore shows the removal as
       the Case Owner's decision rather than the CASE_MANAGER acting alone (ADR-0108). Without the
       canonical signature a removal cannot be committed, so it never reaches a replica.
     verification: >-

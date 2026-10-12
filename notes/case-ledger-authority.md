@@ -333,9 +333,11 @@ requirements belong in `specs/case-ledger-processing.yaml`.
 ## Canonical Entry Criteria: What Belongs in the Log
 
 The canonical case ledger is a **protocol ledger**, not a process log. It records
-exactly one entry per CASE_MANAGER-accepted protocol-significant assertion. Each
-entry's `payloadSnapshot` is the verbatim AS2 activity that was asserted (or a
-deterministic canonical normalization of it).
+one entry per CASE_MANAGER-accepted protocol-significant assertion, whose
+`payloadSnapshot` is the verbatim AS2 activity that was asserted (or a
+deterministic canonical normalization of it), followed by one CASE_MANAGER-authored
+`Create`/`Update` entry per further change the act makes to the case file
+(CLP-07-013; see "Every Change Is an Entry; Replicas Copy" above).
 
 Concretely:
 

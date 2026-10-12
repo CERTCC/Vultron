@@ -128,7 +128,7 @@ A replica applies each entry it receives, in ledger order, with the same functio
 It runs no lifecycle logic of its own and decides nothing about the case file.
 Two replicas at the same ledger position therefore hold identical case files, and both equal the CASE_MANAGER's at that position.
 
-This tightens CM-23-016's "MUST NOT derive a transition the ledger does not record": a replica derives nothing, because every change it applies is an entry.
+CM-23-016 states this rule for replicas: a replica derives nothing, because every change it applies is an entry.
 
 A seeded replica starts from the case snapshot it was seeded with instead of from empty.
 The seed must equal the result of applying the ledger up to the entry it was taken at, so seeding is a shortcut through replay, not a second source of state.

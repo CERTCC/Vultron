@@ -9,6 +9,7 @@
 #  certain third party source code, object code, documentation and other files
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Planned behaviour recorded by the ledger-fidelity plan (#4425).
 
 Every change the CASE_MANAGER makes to the case file is its own ledger entry,
@@ -19,36 +20,22 @@ see ``notes/spec-authoring-rules.md`` § "Never Raise the Ceiling — Use a
 Strict ``xfail``".
 """
 
-import inspect
-
 import pytest
 
-from test.architecture._ledger_commit_inventory import _COMMIT_BUILDERS
-from vultron.core.behaviors.case import create_case_trigger_tree
-from vultron.core.behaviors.sync.nodes.rm_verdict_effect import (
-    ApplyRmVerdictFromLedgerNode,
+from test.architecture._ledger_commit_inventory import _commits
+from vultron.core.behaviors.case.create_case_trigger_tree import (
+    create_case_trigger_bt,
 )
 from vultron.core.models.case import VulnerabilityCase
 
 
 @pytest.mark.spec("CLP-07-013")
-@pytest.mark.spec("CLP-09-003")
 @pytest.mark.xfail(
     strict=True,
     reason="CLP-07-013: the create-case trigger writes the case and its records with no entry. #4440.",
 )
 def test_create_case_trigger_commits_entries():
-    source = inspect.getsource(create_case_trigger_tree)
-    assert any(builder in source for builder in _COMMIT_BUILDERS)
-
-
-@pytest.mark.spec("CM-23-016")
-@pytest.mark.xfail(
-    strict=True,
-    reason="CM-23-016: RM verdict replay mints its own status id and fills VF, D and roles from local state. #4295.",
-)
-def test_rm_verdict_replay_copies_the_status_id():
-    assert '"id"' in inspect.getsource(ApplyRmVerdictFromLedgerNode)
+    assert _commits(create_case_trigger_bt, set())
 
 
 @pytest.mark.spec("CLP-07-014")
