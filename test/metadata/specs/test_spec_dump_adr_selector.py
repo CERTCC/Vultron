@@ -71,8 +71,16 @@ FIXTURE_YAML = {
 
 @pytest.fixture
 def dump_dir(tmp_path):
-    (tmp_path / "ms.yaml").write_text(yaml.dump(FIXTURE_YAML))
-    return tmp_path
+    """A spec directory with decision records ADR-0001..0003 beside it."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    (spec_dir / "ms.yaml").write_text(yaml.dump(FIXTURE_YAML))
+    adr_dir = tmp_path / "docs" / "adr"
+    (adr_dir / "archived").mkdir(parents=True)
+    (adr_dir / "0001-one.md").write_text("# One\n")
+    (adr_dir / "0002-two.md").write_text("# Two\n")
+    (adr_dir / "archived" / "0003-three.md").write_text("# Three\n")
+    return spec_dir
 
 
 def _run(monkeypatch, capsys, *argv):
@@ -128,6 +136,14 @@ def test_cli_adr_flag_in_json_and_text(dump_dir, monkeypatch, capsys):
 
 
 @pytest.mark.spec("SR-07-017")
+def test_cli_adr_flag_selects_by_two_records(dump_dir, monkeypatch, capsys):
+    out = _run(
+        monkeypatch, capsys, "--adr", "ADR-0001,ADR-0002", str(dump_dir)
+    ).out
+    assert _ids(out) == {"MS-01-001", "MS-01-002"}
+
+
+@pytest.mark.spec("SR-07-017")
 def test_adr_counts_as_a_set_selector_for_text(dump_dir, monkeypatch, capsys):
     """``--text`` accepts ``--adr`` alone; it needs no other selector."""
     result = _run(
@@ -163,8 +179,28 @@ def test_malformed_adr_value_exits_2(dump_dir, monkeypatch, capsys, value):
     assert "Expected ADR-NNNN" in err
 
 
+@pytest.mark.spec("SR-07-017")
+def test_adr_naming_no_record_exits_2(dump_dir, monkeypatch, capsys):
+    """A typo is refused, not read as a record that governs nothing."""
+    code, err = _exit(
+        monkeypatch, capsys, "--adr", "ADR-0001,ADR-0009", str(dump_dir)
+    )
+    assert code == 2
+    assert "unknown adr value(s): ADR-0009" in err
+    assert "ADR-0001" not in err
+
+
+@pytest.mark.spec("SR-07-017")
+def test_adr_without_a_record_directory_exits_2(tmp_path, monkeypatch, capsys):
+    (tmp_path / "ms.yaml").write_text(yaml.dump(FIXTURE_YAML))
+    code, err = _exit(monkeypatch, capsys, "--adr", "ADR-0001", str(tmp_path))
+    assert code == 2
+    assert "decision records beside the spec directory" in err
+
+
 @pytest.mark.spec("SR-07-015")
-def test_empty_adr_selector_exits_2(dump_dir, monkeypatch, capsys):
-    code, err = _exit(monkeypatch, capsys, "--adr", "", str(dump_dir))
+@pytest.mark.parametrize("mode", [[], ["--text"]], ids=["json", "text"])
+def test_empty_adr_selector_exits_2(dump_dir, monkeypatch, capsys, mode):
+    code, err = _exit(monkeypatch, capsys, "--adr", "", *mode, str(dump_dir))
     assert code == 2
     assert "--adr was given but names no values" in err

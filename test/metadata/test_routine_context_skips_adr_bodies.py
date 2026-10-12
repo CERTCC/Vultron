@@ -67,18 +67,20 @@ _EXTERNAL_EXCEPTIONS = frozenset({"create-architectural-decision-record"})
 #: A table reason shorter than this is a placeholder, not a reason.
 _MIN_REASON_CHARS = 20
 
-_VERB = r"\b(?:read|reads|reading|load|loads|loading|open|opens|study|consult|consults)\b"
+_VERB = (
+    r"\b(?:read|reads|reading|load|loads|loading|open|opens|study|consult"
+    r"|consults|review|reviews|reviewing|skim|skims|examine|examines)\b"
+)
 
 #: A record named as a routing surface rather than a body to read.
-_ROUTING_SURFACE = (
-    r"(?!['’]?s?\s*(?:index|titles?|template|archive|status|numbers?)\b)"
-)
+_ROUTING_SURFACE = r"(?!['’]?s?\s*(?:index|titles?|template|archive|status(?:es)?|numbers?)\b)"
 
 #: An instruction to read a record body. Either a reading verb then, within the
 #: clause, a record path (not the index, the template or the archive), a
 #: "full/whole/entire record" or a "record body/file"; or a reading verb whose
-#: object, within three plain words, is a record ID, "ADR(s)" or "decision
-#: record(s)" that is not the index, a title, the template or a status. The
+#: object, within four plain words (a list's commas and "and"/"or" do not
+#: count), is a record ID, "ADR(s)" or "decision record(s)" that is not the
+#: index, a title, the template or a status. The
 #: scan is whole-file text, so a clause folded across a line break is found.
 BODY_READ_RE = re.compile(
     _VERB
@@ -90,7 +92,8 @@ BODY_READ_RE = re.compile(
           | \b(?:full|whole|entire)\s+(?:ADR|decision[ -]record|record)s?\b
           | \b(?:ADR|decision[ -]record|record)s?\s+(?:bod(?:y|ies)|files?)\b
         )
-      | (?:\s+[\w'’-]+){0,3}?\s+(?:[\w-]+/)?`?
+      | (?:,?\s+(?:and\s+|or\s+)?[\w'’-]+){0,4}?,?\s+(?:and\s+|or\s+)?\(?
+        (?:[\w-]+/)?`?
         (?:ADR-\d{4}|ADRs?|decision[ -]records?)\b"""
     + _ROUTING_SURFACE
     + r"""
@@ -245,6 +248,11 @@ def test_each_in_repo_exception_skill_weighs_what_it_reads() -> None:
         "read the ADR's Decision Outcome section",
         "Consult the ADR",
         "`orient-agent` reads fresh specs/ADRs/notes",
+        "Read the relevant specs, notes, and ADRs.",
+        "Read the five most relevant ADRs.",
+        "Review the ADR before changing the design",
+        "Skim ADR-0099 for the rationale",
+        "Read (ADR-0099) first",
     ],
 )
 def test_detector_catches_each_body_read_shape(text: str) -> None:
@@ -264,6 +272,7 @@ def test_detector_catches_each_body_read_shape(text: str) -> None:
         "consult `notes/specs-vs-adrs.md` for the decision tree",
         "read it as a trend from ADR-0126 onward",
         "read against `notes/site-information-architecture.md` (ADR-0102)",
+        "Read the ADR statuses from the index sections.",
     ],
 )
 def test_detector_passes_routing_instructions(text: str) -> None:

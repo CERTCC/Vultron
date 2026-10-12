@@ -788,10 +788,11 @@ groups:
     statement: >-
       The `spec-dump` CLI MUST support an `--adr` set selector (a comma-separated list of
       `ADR-NNNN` ids) that selects every requirement whose `adr:` field names one of them, and
-      that combines with the other selectors as a union. A value that is not an `ADR-NNNN` id
-      MUST exit with status 2 and name the value. For each named record that no requirement cites
-      in `adr:`, it MUST write a note to stderr that names the record and points at its prose
-      citations under `specs/` and `notes/`, and MUST still print the selection.
+      that combines with the other selectors as a union. A value that is not an `ADR-NNNN` id,
+      or that names no record under the `docs/adr/` beside the spec directory (archived records
+      included), MUST exit with status 2 and name the value. For each named record that no
+      requirement cites in `adr:`, it MUST write a note to stderr that names the record and points
+      at its prose citations under `specs/` and `notes/`, and MUST still print the selection.
     rationale: >-
       `deepen-context` routes through decision records by reading the `adr:` edge backwards
       instead of reading a record body (ADR-0127, MS-11-008), and agents do not read raw spec
@@ -802,7 +803,8 @@ groups:
       `test/metadata/specs/test_spec_dump_adr_selector.py` asserts selection by one and by two
       records, the union with `--ids` and `--deps`, JSON and `--text` output, `--adr` alone
       satisfying `--text`, the stderr note and non-empty output for an uncited record, and
-      exit 2 for each malformed value.
+      exit 2 for each malformed value, for an id that names no record, and when no record
+      directory sits beside the spec directory.
     relationships:
     - rel_type: refines
       spec_id: SR-07-008

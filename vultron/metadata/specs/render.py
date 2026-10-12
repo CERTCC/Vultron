@@ -491,17 +491,43 @@ def _enum_problems(args: argparse.Namespace) -> list[str]:
     return problems
 
 
-_ADR_ID_RE = re.compile(r"^ADR-\d{4}$")
+_ADR_ID_RE = re.compile(r"ADR-\d{4}")
 
 
 def _malformed_adrs(args: argparse.Namespace) -> list[str]:
     """Report ``--adr`` values that are not ``ADR-NNNN`` ids (SR-07-017)."""
-    bad = sorted(a for a in args.adr or [] if not _ADR_ID_RE.match(a))
+    bad = sorted(a for a in args.adr or [] if not _ADR_ID_RE.fullmatch(a))
     if not bad:
         return []
     return [
         f"malformed adr value(s): {', '.join(bad)}. Expected ADR-NNNN,"
         " e.g. ADR-0127"
+    ]
+
+
+def _unknown_adrs(spec_dir: Path, adrs: list[str]) -> list[str]:
+    """Report ``--adr`` ids that name no decision record (SR-07-017).
+
+    Records live in ``docs/adr/`` beside the spec directory, archived ones
+    included. A typo such as ``ADR-0172`` for ``ADR-0127`` would otherwise
+    select nothing and read as "this record governs nothing".
+    """
+    adr_dir = spec_dir.resolve().parent / "docs" / "adr"
+    if not adr_dir.is_dir():
+        return [
+            f"--adr needs the decision records beside the spec directory,"
+            f" but {adr_dir} does not exist"
+        ]
+    known = {
+        f"ADR-{path.name[:4]}"
+        for path in adr_dir.rglob("*.md")
+        if re.match(r"\d{4}-", path.name)
+    }
+    unknown = sorted(set(adrs) - known)
+    if not unknown:
+        return []
+    return [
+        f"unknown adr value(s): {', '.join(unknown)} (no record in {adr_dir})"
     ]
 
 
@@ -589,6 +615,8 @@ def main_llm_json() -> None:
     problems = unknown_selectors(
         registry, topics=args.topic, groups=args.group, spec_ids=args.ids
     )
+    if args.adr:
+        problems += _unknown_adrs(spec_dir, args.adr)
     if problems:
         _fail(problems)
 
