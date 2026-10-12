@@ -34,6 +34,7 @@ nav:
       - The CASE_MANAGER and the Case Ledger: 'topics/case_lifecycle/case_manager_and_ledger.md'
       - Case Initialization: 'topics/case_lifecycle/case_initialization.md'
       - Ownership Transfer: 'topics/case_lifecycle/ownership_transfer.md'
+      - Case Authority, Trust, and Routing: 'topics/case_lifecycle/case_authority_and_trust.md'
       - Case Ledger Synchronization: 'topics/case_lifecycle/case_ledger_sync.md'
     - Process Models:
       - 'topics/process_models/index.md'

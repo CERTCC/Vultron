@@ -4,7 +4,8 @@ status: active
 description: >
   Target architecture for EM state management; the embargo register on the
   case, from which EM is derived and which only EmbargoLifecycle changes,
-  one checked step at a time (ADR-0122); P/X/A embargo-eligibility
+  one checked step at a time (ADR-0122), each step moving EM along an EM
+  transition (ADR-0130); P/X/A embargo-eligibility
   precondition guards in EmbargoLifecycle; the earliest-expiration resolution
   order for multiple open proposals (EP-08); and the fragmentation concern that
   motivates the EmbargoLifecycle service (see #538); and the revision relay
@@ -39,6 +40,7 @@ related_specs:
   - specs/status-dimension-objects.yaml
 related_notes:
   - notes/embargo-default-semantics.md
+  - notes/case-state-model.md
   - notes/bt-integration.md
   - notes/participant-embargo-consent.md
   - notes/case-communication-model.md
@@ -133,9 +135,21 @@ current `CaseStatus`.
 entry is `NONE`; `PROPOSED` only is `PROPOSED`; `ACTIVE` is `ACTIVE`, or
 `REVISE` with a `PROPOSED` beside it; `TERMINATED` is `EXITED`. So rejecting
 one of two open proposals leaves EM `PROPOSED` (or `REVISE`), and a case that
-has had an embargo in force never returns to `NONE` or `PROPOSED`. EM has no
-transition table of its own: the EM machine, `EMAdapter` and
-`is_valid_em_transition()` are deleted.
+has had an embargo in force never returns to `NONE` or `PROPOSED`.
+
+**The EM state machine still governs EM (ADR-0130).** The register is a layer
+under the EM machine, not a replacement for it. Each step names an EM trigger
+(`PROPOSE` → `propose`, `ACTIVATE` → `accept`, `REJECT` or a threat-signal
+`CANCEL` → `reject`, `TERMINATE` → `terminate`), and EM before and after the
+step MUST be one of that trigger's EM transitions (EMB-18-005). With several
+proposals open, EM leaves `PROPOSED` or `REVISE` only when the last one is off
+the table, so `reject` and `accept` have self-loops there, and activating one
+proposal leaves the others open as revisions (`accept: PROPOSED → REVISE`).
+Issue #4290 deleted the table with `EMAdapter` and `is_valid_em_transition()`.
+Issue #4449 restores it as data in `vultron/core/states/em.py` and refuses a
+step whose EM move is not in it (EMB-18-006). Until then
+`test/core/states/test_em_transition_table.py` holds the table and shows the
+register makes exactly its moves.
 
 **`CaseStatus.em` is a stamped copy.** The status still carries EM on the wire
 and inside `ParticipantStatus`, but the case writes it from the register: at
@@ -378,8 +392,8 @@ state from the ledger through the relay replay nodes in
 The owner's `Reject(EmbargoEvent, target=Case)` is decided by
 `DecideRejectedEmbargoProposalNode`, `STRICT` on the CASE_MANAGER and
 `OBSERVED` on replay (the `EmbargoProposalRejection` slot):
-`reject_embargo_proposal` returns EM `REVISE → ACTIVE` (or `PROPOSED → NONE`)
-and rejects the proposal, except for the last revision with P/X/A set, which
+`reject_embargo_proposal` returns EM `REVISE → ACTIVE` (or `PROPOSED → NONE`),
+or leaves it in place while another proposal is open (EMB-18-005), and rejects the proposal, except for the last revision with P/X/A set, which
 it leaves to the ET that follows (EMB-04-002); the owner's
 `Accept(EmbargoEvent, target=Case)` is replayed by the `EmbargoActivation`
 slot (ADR-0122). EMB-01-002 and
@@ -642,7 +656,8 @@ do about it? The answer, in order:
    changes nothing that binds it: `INVITE` lands on the revision's own row and
    the signatory keeps its `AGREED` row for the active embargo (EP-09-004).
 5. The owner's answer is consent *and* decision: `Accept` activates
-   (`PROPOSED → ACTIVE`, or `REVISE → ACTIVE` with the EP-05-001 carry-over),
+   (`PROPOSED → ACTIVE`, or `REVISE → ACTIVE` with the EP-05-001 carry-over;
+   `→ REVISE` instead while another proposal stays open, EMB-18-005),
    `Reject` clears a first proposal or keeps the prior terms. The owner MAY
    decide without waiting (EP-09-005) and SHOULD wait for some answers to gauge
    consensus (EP-09-006); no quorum or vote is defined — that is actor policy,
