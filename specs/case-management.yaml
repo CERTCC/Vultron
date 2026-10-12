@@ -150,16 +150,15 @@ groups:
     - story_2022_074
     - story_2022_045
   - id: CM-02-010
-    priority: MUST
+    priority: MAY
     kind: protocol
-    statement: The actor enacting CASE_MANAGER and the case owner (named actor) MUST have distinct actor identities — each with their own actor
-      ID — even when co-located on the same server
-    rationale: Enforcing distinct identities ensures that all case-state transitions pass through the wire protocol regardless
-      of deployment topology, preserving audit integrity and enabling future separation onto independent containers without
-      protocol changes
-    verification: Inspection of `vultron/core/` confirms that the actor enacting CASE_MANAGER and
-      the case owner named actor each hold distinct actor IDs, even in single-server
-      deployments.
+    statement: The actor enacting CASE_MANAGER and the case owner (named actor) MAY be the same actor. When they are different
+      actors, each MUST have its own actor ID, even when co-located on the same server
+    rationale: A deployment may enact both roles in one actor. When the proposal flow (CP-09-001) yields two actors, distinct
+      identities keep every case-state transition on the wire protocol, whatever the topology, and let the two separate later
+      without protocol changes. An actor holding both roles still routes case traffic through its CASE_MANAGER role (CBT-01-003).
+    verification: Inspection of `vultron/core/` confirms that, when the actor enacting CASE_MANAGER and the case owner named
+      actor are different actors, they hold distinct actor IDs even in single-server deployments.
     relationships:
     - rel_type: refines
       spec_id: CM-01-001
@@ -1532,8 +1531,8 @@ groups:
   - id: CM-12-003
     priority: MUST
     kind: protocol
-    statement: When a case is created from an `Offer(Report)`, the case owner MUST queue a `Create(Case)` activity to notify
-      the reporter that a case has been opened
+    statement: When a case is created from an `Offer(Report)`, the case owner (the report receiver) MUST queue a `Create(Case)`
+      activity to notify the reporter that a case has been opened, naming the CASE_MANAGER it delegated to (CBT-01-001)
     verification: Integration tests in `test/demo/` confirm that a `Create(Case)` activity is
       queued for the reporter when a case is created from an `Offer(Report)`.
     relationships:
@@ -3419,7 +3418,9 @@ groups:
       The CASE_MANAGER MUST create the `VulnerabilityCase` object in its own
       DataLayer when accepting a `Create(as_CaseProposal)`, with `attributed_to`
       equal to the proposing actor's ID (the CASE_OWNER, CM-02-008), and MUST be
-      the `actor` of the `Create(VulnerabilityCase)` it emits.
+      the `actor` of the `Create(VulnerabilityCase)` it emits. It MUST address
+      that activity to the report receiver (the CASE_OWNER) only; the report
+      receiver introduces the CASE_MANAGER to the reporter (CBT-01-001, ADR-0132).
     rationale: >-
       ADR-0041 supersedes ADR-0015.  The CASE_MANAGER is the case's authoritative
       creator, which AS2 records as the `actor` of `Create(VulnerabilityCase)`
@@ -3434,6 +3435,7 @@ groups:
     adr:
     - ADR-0023
     - ADR-0041
+    - ADR-0132
     stories:
     - story_2022_012
     - story_2022_046

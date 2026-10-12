@@ -572,6 +572,47 @@ class TestWriteCreateCaseMarkerNode:
         assert isinstance(marker, PendingCreateCaseActivity)
         assert marker.create_activity_payload["to"] == [_VENDOR_URI, reporter]
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="CBT-01-010: the CASE_MANAGER's Create still lists the "
+        "reporters as addressees. Tracked by #4511.",
+    )
+    @pytest.mark.spec("CBT-01-010")
+    def test_case_manager_create_is_addressed_to_the_owner_only(self) -> None:
+        """The CASE_MANAGER's Create goes to the report receiver alone.
+
+        The receiver introduces the CASE_MANAGER to the reporter (ADR-0132).
+        """
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        case_id = "https://example.org/cases/c-owner-only"
+        case = VulnerabilityCase(id_=case_id, attributed_to=_CASE_ACTOR_URI)
+        reporter = "https://example.org/actors/reporter-owner-only"
+        participant = CaseParticipant(
+            id_=f"{reporter}/participant",
+            attributed_to=reporter,
+            context=case_id,
+            case_roles=[CVDRole.REPORTER],
+        )
+        case.add_participant(participant)
+        dl.save(participant)
+        dl.save(case)
+
+        status = self._run_node(
+            dl,
+            actor_id=_CASE_ACTOR_URI,
+            case_id=case_id,
+            accept_id="https://example.org/activities/a-owner-only",
+            seed=False,
+        )
+
+        assert status == py_trees.common.Status.SUCCESS
+        marker = dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI))
+        assert isinstance(marker, PendingCreateCaseActivity)
+        assert marker.create_activity_payload["to"] == [_VENDOR_URI]
+
     def test_fails_when_case_id_missing(self):
         """FAILURE returned when case_id is absent from blackboard."""
         dl = SqliteDataLayer(
@@ -3260,14 +3301,17 @@ def test_store_proposal_report_falls_back_to_the_wire_dict(caplog):
 
 
 # ---------------------------------------------------------------------------
-# CM-02-001 / CM-02-010 — one CaseActor per case, distinct from the case owner
+# CM-02-001 / CM-02-010 — one CaseActor per case; two actors keep distinct IDs
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.spec("CM-02-001")
 @pytest.mark.spec("CM-02-010")
 class TestCaseActorIsOneParticipantDistinctFromTheOwner:
-    """The bootstrap snapshot names exactly one CaseActor, and it is not the owner.
+    """The proposal flow's snapshot names exactly one CaseActor, and it is not the owner.
+
+    CM-02-010 lets one actor hold both roles; when the proposal flow yields two
+    actors, each keeps its own actor ID, and that is what is asserted here.
 
     Under ADR-0041 "CaseActor" is the participant holding
     ``CVDRole.CASE_MANAGER``, not a per-case ``Service`` object — the earlier
@@ -3325,7 +3369,7 @@ class TestCaseActorIsOneParticipantDistinctFromTheOwner:
         assert self._managers(case) == [_CASE_ACTOR_URI]
 
     def test_the_case_manager_is_not_the_case_owner(self, make_payload):
-        """CM-02-010: distinct identities, co-located in one store or not.
+        """CM-02-010: when two actors enact the roles, their IDs are distinct.
 
         If these ever coincided, the CaseActor's replication to the owner would
         become a message an actor sends itself — delivery discards those, so the

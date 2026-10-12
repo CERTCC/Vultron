@@ -7,6 +7,7 @@ updated: 2026-10-06
 revision: 2
 deciders: [adh, Claude Sonnet 4.6]
 supersedes: 0015-create-case-at-report-receipt.md
+partially_superseded_by: 0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md
 stakeholder_type: [project-contributor]
 ---
 

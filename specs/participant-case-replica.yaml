@@ -201,7 +201,7 @@ groups:
     statement: >-
       A participant actor MUST NOT create a local case replica from an `Announce(VulnerabilityCase)`
       message unless prior trust for that case has been established: either (a) the actor has
-      already processed a `Create(VulnerabilityCase)` from the case creator that introduced the
+      already processed a `Create(VulnerabilityCase)` from the report receiver that introduced the
       CASE_MANAGER identity, or (b) the actor has completed an `InviteActorToCase`/`AcceptInviteToCase`
       exchange that records a pending-expectation for that case. Accepting any `Announce(VulnerabilityCase)`
       from an unauthenticated or unexpected sender as a bootstrap signal is not permitted.
