@@ -6,7 +6,8 @@ description: >
   Rules for changing the CaseProposal implementation: who may answer a
   proposal, the admission-gate invariants, the proposer profile on the envelope,
   native case initialization by the CASE_MANAGER, the CaseActor identity and the
-  dedicated case-actor container, the durable-delivery markers, duplicate-proposal handling, and finding the
+  dedicated case-actor container, the durable-delivery markers,
+  duplicate-proposal handling, and finding the
   canonical case in exchange demos.
 related_specs:
   - specs/case-proposal.yaml
