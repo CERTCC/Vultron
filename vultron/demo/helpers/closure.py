@@ -39,7 +39,8 @@ record its own closure (CM-23-004), so no replica converges on every closure:
 
 The CASE_MANAGER's store is read where it lives — the dedicated
 ``case-actor`` container when the topology has one (DEMOMA-06-004) —
-through :func:`~vultron.demo.helpers.polling.case_manager_client`.
+through the scenario's authority client, scoped by
+:func:`~vultron.demo.helpers.polling.case_manager_store`.
 """
 
 import logging
@@ -55,7 +56,7 @@ from vultron.demo.helpers.milestones import (
     verify_case_closure_recorded,
 )
 from vultron.demo.helpers.polling import (
-    case_manager_client,
+    case_manager_store,
     wait_for_participant_rm_state,
 )
 from vultron.demo.helpers.sync import wait_for_replica_ledger_ending_at
@@ -101,9 +102,9 @@ def close_case_owner_last(
     order given.  The owner's ``Leave`` is gated on the CASE_MANAGER having
     recorded every one of those departures: each leaver reads ``RM.CLOSED``
     in the CASE_MANAGER's own store, where the non-owner closure commits
-    (CM-23-003).  That store is read where it lives, found through
-    *authority_client* (:func:`~vultron.demo.helpers.polling
-    .case_manager_client`).  When a departure is not recorded in time the
+    (CM-23-003).  That store is read through *authority_client*, scoped to
+    the CaseActor it hosts (:func:`~vultron.demo.helpers.polling
+    .case_manager_store`).  When a departure is not recorded in time the
     gate fails once and the owner does not leave: an owner ``Leave`` sent
     then would close the case over a departure the ledger might never
     record (CM-23-013).
@@ -127,9 +128,9 @@ def close_case_owner_last(
 
     Args:
         case: The case being closed.
-        authority_client: Client for a container holding the case, through
-            which the CASE_MANAGER is found: the host of its CaseActor when
-            co-hosted, otherwise any participant's container.
+        authority_client: Client for the container that hosts the case's
+            CASE_MANAGER: the dedicated case-actor container, bound to its
+            CaseActor, when the topology has one (DEMOMA-06-004).
         others: Every participant other than the Case Owner, in the order
             they leave.  Each MUST be distinct from *owner*.
         owner: The participant holding ``CASE_OWNER`` at closure.
@@ -162,7 +163,7 @@ def close_case_owner_last(
         "every other participant's departure recorded before the Case Owner"
         " leaves (CM-23-015)"
     ):
-        manager = case_manager_client(authority_client, case.id_)
+        manager = _case_manager_reader(authority_client, case.id_)
         for leaver in others:
             wait_for_participant_rm_state(
                 client=manager,
@@ -177,6 +178,21 @@ def close_case_owner_last(
         )
 
     return departed
+
+
+def _case_manager_reader(
+    authority_client: DataLayerClient, case_id: str
+) -> DataLayerClient:
+    """*authority_client*, bound to the CASE_MANAGER's own store.
+
+    The closure checks read every record through one client, so the store
+    scope :func:`~vultron.demo.helpers.polling.case_manager_store` returns
+    is bound onto it rather than passed to each read.
+    """
+    client, store_id = case_manager_store(authority_client, case_id)
+    if store_id is None:
+        return client
+    return client.model_copy(update={"actor_id": store_id})
 
 
 def _verify_closure(

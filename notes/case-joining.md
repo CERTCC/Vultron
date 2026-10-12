@@ -104,8 +104,8 @@ it leaves is not sent those entries), and the CM-31-009 embargo notice to a
 closed signatory is the only other message a closed participant gets. The
 CASE_MANAGER's store is where every participant's closure is verified, so the
 demos' "all participants closed" check reads that store
-(`vultron/demo/helpers/closure.py`, through `case_manager_client`, which finds
-the dedicated case-actor container when there is one), and each departing
+(`vultron/demo/helpers/closure.py`, through the dedicated case-actor
+container's client and `case_manager_store`), and each departing
 actor's replica is checked only for its own closure. Closed-skipping is not an
 option: `case_content_recipients()` always leaves a closed participant out,
 and the one ledger fan-out (`FanOutLogEntryNode`) picks its recipients with

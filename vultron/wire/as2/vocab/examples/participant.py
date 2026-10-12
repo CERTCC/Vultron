@@ -15,15 +15,20 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
     remove_participant_from_case_activity,
+    rm_accept_full_case_invite_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
+    rm_invite_to_full_case_activity,
+    rm_reject_full_case_invite_activity,
     rm_reject_invite_to_case_activity,
+    rm_tentative_reject_full_case_invite_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -34,6 +39,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.examples._base import (
+    _CASE_ACTOR,
     _COORDINATOR,
     _example_stamp,
     case,
@@ -268,3 +274,53 @@ def remove_participant_from_case():
         summary="Vendor is removing the coordinator from the case.",
     )
     return activity
+
+
+#: The ledger position in the full-case Invite examples.  The participant has
+#: replayed the whole ledger, so its tail when it answers equals the
+#: CASE_MANAGER's tail when it asked.
+_LEDGER_TAIL = LedgerPosition(log_index=4, entry_hash="b2c3d4e5" * 8)
+
+
+def invite_to_full_case() -> as_Invite:
+    """The full-case Invite: the CASE_MANAGER asks a joined participant to judge the case."""
+    _case = case()
+    _coordinator = _COORDINATOR
+    return rm_invite_to_full_case_activity(
+        _coordinator,
+        _case,
+        _LEDGER_TAIL,
+        id_=f"{_case.id_}/full-case-invitation/1",
+        actor=_CASE_ACTOR.id_,
+        to=_coordinator.id_,
+    )
+
+
+def accept_full_case_invite() -> as_Accept:
+    """The participant judges the case valid (RM ``VALID``)."""
+    return rm_accept_full_case_invite_activity(
+        invite_to_full_case(),
+        _LEDGER_TAIL,
+        actor=_COORDINATOR.id_,
+        to=_CASE_ACTOR.id_,
+    )
+
+
+def tentative_reject_full_case_invite() -> as_Reject:
+    """The participant judges the case invalid (RM ``INVALID``)."""
+    return rm_tentative_reject_full_case_invite_activity(
+        invite_to_full_case(),
+        _LEDGER_TAIL,
+        actor=_COORDINATOR.id_,
+        to=_CASE_ACTOR.id_,
+    )
+
+
+def reject_full_case_invite() -> as_Reject:
+    """The participant closes the case (RM ``CLOSED``)."""
+    return rm_reject_full_case_invite_activity(
+        invite_to_full_case(),
+        _LEDGER_TAIL,
+        actor=_COORDINATOR.id_,
+        to=_CASE_ACTOR.id_,
+    )

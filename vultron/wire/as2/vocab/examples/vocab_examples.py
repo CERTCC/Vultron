@@ -84,22 +84,29 @@ from vultron.wire.as2.vocab.examples.case_proposal import (
 from vultron.wire.as2.vocab.examples.embargo import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.embargo import (
     accept_embargo,
+    accept_embargo_revision,
     activate_embargo,
     announce_embargo,
+    create_embargo_event,
     embargo_event,
     propose_embargo,
+    propose_embargo_revision,
     reject_embargo,
     reject_embargo_proposal,
+    reject_embargo_revision,
     remove_embargo,
 )
+from vultron.wire.as2.vocab.examples.fault import create_processing_fault
 from vultron.wire.as2.vocab.examples.note import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.note import (  # noqa: F401
     add_note_to_case,
     create_note,
     note,
+    remove_note_from_case,
 )
 from vultron.wire.as2.vocab.examples.participant import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.participant import (  # noqa: F401
+    accept_full_case_invite,
     accept_invite_to_case,
     add_coordinator_participant_to_case,
     add_finder_participant_to_case,
@@ -109,9 +116,12 @@ from vultron.wire.as2.vocab.examples.participant import (  # noqa: F401
     create_participant,
     finder_participant,
     invite_to_case,
+    invite_to_full_case,
+    reject_full_case_invite,
     reject_invite_to_case,
     remove_participant_from_case,
     rm_invite_to_case,
+    tentative_reject_full_case_invite,
     vendor_participant,
 )
 from vultron.wire.as2.vocab.examples.report import *  # noqa: F403
@@ -125,8 +135,14 @@ from vultron.wire.as2.vocab.examples.report import (
 )
 from vultron.wire.as2.vocab.examples.status import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.status import (
+    add_attacks_observed_to_case,
+    add_exploit_public_to_case,
+    add_fix_deployment_to_participant,
+    add_fix_readiness_to_participant,
+    add_public_awareness_to_case,
     add_status_to_case,
     add_status_to_participant,
+    add_vendor_awareness_to_participant,
     case_status,
     create_case_status,
     create_participant_status,
@@ -377,6 +393,30 @@ def main(outdir=None):
         _reject_case_ledger_entry,
         f"{outdir}/reject_case_ledger_entry.json",
     )
+
+    # one example per occasion (MSM-08-003, ADR-0128): each collapsed
+    # occasion shows its own distinguishing value
+    for occasion_example in (
+        add_vendor_awareness_to_participant,
+        add_fix_readiness_to_participant,
+        add_fix_deployment_to_participant,
+        add_public_awareness_to_case,
+        add_exploit_public_to_case,
+        add_attacks_observed_to_case,
+        create_embargo_event,
+        propose_embargo_revision,
+        accept_embargo_revision,
+        reject_embargo_revision,
+        remove_note_from_case,
+        invite_to_full_case,
+        accept_full_case_invite,
+        tentative_reject_full_case_invite,
+        reject_full_case_invite,
+        create_processing_fault,
+    ):
+        obj_to_file(
+            occasion_example(), f"{outdir}/{occasion_example.__name__}.json"
+        )
 
 
 if __name__ == "__main__":

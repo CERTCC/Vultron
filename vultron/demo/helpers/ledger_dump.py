@@ -49,7 +49,7 @@ from typing import Any
 import httpx2 as httpx
 
 from vultron.adapters.utils import strip_id_prefix
-from vultron.demo.utils import DataLayerClient, demo_step
+from vultron.demo.utils import CASE_ACTOR_SLUG, DataLayerClient, demo_step
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -76,16 +76,11 @@ class LedgerDumpTarget:
             name the invariant harness uses to identify the replica.
         client: DataLayerClient for the container that holds the ledger.
         route_key: In-container actor route key used to build the log path.
-        fallback_client: Optional second container to try when *client* returns
-            404 or an empty ledger.
-        fallback_route_key: Route key to use with *fallback_client*.
     """
 
     actor_name: str
     client: DataLayerClient
     route_key: str
-    fallback_client: DataLayerClient | None = None
-    fallback_route_key: str | None = None
 
 
 @dataclass
@@ -262,26 +257,29 @@ def replica_route_key(client: DataLayerClient, fallback: str) -> str:
     return strip_id_prefix(client.actor_id)
 
 
-def resolve_case_actor_route_key(case: as_VulnerabilityCase) -> str | None:
-    """Return the in-container route key of the case's case-actor, if any.
+def case_actor_dump_target(
+    case_actor_client: DataLayerClient,
+) -> LedgerDumpTarget:
+    """Return the dump target for the CaseActor's canonical ledger.
 
-    The case-actor is a sub-actor created inside whichever container owns the
-    case; its route key is discoverable only from the case's participant index.
+    The CaseActor lives in the dedicated case-actor container in every Docker
+    scenario (DEMOMA-06-004, CP-08-008), so its ledger is read there and nowhere
+    else (DEMOMA-06-005). There is no fallback to a participant's container: a
+    participant holds a replica, not the canonical ledger, and dumping that as
+    ``case-actor`` would hide exactly the topology fault this target exists to
+    expose.
 
     Args:
-        case: The case whose participants are scanned.
+        case_actor_client: Client for the dedicated case-actor container, bound
+            to its CaseActor.
 
     Returns:
-        The case-actor's route key, or ``None`` when the case has no case-actor
-        participant.
+        The ``case-actor`` target, the name the invariant harness loads.
     """
-    return next(
-        (
-            strip_id_prefix(actor_id)
-            for actor_id in case.actor_participant_index
-            if strip_id_prefix(actor_id).startswith("case-actor")
-        ),
-        None,
+    return LedgerDumpTarget(
+        CASE_ACTOR_SLUG,
+        case_actor_client,
+        replica_route_key(case_actor_client, CASE_ACTOR_SLUG),
     )
 
 
@@ -346,10 +344,10 @@ def _fetch_entries(
 ) -> list[dict[str, Any]]:
     """Fetch ledger entries, treating a 404 as an empty ledger.
 
-    A 404 means the container does not hold this case at all, which is a
-    legitimate outcome for a dedicated case-actor container (see the fallback in
-    :func:`dump_case_ledgers`) and for a scenario that never delivered the case
-    to that participant. Any other HTTP error is a real failure and propagates.
+    A 404 means the container does not hold this case at all — a scenario that
+    never delivered the case to that participant. The caller reports the empty
+    ledger as a failed target (:func:`_dump_one_target`); any other HTTP error is
+    a real failure and propagates.
 
     Args:
         client: Container client to read from.
@@ -512,17 +510,6 @@ def _dump_one_target(
         f"/actors/{target.route_key}/demo/cases/{case_key}/log",
         target.actor_name,
     )
-    if not entries and target.fallback_client is not None:
-        logger.info(
-            "Primary %s log unavailable; falling back to route key '%s'",
-            target.actor_name,
-            target.fallback_route_key,
-        )
-        entries = _fetch_entries(
-            target.fallback_client,
-            f"/actors/{target.fallback_route_key}/demo/cases/{case_key}/log",
-            target.actor_name,
-        )
     if not entries:
         raise ValueError(
             f"No case ledger entries for actor={target.actor_name!r}, "

@@ -229,8 +229,9 @@ def wait_for_case_participants(
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Read this actor's store on the container instead of
-            the client's own — typically a self-hosted CaseActor, the only
-            store that holds an invitee that never joined (CM-11-006).
+            the client's own — typically the CaseActor co-hosted in a
+            single-container exchange demo, the only store that holds an
+            invitee that never joined (CM-11-006).
 
     Raises:
         AssertionError: If any expected actor is absent after *timeout_seconds*.
@@ -1244,51 +1245,35 @@ def resolve_case_actor_store_id(
     return case_actor_id
 
 
-def case_manager_client(
-    client: DataLayerClient, case_id: str
-) -> DataLayerClient:
-    """Return a client that reads *case_id*'s CASE_MANAGER's own store.
+def case_manager_store(
+    client: DataLayerClient,
+    case_id: str,
+    case_manager_client: DataLayerClient | None = None,
+) -> tuple[DataLayerClient, str | None]:
+    """Return ``(client, dl_actor_id)`` to read *case_id*'s CASE_MANAGER store.
 
-    The CASE_MANAGER's store is the one place every participant's closure is
-    verified (CM-23-004): a participant at RM ``CLOSED`` is sent no entry
-    after the ones recording its own closure, so its replica, and the Case
-    Owner's, never converges on later closures or ``case_fully_closed``.
+    When the CaseActor runs in its own container — the dedicated case-actor
+    container of the Docker scenarios (DEMOMA-06-004) — no participant's
+    container can address its store, and a participant's replica is no
+    substitute: the CaseActor applies some participant transitions without a
+    ledger entry, so a replica can lag them indefinitely.  *case_manager_client*
+    names that container, bound to the CaseActor, and is read as-is.
 
-    The CaseActor is found through *client* (any container holding the
-    case).  When it is co-hosted with *client*'s actor the result reads the
-    same container, scoped to the CaseActor's store.  Otherwise it reads the
-    container the CaseActor's own id names — the dedicated ``case-actor``
-    container of the Docker topology (DEMOMA-06-004) — rather than falling
-    back to *client*'s replica, which would wait for entries it is never
-    sent.
+    Without one, *client* is read, scoped to a CaseActor it co-hosts
+    (:func:`resolve_case_actor_store_id`) — the single-container exchange demos.
 
     Args:
-        client: DataLayerClient for any container holding the case.
+        client: The participant client the caller would otherwise read through.
         case_id: Full URI of the ``as_VulnerabilityCase``.
+        case_manager_client: Client for the CaseActor's own container, if the
+            caller has one.
 
     Returns:
-        A copy of *client* addressed at the CaseActor's container and bound
-        to the CaseActor's store.
-
-    Raises:
-        AssertionError: If the case names no CaseActor participant, so there
-            is no CASE_MANAGER store to read.
+        The client to read through and the ``dl_path`` actor scope to pass it.
     """
-    case_actor_id = find_case_actor_participant_id(client, case_id)
-    if case_actor_id is None:
-        raise AssertionError(
-            f"case {case_id!r} names no CaseActor participant readable"
-            f" through {client.base_url}; cannot read the CASE_MANAGER's"
-            " store (CM-23-004)"
-        )
-    if resolve_case_actor_store_id(client, case_id) is not None:
-        return client.model_copy(update={"actor_id": case_actor_id})
-    return client.model_copy(
-        update={
-            "base_url": parse_id(case_actor_id)["base_url"].rstrip("/"),
-            "actor_id": case_actor_id,
-        }
-    )
+    if case_manager_client is not None:
+        return case_manager_client, None
+    return client, resolve_case_actor_store_id(client, case_id)
 
 
 def wait_for_object_stored(
@@ -1517,7 +1502,8 @@ def wait_for_participant_vf_state(
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
-            not the client's own actor — typically a self-hosted CaseActor.
+            not the client's own actor — typically the CaseActor co-hosted in
+            a single-container exchange demo.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
@@ -1554,7 +1540,8 @@ def wait_for_participant_d_state(
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
-            not the client's own actor — typically a self-hosted CaseActor.
+            not the client's own actor — typically the CaseActor co-hosted in
+            a single-container exchange demo.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
@@ -1922,7 +1909,8 @@ def wait_for_participant_rm_state(
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
-            not the client's own actor — typically a self-hosted CaseActor.
+            not the client's own actor — typically the CaseActor co-hosted in
+            a single-container exchange demo.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.

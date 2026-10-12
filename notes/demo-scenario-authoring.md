@@ -384,7 +384,7 @@ unit test. The guard was never missing; the single place to fix it was.
    the failure must not be left for a replica-side check to misattribute.
    Scenario-specific extras
    — the two-actor fv scenario's check that the dedicated case-actor container
-   stayed unused — follow the helper call as separate steps. A scenario with no
+   holds the case — follow the helper call as separate steps. A scenario with no
    participant expectation (fcv-reject) declares none and no participant wait
    runs.
 3. A scenario module never calls `wait_for_contiguous_ledger_coverage` or
@@ -453,8 +453,9 @@ ledger (EDF-06-002).
 
 After the owner leaves, the helper runs the whole closure milestone, each part
 in its own `demo_check`, all read where the CASE_MANAGER lives
-(`case_manager_client` in `vultron/demo/helpers/polling.py`, which finds the
-dedicated case-actor container when there is one, DEMOMA-06-004):
+(the scenario's authority client is the dedicated case-actor container, bound
+to its CaseActor, DEMOMA-06-004; `case_manager_store` in
+`vultron/demo/helpers/polling.py` scopes the reads):
 
 1. `verify_case_closure_recorded` (`vultron/demo/helpers/milestones.py`): each
    departure is recorded at `RM.CLOSED` before `case_fully_closed`, and no later

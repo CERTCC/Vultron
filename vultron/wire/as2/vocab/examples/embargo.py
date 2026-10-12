@@ -25,6 +25,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
+    as_Create,
     as_Invite,
     as_Reject,
     as_Remove,
@@ -66,6 +67,16 @@ def embargo_event(days: int = 90) -> as_EmbargoEvent:
     return event
 
 
+def create_embargo_event() -> as_Create:
+    """``Create(Event)``: the Vendor mints the terms it is about to propose."""
+    _case = case()
+    return as_Create(
+        actor=vendor().id_,
+        object_=embargo_event(),
+        context=_case.id_,
+    )
+
+
 def propose_embargo() -> as_Invite:
     embargo = embargo_event()
     _case = case()
@@ -103,6 +114,45 @@ def reject_embargo() -> as_Reject:
         to="https://vultron.example/cases/1/participants",
     )
     return activity
+
+
+def propose_embargo_revision() -> as_Invite:
+    """EV: a proposal sent while an embargo is active, so it is a revision.
+
+    The wire form is the same ``Invite(Event)`` as an initial proposal
+    (MSM-02-001); only the receiver's EM state makes it a revision.
+    """
+    revision = embargo_event(120)
+    _case = case()
+    return em_propose_embargo_activity(
+        revision,
+        id_=f"{_case.id_}/embargo_proposals/2",
+        actor=vendor().id_,
+        context=_case.id_,
+        summary="We propose to extend the embargo on case 1 to 120 days.",
+    )
+
+
+def accept_embargo_revision() -> as_Accept:
+    """EC: a participant's consent to a proposed revision."""
+    proposal = propose_embargo_revision()
+    return em_accept_embargo_activity(
+        proposal,
+        actor=vendor().id_,
+        context=proposal.context,
+        to="https://vultron.example/cases/1/participants",
+    )
+
+
+def reject_embargo_revision() -> as_Reject:
+    """EJ: a participant's refusal of a proposed revision."""
+    proposal = propose_embargo_revision()
+    return em_reject_embargo_activity(
+        proposal,
+        actor=vendor().id_,
+        context=proposal.context,
+        to="https://vultron.example/cases/1/participants",
+    )
 
 
 def activate_embargo() -> as_Accept:

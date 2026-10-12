@@ -59,6 +59,12 @@ from vultron.core.use_cases.received.actor import (
     TentativeRejectInviteActorToFullCaseReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import (
+    HowToGuide,
+    MessagePage,
+    Occasion,
+    ProtocolShorthand,
+)
 from vultron.wire.as2.extractor import (
     AcceptActorRecommendationPattern,
     AcceptCaseOwnershipTransferActivityPattern,
@@ -112,6 +118,23 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} suggested {object} for the case",
         wire_activity_class=_RecommendActorActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant suggests an actor that the case should "
+                    "include"
+                ),
+                anchor="suggest-actor-to-case",
+                description=(
+                    "Recommends an actor to the Case Manager for the case "
+                    "named by the target."
+                ),
+                example="recommend_actor",
+                howto=HowToGuide.SUGGEST_ACTOR,
+                shorthand=ProtocolShorthand.GI,
+            ),
+        ),
+        page=MessagePage.GENERAL,
     ),
     # Case Owner inbox: CaseActor's Offer(CaseParticipant) arrives here (CM-16-003/CM-16-004)
     SemanticEntry(
@@ -122,6 +145,24 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} offered {object} case participation",
         wire_activity_class=_OfferCaseParticipantActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager presents a suggested actor to the Case "
+                    "Owner"
+                ),
+                anchor="offer-case-participant",
+                description=(
+                    "Forwards the recommendation as a proposed participant "
+                    "record, carrying the original recommendation's ID and the"
+                    " default roles it assigned."
+                ),
+                example="offer_case_participant",
+                howto=HowToGuide.SUGGEST_ACTOR,
+                shorthand=ProtocolShorthand.GI,
+            ),
+        ),
+        page=MessagePage.GENERAL,
     ),
     # CaseActor inbox: Case Owner's Accept/Reject(Offer(CaseParticipant)) arrives here
     SemanticEntry(
@@ -132,6 +173,20 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} accepted case participation",
         wire_activity_class=_AcceptCaseParticipantOfferActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="the Case Owner approves a suggested actor",
+                anchor="accept-case-participant-offer",
+                description=(
+                    "Accepts the proposed participant record. The Case Manager"
+                    " then invites the suggested actor."
+                ),
+                example="accept_case_participant_offer",
+                howto=HowToGuide.SUGGEST_ACTOR,
+                shorthand=ProtocolShorthand.GI,
+            ),
+        ),
+        page=MessagePage.GENERAL,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
@@ -141,6 +196,20 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} declined case participation",
         wire_activity_class=_RejectCaseParticipantOfferActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="the Case Owner declines a suggested actor",
+                anchor="reject-case-participant-offer",
+                description=(
+                    "Rejects the proposed participant record. The Case Manager"
+                    " tells the recommender."
+                ),
+                example="reject_case_participant_offer",
+                howto=HowToGuide.SUGGEST_ACTOR,
+                shorthand=ProtocolShorthand.GI,
+            ),
+        ),
+        page=MessagePage.GENERAL,
     ),
     SemanticEntry(
         semantics=MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
@@ -150,6 +219,22 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} offered {object} role to {target} in the case",
         wire_activity_class=_OfferCaseParticipantRoleActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant offers a CVD role on the case to another "
+                    "actor"
+                ),
+                anchor="offer-case-participant-role",
+                description=(
+                    "Offers one role on the case to the actor named by the "
+                    "target."
+                ),
+                example="offer_case_participant_role",
+                howto=HowToGuide.ROLE_DELEGATION,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE,
@@ -159,6 +244,19 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} accepted the role offer",
         wire_activity_class=_AcceptCaseParticipantRoleActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="an actor accepts a role offered to it on the case",
+                anchor="accept-case-participant-role",
+                description=(
+                    "Accepts the offered role. The actor holds the role from "
+                    "then on."
+                ),
+                example="accept_case_participant_role",
+                howto=HowToGuide.ROLE_DELEGATION,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE,
@@ -168,6 +266,18 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} declined the role offer",
         wire_activity_class=_RejectCaseParticipantRoleActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="an actor declines a role offered to it on the case",
+                anchor="reject-case-participant-role",
+                description=(
+                    "Declines the offered role. The roster does not change."
+                ),
+                example="reject_case_participant_role",
+                howto=HowToGuide.ROLE_DELEGATION,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
@@ -177,6 +287,21 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} offered {object} case ownership",
         wire_activity_class=_OfferCaseOwnershipTransferActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Owner offers to transfer ownership of the case "
+                    "to another actor"
+                ),
+                anchor="offer-case-ownership-transfer",
+                description=(
+                    "Offers the case to the actor named by the target, for "
+                    "example from a Reporter to a Coordinator."
+                ),
+                example="offer_case_ownership_transfer",
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
@@ -186,6 +311,15 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} accepted case ownership",
         wire_activity_class=_AcceptCaseOwnershipTransferActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="an actor accepts an offer of case ownership",
+                anchor="accept-case-ownership-transfer",
+                description="Accepts the ownership transfer offer.",
+                example="accept_case_ownership_transfer",
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
@@ -194,6 +328,18 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=RejectCaseOwnershipTransferReceivedUseCase,
         phrase="{actor} declined case ownership",
         wire_activity_class=_RejectCaseOwnershipTransferActivity,
+        occasions=(
+            Occasion(
+                when="an actor declines an offer of case ownership",
+                anchor="reject-case-ownership-transfer",
+                description=(
+                    "Declines the ownership transfer offer. The current Case "
+                    "Owner keeps the case."
+                ),
+                example="reject_case_ownership_transfer",
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.INVITE_ACTOR_TO_CASE,
@@ -203,6 +349,19 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} invited {object} to the case",
         wire_activity_class=_RmInviteToCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="the Case Manager invites an actor to join the case",
+                anchor="invite-actor-to-case",
+                description=(
+                    "Sends a Stub Invite carrying the case stub and the "
+                    "embargo terms the invitee would agree to."
+                ),
+                example="rm_invite_to_case",
+                howto=HowToGuide.INVITE_ACTOR,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
@@ -212,6 +371,19 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} accepted the case invitation",
         wire_activity_class=_RmAcceptInviteToCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="an invited actor agrees to join the case",
+                anchor="accept-invite-to-case",
+                description=(
+                    "Accepts the Stub Invite. The actor joins the case at RM "
+                    "Received."
+                ),
+                example="accept_invite_to_case",
+                howto=HowToGuide.INVITE_ACTOR,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
@@ -221,6 +393,19 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} declined the case invitation",
         wire_activity_class=_RmRejectInviteToCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when="an invited actor declines to join the case",
+                anchor="reject-invite-to-case",
+                description=(
+                    "Rejects the Stub Invite, which closes the invitee's "
+                    "participant record."
+                ),
+                example="reject_invite_to_case",
+                howto=HowToGuide.INVITE_ACTOR,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
@@ -230,6 +415,23 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} invited {object} to judge the case",
         wire_activity_class=_RmInviteToFullCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager has replayed the case ledger to a newly "
+                    "joined Participant"
+                ),
+                anchor="invite-actor-to-full-case",
+                description=(
+                    "Sends the Full-Case Invite, which asks the Participant to"
+                    " judge the case. It carries the Case Manager's ledger "
+                    "position as the floor the reply must reach."
+                ),
+                example="invite_to_full_case",
+                howto=HowToGuide.INVITE_ACTOR,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ACCEPT_INVITE_ACTOR_TO_FULL_CASE,
@@ -239,6 +441,23 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} judged the case valid",
         wire_activity_class=_RmAcceptFullCaseInviteActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant asked by a Full-Case Invite judges the case"
+                    " valid"
+                ),
+                anchor="accept-full-case-invite",
+                description=(
+                    "Accepts the Full-Case Invite, which records RM Valid. It "
+                    "carries the sender's own ledger position."
+                ),
+                example="accept_full_case_invite",
+                howto=HowToGuide.INVITE_ACTOR,
+                shorthand=ProtocolShorthand.RV,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE,
@@ -248,6 +467,23 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} judged the case invalid",
         wire_activity_class=_RmTentativeRejectFullCaseInviteActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant asked by a Full-Case Invite judges the case"
+                    " invalid"
+                ),
+                anchor="tentatively-reject-full-case-invite",
+                description=(
+                    "Tentatively rejects the Full-Case Invite, which records "
+                    "RM Invalid. It carries the sender's own ledger position."
+                ),
+                example="tentative_reject_full_case_invite",
+                howto=HowToGuide.INVITE_ACTOR,
+                shorthand=ProtocolShorthand.RI,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_INVITE_ACTOR_TO_FULL_CASE,
@@ -257,6 +493,22 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} closed the case",
         wire_activity_class=_RmRejectFullCaseInviteActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant asked by a Full-Case Invite closes the case"
+                ),
+                anchor="reject-full-case-invite",
+                description=(
+                    "Rejects the Full-Case Invite, which records RM Closed. It"
+                    " carries the sender's own ledger position."
+                ),
+                example="reject_full_case_invite",
+                howto=HowToGuide.INVITE_ACTOR,
+                shorthand=ProtocolShorthand.RC,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
@@ -266,5 +518,21 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} announced the case",
         wire_activity_class=_AnnounceVulnerabilityCaseActivity,
         include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager has admitted a new Participant to the "
+                    "case"
+                ),
+                anchor="announce-vulnerability-case",
+                description=(
+                    "Sends the full case to the newly admitted Participant "
+                    "once its acceptance clears the embargo consent checks."
+                ),
+                example="announce_case",
+                howto=HowToGuide.INVITE_ACTOR,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
     ),
 ]

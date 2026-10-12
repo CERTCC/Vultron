@@ -134,38 +134,20 @@ class TestResetContainersFcv:
         finder_client = MagicMock()
         coordinator_client = MagicMock()
         vendor_client = MagicMock()
-        finder_client.get.return_value = {}
-        coordinator_client.get.return_value = {}
-        vendor_client.get.return_value = {}
-
-        with patch(
-            "vultron.demo.scenario.fcv_demo.reset_datalayer",
-            return_value={"status": "ok"},
-        ) as reset_mock:
-            demo.reset_containers(
-                finder_client=finder_client,
-                coordinator_client=coordinator_client,
-                vendor_client=vendor_client,
-            )
-
-        reset_mock.assert_has_calls(
-            [
-                call(client=finder_client),
-                call(client=coordinator_client),
-                call(client=vendor_client),
-            ]
-        )
-
-    def test_reset_includes_case_actor_when_provided(self):
-        finder_client = MagicMock()
-        coordinator_client = MagicMock()
-        vendor_client = MagicMock()
         case_actor_client = MagicMock()
+        for c in (finder_client, coordinator_client, vendor_client):
+            c.get.return_value = {}
+        case_actor_client.get.return_value = {}
 
-        with patch(
-            "vultron.demo.scenario.fcv_demo.reset_datalayer",
-            return_value={"status": "ok"},
-        ) as reset_mock:
+        with (
+            patch(
+                "vultron.demo.scenario.fcv_demo.reset_datalayer",
+                return_value={"status": "ok"},
+            ) as reset_mock,
+            patch(
+                "vultron.demo.helpers.seeding.seed_case_actor_identity"
+            ) as reseed,
+        ):
             demo.reset_containers(
                 finder_client=finder_client,
                 coordinator_client=coordinator_client,
@@ -173,10 +155,17 @@ class TestResetContainersFcv:
                 case_actor_client=case_actor_client,
             )
 
-        called_clients = [
-            c.kwargs["client"] for c in reset_mock.call_args_list
-        ]
-        assert case_actor_client in called_clients
+        reset_mock.assert_has_calls(
+            [
+                call(client=finder_client),
+                call(client=coordinator_client),
+                call(client=vendor_client),
+                call(client=case_actor_client),
+            ]
+        )
+        # The dedicated case-actor identity is re-seeded after the wipe
+        # (#1876 AC-2): every proposal is addressed to it.
+        reseed.assert_called_once_with(case_actor_client)
 
 
 # ---------------------------------------------------------------------------
@@ -420,7 +409,7 @@ class TestFcvMilestoneAssertions:
                 finder_client=finder_client,
                 coordinator_client=coordinator_client,
                 vendor_client=vendor_client,
-                case_actor_client=None,
+                case_actor_client=self._client(),
                 finder_id=None,
                 coordinator_id=None,
                 vendor_id=None,
@@ -592,6 +581,7 @@ class TestFcvMilestoneAssertions:
             demo._phase_case_closure(
                 finder_client=finder_client,
                 coordinator_client=coordinator_client,
+                case_actor_client=self._client(),
                 vendor_client=vendor_client,
                 coordinator_in_coordinator=coordinator_in_coordinator,
                 vendor_in_vendor=vendor_in_vendor,
@@ -704,6 +694,7 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
         ):
             demo._phase_invite_vendor(
                 coordinator_client=coordinator_client,
+                case_actor_client=self._client(),
                 vendor_client=vendor_client,
                 finder_client=finder_client,
                 coordinator_in_coordinator=coordinator_in_coordinator,
@@ -783,6 +774,7 @@ class TestFcvInviteChainSkipsDependents:
         ):
             demo._phase_invite_vendor(
                 coordinator_client=coordinator_client,
+                case_actor_client=self._client(),
                 vendor_client=vendor_client,
                 finder_client=finder_client,
                 coordinator_in_coordinator=self._actor("urn:test:coordinator"),

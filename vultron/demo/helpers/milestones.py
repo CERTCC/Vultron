@@ -424,7 +424,7 @@ def verify_case_closed(
 
     Args:
         case_manager_client: Client bound to the CASE_MANAGER's own store
-            (:func:`~vultron.demo.helpers.polling.case_manager_client`).
+            (see :func:`~vultron.demo.helpers.polling.case_manager_store`).
         case_id: Full URI of the ``as_VulnerabilityCase``.
 
     Raises:
@@ -641,8 +641,7 @@ def case_manager_ledger(
 
     Read through *client*, scoped to the co-hosted CaseActor's store
     (:func:`~vultron.demo.helpers.polling.resolve_case_actor_store_id`);
-    a client from :func:`~vultron.demo.helpers.polling.case_manager_client`
-    already reads that store.  DataLayer shape (``log_index``,
+    a client bound to the CaseActor already reads that store.  DataLayer shape (``log_index``,
     ``event_type``, ``payload_snapshot``), in no particular order.
     """
     store_id = resolve_case_actor_store_id(client, case_id)

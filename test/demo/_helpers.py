@@ -230,7 +230,7 @@ def stub_closure_gate() -> Iterator[MagicMock]:
     """
     with (
         patch(
-            "vultron.demo.helpers.closure.case_manager_client",
+            "vultron.demo.helpers.closure._case_manager_reader",
             side_effect=lambda client, _case_id: client,
         ),
         patch(
@@ -400,3 +400,52 @@ def seed_replicas_for_case_participants(
         seed_case_replica_for_actor(source_dl, target, case_id)
         seeded[actor_id] = target
     return seeded
+
+
+def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
+    """Make *demo*'s ``demo_gate``/``demo_check``/``demo_step`` transparent.
+
+    For call-shape tests that observe which client a scenario hands a helper,
+    never gate control flow (``test_demo_context_managers.py`` covers that).
+    """
+    for name in ("demo_gate", "demo_check", "demo_step"):
+        stack.enter_context(
+            patch.object(
+                demo, name, side_effect=lambda _: contextlib.nullcontext()
+            )
+        )
+
+
+def assert_reset_reseeds_case_actor(
+    demo: ModuleType, participant_clients: Mapping[str, MagicMock]
+) -> None:
+    """Run *demo*'s ``reset_containers`` and check the case-actor half (#1876).
+
+    The participants are reset in the order given, the dedicated case-actor
+    container after them, and its CaseActor identity is then re-seeded — the
+    reset wipes it, and every proposal is delivered to it.
+
+    Args:
+        demo: The scenario module under test.
+        participant_clients: ``reset_containers`` keyword → client, in the
+            scenario's reset order.
+    """
+    case_actor_client = MagicMock(name="case_actor_client")
+    for client in (*participant_clients.values(), case_actor_client):
+        client.get.return_value = {}
+
+    with (
+        patch.object(
+            demo, "reset_datalayer", return_value={"status": "ok"}
+        ) as reset_mock,
+        patch(
+            "vultron.demo.helpers.seeding.seed_case_actor_identity"
+        ) as reseed_mock,
+    ):
+        demo.reset_containers(
+            case_actor_client=case_actor_client, **participant_clients
+        )
+
+    reset_clients = [c.kwargs["client"] for c in reset_mock.call_args_list]
+    assert reset_clients == [*participant_clients.values(), case_actor_client]
+    reseed_mock.assert_called_once_with(case_actor_client)

@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 
 class CreateCaseParticipantReceivedUseCase:
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for case participant operations"
+        "#4522", "no sender check for case participant operations"
     )
 
     def __init__(

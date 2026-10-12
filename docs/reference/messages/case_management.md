@@ -288,6 +288,12 @@ print(json2md(reject_invite_to_case()))
   An empty ledger is `logIndex` -1 with the case's `genesisHash` as `entryHash` ([CLP-08-004](../specs/protocol.md#clp-08-004)).
 - **Ask kind:** the Invite closes on `Accept`, `TentativeReject` or `Reject` of it (`INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES`).
 
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import invite_to_full_case, json2md
+
+print(json2md(invite_to_full_case()))
+```
+
 ---
 
 ## Accept Full-Case Invite
@@ -299,6 +305,12 @@ print(json2md(reject_invite_to_case()))
   The CASE_MANAGER refuses a reply whose position is behind the Invite's, or names an entry its ledger does not hold, and writes nothing ([CM-11-012](../specs/protocol.md#cm-11-012)).
   It also refuses, and writes nothing for, a reply from an inert participant that has not joined the case (CM-11-012).
 
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import accept_full_case_invite, json2md
+
+print(json2md(accept_full_case_invite()))
+```
+
 ---
 
 ## Tentatively Reject Full-Case Invite
@@ -308,6 +320,12 @@ print(json2md(reject_invite_to_case()))
   The stub Invite has no `TentativeReject`, because accepting a stub judges nothing ([CM-11-007](../specs/protocol.md#cm-11-007)).
 - **Wire activity:** `TentativeReject(Invite(Actor, target=VulnerabilityCase))`, carrying the participant's ledger position in `content` ([VAM-04-013](../specs/protocol.md#vam-04-013)).
 
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import tentative_reject_full_case_invite, json2md
+
+print(json2md(tentative_reject_full_case_invite()))
+```
+
 ---
 
 ## Reject Full-Case Invite
@@ -315,6 +333,12 @@ print(json2md(reject_invite_to_case()))
 - **Protocol role:** The participant closes the case (RC).
   The CASE_MANAGER records RM Received → Closed, and the participant stops receiving case content.
 - **Wire activity:** `Reject(Invite(Actor, target=VulnerabilityCase))`, carrying the participant's ledger position in `content` ([VAM-04-014](../specs/protocol.md#vam-04-014)).
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import reject_full_case_invite, json2md
+
+print(json2md(reject_full_case_invite()))
+```
 
 ---
 

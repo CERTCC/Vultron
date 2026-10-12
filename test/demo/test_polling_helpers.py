@@ -38,6 +38,7 @@ from vultron.demo.helpers.polling import (
     _received_activity,
     _received_activity_id,
     assert_received_from,
+    case_manager_store,
     find_case_invite_for_actor,
     find_embargo_invite_for_actor,
     find_full_case_invite_for_actor,
@@ -426,6 +427,39 @@ def _case_with_index(index: dict[str, str]):
     case = as_VulnerabilityCase(id_="urn:uuid:case-cap", name="Case")
     case.actor_participant_index.update(index)
     return case
+
+
+class TestCaseManagerStore:
+    """Where a helper reads the CASE_MANAGER's store from (#1876).
+
+    A dedicated case-actor container is read as-is; without one the reading
+    participant's container is scoped to a CaseActor it co-hosts.
+    """
+
+    def test_a_dedicated_case_manager_client_is_read_unscoped(self):
+        participant, manager = MagicMock(), MagicMock()
+        with patch(
+            "vultron.demo.helpers.polling.resolve_case_actor_store_id"
+        ) as resolve:
+            client, dl_actor_id = case_manager_store(
+                participant, "urn:uuid:case", manager
+            )
+        assert client is manager
+        assert dl_actor_id is None
+        resolve.assert_not_called()
+
+    def test_without_one_the_participant_client_is_scoped(self):
+        participant = MagicMock()
+        with patch(
+            "vultron.demo.helpers.polling.resolve_case_actor_store_id",
+            return_value="http://vendor.test/api/v2/actors/case-actor",
+        ) as resolve:
+            client, dl_actor_id = case_manager_store(
+                participant, "urn:uuid:case"
+            )
+        assert client is participant
+        assert dl_actor_id == "http://vendor.test/api/v2/actors/case-actor"
+        resolve.assert_called_once_with(participant, "urn:uuid:case")
 
 
 class TestCaseActorParticipantIdIn:

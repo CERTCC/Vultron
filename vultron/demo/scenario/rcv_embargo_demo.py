@@ -44,7 +44,11 @@ from vultron.demo.exchange.embargo_lifecycle import (
     COMMIT_TIMEOUT_SECONDS,
     demo_terminate_embargo,
 )
-from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    case_actor_role,
+    role_map,
+)
 from vultron.demo.helpers.coordinated_case import (
     dump_coordinated_case_ledgers,
     everyone_closes_case,
@@ -70,7 +74,7 @@ from vultron.demo.helpers.seeding import (
 from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (
     DataLayerClient,
-    case_actor_id_on,
+    bound_case_actor_client,
     demo_check,
     demo_gate,
     demo_step,
@@ -114,13 +118,7 @@ ROLES: list[ActorRole] = [
         has_id=True,
         id_help="Deterministic full URI for the Vendor actor (optional).",
     ),
-    ActorRole(
-        name="case-actor",
-        url_env="VULTRON_CASE_ACTOR_BASE_URL",
-        default_url="http://localhost:7905/api/v2",
-        url_help="Base URL of the CaseActor container API "
-        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
-    ),
+    case_actor_role("http://localhost:7905/api/v2"),
 ]
 _ROLES = role_map(ROLES)
 
@@ -156,18 +154,23 @@ DEMO_NAME = "rcv-embargo"
 
 @dataclass(frozen=True)
 class _Cast:
-    """The three trigger sessions of the scenario, each bound to its container."""
+    """The three trigger sessions of the scenario, each bound to its container.
+
+    *case_manager* is the client for the dedicated case-actor container, where
+    the CASE_MANAGER's canonical case is read (DEMOMA-06-004).
+    """
 
     reporter: ActorSession
     coordinator: ActorSession
     vendor: ActorSession
+    case_manager: DataLayerClient
 
 
 def reset_containers(
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None = None,
+    case_actor_client: DataLayerClient,
 ) -> None:
     """Reset the RCV containers to a clean baseline."""
     targets: list[tuple[str, DataLayerClient]] = [
@@ -175,9 +178,11 @@ def reset_containers(
         ("Coordinator", coordinator_client),
         ("Vendor", vendor_client),
     ]
-    if case_actor_client is not None:
-        targets.append(("CaseActor", case_actor_client))
-    _reset_containers(targets, reset_fn=reset_datalayer)
+    _reset_containers(
+        targets,
+        reset_fn=reset_datalayer,
+        case_actor_client=case_actor_client,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +202,7 @@ def _phase_report_submission(
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None,
+    case_actor_client: DataLayerClient,
     reporter_id: str | None,
     coordinator_id: str | None,
     vendor_id: str | None,
@@ -232,6 +237,7 @@ def _phase_report_submission(
     opened, vendor_in_vendor = open_case_with_vendor(
         reporter_client=reporter_client,
         coordinator_client=coordinator_client,
+        case_actor_client=case_actor_client,
         vendor_client=vendor_client,
         reporter=reporter,
         coordinator=coordinator,
@@ -242,6 +248,7 @@ def _phase_report_submission(
             lambda: _phase_dump_case_ledgers(
                 reporter_client=reporter_client,
                 coordinator_client=coordinator_client,
+                case_actor_client=case_actor_client,
                 vendor_client=vendor_client,
                 case=opened_case,
                 demo_name=harness.demo_name,
@@ -261,10 +268,15 @@ def _phase_report_submission(
         vendor=ActorSession(
             client=vendor_client, actor=vendor_in_vendor
         ).with_case(case),
+        case_manager=case_actor_client,
     )
     _notes_exchange(cast, case)
     assert_canonical_em_state(
-        cast.coordinator, case, EM.ACTIVE, "report_submission"
+        cast.coordinator,
+        case,
+        EM.ACTIVE,
+        "report_submission",
+        case_manager_client=cast.case_manager,
     )
     return cast, case
 
@@ -289,6 +301,7 @@ def _phase_embargo_proposal(
         cast.vendor,
         case,
         phase="embargo_proposal",
+        case_manager_client=cast.case_manager,
     )
 
 
@@ -305,7 +318,11 @@ def _phase_fix_lifecycle(cast: _Cast, case: as_VulnerabilityCase) -> None:
         case=case,
     )
     assert_canonical_em_state(
-        cast.coordinator, case, EM.ACTIVE, "fix_lifecycle"
+        cast.coordinator,
+        case,
+        EM.ACTIVE,
+        "fix_lifecycle",
+        case_manager_client=cast.case_manager,
     )
 
 
@@ -319,9 +336,15 @@ def _phase_embargo_termination(
 
     # The helper asserts EM.EXITED on the CASE_MANAGER's canonical case and no
     # participant's consent (DEMOMA-20-011, DEMOMA-20-012).
-    demo_terminate_embargo(cast.coordinator, case)
+    demo_terminate_embargo(
+        cast.coordinator, case, case_manager_client=cast.case_manager
+    )
     assert_canonical_em_state(
-        cast.coordinator, case, EM.EXITED, "embargo_termination"
+        cast.coordinator,
+        case,
+        EM.EXITED,
+        "embargo_termination",
+        case_manager_client=cast.case_manager,
     )
     # Replicas learn it from the ledger fan-out afterwards, so these are
     # checks of the effect, not gates for what follows (EDF-06-006).
@@ -352,7 +375,13 @@ def _phase_publication(cast: _Cast, case: as_VulnerabilityCase) -> None:
         vendor_in_vendor=cast.vendor.actor,
         case=case,
     )
-    assert_canonical_em_state(cast.coordinator, case, EM.EXITED, "publication")
+    assert_canonical_em_state(
+        cast.coordinator,
+        case,
+        EM.EXITED,
+        "publication",
+        case_manager_client=cast.case_manager,
+    )
 
 
 def _phase_case_closure(cast: _Cast, case: as_VulnerabilityCase) -> None:
@@ -364,6 +393,7 @@ def _phase_case_closure(cast: _Cast, case: as_VulnerabilityCase) -> None:
     everyone_closes_case(
         reporter_client=cast.reporter.client,
         coordinator_client=cast.coordinator.client,
+        case_actor_client=cast.case_manager,
         vendor_client=cast.vendor.client,
         reporter_in_reporter=cast.reporter.actor,
         coordinator_in_coordinator=cast.coordinator.actor,
@@ -371,13 +401,18 @@ def _phase_case_closure(cast: _Cast, case: as_VulnerabilityCase) -> None:
         case=case,
     )
     assert_canonical_em_state(
-        cast.coordinator, case, EM.EXITED, "case_closure"
+        cast.coordinator,
+        case,
+        EM.EXITED,
+        "case_closure",
+        case_manager_client=cast.case_manager,
     )
 
 
 def _phase_dump_case_ledgers(
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
     case: as_VulnerabilityCase,
     demo_name: str = DEMO_NAME,
@@ -392,6 +427,7 @@ def _phase_dump_case_ledgers(
         reporter_name=REPORTER_NAME,
         reporter_client=reporter_client,
         coordinator_client=coordinator_client,
+        case_actor_client=case_actor_client,
         vendor_client=vendor_client,
         case=case,
     )
@@ -401,7 +437,7 @@ def run_rcv_embargo_demo(
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None = None,
+    case_actor_client: DataLayerClient,
     reporter_id: str | None = None,
     coordinator_id: str | None = None,
     vendor_id: str | None = None,
@@ -415,8 +451,7 @@ def run_rcv_embargo_demo(
     logger.info("Reporter container:    %s", reporter_client.base_url)
     logger.info("Coordinator container: %s", coordinator_client.base_url)
     logger.info("Vendor container:      %s", vendor_client.base_url)
-    if case_actor_client is not None:
-        logger.info("CaseActor container:   %s", case_actor_client.base_url)
+    logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
     # scenario_harness() owns the failure accumulator: it resets it, always
     # dumps the case ledgers (phase 7, dump_case_ledgers, DEMOMA-20-007) on the
@@ -496,9 +531,7 @@ def main(
     reporter_client = DataLayerClient(base_url=r_url)
     coordinator_client = DataLayerClient(base_url=c_url)
     vendor_client = DataLayerClient(base_url=v_url)
-    case_actor_client = DataLayerClient(
-        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
-    )
+    case_actor_client = bound_case_actor_client(ca_url)
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [

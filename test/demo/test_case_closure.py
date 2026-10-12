@@ -28,14 +28,13 @@ import pytest
 
 import vultron.demo.utils as demo_utils
 from vultron.core.states.rm import RM
-from vultron.demo.helpers import closure, milestones, polling
+from vultron.demo.helpers import closure, milestones
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.milestones import (
     case_closure_violations,
     own_closure_tail_index,
     verify_case_closure_recorded,
 )
-from vultron.demo.helpers.polling import case_manager_client
 from vultron.demo.helpers.sync import wait_for_replica_ledger_ending_at
 from vultron.demo.utils import DataLayerClient
 
@@ -90,7 +89,7 @@ class TestCloseCaseOwnerLast:
         with (
             patch.object(closure, "ActorSession", session_cls),
             patch.object(
-                closure, "case_manager_client", return_value=self.manager
+                closure, "_case_manager_reader", return_value=self.manager
             ) as resolve,
             patch.object(
                 closure,
@@ -505,40 +504,35 @@ class TestWaitForReplicaLedgerEndingAt:
             )
 
 
-class TestCaseManagerClient:
-    def _client(self, actor_id: str) -> DataLayerClient:
-        return DataLayerClient(
-            base_url=actor_id.rsplit("/actors/", 1)[0], actor_id=actor_id
-        )
+class TestCaseManagerReader:
+    """The closure checks read through the authority, bound to the CaseActor."""
 
-    @pytest.mark.spec("CM-23-004")
-    def test_co_hosted_case_actor_reads_the_same_container(self):
-        client = self._client(_OWNER)
+    def test_binds_the_case_actor_store_onto_the_authority_client(self):
+        authority = DataLayerClient(
+            base_url="http://case-actor:7999/api/v2", actor_id=_FINDER
+        )
         with patch.object(
-            polling, "find_case_actor_participant_id", return_value=_MANAGER
-        ):
-            manager = case_manager_client(client, _CASE)
-        assert manager.base_url == client.base_url
-        assert manager.actor_id == _MANAGER
+            closure,
+            "case_manager_store",
+            return_value=(authority, _MANAGER),
+        ) as store:
+            reader = closure._case_manager_reader(authority, _CASE)
+        store.assert_called_once_with(authority, _CASE)
+        assert reader.base_url == authority.base_url
+        assert reader.actor_id == _MANAGER
+        assert (
+            authority.actor_id == _FINDER
+        )  # the caller's client is unchanged
 
     @pytest.mark.spec("CM-23-004", "DEMOMA-06-004")
-    def test_dedicated_case_actor_container_is_read_where_it_lives(self):
-        dedicated = "http://case-actor:7999/api/v2/actors/case-actor"
-        client = self._client(_FINDER)
+    def test_a_client_bound_to_the_case_actor_is_read_as_is(self):
+        dedicated = DataLayerClient(
+            base_url="http://case-actor:7999/api/v2", actor_id=_MANAGER
+        )
         with patch.object(
-            polling, "find_case_actor_participant_id", return_value=dedicated
+            closure, "case_manager_store", return_value=(dedicated, None)
         ):
-            manager = case_manager_client(client, _CASE)
-        assert manager.base_url == "http://case-actor:7999/api/v2"
-        assert manager.actor_id == dedicated
-        assert client.actor_id == _FINDER  # the caller's client is unchanged
-
-    def test_no_case_actor_is_an_error_not_a_replica_fallback(self):
-        with patch.object(
-            polling, "find_case_actor_participant_id", return_value=None
-        ):
-            with pytest.raises(AssertionError, match="no CaseActor"):
-                case_manager_client(self._client(_OWNER), _CASE)
+            assert closure._case_manager_reader(dedicated, _CASE) is dedicated
 
 
 class TestVerifyCaseClosed:

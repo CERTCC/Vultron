@@ -31,6 +31,14 @@ in a way that state-machine origin is not.
 | Received, understood, **declined** | `as:Reject` | `RE` / `EE` / `CE` / `GE` |
 | Received, understood, **needs explanation** | `Create(Note)` / `Add(Note → Case)` | `RE` / `EE` / `CE` / `GE` |
 
+The CASE_MANAGER refuses a status assertion that names an impossible state and reports the fault to the sender:
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import create_processing_fault, json2md
+
+print(json2md(create_processing_fault()))
+```
+
 Status: **evolved** — the formal shorthands have no dedicated wire counterpart;
 see [MSM-05-001](../specs/protocol.md#msm-05-001).
 

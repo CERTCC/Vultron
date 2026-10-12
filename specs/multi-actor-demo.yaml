@@ -616,8 +616,8 @@ groups:
       and Vendor2 MUST accept and become a full signatory participant before the
       scenario advances to fix tracking.
     preconditions:
-    - description: Vendor1 RM state = ACCEPTED; VulnerabilityCase created with CaseActor
-        co-located in Vendor1 container; Vendor2 container running
+    - description: Vendor1 RM state = ACCEPTED; VulnerabilityCase created by the CaseActor
+        on the dedicated case-actor container; Vendor2 container running
     steps:
     - order: 1
       actor: vendor1
@@ -674,10 +674,20 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The Case Actor MUST be co-located in the Vendor1 container in the FVV scenario.
+      The Case Actor MUST run on the dedicated case-actor container in the FVV
+      scenario, as in every multi-container scenario; Vendor1 proposes the case
+      to it.
     rationale: >-
-      FVV uses no dedicated Coordinator actor, so the Case Actor runs as a sub-actor
-      within the Vendor1 container rather than in a separate container.
+      FVV has no Coordinator, but the Case Actor is not a Coordinator: it is the
+      CASE_MANAGER participant, and every actor container names the dedicated
+      case-actor container as its `case_actor_service_url` (CP-08-003,
+      CP-08-008, DEMOMA-06-004). The scenarios share one Compose stack, so FVV
+      cannot keep the Case Actor in Vendor1's container without every other
+      scenario doing the same. Running it there was the co-located stepping stone
+      #1876 retired.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-008
 
 - id: DEMOMA-10
   title: FVCV-Extension Scenario (Vendor1 retains ownership; Coordinator is participant; Coordinator suggests Vendor2)
@@ -4041,7 +4051,7 @@ groups:
       Keeping the scenario's facts in the scenario and the mechanics in the
       helper puts each fact in one place, exactly as DEMOMA-23-002 does for the
       ledger dump. A scenario-specific extra — the fv scenario's check that its
-      dedicated case-actor container stayed unused — follows the helper call as
+      dedicated case-actor container holds the case — follows the helper call as
       a separate step rather than becoming a per-scenario variant of the phase
       body.
     verification: >-

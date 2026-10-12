@@ -24,6 +24,7 @@ allowed the transferee to write a second entry at the same ``log_index`` as the
 CaseActor's guarded commit, producing a hash-chain fork (AC-3, CLP-09-001).
 """
 
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
@@ -33,8 +34,14 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
+from vultron.core.behaviors.case.nodes.ownership_transfer import (
+    AcceptRecordedOwnershipOfferNode,
+)
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsOwnershipTransfereeNode,
 )
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
@@ -101,6 +108,40 @@ def _accept_event() -> AcceptCaseOwnershipTransferReceivedEvent:
     )
 
 
+def _accept_tree():
+    return create_accept_ownership_transfer_tree(
+        case_id=CASE_ID,
+        offer_id=OFFER_ID,
+        sender_id=TRANSFEREE_ID,
+        accept_id=OFFER_ID,
+    )
+
+
+@contextmanager
+def _sender_admitted():
+    """Admit the sender and name the transferee as the recorded Offer would.
+
+    These tests are about the commit gate, not the Offer lookup; the sender
+    guard and the lookup are tested through the use case in
+    ``test/core/use_cases/received/actor/test_ownership.py``.
+    """
+    with (
+        patch.object(
+            SenderIsOwnershipTransfereeNode,
+            "update",
+            autospec=True,
+            return_value=Status.SUCCESS,
+        ),
+        patch.object(
+            AcceptRecordedOwnershipOfferNode,
+            "_new_owner_id",
+            autospec=True,
+            return_value=TRANSFEREE_ID,
+        ),
+    ):
+        yield
+
+
 @pytest.mark.parametrize(
     "actor_id,expect_commit",
     [
@@ -130,14 +171,14 @@ def test_accept_ownership_transfer_commit_is_role_gated(
     """
     bt_scenario: BTTestScenario = bt_scenario_factory(actor_id)
     _seed_case(bt_scenario)
-    tree = create_accept_ownership_transfer_tree(
-        case_id=CASE_ID,
-        new_owner_id=TRANSFEREE_ID,
-    )
+    tree = _accept_tree()
 
-    with patch.object(
-        CommitCaseLedgerEntryNode, "update", autospec=True
-    ) as mock_commit:
+    with (
+        _sender_admitted(),
+        patch.object(
+            CommitCaseLedgerEntryNode, "update", autospec=True
+        ) as mock_commit,
+    ):
         mock_commit.return_value = Status.SUCCESS
         result = bt_scenario.run(
             tree, actor_id=actor_id, activity=_accept_event()
@@ -162,14 +203,14 @@ def test_accept_ownership_transfer_no_double_commit(
     by ``create_receive_activity_tree``, it fires twice — forking the chain.
     """
     _seed_case(bt_scenario)
-    tree = create_accept_ownership_transfer_tree(
-        case_id=CASE_ID,
-        new_owner_id=TRANSFEREE_ID,
-    )
+    tree = _accept_tree()
 
-    with patch.object(
-        CommitCaseLedgerEntryNode, "update", autospec=True
-    ) as mock_commit:
+    with (
+        _sender_admitted(),
+        patch.object(
+            CommitCaseLedgerEntryNode, "update", autospec=True
+        ) as mock_commit,
+    ):
         mock_commit.return_value = Status.SUCCESS
         bt_scenario.run(tree, actor_id=CASE_ACTOR_ID, activity=_accept_event())
 

@@ -42,7 +42,11 @@ import sys
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    case_actor_role,
+    role_map,
+)
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.invite_chain import (
@@ -51,9 +55,9 @@ from vultron.demo.helpers.invite_chain import (
 )
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
+    case_actor_dump_target,
     dump_case_ledgers,
     replica_route_key,
-    resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -91,7 +95,7 @@ from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
-    case_actor_id_on,
+    bound_case_actor_client,
     check_server_availability,
     demo_check,
     demo_gate,
@@ -173,6 +177,7 @@ ROLES: list[ActorRole] = [
         id_help="Deterministic URI for the V2 (VendorDeployer) actor.",
         id_env="VULTRON_VENDOR_DEPLOYER_ACTOR_ID",
     ),
+    case_actor_role("http://localhost:7906/api/v2"),
 ]
 _ROLES = role_map(ROLES)
 
@@ -181,6 +186,7 @@ C1_BASE_URL = _ROLES["c1"].url
 V1_BASE_URL = _ROLES["v1"].url
 C2_BASE_URL = _ROLES["c2"].url
 V2_BASE_URL = _ROLES["v2"].url
+CASE_ACTOR_BASE_URL = _ROLES["case-actor"].url
 
 #: ``vultron-demo fcvcv --help`` text. Lives here rather than in ``cli.py``
 #: because the sub-command is generated from the registry and the scenario
@@ -219,8 +225,13 @@ def reset_containers(
     v1_client: DataLayerClient,
     c2_client: DataLayerClient,
     v2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
 ) -> None:
-    """Reset all five FCVCV containers to a clean baseline."""
+    """Reset the five FCVCV containers and the case-actor container.
+
+    The CaseActor identity is re-seeded after the reset, since C1 proposes
+    the case to it (DEMOMA-06-004).
+    """
     targets: list[tuple[str, DataLayerClient]] = [
         ("Finder", finder_client),
         ("C1", c1_client),
@@ -228,7 +239,11 @@ def reset_containers(
         ("C2", c2_client),
         ("V2", v2_client),
     ]
-    _reset_containers(targets, reset_fn=reset_datalayer)
+    _reset_containers(
+        targets,
+        reset_fn=reset_datalayer,
+        case_actor_client=case_actor_client,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +257,7 @@ def _phase_report_submission(
     v1_client: DataLayerClient,
     c2_client: DataLayerClient,
     v2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     finder_id: str | None,
     c1_id: str | None,
     v1_id: str | None,
@@ -270,6 +286,7 @@ def _phase_report_submission(
         v1_client=v1_client,
         c2_client=c2_client,
         v2_client=v2_client,
+        case_actor_client=case_actor_client,
     )
 
     finder = c1 = v1 = c2 = v2 = None
@@ -345,14 +362,14 @@ def _phase_report_submission(
                 offer=offer,
                 report=report,
                 finder=finder,
-                auth_client=c1_client,
+                auth_client=case_actor_client,
                 case=case,
                 invited_obj=v1,
             )
 
         run_case_invite_chain(
             case=case,
-            case_manager_client=c1_client,
+            case_manager_client=case_actor_client,
             invitee_name="V1",
             invitee_client=v1_client,
             invitee=v1,
@@ -451,6 +468,7 @@ def _phase_c2_suggests_v2(
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
     v2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     c1_in_c1: as_Actor,
     c2_in_c2: as_Actor,
     v2: as_Actor,
@@ -520,7 +538,7 @@ def _phase_c2_suggests_v2(
         invitee_in_own_container=v2_in_v2,
         invite_timeout=40.0,
         replica_timeout=40.0,
-        ledger_client=c1_client,
+        ledger_client=case_actor_client,
         reply_timeout=40.0,
     )
 
@@ -559,7 +577,7 @@ def _phase_c2_suggests_v2(
             offer=offer,
             report=report,
             finder=finder,
-            auth_client=c1_client,
+            auth_client=case_actor_client,
             case=case,
             invited_obj=v2,
             timeout_seconds=40.0,
@@ -980,11 +998,13 @@ def _phase_case_closure(
     v2_in_v2: as_Actor,
     finder_in_finder: as_Actor,
     case: as_VulnerabilityCase,
+    case_actor_client: DataLayerClient,
 ) -> None:
     """Close the case from all five participants and verify terminal state.
 
     V1, V2, C2 and the Finder leave first; C1, the Case Owner, leaves last,
-    once their departures are recorded (CM-23-015).
+    once their departures are recorded (CM-23-015) in the CASE_MANAGER's store
+    on the dedicated case-actor container.
     """
     logger.info("─" * 80)
     logger.info("Phase 7: Case closure — all participants RM.CLOSED")
@@ -993,7 +1013,7 @@ def _phase_case_closure(
     close_case_owner_last(
         case=case,
         milestone="M8",
-        authority_client=c1_client,
+        authority_client=case_actor_client,
         others=[
             CaseLeaver(client=v1_client, actor=v1_in_v1),
             CaseLeaver(client=v2_client, actor=v2_in_v2),
@@ -1010,6 +1030,7 @@ def _phase_dump_case_ledgers(
     v1_client: DataLayerClient,
     c2_client: DataLayerClient,
     v2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     case: as_VulnerabilityCase,
     demo_name: str = "fcvcv",
 ) -> None:
@@ -1047,13 +1068,9 @@ def _phase_dump_case_ledgers(
         LedgerDumpTarget(
             "v2", v2_client, replica_route_key(v2_client, "vendor-deployer")
         ),
+        # The canonical ledger lives on the dedicated case-actor container.
+        case_actor_dump_target(case_actor_client),
     ]
-    # The case-actor is a sub-actor inside the C1 container.
-    case_actor_route_key = resolve_case_actor_route_key(case)
-    if case_actor_route_key is not None:
-        targets.append(
-            LedgerDumpTarget("case-actor", c1_client, case_actor_route_key)
-        )
 
     dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
 
@@ -1064,6 +1081,7 @@ def run_fcvcv_demo(
     v1_client: DataLayerClient,
     c2_client: DataLayerClient,
     v2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     finder_id: str | None = None,
     c1_id: str | None = None,
     v1_id: str | None = None,
@@ -1081,6 +1099,7 @@ def run_fcvcv_demo(
     logger.info("V1 container:     %s", v1_client.base_url)
     logger.info("C2 container:     %s", c2_client.base_url)
     logger.info("V2 container:     %s", v2_client.base_url)
+    logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("fcvcv") as harness:
         (
@@ -1100,6 +1119,7 @@ def run_fcvcv_demo(
             v1_client,
             c2_client,
             v2_client,
+            case_actor_client,
             finder_id,
             c1_id,
             v1_id,
@@ -1116,6 +1136,7 @@ def run_fcvcv_demo(
                 v1_client=v1_client,
                 c2_client=c2_client,
                 v2_client=v2_client,
+                case_actor_client=case_actor_client,
                 case=case,
                 demo_name=harness.demo_name,
             )
@@ -1126,6 +1147,7 @@ def run_fcvcv_demo(
             c1_client=c1_client,
             c2_client=c2_client,
             v2_client=v2_client,
+            case_actor_client=case_actor_client,
             c1_in_c1=c1_in_c1,
             c2_in_c2=c2_in_c2,
             v2=v2,
@@ -1204,6 +1226,7 @@ def run_fcvcv_demo(
             v2_in_v2,
             finder_in_finder,
             case,
+            case_actor_client,
         )
 
     logger.info("=" * 80)
@@ -1230,6 +1253,7 @@ def main(
     v1_url: str | None = None,
     c2_url: str | None = None,
     v2_url: str | None = None,
+    case_actor_url: str | None = None,
     finder_id: str | None = None,
     c1_id: str | None = None,
     v1_id: str | None = None,
@@ -1245,6 +1269,8 @@ def main(
         v1_url: Override base URL for the V1 (Vendor1) container.
         c2_url: Override base URL for the C2 (Coordinator2) container.
         v2_url: Override base URL for the V2 (VendorDeployer) container.
+        case_actor_url: Override base URL for the dedicated CaseActor
+            container.
         finder_id: Optional deterministic URI for the Finder actor.
         c1_id: Optional deterministic URI for the C1 actor.
         v1_id: Optional deterministic URI for the V1 actor.
@@ -1256,12 +1282,16 @@ def main(
     v1_resolved = v1_url or V1_BASE_URL
     c2_resolved = c2_url or C2_BASE_URL
     v2_resolved = v2_url or V2_BASE_URL
+    ca_url = case_actor_url or CASE_ACTOR_BASE_URL
 
     finder_client = DataLayerClient(base_url=f_url)
     c1_client = DataLayerClient(base_url=c1_resolved)
     v1_client = DataLayerClient(base_url=v1_resolved)
     c2_client = DataLayerClient(base_url=c2_resolved)
     v2_client = DataLayerClient(base_url=v2_resolved)
+    # Bound here: a /datalayer/ read names whose store it is about (ADR-0073),
+    # and the dedicated container hosts only the CaseActor.
+    case_actor_client = bound_case_actor_client(ca_url)
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [
@@ -1270,6 +1300,7 @@ def main(
             ("V1", v1_client),
             ("C2", c2_client),
             ("V2", v2_client),
+            ("CaseActor", case_actor_client),
         ]
         for label, client in targets:
             if not check_server_availability(client):
@@ -1292,6 +1323,7 @@ def main(
         v1_client=v1_client,
         c2_client=c2_client,
         v2_client=v2_client,
+        case_actor_client=case_actor_client,
         finder_id=finder_id or FINDER_ACTOR_ID,
         c1_id=c1_id or C1_ACTOR_ID,
         v1_id=v1_id or V1_ACTOR_ID,

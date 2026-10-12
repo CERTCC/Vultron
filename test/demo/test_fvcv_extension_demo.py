@@ -151,16 +151,24 @@ class TestResetContainersFvcv:
         vendor_client.get.return_value = {}
         coordinator_client.get.return_value = {}
         vendor2_client.get.return_value = {}
+        case_actor_client = MagicMock()
+        case_actor_client.get.return_value = {}
 
-        with patch(
-            "vultron.demo.scenario.fvcv_extension_demo.reset_datalayer",
-            return_value={"status": "ok"},
-        ) as reset_mock:
+        with (
+            patch(
+                "vultron.demo.scenario.fvcv_extension_demo.reset_datalayer",
+                return_value={"status": "ok"},
+            ) as reset_mock,
+            patch(
+                "vultron.demo.helpers.seeding.seed_case_actor_identity"
+            ) as seed_mock,
+        ):
             demo.reset_containers(
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
                 vendor2_client=vendor2_client,
+                case_actor_client=case_actor_client,
             )
 
         reset_mock.assert_has_calls(
@@ -169,8 +177,12 @@ class TestResetContainersFvcv:
                 call(client=vendor_client),
                 call(client=coordinator_client),
                 call(client=vendor2_client),
+                call(client=case_actor_client),
             ]
         )
+        # Vendor1 proposes the case to the dedicated CaseActor, so the reset
+        # must re-create its identity (DEMOMA-06-004).
+        seed_mock.assert_called_once_with(case_actor_client)
 
 
 # ---------------------------------------------------------------------------
@@ -494,6 +506,7 @@ class TestFvcvExtensionMilestoneAssertions:
         ):
             mock_vc.model_validate.return_value = case
             demo._phase_report_submission(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
@@ -690,6 +703,7 @@ class TestFvcvExtensionMilestoneAssertions:
             ),
         ):
             demo._phase_case_closure(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
@@ -744,6 +758,7 @@ class TestFvcvExtensionMilestoneAssertions:
             ),
         ):
             demo._phase_case_closure(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
@@ -865,6 +880,7 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
             ),
         ):
             demo._phase_coordinator_suggests_vendor2(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
@@ -959,6 +975,7 @@ class TestFvcvExtensionCausalGates:
             patch.object(demo, "run_invite_path_rm_triage"),
         ):
             demo._phase_coordinator_suggests_vendor2(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
@@ -1026,6 +1043,7 @@ class TestFvcvExtensionCausalGates:
             patch.object(demo, "run_invite_path_rm_triage"),
         ):
             demo._phase_coordinator_suggests_vendor2(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
@@ -1139,6 +1157,7 @@ class TestFvcvExtensionRmTriageTimeout:
         ):
             mock_vc.model_validate.return_value = case
             demo._phase_report_submission(
+                case_actor_client=MagicMock(),
                 finder_client=self._client(),
                 vendor_client=self._client(),
                 coordinator_client=self._client(),
@@ -1231,6 +1250,7 @@ class TestFvcvExtensionInviteTriggerFailureSkipsDependents:
         ):
             mock_vc.model_validate.return_value = case
             demo._phase_report_submission(
+                case_actor_client=MagicMock(),
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
@@ -1342,6 +1362,7 @@ class TestFvcvExtensionPhase1DrainViaSharedHelper:
             ),
         ) as mocks:
             demo._phase_report_submission(
+                case_actor_client=MagicMock(),
                 finder_id=None,
                 vendor_id=None,
                 coordinator_id=None,

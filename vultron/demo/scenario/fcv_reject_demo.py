@@ -34,7 +34,11 @@ import sys
 
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    case_actor_role,
+    role_map,
+)
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.invite_chain import (
@@ -43,9 +47,9 @@ from vultron.demo.helpers.invite_chain import (
 )
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
+    case_actor_dump_target,
     dump_case_ledgers,
     replica_route_key,
-    resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -53,7 +57,6 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
-    resolve_case_actor_store_id,
     wait_for_case_em_terminated,
     wait_for_case_participants,
     wait_for_event_type_in_ledger,
@@ -76,7 +79,7 @@ from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
-    case_actor_id_on,
+    bound_case_actor_client,
     check_server_availability,
     demo_check,
     demo_gate,
@@ -128,13 +131,7 @@ ROLES: list[ActorRole] = [
         has_id=True,
         id_help="Deterministic full URI for the Vendor actor (optional).",
     ),
-    ActorRole(
-        name="case-actor",
-        url_env="VULTRON_CASE_ACTOR_BASE_URL",
-        default_url="http://localhost:7905/api/v2",
-        url_help="Base URL of the CaseActor container API "
-        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
-    ),
+    case_actor_role("http://localhost:7905/api/v2"),
 ]
 _ROLES = role_map(ROLES)
 
@@ -179,7 +176,7 @@ def reset_containers(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None = None,
+    case_actor_client: DataLayerClient,
 ) -> None:
     """Reset FCV-Reject containers to a clean baseline."""
     targets: list[tuple[str, DataLayerClient]] = [
@@ -187,9 +184,11 @@ def reset_containers(
         ("Coordinator", coordinator_client),
         ("Vendor", vendor_client),
     ]
-    if case_actor_client is not None:
-        targets.append(("CaseActor", case_actor_client))
-    _reset_containers(targets, reset_fn=reset_datalayer)
+    _reset_containers(
+        targets,
+        reset_fn=reset_datalayer,
+        case_actor_client=case_actor_client,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +200,7 @@ def _phase_report_submission(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None,
+    case_actor_client: DataLayerClient,
     finder_id: str | None,
     coordinator_id: str | None,
     vendor_id: str | None,
@@ -291,6 +290,7 @@ def _phase_report_submission(
 
 def _phase_invite_vendor_reject(
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
     finder: as_Actor,
     coordinator_in_coordinator: as_Actor,
@@ -321,7 +321,7 @@ def _phase_invite_vendor_reject(
     # (ADR-0058 nested-block model, EDF-06-005, #3038).
     run_case_invite_chain(
         case=case,
-        case_manager_client=coordinator_client,
+        case_manager_client=case_actor_client,
         invitee_name="Vendor",
         invitee_client=vendor_client,
         invitee=vendor,
@@ -339,19 +339,17 @@ def _phase_invite_vendor_reject(
     # Gate on the rejection being committed before checking participant state.
     # The rejection is self-contained on the CaseActor (CLP-10-006) — no
     # participant-effect Announce is sent, so the entry is only visible in the
-    # CaseActor's own store.  Using demo_gate here ensures that the participant
+    # CaseActor's own store, on the dedicated case-actor container and read
+    # through case_actor_client.  Using demo_gate here ensures that the participant
     # state checks are skipped (rather than run against stale state) if the
     # CaseActor has not yet committed the rejection entry.
     with demo_gate(
         "reject_invite_actor_to_case committed (causal gate before participant state check)"
     ):
         wait_for_event_type_in_ledger(
-            client=coordinator_client,
+            client=case_actor_client,
             case_id=case.id_,
             event_type="reject_invite_actor_to_case",
-            dl_actor_id=resolve_case_actor_store_id(
-                coordinator_client, str(case.id_)
-            ),
         )
         # DEMOMA-27-002, CM-11-006: Vendor IS in actor_participant_index from the
         # Invite-send moment (inert record created by CreateInertInviteeParticipantNode).
@@ -364,12 +362,9 @@ def _phase_invite_vendor_reject(
             "Vendor in actor_participant_index after invite (inert record, CM-11-006)"
         ):
             wait_for_case_participants(
-                vendor_client=coordinator_client,
+                vendor_client=case_actor_client,
                 case_id=case.id_,
                 expected_actor_ids={finder.id_, coordinator.id_, vendor.id_},
-                dl_actor_id=resolve_case_actor_store_id(
-                    coordinator_client, str(case.id_)
-                ),
             )
         # DEMOMA-27-002, CM-11-007: Vendor's inert record must be at RM.CLOSED
         # after the rejection — it was never active (joined=False throughout).
@@ -383,26 +378,20 @@ def _phase_invite_vendor_reject(
         # that the RM close landed (EDF-06-002, EDF-06-003).  Wait on the
         # committed effect itself before the one-shot check.
         wait_for_participant_rm_state(
-            client=coordinator_client,
+            client=case_actor_client,
             case_id=str(case.id_),
             actor_id=str(vendor.id_),
             expected_states={RM.CLOSED},
-            dl_actor_id=resolve_case_actor_store_id(
-                coordinator_client, str(case.id_)
-            ),
         )
         with demo_check(
             "Vendor participant at RM.CLOSED after rejection (never active, DEMOMA-27-002)"
         ):
             _check_participant_rm_state_in(
-                client=coordinator_client,
+                client=case_actor_client,
                 case_id=str(case.id_),
                 actor_id=str(vendor.id_),
                 expected_states={RM.CLOSED},
                 label="Vendor (rejected invitee)",
-                dl_actor_id=resolve_case_actor_store_id(
-                    coordinator_client, str(case.id_)
-                ),
             )
     logger.info(
         "✓ M2: Vendor rejected invite — inert record at RM.CLOSED, never active"
@@ -539,6 +528,7 @@ def _phase_publication(
 def _phase_case_closure(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     coordinator_in_coordinator: as_Actor,
     finder_in_finder: as_Actor,
     case: as_VulnerabilityCase,
@@ -546,7 +536,8 @@ def _phase_case_closure(
     """Close the case from Finder and Coordinator; verify terminal state.
 
     The Finder leaves first; the Coordinator, the Case Owner, leaves last,
-    once the Finder's departure is recorded (CM-23-015).
+    once the Finder's departure is recorded (CM-23-015) in the CASE_MANAGER's
+    store on the dedicated case-actor container.
     """
     logger.info("─" * 80)
     logger.info("Phase 5: Case closure — Finder and Coordinator RM.CLOSED")
@@ -555,7 +546,7 @@ def _phase_case_closure(
     close_case_owner_last(
         case=case,
         milestone="M4",
-        authority_client=coordinator_client,
+        authority_client=case_actor_client,
         others=[CaseLeaver(client=finder_client, actor=finder_in_finder)],
         owner=CaseLeaver(
             client=coordinator_client, actor=coordinator_in_coordinator
@@ -566,6 +557,7 @@ def _phase_case_closure(
 def _phase_dump_case_ledgers(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     case: as_VulnerabilityCase,
     demo_name: str = "fcv-reject",
     vendor_client: DataLayerClient | None = None,
@@ -594,15 +586,10 @@ def _phase_dump_case_ledgers(
             coordinator_client,
             replica_route_key(coordinator_client, "coordinator"),
         ),
+        # The canonical ledger, on the dedicated case-actor container
+        # (DEMOMA-06-005).
+        case_actor_dump_target(case_actor_client),
     ]
-    # The case-actor is a sub-actor inside the coordinator container.
-    case_actor_route_key = resolve_case_actor_route_key(case)
-    if case_actor_route_key is not None:
-        targets.append(
-            LedgerDumpTarget(
-                "case-actor", coordinator_client, case_actor_route_key
-            )
-        )
 
     unreplicated = (
         {"vendor": replica_route_key(vendor_client, "vendor")}
@@ -621,7 +608,7 @@ def run_fcv_reject_demo(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None = None,
+    case_actor_client: DataLayerClient,
     finder_id: str | None = None,
     coordinator_id: str | None = None,
     vendor_id: str | None = None,
@@ -635,8 +622,7 @@ def run_fcv_reject_demo(
     logger.info("Finder container:      %s", finder_client.base_url)
     logger.info("Coordinator container: %s", coordinator_client.base_url)
     logger.info("Vendor container:      %s", vendor_client.base_url)
-    if case_actor_client is not None:
-        logger.info("CaseActor container:   %s", case_actor_client.base_url)
+    logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
     with scenario_harness("fcv-reject") as harness:
         (
@@ -664,6 +650,7 @@ def run_fcv_reject_demo(
             lambda: _phase_dump_case_ledgers(
                 finder_client=finder_client,
                 coordinator_client=coordinator_client,
+                case_actor_client=case_actor_client,
                 case=case,
                 demo_name=harness.demo_name,
                 vendor_client=vendor_client,
@@ -672,6 +659,7 @@ def run_fcv_reject_demo(
 
         _phase_invite_vendor_reject(
             coordinator_client=coordinator_client,
+            case_actor_client=case_actor_client,
             vendor_client=vendor_client,
             finder=_finder,
             coordinator_in_coordinator=coordinator_in_coordinator,
@@ -707,6 +695,7 @@ def run_fcv_reject_demo(
         _phase_case_closure(
             finder_client=finder_client,
             coordinator_client=coordinator_client,
+            case_actor_client=case_actor_client,
             coordinator_in_coordinator=coordinator_in_coordinator,
             finder_in_finder=finder_in_finder,
             case=case,
@@ -761,9 +750,7 @@ def main(
     finder_client = DataLayerClient(base_url=f_url)
     coordinator_client = DataLayerClient(base_url=c_url)
     vendor_client = DataLayerClient(base_url=v_url)
-    case_actor_client = DataLayerClient(
-        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
-    )
+    case_actor_client = bound_case_actor_client(ca_url)
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [

@@ -86,9 +86,9 @@ Docker builds the images on the first run, which takes a few minutes.
 Subsequent runs reuse the cached images and start immediately.
 
 Once the images exist, the compose stack starts all of its actor containers and waits for each one to pass its health check.
-Only two of them take part in this scenario: `finder` plays the Finder and `vendor` plays the Vendor.
-The Vendor's container also hosts the **Case Actor**, the actor that holds the CASE_MANAGER role for the case and writes its ledger; see [The CASE_MANAGER and the Case Ledger](../topics/case_lifecycle/case_manager_and_ledger.md) for what that role does.
-The other containers stay idle, and the demo runner confirms at the end of Phase 2 that the dedicated `case-actor` container holds no case data.
+Three of them take part in this scenario: `finder` plays the Finder, `vendor` plays the Vendor, and `case-actor` hosts the **Case Actor**.
+The Case Actor is the actor that holds the CASE_MANAGER role for the case and writes its ledger; see [The CASE_MANAGER and the Case Ledger](../topics/case_lifecycle/case_manager_and_ledger.md) for what that role does.
+The other containers stay idle, and the demo runner confirms at the end of Phase 2 that the dedicated `case-actor` container holds the case.
 
 The demo runner then:
 
