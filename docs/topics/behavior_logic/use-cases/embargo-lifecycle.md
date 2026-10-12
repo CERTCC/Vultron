@@ -226,12 +226,13 @@ The embargo is over for everyone at once, which is the one thing about the EM sc
 ### The case status EM copy is read-only
 
 A `CaseStatus` carries one EM copy — a stamped read of the case's embargo register.
-That copy is **read-only**: `CaseStatus.em` is a frozen field and `EmDimension` is a frozen model, so every in-place write path (`status.em = …`, `status.em.state = …`, or any flat spelling) raises a `ValidationError` at runtime (SDO-03-006, EMB-18-001).
+That copy is **read-only**: `CaseStatus.em` is a frozen field and `EmDimension` is a frozen model (SDO-03-006, EMB-18-001).
+Every in-place write path — `status.em = …`, `status.em.state = …`, or any flat spelling — raises a `ValidationError` at runtime.
 
 The only writer is the case itself.
 When its embargo register changes — through any `EmbargoLifecycle` operation — the case calls `_stamp_em`, which replaces the current status with a `model_copy` carrying the new `EmDimension`.
 Nothing else may write that copy.
-If you need a status with a different EM state, construct one or call `model_copy(update={"em": EmDimension(state=…)})` — never assign through an existing instance.
+A status with a different EM state is built by construction or by `model_copy(update={"em": EmDimension(state=…)})`; assignment through an existing instance always raises.
 
 ---
 
