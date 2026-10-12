@@ -9,8 +9,7 @@ Agent guidance for case-management BT nodes and subtrees in this package.
 
 ## Guarded Commit: Role-Gated Canonical Writes
 
-(ISSUE-1021, 2026-06-17; see `specs/case-ledger-processing.yaml` CLP-09 and
-`notes/case-ledger-authority.md` § "Commit Authorization and Coverage")
+(see `specs/case-ledger-processing.yaml` CLP-09-001/003/004)
 
 Any canonical-write node (e.g., `CommitCaseLedgerEntryNode`) that may be
 reached from more than one actor context MUST be wrapped in a role-gated

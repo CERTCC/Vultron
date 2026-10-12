@@ -3,15 +3,17 @@ title: Case Bootstrap Trust — Implementation Notes
 status: active
 kind: guidance
 description: >
-  Design notes for trust establishment at non-owner sites: receiver-signed
-  bootstrap for the original report path, invite-based bootstrap for
-  late joiners, and CASE_MANAGER authority after trust establishment.
+  Rules for establishing trust in a case and its CASE_MANAGER at non-owner
+  sites: the receiver introduces the CASE_MANAGER to the reporter (ADR-0132),
+  invites anchor late joiners, the bootstrap payload and the anchors to
+  persist, bounded queueing of early CASE_MANAGER messages, and layer rules.
 related_specs:
   - specs/case-bootstrap-trust.yaml
   - specs/architecture.yaml (ARCH-12-003)
   - specs/participant-case-replica.yaml
   - specs/actor-knowledge-model.yaml
   - specs/case-management.yaml
+  - specs/case-proposal.yaml
 related_notes:
   - notes/participant-case-replica.md
   - notes/activitystreams-semantics.md
@@ -28,227 +30,70 @@ relevant_packages:
 
 # Case Bootstrap Trust — Implementation Notes
 
-**Relates to**: `specs/case-bootstrap-trust.yaml`
+Requirements: `specs/case-bootstrap-trust.yaml` (CBT). Replica rules after
+bootstrap: [participant-case-replica.md](participant-case-replica.md).
 
-**Source**: 2026-05-06 design conversation about #440 and #457.
+## Every First Contact Rides an Anchor the Receiver Wrote Itself
 
----
+A participant trusts a CASE_MANAGER only through an anchor it derived locally,
+never through a roster in the payload the sender wrote (CBT-01-011).
 
-## Decision Table
+- **Original report path**: the reporter's anchor is its own
+  `Offer(VulnerabilityReport)` and the actor it sent it to (CBT-01-005). So the
+  **report receiver**, not the CASE_MANAGER, sends the reporter the one-time
+  `Create(VulnerabilityCase)` that introduces the case and names the CASE_MANAGER
+  (ADR-0132, reversing ADR-0041's direct route, #4472). The reporter checks the
+  sender against its Offer, the case against its report, then records the
+  CASE_MANAGER. A `Create(VulnerabilityCase)` from an actor no local anchor names
+  is refused and nothing is stored.
+- **Late joiners** have no report exchange, so `InviteActorToCase` is the
+  trust-establishing message; the CASE_MANAGER `Announce`s the case after
+  acceptance.
+- **The receiver's own anchor** is `case_manager_id` from the
+  `Accept(CaseProposal)` recorded in `accept_case_proposal_received_tree.py`,
+  admitted only from the actor the proposal was addressed to and never once a
+  case exists for the report (CP-06-005, CBT-02-003).
 
-| Question | Decision | Rationale |
-|---|---|---|
-| What establishes first trust for the original report-submission path? | The report receiver sends a one-time `Create(VulnerabilityCase)` to the report submitter, as itself (ADR-0132). | The report submitter already knows who received the report; the bootstrap reuses that trust anchor to introduce the CASE_MANAGER safely. |
-| Is `Announce(VulnerabilityCase)` still the first snapshot for that path? | No. After bootstrap, later snapshots come from the CASE_MANAGER via `Announce`. | Keeps initial trust establishment separate from ongoing single-writer replication. |
-| What must be in the bootstrap payload? | A full case snapshot naming the report receiver (Case Owner), the CASE_MANAGER, and the report submitter when they are already in the loop. | The receiver needs both the case state and the identities required for future trust checks. |
-| What roles should those participants carry? | Case creator/owner gets `CASE_OWNER`; CASE_MANAGER gets `COORDINATOR`. | Distinguishes ownership from coordination authority. |
-| Is an extra ack needed before CASE_MANAGER updates are trusted? | No. Local validation of the bootstrap is enough. | Avoids an unnecessary extra round trip. |
-| What if a CASE_MANAGER update arrives before bootstrap? | Queue briefly, do not apply it, then drop and warn if bootstrap never arrives. | Tolerates reordering without making ordering skew a protocol failure. |
-| Who gets the replay request if bootstrap times out? | The original report receiver. | The CASE_MANAGER is not trusted yet; the replay request asks for the trust-establishing message. |
-| How do late joiners establish trust? | `InviteActorToCase` from the case creator establishes trust; then the CASE_MANAGER may `Announce` the case. | Late joiners have no prior report relationship to anchor trust. |
-| Can ordinary updates replace the trusted CASE_MANAGER? | No. CASE_MANAGER rotation requires an explicit transfer workflow. | Prevents silent authority takeover. |
-| Do encrypted/authenticated DMs replace this bootstrap? | No. They secure transport, but they do not authorize a newly introduced CASE_MANAGER for a case. | Sender authenticity alone is weaker than case-specific authority. |
+`Create` is the introduction verb; `Announce(VulnerabilityCase)` is the
+CASE_MANAGER's later sync (CBT-02-001). When owner and CASE_MANAGER are one actor
+(CM-02-010), the receiver's message is the only one the reporter gets.
 
----
+No extra acknowledgement is needed before trusting later CASE_MANAGER updates,
+and ordinary updates can never replace the trusted CASE_MANAGER: rotation needs
+the explicit transfer workflow. Authenticated or encrypted transport does not
+replace this: sender authenticity is weaker than case-specific authority.
 
-## Two Bootstrap Paths
+## Bootstrap Payload and Persisted Anchors
 
-### 1. Original report-submission path
+The bootstrap `Create(VulnerabilityCase)` carries the full inline case with its
+participant objects embedded inline (so `store_embedded_participants` can seed
+them), naming the case owner (`CASE_OWNER`), the CASE_MANAGER
+(`CVDRole.CASE_MANAGER`, not delegated `CASE_OWNER`), the reporter when already
+a participant, and the submitted report. The CASE_MANAGER is an identity the
+receiver binds to the case, not an opaque service reference.
 
-The original report submitter already has a trust anchor: they know who
-received the report. The bootstrap uses that known actor to introduce the
-case and its CASE_MANAGER.
+After a valid bootstrap, persist `report_id → case_id`, the introducing case
+creator, and `case_manager_id` together on `VultronReportCaseLink`, so later
+handlers reject spoofed senders without re-deriving trust.
 
-```text
-report_submitter -> Offer(VulnerabilityReport) -> report_receiver
+Name an actor-id field for the role it records, not the trust relation: a name
+containing "trusted" trips CodeQL's clear-text-logging heuristic on every log
+line printing a public actor URI (#4020). A stored row carrying a renamed key is
+refused on load via `RetiredFieldsRecord`, never aliased (see
+[datalayer-design.md](datalayer-design.md) § "Renaming a Stored Field").
 
-report_receiver -> Create(VulnerabilityCase full snapshot) -> report_submitter
-(when the CASE_MANAGER is another actor, the snapshot names it and the receiver
-relays the CASE_MANAGER's case, ADR-0132)
-report_submitter validates:
-  - sender == report_receiver
-  - case references the submitted report
-  - case identifies the CASE_MANAGER
+## Early CASE_MANAGER Messages Are Queued, Not Rejected (CBT-05)
 
-CASE_MANAGER -> Announce(VulnerabilityCase updates) -> report_submitter
-```
+Rejecting a CASE_MANAGER message that beats the bootstrap would make delivery
+order part of protocol correctness. Instead queue it unapplied for a bounded
+interval (`AppConfig.pre_bootstrap_queue_timeout_seconds`); on expiry drop it,
+warn, and send an `as_Question` asking the **report receiver** — the only actor
+already trusted — to resend the bootstrap.
 
-### 2. Late-joiner path
+## Layer Rules
 
-Late joiners do not have a prior report exchange with the case creator, so the
-creator-signed invite becomes the trust-establishing message.
-
-```text
-case_creator -> InviteActorToCase -> late_joiner
-late_joiner validates invite + CASE_MANAGER identity
-late_joiner -> Accept(InviteActorToCase) -> case_creator
-CASE_MANAGER -> Announce(VulnerabilityCase full snapshot) -> late_joiner
-```
-
----
-
-## Required Bootstrap Payload Shape
-
-For the original report-submission path, the bootstrap `Create(VulnerabilityCase)`
-should already contain enough information for the receiver to accept future
-CASE_MANAGER updates without another handshake:
-
-1. The full inline `VulnerabilityCase`
-2. A participant record for the report receiver / Case Owner with `CASE_OWNER`
-3. A participant record for the CASE_MANAGER with `COORDINATOR`
-4. A participant record for the report submitter when they are already a live
-   participant in the case
-5. A reference to the submitted report so the receiver can link
-   report-to-case state
-
-The important consequence is that the CASE_MANAGER is not merely an opaque
-service reference. It is an identity the receiver must learn and bind to the
-case during bootstrap.
-
----
-
-## Trust Anchors to Persist
-
-After a valid bootstrap, persist all of the following together:
-
-- `report_id -> case_id`
-- `case_id -> case_creator_id` (the report receiver that introduced the case;
-  the CASE_MANAGER is recorded separately)
-- `case_id -> case_manager_id`
-
-This prevents the receiver from having to re-derive trust from later traffic
-and gives handlers a stable basis for rejecting spoofed or stale senders.
-
-The two actor-id fields on `VultronReportCaseLink` were named
-`trusted_case_creator_id` and `trusted_case_actor_id` until #4020. CodeQL's
-`py/clear-text-logging-sensitive-data` heuristic reads any name containing
-"trusted" as a secret, so every log line printing an actor id resolved
-through them was flagged — yet both values are public ActivityPub URIs.
-Name an actor-id field for the role it records, not for the trust relation.
-A row still carrying an old key is refused on load, with a reason naming the
-store reset (`RetiredFieldsRecord`, #4128); it is never aliased onto the
-new name. The refusal is load-bearing: `VultronReportCaseLink` is a
-`CoreRecord`, which refuses unknown keys (`extra="forbid"`, #4186) but only with
-a bare "extra inputs are not permitted"; the declaration is what names the
-rename and the store reset to the operator.
-See [datalayer-design](datalayer-design.md) § "Renaming a Stored Field".
-
----
-
-## Out-of-Order Handling
-
-Permanent rejection of pre-bootstrap CASE_MANAGER messages is cleaner, but it
-makes delivery order part of protocol correctness. The agreed design instead
-uses a short bounded queue:
-
-1. A CASE_MANAGER message arrives before bootstrap.
-2. The receiver verifies that the CASE_MANAGER is not yet trusted for this case.
-3. The message is queued briefly and remains unapplied.
-4. If bootstrap arrives in time, normal validation may resume.
-5. If bootstrap does not arrive, drop the queued message, log a warning, and
-   ask the report receiver to replay bootstrap.
-
-The replay request should be a generic `Question` directed to the original
-report receiver. The semantics are "please resend the
-bootstrap `Create(VulnerabilityCase)` for this report/case relationship."
-
----
-
-## ADR-0041 and ADR-0132: Who Introduces the CASE_MANAGER to Whom
-
-Per ADR-0041 (`docs/adr/0041-caseactor-authoritative-case-initialization.md`),
-the receiver (vendor) does **not** create a `VulnerabilityCase` before the
-CASE_MANAGER responds. The CASE_MANAGER creates the case and sends its
-`Create(VulnerabilityCase)` to the receiver (the Case Owner).
-
-ADR-0041 also had the CASE_MANAGER address the reporter directly. That left the
-reporter with a case from an actor it never addressed and nothing to check the
-sender against; the `direct` bootstrap route trusted the sender because its own
-snapshot named it CASE_MANAGER (#4472). ADR-0132 reverses that one decision
-(#4473). The flow for the original report-submission path is:
-
-```text
-Reporter: Offer(VulnerabilityReport) -> Receiver
-Receiver: store report, write VultronReportCaseLink(PENDING_PROPOSAL),
-          send Create(as_CaseProposal) to the CASE_MANAGER
-
-CASE_MANAGER: Create(VulnerabilityCase, actor=case_manager, inline participants)
-  -> Receiver only
-  -> Receiver seeds its replica, records trust anchors in VultronReportCaseLink
-
-Receiver: Create(VulnerabilityCase, actor=receiver, full inline snapshot,
-          names the CASE_MANAGER) -> Reporter
-  -> Reporter checks the sender against the Offer it wrote, then records the
-     report-to-case link, the receiver's identity, and the named CASE_MANAGER
-
-CASE_MANAGER: Announce(...) -> Reporter   (accepted: the introduction named it)
-```
-
-The receiver's message is the reporter's bootstrap. The trust anchor the
-reporter validates is the one it wrote itself: the report it submitted and the
-actor it submitted it to (CBT-01-005). A roster in the snapshot is never an
-anchor, so a `Create(VulnerabilityCase)` from an actor no local anchor names is
-refused and nothing is stored (CBT-01-011). The receiver's own anchor for the
-CASE_MANAGER is `case_manager_id` from the `Accept(CaseProposal)` recorded in
-`accept_case_proposal_received_tree.py`. That `Accept` is recorded only when its
-sender is the actor the vendor addressed the proposal to (`case_creator_id`),
-and never once a case is established for the report, so an unrelated actor
-cannot plant itself as the trust anchor (CP-06-005, CBT-02-003).
-
-`Create` is the introduction verb (it was before ADR-0041 too).
-`Announce(VulnerabilityCase)` stays the CASE_MANAGER's later sync (CBT-02-001),
-and `Accept(Offer(Report))` and `RK` keep their receipt and validation meaning.
-Owner and CASE_MANAGER MAY be one actor (CM-02-010); then the receiver's message
-is the only one the reporter gets, as before ADR-0041.
-
-The `Create(VulnerabilityCase)` payload MUST embed participant objects inline
-so `store_embedded_participants` can seed them on the receiver's replica.
-
-## Layer and Import Rules
-
-- Trust-establishment rules belong in core use-case / behavior logic, not in
-  FastAPI routers.
-- Outbound bootstrap activities must be built through
-  `vultron.wire.as2.factories`, not by importing internal activity subclasses.
-- Persisted trust anchors should live in core models / ports, not in
-  wire-specific helper objects.
-- Transport security checks may support the decision, but they must not become
-  the sole authority check for a new CASE_MANAGER.
-
----
-
-## Testing Patterns
-
-```python
-def test_bootstrap_create_records_case_manager(
-    dl, report_submitter, report_receiver, submitted_report, bootstrap_activity
-):
-    event = build_event(bootstrap_activity, actor_id=report_submitter.id_)
-    CreateVulnerabilityCaseReceivedUseCase(dl, event).execute()
-
-    trust = dl.read(case_bootstrap_trust_id(submitted_report.id_))
-    assert trust.case_creator_id == report_receiver.id_
-    assert trust.case_manager_id is not None
-```
-
-```python
-def test_pre_bootstrap_case_actor_announce_is_queued_not_applied(
-    dl, queue_dl, case_actor_announce
-):
-    process_inbox_item(case_actor_announce, dl, queue_dl)
-
-    assert local_case_not_updated(dl, case_actor_announce.context)
-    assert queued_for_bootstrap(queue_dl, case_actor_announce.id_)
-```
-
-```python
-def test_late_joiner_invite_establishes_case_actor_trust(
-    dl, invite_activity, announce_activity
-):
-    InviteActorToCaseReceivedUseCase(dl, build_event(invite_activity)).execute()
-    AnnounceVulnerabilityCaseReceivedUseCase(
-        dl, build_event(announce_activity)
-    ).execute()
-
-    assert late_joiner_replica_created(dl, announce_activity.context)
-```
+- Trust-establishment rules live in core use cases and behaviors, not FastAPI
+  routers; persisted anchors live in core models, not wire helpers.
+- Build outbound bootstrap activities through `vultron.wire.as2.factories`.
+- Transport security checks may support the decision but MUST NOT be the sole
+  authority check for a new CASE_MANAGER.

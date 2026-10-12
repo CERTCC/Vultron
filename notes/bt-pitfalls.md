@@ -1132,8 +1132,8 @@ tree) must use `tick_once()` / `setup_with_descendants()`, never a bare
 is only set after the child has been ticked, and its `setup()` propagates to the
 child only via the descendant walk. See `_record_named_peer`
 (`use_cases/triggers/actor.py`) and `stochastic_demo.py` for the two procedural
-call sites. Design rationale: [protocol-asks.md](protocol-asks.md) § "The
-invariant is enforced, not just observed".
+call sites. Design rationale: [protocol-asks.md](protocol-asks.md) § "Why
+there is nothing to suspend".
 
 Source: ISSUE-3194 (BT-18-011, ADR-0080)
 
