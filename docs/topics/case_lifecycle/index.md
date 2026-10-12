@@ -17,6 +17,7 @@ move between organizations.
 - [The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md) — Who writes a case's history, which entries it records, and how every participant receives them.
 - [Case Initialization](case_initialization.md) — Why the CASE_MANAGER, not the report receiver, creates the case.
 - [Ownership Transfer](ownership_transfer.md) — How the CASE_OWNER role moves between participants via the CASE_MANAGER.
+- [Case Authority, Trust, and Routing](case_authority_and_trust.md) — Who may change a case, why every case message goes through the CASE_MANAGER, how a new participant learns which actor to trust, and where a closed case stops accepting writes.
 - [Case Ledger Synchronization](case_ledger_sync.md) — How replicas order ledger entries and catch up on the ones they missed.
 
 <!-- END GENERATED SECTION CONTENTS -->

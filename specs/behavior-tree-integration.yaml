@@ -47,6 +47,8 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: Simulation code in `vultron/bt/` MUST remain unchanged
+    adr:
+    - ADR-0003
 - id: BT-03
   title: State Management
   specs:
@@ -214,6 +216,8 @@ groups:
     statement: All protocol-significant behavior MUST be implemented as BT nodes or subtrees. There is no "simple enough to
       skip" threshold.
     rationale: The BT is the domain documentation; behaviors outside the tree are invisible to analysis, audit, and explainability.
+    adr:
+    - ADR-0002
   - id: BT-06-002
     priority: MUST
     kind: project

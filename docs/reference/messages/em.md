@@ -64,7 +64,7 @@ print(json2md(announce_embargo()))
 ## ER — Embargo Proposal Rejection
 
 - **Protocol role:** The Participant has rejected an embargo proposal.
-- **Triggering transition:** Proposed → None (P → N).
+- **Triggering transition:** Proposed → None (P → N), or Proposed → Proposed (P → P) while another proposal is open (EMB-18-005).
 - **Wire activity:** `Reject(Invite(Event)[context=VulnerabilityCase])`.
 - **Who decides:** A `Reject` of the Invite is always the sender's own refusal of those terms, the Case Owner's included.
   It changes no embargo on the case.
@@ -87,7 +87,7 @@ print(json2md(reject_embargo()))
 ## EA — Embargo Proposal Acceptance
 
 - **Protocol role:** The Participant has accepted an embargo proposal.
-- **Triggering transition:** Proposed → Active (P → A).
+- **Triggering transition:** Proposed → Active (P → A), or Proposed → Revise (P → R) while another proposal stays open as a revision (EMB-18-005).
 - **Wire activity:** `Accept(Invite(Event)[context=VulnerabilityCase])`.
 - **Who decides:** An `Accept` of the Invite is always the sender's own consent to those terms, the Case Owner's included.
   It changes no embargo on the case.
@@ -122,7 +122,7 @@ print(json2md(propose_embargo()))
 ## EJ — Embargo Revision Rejection
 
 - **Protocol role:** The Participant has rejected a proposed embargo revision.
-- **Triggering transition:** Revise → Active (R → A).
+- **Triggering transition:** Revise → Active (R → A), or Revise → Revise (R → R) while another proposal is open (EMB-18-005).
 - **Wire activity:** `Reject(Invite(Event)[context=VulnerabilityCase])` —
   **collapsed onto `ER`**, discriminated by EM state context.
 - **Who decides:** As for `ER`, the `Reject` is the sender's own refusal; the Case Owner keeps the prior terms by sending its decision (see [The Case Owner's Decision](#the-case-owners-decision)).
@@ -139,7 +139,7 @@ print(json2md(reject_embargo()))
 ## EC — Embargo Revision Acceptance
 
 - **Protocol role:** The Participant has accepted a proposed embargo revision.
-- **Triggering transition:** Revise → Active (R → A).
+- **Triggering transition:** Revise → Active (R → A), or Revise → Revise (R → R) while another proposal is open (EMB-18-005).
 - **Wire activity:** `Accept(Invite(Event)[context=VulnerabilityCase])` —
   **collapsed onto `EA`**, discriminated by EM state context.
 - **Who decides:** As for `EA`, the `Accept` is the sender's own consent; the revision replaces the active embargo only when the Case Owner sends its decision (see [The Case Owner's Decision](#the-case-owners-decision)).

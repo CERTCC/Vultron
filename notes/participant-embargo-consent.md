@@ -736,7 +736,8 @@ The owner's decision and each participant's consent are different messages
    marks the sender's consent row for the accepted embargo `AGREED`, whoever the
    sender is, and moves no register entry.
 2. `ActivateEmbargoOnCaseReceivedUseCase` (`Accept(EmbargoEvent, target=Case)`,
-   the case owner only) activates the proposal — EM derives `ACTIVE` — and marks
+   the case owner only) activates the proposal — EM derives `ACTIVE`, or
+   `REVISE` while another proposal stays open (ADR-0130) — and marks
    the owner's row `AGREED` unless it already is; an owner whose row is
    `DECLINED` is refused.
 3. Idempotent: if the row is already `AGREED`, succeed silently (HTTP 2xx).

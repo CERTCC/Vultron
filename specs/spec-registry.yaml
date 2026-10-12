@@ -966,6 +966,8 @@ groups:
     tags:
     - documentation
     - tooling
+    adr:
+    - ADR-0072
   - id: SR-11-002
     priority: MUST
     kind: project
@@ -981,6 +983,8 @@ groups:
     tags:
     - documentation
     - tooling
+    adr:
+    - ADR-0072
   - id: SR-11-003
     priority: MUST
     kind: process

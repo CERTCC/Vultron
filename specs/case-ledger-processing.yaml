@@ -323,6 +323,8 @@ groups:
     statement: Participant actors SHOULD maintain actor-local pending assertion state
       for recently emitted case-scoped assertions that are awaiting canonical `CaseLedgerEntry`
       confirmation
+    adr:
+    - ADR-0018
   - id: CLP-06-002
     priority: MUST_NOT
     kind: protocol
@@ -330,6 +332,8 @@ groups:
     statement: Pending assertion state MUST NOT be treated as canonical case history
       and MUST NOT be used as the authoritative source for participant membership
       or case state reconstruction
+    adr:
+    - ADR-0018
   - id: CLP-06-003
     priority: MUST
     kind: protocol
@@ -340,6 +344,8 @@ groups:
       default to any positive value.
     lint_suppress:
     - missing_story_reference
+    adr:
+    - ADR-0018
   - id: CLP-06-004
     priority: MUST
     kind: protocol
@@ -351,12 +357,16 @@ groups:
       to a timed-out state and the system emits an error-level log message.
     lint_suppress:
     - missing_story_reference
+    adr:
+    - ADR-0018
   - id: CLP-06-005
     priority: MUST_NOT
     kind: protocol
     verification_debt: '#3612'
     statement: Pending assertion timeout handling MUST NOT automatically retry assertion
       emission; follow-up emission decisions MUST be made by subsequent behavior evaluation
+    adr:
+    - ADR-0018
   - id: CLP-06-006
     priority: MUST
     kind: protocol
@@ -367,6 +377,8 @@ groups:
       entry is immediately removed from the pending store.
     lint_suppress:
     - missing_story_reference
+    adr:
+    - ADR-0018
 - id: CLP-07
   title: Canonical Entry Criteria and Ledger/Process-Log Separation
   specs:
