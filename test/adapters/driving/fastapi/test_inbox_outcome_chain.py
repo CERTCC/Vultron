@@ -278,7 +278,7 @@ def test_real_handler_refusal_reaches_inbox_outcome(dl):
     assert "untrusted sender" in outcome.failure_reason
 
 
-@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("CLP-07-013", "CLP-02-013")
 def test_received_update_vulnerability_case_is_refused_unchanged(dl):
     """#4443: a direct ``Update(VulnerabilityCase)`` has no received path.
 
@@ -317,3 +317,5 @@ def test_received_update_vulnerability_case_is_refused_unchanged(dl):
     stored = dl.read(case_id)
     assert stored is not None
     assert stored.name == "original name"
+    assert dl.outbox_list() == []
+    assert dl.list_objects("CaseLedgerEntry") == []

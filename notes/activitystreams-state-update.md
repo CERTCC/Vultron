@@ -56,8 +56,10 @@ CM-06-004).
 
 No actor sends `Update(VulnerabilityCase)` to the CASE_MANAGER: an inbound
 one resolves to `UNKNOWN` and is refused (#4443). A CASE_MANAGER change to a
-case field is its own ledger entry, and the ledger fan-out carries it to
-participants (CLP-07-013, CM-06-001).
+case field must be its own ledger entry, which the ledger fan-out carries to
+participants (CLP-07-013, CM-06-001). `Update(VulnerabilityCase)` is reserved
+as that entry's snapshot shape, but `_CANONICAL_PAYLOAD_SIGNATURES` does not
+admit it yet, so no code commits one today.
 
 **Cross-reference**: `specs/case-management.yaml` CM-02-002, CM-06.
 

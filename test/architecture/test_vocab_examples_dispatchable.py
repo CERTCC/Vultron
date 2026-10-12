@@ -77,10 +77,10 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 # pass.
 _KNOWN_UNDISPATCHABLE: dict[str, str] = {
     # Permanent, not debt: no actor sends Update(VulnerabilityCase).  A
-    # CASE_MANAGER change to a case field is its own ledger entry whose snapshot
-    # is this Update, and replicas copy the entry (CLP-07-013, ADR-0124); the
-    # received path changed the case with no entry, so #4443 removed it.  The
-    # example renders the snapshot shape on the case-management page.
+    # CASE_MANAGER change to a case field must be its own ledger entry, and this
+    # Update is reserved as that entry's snapshot shape (CLP-07-013, ADR-0124);
+    # the received path changed the case with no entry, so #4443 removed it.
+    # The example renders the snapshot shape on the case-management page.
     "update_case": "ADR-0124 — Update(VulnerabilityCase) is a ledger-entry snapshot only, never a sent message, so this example has no ActivityPattern and no MessageSemantics by decision (CLP-07-013, #4443)",
 }
 

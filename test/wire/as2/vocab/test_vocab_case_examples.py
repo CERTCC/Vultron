@@ -218,14 +218,15 @@ class TestVocabCaseLifecycleExamples(unittest.TestCase):
     def test_update_case(self):
         activity = examples.update_case()
         self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
+        case_actor = examples.case_actor()
         case = examples.case()
 
         self.assertIsInstance(activity, as_Update)
         self.assertEqual(activity.type_, "Update")
 
-        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.actor, case_actor.id_)
         self.assertEqual(activity.object_, case)
+        self.assertIsNone(activity.content)
 
 
 class TestVocabCaseNoteExamples(unittest.TestCase):

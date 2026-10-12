@@ -511,6 +511,56 @@ class TestEngageCaseLedgerCommit:
         assert len(announces) == 1
         assert announces[0].actor == self._CASE_MANAGER_ID
 
+    @pytest.mark.spec("CM-10-004")
+    def test_engage_broadcast_withholds_the_case_from_an_inert_participant(
+        self, seeded_dl, caplog
+    ):
+        """An invited-but-not-joined participant gets no case announcement.
+
+        The exclusions node names it in one operator-visible line, and the
+        broadcast leaves it out of the ``Announce`` recipients (CM-10-004).
+        """
+        inert_actor_id = "https://example.org/actors/invitee-2300"
+        inert_participant_id = f"{self._CASE_ID}/participants/invitee"
+        seeded_dl.create(
+            CaseParticipant(
+                id_=inert_participant_id,
+                attributed_to=inert_actor_id,
+                context=self._CASE_ID,
+                joined=False,
+            )
+        )
+        case = seeded_dl.read(self._CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        case.case_participants.append(inert_participant_id)
+        case.actor_participant_index[inert_actor_id] = inert_participant_id
+        seeded_dl.save(case)
+
+        with caplog.at_level(
+            logging.INFO, logger="vultron.core.behaviors.case.update_support"
+        ):
+            EngageCaseReceivedUseCase(
+                seeded_dl,
+                self._engage_event(),
+                trigger_activity=TriggerActivityAdapter(seeded_dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(seeded_dl),
+            ).execute()
+
+        announces = self._queued_announces(seeded_dl)
+        assert len(announces) == 1
+        recipients = set(announces[0].to or [])
+        assert self._SENDER_ID in recipients
+        assert inert_actor_id not in recipients
+        withheld = [
+            r.getMessage()
+            for r in caplog.records
+            if "not active on case" in r.getMessage()
+        ]
+        assert len(withheld) == 1
+        assert inert_actor_id in withheld[0]
+        assert "CM-10-004" in withheld[0]
+
     def test_engage_received_by_non_case_manager_does_not_broadcast(self):
         """A participant that is not the CASE_MANAGER announces nothing.
 

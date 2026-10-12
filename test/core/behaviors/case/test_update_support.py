@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """``broadcast_case_update``: who the CASE_MANAGER's case announcement reaches."""
 
-from typing import Any
+from collections.abc import Collection
 from unittest.mock import MagicMock
 
 import pytest
@@ -20,6 +20,7 @@ import pytest
 from vultron.core.behaviors.case import update_support
 from vultron.core.behaviors.case.update_support import broadcast_case_update
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.ports.case_persistence import CasePersistence
 
 CASE_ID = "https://example.org/cases/broadcast-1"
 MANAGER_ID = "https://example.org/actors/manager"
@@ -28,12 +29,15 @@ PARTICIPANT_ID = "https://example.org/actors/vendor"
 
 def _stub_recipients(
     monkeypatch: pytest.MonkeyPatch, recipients: list[str]
-) -> list[Any]:
+) -> list[Collection[str]]:
     """Replace the shared selection; return the ``excluding`` values it saw."""
-    seen: list[Any] = []
+    seen: list[Collection[str]] = []
 
     def _recipients(
-        case: VulnerabilityCase, dl: Any, *, excluding: Any = ()
+        case: VulnerabilityCase,
+        dl: CasePersistence,
+        *,
+        excluding: Collection[str] = (),
     ) -> list[str]:
         seen.append(excluding)
         return recipients

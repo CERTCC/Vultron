@@ -360,6 +360,9 @@ def update_case_activity(
 ) -> as_Update:
     """Build an Update(as_VulnerabilityCase).
 
+    The snapshot shape of a CASE_MANAGER-authored case-field ledger entry
+    (CLP-07-013); never sent as a message, so no pattern routes it (#4443).
+
     Args:
         case: The updated ``as_VulnerabilityCase``.
         **kwargs: Optional AS2 fields forwarded to the constructor

@@ -452,8 +452,8 @@ add a per-tree store node or a handler-local store helper; the factory
 (`create_receive_activity_tree`, `vultron/core/behaviors/case/receive_activity_tree.py`)
 already supplies the intake node as the first child of every tree it builds. A
 receive tree that does not compose through the factory runs no intake. #3870
-moved the two that composed `create_case_manager_gated_tree` directly (add-note,
-update-case) and found more that never used the factory; those are held as an
+moved the trees that composed `create_case_manager_gated_tree` directly and
+found more that never used the factory; those are held as an
 exact set in `test/architecture/test_receive_side_intake_first.py`
 (`KNOWN_FACTORIES_BYPASSING_INTAKE`), where a receive-side tree is one a
 received use case calls rather than one whose name says "received". The case,
@@ -479,7 +479,8 @@ the commit exactly when the received `(type, object)` pair is a canonical payloa
 signature (`_CANONICAL_PAYLOAD_SIGNATURES`) — otherwise the CASE_MANAGER would
 refuse its own commit. `Update(VulnerabilityCase)` has no received tree: an
 inbound one resolves to `UNKNOWN` and is refused (#4443). The wire class is
-only the snapshot of a CASE_MANAGER-authored consequence entry (CLP-07-013).
+reserved for the snapshot of a CASE_MANAGER-authored consequence entry
+(CLP-07-013); it is not a canonical signature yet, so nothing commits one.
 
 One canonical signature also passes `case_id=None` (#4304):
 `Announce(VulnerabilityCase)`. Only the CASE_MANAGER sends it and only a

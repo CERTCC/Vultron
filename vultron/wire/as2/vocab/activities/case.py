@@ -131,6 +131,12 @@ class _AddNoteToCaseActivity(as_Add):
 # update a VulnerabilityCase
 class _UpdateCaseActivity(as_Update):
     """Update a VulnerabilityCase.
+
+    Reserved as the snapshot shape of a CASE_MANAGER-authored case-field ledger
+    entry (CLP-07-013). It is not a message any actor sends: it has no
+    ``ActivityPattern`` and no ``MessageSemantics``, so an inbox refuses a
+    received one as unrecognized (#4443). Do not add a received route.
+
     object_: as_VulnerabilityCase
     """
 
