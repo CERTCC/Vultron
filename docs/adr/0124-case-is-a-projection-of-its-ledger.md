@@ -1,8 +1,11 @@
 ---
 status: proposed
+status_override: >-
+  Revision 2 rewritten in place by the maintainer's #4425 planning interview while the
+  ADR was unreleased, rather than superseded.
 date: 2026-10-07
 created: 2026-10-07
-updated: 2026-10-09
+updated: 2026-10-12
 revision: 2
 deciders: Allen D. Householder
 consulted: >-
