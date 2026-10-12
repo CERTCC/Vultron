@@ -39,6 +39,7 @@ related_notes:
   - notes/received-status-authorization.md
   - notes/protocol-asks.md
   - notes/case-joining.md
+  - notes/status-dimension-objects.md
 relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/states/embargo_register.py
@@ -174,8 +175,9 @@ catch-up fetch or deferral, refuse instead.
   re-invite (EMB-17-003) or no-op (EMB-17-004). Each branch commits an entry so
   replicas learn the outcome (RSH-08-004), and every factory in
   `vultron/core/behaviors/embargo/expiry_tree.py` is CASE_MANAGER-gated; a
-  non-manager gets `REFUSED` and changes no consent (BT-17-001). The entry and
-  replay-node table is in `notes/participant-embargo-consent.md`.
+  non-manager gets `REFUSED` and changes no consent (BT-17-001). The outcome
+  table is in `notes/participant-embargo-consent.md` § "Expiry is lazy, and
+  only the CASE_MANAGER's".
 - **Owner close settles pending Invites without waiting.** After close an Invite
   can only expire, so `ExpirePendingInvitesOnCloseNode` runs between the
   CASE_MANAGER's `RM.CLOSED` entry and `case_fully_closed`, reusing the

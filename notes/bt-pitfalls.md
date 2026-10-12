@@ -30,6 +30,9 @@ related_notes:
   - notes/protocol-asks.md
   - notes/peer-broadcast-failure-semantics.md
   - notes/agentic-workflow.md
+  - notes/case-proposal.md
+  - notes/embargo-default-semantics.md
+  - notes/status-dimension-objects.md
 relevant_packages:
   - py_trees
   - vultron/core/behaviors

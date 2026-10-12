@@ -25,6 +25,8 @@ related_notes:
   - notes/embargo-lifecycle.md
   - notes/status-dimension-objects.md
   - notes/lifecycle-staged-types.md
+  - notes/case-ledger-authority.md
+  - notes/sync-ledger-replication.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management

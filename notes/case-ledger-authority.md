@@ -34,6 +34,7 @@ related_notes:
   - notes/case-ledger-genesis-hardening.md
   - notes/wire-artifact-immutability.md
   - notes/outbox-delivery-reliability.md
+  - notes/participant-case-replica.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/core/models

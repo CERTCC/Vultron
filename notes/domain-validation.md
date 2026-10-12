@@ -29,6 +29,7 @@ related_notes:
   - notes/participant-embargo-consent.md
   - notes/case-ledger-authority.md
   - notes/architecture-ratchet-corpus.md
+  - notes/status-dimension-objects.md
 ---
 
 # Domain Object Validation — Strict vs. Loose Boundaries

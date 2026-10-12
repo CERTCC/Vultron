@@ -13,6 +13,8 @@ relevant_packages:
   - vultron/core/behaviors
   - vultron/core/use_cases
   - vultron/adapters/driving/fastapi
+related_notes:
+  - notes/case-bootstrap-trust.md
 ---
 
 # Actor Knowledge Model — Implementation Notes

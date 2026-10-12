@@ -27,6 +27,8 @@ related_notes:
   - notes/case-joining.md
   - notes/core-wire-rendering-port.md
   - notes/bt-pitfalls.md
+  - notes/case-communication-model.md
+  - notes/participant-case-replica.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/wire/as2

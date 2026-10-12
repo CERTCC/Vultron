@@ -38,6 +38,8 @@ related_notes:
   - notes/received-status-authorization.md
   - notes/message-occasion-table.md
   - notes/message-type-reference.md
+  - notes/case-proposal.md
+  - notes/ownership-transfer.md
 relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/core/use_cases/received

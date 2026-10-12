@@ -27,6 +27,7 @@ related_notes:
   - notes/case-communication-model.md
   - notes/case-joining.md
   - notes/protocol-asks.md
+  - notes/case-state-model.md
 relevant_packages:
   - vultron/core/behaviors/status
   - vultron/core/behaviors/report

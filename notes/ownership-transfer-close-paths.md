@@ -51,8 +51,9 @@ CASE_MANAGER inbox receives Reject
   entry only closes the Offer.
 - **"Open" is read from the ledger.** An Offer is open until the ledger holds an
   Accept, Reject, withdrawal or expiry entry for it, found through
-  `find_protocol_pair()` with an ownership-transfer reply-types constant beside the
-  existing ones in `vultron/core/models/protocol_pair.py` (CLP-11-001). The replica's
+  `find_protocol_pair()` with `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES` in
+  `vultron/core/models/protocol_pair.py` (CLP-11-001), which already holds the
+  Reject type; withdrawal and expiry join it when they are ledgered. The replica's
   `VultronOwnershipTransferOfferRecord` is bookkeeping (CLP-07-014), never the answer.
 - **One open Offer per case (CM-21-014).** The CASE_MANAGER refuses a new Offer while
   one is open. Once closed, the owner may offer again to anyone, the decliner included.

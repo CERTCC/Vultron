@@ -82,7 +82,7 @@ line printing a public actor URI (#4020). A stored row carrying a renamed key is
 refused on load via `RetiredFieldsRecord`, never aliased (see
 [datalayer-design.md](datalayer-design.md) § "Renaming a Stored Field").
 
-## Early CASE_MANAGER Messages Are Queued, Not Rejected (CBT-05)
+## Early CASE_MANAGER Messages Are Queued, Not Rejected (CBT-03)
 
 Rejecting a CASE_MANAGER message that beats the bootstrap would make delivery
 order part of protocol correctness. Instead queue it unapplied for a bounded

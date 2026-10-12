@@ -7,7 +7,7 @@ type: note
 
 **Archived:** 2026-10-12
 **Reason:** resolved items are recorded in the specs/ADRs named below; the remaining open items are design questions, not guidance
-**Superseded by:** EP-07-001, EP-07-002, EP-07-006, CM-28-011 (timeout defaults); ADR-0096 (no pre-case embargo phase); #2214 (rescind via `Undo(Invite(EmbargoEvent))`); still open with no tracking issue: automatic removal of `DECLINED` participants, and a separate owner notification on `DECLINED`/`TIMED_OUT`
+**Superseded by:** EP-07-001, EP-07-002, EP-07-006, CM-28-011 (timeout defaults); ADR-0096 (no pre-case embargo phase); #2214 (rescind via `Undo(Invite(EmbargoEvent))`); still open: automatic removal of `DECLINED` participants (#4547), and a separate owner notification on `DECLINED`/`TIMED_OUT` (#4548)
 
 ---
 

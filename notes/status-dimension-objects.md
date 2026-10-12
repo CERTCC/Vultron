@@ -29,8 +29,10 @@ relevant_packages:
 # Status Dimension Objects
 
 Each state machine on `CaseStatus` (`em`, `pxa`) and `ParticipantStatus` (`rm`,
-`vf`, `d`) is a small dimension object that holds one `state` field and owns its
-`transition()` and guard predicates. Decision: ADR-0036 (split of `vfd` into
+`vf`, `d`) is a small dimension object that holds one `state` field. `pxa`,
+`rm`, `vf` and `d` own their `transition()` and guard predicates; `em` has no
+`transition()`, because its value is a stamped copy of the EM derived from the
+embargo register (ADR-0122). Decision: ADR-0036 (split of `vfd` into
 `vf` + `d`: ADR-0075). Requirements: `specs/status-dimension-objects.yaml`.
 
 ## Naming
@@ -61,7 +63,7 @@ never mutated, a new one is appended. Prefer the dimension methods
 
 `RmDimension(state=RM.START)` dumps to `"START"`; the enclosing model carries the
 wire spelling as a field alias (`rm` → `rmState`). Validation accepts both the
-bare value and the `{"state": ...}` mapping (SDO-06-001). There is no projection
+bare value and the `{"state": ...}` mapping (SDO-01-004). There is no projection
 step: a `by_alias` dump of the core object is its AS2 form (ADR-0099).
 
 Any consumer reading a dimension out of a persisted row or ledger snapshot MUST

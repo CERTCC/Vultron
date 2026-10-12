@@ -61,7 +61,7 @@ against an anchor the receiver derived itself:
 1. **Report path**: a completed `VultronReportCaseLink` recording
    `case_manager_id` (written on the creator-signed `Create(VulnerabilityCase)`),
    or the CASE_MANAGER role-holder on an existing replica (`_find_case_actor_id()`,
-   `vultron/core/participants/authority.py`).
+   `vultron/core/use_cases/_helpers.py`).
 2. **Invite path**: a `VultronPendingCaseInbox` anchor written when the receiver
    processed `InviteActorToCase` (`RecordInviteTrustAnchorNode`, #4185). It is
    written only if the Invite's `object` is the receiving actor; it binds to the
@@ -71,8 +71,8 @@ against an anchor the receiver derived itself:
 
 No anchor means **reject**, never accept: no legitimate sequence delivers a
 first-contact Announce without a preceding Create or Invite (PCR-07-010, #3273).
-Do not fall back to the announced roster (`_announced_case_manager_id()`): the
-sender supplies it, so a fabricated case naming the sender as CASE_MANAGER
+Do not fall back to the announced roster in the payload: the sender supplies
+it, so a fabricated case naming the sender as CASE_MANAGER
 passes (#3274). Do not reintroduce the retired `Service`-hosting scan
 (ARCH-24-004). Whether the named CaseActor is genuine awaits signatures (#2841).
 

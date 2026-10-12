@@ -27,6 +27,8 @@ related_notes:
   - notes/stub-objects.md
   - notes/wire-core-boundary.md
   - notes/received-status-authorization.md
+  - notes/case-state-model.md
+  - notes/participant-case-replica.md
 relevant_packages:
   - vultron/core/participants/recipients.py
   - vultron/core/participants/stub_reply.py
@@ -90,8 +92,8 @@ step up to the one that reaches `CLOSED` and waits for them rather than writing
 `CLOSED` itself. Later entries, `case_fully_closed` included, reach only participants
 not yet closed. The exception never widens entitlement, and the CM-31-009 embargo
 notice is the only other message a closed participant gets. Verify "all participants
-closed" in the CASE_MANAGER's store. The fan-out does not yet apply this to
-`case_fully_closed` (#4212).
+closed" in the CASE_MANAGER's store. Known gap: the fan-out still sends
+`case_fully_closed` to closed participants (#4212).
 
 ## Authority to act
 
@@ -212,7 +214,8 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   the invitee after its case seed (#2898). Replay from genesis may run over a seed that
   is ahead, so each write moves forward only.
 - VF is vendor-only: no other role's record, status or entry carries one.
-- `case.recommendation_recommender_index` is not yet an entry (#4295).
+- Known gap: `case.recommendation_recommender_index` is not ledgered as an entry
+  (#4295).
 
 ## Vocabulary: `Offer` versus `Invite`
 
