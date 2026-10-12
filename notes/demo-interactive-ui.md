@@ -12,6 +12,7 @@ related_notes:
   - notes/fv-demo.md
   - notes/demo-scenario-registry.md
   - notes/case-ledger-authority.md
+  - notes/configuration.md
 related_specs:
   - specs/multi-actor-demo.yaml
   - specs/triggerable-behaviors.yaml
@@ -19,6 +20,7 @@ related_specs:
 relevant_packages:
   - vultron/demo/scenario
   - vultron/adapters/driving/fastapi/routers
+  - vultron/adapters/driving/fastapi/ledger_stream.py
 ---
 
 # Interactive Demo UI — Scenarios and Architecture
@@ -169,17 +171,33 @@ TRIG-09).
   endpoint serializes it (wire form, by alias, `exclude_none`).
 - **Replay**: `?since=<log_index>` (or the browser's `Last-Event-ID` on
   reconnect) skips entries at or below that index; absent means replay from
-  the beginning.
+  the beginning. A browser reconnect keeps the original URL and adds the
+  header, so when both are present the higher index wins.
 - **Notification: server-side polling.** The handler re-reads the case's
-  ledger entries on a short interval (~250 ms) and emits those above the last
-  index sent. Chosen over an in-process queue because it needs no hook in
-  the commit path, catches entries however they arrived (local commit or
-  replicated in), and needs no app-scoped pub/sub state that could leak
-  between test apps. The bounded read load is acceptable for a
-  prototype-only endpoint.
+  ledger entries on a short interval (`server.ledger_stream_poll_seconds`,
+  default 0.25 s) and emits those above the last index sent. Chosen over an
+  in-process queue because it needs no hook in the commit path, catches
+  entries however they arrived (local commit or replicated in), and needs no
+  app-scoped pub/sub state that could leak between test apps. The bounded
+  read load is acceptable for a prototype-only endpoint.
 - **Termination**: stops cleanly when the client disconnects; emits a
-  terminal `event: close` when the server shuts down (and, if cheaply
-  detectable, when the case closes).
+  terminal `event: close` when the server shuts down. It does not end when
+  the case closes: the stream is a plain tail of whatever the actor records.
+- **Shutdown needs a signal hook, not the lifespan.** uvicorn's graceful
+  shutdown waits for open connections to close *before* it runs lifespan
+  shutdown, and its default wait is unbounded. A stream that ended only on
+  lifespan shutdown would hold the server open forever. The lifespan
+  therefore chains onto the server's SIGINT/SIGTERM handler
+  (`install_shutdown_signal_hook` in
+  `vultron/adapters/driving/fastapi/ledger_stream.py`) and publishes the
+  resulting event in ASGI lifespan state, which — unlike `app.state` — also
+  reaches `app_v2` mounted under `main.py`'s root app. An app with no
+  lifespan has no event, and the route refuses to start a stream there.
+- **Testing**: `TestClient` reads a response to its end, so it cannot follow
+  an open stream. Route tests hand the route an already-set shutdown event;
+  the live tests (`test/adapters/driving/fastapi/test_ledger_stream_live.py`)
+  serve the app with uvicorn, and send a real SIGTERM to a subprocess for the
+  shutdown path.
 - **Not a replication channel.** Like its siblings, it is demo tooling;
   participants replicate through the ActivityStreams inbox (SYNC-02-001).
 

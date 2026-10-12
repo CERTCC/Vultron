@@ -94,7 +94,7 @@ PYTHONPATH= uv run spec-dump --topic CS --text
   `config.example.yaml` is the committed example.
 - Environment variables documented in `vultron/config/__init__.py`:
   - `VULTRON_CONFIG` — path to the YAML config file; a set-but-missing path raises an error.
-  - `VULTRON_SERVER__BASE_URL`, `VULTRON_SERVER__LOG_LEVEL` — server settings.
+  - `VULTRON_SERVER__BASE_URL`, `VULTRON_SERVER__LOG_LEVEL`, `VULTRON_SERVER__LEDGER_STREAM_POLL_SECONDS` — server settings.
   - `VULTRON_DATABASE__DB_URL` — SQLite URL (tests force `sqlite:///:memory:`).
   - `VULTRON_MODE` — runtime mode.
   - `VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS`, `VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS`, `VULTRON_LEDGER__STALENESS_WINDOW_DAYS` — ledger timestamp tolerances (`vultron/config/ledger.py`).
