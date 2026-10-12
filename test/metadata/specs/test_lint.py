@@ -1872,6 +1872,19 @@ def test_protocol_should_not_no_stories_is_advisory(tmp_path, capsys):
     assert "priority=SHOULD_NOT" in captured.out
 
 
+def _without_suppression_totals(out: str) -> str:
+    """*out* minus the ``[INFO] lint_suppress …`` totals spec-lint prints.
+
+    Those totals name the suppression code on every run (MS-12-007), so a
+    test asserting that no warning names the code must look past them.
+    """
+    return "\n".join(
+        line
+        for line in out.splitlines()
+        if not line.startswith("[INFO] lint_suppress ")
+    )
+
+
 @pytest.mark.spec("SR-11-003")
 def test_protocol_must_not_no_stories_is_not_a_hard_error(tmp_path, capsys):
     """SR-11-003 is MUST-only for now — the recorded MS-02-003 exception —
@@ -1881,7 +1894,9 @@ def test_protocol_must_not_no_stories_is_not_a_hard_error(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 0
     assert "missing_story_reference" not in captured.err
-    assert "missing_story_reference" not in captured.out
+    assert "missing_story_reference" not in _without_suppression_totals(
+        captured.out
+    )
 
 
 def test_protocol_should_with_stories_no_story_warn(tmp_path, capsys):
@@ -1892,7 +1907,9 @@ def test_protocol_should_with_stories_no_story_warn(tmp_path, capsys):
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
-    assert "missing_story_reference" not in captured.out
+    assert "missing_story_reference" not in _without_suppression_totals(
+        captured.out
+    )
 
 
 def test_protocol_should_suppress_advisory_story_warn(tmp_path, capsys):
@@ -1905,7 +1922,9 @@ def test_protocol_should_suppress_advisory_story_warn(tmp_path, capsys):
     result = lint(tmp_path)
     captured = capsys.readouterr()
     assert result == 0
-    assert "missing_story_reference" not in captured.out
+    assert "missing_story_reference" not in _without_suppression_totals(
+        captured.out
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -2120,3 +2139,23 @@ def test_lint_reports_hardened_unsettled_adr_as_info(tmp_path):
     assert len(infos) == 1
     assert "0099-stub.md" in infos[0]
     assert "TST-01-001" in infos[0]
+
+
+@pytest.mark.spec("MS-12-007")
+def test_lint_prints_the_suppression_totals(tmp_path, capsys):
+    """spec-lint prints each MS-12 suppression total, computed (#4315)."""
+    data = _minimal_spec_no_stories(priority="SHOULD")
+    data["groups"][0]["specs"][0]["lint_suppress"] = [
+        "missing_story_reference"
+    ]
+    write_yaml(tmp_path, data)
+    assert lint(tmp_path) == 0
+    out = capsys.readouterr().out
+    assert (
+        "[INFO] lint_suppress missing_story_reference: 1 spec(s) carry it"
+        in out
+    )
+    assert (
+        "[INFO] lint_suppress protocol_kind_with_code_reference: "
+        "0 spec(s) carry it" in out
+    )

@@ -19,6 +19,14 @@ from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.datalayer_sqlite import (
+    get_all_actor_datalayers,
+    get_datalayer,
+)
+from vultron.adapters.driving.fastapi.routers.actors._lookup import (
+    _ACTOR_RECORD_TYPES,
+    _find_actor_record_by_id,
+)
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -485,6 +493,8 @@ class TestCreateActor:
         # The foreign actor must NOT appear in the hosted actors list.
         listed = client_actors.get("/actors/")
         assert foreign_id not in [a["id"] for a in listed.json()]
+        # ...and no store was opened for it (DL-07-010).
+        assert foreign_id not in get_all_actor_datalayers()
 
     @pytest.mark.parametrize("bad", ["/", "//"])
     def test_an_id_that_names_no_actor_is_rejected(self, client_actors, bad):
@@ -529,6 +539,12 @@ class TestRegisterPeer:
         assert resp.status_code == status.HTTP_201_CREATED
         assert resp.json()["id"] == peer_id
 
+        # The record lands in the hosted actor's own store, and the peer gets
+        # no store of its own (DL-07-007, DL-07-010).
+        host_dl = get_datalayer(host_id, db_url="sqlite:///:memory:")
+        assert _find_actor_record_by_id(host_dl, peer_id) is not None
+        assert peer_id not in get_all_actor_datalayers()
+
     def test_peer_registration_is_idempotent(self, client_actors):
         host_id = self._create_host(client_actors)
         slug = host_id.split("/actors/")[-1]
@@ -544,7 +560,16 @@ class TestRegisterPeer:
         )
         assert first.status_code == status.HTTP_201_CREATED
         assert second.status_code == status.HTTP_200_OK
-        assert first.json()["id"] == second.json()["id"]
+        assert second.json() == first.json()
+
+        # Exactly one record for the peer in the host's store (DL-07-010).
+        host_dl = get_datalayer(host_id, db_url="sqlite:///:memory:")
+        holders = [
+            record_type
+            for record_type in _ACTOR_RECORD_TYPES
+            if peer_id in host_dl.by_type(record_type)
+        ]
+        assert holders == ["Organization"]
 
     def test_peer_does_not_appear_in_hosted_actors_list(self, client_actors):
         host_id = self._create_host(client_actors)

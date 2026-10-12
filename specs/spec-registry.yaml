@@ -513,19 +513,26 @@ groups:
       SHOULD use the marker to enable coverage reporting by spec ID.
     rationale: >-
       Protocol-kind requirements are conformance-critical. Without a marker, coverage for those requirements is
-      unverifiable and the CI floor ratchet (SR-05-005) cannot enforce it. The SHOULD for non-protocol kinds preserves
+      unverifiable and the CI coverage guard (SR-05-005) cannot enforce it. The SHOULD for non-protocol kinds preserves
       opt-in adoption for lower-stakes requirements.
   - id: SR-05-005
     priority: MUST
     kind: project
-    verification_debt: '#2574'
     statement: >-
-      CI MUST enforce a minimum `@pytest.mark.spec` coverage floor for protocol-tier requirements and fail the build if
-      coverage drops below the configured threshold, preventing marker adoption from drifting back toward zero.
+      No pull request may add an uncovered protocol-tier requirement: CI MUST fail a pull request when a `kind:
+      protocol` ID that no `@pytest.mark.spec` marker covers at the PR head was covered, or was not a protocol
+      requirement, at the merge base with the base branch, and MUST list each such ID. A requirement that leaves the
+      protocol tier or is retired is not an addition, and the check MUST NOT compare against a committed count.
     rationale: >-
-      A SHOULD-only rule (the former SR-05-004) produced near-zero adoption with no enforcement signal. A CI-enforced
-      floor is the minimum mechanism that guarantees the ratchet cannot be accidentally broken by future commits that add
-      protocol requirements without linking tests.
+      A SHOULD-only marker rule produced near-zero adoption with no enforcement signal. Markers record coverage per
+      item, so the check compares the uncovered set at the base with the set at the head and commits no number: a
+      one-sided ceiling collects silent slack and a two-sided pin races every concurrent PR
+      (`notes/testing-pitfalls.md`). `spec-coverage` prints the live uncovered total.
+    verification: >-
+      `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_adds_an_uncovered_protocol_spec` fails on each ID
+      uncovered since the merge base and runs in CI with full history, and `test/metadata/specs/test_growth_guard.py`
+      exercises the guard on fixture repositories for a new unmarked spec, a removed last marker, an unchanged corpus,
+      a relabel in and out, a retired spec, and the logged skip when no base ref is available.
   - id: SR-05-006
     priority: MUST
     kind: project
@@ -959,6 +966,8 @@ groups:
     tags:
     - documentation
     - tooling
+    adr:
+    - ADR-0072
   - id: SR-11-002
     priority: MUST
     kind: project
@@ -974,6 +983,8 @@ groups:
     tags:
     - documentation
     - tooling
+    adr:
+    - ADR-0072
   - id: SR-11-003
     priority: MUST
     kind: process
