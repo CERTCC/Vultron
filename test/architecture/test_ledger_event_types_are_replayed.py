@@ -159,7 +159,13 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " #4091)"
     ),
     MS.INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
-    MS.OFFER_ACTOR_TO_CASE.value: _RECOMMENDATION,
+    MS.OFFER_ACTOR_TO_CASE.value: (
+        "the receipt of a suggestion (CM-16-002); the one thing the"
+        " CASE_MANAGER keeps from it, who recommended whom, is its own"
+        " ActorRecommendationRecord, case bookkeeping outside the case file"
+        " that no replica holds (CLP-07-014), and the member it may lead to"
+        " arrives with accept_invite_actor_to_case"
+    ),
     MS.OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     MS.ACCEPT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     MS.REJECT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,

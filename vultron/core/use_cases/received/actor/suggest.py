@@ -42,9 +42,9 @@ class OfferActorToCaseReceivedUseCase:
     BTBridge to commit the ledger entry and DM Offer(CaseParticipant) to the
     Case Owner (CM-16-002..004, ADR-0026).
 
-    The BT's first effect node (RecordRecommendationRecommenderNode) writes
-    recommendation_id → recommender_id into
-    VulnerabilityCase.recommendation_recommender_index so downstream
+    The BT's first effect node (RecordRecommendationRecommenderNode) stores an
+    ActorRecommendationRecord (recommendation_id → recommender_id), case
+    bookkeeping in the CASE_MANAGER's own store (CLP-07-014), so downstream
     Accept/Reject use cases can look up the recommender without re-reading the
     stored wire Offer (ADR-0035 DL-06-002, CLP-10-005).
 

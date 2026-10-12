@@ -158,6 +158,7 @@ nav:
     - Specifications:
       - 'reference/specs/index.md'
       - Protocol: 'reference/specs/protocol.md'
+      - Foundation: 'reference/specs/foundation.md'
       - Architecture: 'reference/specs/architecture.md'
   - Research:
     - 'research/index.md'
@@ -261,6 +262,12 @@ hooks:
   # Rewrites the Protocol Specification's cross-page section links to in-page
   # anchors on its single-page edition, full.md. See the module docstring.
   - vultron/metadata/docs/full_page_links.py
+# Not processed at all. The generated occasion fragments (ADR-0128) are pulled
+# into their host pages by include-markdown, which reads them from disk, and
+# their links are checked there. Built on their own they would be checked
+# against the wrong page and each publish a URL (vultron/metadata/msm/occasions.py).
+exclude_docs: |
+  reference/messages/_occasions/
 draft_docs: |
   draft-*.md
   # Patterns are relative to docs_dir; `docs/developer/` was mis-anchored
