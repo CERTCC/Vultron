@@ -33,8 +33,10 @@ date would turn ``main`` red with no commit to blame. Two checks live here:
   without an Amendment. It also refuses a change that gives a ``proposed`` ADR
   its first test-verified dependent without flipping it to
   ``accepted-provisional`` (:func:`first_dependent_faults`), whether or not
-  the change touches the ADR. It runs as the ``adr-lifecycle-check``
-  pre-commit hook and a pull-request job.
+  the change touches the ADR. It runs as a pull-request job, and as the
+  ``adr-lifecycle-check`` pre-commit hook when a commit stages an ADR, so a
+  first dependent added through ``specs/`` or ``test/`` alone is caught by
+  the pull-request job.
 - :func:`epoch_drift` lists every ADR whose ``status`` is behind today's
   epoch. It only reports, through the scheduled ``adr-status-drift`` workflow.
 """
@@ -316,26 +318,27 @@ def _status_move_faults(
 ) -> list[str]:
     """Refuse a status change that is not forward to its epoch (MS-14-012).
 
-    A move back, or a promotion ahead of the epoch, needs a
-    ``status_override:`` that this edit adds or changes: an override already
-    on the base was written for some earlier reason.
+    A move back is always refused: a status only moves forward. A promotion
+    ahead of the epoch, including one out of a retired or rejected status,
+    needs a ``status_override:`` that this edit adds or changes: an override
+    already on the base was written for some earlier reason.
     """
     old_epoch = _EPOCH_OF_STATUS.get(old_fm.status)
     new_epoch = _EPOCH_OF_STATUS.get(new_fm.status)
-    if old_epoch is None or new_epoch is None or old_epoch is new_epoch:
+    if new_epoch is None or old_fm.status is new_fm.status:
         return []
-    if _override_is_new(old_fm, new_fm):
+    if old_epoch is not None and new_epoch < old_epoch:
+        return [
+            f"{name}: status moved back from '{old_fm.status.value}' to "
+            f"'{new_fm.status.value}'; a status only moves forward, so keep "
+            f"it, or supersede the ADR (MS-14-012)"
+        ]
+    if old_epoch is new_epoch or _override_is_new(old_fm, new_fm):
         return []
     remedy = (
         "add or change 'status_override:' with a human's reason; an "
         "override already on the base does not count (MS-14-012)"
     )
-    if new_epoch < old_epoch:
-        return [
-            f"{name}: status moved back from '{old_fm.status.value}' to "
-            f"'{new_fm.status.value}'; a status only moves forward, so keep "
-            f"it, or {remedy}"
-        ]
     epoch = epoch_for(new_fm.updated, today, tested=tested)
     if new_epoch > epoch:
         return [
@@ -366,8 +369,8 @@ def edit_faults(
       unless a ``status_override`` says why. An edit that leaves ``updated``
       alone is not held to this: drift on an untouched ADR is the scheduled
       report's.
-    - A status change must move forward, and not ahead of the epoch, unless
-      the edit adds or changes a ``status_override`` (MS-14-012).
+    - A status change must move forward (MS-14-012). It must not move ahead
+      of the epoch unless the edit adds or changes a ``status_override``.
     - Bumping ``updated`` on an ADR that was past epoch 1 needs a
       ``status_override`` (MS-14-009).
     - Changing Decision Outcome or Considered Options of an epoch-3 ADR needs a
@@ -522,12 +525,13 @@ def tree_dependents(
 ) -> dict[str, list[str]]:
     """Return the test-verified dependents in the working tree at ``root``.
 
-    With ``tracked``, a test file counts only if git tracks it, so a stray
-    untracked file cannot change a local check's answer from CI's.
+    With ``tracked``, a spec or test file counts only if git tracks it, so a
+    stray untracked file cannot change a local check's answer from CI's.
     """
     files = (
         (path, load_yaml(path, root=root))
         for path in sorted((root / "specs").glob("*.yaml"))
+        if tracked is None or path.relative_to(root).as_posix() in tracked
     )
     return verified_dependents(
         _spec_fields(files),
@@ -666,7 +670,7 @@ def check_paths(
 
 
 def first_dependent_faults(
-    base: str, root: Path, dependents: Dependents
+    base: str, root: Path, today: _dt.date, dependents: Dependents
 ) -> list[str]:
     """Refuse a change that gives a ``proposed`` ADR its first dependent.
 
@@ -675,7 +679,8 @@ def first_dependent_faults(
     the ADR to ``accepted-provisional`` (MS-14-010), whether or not it
     touches the ADR. Only a ``status_override:`` the change adds or changes
     can hold it back; one already on the base was written for another reason.
-    A new ADR is held to its epoch by :func:`edit_faults` instead.
+    A new ADR, or a material edit that :func:`edit_faults` already refuses
+    for a status off its epoch, is reported there instead, once.
     """
     renames = _rename_sources(base)
     faults: list[str] = []
@@ -689,7 +694,14 @@ def first_dependent_faults(
         old_text = _text_at(base, renames.get(Path(rel), Path(rel)))
         if old_text is None:
             continue
-        if _override_is_new(_parse_adr(old_text)[1], fm):
+        old_fm = _parse_adr(old_text)[1]
+        if _override_is_new(old_fm, fm):
+            continue
+        if (
+            old_fm is not None
+            and fm.updated != old_fm.updated
+            and status_epoch_fault(Path(rel).name, fm, today, tested=True)
+        ):
             continue
         faults.append(
             f"{Path(rel).name}: is 'proposed' and this change gives it its "
@@ -715,7 +727,7 @@ def check_change(
         head=tree_dependents(root, tracked=_git_files("--")),
     )
     return check_paths(paths, base, today, dependents) + (
-        first_dependent_faults(base, root, dependents)
+        first_dependent_faults(base, root, today, dependents)
     )
 
 

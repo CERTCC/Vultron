@@ -593,7 +593,7 @@ def test_promotion_onto_the_epoch_needs_no_override() -> None:
 
 
 @pytest.mark.spec("MS-14-012")
-def test_moving_a_status_back_needs_a_new_override() -> None:
+def test_moving_a_status_back_is_refused_even_with_an_override() -> None:
     old = _adr("accepted-provisional", "2026-10-01")
     new = _adr("proposed", "2026-10-01")
     (fault,) = edit_faults("x", old, new, TODAY)
@@ -601,7 +601,28 @@ def test_moving_a_status_back_needs_a_new_override() -> None:
     reopened = _adr(
         "proposed", "2026-10-01", extra_fm="status_override: reopened\n"
     )
-    assert edit_faults("x", old, reopened, TODAY) == []
+    (fault,) = edit_faults("x", old, reopened, TODAY)
+    assert "moved back" in fault
+
+
+@pytest.mark.spec("MS-14-012")
+@pytest.mark.parametrize(
+    "retired, extra_fm",
+    [("rejected", ""), ("deprecated", "superseded_by: 0002-y.md\n")],
+)
+def test_a_retired_status_revived_ahead_of_its_epoch_needs_an_override(
+    retired: str, extra_fm: str
+) -> None:
+    old = _adr(retired, "2026-10-15", extra_fm=extra_fm)
+    (fault,) = edit_faults("x", old, _adr("accepted", "2026-10-15"), TODAY)
+    assert "ahead of epoch 1" in fault
+    revived = _adr(
+        "accepted",
+        "2026-10-15",
+        extra_fm="status_override: the maintainer revived it\n",
+    )
+    assert edit_faults("x", old, revived, TODAY) == []
+    assert edit_faults("x", old, _adr("proposed", "2026-10-15"), TODAY) == []
 
 
 # --- MS-14-010: the first test-verified dependent flips the status ---------
@@ -797,6 +818,52 @@ def test_a_new_adr_with_a_dependent_is_reported_once(
     )
     assert fault.startswith("0002-new.md")
     assert "MS-14-007" in fault
+
+
+@pytest.mark.spec("MS-14-010")
+def test_a_bumped_adr_left_off_its_epoch_is_reported_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The material-edit rule already names the missing flip."""
+    adr_dir = _dep_repo(tmp_path, monkeypatch)
+    adr = adr_dir / "0001-x.md"
+    adr.write_text(_adr("proposed", "2026-10-20"), encoding="utf-8")
+    _set_spec(tmp_path, ("T-01-001", "ADR-0001", _CHECKS))
+    (fault,) = check_change(
+        [adr.relative_to(tmp_path)], "HEAD", TODAY, tmp_path
+    )
+    assert "MS-14-007" in fault
+
+
+@pytest.mark.spec("MS-14-010")
+def test_a_bump_under_a_base_override_still_needs_the_flip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held = "status_override: an earlier reason\n"
+    adr_dir = _dep_repo(tmp_path, monkeypatch, extra_fm=held)
+    adr = adr_dir / "0001-x.md"
+    adr.write_text(
+        _adr("proposed", "2026-10-20", extra_fm=held), encoding="utf-8"
+    )
+    _set_spec(tmp_path, ("T-01-001", "ADR-0001", _CHECKS))
+    (fault,) = check_change(
+        [adr.relative_to(tmp_path)], "HEAD", TODAY, tmp_path
+    )
+    assert "MS-14-010" in fault
+
+
+@pytest.mark.spec("MS-14-010")
+def test_an_untracked_spec_file_is_not_part_of_the_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _dep_repo(tmp_path, monkeypatch)
+    (tmp_path / "specs" / "u.yaml").write_text(
+        _spec_yaml(("U-01-001", "ADR-0001", _CHECKS)), encoding="utf-8"
+    )
+    assert check_change([], "HEAD", TODAY, tmp_path) == []
+    _run("g" + "it", "add", "specs/u.yaml")
+    (fault,) = check_change([], "HEAD", TODAY, tmp_path)
+    assert "U-01-001" in fault
 
 
 @pytest.mark.spec("MS-14-010")

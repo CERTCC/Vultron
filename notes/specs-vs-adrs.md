@@ -2,7 +2,7 @@
 title: Specs vs. ADRs — Delineation Guidelines
 status: active
 related_specs:
-  - specs/meta-specifications.yaml (MS-11-007)
+  - specs/meta-specifications.yaml (MS-11-007, MS-14)
   - specs/architecture.yaml (ARCH-25)
 related_notes:
   - notes/bt-pitfalls.md
@@ -348,8 +348,9 @@ of `created` and may stay. Epochs are counted in whole days (14 and 28) because
   fails:
   - a material edit (`updated` moved, or a new ADR) whose status is not its
     epoch on that date, without an override (MS-14-007);
-  - a status change that moves back, or ahead of the epoch, without a
-    `status_override:` the change adds or changes (MS-14-012);
+  - a status change that moves back, ever, or one that moves ahead of the
+    epoch without a `status_override:` the change adds or changes
+    (MS-14-012);
   - a change that gives a `proposed` ADR its first test-verified dependent
     without setting it to `accepted-provisional`, or adding or changing a
     `status_override:` (MS-14-010). The change need not touch the ADR, so the

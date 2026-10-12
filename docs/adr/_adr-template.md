@@ -26,8 +26,8 @@ revision: 1
 # status_override: {the reason a human set a status that disagrees with the epoch}
 # All three lifecycle fields are required. The adr-lifecycle-check hook and its
 # pull-request twin refuse: a material edit leaving status off its epoch, a
-# status moved back or ahead of its epoch without a status_override the change
-# adds or changes, a first test-verified dependent of a proposed ADR without the
+# status moved back, a status moved ahead of its epoch without a status_override
+# the change adds or changes, a first test-verified dependent of a proposed ADR without the
 # flip, a bump of updated past epoch 1 without status_override, and an epoch-3
 # Decision Outcome or Considered Options edit without a dated Amendment heading.
 # A status behind its epoch is reported hourly, never failed.
