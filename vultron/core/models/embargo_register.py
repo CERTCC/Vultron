@@ -28,7 +28,8 @@ The ``*_changes`` builders name the step each protocol event causes, so the
 callers say *what happened* and the register decides which entries move.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
 
 from pydantic import BaseModel, ConfigDict, model_validator
 from pydantic.alias_generators import to_camel
@@ -53,13 +54,15 @@ _T = RegisterTrigger
 #: The EM trigger each register trigger belongs to (ADR-0130).  ``CANCEL`` is
 #: absent: it is part of ``terminate`` beside a ``TERMINATE``, and ``reject``
 #: alone, on a threat signal with no embargo in force (EMB-16-001).
-_EM_TRIGGER_OF: dict[RegisterTrigger, EM_Trigger] = {
-    _T.PROPOSE: EM_Trigger.PROPOSE,
-    _T.ACTIVATE: EM_Trigger.ACCEPT,
-    _T.SUPERSEDE: EM_Trigger.ACCEPT,
-    _T.REJECT: EM_Trigger.REJECT,
-    _T.TERMINATE: EM_Trigger.TERMINATE,
-}
+_EM_TRIGGER_OF: Mapping[RegisterTrigger, EM_Trigger] = MappingProxyType(
+    {
+        _T.PROPOSE: EM_Trigger.PROPOSE,
+        _T.ACTIVATE: EM_Trigger.ACCEPT,
+        _T.SUPERSEDE: EM_Trigger.ACCEPT,
+        _T.REJECT: EM_Trigger.REJECT,
+        _T.TERMINATE: EM_Trigger.TERMINATE,
+    }
+)
 
 #: Statuses an entry reaches only by having been ``ACTIVE``.
 _WAS_ACTIVE = frozenset({_S.ACTIVE, _S.SUPERSEDED, _S.TERMINATED})
@@ -188,6 +191,12 @@ def replaces_violations(entries: Sequence[EmbargoRegisterEntry]) -> list[str]:
 def _em_triggers_of(changes: Sequence[RegisterChange]) -> set[EM_Trigger]:
     """The EM triggers *changes* belong to; one for a well-formed step."""
     triggers = {change.trigger for change in changes}
+    unmapped = triggers - set(_EM_TRIGGER_OF) - {_T.CANCEL}
+    if unmapped:
+        raise VultronInvalidStateTransitionError(
+            "Embargo register: no EM trigger is mapped for"
+            f" {sorted(t.name for t in unmapped)} (ADR-0130)."
+        )
     em_triggers = {_EM_TRIGGER_OF[t] for t in triggers if t != _T.CANCEL}
     if _T.CANCEL in triggers:
         em_triggers.add(
@@ -209,8 +218,9 @@ def register_step_em_trigger(
     abandoning open proposals with no embargo in force — is ``reject``.
 
     Raises:
-        VultronInvalidStateTransitionError: the step changes nothing, or
-            mixes register triggers of more than one EM trigger.
+        VultronInvalidStateTransitionError: the step changes nothing,
+            mixes register triggers of more than one EM trigger, or carries
+            a register trigger no EM trigger is mapped for.
     """
     em_triggers = _em_triggers_of(changes)
     if len(em_triggers) != 1:
@@ -467,8 +477,8 @@ __all__ = [
     "activation_changes",
     "apply_register_step",
     "em_move_violations",
-    "register_step_em_trigger",
     "proposal_changes",
+    "register_step_em_trigger",
     "rejection_changes",
     "repeated_ids",
     "termination_changes",

@@ -9,7 +9,11 @@ from collections.abc import Iterator, Sequence
 
 import pytest
 
+from vultron.core.models import embargo_register as embargo_register_module
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_register import (
+    _EM_TRIGGER_OF,
     EmbargoRegisterEntry,
     RegisterChange,
     activation_changes,
@@ -306,11 +310,22 @@ def test_a_step_naming_no_single_em_trigger_is_refused(
 
 
 @pytest.mark.spec("EMB-18-006")
-def test_a_refused_em_move_leaves_the_register_unchanged(
+def test_a_refused_em_move_leaves_the_case_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    register = _register_after("propose:a")
-    snapshot = [entry.model_dump() for entry in register]
+    """A refused EM move writes nothing: not the register, not the stamped
+    EM, not the relay index, not an inline participant's consent rows."""
+    case_id = "https://example.org/cases/c1"
+    owner = "https://example.org/actors/owner"
+    participant = CaseParticipant(
+        id_=f"{case_id}/participants/p1", attributed_to=owner, context=case_id
+    )
+    case = VulnerabilityCase(
+        id_=case_id, attributed_to=owner, case_participants=[participant]
+    )
+    case.apply_embargo_register_step(proposal_changes("urn:em:a"))
+    case.pending_embargo_proposal_index = {"urn:em:a": "urn:invite:a"}
+    before = case.model_dump()
     narrowed = {
         trigger: frozenset(m for m in moves if m != (EM.PROPOSED, EM.ACTIVE))
         for trigger, moves in EM_TRANSITIONS.items()
@@ -320,8 +335,39 @@ def test_a_refused_em_move_leaves_the_register_unchanged(
         VultronInvalidStateTransitionError,
         match="EM PROPOSED → ACTIVE is not an EM transition for 'accept'",
     ):
-        apply_register_step(register, activation_changes(register, "a"))
-    assert [entry.model_dump() for entry in register] == snapshot
+        case.apply_embargo_register_step(
+            activation_changes(case.embargo_register, "urn:em:a")
+        )
+    assert case.model_dump() == before
+    assert case.em_state is EM.PROPOSED
+
+
+@pytest.mark.spec("EMB-18-005")
+def test_every_register_trigger_maps_to_an_em_trigger() -> None:
+    """``CANCEL`` aside, every register trigger has an EM trigger, so a step
+    never falls through the mapping (ADR-0130)."""
+    assert set(_EM_TRIGGER_OF) | {RegisterTrigger.CANCEL} == set(
+        RegisterTrigger
+    )
+
+
+@pytest.mark.spec("EMB-18-005")
+def test_an_unmapped_register_trigger_is_a_domain_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        embargo_register_module,
+        "_EM_TRIGGER_OF",
+        {
+            t: e
+            for t, e in _EM_TRIGGER_OF.items()
+            if t is not RegisterTrigger.PROPOSE
+        },
+    )
+    with pytest.raises(
+        VultronInvalidStateTransitionError, match="no EM trigger is mapped"
+    ):
+        apply_register_step([], proposal_changes("urn:em:e1"))
 
 
 @pytest.mark.spec("EMB-18-006")

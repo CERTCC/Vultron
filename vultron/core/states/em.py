@@ -143,6 +143,8 @@ def create_em_machine() -> Machine:
     state export).  A case's EM is never moved by this machine: it is derived
     from the embargo register (ADR-0122), under this table (ADR-0130).
     """
+    # String states, so the machine's states and the string rows of
+    # em_transition_rows() name each state the same way.
     return Machine(
         states=[str(state) for state in EM],
         transitions=em_transition_rows(),
