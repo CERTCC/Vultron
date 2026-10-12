@@ -35,10 +35,10 @@ Ideas #2596–#2600; the measurements below are from the same day.
 | Protocol requirements with no `stories:` | 488 of 1,286 |
 | … of which binding (`MUST` 135, `MUST_NOT` 128) | 263 |
 | … of which advisory tier (`SHOULD`, `SHOULD_NOT`, `MAY`) | 225 |
-| `missing_story_reference` suppressions (all protocol MUSTs) | 141 (ratchet ceiling) |
+| `missing_story_reference` suppressions (all `kind: protocol`: 135 `MUST`, 4 `MUST_NOT`, 2 `MAY`) | 141 (ratchet ceiling) |
 | Requirements citing a story (798 protocol, 3 project) | 801 |
 | Requirement IDs the hand-edited traceability matrix links | 161 |
-| Stories whose text starts "As a Participant" | 83 of 111 |
+| Stories whose text starts "As a Participant" | 84 of 111 |
 | Citations carried by stories 088, 045 and 014 together | 419 |
 | Stories no requirement cites (all five about bounties) | 5 |
 
@@ -57,7 +57,7 @@ the work. The spec registry can.
 | Who may speak in a story | A persona from the hierarchy below; the speaker is the highest level that includes every relevant party and no irrelevant one | "Participant" already works this way for the CVD roles; the same shape covers implementers and contributors without long lists |
 | New story IDs | `story_<year added>_NNN`, numbered from 001 within the year; `story_2022_*` is frozen | SR-11-002's pattern already allows any year; the year says which catalog generation a story belongs to |
 | Retiring a story | Never. A story that is split or withdrawn keeps its page, marked superseded with the IDs that replace it, and its ID is never reused | A `stories:` reference in a spec must resolve for as long as any revision of that spec exists |
-| Support level (`as of v0.4.0`) | Retired from every page and from the index legend. The index table and the traceability matrix are generated from the specs' `stories:` fields and show coverage instead | A dated judgment cannot stay true; eleven Out-of-scope stories are cited by requirements today. Coverage is a fact the registry already holds |
+| Support level (`as of v0.4.0`) | Retired from every page and from the index legend. The index table and the traceability matrix are generated from the specs' `stories:` fields and show coverage instead | A dated judgment cannot stay true; nine of the eleven Out-of-scope stories are cited by requirements today. Coverage is a fact the registry already holds |
 | Traceability matrix | Generated and gated by a check mode, like the other committed site artifacts (DF-11-005, DF-11-011) | Hand editing is how it reached 161 of 801 |
 | A cited story must exist | Hard lint error when a `stories:` entry names a story page that is not in the catalog | Today only the ID pattern is checked, so a typo is a silent broken edge |
 | How the protocol gap is worked | By spec-file area, one Task per area, worklist read from a per-file gap report; reuse an existing story first, add one only when none fits | One agent stays in one area of knowledge, worklists do not overlap, and the same cut the rationale backfill uses (#4483–#4486) means the same context serves both |
@@ -77,7 +77,7 @@ one.
 
 | Stakeholder type | Family (story voice) | Members |
 |---|---|---|
-| `cvd-practitioner` | **Participant** | the CVD roles: Reporter, Vendor, Coordinator, Deployer, Observer, CVE Numbering Authority, Case Owner, Case Manager (glossary § CVD Roles) |
+| `cvd-practitioner` | **Participant** | the CVD roles: Reporter, Vendor, Coordinator, Deployer, Observer, CVE Numbering Authority, Case Owner, Case Manager (glossary § CVD Roles and Participants) |
 | `platform-developer` | **Implementer** | **Peer Implementer** (builds a Vultron-compatible peer), **Node Operator** (runs a Vultron deployment), **Tool Author** (builds conformance suites, clients, or automated clients that consume the API) |
 | `process-researcher` | **Researcher** | **Protocol Author** (writes or audits the protocol model), **Auditor** (reviews a case record after the fact) |
 | `project-contributor` | **Contributor** | **Maintainer** (owns the repository's gates and releases), **Coding Agent** (an AI or scripted contributor working under the repository's rules), **Demo Operator** (runs the multi-actor demos to evaluate the protocol) |
