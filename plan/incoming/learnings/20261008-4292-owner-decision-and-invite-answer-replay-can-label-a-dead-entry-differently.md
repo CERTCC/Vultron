@@ -8,35 +8,25 @@ source: ISSUE-4292
 signal: theme-candidate
 ---
 
-## What happened
+**Trigger.** A received or owner-decision tree commits ledger entry X, but its
+effects apply a different register transition than replaying X would.
 
-Issue #4292 split the case owner's embargo decision (its own
-`Accept`/`Reject` of the EmbargoEvent) from the per-participant
-`Accept`/`Reject` of the Invite. Review found a pre-existing convergence
-defect in the owner-Reject path, carried verbatim from the old
-Reject-of-the-Invite tree: when the owner rejects the **last open revision
-after disclosure** (EMB-04-002), the CASE_MANAGER commits a
-`reject_embargo_proposal_on_case` entry but then runs `terminate_embargo_bt`,
-so its own register ends with the revision CANCELLED; a replica replaying that
-same reject entry in OBSERVED mode does the plain REJECT step and ends
-REJECTED. Filed as #4364.
+**Claim.** ADR-0124 makes a replica the replay of its ledger, so the author's
+register and the replica's must agree entry by entry. When the committed entry
+and the applied effect differ, the two sides can label the same terminal entry
+differently while EM, `active_embargo`, and signatory reads still converge. EM
+convergence is necessary, not sufficient, and the usual tests check only EM.
 
-## The lesson
+**Evidence.** The owner Reject of the last open revision after disclosure
+(EMB-04-002) committed `reject_embargo_proposal_on_case` then ran
+`terminate_embargo_bt`: the CASE_MANAGER ended CANCELLED, a replica REJECTED.
+Filed and fixed as #4364.
 
-ADR-0124 says a replica is the replay of its ledger, so the register a
-CASE_MANAGER builds from its received-side effects must match the register a
-replica builds by replaying the entry those effects committed. When a received
-tree commits entry X but, in the same effects, applies a different transition
-(here: commit a reject, then terminate) the two sides can label the same dead
-entry differently. EM, active_embargo and signatory reads all converged (both
-reached EXITED), which is exactly why it stayed invisible — the divergence is
-only in a terminal entry's status, and no test rebuilt the manager's own case
-from its ledger for this edge.
+**How to apply.** For such a tree, add a convergence test that rebuilds the
+author's own case from its ledger and asserts register equality, not just EM
+equality. See `test/core/use_cases/received/test_ledger_replay_convergence.py`
+and `notes/embargo-lifecycle.md`.
 
-## How to apply
-
-When a received or owner-decision tree's committed entry and its applied effect
-are not the same transition, add a convergence test that rebuilds the author's
-own case from its ledger and asserts register equality, not just EM equality.
-EM convergence is necessary, not sufficient. See `notes/embargo-lifecycle.md`
-and `test/core/use_cases/received/test_ledger_replay_convergence.py`.
+**What would confirm it.** A second commit/effect mismatch in a different tree
+(not the embargo owner-decision path) that converges on EM but diverges on a
+terminal entry's status.

@@ -28,6 +28,7 @@ related_notes:
   - notes/testing-pitfalls.md
   - notes/architecture-ratchet-corpus.md
   - notes/agentic-workflow.md
+  - notes/user-story-catalog.md
 ---
 
 # Spec Authoring Rules — Field Values, Lint Traps, and Coverage Gates

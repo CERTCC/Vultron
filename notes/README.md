@@ -1088,6 +1088,18 @@ number and name), and the checks already mechanized by CI.
 **Load when**: reviewing or revising the Protocol Specification, or adding a
 check after a review round.
 
+**`user-story-catalog.md`**
+How the user-story catalog under `docs/reference/user_stories/` is kept: the
+persona hierarchy (one family per stakeholder type, speaker at the highest level
+that includes every relevant party), story identity (`story_<year>_NNN`, never
+reused or deleted, superseded pages kept), why the dated support level is retired
+for coverage generated from the specs' `stories:` fields, how the protocol story
+gap is worked by spec-file area from a gap report, the seed stories distilled from
+the SR-11 gap Ideas, the catch-all split, and how contributor stories relate to
+project and process requirements. Source: #4487, #2596–#2600.
+**Load when**: writing or citing a user story, mapping a `stories:` field,
+splitting a catch-all story, or changing the story index or traceability matrix.
+
 **`notes-frontmatter.md`** *(archived — `plan/history/2610/note/NOTES-notes-frontmatter--whole-file.md`)*
 Superseded by `specs/notes-frontmatter.yaml` and
 `.agents/skills/shared/notes-writing-guide.md`.

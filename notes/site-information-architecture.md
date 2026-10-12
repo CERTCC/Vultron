@@ -14,6 +14,7 @@ related_notes:
   - notes/agents-md-structure.md
   - notes/reader-facing-docs-audit.md
   - notes/rfc-spec-authoring.md
+  - notes/user-story-catalog.md
 related_specs:
   - specs/diataxis-requirements.yaml
   - specs/meta-specifications.yaml
