@@ -697,8 +697,12 @@ the pause cannot deadlock the participant out of accepting.
 
 ## Answering the Embargo in Force (EP-09-012)
 
-**Status**: Planned — tracked by #4373 and #4388. Today the triggers resolve
-open proposals only, and withdrawal is a Reject of the active embargo.
+**Status**: Answering is implemented (#4373); withdrawal is planned (#4388).
+`_resolve_embargo_proposal` (`vultron/core/use_cases/triggers/_helpers.py`)
+looks in the open-proposal index first, then reads a named id as the actor's
+received Invite (`read_received_activity`): an `Invite` addressed to the actor
+whose object is the active embargo, with the actor's row for it `INVITED` or
+`TIMED_OUT`. Anything else raises `VultronNotFoundError`.
 
 Activation takes a proposal out of `pending_embargo_proposal_index` (EP-08-003),
 so the accept and reject triggers cannot reach the embargo in force through it.
