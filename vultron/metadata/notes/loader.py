@@ -16,6 +16,7 @@ from vultron.metadata.file_loading import (
 )
 from vultron.metadata.notes.schema import (
     GENERATED_MARKER,
+    GENERATED_MARKER_PATTERN,
     NoteKind,
     NotesFrontmatter,
 )
@@ -57,8 +58,9 @@ def load_notes_registry(
             )
 
         note = validate(NotesFrontmatter, post.metadata, path=path, root=root)
-        if note.kind == NoteKind.GENERATED and not post.content.startswith(
-            GENERATED_MARKER
+        if (
+            note.kind == NoteKind.GENERATED
+            and not GENERATED_MARKER_PATTERN.match(post.content)
         ):
             raise MetadataLoadError(
                 f"kind 'generated' requires the body to start with "

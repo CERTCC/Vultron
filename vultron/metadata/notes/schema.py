@@ -5,6 +5,7 @@ Schema requirements: specs/notes-frontmatter.yaml NF-01, NF-02.
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from typing import Annotated
 
@@ -22,6 +23,9 @@ IssueRef = Annotated[str, StringConstraints(pattern=r"^#[1-9][0-9]*$")]
 
 GENERATED_MARKER = "<!-- GENERATED"
 """Body prefix every ``kind: generated`` note carries (NF-01-011)."""
+
+GENERATED_MARKER_PATTERN = re.compile(r"<!-- GENERATED\s+(?:(?!-->)\S)")
+"""The marker word, then whitespace and the start of the generator's name."""
 
 
 class NoteStatus(StrEnum):
@@ -87,6 +91,7 @@ class NotesFrontmatter(BaseModel):
         """Require ``tracks`` on ``plan`` notes, forbid it elsewhere (NF-01-010)."""
         if self.kind == NoteKind.PLAN and not self.tracks:
             raise ValueError("'tracks' is required when kind is 'plan'")
-        if self.kind != NoteKind.PLAN and self.tracks is not None:
+        # A bare ``tracks:`` key parses to None but is still present.
+        if self.kind != NoteKind.PLAN and "tracks" in self.model_fields_set:
             raise ValueError("'tracks' is only allowed when kind is 'plan'")
         return self

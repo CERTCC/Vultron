@@ -4,6 +4,7 @@ Validation test requirement: specs/notes-frontmatter.yaml NF-04-001;
 kind/tracks: NF-01-009 to NF-01-011; report: NF-09.
 """
 
+import subprocess
 from pathlib import Path
 
 import frontmatter
@@ -154,6 +155,12 @@ class TestNoteKind:
         with pytest.raises(ValidationError, match="only allowed"):
             NotesFrontmatter.model_validate(_note(kind=kind, tracks=["#1"]))
 
+    @pytest.mark.parametrize("kind", ["guidance", "generated"])
+    def test_bare_tracks_key_forbidden_off_plan(self, kind):
+        """A ``tracks:`` line with no value parses to None but is present."""
+        with pytest.raises(ValidationError, match="only allowed"):
+            NotesFrontmatter.model_validate(_note(kind=kind, tracks=None))
+
     def test_empty_tracks_rejected(self):
         with pytest.raises(ValidationError, match="non-empty"):
             NotesFrontmatter.model_validate(_note(kind="plan", tracks=[]))
@@ -184,6 +191,14 @@ class TestGeneratedMarker:
     def test_generated_without_marker_names_the_file(self, tmp_path):
         _write_note(tmp_path, "gen.md", self._FRONT, "# Gen\n")
         with pytest.raises(MetadataLoadError, match=r"notes/gen\.md"):
+            load_notes_registry(tmp_path)
+
+    @pytest.mark.parametrize(
+        "marker", ["<!-- GENERATED -->", "<!-- GENERATEDfoo by x -->"]
+    )
+    def test_marker_must_be_the_word_then_a_generator(self, tmp_path, marker):
+        _write_note(tmp_path, "gen.md", self._FRONT, f"{marker}\n# Gen\n")
+        with pytest.raises(MetadataLoadError, match="naming its generator"):
             load_notes_registry(tmp_path)
 
     def test_marker_not_required_off_generated(self, tmp_path):
@@ -269,3 +284,57 @@ def test_notes_tracks_cli_reports_and_never_edits(
         "notes/p.md: every tracked issue is closed" in capsys.readouterr().out
     )
     assert (tmp_path / "notes" / "p.md").read_text() == before
+
+
+def _fake_gh(
+    monkeypatch, returncode: int = 0, stdout: str = "", stderr: str = ""
+) -> None:
+    def run(args, **kwargs):
+        return subprocess.CompletedProcess(args, returncode, stdout, stderr)
+
+    monkeypatch.setattr(tracks_module.subprocess, "run", run)
+
+
+class TestFetchIssueStates:
+    """NF-09-002: every lookup failure surfaces as ``RuntimeError``."""
+
+    def test_parses_gh_output(self, monkeypatch):
+        _fake_gh(
+            monkeypatch,
+            stdout='[{"number": 1, "state": "OPEN"},'
+            ' {"number": 2, "state": "CLOSED"}]',
+        )
+        assert tracks_module.fetch_issue_states() == {
+            1: IssueState.OPEN,
+            2: IssueState.CLOSED,
+        }
+
+    def test_nonzero_exit_raises(self, monkeypatch):
+        _fake_gh(monkeypatch, returncode=1, stderr="auth required")
+        with pytest.raises(RuntimeError, match="auth required"):
+            tracks_module.fetch_issue_states()
+
+    @pytest.mark.parametrize(
+        "stdout", ["not json", '[{"number": 1, "state": "MERGED"}]', "[{}]"]
+    )
+    def test_unexpected_output_raises(self, monkeypatch, stdout):
+        _fake_gh(monkeypatch, stdout=stdout)
+        with pytest.raises(RuntimeError, match="unexpected output"):
+            tracks_module.fetch_issue_states()
+
+    def test_missing_gh_raises(self, monkeypatch):
+        def run(args, **kwargs):
+            raise FileNotFoundError("gh")
+
+        monkeypatch.setattr(tracks_module.subprocess, "run", run)
+        with pytest.raises(RuntimeError, match="could not run"):
+            tracks_module.fetch_issue_states()
+
+
+def test_notes_tracks_cli_exits_2_when_lookup_fails(monkeypatch, capsys):
+    """NF-09-002: the command fails only when the issue lookup fails."""
+    _fake_gh(monkeypatch, returncode=1, stderr="boom")
+    with pytest.raises(SystemExit) as exc_info:
+        tracks_module.main([])
+    assert exc_info.value.code == 2
+    assert "[ERROR]" in capsys.readouterr().err

@@ -361,7 +361,8 @@ groups:
       re-scoped work often keep a plan relevant past its first issue.
     verification: >-
       A unit test runs the command with an all-closed plan note and asserts it exits 0,
-      prints the finding, and leaves the note file unchanged.
+      prints the finding, and leaves the note file unchanged; another asserts a failed
+      issue lookup exits 2.
     relationships:
     - rel_type: refines
       spec_id: NF-09-001

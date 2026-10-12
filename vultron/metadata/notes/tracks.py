@@ -81,9 +81,31 @@ def fetch_issue_states(repo: str = REPO) -> dict[int, IssueState]:
     """Return the state of every issue in *repo* via one ``gh`` call.
 
     Raises:
-        RuntimeError: If the ``gh`` CLI invocation fails.
+        RuntimeError: If ``gh`` cannot be run, exits non-zero, or returns
+            output that is not a list of issue states.
     """
-    result = subprocess.run(
+    try:
+        result = _run_gh_issue_list(repo)
+    except OSError as exc:
+        raise RuntimeError(f"gh issue list could not run: {exc}") from exc
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"gh issue list failed (exit {result.returncode}): "
+            f"{result.stderr.strip()}"
+        )
+    try:
+        return {
+            int(item["number"]): IssueState(item["state"])
+            for item in json.loads(result.stdout)
+        }
+    except (ValueError, KeyError, TypeError) as exc:
+        raise RuntimeError(
+            f"gh issue list returned unexpected output: {exc}"
+        ) from exc
+
+
+def _run_gh_issue_list(repo: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         [
             "gh",
             "issue",
@@ -101,15 +123,6 @@ def fetch_issue_states(repo: str = REPO) -> dict[int, IssueState]:
         text=True,
         check=False,
     )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"gh issue list failed (exit {result.returncode}): "
-            f"{result.stderr.strip()}"
-        )
-    return {
-        int(item["number"]): IssueState(item["state"])
-        for item in json.loads(result.stdout)
-    }
 
 
 def main(argv: list[str] | None = None) -> None:
