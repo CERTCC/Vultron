@@ -229,8 +229,9 @@ def wait_for_case_participants(
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Read this actor's store on the container instead of
-            the client's own — typically a self-hosted CaseActor, the only
-            store that holds an invitee that never joined (CM-11-006).
+            the client's own — typically the CaseActor co-hosted in a
+            single-container exchange demo, the only store that holds an
+            invitee that never joined (CM-11-006).
 
     Raises:
         AssertionError: If any expected actor is absent after *timeout_seconds*.
@@ -1244,6 +1245,37 @@ def resolve_case_actor_store_id(
     return case_actor_id
 
 
+def case_manager_store(
+    client: DataLayerClient,
+    case_id: str,
+    case_manager_client: DataLayerClient | None = None,
+) -> tuple[DataLayerClient, str | None]:
+    """Return ``(client, dl_actor_id)`` to read *case_id*'s CASE_MANAGER store.
+
+    When the CaseActor runs in its own container — the dedicated case-actor
+    container of the Docker scenarios (DEMOMA-06-004) — no participant's
+    container can address its store, and a participant's replica is no
+    substitute: the CaseActor applies some participant transitions without a
+    ledger entry, so a replica can lag them indefinitely.  *case_manager_client*
+    names that container, bound to the CaseActor, and is read as-is.
+
+    Without one, *client* is read, scoped to a CaseActor it co-hosts
+    (:func:`resolve_case_actor_store_id`) — the single-container exchange demos.
+
+    Args:
+        client: The participant client the caller would otherwise read through.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        case_manager_client: Client for the CaseActor's own container, if the
+            caller has one.
+
+    Returns:
+        The client to read through and the ``dl_path`` actor scope to pass it.
+    """
+    if case_manager_client is not None:
+        return case_manager_client, None
+    return client, resolve_case_actor_store_id(client, case_id)
+
+
 def wait_for_object_stored(
     client: DataLayerClient,
     obj_id: str,
@@ -1470,7 +1502,8 @@ def wait_for_participant_vf_state(
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
-            not the client's own actor — typically a self-hosted CaseActor.
+            not the client's own actor — typically the CaseActor co-hosted in
+            a single-container exchange demo.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
@@ -1507,7 +1540,8 @@ def wait_for_participant_d_state(
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
-            not the client's own actor — typically a self-hosted CaseActor.
+            not the client's own actor — typically the CaseActor co-hosted in
+            a single-container exchange demo.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
@@ -1875,7 +1909,8 @@ def wait_for_participant_rm_state(
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
-            not the client's own actor — typically a self-hosted CaseActor.
+            not the client's own actor — typically the CaseActor co-hosted in
+            a single-container exchange demo.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.

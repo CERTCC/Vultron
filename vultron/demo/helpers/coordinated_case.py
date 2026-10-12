@@ -46,9 +46,9 @@ from vultron.demo.helpers.invite_chain import (
 )
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
+    case_actor_dump_target,
     dump_case_ledgers,
     replica_route_key,
-    resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -176,6 +176,7 @@ def vendor_joins_coordinated_case(
     reporter: as_Actor,
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor: as_Actor,
     vendor_client: DataLayerClient,
     vendor_name: str = "Vendor",
@@ -184,6 +185,8 @@ def vendor_joins_coordinated_case(
     """The Coordinator invites the Vendor; the Vendor accepts and triages.
 
     Args:
+        case_actor_client: Client for the dedicated case-actor container,
+            where the CASE_MANAGER's own store is read and acted on.
         vendor_name: What the scenario calls the invitee in step labels
             (``Vendor2`` for the second vendor of ``rcvv-embargo``).
         already_seated: Vendors that joined before this one, so the
@@ -208,7 +211,7 @@ def vendor_joins_coordinated_case(
 
     run_case_invite_chain(
         case=case,
-        case_manager_client=coordinator_client,
+        case_manager_client=case_actor_client,
         invitee_name=vendor_name,
         invitee_client=vendor_client,
         invitee=vendor,
@@ -250,7 +253,7 @@ def vendor_joins_coordinated_case(
             offer=opened.offer,
             report=opened.report,
             finder=reporter,
-            auth_client=coordinator_client,
+            auth_client=case_actor_client,
             case=case,
             invited_obj=vendor,
             timeout_seconds=20.0,
@@ -263,6 +266,7 @@ def open_case_with_vendor(
     *,
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
     reporter: as_Actor,
     coordinator: as_Actor,
@@ -276,6 +280,7 @@ def open_case_with_vendor(
     sync verification of the Reporter's and the Vendor's replicas.
 
     Args:
+        case_actor_client: Client for the dedicated case-actor container.
         on_case_opened: Called with the case as soon as it exists, before the
             Vendor joins, so a scenario can register its ledger dump while every
             later step can still fail without costing the ledgers (ISSUE-2239).
@@ -297,6 +302,7 @@ def open_case_with_vendor(
         reporter=reporter,
         reporter_client=reporter_client,
         coordinator_client=coordinator_client,
+        case_actor_client=case_actor_client,
         vendor=vendor,
         vendor_client=vendor_client,
     )
@@ -468,6 +474,7 @@ def everyone_closes_case(
     *,
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
     reporter_in_reporter: as_Actor,
     coordinator_in_coordinator: as_Actor,
@@ -483,12 +490,13 @@ def everyone_closes_case(
 
     *later_vendors* are ``(label, client, actor)`` for vendors beyond the first
     (the second vendor of ``rcvv-embargo``); each closes and is checked for
-    ledger coverage like the rest.
+    ledger coverage like the rest.  The departures are read where they
+    commit: the CASE_MANAGER's store, through *case_actor_client*.
     """
     close_case_owner_last(
         case=case,
         milestone="M7",
-        authority_client=coordinator_client,
+        authority_client=case_actor_client,
         others=[
             CaseLeaver(client=vendor_client, actor=vendor_in_vendor),
             CaseLeaver(client=reporter_client, actor=reporter_in_reporter),
@@ -552,6 +560,7 @@ def dump_coordinated_case_ledgers(
     reporter_name: str,
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
     case: as_VulnerabilityCase,
     later_vendors: Sequence[tuple[str, DataLayerClient]] = (),
@@ -593,14 +602,7 @@ def dump_coordinated_case_ledgers(
             LedgerDumpTarget(name, client, replica_route_key(client, name))
             for name, client in later_vendors
         ),
+        case_actor_dump_target(case_actor_client),
     ]
-    # The case-actor is a sub-actor inside the coordinator container.
-    case_actor_route_key = resolve_case_actor_route_key(case)
-    if case_actor_route_key is not None:
-        targets.append(
-            LedgerDumpTarget(
-                "case-actor", coordinator_client, case_actor_route_key
-            )
-        )
 
     dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)

@@ -36,10 +36,10 @@ Architecture
 ------------
 When the vendor's inbox receives ``SubmitReport`` from the reporter,
 ``create_receive_report_case_tree`` runs.  That tree now includes
-``ProposeCaseToActorNode`` (CP-04-002) which:
+``ProposeReportCaseToActorNode`` (CP-04-002) which:
 
-1. Reads ``case_actor_id`` from the blackboard (written by
-   ``CreateCaseActorNode``).
+1. Reads the CaseActor's identity from the configured
+   ``case_actor_service_url`` (``case_actor_identity``).
 2. Delegates to ``TriggerActivityAdapter.create_case_proposal()`` to build
    and persist a proper ``as_Create(as_CaseProposal)`` in the DataLayer.
 3. Queues the activity to the vendor's outbox via ``record_outbox_item``.
@@ -159,9 +159,8 @@ def two_app_setup():
     exercised without real HTTP.
 
     The ``VULTRON_SERVER__BASE_URL`` is patched to ``{_VENDOR_BASE}/api/v2``
-    so that ``CreateCaseActorNode`` builds the CaseActor ID using a
-    routable base URL — the ``_TestClientRouter`` maps this base URL to the
-    vendor's ASGI app.
+    so that IDs minted from the server base URL are routable — the
+    ``_TestClientRouter`` maps this base URL to the vendor's ASGI app.
 
     Yields:
         Tuple of (vendor_iso, reporter_iso, vendor_tc, reporter_tc).
@@ -196,7 +195,7 @@ def two_app_setup():
         )
 
         # Register the configured base URL so CaseActor deliveries route to
-        # the vendor app (CreateCaseActorNode builds IDs from the config URL).
+        # the vendor app (IDs are minted from the configured base URL).
         config_base_url = cfg.server.base_url.rstrip("/")
         router.register(config_base_url, vendor_iso.client)
 

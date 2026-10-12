@@ -60,6 +60,7 @@ def cast() -> demo._Cast:
         coordinator=_session("coordinator"),
         vendor=_session("vendor"),
         vendor2=_session("vendor2"),
+        case_manager=MagicMock(),
     )
 
 
@@ -75,9 +76,6 @@ def em_waits():
     """Stub the EM poll; the mock records ``(expected, active_embargo_id)``."""
     with (
         patch.object(phases, "wait_for_case_em_state") as wait,
-        patch.object(
-            phases, "resolve_case_actor_store_id", return_value="urn:manager"
-        ),
     ):
         yield wait
 
@@ -175,6 +173,7 @@ class TestPhaseOrder:
                 coordinator_client=MagicMock(),
                 vendor_client=MagicMock(),
                 vendor2_client=MagicMock(),
+                case_actor_client=MagicMock(),
             )
 
         return order
@@ -272,6 +271,7 @@ class TestEmStateAfterEachPhase:
             accepting=cast.reporter,
             owner=cast.coordinator,
             case=case,
+            case_manager_client=cast.case_manager,
         )
         assert revised == "urn:embargo:two"
         assert _states_asserted(em_waits) == [EM.ACTIVE]
@@ -313,9 +313,6 @@ class TestEmStateAfterEachPhase:
                 demo, "wait_for_participant_embargo_consent"
             ) as consent,
             patch.object(demo, "wait_for_case_em_state") as replica_wait,
-            patch.object(
-                demo, "resolve_case_actor_store_id", return_value="urn:mgr"
-            ),
         ):
             signed = demo._phase_v2_late_invite(
                 cast, case, opened, "urn:embargo:two"
@@ -327,8 +324,12 @@ class TestEmStateAfterEachPhase:
         assert kwargs["vendor"] is cast.vendor2.actor
         assert kwargs["vendor_client"] is cast.vendor2.client
         assert kwargs["already_seated"] == [cast.vendor.actor]
+        # The CASE_MANAGER lives on the dedicated case-actor container (#1876).
+        assert kwargs["case_actor_client"] is cast.case_manager
         assert _states_asserted(em_waits) == [EM.ACTIVE]
+        assert em_waits.call_args.args[0] is cast.case_manager
         args = consent.call_args.args
+        assert args[0] is cast.case_manager
         assert args[2] == cast.vendor2.actor.id_
         assert args[3] == "urn:embargo:two"
         assert args[4] is EmbargoConsentState.AGREED
@@ -347,9 +348,6 @@ class TestEmStateAfterEachPhase:
                 side_effect=AssertionError("timed out"),
             ),
             patch.object(demo, "wait_for_case_em_state"),
-            patch.object(
-                demo, "resolve_case_actor_store_id", return_value="urn:mgr"
-            ),
         ):
             signed = demo._phase_v2_late_invite(
                 cast, case, MagicMock(), "urn:embargo:two"
@@ -379,9 +377,6 @@ class TestEmStateAfterEachPhase:
         with (
             patch.object(demo, "wait_for_event_type_in_ledger") as ledger,
             patch.object(demo, "wait_for_case_em_terminated") as replica_wait,
-            patch.object(
-                demo, "resolve_case_actor_store_id", return_value="urn:mgr"
-            ),
         ):
             demo._phase_accidental_collapse(cast, case)
 
@@ -397,6 +392,8 @@ class TestEmStateAfterEachPhase:
         assert ledger.call_args.kwargs["event_type"] == (
             "remove_embargo_event_from_case"
         )
+        # The teardown commits in the CASE_MANAGER's store (#1876).
+        assert ledger.call_args.kwargs["client"] is cast.case_manager
         assert _states_asserted(em_waits) == [EM.EXITED]
         read_through = [
             c.kwargs["client"] for c in replica_wait.call_args_list

@@ -115,13 +115,24 @@ variable to use a fixed host port, or inspect the assigned port with
 | `VULTRON_DATABASE__DB_URL` | `sqlite:////app/data/mydb.sqlite` | SQLAlchemy connection URL for the DataLayer |
 | `VULTRON_ACTOR_ID`    | *(set per service)*       | Deterministic full actor URI          |
 | `VULTRON_SEED_CONFIG` | *(set per service)*       | Seed config JSON for local + peers    |
+| `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` | `http://case-actor:7999/api/v2` | The dedicated CaseActor every container proposes cases to (CP-08-008) |
+
+### The dedicated `case-actor` container
+
+Every scenario's cases are created and managed by the CaseActor on the
+`case-actor` container: each actor container sends its
+`Create(CaseProposal)` to `http://case-actor:7999/api/v2/actors/case-actor`,
+and that container holds the canonical case and ledger. The demo runner
+resets it with the other containers and then re-seeds that CaseActor
+identity, so it must be running in every scenario. See
+`notes/case-proposal.md` § "The Dedicated Case-Actor Container".
 
 ### Run the D5-2 FV acceptance scenario
 
 The `demo-runner` service now performs the D5-2 scenario end to end:
 it waits for healthy actor services, resets container state to a clean
-baseline, seeds Finder/Vendor, runs the workflow, verifies final state,
-and exits non-interactively.
+baseline, re-seeds the CaseActor and seeds Finder/Vendor, runs the workflow,
+verifies final state, and exits non-interactively.
 
 ```bash
 # From the docker/ directory:
@@ -133,8 +144,8 @@ FV scenario.
 
 ### Run the FVV scenario
 
-The FVV scenario (Finder + Vendor + Vendor2, no Coordinator) runs all three
-vendor containers:
+The FVV scenario (Finder + Vendor + Vendor2, no Coordinator) runs the Finder,
+both vendor containers and the `case-actor` container:
 
 ```bash
 # From the docker/ directory:

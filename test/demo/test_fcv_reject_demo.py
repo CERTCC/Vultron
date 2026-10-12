@@ -160,14 +160,12 @@ class TestFcvRejectInviteChainSkipsDependents:
             # set_stub_summary is seeding infrastructure not under test here.
             patch.object(ActorSession, "set_stub_summary"),
             patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(
-                demo, "resolve_case_actor_store_id", return_value="urn:t:ca"
-            ),
             patch.object(demo, "wait_for_case_participants"),
         ):
             # Must not raise: every failure is accumulated, never escaped.
             demo._phase_invite_vendor_reject(
                 coordinator_client=self._client(),
+                case_actor_client=self._client(),
                 vendor_client=self._client(),
                 finder=self._actor("urn:test:finder"),
                 coordinator_in_coordinator=self._actor("urn:test:coordinator"),
@@ -199,3 +197,67 @@ class TestFcvRejectInviteChainSkipsDependents:
             },
         )
         reject_invite.assert_not_called()
+
+
+class TestFcvRejectReadsTheCaseManagersStore:
+    """The rejection checks read the dedicated case-actor container (#1876).
+
+    The rejection commits only in the CASE_MANAGER's store (CLP-10-006), which
+    lives on the dedicated case-actor container; the Coordinator's container
+    cannot address it, so every post-rejection read must go through
+    ``case_actor_client``.
+    """
+
+    def setup_method(self):
+        reset_demo_failures()
+
+    def test_post_rejection_reads_go_through_case_actor_client(self):
+        coordinator_client = MagicMock()
+        case_actor_client = MagicMock()
+        vendor = MagicMock(id_="urn:test:vendor")
+        with (
+            patch.object(demo, "run_case_invite_chain") as chain,
+            patch.object(demo, "get_actor_by_id", return_value=vendor),
+            patch.object(demo, "wait_for_event_type_in_ledger") as ledger,
+            patch.object(demo, "wait_for_case_participants") as roster,
+            patch.object(demo, "wait_for_participant_rm_state") as rm_wait,
+            patch.object(demo, "_check_participant_rm_state_in") as rm_check,
+        ):
+            demo._phase_invite_vendor_reject(
+                coordinator_client=coordinator_client,
+                case_actor_client=case_actor_client,
+                vendor_client=MagicMock(),
+                finder=MagicMock(id_="urn:test:finder"),
+                coordinator_in_coordinator=MagicMock(id_="urn:test:coord"),
+                coordinator=MagicMock(id_="urn:test:coord"),
+                vendor=vendor,
+                case=MagicMock(id_="urn:test:case"),
+            )
+        assert chain.call_args.kwargs["case_manager_client"] is (
+            case_actor_client
+        )
+        assert ledger.call_args.kwargs["client"] is case_actor_client
+        assert roster.call_args.kwargs["vendor_client"] is case_actor_client
+        assert rm_wait.call_args.kwargs["client"] is case_actor_client
+        assert rm_check.call_args.kwargs["client"] is case_actor_client
+
+
+class TestFcvRejectDumpTargetsTheCaseActorContainer:
+    """The ``case-actor`` ledger is dumped from the dedicated container."""
+
+    def test_case_actor_target_uses_case_actor_client(self):
+        case_actor_client = MagicMock(
+            actor_id="http://case-actor:7999/api/v2/actors/case-actor"
+        )
+        with patch.object(demo, "dump_case_ledgers") as dump:
+            demo._phase_dump_case_ledgers(
+                finder_client=MagicMock(actor_id="http://f/actors/finder"),
+                coordinator_client=MagicMock(
+                    actor_id="http://c/actors/coordinator"
+                ),
+                case_actor_client=case_actor_client,
+                case=MagicMock(id_="urn:test:case"),
+            )
+        targets = {t.actor_name: t for t in dump.call_args.kwargs["targets"]}
+        assert targets["case-actor"].client is case_actor_client
+        assert targets["case-actor"].route_key == "case-actor"

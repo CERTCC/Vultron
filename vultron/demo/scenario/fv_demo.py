@@ -28,15 +28,19 @@ from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    case_actor_role,
+    role_map,
+)
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_commit import trigger_log_commit  # noqa: F401
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
+    case_actor_dump_target,
     dump_case_ledgers,
     replica_route_key,
-    resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -79,7 +83,7 @@ from vultron.demo.helpers.verification import (  # noqa: F401
     _fetch_participant,
     _fetch_participant_data,
     _require_case_participant_id,
-    verify_case_actor_unused,
+    verify_case_actor_holds_records,
     verify_receiver_case_state,
 )
 from vultron.demo.helpers.workflow import (  # noqa: F401
@@ -95,7 +99,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     BASE_URL,
     DataLayerClient,
     assert_demo_success,
-    case_actor_id_on,
+    bound_case_actor_client,
     check_server_availability,
     demo_check,
     demo_gate,
@@ -143,13 +147,7 @@ ROLES: list[ActorRole] = [
         has_id=True,
         id_help="Deterministic full URI for the Vendor actor (optional).",
     ),
-    ActorRole(
-        name="case-actor",
-        url_env="VULTRON_CASE_ACTOR_BASE_URL",
-        default_url="http://localhost:7903/api/v2",
-        url_help="Base URL of the CaseActor container API "
-        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
-    ),
+    case_actor_role("http://localhost:7903/api/v2"),
 ]
 _ROLES = role_map(ROLES)
 
@@ -200,25 +198,25 @@ _load_vendor_case = _load_case_from_datalayer
 def reset_containers(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None = None,
+    case_actor_client: DataLayerClient,
 ) -> None:
     """Reset all containers used by the FV demo to a clean baseline.
 
     D5-2 requires repeatable, single-command execution. Resetting each
     container's DataLayer at the start of the run ensures the demo does
-    not depend on a prior ``docker compose down -v``.
+    not depend on a prior ``docker compose down -v``.  The dedicated
+    case-actor container is reset too, and its CaseActor identity re-seeded,
+    since the Vendor proposes the case to it (DEMOMA-06-004).
 
     The ``reset_datalayer`` reference is passed explicitly so that test-suite
     patches on this module's ``reset_datalayer`` name are correctly intercepted
     by the generic helper in ``vultron.demo.helpers.seeding``.
     """
-    targets: list[tuple[str, DataLayerClient]] = [
-        ("Finder", finder_client),
-        ("Vendor", vendor_client),
-    ]
-    if case_actor_client is not None:
-        targets.append(("CaseActor", case_actor_client))
-    _reset_containers(targets, reset_fn=reset_datalayer)
+    _reset_containers(
+        [("Finder", finder_client), ("Vendor", vendor_client)],
+        reset_fn=reset_datalayer,
+        case_actor_client=case_actor_client,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -450,7 +448,7 @@ def verify_m7_state(
 def _phase_report_submission(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None,
+    case_actor_client: DataLayerClient,
     finder_id: str | None,
     vendor_id: str | None,
 ) -> tuple[
@@ -592,9 +590,9 @@ def _phase_sync_verification(
     vendor: as_Actor,
     finder: as_Actor,
     case: as_VulnerabilityCase,
-    case_actor_client: DataLayerClient | None,
+    case_actor_client: DataLayerClient,
 ) -> None:
-    """Verify LedgerFanout replication and confirm the dedicated case actor is unused."""
+    """Verify LedgerFanout replication and that the dedicated CaseActor holds the case."""
     logger.info("─" * 80)
     logger.info("Phase 2: Replica synchronization verification")
     logger.info("─" * 80)
@@ -615,10 +613,10 @@ def _phase_sync_verification(
     )
 
     with demo_check(
-        "Dedicated external CaseActor container holds no case data "
-        "(vendor's own case-actor sub-actor handled the CaseProposal)"
+        "Dedicated case-actor container holds the case, with its CaseActor as"
+        " the CASE_MANAGER participant (DEMOMA-06-004)"
     ):
-        verify_case_actor_unused(case_actor_client, case.id_)
+        verify_case_actor_holds_records(case_actor_client, case.id_)
 
     logger.info("✓ M2: Finder DataLayer synchronized (LedgerFanout verified)")
 
@@ -778,11 +776,13 @@ def _phase_case_closure(
     finder: as_Actor,
     finder_in_finder: as_Actor,
     case: as_VulnerabilityCase,
+    case_actor_client: DataLayerClient,
 ) -> None:
     """Close the case from both participants and verify terminal state.
 
     The Finder leaves first; the Vendor, the Case Owner, leaves last, once
-    the Finder's departure is recorded (CM-23-015).
+    the Finder's departure is recorded (CM-23-015) in the CASE_MANAGER's store
+    on the dedicated case-actor container.
     """
     logger.info("─" * 80)
     logger.info("Phase 6: Case closure — all participants RM.CLOSED")
@@ -791,7 +791,7 @@ def _phase_case_closure(
     close_case_owner_last(
         case=case,
         milestone="M7",
-        authority_client=vendor_client,
+        authority_client=case_actor_client,
         others=[CaseLeaver(client=finder_client, actor=finder_in_finder)],
         owner=CaseLeaver(client=vendor_client, actor=vendor_in_vendor),
     )
@@ -848,7 +848,7 @@ def _phase_dump_case_ledgers(
     finder: as_Actor,
     vendor: as_Actor,
     case: as_VulnerabilityCase,
-    case_actor_client: DataLayerClient | None = None,
+    case_actor_client: DataLayerClient,
     demo_name: str = "fv",
 ) -> None:
     """Dump case ledger entries from each actor container to JSONL files.
@@ -859,9 +859,8 @@ def _phase_dump_case_ledgers(
     ``{DEVLOGS_DIR}/{demo_name}/``. This function only names FV's participants
     and where each one's ledger lives.
 
-    The case-actor log is always included: from *case_actor_client* when a
-    dedicated case-actor service is configured, otherwise from the vendor
-    container using the in-container case-actor sub-actor route key.
+    The case-actor log is read from the dedicated case-actor container, which
+    holds the canonical ledger (DEMOMA-06-005).
 
     Args:
         finder_client: DataLayerClient for the Finder container.
@@ -869,7 +868,7 @@ def _phase_dump_case_ledgers(
         finder: Finder actor object (used to derive the actor object ID).
         vendor: Vendor actor object (used to derive the actor object ID).
         case: The as_VulnerabilityCase whose log entries are to be exported.
-        case_actor_client: Optional DataLayerClient for the CaseActor container.
+        case_actor_client: DataLayerClient for the dedicated CaseActor container.
         demo_name: Sub-directory name under the output root (default ``"fv"``).
     """
     # Route keys come from the actors' own ids, not from their display names.
@@ -898,27 +897,8 @@ def _phase_dump_case_ledgers(
             strip_id_prefix(vendor.id_ or "")
             or replica_route_key(vendor_client, "vendor"),
         ),
+        case_actor_dump_target(case_actor_client),
     ]
-    case_actor_route_key = resolve_case_actor_route_key(case)
-    if case_actor_client is not None:
-        # D5-2: the dedicated case-actor container may not hold the case — the
-        # case-actor can be a sub-actor inside the vendor container instead —
-        # so fall back to the vendor container's sub-actor route key.
-        targets.append(
-            LedgerDumpTarget(
-                "case-actor",
-                case_actor_client,
-                "case-actor",
-                fallback_client=(
-                    vendor_client if case_actor_route_key is not None else None
-                ),
-                fallback_route_key=case_actor_route_key,
-            )
-        )
-    elif case_actor_route_key is not None:
-        targets.append(
-            LedgerDumpTarget("case-actor", vendor_client, case_actor_route_key)
-        )
 
     dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
 
@@ -926,7 +906,7 @@ def _phase_dump_case_ledgers(
 def run_fv_demo(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None = None,
+    case_actor_client: DataLayerClient,
     finder_id: str | None = None,
     vendor_id: str | None = None,
 ) -> None:
@@ -936,8 +916,7 @@ def run_fv_demo(
     logger.info("=" * 80)
     logger.info("Finder container: %s", finder_client.base_url)
     logger.info("Vendor container: %s", vendor_client.base_url)
-    if case_actor_client is not None:
-        logger.info("CaseActor container: %s", case_actor_client.base_url)
+    logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("fv") as harness:
         finder, vendor, vendor_in_vendor, report, _offer, case = (
@@ -1005,6 +984,7 @@ def run_fv_demo(
             finder,
             finder_in_finder,
             case,
+            case_actor_client,
         )
 
     logger.info("=" * 80)
@@ -1039,7 +1019,7 @@ def main(
             testing).
         finder_url: Override base URL for the Finder container.
         vendor_url: Override base URL for the Vendor container.
-        case_actor_url: Optional base URL for the dedicated CaseActor container.
+        case_actor_url: Override base URL for the dedicated CaseActor container.
         finder_id: Optional deterministic URI for the Finder actor.
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
@@ -1052,19 +1032,14 @@ def main(
     # actor_id must be bound here: the dedicated CaseActor container hosts the
     # `case-actor` actor, and a /datalayer/ read has to name whose store it is
     # about (ADR-0073).  Leaving it unset makes every dl_path() call raise.
-    case_actor_client = (
-        DataLayerClient(base_url=c_url, actor_id=case_actor_id_on(c_url))
-        if c_url
-        else None
-    )
+    case_actor_client = bound_case_actor_client(c_url)
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [
             ("Finder", finder_client),
             ("Vendor", vendor_client),
+            ("CaseActor", case_actor_client),
         ]
-        if case_actor_client is not None:
-            targets.append(("CaseActor", case_actor_client))
         for label, client in targets:
             if not check_server_availability(client):
                 logger.error("=" * 80)
