@@ -28,6 +28,8 @@ groups:
     - story_2022_030
     - story_2022_034
     - story_2022_045
+    adr:
+    - ADR-0010
   - id: OID-01-002
     priority: MUST
     kind: protocol
@@ -47,12 +49,16 @@ groups:
       equivalent) rather than a hardcoded value.
     stories:
     - story_2022_029
+    adr:
+    - ADR-0010
   - id: OID-01-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Helper functions for constructing full-URI IDs from UUIDs MUST be provided in a shared utility module (e.g.,
       `vultron.as_vocab.utils.make_id`)
+    adr:
+    - ADR-0010
   - id: OID-01-005
     priority: MUST
     kind: protocol

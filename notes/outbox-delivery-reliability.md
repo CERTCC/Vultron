@@ -21,6 +21,7 @@ related_notes:
   - notes/sync-ledger-replication.md
   - notes/flaky-tests.md
   - notes/testing-pitfalls.md
+  - notes/case-ledger-authority.md
 relevant_packages:
   - vultron/adapters/driven/http_delivery.py
   - vultron/adapters/driving/fastapi/outbox_handler.py
