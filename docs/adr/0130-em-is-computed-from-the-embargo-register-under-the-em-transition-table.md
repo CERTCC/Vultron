@@ -1,9 +1,14 @@
 ---
-status: accepted-provisional
+status: proposed
+status_override: >-
+  The maintainer kept ADR-0130 proposed on 2026-10-12: the PR #4452 review edits
+  (the multi-proposal sub-decisions, the threat-signal CANCEL row, ADR-0124
+  revision 2's apply-function terms) are revision 2, edited in place while the
+  ADR is unreleased.
 date: 2026-10-09
 created: 2026-10-09
-updated: 2026-10-09
-revision: 1
+updated: 2026-10-12
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; Epic #4283, Issue #4290, Issue #4427, Issue #4449; ADR-0122, ADR-0124;
@@ -153,5 +158,6 @@ The owner reads the timed-out rows and decides.
 
 Decided in the maintainer's design session of 2026-10-09, reviewing the open issues of epic #4283.
 Implementation is tracked in #4449.
+Revision 2 (2026-10-12), from the PR #4452 review, lists the two multi-proposal sub-decisions among the considered options, says a threat signal cancels one or more proposals, amends EMB-02-001, EMB-04-001 and EMB-05-001 alongside EMB-06-001, and uses ADR-0124 revision 2's "apply function".
 
 Generated spec requirements: `em-behavior.yaml` EMB-18-005, EMB-18-006; EMB-02-001, EMB-04-001, EMB-05-001 and EMB-06-001 updated.
