@@ -63,8 +63,9 @@ def _fetch_participant(
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor whose participant record to fetch.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
-            not the client's own actor.  Needed for a self-hosted CaseActor: it
-            shares its owner's container but not its store
+            not the client's own actor.  Needed for a co-hosted CaseActor (the
+            single-container exchange demos): it shares its owner's container
+            but not its store
             (ADR-0073#peer-records-in-knowers-store), so reading the owner's
             replica reports the owner's view of a
             participant, not the CaseActor's authoritative one.
@@ -233,7 +234,7 @@ def _check_participant_rm_state_in(
         label: Human-readable label for ``AssertionError`` messages.
         dl_actor_id: When provided, read from this actor's store on *client*
             instead of the client's own default store.  Needed when the
-            authoritative record is held by a self-hosted CaseActor rather
+            authoritative record is held by a co-hosted CaseActor rather
             than the container's primary actor (ADR-0073).
     """
     participant = _fetch_participant(

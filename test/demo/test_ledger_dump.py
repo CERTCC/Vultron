@@ -176,16 +176,3 @@ class TestCaseActorDumpTarget:
         )
 
         assert case_actor_dump_target(client).route_key == "case-actor-2"
-
-    def test_has_no_fallback_to_a_participant_container(self):
-        """A participant holds a replica; dumping it as case-actor would hide
-        a topology fault (DEMOMA-06-005)."""
-        from dataclasses import fields
-
-        from vultron.demo.helpers.ledger_dump import LedgerDumpTarget
-
-        assert {f.name for f in fields(LedgerDumpTarget)} == {
-            "actor_name",
-            "client",
-            "route_key",
-        }

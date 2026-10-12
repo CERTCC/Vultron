@@ -42,7 +42,11 @@ import sys
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    case_actor_role,
+    role_map,
+)
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.invite_chain import (
@@ -94,6 +98,7 @@ from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
+    bound_case_actor_client,
     case_actor_id_on,
     check_server_availability,
     demo_check,
@@ -176,12 +181,7 @@ ROLES: list[ActorRole] = [
         id_help="Deterministic URI for the V2 (VendorDeployer) actor.",
         id_env="VULTRON_VENDOR_DEPLOYER_ACTOR_ID",
     ),
-    ActorRole(
-        name="case-actor",
-        url_env="VULTRON_CASE_ACTOR_BASE_URL",
-        default_url="http://localhost:7906/api/v2",
-        url_help="Base URL for the dedicated CaseActor container.",
-    ),
+    case_actor_role("http://localhost:7906/api/v2"),
 ]
 _ROLES = role_map(ROLES)
 
@@ -1335,9 +1335,7 @@ def main(
     v2_client = DataLayerClient(base_url=v2_resolved)
     # Bound here: a /datalayer/ read names whose store it is about (ADR-0073),
     # and the dedicated container hosts only the CaseActor.
-    case_actor_client = DataLayerClient(
-        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
-    )
+    case_actor_client = bound_case_actor_client(ca_url)
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [

@@ -176,3 +176,21 @@ class TestTheCaseActorReceivesThem:
 
     def test_no_stated_roles_reach_the_event_as_empty(self):
         assert self._event([]).proposer_case_roles == []
+
+    def test_a_create_without_a_parsed_proposal_is_refused(self):
+        """Never read as "no roles": that seats the owner as CASE_OWNER alone."""
+        from vultron.core.models.events import MessageSemantics
+        from vultron.wire.as2.errors import VultronParseValidationError
+        from vultron.wire.as2.extractor._extract import extract_intent
+
+        activity = as_Create(
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=_REPORT_URI,
+            to=[_CASE_ACTOR_URI],
+        )
+        with pytest.raises(VultronParseValidationError, match="CP-01-011"):
+            extract_intent(
+                activity,
+                MessageSemantics.CREATE_CASE_PROPOSAL,
+                CreateCaseProposalReceivedEvent,
+            )

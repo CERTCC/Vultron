@@ -96,8 +96,9 @@ def _own_actor(client: DataLayerClient, actor: as_Actor) -> as_Actor:
     """Record on *client* which actor's store its DataLayer reads address.
 
     Under ADR-0073 ``base_url`` names a *container*, which no longer says whose
-    replica a read is about: a container hosts an actor plus any CaseActors it
-    self-hosts (CP-08-003).  ``DataLayerClient.dl_path`` refuses to guess, so the
+    replica a read is about: a container may host more than one actor — the
+    dedicated case-actor container's CaseActor, or a CaseActor co-hosted in a
+    single-container exchange demo.  ``DataLayerClient.dl_path`` refuses to guess, so the
     binding has to happen where the fact is learned — here, as the container's
     *own* actor is created.  The scenario entry points cannot do it, because they
     build their clients for the health check before any actor exists.

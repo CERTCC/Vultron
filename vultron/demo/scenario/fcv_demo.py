@@ -33,7 +33,11 @@ Spec: DEMOMA-12 (GitHub issue #1593).
 
 import logging
 
-from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    case_actor_role,
+    role_map,
+)
 from vultron.demo.helpers.coordinated_case import (
     CoordinatedCase,
     dump_coordinated_case_ledgers,
@@ -58,6 +62,7 @@ from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
+    bound_case_actor_client,
     case_actor_id_on,
     demo_check,
     demo_gate,
@@ -110,13 +115,7 @@ ROLES: list[ActorRole] = [
         has_id=True,
         id_help="Deterministic full URI for the Vendor actor (optional).",
     ),
-    ActorRole(
-        name="case-actor",
-        url_env="VULTRON_CASE_ACTOR_BASE_URL",
-        default_url="http://localhost:7905/api/v2",
-        url_help="Base URL of the CaseActor container API "
-        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
-    ),
+    case_actor_role("http://localhost:7905/api/v2"),
 ]
 _ROLES = role_map(ROLES)
 
@@ -638,9 +637,7 @@ def main(
     finder_client = DataLayerClient(base_url=f_url)
     coordinator_client = DataLayerClient(base_url=c_url)
     vendor_client = DataLayerClient(base_url=v_url)
-    case_actor_client = DataLayerClient(
-        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
-    )
+    case_actor_client = bound_case_actor_client(ca_url)
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [

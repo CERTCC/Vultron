@@ -28,7 +28,11 @@ from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    case_actor_role,
+    role_map,
+)
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_commit import trigger_log_commit  # noqa: F401
@@ -95,6 +99,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     BASE_URL,
     DataLayerClient,
     assert_demo_success,
+    bound_case_actor_client,
     case_actor_id_on,
     check_server_availability,
     demo_check,
@@ -143,13 +148,7 @@ ROLES: list[ActorRole] = [
         has_id=True,
         id_help="Deterministic full URI for the Vendor actor (optional).",
     ),
-    ActorRole(
-        name="case-actor",
-        url_env="VULTRON_CASE_ACTOR_BASE_URL",
-        default_url="http://localhost:7903/api/v2",
-        url_help="Base URL of the CaseActor container API "
-        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
-    ),
+    case_actor_role("http://localhost:7903/api/v2"),
 ]
 _ROLES = role_map(ROLES)
 
@@ -1034,9 +1033,7 @@ def main(
     # actor_id must be bound here: the dedicated CaseActor container hosts the
     # `case-actor` actor, and a /datalayer/ read has to name whose store it is
     # about (ADR-0073).  Leaving it unset makes every dl_path() call raise.
-    case_actor_client = DataLayerClient(
-        base_url=c_url, actor_id=case_actor_id_on(c_url)
-    )
+    case_actor_client = bound_case_actor_client(c_url)
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [

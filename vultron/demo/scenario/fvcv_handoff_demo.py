@@ -29,7 +29,11 @@ import sys
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    case_actor_role,
+    role_map,
+)
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.invite_chain import (
@@ -85,6 +89,7 @@ from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
+    bound_case_actor_client,
     case_actor_id_on,
     check_server_availability,
     demo_check,
@@ -136,15 +141,7 @@ ROLES: list[ActorRole] = [
         has_id=True,
         id_help="Deterministic full URI for the Coordinator actor (optional).",
     ),
-    ActorRole(
-        name="case-actor",
-        url_env="VULTRON_CASE_ACTOR_BASE_URL",
-        default_url="http://localhost:7905/api/v2",
-        url_help="Base URL of the CaseActor container API "
-        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the CaseActor actor (optional).",
-    ),
+    case_actor_role("http://localhost:7905/api/v2", has_id=True),
     ActorRole(
         name="vendor2",
         url_env="VULTRON_VENDOR2_BASE_URL",
@@ -1322,9 +1319,7 @@ def main(
     finder_client = DataLayerClient(base_url=f_url)
     vendor_client = DataLayerClient(base_url=v_url)
     coordinator_client = DataLayerClient(base_url=c_url)
-    case_actor_client = DataLayerClient(
-        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
-    )
+    case_actor_client = bound_case_actor_client(ca_url)
     vendor2_client = DataLayerClient(base_url=v2_url)
 
     if not skip_health_check:

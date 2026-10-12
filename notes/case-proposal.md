@@ -9,6 +9,7 @@ description: >
 related_specs:
   - specs/case-proposal.yaml
   - specs/multi-actor-demo.yaml
+  - specs/configuration.yaml
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
   - specs/semantic-extraction.yaml

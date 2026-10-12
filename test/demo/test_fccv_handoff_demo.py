@@ -36,6 +36,7 @@ import vultron.demo.scenario.fccv_handoff_demo as demo
 from test.demo._helpers import (
     make_client,
     make_testclient_call,
+    null_demo_contexts,
     patch_chain_shared,
     stub_closure_gate,
 )
@@ -1398,18 +1399,6 @@ def _actor(id_: str) -> MagicMock:
     return actor
 
 
-def _null_contexts(stack: Any) -> None:
-    """Make the scenario's demo contexts transparent for call-shape tests."""
-    import contextlib
-
-    for name in ("demo_gate", "demo_check", "demo_step"):
-        stack.enter_context(
-            patch.object(
-                demo, name, side_effect=lambda _: contextlib.nullcontext()
-            )
-        )
-
-
 class TestFccvHandoffDedicatedCaseActor:
     """Every CASE_MANAGER read and act goes to the case-actor container.
 
@@ -1438,7 +1427,7 @@ class TestFccvHandoffDedicatedCaseActor:
                 "accept_case_ownership_transfer",
             ):
                 stack.enter_context(patch.object(ActorSession, name))
-            _null_contexts(stack)
+            null_demo_contexts(stack, demo)
             demo._phase_ownership_handoff(
                 finder_client=MagicMock(),
                 c1_client=MagicMock(),
@@ -1472,7 +1461,7 @@ class TestFccvHandoffDedicatedCaseActor:
                 "wait_for_case_on_container",
             ):
                 stack.enter_context(patch.object(demo, name))
-            _null_contexts(stack)
+            null_demo_contexts(stack, demo)
             demo._phase_c2_invites_vendor(
                 finder_client=MagicMock(),
                 c1_client=MagicMock(),
@@ -1511,7 +1500,7 @@ class TestFccvHandoffDedicatedCaseActor:
                 "wait_for_replica_ledger_coverage",
             ):
                 stack.enter_context(patch.object(demo, name))
-            _null_contexts(stack)
+            null_demo_contexts(stack, demo)
             demo._phase_case_closure(
                 finder_client=MagicMock(),
                 c1_client=MagicMock(),

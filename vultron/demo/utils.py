@@ -244,9 +244,9 @@ class DataLayerClient(BaseModel):
 
     ``base_url`` addresses a *container*; ``actor_id`` names which of the actors
     that container hosts a DataLayer read is about.  Both are needed under
-    ADR-0073: a container hosts an actor plus the CaseActors it self-hosts
-    (CP-08-003), so ``/datalayer/{case_id}`` alone no longer says whose replica
-    to read.  Use :meth:`dl_path` to build inspection paths rather than
+    ADR-0073: a container may host more than one actor (a CaseActor co-hosted
+    in a single-container exchange demo, say), so ``/datalayer/{case_id}``
+    alone no longer says whose replica to read.  Use :meth:`dl_path` to build inspection paths rather than
     hand-writing ``/datalayer/...``.
     """
 
@@ -786,7 +786,7 @@ def seed_peer(
     return as_Actor.model_validate(response_data)
 
 
-#: Slug every container's self-hosted CaseActor is registered under.  A CaseActor
+#: Slug a CaseActor is registered under on whichever container hosts it.  A CaseActor
 #: is a role a container wears per CP-08-002/003, not a per-case object (#1872),
 #: so the slug is a constant rather than something derived from a case or report.
 CASE_ACTOR_SLUG = "case-actor"
@@ -808,6 +808,18 @@ def case_actor_id_on(base_url: str) -> str:
         ``{base_url}/actors/case-actor``.
     """
     return f"{base_url.rstrip('/')}/actors/{CASE_ACTOR_SLUG}"
+
+
+def bound_case_actor_client(base_url: str) -> DataLayerClient:
+    """Return a client for the CaseActor container at *base_url*, bound to it.
+
+    The binding is what makes ``dl_path`` reads address the CaseActor's own
+    store (ADR-0073); a scenario's entry point knows only the container's URL
+    before any actor exists, so it binds from that (#1876).
+    """
+    return DataLayerClient(
+        base_url=base_url, actor_id=case_actor_id_on(base_url)
+    )
 
 
 def case_actor_id_for_report(report_id: str) -> str:

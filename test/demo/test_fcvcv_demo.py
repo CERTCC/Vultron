@@ -31,7 +31,12 @@ import pytest
 import vultron.demo.helpers.sync as sync_module
 import vultron.demo.scenario.fcvcv_demo as demo
 import vultron.demo.utils as demo_utils
-from test.demo._helpers import patch_chain_shared, patched_report_submission
+from test.demo._helpers import (
+    assert_reset_reseeds_case_actor,
+    null_demo_contexts,
+    patch_chain_shared,
+    patched_report_submission,
+)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain
 from vultron.demo.utils import reset_demo_failures
@@ -1023,16 +1028,6 @@ class TestFcvcvPhase1DrainViaSharedHelper(_Helpers):
 # ---------------------------------------------------------------------------
 
 
-def _null_contexts(stack: contextlib.ExitStack) -> None:
-    """Make the scenario's demo contexts transparent for call-shape tests."""
-    for name in ("demo_gate", "demo_check", "demo_step"):
-        stack.enter_context(
-            patch.object(
-                demo, name, side_effect=lambda _: contextlib.nullcontext()
-            )
-        )
-
-
 class TestFcvcvDedicatedCaseActor(_Helpers):
     """Every CASE_MANAGER read and act goes to the case-actor container.
 
@@ -1049,26 +1044,9 @@ class TestFcvcvDedicatedCaseActor(_Helpers):
     )
 
     def test_reset_resets_and_reseeds_the_case_actor_container(self):
-        clients = {k: MagicMock(name=k) for k in self._NAMES}
-        case_actor_client = MagicMock(name="case_actor_client")
-        for c in [*clients.values(), case_actor_client]:
-            c.get.return_value = {}
-
-        with (
-            patch.object(
-                demo, "reset_datalayer", return_value={"status": "ok"}
-            ) as reset_mock,
-            patch(
-                "vultron.demo.helpers.seeding.seed_case_actor_identity"
-            ) as reseed_mock,
-        ):
-            demo.reset_containers(
-                case_actor_client=case_actor_client, **clients
-            )
-
-        reset_clients = [c.kwargs["client"] for c in reset_mock.call_args_list]
-        assert reset_clients == [*clients.values(), case_actor_client]
-        reseed_mock.assert_called_once_with(case_actor_client)
+        assert_reset_reseeds_case_actor(
+            demo, {name: MagicMock(name=name) for name in self._NAMES}
+        )
 
     def test_report_submission_routes_case_manager_to_case_actor(self):
         clients = {
@@ -1153,7 +1131,7 @@ class TestFcvcvDedicatedCaseActor(_Helpers):
                 "accept_actor_recommendation",
             ):
                 stack.enter_context(patch.object(ActorSession, name))
-            _null_contexts(stack)
+            null_demo_contexts(stack, demo)
             demo._phase_c2_suggests_v2(
                 finder_client=MagicMock(),
                 c1_client=MagicMock(),
@@ -1186,7 +1164,7 @@ class TestFcvcvDedicatedCaseActor(_Helpers):
                 "wait_for_replica_ledger_coverage",
             ):
                 stack.enter_context(patch.object(demo, name))
-            _null_contexts(stack)
+            null_demo_contexts(stack, demo)
             demo._phase_case_closure(
                 finder_client=MagicMock(),
                 c1_client=MagicMock(),

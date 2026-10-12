@@ -229,8 +229,9 @@ def wait_for_case_participants(
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Read this actor's store on the container instead of
-            the client's own — typically a self-hosted CaseActor, the only
-            store that holds an invitee that never joined (CM-11-006).
+            the client's own — typically the CaseActor co-hosted in a
+            single-container exchange demo, the only store that holds an
+            invitee that never joined (CM-11-006).
 
     Raises:
         AssertionError: If any expected actor is absent after *timeout_seconds*.
@@ -1501,7 +1502,8 @@ def wait_for_participant_vf_state(
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
-            not the client's own actor — typically a self-hosted CaseActor.
+            not the client's own actor — typically the CaseActor co-hosted in
+            a single-container exchange demo.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
@@ -1538,7 +1540,8 @@ def wait_for_participant_d_state(
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
-            not the client's own actor — typically a self-hosted CaseActor.
+            not the client's own actor — typically the CaseActor co-hosted in
+            a single-container exchange demo.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.
@@ -1906,7 +1909,8 @@ def wait_for_participant_rm_state(
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
-            not the client's own actor — typically a self-hosted CaseActor.
+            not the client's own actor — typically the CaseActor co-hosted in
+            a single-container exchange demo.
 
     Raises:
         AssertionError: If the state is not reached within *timeout_seconds*.

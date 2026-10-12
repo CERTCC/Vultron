@@ -44,7 +44,11 @@ from vultron.demo.exchange.embargo_lifecycle import (
     COMMIT_TIMEOUT_SECONDS,
     demo_terminate_embargo,
 )
-from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    case_actor_role,
+    role_map,
+)
 from vultron.demo.helpers.coordinated_case import (
     dump_coordinated_case_ledgers,
     everyone_closes_case,
@@ -70,7 +74,7 @@ from vultron.demo.helpers.seeding import (
 from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (
     DataLayerClient,
-    case_actor_id_on,
+    bound_case_actor_client,
     demo_check,
     demo_gate,
     demo_step,
@@ -114,13 +118,7 @@ ROLES: list[ActorRole] = [
         has_id=True,
         id_help="Deterministic full URI for the Vendor actor (optional).",
     ),
-    ActorRole(
-        name="case-actor",
-        url_env="VULTRON_CASE_ACTOR_BASE_URL",
-        default_url="http://localhost:7905/api/v2",
-        url_help="Base URL of the CaseActor container API "
-        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
-    ),
+    case_actor_role("http://localhost:7905/api/v2"),
 ]
 _ROLES = role_map(ROLES)
 
@@ -533,9 +531,7 @@ def main(
     reporter_client = DataLayerClient(base_url=r_url)
     coordinator_client = DataLayerClient(base_url=c_url)
     vendor_client = DataLayerClient(base_url=v_url)
-    case_actor_client = DataLayerClient(
-        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
-    )
+    case_actor_client = bound_case_actor_client(ca_url)
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [
