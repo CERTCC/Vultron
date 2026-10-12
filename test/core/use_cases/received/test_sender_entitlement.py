@@ -235,6 +235,33 @@ def test_ownership_accept_from_non_transferee_is_refused(
     assert cm_store.outbox_list() == []
 
 
+_TRANSFEREE_ID = "https://example.org/actors/transferee"
+
+
+def _reject_recorded_ownership_offer(
+    cm_store, owned_case, make_payload, sender
+):
+    """Record an Offer naming ``_TRANSFEREE_ID``; ``sender`` declines it."""
+    cm_store.create(owned_case)
+    offer = offer_case_ownership_transfer_activity(
+        owned_case,
+        target=as_Actor(id_=_TRANSFEREE_ID),
+        actor=_OWNER_ID,
+        id_="https://example.org/activities/offer-ownership-se-reject",
+    )
+    cm_store.create(offer)
+    event = make_payload(
+        reject_case_ownership_transfer_activity(offer, actor=sender),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+    return RejectCaseOwnershipTransferReceivedUseCase(
+        cm_store,
+        event,
+        sync_port=SyncActivityAdapter(cm_store),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
@@ -246,28 +273,25 @@ def test_ownership_reject_from_non_transferee_is_refused(
     cm_store, owned_case, make_payload
 ):
     """The recorded Offer names another transferee; the impostor declines it."""
-    cm_store.create(owned_case)
-    offer = offer_case_ownership_transfer_activity(
-        owned_case,
-        target=as_Actor(id_="https://example.org/actors/transferee"),
-        actor=_OWNER_ID,
-        id_="https://example.org/activities/offer-ownership-se-reject",
+    result = _reject_recorded_ownership_offer(
+        cm_store, owned_case, make_payload, _IMPOSTOR_ID
     )
-    cm_store.create(offer)
-    event = make_payload(
-        reject_case_ownership_transfer_activity(offer, actor=_IMPOSTOR_ID),
-        receiving_actor_id=_CASE_MANAGER_ID,
-    )
-
-    result = RejectCaseOwnershipTransferReceivedUseCase(
-        cm_store,
-        event,
-        sync_port=SyncActivityAdapter(cm_store),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert cm_store.outbox_list() == []
+    assert cm_store.list_objects("CaseLedgerEntry") == []
+
+
+@pytest.mark.spec("CM-21-013")
+def test_ownership_reject_from_the_named_transferee_is_not_refused(
+    cm_store, owned_case, make_payload
+):
+    """The sender check refuses impostors only, not the transferee it names."""
+    result = _reject_recorded_ownership_offer(
+        cm_store, owned_case, make_payload, _TRANSFEREE_ID
+    )
+
+    assert result.disposition is not HandlerDisposition.REFUSED
 
 
 @pytest.mark.spec("CM-11-017")

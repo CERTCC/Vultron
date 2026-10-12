@@ -5,7 +5,7 @@ description: >
   Implementation guidance for the ownership-transfer routing model introduced
   in ADR-0053: Offer, Accept and Reject MUST route through the CASE_MANAGER so
   that all participants receive CaseLedgerEntry broadcast notifications for
-  the pending offer and for its acceptance or decline.
+  the pending offer and for its acceptance, decline, withdrawal or expiry.
 related_specs:
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
@@ -417,8 +417,8 @@ Transferee calls trigger: reject-case-ownership-transfer      ← TRIG-11-005
 
 CASE_MANAGER inbox receives Reject
   → RejectCaseOwnershipTransferReceivedUseCase:
-      guard:  sender is the transferee of a pending,
-              unanswered Offer it recorded                    ← CM-21-013
+      guard:  sender is the transferee of an open Offer
+              it recorded                                     ← CM-21-013
               (anyone else: REFUSED, nothing written)
       1. Commits CaseLedgerEntry (reject_case_ownership_transfer).  ← CM-21-012
       2. Announce(CaseLedgerEntry) → all participants.
@@ -427,17 +427,39 @@ CASE_MANAGER inbox receives Reject
 - **The offerer learns of the decline from the broadcast.** It is no longer a
   recipient of the Reject itself (CM-21-010), and needs no separate notice.
 - **Replicas change no state.** `attributed_to` and every `CASE_OWNER` role stay
-  as they were. The entry's effect is that the Offer is now answered.
-- **"Answered" is read from the ledger.** An Offer is pending until the ledger
-  holds an Accept or Reject entry for it, found through `find_protocol_pair()`
+  as they were. The entry's effect is that the Offer is now closed.
+- **"Open" is read from the ledger.** An Offer is open until the ledger holds an
+  Accept, Reject, withdrawal or expiry entry for it, found through `find_protocol_pair()`
   with an ownership-transfer reply-types constant beside the existing ones
   (CLP-11-001, CLP-11-003). The `VultronOwnershipTransferOfferRecord` on a
   replica is case bookkeeping (CLP-07-014) and is never the source of that
   answer.
 - **One open Offer per case (CM-21-014).** The CASE_MANAGER refuses a new
-  ownership-transfer Offer while an earlier one is unanswered. After an Accept
-  or a Reject the owner may offer again to anyone, the decliner included, with
-  no waiting period and nothing to clear.
+  ownership-transfer Offer while an earlier one is open. Once it is closed the
+  owner may offer again to anyone, the decliner included, with no waiting period
+  and nothing to clear.
+
+## Withdrawal and Deadline (CM-21-015 – CM-21-017)
+
+One open Offer per case would let a transferee who never answers block every
+later transfer, so an Offer can also close without an answer (#4490):
+
+- **Withdrawal (CM-21-015, TRIG-11-006).** The owner that made an open Offer
+  sends `Undo(Offer(VulnerabilityCase))` to the CASE_MANAGER through the
+  `withdraw-case-ownership-transfer` trigger. The CASE_MANAGER ledgers and
+  broadcasts it like a Reject; anyone else's Undo is refused.
+- **Deadline (CM-21-016, TRIG-11-007).** The Offer may carry an activity-level
+  `end_time`, the deadline to answer, set through the offer trigger. It means
+  what `Invite.end_time` means for an embargo (CM-28-001), with one difference:
+  an embargo deadline is a strong suggestion, but a transfer deadline is
+  binding. An Accept or Reject the CASE_MANAGER processes after it is refused,
+  so the parties know who decides for the case once it passes.
+- **Expiry (CM-21-017).** The CASE_MANAGER finds an expired Offer lazily, when
+  it next processes an answer, an Undo or a new Offer for the case, and commits
+  a distinct expiry entry before acting. Replicas learn the expiry from that
+  entry and never compute one, as for embargo Invite expiry (CM-28-014).
+
+Implementation: #4491.
 
 Why this was ever an open question, and why it should not have been: see
 [case-ledger-authority.md § Two Meanings of "Reject"](case-ledger-authority.md#two-meanings-of-reject).

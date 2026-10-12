@@ -36,14 +36,20 @@ class NotACaseEvent(StrEnum):
     PRE_CASE = "processed before a case exists"
     REPLICA_APPLY = "a replica applying an entry, not asserting one"
     LEDGER_MECHANICS = "an activity about the ledger itself"
+    NOT_LEDGERED_BY_CLP_10_013 = "left unledgered by CLP-10-013 (ADR-0111)"
     UNMATCHED = "no pattern matches or the object is unresolvable"
 
 
 #: MessageSemantics value -> CLP-02-013 ground, or the open issue ("#NNNN")
 #: tracking the missing commit.  Nothing else may appear here.
 EXEMPT: dict[str, NotACaseEvent | str] = {
+    "create_report": NotACaseEvent.PRE_CASE,
+    "submit_report": NotACaseEvent.PRE_CASE,
+    "create_case_proposal": NotACaseEvent.PRE_CASE,
     "announce_case_ledger_entry": NotACaseEvent.REPLICA_APPLY,
     "reject_case_ledger_entry": NotACaseEvent.LEDGER_MECHANICS,
+    "update_case": NotACaseEvent.NOT_LEDGERED_BY_CLP_10_013,
+    "announce_vulnerability_case": NotACaseEvent.NOT_LEDGERED_BY_CLP_10_013,
     "unknown": NotACaseEvent.UNMATCHED,
     "unknown_unresolvable_object": NotACaseEvent.UNMATCHED,
 }
@@ -71,3 +77,11 @@ def test_exemptions_name_a_ground_or_an_issue():
         assert isinstance(ground, NotACaseEvent) or (
             ground.startswith("#") and ground[1:].isdigit()
         ), semantic
+
+
+@pytest.mark.spec("CLP-02-013")
+def test_exemptions_name_routed_use_cases_that_do_not_commit():
+    routed = {semantic.value for semantic in use_case_map()}
+    committed = received_commit_semantics()
+    assert set(EXEMPT) <= routed, sorted(set(EXEMPT) - routed)
+    assert set(EXEMPT).isdisjoint(committed), sorted(set(EXEMPT) & committed)

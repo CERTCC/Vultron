@@ -251,7 +251,7 @@ This model sharpens the replication boundary:
 To support replay and stale-position detection, participant assertions should
 carry the last canonical log hash or position the sender has applied in `context`
 when available. That gives the CASE_MANAGER a concrete basis for deciding whether
-to accept the assertion, reject it as stale, or replay missing canonical
+to admit the assertion, refuse it as stale, or replay missing canonical
 entries first.
 
 The hash chain should therefore be computed over **CASE_MANAGER-authored canonical
@@ -285,7 +285,10 @@ by construction only if the replica decides nothing, so:
 - **No allow-list.** A write with no entry is a defect, not an exception.
   `NO_REPLICA_EFFECT` in `test/architecture/test_ledger_event_types_are_replayed.py`
   records committed types that change nothing a replica holds; it is not a
-  place to park an unreplayed write.
+  place to park an unreplayed write. `EXEMPT` in
+  `test/architecture/test_ledger_commit_coverage.py` lists only activities that
+  are not case events (CLP-02-013); how it records a tracked gap is #4476's to
+  settle.
 
 **Pitfall: "one act, one entry".** CLP-09-003 once said a use case produces
 "exactly one canonical commit", and ADR-0116 dropped the invitee's participant
