@@ -94,7 +94,7 @@ groups:
       and the `HP-01-003`-marked tests under `test/core/use_cases/received/` drive each
       handler through its skip, defer, and refuse exits and assert the disposition each one
       earns — a redelivered duplicate is `SKIPPED`, a parked item is `DEFERRED`, and only a
-      rejected assertion is `REFUSED`;
+      refused assertion is `REFUSED`;
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` carries each disposition
       through the dispatcher to `InboxOutcome`.
     adr:

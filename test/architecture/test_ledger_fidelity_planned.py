@@ -22,7 +22,10 @@ Strict ``xfail``".
 
 import pytest
 
-from test.architecture._ledger_commit_inventory import _commits
+from test.architecture._ledger_commit_inventory import (
+    _commits,
+    received_commit_semantics,
+)
 from vultron.core.behaviors.case.create_case_trigger_tree import (
     create_case_trigger_bt,
 )
@@ -48,3 +51,13 @@ def test_case_bookkeeping_is_not_a_case_field():
         "recommendation_recommender_index"
         not in VulnerabilityCase.model_fields
     )
+
+
+@pytest.mark.spec("CM-21-012")
+@pytest.mark.spec("CLP-02-012")
+@pytest.mark.xfail(
+    strict=True,
+    reason="CM-21-012: the ownership-transfer Reject handler commits no entry. #3748.",
+)
+def test_ownership_transfer_reject_commits_an_entry():
+    assert "reject_case_ownership_transfer" in received_commit_semantics()

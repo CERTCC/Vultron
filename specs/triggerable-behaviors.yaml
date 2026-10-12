@@ -445,17 +445,45 @@ groups:
   - id: TRIG-11-004
     priority: MUST
     kind: project
-    statement: Both ownership-transfer triggers MUST return an `activity` field in their response body containing the emitted
+    statement: Every ownership-transfer trigger MUST return an `activity` field in their response body containing the emitted
       ActivityStreams object, consistent with the response contract for all other trigger endpoints (TRIG-05-001).
     verification: >-
-      Integration tests in `test/demo/` confirm that both ownership-transfer
-      trigger responses include an `activity` field containing the emitted
+      Integration tests in `test/demo/` confirm that every ownership-transfer
+      trigger response includes an `activity` field containing the emitted
       ActivityStreams object.
     relationships:
     - rel_type: refines
       spec_id: TRIG-11-001
     - rel_type: refines
       spec_id: TRIG-11-002
+    - rel_type: refines
+      spec_id: TRIG-11-005
+  - id: TRIG-11-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The system MUST expose a `reject-case-ownership-transfer` trigger at
+      `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer` that accepts an
+      `offer_id` in its request body and emits a `Reject(Offer(VulnerabilityCase))`
+      (ownership transfer variant) from the requesting actor, addressed to the
+      CASE_MANAGER (CM-21-010).
+    rationale: >-
+      Symmetry with TRIG-11-002. Without it the only way to decline a transfer is to
+      build the Reject by hand and post it into the CASE_MANAGER's inbox, which is
+      what the transfer-ownership exchange demo does and DEMOMA-05-001 forbids.
+    verification: >-
+      A test marked `TRIG-11-005` confirms the route is registered; integration tests
+      in `test/demo/` confirm a POST with a valid `offer_id` emits the Reject addressed
+      to the CASE_MANAGER.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-01-001
+    - rel_type: refines
+      spec_id: TRIG-11-002
+    - rel_type: refines
+      spec_id: CM-21-010
+    stories:
+    - story_2022_050
 - id: TRIG-12
   title: Trigger API Contract Stability and Dispatch Registry
   specs:

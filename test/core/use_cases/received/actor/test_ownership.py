@@ -881,3 +881,64 @@ class TestOwnershipOfferNamingNoCase:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason and "names no case" in result.reason
         assert dl.read(ReceivedActivityRecord.build_id(offer.id_)) is not None
+
+
+@pytest.mark.spec("CM-21-014")
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="CM-21-014: a second Offer is forwarded while the first is unanswered. #3748.",
+)
+def test_second_offer_while_first_is_unanswered_is_refused(make_payload):
+    """Two pending Offers would let two transferees accept the same case."""
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+    case_actor_id = "https://example.org/actors/case-actor"
+    vendor_id = "https://example.org/users/vendor"
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+    case = as_VulnerabilityCase(
+        id_="https://example.org/cases/case_ot_one_open",
+        name="One open offer",
+        attributed_to=vendor_id,
+    )
+    seed_case_manager_participant(dl, case, case_actor_id)
+    dl.create(case)
+    trigger_activity = MagicMock()
+    trigger_activity.offer_case_ownership_transfer.return_value = (
+        "https://example.org/activities/forwarded",
+        {},
+    )
+
+    def deliver(transferee_id: str, offer_id: str) -> HandlerDisposition:
+        offer = offer_case_ownership_transfer_activity(
+            case,
+            target=as_Service(id_=transferee_id, name="Transferee"),
+            actor=vendor_id,
+            to=[case_actor_id],
+            id_=offer_id,
+        )
+        return (
+            OfferCaseOwnershipTransferReceivedUseCase(
+                dl,
+                make_payload(offer, receiving_actor_id=case_actor_id),
+                trigger_activity=trigger_activity,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            )
+            .execute()
+            .disposition
+        )
+
+    first = deliver(
+        "https://example.org/users/coordinator",
+        "https://example.org/activities/offer_one_open_1",
+    )
+    second = deliver(
+        "https://example.org/users/vendor2",
+        "https://example.org/activities/offer_one_open_2",
+    )
+
+    assert first is HandlerDisposition.APPLIED
+    assert second is HandlerDisposition.REFUSED
+    trigger_activity.offer_case_ownership_transfer.assert_called_once()

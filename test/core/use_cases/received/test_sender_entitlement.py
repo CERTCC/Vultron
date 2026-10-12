@@ -92,6 +92,7 @@ from vultron.core.use_cases.received.actor.offer_case_participant import (
 )
 from vultron.core.use_cases.received.actor.ownership import (
     AcceptCaseOwnershipTransferReceivedUseCase,
+    RejectCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.core.use_cases.received.case.lifecycle import (
     AddReportToCaseReceivedUseCase,
@@ -128,6 +129,7 @@ from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     em_reject_embargo_activity,
     offer_case_ownership_transfer_activity,
+    reject_case_ownership_transfer_activity,
     reject_case_participant_offer_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
@@ -230,6 +232,41 @@ def test_ownership_accept_from_non_transferee_is_refused(
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert _reload_case(cm_store, owned_case.id_).attributed_to == _OWNER_ID
+    assert cm_store.outbox_list() == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="CM-21-013: ownership Reject from a non-transferee is not refused. #3748.",
+)
+@pytest.mark.spec("CM-21-013")
+@pytest.mark.spec("HP-01-006")
+def test_ownership_reject_from_non_transferee_is_refused(
+    cm_store, owned_case, make_payload
+):
+    """The recorded Offer names another transferee; the impostor declines it."""
+    cm_store.create(owned_case)
+    offer = offer_case_ownership_transfer_activity(
+        owned_case,
+        target=as_Actor(id_="https://example.org/actors/transferee"),
+        actor=_OWNER_ID,
+        id_="https://example.org/activities/offer-ownership-se-reject",
+    )
+    cm_store.create(offer)
+    event = make_payload(
+        reject_case_ownership_transfer_activity(offer, actor=_IMPOSTOR_ID),
+        receiving_actor_id=_CASE_MANAGER_ID,
+    )
+
+    result = RejectCaseOwnershipTransferReceivedUseCase(
+        cm_store,
+        event,
+        sync_port=SyncActivityAdapter(cm_store),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
     assert cm_store.outbox_list() == []
 
 

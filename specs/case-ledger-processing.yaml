@@ -59,8 +59,8 @@ groups:
   - id: CLP-02-001
     priority: MUST
     kind: protocol
-    statement: For each case-resolvable assertion processed at the case layer, the
-      CASE_MANAGER MUST append a canonical `CaseLedgerEntry`
+    statement: For each case-resolvable assertion the CASE_MANAGER admits at the
+      case layer, it MUST append a canonical `CaseLedgerEntry`
     verification: Integration tests in `test/demo/` confirm that after each protocol-significant
       activity is processed at the case layer, the CASE_MANAGER's ledger grows by exactly
       one new `CaseLedgerEntry` for that case.
@@ -92,9 +92,9 @@ groups:
   - id: CLP-02-004
     priority: MUST
     kind: protocol
-    statement: Every `CaseLedgerEntry` records a canonical accepted assertion; the
+    statement: Every `CaseLedgerEntry` records a canonical admitted assertion; the
       entry model MUST NOT include disposition, reason_code, or reason_detail fields
-      because the ledger contains only accepted entries (see CLP-04-007).
+      because the ledger contains only admitted entries (see CLP-04-007).
     verification: Inspection of `vultron/core/models/case_ledger_entry.py` confirms
       that `CaseLedgerEntry` declares no `disposition`, `reason_code`, or
       `reason_detail` field.
@@ -104,9 +104,9 @@ groups:
     priority: MUST
     kind: protocol
     verification_debt: '#3612'
-    statement: When the CASE_MANAGER rejects an incoming assertion, the rejection
-      outcome MUST be emitted as a `Reject` protocol activity directed at the
-      asserting participant; it MUST NOT be written to the canonical case ledger.
+    statement: When the CASE_MANAGER refuses an incoming assertion, the refusal
+      MUST be emitted as a `Reject` protocol activity directed at the asserting
+      participant; it MUST NOT be written to the canonical case ledger.
     stories:
     - story_2022_045
     - story_2022_088
@@ -169,6 +169,63 @@ groups:
     stories:
     - story_2022_045
     - story_2022_106
+  - id: CLP-02-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      "Accept" and "Reject" MUST be used only for the AS2 activities. The
+      CASE_MANAGER's verdict on whether an assertion enters the ledger is
+      *admitted* or *refused*, and the rules that keep refusals off the ledger
+      (CLP-02-005, CLP-04-007, CLP-05-002) govern that verdict, not the `Reject`
+      activity. A participant's `Reject` or `TentativeReject` answering a request
+      (an `Offer` or an `Invite`) is a case event: when the CASE_MANAGER admits it,
+      it MUST commit a `CaseLedgerEntry` for it under CLP-02-001, as it does for the
+      matching `Accept`.
+    rationale: >-
+      The same word named both the CASE_MANAGER's ledger verdict and the protocol
+      activity, so "rejections are not ledgered" was read as "Reject activities are
+      not ledgered". Handlers then committed nothing for a declined request, the
+      request stayed open on every replica, and each case was argued afresh (#3748,
+      ownership transfer). A declined request closes a request/reply pair, which
+      the ledger must record (CLP-11-001).
+    verification: >-
+      A test marked `CLP-02-012` confirms that the ownership-transfer `Reject`
+      handler reaches a canonical commit.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-02-001
+    - rel_type: refines
+      spec_id: CLP-05-002
+    stories:
+    - story_2022_045
+  - id: CLP-02-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Every activity the CASE_MANAGER admits at the case layer is a case event and
+      MUST be ledgered (CLP-02-001), except the following, which are not case events:
+      activities processed before a case exists (report submission, case proposal
+      intake); a replica's receipt of `Announce(CaseLedgerEntry)`, which applies an
+      entry rather than asserting one; activities about the ledger itself, namely the
+      CASE_MANAGER's refusal notice (CLP-05-001) and a replica's
+      `Reject(CaseLedgerEntry)` asking for redelivery; and a message no pattern
+      matches or whose object cannot be resolved. The list is closed: a new kind of
+      activity that carries no entry MUST be added here first.
+    rationale: >-
+      Whether something is ledgered was decided handler by handler, so a handler
+      that "changed nothing" committed nothing and nobody noticed. A closed list
+      turns each exception into a recorded decision and gives the CLP-09-003
+      coverage test a fixed set of grounds for exemption.
+    verification: >-
+      The CLP-09-003 coverage test, marked `CLP-02-013`, exempts a routed use case
+      only on one of these grounds or by naming an open issue.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-02-001
+    - rel_type: refines
+      spec_id: CLP-09-003
+    stories:
+    - story_2022_045
 - id: CLP-03
   title: Audit Scope and Continuity
   specs:
@@ -216,11 +273,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: The authoritative history of a case MUST be the append-only canonical
-      ledger; every entry in it records a protocol-significant accepted assertion.
-      The ledger contains no rejected or locally-scoped entries (see CLP-04-007).
+      ledger; every entry in it records a protocol-significant admitted assertion.
+      The ledger contains no refused or locally-scoped entries (see CLP-04-007).
     verification: '`test/demo/test_ledger_dump.py` confirms that the case history
-      ledger contains only protocol-significant accepted entries and that no
-      rejection-tagged entries appear in it.'
+      ledger contains only protocol-significant admitted entries and that no
+      refusal-tagged entries appear in it.'
     stories:
     - story_2022_045
     - story_2022_088
@@ -228,7 +285,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: Case-state reconstruction MUST use only the canonical case ledger;
-      rejected assertions are never committed to the ledger and therefore require
+      refused assertions are never committed to the ledger and therefore require
       no filter during reconstruction.
     verification: Integration tests in `test/demo/` confirm that case-state
       reconstruction reads exclusively from the canonical case ledger.
@@ -239,7 +296,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: Replicated hash chains, Merkle proofs, and replay state MUST be computed
-      over the canonical case ledger; because the ledger contains only accepted
+      over the canonical case ledger; because the ledger contains only admitted
       canonical entries, no disposition filtering is required during chain computation.
     verification: Integration tests in `test/demo/test_sync_ledger_replication.py`
       confirm that hash chain verification (`verify_hash_chain`) passes for the
@@ -262,7 +319,7 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: When a participant includes log-position context with an assertion,
-      it SHOULD use the sender's last accepted canonical hash or position from the
+      it SHOULD use the last canonical hash or position the sender holds from the
       canonical case ledger
   - id: CLP-04-006
     priority: MUST
@@ -279,8 +336,8 @@ groups:
   - id: CLP-04-007
     priority: MUST
     kind: protocol
-    statement: The case ledger MUST contain only canonical accepted entries. Rejection
-      outcomes from any processing path MUST be surfaced through structured logging,
+    statement: The case ledger MUST contain only canonical admitted entries. Refusals
+      from any processing path MUST be surfaced through structured logging,
       not written as ledger entries. Freshness-gate and tail-reconstruction helpers
       operate on the ledger directly and therefore require no disposition filter.
     verification: '`test/core/test_sync_helpers.py` confirms that `is_ledger_fresh_for_case`
@@ -291,20 +348,25 @@ groups:
     - story_2022_045
     - story_2022_088
 - id: CLP-05
-  title: Rejection Handling
+  title: Refusal Handling
+  description: >-
+    What the CASE_MANAGER does with an assertion it refuses to admit to the ledger.
+    "Refused" is the CASE_MANAGER's ledger verdict, not the AS2 `Reject` activity: a
+    participant's `Reject` answering a request is a case event and is admitted and
+    ledgered like any other (CLP-02-012).
   specs:
   - id: CLP-05-001
     priority: SHOULD
     kind: protocol
-    statement: When the CASE_MANAGER rejects an incoming assertion, it SHOULD send
-      a rejection notification directly to the asserting participant via a protocol
-      Reject activity rather than recording the rejection as a ledger entry.
+    statement: When the CASE_MANAGER refuses an incoming assertion, it SHOULD send
+      a refusal notice directly to the asserting participant via a protocol
+      Reject activity rather than recording the refusal as a ledger entry.
   - id: CLP-05-002
     priority: MUST_NOT
     kind: protocol
     verification_debt: '#3612'
-    statement: Rejection outcomes MUST NOT be recorded as entries in the canonical
-      case ledger; the canonical ledger contains only accepted protocol-significant
+    statement: Refusals MUST NOT be recorded as entries in the canonical case
+      ledger; the canonical ledger contains only admitted protocol-significant
       assertions (see CLP-04-007).
   - id: CLP-05-003
     priority: MUST_NOT
@@ -410,7 +472,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: Each logical state change MUST produce at most one canonical `CaseLedgerEntry`;
-      the CASE_MANAGER MUST NOT commit both an accepted-participant-assertion entry and
+      the CASE_MANAGER MUST NOT commit both an admitted-participant-assertion entry and
       a separately-synthesized CASE_MANAGER entry for the same state change.
       An act and the state transitions the CASE_MANAGER records as its
       consequence are different facts, not the same state change. The
@@ -418,7 +480,7 @@ groups:
       follow it record the RM transitions the Leave caused (CM-23-001).
     verification: Integration tests in `test/demo/` confirm that each logical state
       change produces at most one `CaseLedgerEntry`; no test scenario produces both
-      an accepted-participant-assertion entry and a separately-synthesized CASE_MANAGER
+      an admitted-participant-assertion entry and a separately-synthesized CASE_MANAGER
       entry for the same state change. The case-ledger invariant harness
       (`test/ci/invariants/common.py`) asserts, for every replica of every scenario,
       that no two entries carry the same `payloadSnapshot.id` — the duplicate
@@ -776,15 +838,18 @@ groups:
       reach a canonical commit for its act, and one more for each further change it makes
       to the case file (CLP-07-013); a coverage test MUST enumerate protocol-significant
       entries (e.g., everything reachable from `use_case_map()`) and assert each one
-      reaches a commit, rather than relying on manual audit to discover missing commits
+      reaches a commit, rather than relying on manual audit to discover missing commits.
+      The test MUST exempt a use case only on a ground CLP-02-013 lists or by naming an
+      open issue that tracks the missing commit
     rationale: '`validate_report`, `ack_report`, and `close_case` produced no canonical
       ledger entry at all on `main` for an unknown span of time (issue #998/#1022).
       Dispatch completeness is already enforced structurally for `use_case_map()` (DR-02-002,
       UCORG-02-002); commit completeness had no equivalent structural check and was
       found only by a manual re-audit.'
-    verification: A coverage test enumerates all use cases reachable via `use_case_map()`
-      and asserts that each one produces at least one `CaseLedgerEntry` with `disposition="recorded"`
-      in a representative demo run.
+    verification: A test under `test/architecture/`, marked `CLP-09-003`, enumerates
+      every use case reachable via `use_case_map()` and asserts, using the static
+      commit inventory in `test/architecture/_ledger_commit_inventory.py`, that each
+      one reaches a canonical commit or carries a CLP-02-013 exemption.
     stories:
     - story_2022_045
     - story_2022_074
@@ -1003,7 +1068,7 @@ groups:
       as a protocol effect forced it after the commit, and handlers that needed the
       record regardless of the verdict stored it procedurally in `execute()` instead
       (ISSUE-3339, ADR-0111). A refusal effect answers a refusal; the ordering rule
-      exists so an accepted assertion's effects follow the ledger record of their
+      exists so an admitted assertion's effects follow the ledger record of their
       cause, and a refused assertion has no ledger record and no other effect.
     verification: '`test/architecture/test_receive_side_intake_first.py` asserts
       that every receive-side tree factory under `vultron/core/behaviors/` returns
@@ -1012,7 +1077,7 @@ groups:
       has the intake node as its first child; `test_receive_side_bt_commit_ordering.py`
       asserts the guarded commit comes after every guard and no protocol-effect node
       ahead of the commit, counting `refusal_effects` as effects; `test/core/behaviors/case/nodes/test_refusal_stage.py`
-      asserts no refusal effect runs on an accepted delivery.'
+      asserts no refusal effect runs on an admitted delivery.'
     adr:
     - ADR-0111
     - ADR-0022
@@ -1111,7 +1176,7 @@ groups:
       received tree — which passes `case_id` and gates a commit on the CASE_MANAGER —
       had every commit refused as non-canonical and the handler reported `rejected`
       (#3764). It is now canonical: the CASE_MANAGER records the role-delegation offer
-      as a CM-accepted assertion (CLP-07-001), with no replica state effect — an offer
+      as a CM-admitted assertion (CLP-07-001), with no replica state effect — an offer
       is a proposal, not the grant, exactly like its sibling `Offer(CaseParticipant)`
       (CM-16). Whether accepting a role offer should itself mutate a participant''s
       roles on every replica (an `accept_case_participant_role` replay node) is a
@@ -1402,7 +1467,7 @@ groups:
     rationale: >-
       A receiver should not silently drop an assertion it can answer in the
       moment, such as a refused backward RM declaration (RSH-06-004). An emit
-      beside the guard would precede the commit on an accepted delivery
+      beside the guard would precede the commit on an admitted delivery
       (CLP-10-006), and per-tree scaffolding would repeat the structure
       (CS-22-001). The CASE_MANAGER adjudicates, so only it answers
       (BT-17-008); an unentitled sender is owed no answer (HP-01-006); a
@@ -1419,7 +1484,7 @@ groups:
       factory wraps the guards in the refusal stage ahead of the commit, gates
       the refusal effects on the CASE_MANAGER, and refuses a refusal effect
       that is not emit-capable; `test/core/behaviors/case/nodes/test_refusal_stage.py`
-      asserts the effects never run on an accepted delivery, run once on a
+      asserts the effects never run on an admitted delivery, run once on a
       refusal, are skipped on a redelivery, and leave the guard's failure
       reason; `TestRefusedRegressionIsNoted` in
       `test/core/behaviors/report/test_rm_declaration_adjudication.py`

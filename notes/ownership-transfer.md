@@ -3,14 +3,15 @@ title: Ownership Transfer Protocol — Routing and Cascade Model
 status: active
 description: >
   Implementation guidance for the ownership-transfer routing model introduced
-  in ADR-0053: Offer and Accept MUST route through the CASE_MANAGER so that
-  all participants receive CaseLedgerEntry broadcast notifications for both
-  the pending offer and the completed transfer.
+  in ADR-0053: Offer, Accept and Reject MUST route through the CASE_MANAGER so
+  that all participants receive CaseLedgerEntry broadcast notifications for
+  the pending offer and for its acceptance or decline.
 related_specs:
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
   - specs/event-driven-control-flow.yaml
   - specs/behavior-tree-integration.yaml
+  - specs/triggerable-behaviors.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
@@ -28,7 +29,8 @@ relevant_packages:
 # Ownership Transfer Protocol — Routing and Cascade Model
 
 **Source**: ADR-0053 / CONCERN-1755 planning session 2026-08-05.
-Normative requirements: CM-21-005, CM-21-006, CM-21-007.
+Normative requirements: CM-21-005, CM-21-006, CM-21-007, CM-21-010 –
+CM-21-014, TRIG-11-005.
 
 ---
 
@@ -402,26 +404,43 @@ The invariant to assert: the accepting actor's `case.attributed_to` MUST change
 on its own replica. The demo CI integration tests (`test/ci/invariants/`) are the
 authoritative runtime enforcement.
 
-## Open Question: What the CASE_MANAGER Does With a Rejected Offer
+## The Reject Path (CM-21-010, CM-21-012 – CM-21-014)
 
-CM-21-010 settles the **addressing** of a declined transfer — a
-`Reject(Offer(VulnerabilityCase))` is addressed to the CASE_MANAGER's inbox
-(`to=[case_actor_id]`), symmetric with the Accept path (CM-21-006) and the
-original Offer hop (CM-21-005). What the CASE_MANAGER does *on receiving* that
-rejection is deliberately left open:
+Settled by #3748. A declined transfer follows the same shape as an accepted one;
+nothing about it is a special case.
 
-- **Is the rejection ledgered?** The Accept path commits a `CaseLedgerEntry` and
-  broadcasts `Announce(CaseLedgerEntry)` (CM-21-007). It is unresolved whether a
-  declined transfer earns a ledger entry of its own, or leaves no canonical
-  trace beyond the CASE_MANAGER's local state reverting.
-- **Does the offerer learn of the rejection?** With the Reject addressed to the
-  CASE_MANAGER rather than the offerer, the offerer is not a direct recipient. Some
-  notification hop (or a ledger broadcast, per the point above) would be needed
-  for the offerer to discover the decline.
-- **Is the case re-offerable?** Whether a rejected Offer can be re-issued to the
-  same transferee, or to a different one, and whether any cooldown or state
-  cleanup is required first, is unspecified.
+```text
+Transferee calls trigger: reject-case-ownership-transfer      ← TRIG-11-005
+  → Reject(Offer(VulnerabilityCase))
+      addressed:  to=[case_actor_id]                          ← CM-21-010
+      queued in:  transferee's outbox
 
-These are received-side behavioral questions, distinct from the routing rule
-CM-21-010 fixes; resolving them will likely add received-side CM-21 entries and
-may warrant an ADR extension to ADR-0053.
+CASE_MANAGER inbox receives Reject
+  → RejectCaseOwnershipTransferReceivedUseCase:
+      guard:  sender is the transferee of a pending,
+              unanswered Offer it recorded                    ← CM-21-013
+              (anyone else: REFUSED, nothing written)
+      1. Commits CaseLedgerEntry (reject_case_ownership_transfer).  ← CM-21-012
+      2. Announce(CaseLedgerEntry) → all participants.
+```
+
+- **The offerer learns of the decline from the broadcast.** It is no longer a
+  recipient of the Reject itself (CM-21-010), and needs no separate notice.
+- **Replicas change no state.** `attributed_to` and every `CASE_OWNER` role stay
+  as they were. The entry's effect is that the Offer is now answered.
+- **"Answered" is read from the ledger.** An Offer is pending until the ledger
+  holds an Accept or Reject entry for it, found through `find_protocol_pair()`
+  with an ownership-transfer reply-types constant beside the existing ones
+  (CLP-11-001, CLP-11-003). The `VultronOwnershipTransferOfferRecord` on a
+  replica is case bookkeeping (CLP-07-014) and is never the source of that
+  answer.
+- **One open Offer per case (CM-21-014).** The CASE_MANAGER refuses a new
+  ownership-transfer Offer while an earlier one is unanswered. After an Accept
+  or a Reject the owner may offer again to anyone, the decliner included, with
+  no waiting period and nothing to clear.
+
+Why this was ever an open question, and why it should not have been: see
+[case-ledger-authority.md § Two Meanings of "Reject"](case-ledger-authority.md#two-meanings-of-reject).
+A participant's `Reject` is a case event and is ledgered like its `Accept`
+(CLP-02-012); only the CASE_MANAGER's *refusal* of an assertion stays off the
+ledger.
