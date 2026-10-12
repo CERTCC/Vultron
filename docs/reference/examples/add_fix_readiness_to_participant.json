@@ -1,9 +1,9 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Add",
-  "id": "urn:uuid:61bc4f19-44f5-408e-a8af-c4224878b775",
-  "name": "https://vultron.example/organizations/vendorco Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor",
-  "actor": "https://vultron.example/organizations/vendorco",
+  "id": "urn:uuid:18b6bef0-b5f7-4047-9eec-70041f4915c3",
+  "name": "https://vultron.example/organizations/vendor Add ACCEPTED VF NONE pxa to https://vultron.example/cases/1/participants/vendor",
+  "actor": "https://vultron.example/organizations/vendor",
   "target": "https://vultron.example/cases/1/participants/vendor",
   "object": {
     "id": "https://vultron.example/cases/1/participants/vendor/status/3",

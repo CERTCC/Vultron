@@ -33,6 +33,7 @@ from vultron.core.use_cases.received.report import (
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
+    HowToGuide,
     MessagePage,
     Occasion,
     ProtocolShorthand,
@@ -52,10 +53,6 @@ from vultron.wire.as2.vocab.activities.report import (
     _RmReadReportActivity,
     _RmSubmitReportActivity,
     _RmValidateReportActivity,
-)
-
-_HOWTO_REPORT_VULNERABILITY = (
-    "howto/activitypub/activities/report_vulnerability.md"
 )
 
 ENTRIES: list[SemanticEntry] = [
@@ -79,7 +76,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Offer that submits the report."
                 ),
                 example="create_report",
-                howto=_HOWTO_REPORT_VULNERABILITY,
+                howto=HowToGuide.REPORT_VULNERABILITY,
                 usual_senders=(
                     CVDRole.FINDER,
                     CVDRole.REPORTER,
@@ -108,7 +105,7 @@ ENTRIES: list[SemanticEntry] = [
                     "carry proposed embargo terms."
                 ),
                 example="submit_report",
-                howto=_HOWTO_REPORT_VULNERABILITY,
+                howto=HowToGuide.REPORT_VULNERABILITY,
                 shorthand=ProtocolShorthand.RS,
                 usual_senders=(CVDRole.REPORTER,),
             ),
@@ -133,7 +130,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the acknowledgment is an explicit message."
                 ),
                 example="read_report",
-                howto=_HOWTO_REPORT_VULNERABILITY,
+                howto=HowToGuide.REPORT_VULNERABILITY,
                 shorthand=ProtocolShorthand.RK,
                 usual_senders=(
                     CVDRole.VENDOR,
@@ -160,7 +157,7 @@ ENTRIES: list[SemanticEntry] = [
                     "state to Valid."
                 ),
                 example="validate_report",
-                howto=_HOWTO_REPORT_VULNERABILITY,
+                howto=HowToGuide.REPORT_VULNERABILITY,
                 shorthand=ProtocolShorthand.RV,
                 usual_senders=(
                     CVDRole.VENDOR,
@@ -187,7 +184,7 @@ ENTRIES: list[SemanticEntry] = [
                     "state to Invalid."
                 ),
                 example="invalidate_report",
-                howto=_HOWTO_REPORT_VULNERABILITY,
+                howto=HowToGuide.REPORT_VULNERABILITY,
                 shorthand=ProtocolShorthand.RI,
                 usual_senders=(
                     CVDRole.VENDOR,
@@ -214,7 +211,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Closed."
                 ),
                 example="close_report",
-                howto=_HOWTO_REPORT_VULNERABILITY,
+                howto=HowToGuide.REPORT_VULNERABILITY,
                 shorthand=ProtocolShorthand.RC,
                 usual_senders=(
                     CVDRole.VENDOR,

@@ -291,12 +291,13 @@ def _expected_sent_by(entry: SemanticEntry) -> str:
     that trades an exemption for a real rule changes the value without
     breaking this test.
     """
-    declared = entry.use_case_class.sender_entitlement
+    declared = getattr(entry.use_case_class, "sender_entitlement", None)
     if isinstance(declared, SenderExemption):
         base = NOT_YET_CHECKED
     elif declared is SenderEntitlementKind.NAMED_ACTOR:
         base = "the addressee of the "
     else:
+        assert isinstance(declared, SenderEntitlementKind)
         base = SENT_BY_WORDING[declared]
     return base
 

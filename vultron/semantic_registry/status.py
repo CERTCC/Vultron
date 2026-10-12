@@ -36,6 +36,7 @@ from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
     FieldValue,
+    HowToGuide,
     MessagePage,
     Occasion,
     ProtocolShorthand,
@@ -54,8 +55,6 @@ from vultron.wire.as2.vocab.activities.case_participant import (
     _AddStatusToParticipantActivity,
     _CreateStatusForParticipantActivity,
 )
-
-_HOWTO_STATUS_UPDATES = "howto/activitypub/activities/status_updates.md"
 
 ENTRIES: list[SemanticEntry] = [
     # Case status
@@ -79,7 +78,7 @@ ENTRIES: list[SemanticEntry] = [
                     "`pxa_state`. It precedes the Add."
                 ),
                 example="create_case_status",
-                howto=_HOWTO_STATUS_UPDATES,
+                howto=HowToGuide.STATUS_UPDATES,
             ),
         ),
         page=MessagePage.CS,
@@ -107,7 +106,7 @@ ENTRIES: list[SemanticEntry] = [
                 distinguisher=FieldValue(
                     object_type=CaseStatus, field="pxa_state", value=CS_pxa.Pxa
                 ),
-                howto=_HOWTO_STATUS_UPDATES,
+                howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.CP,
             ),
             Occasion(
@@ -123,7 +122,7 @@ ENTRIES: list[SemanticEntry] = [
                 distinguisher=FieldValue(
                     object_type=CaseStatus, field="pxa_state", value=CS_pxa.PXa
                 ),
-                howto=_HOWTO_STATUS_UPDATES,
+                howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.CX,
             ),
             Occasion(
@@ -140,7 +139,7 @@ ENTRIES: list[SemanticEntry] = [
                 distinguisher=FieldValue(
                     object_type=CaseStatus, field="pxa_state", value=CS_pxa.pxA
                 ),
-                howto=_HOWTO_STATUS_UPDATES,
+                howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.CA,
             ),
         ),
@@ -167,7 +166,7 @@ ENTRIES: list[SemanticEntry] = [
                     "`vf_state` and `d_state`. It precedes the Add."
                 ),
                 example="create_participant_status",
-                howto=_HOWTO_STATUS_UPDATES,
+                howto=HowToGuide.STATUS_UPDATES,
             ),
         ),
         page=MessagePage.CS,
@@ -194,7 +193,7 @@ ENTRIES: list[SemanticEntry] = [
                     field="vf_state",
                     value=CS_vf.Vf,
                 ),
-                howto=_HOWTO_STATUS_UPDATES,
+                howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.CV,
                 usual_senders=(CVDRole.VENDOR,),
             ),
@@ -211,7 +210,7 @@ ENTRIES: list[SemanticEntry] = [
                     field="vf_state",
                     value=CS_vf.VF,
                 ),
-                howto=_HOWTO_STATUS_UPDATES,
+                howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.CF,
                 usual_senders=(CVDRole.VENDOR,),
             ),
@@ -228,7 +227,7 @@ ENTRIES: list[SemanticEntry] = [
                     field="d_state",
                     value=CS_d.D,
                 ),
-                howto=_HOWTO_STATUS_UPDATES,
+                howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.CD,
                 usual_senders=(CVDRole.DEPLOYER,),
             ),

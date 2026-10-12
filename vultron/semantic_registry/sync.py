@@ -30,6 +30,7 @@ from vultron.core.use_cases.received.sync import (
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
+    HowToGuide,
     MessagePage,
     Occasion,
 )
@@ -43,8 +44,6 @@ from vultron.wire.as2.vocab.activities.sync import (
     _AnnounceLogEntryActivity,
     _RejectLogEntryActivity,
 )
-
-_HOWTO_MANAGE_CASE = "howto/activitypub/activities/manage_case.md"
 
 ENTRIES: list[SemanticEntry] = [
     # CLOSE_CASE precedes the sync entries in the original dispatch order
@@ -65,7 +64,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Leaves the case, moving the sender's RM state to Closed."
                 ),
                 example="close_case",
-                howto=_HOWTO_MANAGE_CASE,
+                howto=HowToGuide.MANAGE_CASE,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,

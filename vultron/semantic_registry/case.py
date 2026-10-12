@@ -46,6 +46,7 @@ from vultron.core.use_cases.received.case_proposal import (
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
+    HowToGuide,
     MessagePage,
     Occasion,
     ProtocolShorthand,
@@ -68,9 +69,6 @@ from vultron.wire.as2.vocab.activities.case import (
     _UpdateCaseActivity,
 )
 
-_HOWTO_INITIALIZE_CASE = "howto/activitypub/activities/initialize_case.md"
-_HOWTO_MANAGE_CASE = "howto/activitypub/activities/manage_case.md"
-
 ENTRIES: list[SemanticEntry] = [
     # CaseProposal entries (CP-03-001 through CP-03-004): must appear before
     # any more-general Create/Accept/Reject patterns that share the same
@@ -86,7 +84,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "a report receiver asks a case-actor service to open a "
+                    "a report receiver asks a Case Actor Service to open a "
                     "case for a report"
                 ),
                 anchor="create-case-proposal",
@@ -113,7 +111,7 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when="a case-actor service agrees to open the proposed case",
+                when="a Case Actor Service agrees to open the proposed case",
                 anchor="accept-case-proposal",
                 description=(
                     "Accepts the case proposal and tells the proposing actor "
@@ -134,7 +132,7 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when="a case-actor service declines to open the proposed case",
+                when="a Case Actor Service declines to open the proposed case",
                 anchor="reject-case-proposal",
                 description="Rejects the case proposal. No case is opened.",
                 example="reject_case_proposal",
@@ -162,7 +160,7 @@ ENTRIES: list[SemanticEntry] = [
                     " the completed case once to the report submitter."
                 ),
                 example="create_case",
-                howto=_HOWTO_INITIALIZE_CASE,
+                howto=HowToGuide.INITIALIZE_CASE,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -207,7 +205,7 @@ ENTRIES: list[SemanticEntry] = [
                     "names the case rather than the report."
                 ),
                 example="engage_case",
-                howto=_HOWTO_MANAGE_CASE,
+                howto=HowToGuide.MANAGE_CASE,
                 shorthand=ProtocolShorthand.RA,
             ),
         ),
@@ -237,7 +235,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the verb names the case rather than the report."
                 ),
                 example="defer_case",
-                howto=_HOWTO_MANAGE_CASE,
+                howto=HowToGuide.MANAGE_CASE,
                 shorthand=ProtocolShorthand.RD,
             ),
         ),

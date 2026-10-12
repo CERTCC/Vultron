@@ -128,26 +128,23 @@ def create_participant_status() -> as_Create:
 
 def _add_participant_status(
     number: int,
+    slug: str,
     role: CVDRole,
     vf: CS_vf | None = None,
     d: CS_d | None = None,
 ) -> as_Add:
-    """``Add(ParticipantStatus)`` announcing a vendor- or deployer-path state.
+    """``Add(ParticipantStatus)`` sent by the participant whose state changed.
 
-    The sender is the participant whose state changed: the example Vendor for
-    the vendor path, an example Deployer for the deployer path.
+    *slug* names both the example organization and its participant record,
+    so the vendor path is sent by the example Vendor and the deployer path by
+    an example Deployer.
     """
-    slug = "deployer" if role is CVDRole.DEPLOYER else "vendor"
-    sender_id = (
-        vendor().id_
-        if role is CVDRole.VENDOR
-        else "https://vultron.example/organizations/deployer"
-    )
+    sender_id = f"https://vultron.example/organizations/{slug}"
     participant_id = f"https://vultron.example/cases/1/participants/{slug}"
     pstatus = as_ParticipantStatus(
         id_=f"{participant_id}/status/{number}",
         context=participant_id,
-        attributed_to=f"https://vultron.example/organizations/{slug}",
+        attributed_to=sender_id,
         rm=RmDimension(state=RM.ACCEPTED),
         vf=None if vf is None else VfDimension(state=vf),
         d=None if d is None else DDimension(state=d),
@@ -162,17 +159,17 @@ def _add_participant_status(
 
 def add_vendor_awareness_to_participant() -> as_Add:
     """Vendor awareness (CV): the Vendor's ``vf_state`` moves to ``Vf``."""
-    return _add_participant_status(2, CVDRole.VENDOR, vf=CS_vf.Vf)
+    return _add_participant_status(2, "vendor", CVDRole.VENDOR, vf=CS_vf.Vf)
 
 
 def add_fix_readiness_to_participant() -> as_Add:
     """Fix readiness (CF): the Vendor's ``vf_state`` moves to ``VF``."""
-    return _add_participant_status(3, CVDRole.VENDOR, vf=CS_vf.VF)
+    return _add_participant_status(3, "vendor", CVDRole.VENDOR, vf=CS_vf.VF)
 
 
 def add_fix_deployment_to_participant() -> as_Add:
     """Fix deployed (CD): the Deployer's ``d_state`` moves to ``D``."""
-    return _add_participant_status(4, CVDRole.DEPLOYER, d=CS_d.D)
+    return _add_participant_status(4, "deployer", CVDRole.DEPLOYER, d=CS_d.D)
 
 
 def add_status_to_participant() -> as_Add:

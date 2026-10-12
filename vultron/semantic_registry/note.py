@@ -26,6 +26,7 @@ from vultron.core.use_cases.received.note import (
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
+    HowToGuide,
     MessagePage,
     Occasion,
     ProtocolShorthand,
@@ -38,8 +39,6 @@ from vultron.wire.as2.extractor import (
 from vultron.wire.as2.vocab.activities.case import (
     _AddNoteToCaseActivity,
 )
-
-_HOWTO_STATUS_UPDATES = "howto/activitypub/activities/status_updates.md"
 
 ENTRIES: list[SemanticEntry] = [
     SemanticEntry(
@@ -61,7 +60,7 @@ ENTRIES: list[SemanticEntry] = [
                     "attaches it."
                 ),
                 example="create_note",
-                howto=_HOWTO_STATUS_UPDATES,
+                howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.GI,
             ),
         ),
@@ -84,7 +83,7 @@ ENTRIES: list[SemanticEntry] = [
                     "example to ask or answer a question."
                 ),
                 example="add_note_to_case",
-                howto=_HOWTO_STATUS_UPDATES,
+                howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.GI,
             ),
         ),
@@ -108,7 +107,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Removes the note from the case named by the target."
                 ),
                 example="remove_note_from_case",
-                howto=_HOWTO_STATUS_UPDATES,
+                howto=HowToGuide.STATUS_UPDATES,
                 shorthand=ProtocolShorthand.GI,
             ),
         ),

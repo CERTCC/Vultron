@@ -21,12 +21,12 @@ field value (MSM-08-003).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import dataclasses
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
@@ -50,6 +50,7 @@ from vultron.semantic_registry._occasion import (
     ProtocolShorthand,
     StateContext,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.examples import vocab_examples
 
 _DOCS = Path(__file__).parents[1] / "docs"
@@ -98,7 +99,7 @@ def _entry(
 
 def test_occasion_is_frozen():
     occasion = _occasion()
-    with pytest.raises(dataclasses.FrozenInstanceError):
+    with pytest.raises(ValidationError, match="frozen"):
         occasion.when = "something else"  # type: ignore[misc]
 
 
@@ -111,6 +112,7 @@ def test_occasion_rejects_empty_required_prose(field_name: str):
 
 @pytest.mark.parametrize("field_name", ["howto", "notes"])
 def test_occasion_rejects_present_but_empty_optional_prose(field_name: str):
+    """``howto`` is a ``HowToGuide``, so an empty string is no guide at all."""
     with pytest.raises(ValueError, match=field_name):
         _occasion(**{field_name: ""})
 
@@ -133,7 +135,7 @@ def test_occasion_rejects_example_that_is_not_a_function_name(example: str):
 
 @pytest.mark.spec("MSM-08-005")
 def test_occasion_rejects_usual_sender_that_is_not_a_cvd_role():
-    with pytest.raises(ValueError, match="CVDRole"):
+    with pytest.raises(ValidationError, match="usual_senders"):
         _occasion(usual_senders=("vendor",))
 
 
@@ -214,13 +216,13 @@ def test_state_context_rejects_a_state_outside_its_machine():
 
 @pytest.mark.spec("MSM-08-002")
 def test_state_context_rejects_no_states():
-    with pytest.raises(ValueError, match="at least one state"):
+    with pytest.raises(ValidationError, match="states"):
         StateContext(machine=EM, states=())
 
 
 @pytest.mark.spec("MSM-08-002")
 def test_state_context_rejects_a_machine_that_is_not_an_enum():
-    with pytest.raises(TypeError, match="not a state enum"):
+    with pytest.raises(ValidationError, match="machine"):
         StateContext(machine=str, states=(EM.ACTIVE,))  # type: ignore[arg-type]
 
 
@@ -326,10 +328,11 @@ def test_occasion_example_dispatches_to_its_own_entry(
         f" {occasion.example!r}"
     )
     activity = build()
+    assert isinstance(activity, as_Activity)
     assert find_matching_semantics(activity) is entry.semantics
     distinguisher = occasion.distinguisher
     if isinstance(distinguisher, FieldValue):
-        carrier = activity.object_
+        carrier = getattr(activity, "object_", None)
         assert isinstance(carrier, distinguisher.object_type)
         assert getattr(carrier, distinguisher.field) == distinguisher.value
 

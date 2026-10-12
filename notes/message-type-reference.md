@@ -363,7 +363,10 @@ Deriving the status corrected three rows on `rm.md`. MSM-01-002, MSM-01-003 and
 MSM-01-006 give `RI`, `RV` and `RC` a second wire form, the full-case Invite reply
 of a participant that joined through an Invite, so those shorthands are
 expansions, not direct mappings. `Create(ProcessingFault)` and
-`Reject(CaseLedgerEntry)` declare `evolved`.
+`Reject(CaseLedgerEntry)` declare `evolved`. The `Add(ParticipantStatus)`
+discriminator is now `vf_state / d_state`: `rm_state` distinguishes none of
+`CV`, `CF` and `CD`, so no occasion names it, and its RM role is the
+second-home row on `rm.md`.
 
 The YAML file and the `include-markdown` fragments (the whole table, a slice per
 page, one per occasion) are generated, committed, and gated by a `--check` hook

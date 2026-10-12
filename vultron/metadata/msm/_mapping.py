@@ -116,7 +116,7 @@ def mapping_status(
         return MappingStatus.NONE
     if len(shorthands) > 1:
         return MappingStatus.COLLAPSE
-    (shorthand,) = shorthands
+    shorthand = next(iter(shorthands))
     carriers = sum(
         1 for other in registry if shorthand in entry_shorthands(other)
     )

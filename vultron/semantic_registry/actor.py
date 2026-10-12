@@ -60,6 +60,7 @@ from vultron.core.use_cases.received.actor import (
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
+    HowToGuide,
     MessagePage,
     Occasion,
     ProtocolShorthand,
@@ -107,10 +108,6 @@ from vultron.wire.as2.vocab.activities.case import (
     _RmTentativeRejectFullCaseInviteActivity,
 )
 
-_HOWTO_INVITE_ACTOR = "howto/activitypub/activities/invite_actor.md"
-_HOWTO_ROLE_DELEGATION = "howto/activitypub/activities/role_delegation.md"
-_HOWTO_SUGGEST_ACTOR = "howto/activitypub/activities/suggest_actor.md"
-
 ENTRIES: list[SemanticEntry] = [
     # CaseActor-routed ADR-0026 flow (CM-16)
     SemanticEntry(
@@ -133,7 +130,7 @@ ENTRIES: list[SemanticEntry] = [
                     "named by the target."
                 ),
                 example="recommend_actor",
-                howto=_HOWTO_SUGGEST_ACTOR,
+                howto=HowToGuide.SUGGEST_ACTOR,
                 shorthand=ProtocolShorthand.GI,
             ),
         ),
@@ -161,7 +158,7 @@ ENTRIES: list[SemanticEntry] = [
                     " default roles it assigned."
                 ),
                 example="offer_case_participant",
-                howto=_HOWTO_SUGGEST_ACTOR,
+                howto=HowToGuide.SUGGEST_ACTOR,
                 shorthand=ProtocolShorthand.GI,
             ),
         ),
@@ -185,7 +182,7 @@ ENTRIES: list[SemanticEntry] = [
                     " then invites the suggested actor."
                 ),
                 example="accept_case_participant_offer",
-                howto=_HOWTO_SUGGEST_ACTOR,
+                howto=HowToGuide.SUGGEST_ACTOR,
                 shorthand=ProtocolShorthand.GI,
             ),
         ),
@@ -208,7 +205,7 @@ ENTRIES: list[SemanticEntry] = [
                     " tells the recommender."
                 ),
                 example="reject_case_participant_offer",
-                howto=_HOWTO_SUGGEST_ACTOR,
+                howto=HowToGuide.SUGGEST_ACTOR,
                 shorthand=ProtocolShorthand.GI,
             ),
         ),
@@ -234,7 +231,7 @@ ENTRIES: list[SemanticEntry] = [
                     "target."
                 ),
                 example="offer_case_participant_role",
-                howto=_HOWTO_ROLE_DELEGATION,
+                howto=HowToGuide.ROLE_DELEGATION,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -256,7 +253,7 @@ ENTRIES: list[SemanticEntry] = [
                     "then on."
                 ),
                 example="accept_case_participant_role",
-                howto=_HOWTO_ROLE_DELEGATION,
+                howto=HowToGuide.ROLE_DELEGATION,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -277,7 +274,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Declines the offered role. The roster does not change."
                 ),
                 example="reject_case_participant_role",
-                howto=_HOWTO_ROLE_DELEGATION,
+                howto=HowToGuide.ROLE_DELEGATION,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -361,7 +358,7 @@ ENTRIES: list[SemanticEntry] = [
                     "embargo terms the invitee would agree to."
                 ),
                 example="rm_invite_to_case",
-                howto=_HOWTO_INVITE_ACTOR,
+                howto=HowToGuide.INVITE_ACTOR,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -383,7 +380,7 @@ ENTRIES: list[SemanticEntry] = [
                     "Received."
                 ),
                 example="accept_invite_to_case",
-                howto=_HOWTO_INVITE_ACTOR,
+                howto=HowToGuide.INVITE_ACTOR,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -405,7 +402,7 @@ ENTRIES: list[SemanticEntry] = [
                     "participant record."
                 ),
                 example="reject_invite_to_case",
-                howto=_HOWTO_INVITE_ACTOR,
+                howto=HowToGuide.INVITE_ACTOR,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -431,7 +428,7 @@ ENTRIES: list[SemanticEntry] = [
                     "position as the floor the reply must reach."
                 ),
                 example="invite_to_full_case",
-                howto=_HOWTO_INVITE_ACTOR,
+                howto=HowToGuide.INVITE_ACTOR,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -456,7 +453,7 @@ ENTRIES: list[SemanticEntry] = [
                     "carries the sender's own ledger position."
                 ),
                 example="accept_full_case_invite",
-                howto=_HOWTO_INVITE_ACTOR,
+                howto=HowToGuide.INVITE_ACTOR,
                 shorthand=ProtocolShorthand.RV,
             ),
         ),
@@ -482,7 +479,7 @@ ENTRIES: list[SemanticEntry] = [
                     "RM Invalid. It carries the sender's own ledger position."
                 ),
                 example="tentative_reject_full_case_invite",
-                howto=_HOWTO_INVITE_ACTOR,
+                howto=HowToGuide.INVITE_ACTOR,
                 shorthand=ProtocolShorthand.RI,
             ),
         ),
@@ -507,7 +504,7 @@ ENTRIES: list[SemanticEntry] = [
                     " carries the sender's own ledger position."
                 ),
                 example="reject_full_case_invite",
-                howto=_HOWTO_INVITE_ACTOR,
+                howto=HowToGuide.INVITE_ACTOR,
                 shorthand=ProtocolShorthand.RC,
             ),
         ),
@@ -533,7 +530,7 @@ ENTRIES: list[SemanticEntry] = [
                     "once its acceptance clears the embargo consent checks."
                 ),
                 example="announce_case",
-                howto=_HOWTO_INVITE_ACTOR,
+                howto=HowToGuide.INVITE_ACTOR,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,

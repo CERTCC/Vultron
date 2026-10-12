@@ -58,7 +58,7 @@ class CreateReportReceivedUseCase:
 3. Add a `SemanticEntry` to the **domain sub-module** under
    `vultron/semantic_registry/` (e.g., `report.py`, `case.py`, `embargo.py`).
    **Do NOT add it directly to `__init__.py`** — see pitfall below.
-   (**Order matters** — specific first. Needs `page` + `Occasion`, MSM-08-001.)
+   (**Order matters within the sub-module**. Needs `page` + `Occasion`, MSM-08-001.)
 4. Implement a use-case class in `vultron/core/use_cases/` following the
    `UseCase` Protocol (received: `execute() -> HandlerResult`)
 5. Add tests: pattern matching (`test/test_semantic_activity_patterns.py`),

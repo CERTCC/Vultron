@@ -26,6 +26,7 @@ from vultron.core.use_cases.received.case_participant import (
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
+    HowToGuide,
     MessagePage,
     Occasion,
 )
@@ -38,10 +39,6 @@ from vultron.wire.as2.vocab.activities.case_participant import (
     _AddParticipantToCaseActivity,
     _CreateParticipantActivity,
     _RemoveParticipantFromCaseActivity,
-)
-
-_HOWTO_MANAGE_PARTICIPANTS = (
-    "howto/activitypub/activities/manage_participants.md"
 )
 
 ENTRIES: list[SemanticEntry] = [
@@ -65,7 +62,7 @@ ENTRIES: list[SemanticEntry] = [
                     "roles in the case. It precedes the Add."
                 ),
                 example="create_participant",
-                howto=_HOWTO_MANAGE_PARTICIPANTS,
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -88,7 +85,7 @@ ENTRIES: list[SemanticEntry] = [
                     "again and receives the ledger entries it missed."
                 ),
                 example="add_coordinator_participant_to_case",
-                howto=_HOWTO_MANAGE_PARTICIPANTS,
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -114,7 +111,7 @@ ENTRIES: list[SemanticEntry] = [
                     "direct notice."
                 ),
                 example="remove_participant_from_case",
-                howto=_HOWTO_MANAGE_PARTICIPANTS,
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,

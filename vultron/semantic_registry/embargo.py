@@ -37,6 +37,7 @@ from vultron.core.use_cases.received.embargo import (
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
+    HowToGuide,
     MessagePage,
     Occasion,
     ProtocolShorthand,
@@ -62,9 +63,6 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _RemoveEmbargoFromCaseActivity,
 )
 
-_HOWTO_ESTABLISH_EMBARGO = "howto/activitypub/activities/establish_embargo.md"
-_HOWTO_MANAGE_EMBARGO = "howto/activitypub/activities/manage_embargo.md"
-
 ENTRIES: list[SemanticEntry] = [
     SemanticEntry(
         semantics=MessageSemantics.CREATE_EMBARGO_EVENT,
@@ -86,7 +84,7 @@ ENTRIES: list[SemanticEntry] = [
                     "It precedes the Invite that proposes them."
                 ),
                 example="create_embargo_event",
-                howto=_HOWTO_ESTABLISH_EMBARGO,
+                howto=HowToGuide.ESTABLISH_EMBARGO,
             ),
         ),
         page=MessagePage.EM,
@@ -105,7 +103,7 @@ ENTRIES: list[SemanticEntry] = [
                 anchor="embargo-termination",
                 description="Terminates the embargo with immediate effect.",
                 example="remove_embargo",
-                howto=_HOWTO_MANAGE_EMBARGO,
+                howto=HowToGuide.MANAGE_EMBARGO,
                 shorthand=ProtocolShorthand.ET,
             ),
         ),
@@ -131,7 +129,7 @@ ENTRIES: list[SemanticEntry] = [
                     "proposes nothing."
                 ),
                 example="announce_embargo",
-                howto=_HOWTO_MANAGE_EMBARGO,
+                howto=HowToGuide.MANAGE_EMBARGO,
             ),
         ),
         page=MessagePage.EM,
@@ -162,7 +160,7 @@ ENTRIES: list[SemanticEntry] = [
                         EM.PROPOSED,
                     ),
                 ),
-                howto=_HOWTO_ESTABLISH_EMBARGO,
+                howto=HowToGuide.ESTABLISH_EMBARGO,
                 shorthand=ProtocolShorthand.EP,
             ),
             Occasion(
@@ -184,7 +182,7 @@ ENTRIES: list[SemanticEntry] = [
                         EM.REVISE,
                     ),
                 ),
-                howto=_HOWTO_MANAGE_EMBARGO,
+                howto=HowToGuide.MANAGE_EMBARGO,
                 shorthand=ProtocolShorthand.EV,
             ),
         ),
@@ -209,7 +207,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="accept_embargo",
                 distinguisher=StateContext(machine=EM, states=(EM.PROPOSED,)),
-                howto=_HOWTO_MANAGE_EMBARGO,
+                howto=HowToGuide.MANAGE_EMBARGO,
                 shorthand=ProtocolShorthand.EA,
             ),
             Occasion(
@@ -222,7 +220,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="accept_embargo_revision",
                 distinguisher=StateContext(machine=EM, states=(EM.REVISE,)),
-                howto=_HOWTO_MANAGE_EMBARGO,
+                howto=HowToGuide.MANAGE_EMBARGO,
                 shorthand=ProtocolShorthand.EC,
             ),
         ),
@@ -247,7 +245,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="reject_embargo",
                 distinguisher=StateContext(machine=EM, states=(EM.PROPOSED,)),
-                howto=_HOWTO_MANAGE_EMBARGO,
+                howto=HowToGuide.MANAGE_EMBARGO,
                 shorthand=ProtocolShorthand.ER,
             ),
             Occasion(
@@ -259,7 +257,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="reject_embargo_revision",
                 distinguisher=StateContext(machine=EM, states=(EM.REVISE,)),
-                howto=_HOWTO_MANAGE_EMBARGO,
+                howto=HowToGuide.MANAGE_EMBARGO,
                 shorthand=ProtocolShorthand.EJ,
             ),
         ),
@@ -284,7 +282,7 @@ ENTRIES: list[SemanticEntry] = [
                     "already active, the proposal replaces it."
                 ),
                 example="activate_embargo",
-                howto=_HOWTO_MANAGE_EMBARGO,
+                howto=HowToGuide.MANAGE_EMBARGO,
             ),
         ),
         page=MessagePage.EM,
@@ -306,7 +304,7 @@ ENTRIES: list[SemanticEntry] = [
                     "stays in force on its current terms."
                 ),
                 example="reject_embargo_proposal",
-                howto=_HOWTO_MANAGE_EMBARGO,
+                howto=HowToGuide.MANAGE_EMBARGO,
             ),
         ),
         page=MessagePage.EM,

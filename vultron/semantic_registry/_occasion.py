@@ -27,13 +27,15 @@ Spec: MSM-08-001, MSM-08-002, MSM-08-005, MSM-08-007.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import re
 import types
 import typing
-from dataclasses import dataclass, field
 from enum import Enum, StrEnum
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vultron.enums.roles import CVDRole
+from vultron.primitives import NonEmptyString
 
 
 class MessagePage(StrEnum):
@@ -51,6 +53,23 @@ class MessagePage(StrEnum):
     CASE_MANAGEMENT = "case_management"
     CASE_PROPOSAL = "case_proposal"
     LEDGER_REPLICATION = "ledger_replication"
+
+
+class HowToGuide(StrEnum):
+    """The how-to guides an occasion links to, as ``docs/``-relative paths."""
+
+    REPORT_VULNERABILITY = (
+        "howto/activitypub/activities/report_vulnerability.md"
+    )
+    MANAGE_CASE = "howto/activitypub/activities/manage_case.md"
+    INITIALIZE_CASE = "howto/activitypub/activities/initialize_case.md"
+    INVITE_ACTOR = "howto/activitypub/activities/invite_actor.md"
+    MANAGE_PARTICIPANTS = "howto/activitypub/activities/manage_participants.md"
+    ROLE_DELEGATION = "howto/activitypub/activities/role_delegation.md"
+    ESTABLISH_EMBARGO = "howto/activitypub/activities/establish_embargo.md"
+    MANAGE_EMBARGO = "howto/activitypub/activities/manage_embargo.md"
+    STATUS_UPDATES = "howto/activitypub/activities/status_updates.md"
+    SUGGEST_ACTOR = "howto/activitypub/activities/suggest_actor.md"
 
 
 class ProtocolShorthand(StrEnum):
@@ -91,8 +110,8 @@ class ProtocolShorthand(StrEnum):
     GE = "GE"
 
 
-_ANCHOR_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-_EXAMPLE_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+_ANCHOR_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+_EXAMPLE_NAME_PATTERN = r"^[a-z_][a-z0-9_]*$"
 
 
 def _enum_classes(annotation: object) -> list[type[Enum]]:
@@ -128,8 +147,10 @@ def _field_annotation(object_type: type, field_name: str) -> object:
     )
 
 
-@dataclass(frozen=True)
-class FieldValue:
+_FROZEN = ConfigDict(frozen=True, strict=True, arbitrary_types_allowed=True)
+
+
+class FieldValue(BaseModel):
     """A distinguisher read from the payload: one field holding one value.
 
     Construction fails unless *value* is a member of the enum that
@@ -142,11 +163,14 @@ class FieldValue:
         value: The enum member the occasion's payload carries.
     """
 
+    model_config = _FROZEN
+
     object_type: type
-    field: str
+    field: NonEmptyString
     value: Enum
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def _value_is_a_member_of_the_field_enum(self) -> "FieldValue":
         enums = _enum_classes(_field_annotation(self.object_type, self.field))
         if not enums:
             raise ValueError(
@@ -159,10 +183,10 @@ class FieldValue:
                 f"{self.value!r} is not a member of {names}, the enum of"
                 f" {self.object_type.__name__}.{self.field} (MSM-08-002)"
             )
+        return self
 
 
-@dataclass(frozen=True)
-class StateContext:
+class StateContext(BaseModel):
     """A distinguisher read from the receiver's state, not the payload.
 
     Construction fails unless every state is a member of *machine*
@@ -173,36 +197,32 @@ class StateContext:
         states: The states in which the occasion applies.
     """
 
-    machine: type[Enum]
-    states: tuple[Enum, ...]
+    model_config = _FROZEN
 
-    def __post_init__(self) -> None:
-        if not (
-            isinstance(self.machine, type) and issubclass(self.machine, Enum)
-        ):
-            raise TypeError(
-                f"{self.machine!r} is not a state enum (MSM-08-002)"
-            )
-        if not self.states:
-            raise ValueError("a state context names at least one state")
+    machine: type[Enum]
+    states: tuple[Enum, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _states_belong_to_the_machine(self) -> "StateContext":
         foreign = [s for s in self.states if not isinstance(s, self.machine)]
         if foreign:
             raise ValueError(
                 f"{foreign!r} are not members of {self.machine.__name__}"
                 " (MSM-08-002)"
             )
+        return self
 
 
 Distinguisher = FieldValue | StateContext
 
 
-@dataclass(frozen=True)
-class Occasion:
+class Occasion(BaseModel):
     """One situation a sender conveys with an entry's wire activity.
 
     Holds what only a human can supply (ADR-0128).  The prose fields render
     on reference pages and in how-to guides, so they follow the docs style
-    guide and address no reader (MSM-08-007).
+    guide and address no reader (MSM-08-007).  The model is strict, so a
+    usual sender must be a ``CVDRole`` member, not a string (MSM-08-005).
 
     Attributes:
         when: The sender's situation, worded to complete "When…", e.g.
@@ -213,60 +233,43 @@ class Occasion:
             occasion's example (MSM-08-003).
         distinguisher: What tells this occasion apart from the entry's other
             occasions, when it has any.
-        howto: Docs-relative path of the how-to guide that sends it.
+        howto: The how-to guide whose steps send it.
         shorthand: The formal protocol message it carries, if any.
         usual_senders: The CVD roles that usually send it, beside the rule a
             receiver applies (MSM-08-005).
         notes: Further prose for the occasion's section.
         evolved: ``True`` when the activity serves a formal message's purpose
-            on a different axis (MSM-05); such an occasion has no shorthand.
+            on a different axis (MSM-05).  Such an occasion has no shorthand
+            to count, which is what leaves ``evolved`` the one declared
+            mapping status (MSM-08-006).
     """
 
-    when: str
-    anchor: str
-    description: str
-    example: str
+    model_config = _FROZEN
+
+    when: NonEmptyString
+    anchor: Annotated[str, Field(pattern=_ANCHOR_PATTERN)]
+    description: NonEmptyString
+    example: Annotated[str, Field(pattern=_EXAMPLE_NAME_PATTERN)]
     distinguisher: Distinguisher | None = None
-    howto: str | None = None
+    howto: HowToGuide | None = None
     shorthand: ProtocolShorthand | None = None
-    usual_senders: tuple[CVDRole, ...] = field(default_factory=tuple)
-    notes: str | None = None
+    usual_senders: tuple[CVDRole, ...] = ()
+    notes: NonEmptyString | None = None
     evolved: bool = False
 
-    def __post_init__(self) -> None:
-        for name in ("when", "description"):
-            if not getattr(self, name).strip():
-                raise ValueError(f"an occasion's {name} must not be empty")
-        for name in ("howto", "notes"):
-            value = getattr(self, name)
-            if value is not None and not value.strip():
-                raise ValueError(
-                    f"an occasion's {name}, if present, must not be empty"
-                )
-        if not _ANCHOR_RE.match(self.anchor):
-            raise ValueError(
-                f"anchor {self.anchor!r} is not lowercase words joined by"
-                " hyphens"
-            )
-        if not _EXAMPLE_NAME_RE.match(self.example):
-            raise ValueError(
-                f"example {self.example!r} is not a function name"
-            )
-        if not isinstance(self.usual_senders, tuple) or not all(
-            isinstance(role, CVDRole) for role in self.usual_senders
-        ):
-            raise ValueError(
-                "usual_senders must be a tuple of CVDRole values (MSM-08-005)"
-            )
+    @model_validator(mode="after")
+    def _evolved_has_no_shorthand(self) -> "Occasion":
         if self.evolved and self.shorthand is not None:
             raise ValueError(
                 "an evolved occasion has no shorthand of its own (MSM-08-006)"
             )
+        return self
 
 
 __all__ = [
     "Distinguisher",
     "FieldValue",
+    "HowToGuide",
     "MessagePage",
     "Occasion",
     "ProtocolShorthand",
