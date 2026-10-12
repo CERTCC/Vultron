@@ -63,6 +63,7 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
+    add_note_to_case_activity,
     add_status_to_case_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
@@ -535,6 +536,42 @@ def test_a_replica_follows_a_note_attached_from_a_create():
     ]
     # The replica holds the note itself, not a dangling reference.
     assert net.stores[OWNER].read(note_id) is not None
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("CM-13-007")
+@pytest.mark.spec("RSH-08-004")
+def test_a_replica_follows_a_note_sent_as_create_then_add():
+    """The add-note trigger's pair, Create(Note) then Add(Note), for one note:
+    the CASE_MANAGER commits both entries, and both case copies hold the note
+    once, because the second attach changes nothing (CM-13-007, #4441)."""
+    net = LedgerNetwork(
+        "https://example.org/cases/replay-create-add-note", em_state=EM.NONE
+    )
+    note_id = "https://example.org/notes/replay-create-add-note"
+    create = _create_note(net, note_id)
+    _send(net, create)
+    _send(
+        net,
+        add_note_to_case_activity(
+            cast(as_Note, create.object_),
+            target=net.case_id,
+            actor=BYSTANDER,
+            to=[MANAGER],
+        ),
+    )
+
+    assert [e for e in _ledger(net, MANAGER) if "note" in e] == [
+        "create_note",
+        "add_note_to_case",
+    ]
+    replayed = _replay(net, OWNER)
+    assert "create_note" in replayed and "add_note_to_case" in replayed
+    manager, replica = net.case(MANAGER), net.case(OWNER)
+    assert [_as_id(n) for n in manager.notes].count(note_id) == 1
+    assert [_as_id(n) for n in replica.notes] == [
+        _as_id(n) for n in manager.notes
+    ]
 
 
 # ---------------------------------------------------------------------------
