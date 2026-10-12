@@ -53,7 +53,7 @@ point is explicit and neither layer couples to the other's names:
 - Core event and use-case fields use domain names (`report_id`, `case_id`), not
   AS2 roles (`object_id`, `target_id`). The extractor's `ActivityPattern`
   definitions are the one place that maps AS2 fields to semantic roles; do not
-  scatter AS2 field handling across use cases (ARCH-09).
+  scatter AS2 field handling across use cases.
 
 ## Import Direction
 
@@ -156,15 +156,17 @@ Ratchet: `test/architecture/test_core_extra_forbid.py` (no exemption list).
 
 ### The `id_` Failures Are an Alias-Injection Bug, Not a Field-Name Bug
 
-A `mode="before"` validator MUST NOT inject an alias key beside an already-present
-field-name key for the same field (or vice versa). Write the key the payload is
-already using.
+A `mode="before"` validator that derives a field writes it under the alias
+(`_set_id_from_case` writes `data["id"]`), and
+`CoreObject._drop_alias_shadowed_field_names` then drops the field-name twin
+(`id_`) in one place. Do not guard each derivation site yourself, and do not
+make the drop raise when the two values differ.
 
 Reason: `CoreRecord` validates by name *and* by alias, so `id` and `id_` are both
-sanctioned inputs. A validator writing `data["id"]` into a payload carrying `id_`
-leaves `id_` as an extra under `forbid`. Re-keying persistence to hide the
-rejection is worse: the validator then overwrites a stored `id` that disagrees
-with the derived one, silently.
+sanctioned inputs, and under `forbid` an un-consumed twin is an unknown key. The
+alias must win: a derived id (`{case_id}/log/{log_index}`, or a minted urn) is
+meant to supersede a caller-supplied `id_`, and raising on disagreement breaks
+those paths. Do not re-key persistence to hide the rejection either.
 
 ## Inbound Unknown Keys Are Decided at the Parse Edge, Not by Class Ancestry (#3900)
 

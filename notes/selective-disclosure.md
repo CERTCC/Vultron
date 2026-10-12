@@ -4,7 +4,7 @@ status: draft
 kind: plan
 tracks:
   - "#3258"
-  - "#890"
+  - "#4568"
 description: >
   Design direction for referencing objects without inlining them and for
   explicit redaction of withheld fields. Neither exists yet; the delivered
@@ -41,7 +41,7 @@ sender must inline the full object or accept an opaque reference. Bare URIs and
 missing is resolution. This is a prototype limitation, not a production property,
 so dict-shaped partial objects must not become the workaround.
 
-## Redaction: `None` ≠ Redacted
+## Redaction: `None` ≠ Redacted (#4568)
 
 A privacy-aware protocol distinguishes three states a JSON/Pydantic model
 usually conflates:
@@ -67,3 +67,6 @@ domain model, so a handler receiving a redacted field preserves the redaction
 intent rather than reading `None`. AS2's `summary` can carry a human-readable
 reason ("Case details restricted pending embargo acceptance.") on an otherwise
 minimal object.
+
+Redaction is also the mechanism a reduced delivery tier for Observers would need.
+CM-25-003 rules that tier out today, so it would be amended first.

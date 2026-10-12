@@ -89,7 +89,7 @@ Actor '<actor_id>' <verb> '<object_id>' (<STATE_A> → <STATE_B>)
 | EM | `embargo` | `Actor 'finder' embargo PROPOSED → ACTIVE for case 'c'` | `log_em_transition()` |
 | Case | `engaged case` | `Actor 'finder' engaged case 'c' (RM VALID → ACCEPTED)` | `log_case_engagement()` |
 | Invite | `received case invite` | `Actor 'finder' received case invite for 'c' from 'coord'` | `log_invite_received()` |
-| BT failure | `BT execution` | `Actor 'vendor' BT execution FAILURE for case 'c': <reason>` | none |
+| BT failure | `BT execution` | `BT execution completed: Status.FAILURE after 3 ticks - <reason>` | none (`BTBridge`) |
 
 `vultron/core/behaviors/narrative_log.py` owns the wording: call the helper rather than
 formatting the string at the call site, so it cannot drift (CS-22-001).
@@ -120,8 +120,8 @@ to its `DEMOTED_FRAGMENTS` rather than relying on a manual grep.
 
 `transitions` library chatter (`Finished processing state X ...`, `Executed callback`)
 cannot be demoted at the call site: `suppress_third_party_info_noise()` in
-`vultron/logging_setup.py` pins those loggers to WARNING above DEBUG, from both the
-server and the demo CLI. Add a new noisy library to `NOISY_INFO_LOGGERS` there.
+`vultron/logging_setup.py` pins those loggers to WARNING whenever the app level is
+above DEBUG, from both the server and the demo CLI. Add a new noisy library to `NOISY_INFO_LOGGERS` there.
 
 ---
 
@@ -132,10 +132,10 @@ server and the demo CLI. Add a new noisy library to `NOISY_INFO_LOGGERS` there.
 In the **BT leaf node** that performs the state write, not the use-case `execute()`,
 and at the **narrowest choke point that knows the before-state**:
 
-- RM: per-participant RM state has two write paths, `update_participant_rm_state()`
-  (`vultron/core/use_cases/_helpers.py`) and `CreateParticipantStatusNode`, and both
-  log. A new RM-writing node MUST route through one of them, or its transition is
-  missing from the INFO narrative.
+- RM: `CreateParticipantStatusNode` is the one write path for per-participant RM
+  state, and its `_log_transitions()` is the one RM log path
+  (`vultron/core/behaviors/case/nodes/participant/status.py`). A new RM-writing node
+  MUST route through it, or its transition is missing from the INFO narrative.
 - CS: `CreateParticipantStatusNode` writes both VFD and PXA snapshots;
   `TransitionCStoFixReady` / `TransitionCStoFixDeployed` delegate to it and log only at
   DEBUG, since they do not know the origin state.
@@ -160,8 +160,8 @@ mutates anything (see `SvcEngageCaseUseCase`).
   target (BTs succeed via idempotent paths); if `before == after`, emit nothing.
   `log_cs_transition()` and `log_em_transition()` do this; any new helper MUST.
 - **Guard monotonicity.** CS/RM/EM move forward only; a backward move is an anomaly,
-  logged at WARNING with a distinct label (`"RM regression detected"`), not a normal
-  transition line.
+  logged at WARNING with a distinct label (`REGRESSION_LABEL`, `"state regression"`,
+  in `narrative_log.py`), not a normal transition line.
 
 Running the same BT write twice and asserting the second emits nothing catches a
 missing no-op guard, a missing monotonicity guard, and a hardcoded target at once.

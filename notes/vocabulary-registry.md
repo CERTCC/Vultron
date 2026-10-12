@@ -140,7 +140,7 @@ vocabulary (`as_Link`, `as_Collection`, …).
 Both keys are derived by `as_Base.__init_subclass__`, `WIRE_TYPE_MAP` via
 `wire_type_value()`. Two classes cannot own one `type` value, so a class that
 shares another's declares `_wire_type_alias: ClassVar[bool] = True` and takes no
-`WIRE_TYPE_MAP` key. The five Vultron actor classes (`as_VultronPerson`, …) are
+`WIRE_TYPE_MAP` key. The Vultron actor classes (`as_VultronPerson`, …) are
 the only sanctioned unflagged sharers: they register after the base actors and
 shadow them, so `{"type": "Person"}` gets the subclass carrying
 `embargo_policy`. The ratchet fails on any other collision, which would silently

@@ -105,9 +105,9 @@ directions gets one module in `adapters/driving/` and one in `adapters/driven/`.
 - `vultron/wire/as2/`: AS2 vocabulary, parser, extractor, serializer.
 - `vultron/adapters/`: driving, driven, connectors.
 
-Core has no FastAPI, wire, or transport imports
-(`test/architecture/test_core_no_wire_imports.py`,
-`test/architecture/test_core_no_adapter_imports.py`).
+Core has no FastAPI, wire, or transport imports. The wire and adapter halves are
+enforced by `test/architecture/test_core_no_wire_imports.py` and
+`test/architecture/test_core_no_adapter_imports.py`.
 
 ---
 

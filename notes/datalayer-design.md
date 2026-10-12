@@ -134,11 +134,13 @@ delivery happened to store the value: a hidden dependency on delivery order.
 
 The smell does not apply when the message's copy is not authoritative. A field
 that grants standing is read from the receiver's record of what it sent, never
-from the copy the sender embeds: `_read_invite_roles()` in
-`vultron/core/behaviors/case/nodes/invite_participant.py` reads an invitee's
-roles from the Invite the CASE_MANAGER recorded, because taking them from the
-copy inside the invitee's `Accept` lets any sender choose its own (CM-11-017).
-A missing recorded Invite is a refusal (CM-11-019), not a cue to fall back.
+from the copy the sender embeds. In `create_accept_invite_actor_to_case_tree`,
+`SenderIsInviteeNode` (`vultron/core/behaviors/sender_entitlement.py`) checks the
+sender against the Invite the CASE_MANAGER recorded, and the invitee's roles come
+from the participant record written when that Invite was sent. Taking them from
+the copy inside the invitee's `Accept` lets any sender choose its own
+(CM-11-017). A missing record is a refusal (CM-11-021,
+`InviteeHasParticipantRecordNode`), not a cue to fall back.
 
 **How to apply:**
 
@@ -224,7 +226,7 @@ test names.
 
 ---
 
-## A Default Minted From the Clock Cannot Round-Trip Through a Field That Does Not Store It
+## A Clock-Minted Default Cannot Round-Trip Through a Field That Does Not Store It
 
 A value a wire default mints at construction cannot survive a round trip through
 a core field that does not store it; the symptom is an equality that holds only

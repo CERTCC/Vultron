@@ -39,20 +39,21 @@ Operating rules: `vultron/wire/as2/factories/AGENTS.md`. Spec:
 - **Wrap validation failures**: catch `ValidationError`, raise
   `VultronActivityConstructionError` with the original as `__cause__`
   (`factories/errors.py`), so internal class names stay out of public errors.
-- **Factories build from primitives**; `from_core()` converts an existing domain
-  object and is a separate concern.
+- **Factories build from primitives**, never from a dump of a domain object.
 - **Tests import from `vultron.wire.as2.factories`**, as all external code does.
   Examples: `test/wire/as2/factories/`.
 
-## Convert Through the Declared Field Map, Never Dump-and-Revalidate
+## Render Core Objects Through the Port, Never Dump-and-Revalidate
 
 Do not convert a core object to a wire class with
 `wire_cls.model_validate(core_obj.model_dump(...))`. A dump/revalidate round trip
 has nowhere to record that a field differs in type or name between the two
 sides, so it fails with a `ValidationError` that does not name the wrong
-conversion path. Use `from_core()`, whose `_field_map` and
-`_strip_core_context` (`vultron/wire/as2/vocab/objects/base.py`) declare the
-per-field mapping. See [wire-core-boundary](wire-core-boundary.md).
+conversion path. A paired domain type needs no conversion at all: its wire shape
+is the core object's own aliased dump, produced by `WireRenderPort` (ARCH-20-001,
+ARCH-20-002). `from_core()` and `_field_map` on the wire base classes are this
+same round trip; do not add new overrides or callers. See
+[core-wire-rendering-port](core-wire-rendering-port.md).
 
 ## Pass the Domain Object, Not a Hand-Built Stub
 

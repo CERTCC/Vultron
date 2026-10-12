@@ -70,11 +70,13 @@ Case data is the single source of truth; the stage is re-derived on demand
 rehydrate to the base type and re-validate to its staged type without loss
 (LST-05-003). Register only the base type in `CORE_VOCABULARY`.
 
-## The Write Path Stays Field Mutation
+## The Write Path Stays the Existing One
 
-Advancing a case is an ordinary field mutation (set `active_embargo` when EM
-reaches `ACTIVE`). Do not add transition constructors such as
+Advancing a case goes through the write path that already owns the data: an
+embargo becomes active through an `EmbargoLifecycle` register step, and
+`active_embargo` is a read-only view of the register's `ACTIVE` entry
+(ADR-0122). Do not add transition constructors such as
 `case.to_embargoed(embargo)`: a second write path would diverge from the
-mutation paths (ADR-0033, CONCERN-1912). Reopen only on **two or more distinct
-classes of field-mutation error** observed at promotion sites (for example,
-promoting to `EmbargoedCase` without setting `active_embargo`).
+existing one (ADR-0033, CONCERN-1912). Reopen only on **two or more distinct
+classes of write error** observed at promotion sites (for example, promoting to
+`EmbargoedCase` from a case whose register has no `ACTIVE` entry).

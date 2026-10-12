@@ -32,8 +32,10 @@ Requirements: `specs/configuration.yaml` (CFG). Code: `vultron/config/`
 (`app.py` for `AppConfig`, `get_config()`, `reload_config()`,
 `clear_config_cache()`, `config_override()`; `actor.py` for `ActorConfig`;
 `ledger.py` for `LedgerConfig`). Field meanings and defaults live in those
-modules' docstrings; the environment-variable list is in
-`docs/reference/codebase/STACK.md`.
+modules' docstrings. `docs/reference/codebase/STACK.md` gives the
+environment-variable naming rule (`VULTRON_` prefix, `__` between nested keys,
+so `actor.case_actor_service_url` is `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`)
+and the common server, database and ledger variables.
 
 ## Design Decisions
 
@@ -68,7 +70,8 @@ modules' docstrings; the environment-variable list is in
   (ADR-0079).
 - **`actor.case_actor_service_url`** has no default and MUST be supplied for
   any actor whose BT may run the `engage-case` path; without it
-  `ResolveCaseActorUrlsNode` fails (CP-08-001, `notes/case-proposal.md`).
+  `EnsureCaseActorHostedNode`, `ProposeReportCaseToActorNode` and
+  `WritePendingReportCaseLinkNode` fail (CP-08-001, `notes/case-proposal.md`).
 - **`actor.default_case_roles`** need not list `CASE_OWNER`; it is always
   appended at participant creation (BTND-05-002). A report receiver states these
   roles on its `Create(CaseProposal)` as `proposerCaseRoles`, and the CaseActor

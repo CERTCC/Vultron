@@ -12,7 +12,8 @@ related_specs:
   - specs/vocabulary-model.yaml (VM-08-002, VM-08-003)
   - specs/outbox.yaml (OX-07-001)
   - specs/case-ledger-processing.yaml (CLP-07-011)
-  - specs/case-management.yaml (CM-17-002, MV-10-001)
+  - specs/case-management.yaml (CM-17-002)
+  - specs/message-validation.yaml (MV-10-001)
 related_notes:
   - notes/datalayer-design.md
   - notes/case-ledger-authority.md

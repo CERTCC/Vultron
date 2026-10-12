@@ -94,8 +94,8 @@ is a property of the queue's pop order, not a delivery guarantee.**
 - **When you serialize a queue, audit who relied on the churn.** Serializing the drain
   exposed rows that only ever moved because some concurrent drain happened to pick them
   up: every trigger route now drains the outbox the delegated emit went into
-  (`_emitting_outbox()`, CM-24-001), and the root app shares `_make_lifespan` so the
-  `OutboxMonitor` safety-net poll (OX-09-002) actually runs.
+  (`emitting_outbox()` in `trigger_runner.py`, CM-24-001), and the root app shares
+  `_make_lifespan` so the `OutboxMonitor` safety-net poll (OX-09-002) actually runs.
 - **Demo gates** (EDF-06): gate on the CaseActor's own ledger holding the entry
   (`wait_for_case_actor_ledger_event`), then check the replicas against one
   `SharedBudget`, so a late replica reads as "fan-out late", not "transfer never

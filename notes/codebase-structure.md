@@ -38,7 +38,8 @@ easy to find and does not drag a dependency upward:
 - `vultron/enums/` — the neutral bottom layer (`CVDRole` and its helpers); it MUST NOT
   import from `vultron/core/` or `vultron/config/` (ADR-0031).
 - `vultron/core/states/` — the authoritative CS/RM/EM/PEC state enums.
-- `vultron/core/models/enums.py` — enums shared across core models.
+- `vultron/enums/object_types.py` — object and actor type enums shared across core
+  models (`vultron/core/models/enums.py` only re-exports them; do not add there).
 - `vultron/wire/as2/enums.py` — AS2 structural enums.
 
 `vultron/core/case_states/patterns/` holds the legacy 6-character case-state pattern
@@ -134,9 +135,9 @@ Test the JSON response, not only what was stored.
 
 `depends_on: service_started` waits for the container, not the app, so a dependent
 container can get "Connection refused". Use all three layers: a `healthcheck` on the
-API service (`/health/live`), `condition: service_healthy` on its dependents, and
-client retry against the server (use `httpx`, the declared runtime dependency, not
-`requests`). See `docker/docker-compose.yml`.
+API service (`/api/v2/health/live`), `condition: service_healthy` on its dependents,
+and client retry against the server (use `httpx2`, the declared runtime dependency,
+not `requests`). See `docker/docker-compose.yml`.
 
 ---
 
@@ -193,8 +194,8 @@ the named attribute fails clearly if the call moves to kwargs.
 
 A helper needed by both `vultron/core/behaviors/` and
 `vultron/core/use_cases/triggers/` lives in `vultron/core/use_cases/_helpers.py`.
-Importing it from `triggers/_helpers.py` would run `triggers/__init__.py`, which loads
-every trigger module, and any of those that imports the behaviors layer closes a cycle.
+The `triggers/` submodules import the behaviors layer, so a behaviors module that
+imports anything under `triggers/` closes a cycle.
 
 ---
 
@@ -202,7 +203,9 @@ every trigger module, and any of those that imports the behaviors layer closes a
 
 Override the per-actor dependency, not a module binding:
 `app.dependency_overrides[get_actor_dl]` for routes with an actor path segment (it
-replaces canonical-URI resolution too), `get_datalayer` for the rest (ADR-0073). The
+replaces canonical-URI resolution too), `get_trigger_dl` for trigger routes, and
+`get_hosted_actor_dls` for node-wide routes (all in
+`vultron/adapters/driving/fastapi/deps.py`; ADR-0073). The
 engine cache is keyed on the resolved per-actor URL, so a test that needs a fresh store
 calls `dispose_actor_engines()`; in in-memory mode that also destroys the database.
 
@@ -223,10 +226,11 @@ never re-serializing what the ledger recorded (VM-08-003).
 
 Rendering a phrase with `format_map(defaultdict(...))` fills every slot, so it passes a
 phrase referencing a slot the real renderer never fills. The real pipeline
-(`event_phrase()` in `vultron/demo/report.py`) fills only `actor` and, when
-`target_label` resolves, `object`/`target`. A phrase regression test calls
-`event_phrase()` with a representative event and asserts no trailing `—` and no
-unsubstituted `{slot}` (SE-07).
+(`CaseTimelineEvent.summary` in `vultron/demo/report.py`) fills only `actor` and,
+when `target_label` resolves, `object`/`target`. A phrase regression test builds a
+representative `CaseTimelineEvent` and asserts its `summary` has no trailing `—`
+and no unsubstituted `{slot}` (SE-07). `event_phrase()` fills every slot with `—`,
+so a test through it is the vacuous kind this section warns against.
 
 ---
 
@@ -256,7 +260,8 @@ descriptions, so keep those accurate and put new endpoints on the right router.
 - Find every caller first (`grep -r "from old.path\|import old.path" vultron/ test/`),
   then bulk-replace with `sed`.
 - Mirror the move in `test/`, with an `__init__.py`, so pytest discovers the tests.
-- Leave no shim: a clean test run then proves every caller moved (PROTO-08-001).
+- Leave no shim at the old path: a clean test run then proves every caller moved
+  (PROTO-08-001). A split differs: see the next section.
 
 ---
 
@@ -267,10 +272,12 @@ descriptions, so keep those accurate and put new endpoints on the right router.
   modules go in a `nodes/` subpackage grouped by semantic concern (BTND-07-001).
 - **Check `wc -l` before documenting a leaf.** A BT leaf module within ~20 lines of the
   500-line cap (BTND-07-004) is split before docstrings or audit comments are added.
-- **A split re-exports what it moved.** A use-case subpackage re-exports its classes and
-  their request models; a module split re-imports each moved name in the old module
-  (`# noqa: F401`) so `monkeypatch` targets keep resolving; a FastAPI router package
-  re-exports the names used as `dependency_overrides` keys (#972).
+- **A split re-exports what it moved, only where the old name is still a live
+  interface.** A use-case subpackage re-exports its classes and their request models
+  as its public API; a module split re-imports a moved name in the old module
+  (`# noqa: F401`) only when it is a `monkeypatch` target; a FastAPI router package
+  re-exports the names used as `dependency_overrides` keys (#972). Anything else is
+  a shim (PROTO-08-001): move the callers.
 - **Deleting a module instead of re-exporting needs importer proof**: no live importers
   in `vultron/` or `test/`.
 

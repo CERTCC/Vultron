@@ -112,9 +112,9 @@ boundary with a ratchet (`KNOWN_VIOLATIONS`) so new violations fail immediately.
 
 Per-actor storage is the layout, not a per-query filter (ADR-0073). Every
 `SqliteDataLayer` belongs to exactly one actor and `actor_id` is a required
-keyword (DL-07-002). One actor's
-writes cannot change what another reads, including writes to the same object ID —
-two actors may each hold their own replica of it.
+keyword (DL-07-002). One actor's writes cannot change what another reads,
+including writes to the same object ID — two actors may each hold their own
+replica of it (DL-07-001).
 
 Practically: each actor gets its own SQLite file, named by
 `actor_slug(actor_id)`, and its inbox/outbox queues live in that file rather than

@@ -62,7 +62,8 @@ A driven port, per ARCH-01-004 and the `SyncActivityPort` precedent.
 
 - **Port**: `vultron/core/ports/wire_render.py`, `render(obj) -> dict[str, Any]`.
 - **Adapter**: `vultron/adapters/driven/wire_render/as2.py`, returning
-  `model_dump(by_alias=True, exclude_none=True, mode="json")`. No registry lookup,
+  `model_dump(by_alias=True, exclude_none=True, mode="json", serialize_as_any=True)`.
+  No registry lookup,
   no `from_core()` (ARCH-20-002): aliases come from `CoreObject`'s
   `alias_generator=to_camel`, `@context` from its `by_alias` serializer, in
   exactly one place (VM-10).
@@ -95,7 +96,7 @@ ledger-writing adapter", stop and re-read CLP-09.
 ### No new `by_alias` dumps in core
 
 `test/architecture/test_core_by_alias_dumps.py` holds `by_alias=True` calls under
-`vultron/core/` to an empty baseline (ARCH-20-005). Do not reopen it because a
+`vultron/core/` to an empty baseline (ARCH-20-001). Do not reopen it because a
 subject is "already wire-shaped": `request.activity` in a received handler is the
 extractor's core-branch `VultronActivity`, not the wire object that arrived. Where
 core holds an AS2 form, it gets it from the adapter that built it (the
