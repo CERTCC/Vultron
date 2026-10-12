@@ -553,9 +553,8 @@ groups:
     priority: MUST_NOT
     kind: project
     verification: >-
-      `test/core/use_cases/received/test_embargo_revision_relay.py::test_a_participant_cannot_attribute_its_proposal_to_a_third_party`
-      covers one path; inspection of received-side use cases confirms each emitted
-      activity's `actor` is the executing actor.
+      Inspection of the received-side use cases and the factories they call confirms
+      each emitted activity's `actor` is the executing actor's own ID.
     statement: >-
       A received-side use case MUST NOT construct or emit an ActivityStreams activity with
       `actor` set to a different actor's ID (identity spoofing).

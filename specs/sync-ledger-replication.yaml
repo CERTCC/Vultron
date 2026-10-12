@@ -474,9 +474,9 @@ groups:
     priority: MUST
     kind: project
     verification: >-
-      `test/core/models/test_pending_assertion.py` holds the marked suites covering add,
-      is_suppressed, clear, timeout expiry, zero-timeout disable and the
-      expire_timed_out sweep.
+      `test/core/models/test_pending_assertion.py` covers each behaviour in its own
+      suite: `TestAddAndIsSuppress`, `TestClear`, `TestTimeout`, `TestZeroTimeout` and
+      `TestExpireTimedOut`.
     statement: >-
       Unit tests MUST cover pending-assertion suppression semantics: add,
       is_suppressed, clear, timeout expiry, zero-timeout disable, and the
@@ -656,7 +656,8 @@ groups:
     kind: project
     verification: >-
       `test/core/behaviors/embargo/nodes/test_terminate.py::TestTeardownAsk::test_the_manager_reaching_the_ask_is_a_wiring_fault`
-      confirms the CASE_MANAGER's path never reaches the pending-assertion store.
+      covers the embargo-teardown path; inspection confirms no other CASE_MANAGER commit
+      path reads or writes the pending-assertion store.
     statement: >-
       The CASE_MANAGER MUST NOT use the pending-assertion store for its own ledger commits;
       the CASE_MANAGER's DataLayer idempotency check already guards against duplicate commits
@@ -748,7 +749,9 @@ groups:
     kind: project
     verification: >-
       `test/adapters/driving/fastapi/test_ingress_ledger_entry_routing.py::test_ingress_routes_ledger_entry_without_prestoring_entry`
-      confirms the ingress adapter does not persist the inline `CaseLedgerEntry`.
+      confirms the FastAPI ingress adapter does not persist the inline
+      `CaseLedgerEntry`; inspection confirms no other adapter, wire, transport or
+      parsing module saves one.
     statement: Adapter, wire, transport, and message-parsing code MUST NOT create, save, or otherwise persist a
       `CaseLedgerEntry` to the DataLayer.
     rationale: Ingress code delivers the message; it does not write the ledger. Any ingress write would bypass the

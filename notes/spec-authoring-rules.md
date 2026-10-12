@@ -465,9 +465,6 @@ is needed. #4312 re-adjudicated the specs #3600 had relabeled to `project` on
 the strength of their `verification:` path (#3943) and returned the RFC-content
 ones to `protocol`; those that mapped to no existing user story carry
 `missing_story_reference` again, debt that the story work in #2717 burns down.
-Issue #3601 then adjudicated the remaining suppressed specs and the story-less
-protocol MUST_NOTs by the same rule and handed the confirmed-protocol lists to
-Epic #2717.
 
 The statement still has to be code-free **as written**. A rule that is RFC
 content but spells a protocol concept in this codebase's identifiers — a dotted

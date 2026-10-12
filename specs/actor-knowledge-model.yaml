@@ -54,9 +54,9 @@ groups:
     priority: MUST_NOT
     kind: project
     verification: >-
-      `test/wire/as2/factories/test_case_context.py::test_role_offer_context_is_the_case_uri_not_the_case`
-      covers one factory; inspection of the outbound factories confirms each carries the
-      objects a recipient cannot already hold inline rather than by reference.
+      Inspection of the outbound activity factories confirms each embeds inline the
+      objects a recipient cannot be expected to hold already, and uses a bare reference
+      only for an object the recipient already has, such as the case it participates in.
     statement: >-
       Actors MUST NOT use object references in place of full inline objects when the recipient
       cannot be expected to have the referenced object in its own DataLayer.

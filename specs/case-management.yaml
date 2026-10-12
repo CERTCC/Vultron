@@ -1889,8 +1889,9 @@ groups:
     kind: project
     verification: >-
       `test/core/behaviors/case/test_receive_report_case_tree.py::TestPolicyGate`
-      confirms that with `auto_create_case=False` processing an inbound `Offer(Report)`
-      creates no `VulnerabilityCase`.
+      confirms that with `auto_create_case=False` the receive tree fails before any
+      DataLayer write; inspection confirms no other `Offer(Report)` receive path creates
+      a `VulnerabilityCase`.
     statement: >-
       When a receiver's `auto_create_case` is `False`, processing an inbound
       `Offer(Report)` MUST NOT create a `VulnerabilityCase`.
