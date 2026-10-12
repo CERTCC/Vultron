@@ -121,6 +121,11 @@ and dispatcher routing.
 - **Everywhere else** (`notes/`, `specs/`, `plan/`, READMEs): 88 chars max
   (exceptions: tables, code blocks, long URLs); break long sentences at natural
   points.
+- **`notes/` informs work not yet done** — it is not a project history (NF-08).
+  Every note declares `kind: guidance | plan | generated` (`plan` adds `tracks:`);
+  write each item as rule + reason + one citation, never the backstory; update
+  frontmatter when you edit a note (NF-06-001). Read
+  `.agents/skills/shared/notes-writing-guide.md` before adding to any note.
 - Use `markdownlint-cli2` for linting; see Miscellaneous tips for commands
 
 ### Logging Requirements
@@ -342,11 +347,6 @@ SHOULD be discussed via Issue or PR. Include rationale in the commit message.
 
 - Use `markdownlint-cli2` for markdown; `ruff format` skips it. Default config
   ignores only `wip_notes/**`; all other dirs are linted.
-- **Notes frontmatter** (NF-06-001, NF-06-002): every `notes/*.md` (except
-  `README.md`) needs `title` + `status`. **Maintenance rule:** when you modify a
-  note, update its `status`, `related_specs`, and `related_notes` in the same
-  change; cross-links SHOULD be two-way. Full write-up + schema:
-  [notes/notes-frontmatter.md](notes/notes-frontmatter.md).
 - **Docs links must be relative** and MUST NOT go above `docs/`. Run
   `uv run mkdocs build --strict` before committing docs. `docs/developer/` pages
   are draft docs — visible in `mkdocs serve`, excluded from production builds.

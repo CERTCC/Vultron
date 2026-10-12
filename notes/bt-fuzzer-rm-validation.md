@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: RM Report Validation"
 status: active
+kind: guidance
 description: >
   Catalog of fuzzer (stub) BT nodes for the Report Validation sub-workflow
   (`RMValidateBt`): credibility, validity checks, new-info sentinels,

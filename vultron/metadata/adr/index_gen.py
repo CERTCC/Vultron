@@ -32,6 +32,7 @@ from vultron.metadata.adr.lifecycle import (
     EPOCH_STATUS,
     epoch_for,
     today_utc,
+    tree_dependents,
 )
 from vultron.metadata.adr.loader import (
     SKIP_FILES,
@@ -236,11 +237,13 @@ def epoch_report(
 ) -> str:
     """Return a table of each live ADR's epoch, status and revision.
 
-    The epoch depends on today's date, so it is reported here and not written
-    into ``index.md``, which ``--check`` compares byte for byte.
+    The epoch depends on today's date and on the spec corpus's test-verified
+    dependents, so it is reported here and not written into ``index.md``,
+    which ``--check`` compares byte for byte.
     """
     root = repo_root or _find_repo_root()
     today = today or today_utc()
+    tested = tree_dependents(root)
     rows = [
         "ADR | epoch | status | revision | updated",
         "--- | --- | --- | --- | ---",
@@ -248,9 +251,10 @@ def epoch_report(
     for rel_path, fm in load_adr_registry(root).items():
         if fm.status not in EPOCH_STATUS.values():
             continue
+        number = adr_number(Path(rel_path))
+        epoch = epoch_for(fm.updated, today, tested=number in tested)
         rows.append(
-            f"{Path(rel_path).name.split('-', 1)[0]} | "
-            f"{int(epoch_for(fm.updated, today))} | {fm.status.value}"
+            f"{number} | {int(epoch)} | {fm.status.value}"
             f"{' (override)' if fm.status_override else ''} | "
             f"{fm.revision} | {fm.updated}"
         )

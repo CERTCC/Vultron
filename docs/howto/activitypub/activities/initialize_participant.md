@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Seat a Participant on an Existing Case
@@ -77,9 +77,7 @@ The `Accept(Invite(Actor))` appears as a ledger entry, and each participant's re
 
 !!! example "Try it: `vultron-demo initialize-participant`"
 
-    ```bash
-    vultron-demo initialize-participant
-    ```
+    {% include-markdown "./_demo_initialize_participant.md" %}
 
     Or with Docker Compose:
 

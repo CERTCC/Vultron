@@ -65,9 +65,7 @@ All commands in the remaining steps are run inside this container shell.
 
 ### initialize-case
 
-```bash
-vultron-demo initialize-case
-```
+{% include-markdown "../howto/activitypub/activities/_demo_initialize_case.md" %}
 
 This demo walks through the steps a vendor takes to open a new case after receiving a report: create the case, which seats the vendor as Case Owner and CASE_MANAGER, link the report to the case, and invite the finder, which joins when it accepts.
 
@@ -75,9 +73,7 @@ See [How to Initialize a Case](../howto/activitypub/activities/initialize_case.m
 
 ### initialize-participant
 
-```bash
-vultron-demo initialize-participant
-```
+{% include-markdown "../howto/activitypub/activities/_demo_initialize_participant.md" %}
 
 This demo shows how a participant joins an existing case.
 The vendor asks the CaseActor to invite a coordinator, and the coordinator joins by accepting the Invite.
@@ -91,9 +87,7 @@ See [How to Seat a Participant on an Existing Case](../howto/activitypub/activit
 
 ### invite-actor
 
-```bash
-vultron-demo invite-actor
-```
+{% include-markdown "../howto/activitypub/activities/_demo_invite_actor.md" %}
 
 This demo shows two invitation outcomes.
 The Case Owner invites a coordinator, who **accepts** and is added to the case; then it invites a second coordinator, who **rejects** and is not added.
@@ -122,9 +116,7 @@ See [How to Invite an Actor to a Case](../howto/activitypub/activities/invite_ac
 
 ### suggest-actor
 
-```bash
-vultron-demo suggest-actor
-```
+{% include-markdown "../howto/activitypub/activities/_demo_suggest_actor.md" %}
 
 This demo shows a finder *suggesting* a coordinator for the case.
 The suggestion goes to the Case Actor, which forwards it to the Case Owner as a proposed participant.
@@ -156,9 +148,7 @@ See [How to Suggest an Actor for a Case](../howto/activitypub/activities/suggest
 
 ### manage-participants
 
-```bash
-vultron-demo manage-participants
-```
+{% include-markdown "../howto/activitypub/activities/_demo_manage_participants.md" %}
 
 This demo combines the full participant lifecycle: invite, accept, record a participant status, remove the participant from active participation, and reinstate it.
 The vendor is both Case Owner and CASE_MANAGER here, so the removal and the reinstatement are the owner's requests to itself.
@@ -230,9 +220,7 @@ See [Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md) for why
 
 ### establish-embargo
 
-```bash
-vultron-demo establish-embargo
-```
+{% include-markdown "../howto/activitypub/activities/_demo_establish_embargo.md" %}
 
 This demo exercises embargo negotiation.
 A coordinator proposes embargo terms with an Embargo Proposal (EP), `Invite(Event)`.
@@ -262,9 +250,7 @@ See [How to Establish an Embargo](../howto/activitypub/activities/establish_emba
 
 ### report-with-embargo
 
-```bash
-vultron-demo report-with-embargo
-```
+{% include-markdown "../howto/activitypub/activities/_demo_report_with_embargo.md" %}
 
 This demo exercises the negotiated embargo path, which no other demo reaches.
 The Reporter proposes embargo terms *with* the report: the Report Submission (RS), `Offer(VulnerabilityReport)`, carries a proposed `EmbargoEvent` as `proposedEmbargo`, sent through the `submit-report` trigger's `proposed_embargo_end_time`.
@@ -309,9 +295,7 @@ See [How to Report a Vulnerability](../howto/activitypub/activities/report_vulne
 
 ### manage-embargo
 
-```bash
-vultron-demo manage-embargo
-```
+{% include-markdown "../howto/activitypub/activities/_demo_manage_embargo.md" %}
 
 This demo continues from an active embargo.
 Two paths are shown:
@@ -356,9 +340,7 @@ See [How to Revise or Terminate an Embargo](../howto/activitypub/activities/mana
 
 ### acknowledge
 
-```bash
-vultron-demo acknowledge
-```
+{% include-markdown "../howto/activitypub/activities/_demo_acknowledge.md" %}
 
 This demo shows how a vendor acknowledges receipt of a report without committing to an outcome, using a Report Acknowledgment (RK), `Read(Offer(VulnerabilityReport))`.
 Three paths are demonstrated:
@@ -392,9 +374,7 @@ See [Acknowledge a Report](../howto/activitypub/activities/acknowledge.md) for t
 
 ### status-updates
 
-```bash
-vultron-demo status-updates
-```
+{% include-markdown "../howto/activitypub/activities/_demo_status_updates.md" %}
 
 This demo shows two workflows for updating a case record:
 
@@ -411,9 +391,7 @@ See [How to Post a Status Update or a Case Note](../howto/activitypub/activities
 
 ### manage-case
 
-```bash
-vultron-demo manage-case
-```
+{% include-markdown "../howto/activitypub/activities/_demo_manage_case.md" %}
 
 This demo exercises the Report Management (RM) state machine from submission through closure.
 Three paths are shown:

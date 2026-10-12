@@ -1,6 +1,7 @@
 ---
 title: Sync Log Replication — Design Notes
 status: active
+kind: guidance
 description: "Design notes for sync log replication: append-only case activity log synchronization between actors."
 related_specs:
   - specs/sync-ledger-replication.yaml

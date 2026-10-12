@@ -1,6 +1,7 @@
 ---
 title: Embargo Lifecycle — Architecture and Implementation Notes
 status: active
+kind: guidance
 description: >
   Target architecture for EM state management; the embargo register on the
   case, from which EM is derived and which only EmbargoLifecycle changes,

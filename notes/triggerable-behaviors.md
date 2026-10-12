@@ -1,6 +1,7 @@
 ---
 title: "Triggerable Behaviors: Design Notes"
 status: active
+kind: guidance
 tags: [triggers, demo, run-mode, api, classification, wrapper-pattern]
 description: "Design notes for triggerable behaviors: API endpoints, CLI commands, BT integration, behavior routing patterns, trigger classification, and the demo/prod URL split."
 related_specs:

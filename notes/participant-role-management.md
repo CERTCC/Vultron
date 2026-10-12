@@ -1,6 +1,7 @@
 ---
 title: Participant Role Management Design Notes
 status: active
+kind: guidance
 description: >
   Design decisions and implementation guidance for the CaseParticipant
   role-management API (add_role, remove_role, has_role, roles

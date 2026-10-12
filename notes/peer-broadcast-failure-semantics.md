@@ -1,6 +1,7 @@
 ---
 title: Peer Broadcast Failure Semantics
 status: active
+kind: guidance
 related_specs:
   - specs/behavior-tree-integration.yaml
 related_notes:

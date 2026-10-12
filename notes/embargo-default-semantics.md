@@ -1,6 +1,7 @@
 ---
 title: Embargo Default Semantics — Implementation Notes
 status: active
+kind: guidance
 description: >
   Design decisions for embargo policy EP-04 requirements; the actor-default
   versus protocol-default distinction and why the protocol default never

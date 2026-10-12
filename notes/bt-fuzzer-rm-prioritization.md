@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: RM Report Prioritization"
 status: active
+kind: guidance
 description: >
   Catalog of fuzzer (stub) BT nodes for the Report Prioritization sub-workflow
   (`RMPrioritizeBt`): priority assessment, severity ranking, and

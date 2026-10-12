@@ -1,6 +1,7 @@
 ---
 title: Reader-Facing Docs Audit — Cross-Page Rulings
 status: active
+kind: guidance
 description: >
   Dated audit of every reader-facing docs/ page against the site information
   architecture (ADR-0102). The per-page routing ledger is archived (every

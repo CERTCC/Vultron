@@ -1,6 +1,7 @@
 ---
 title: Domain Object Validation — Strict vs. Loose Boundaries
 status: active
+kind: guidance
 description: >
   Where in the pipeline domain objects transition from "loose" (possibly
   None/unresolved fields) to "strict" (all required fields guaranteed),

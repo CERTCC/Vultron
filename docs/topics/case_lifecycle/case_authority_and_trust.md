@@ -136,7 +136,7 @@ That activity is not part of the protocol, and the receiver has no obligation to
 The rule has two exceptions, and both happen before there is a CASE_MANAGER to route through ([§4.5 Trust and Bootstrap Semantics](../../reference/vultron-spec/layers.md#45-trust-and-bootstrap-semantics)).
 
 1. The reporter sends its report directly to the actor it chose to tell, because no case exists yet.
-2. The case-creation message, `Create(VulnerabilityCase)`, introduces the CASE_MANAGER to the participants the case starts with.
+2. The case-creation message, `Create(VulnerabilityCase)`, which the report receiver sends the reporter, introduces the CASE_MANAGER to the reporter.
 
 Everything after those two messages goes through the CASE_MANAGER.
 
@@ -225,12 +225,13 @@ It includes the reporter at RM `ACCEPTED`, set directly ([CBT-01-008](../../refe
 A receiver that finds a required participant missing, or present only as a bare link, rejects the whole bootstrap.
 It does not fill the gap from what it thinks the participant should be ([CBT-05-008](../../reference/specs/protocol.md#cbt-05-008)).
 
-!!! note "The reporter's anchor when the receiver does not hold the role"
-    The reporter's check in the table is stated as CBT-01-005 words it.
-    It is clear when the actor that received the report also sends the bootstrap.
-    It is not settled when a separate actor holds the `CASE_MANAGER` role and creates the case.
-    The requirements do not yet agree on which actor then sends the reporter's bootstrap, or on what the reporter checks before it trusts a CASE_MANAGER it never addressed.
-    That question is under review in [#4473](https://github.com/CERTCC/Vultron/issues/4473).
+The report receiver, not the CASE_MANAGER, sends the reporter's bootstrap ([ADR-0132](../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
+The CASE_MANAGER sends its own `Create(VulnerabilityCase)` to the Case Owner only ([CBT-01-010](../../reference/specs/protocol.md#cbt-01-010)).
+The report receiver then sends the reporter a `Create(VulnerabilityCase)` as itself, and that message names the CASE_MANAGER the receiver delegated to.
+The reporter never addressed the CASE_MANAGER, so it trusts the introduction because it came from the actor the reporter chose.
+A case snapshot that names its own sender as CASE_MANAGER is never an anchor.
+A participant refuses a bootstrap from an actor that no record it wrote names, and stores nothing from it ([CBT-01-011](../../reference/specs/protocol.md#cbt-01-011)).
+When the Case Owner also holds the `CASE_MANAGER` role, the reporter gets only the receiver's message.
 
 After it accepts the bootstrap, a participant stores three things together.
 They are the case that its report became, the actor that created the case, and the actor that is the CASE_MANAGER ([CBT-01-006](../../reference/specs/protocol.md#cbt-01-006)).

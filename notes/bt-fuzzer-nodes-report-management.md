@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: Report Management (Index)"
 status: active
+kind: guidance
 description: >
   Index of per-RM-sub-workflow fuzzer-node catalogs; includes the fuzzer base-type
   probability table and cross-cutting production-collapse designs for four simulator

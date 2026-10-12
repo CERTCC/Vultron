@@ -1,6 +1,12 @@
 ---
 title: Encryption implementation notes
 status: active
+kind: plan
+tracks:
+  - "#1156"
+  - "#1184"
+  - "#2841"
+  - "#3477"
 description: >
   Exploratory notes on encryption options for Vultron using ActivityPub
   public-key infrastructure.

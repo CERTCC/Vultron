@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Manage a Case Roster
@@ -187,9 +187,7 @@ A participant that has not accepted the active embargo stays inert: the CASE_MAN
 
 !!! example "Try it: `vultron-demo manage-participants`"
 
-    ```bash
-    vultron-demo manage-participants
-    ```
+    {% include-markdown "./_demo_manage_participants.md" %}
 
     Or with Docker Compose:
 

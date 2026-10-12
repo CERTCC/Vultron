@@ -1,6 +1,7 @@
 ---
 title: Site Coverage Matrix — Stakeholder Type × Level
 status: active
+kind: generated
 description: >
   Generated count of reader-facing docs/ pages per stakeholder_type and level
   (DF-11-008). A gap here is planning input, never a merge blocker.
@@ -26,8 +27,8 @@ types is counted in both of their rows.
 
 | Stakeholder type | 100 | 200 | 300 | 400 | 500 |
 |---|---:|---:|---:|---:|---:|
-| `cvd-practitioner` | 1 | 16 | 20 | 1 | 0 |
-| `platform-developer` | 1 | 11 | 55 | 55 | 0 |
+| `cvd-practitioner` | 1 | 16 | 19 | 2 | 0 |
+| `platform-developer` | 1 | 11 | 43 | 67 | 0 |
 | `process-researcher` | 1 | 7 | 1 | 13 | 14 |
 | `project-contributor` | 1 | 1 | 19 | 13 | 0 |
 | `ALL` | 9 | 2 | 0 | 0 | 0 |

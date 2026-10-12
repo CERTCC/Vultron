@@ -28,6 +28,7 @@ from vultron.metadata.file_loading import (
     load_frontmatter,
     load_yaml,
     loads_frontmatter,
+    loads_yaml,
     validate,
 )
 from vultron.metadata.history.cli import _validate_frontmatter
@@ -153,6 +154,19 @@ class TestYamlAttribution:
     def test_missing_file_is_not_swallowed(self, tmp_path):
         with pytest.raises(FileNotFoundError):
             load_yaml(tmp_path / "absent.yaml")
+
+    def test_text_form_names_the_shown_path(self):
+        shown = Path("origin/main:specs/x.yaml")
+
+        with pytest.raises(MetadataLoadError) as info:
+            loads_yaml("a: 1\n" + _UNQUOTED_COLON, shown)
+
+        assert str(info.value).startswith(
+            "origin/main:specs/x.yaml:2:21 — YAML parse error:"
+        )
+
+    def test_text_form_parses_valid_text(self):
+        assert loads_yaml("a: 1\n", Path("HEAD:x.yaml")) == {"a": 1}
 
 
 @pytest.mark.spec("MS-17-001")

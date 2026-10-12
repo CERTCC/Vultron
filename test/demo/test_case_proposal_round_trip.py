@@ -284,18 +284,9 @@ class TestCaseProposalRoundTrip:
             "ProposeCaseToActorNode may not have run (CP-04-001, CP-04-002)."
         )
 
-    @pytest.mark.spec("CP-09-001")
-    @pytest.mark.spec("CM-02-004")
-    def test_case_actor_sends_accept_and_create_case(
-        self, two_app_setup, caplog
-    ):
-        """Case-actor responds with Accept(CaseProposal) + Create(VulnerabilityCase).
-
-        After the vendor's outbox flushes Create(as_CaseProposal) to the
-        case-actor inbox, the case-actor service must emit Accept and
-        Create(VulnerabilityCase) back to the vendor (CP-05-003).
-        """
-        vendor_iso, _reporter_iso, vendor_tc, reporter_tc = two_app_setup
+    def _submit_report(self, two_app_setup, caplog, label):
+        """Run the report-to-case round trip; return the isolates and actor ids."""
+        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
 
         vendor_base_api = f"{_VENDOR_BASE}/api/v2"
         reporter_base_api = f"{_REPORTER_BASE}/api/v2"
@@ -312,7 +303,7 @@ class TestCaseProposalRoundTrip:
 
         report = as_VulnerabilityReport(
             attributed_to=reporter_actor_id,
-            name="CP-07-003 accept round-trip report",
+            name=label,
             content=(
                 "Verifying that Accept(as_CaseProposal) is delivered to "
                 "the vendor during the CaseProposal round-trip (CP-05-003)."
@@ -336,6 +327,24 @@ class TestCaseProposalRoundTrip:
         )
         with caplog.at_level(logging.WARNING):
             _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
+        return vendor_iso, reporter_iso, vendor_actor_id, reporter_actor_id
+
+    @pytest.mark.spec("CP-09-001")
+    @pytest.mark.spec("CM-02-004")
+    def test_case_actor_sends_accept_and_create_case(
+        self, two_app_setup, caplog
+    ):
+        """Case-actor responds with Accept(CaseProposal) + Create(VulnerabilityCase).
+
+        After the vendor's outbox flushes Create(as_CaseProposal) to the
+        case-actor inbox, the case-actor service must emit Accept and
+        Create(VulnerabilityCase) back to the vendor (CP-05-003).
+        """
+        vendor_iso, _reporter_iso, vendor_actor_id, _reporter_actor_id = (
+            self._submit_report(
+                two_app_setup, caplog, "CP-07-003 accept round-trip report"
+            )
+        )
 
         # The full chain runs synchronously inside TestClient's
         # BackgroundTask model:
@@ -396,6 +405,28 @@ class TestCaseProposalRoundTrip:
             if "EMB-18-003" in r.getMessage()
         ]
         assert not refusals, refusals
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="CBT-01-001: the CASE_MANAGER still sends the reporter's "
+        "Create(VulnerabilityCase), not the report receiver. Tracked by #4511.",
+    )
+    @pytest.mark.spec("CBT-01-001")
+    def test_report_receiver_sends_the_reporter_the_case(
+        self, two_app_setup, caplog
+    ):
+        """The reporter's bootstrap Create comes from the report receiver."""
+        _vendor_iso, reporter_iso, vendor_actor_id, _reporter_actor_id = (
+            self._submit_report(
+                two_app_setup, caplog, "CBT-01-001 receiver introduces report"
+            )
+        )
+
+        senders = {
+            _as_id(create.actor)
+            for create in reporter_iso.dl.list_objects("Create")
+        }
+        assert senders == {vendor_actor_id}
 
 
 # ---------------------------------------------------------------------------

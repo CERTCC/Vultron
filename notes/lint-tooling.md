@@ -1,6 +1,7 @@
 ---
 title: Lint Tooling Policy — Ruff Configuration, Exclusions, and Baselining
 status: active
+kind: guidance
 description: >
   How the Python lint and format gate is configured and why: ruff as the single
   linter and formatter, family-level `select` with a short annotated `ignore`,

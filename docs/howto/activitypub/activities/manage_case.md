@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Advance a Case Through Report Management
@@ -157,9 +157,7 @@ Each transition is committed to the case ledger, so the same `rm_state` should b
 
 !!! example "Try it: `vultron-demo manage-case`"
 
-    ```bash
-    vultron-demo manage-case
-    ```
+    {% include-markdown "./_demo_manage_case.md" %}
 
     Or with Docker Compose:
 

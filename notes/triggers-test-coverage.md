@@ -1,6 +1,7 @@
 ---
 title: "Trigger Use-Case Test Coverage and PR Scope"
 status: active
+kind: guidance
 related_specs:
   - specs/triggerable-behaviors.yaml
   - specs/use-case-organization.yaml
