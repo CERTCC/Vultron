@@ -176,7 +176,7 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
         ),
         (
             "vultron.core.behaviors.case.nodes.leave.record",
-            "CommitCaseActorRMClosedEntryNode",
+            "CommitRMClosureEntriesNode",
         ),
         (
             "vultron.core.behaviors.case.nodes.lifecycle",

@@ -58,9 +58,15 @@ class RMClosureWriter:
     the actor has reached.
 
     The closing actor is an argument of :meth:`close`, not of the writer, so
-    one writer serves every actor its owner closes (the ledger fan-out closes
-    whichever actor each entry names) and no call inherits the previous
-    call's actor.
+    one writer serves every actor its owner closes and no call inherits the
+    previous call's actor.
+
+    Only the CASE_MANAGER walks a closure path (CM-23-001, CM-23-016).  A
+    replica never builds one of these: the path starts from the writer's own
+    stored RM state, so a replica holding an older status for the actor would
+    write a step no ledger entry backs (#4091).  The CASE_MANAGER commits each
+    status this writer reports through ``steps_out`` as its own ledger entry,
+    and a replica applies those entries (``CommitRMClosureEntriesNode``).
     """
 
     def __init__(self, name: str) -> None:
@@ -69,6 +75,11 @@ class RMClosureWriter:
         Args:
             name: Prefix for the writer node names.
         """
+        # One result dict per writer: each run reports the id of the status
+        # it wrote there, which close() hands to the caller in path order.
+        self._results: dict[RM, dict[str, object]] = {
+            rung: {} for rung in RM_CLOSURE_RUNGS
+        }
         self._writers: dict[RM, CreateParticipantStatusNode] = {
             rung: CreateParticipantStatusNode(
                 actor_id="",
@@ -76,6 +87,7 @@ class RMClosureWriter:
                 vf_state=None,
                 d_state=None,
                 pxa_state=None,
+                result_out=self._results[rung],
                 name=f"{name}.CreateParticipantStatus.{rung.name}",
             )
             for rung in RM_CLOSURE_RUNGS
@@ -88,6 +100,7 @@ class RMClosureWriter:
         participant_id: str,
         case_id: str,
         actor_id: str,
+        steps_out: list[str],
     ) -> Status:
         """Write the closure path from the participant's current RM state.
 
@@ -105,6 +118,9 @@ class RMClosureWriter:
             participant_id: The participant record of the closing actor.
             case_id: The case the participant belongs to.
             actor_id: The closing actor; every write is attributed to it.
+            steps_out: Receives the id of each status written, in path order,
+                so the caller can commit one ledger entry per step (CM-23-001).
+                A step written before a refused one stays in it.
 
         Returns:
             ``SUCCESS`` once the participant is at ``RM.CLOSED`` (at once when
@@ -121,6 +137,8 @@ class RMClosureWriter:
         for rung in rm_closure_path(current_rm):
             writer = self._writers[rung]
             writer._actor_id = actor_id
+            result_out = self._results[rung]
+            result_out.clear()
             # Run as the DataLayer's own actor so BTBridge does not clone an
             # empty store for the closing actor.  The write is attributed to
             # the closing actor through the writer's actor id (ADR-0089).
@@ -137,5 +155,18 @@ class RMClosureWriter:
                 log = node_logger(node)
                 log.warning("%s: %s", node.name, node.feedback_message)
                 return Status.FAILURE
+            status_id = result_out.get("status_id")
+            if not isinstance(status_id, str):
+                # A write the caller cannot name is a step no ledger entry
+                # will record (CM-23-001): report it, never drop it silently.
+                node.feedback_message = (
+                    f"RM {current_rm.name} -> {rung.name} for participant"
+                    f" '{participant_id}' reported no status id"
+                )
+                node_logger(node).warning(
+                    "%s: %s", node.name, node.feedback_message
+                )
+                return Status.FAILURE
+            steps_out.append(status_id)
             current_rm = rung
         return Status.SUCCESS

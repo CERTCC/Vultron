@@ -40,8 +40,10 @@ Submodules:
 - ``rm_verdict_effect``: Ledger-apply of the activity-typed RM moves (report
   verdicts, engage/defer) to the sender's participant
 
-The ``close_case`` effect is not here: it composes the case participant-status
-writer, so it lives in :mod:`vultron.core.behaviors.case.nodes.close_case_effect`.
+A ``close_case`` entry has no effect slot: it records the received Leave, and
+the RM transitions the Leave caused arrive as the status entries after it
+(CM-23-001, CM-23-016).
+
 Every case node that commits imports
 :mod:`~vultron.core.behaviors.sync.commit_tree`, which loads this package, so
 a module here that imported ``case.nodes`` would close an import cycle
@@ -69,7 +71,6 @@ from vultron.core.behaviors.sync.nodes.embargo_backfill import (
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsAcceptEmbargoInviteEventNode,
     IsAddNoteEventNode,
-    IsCloseCaseEventNode,
     IsCreateCaseParticipantEventNode,
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
@@ -169,7 +170,6 @@ __all__ = [
     "IsCreateCaseParticipantEventNode",
     "IsInviteAcceptEventNode",
     "IsInviteRejectEventNode",
-    "IsCloseCaseEventNode",
     "IsSubmitReportEventNode",
     "IsOwnershipTransferEventNode",
     "IsEmbargoProposalEventNode",
