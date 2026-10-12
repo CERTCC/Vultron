@@ -240,16 +240,17 @@ groups:
       the tree it cannot be reasoned about from the tree alone.
   - id: BT-06-005
     priority: MUST
-    kind: project
-    statement: Cascades from a parent subtree to a child subtree in the canonical BT MUST be expressed as BT subtrees within
-      the use case's BT — not as procedural calls in `execute()` after `bt.run()` returns.
+    kind: architecture
+    statement: >-
+      Cascades from a parent subtree to a child subtree MUST be expressed as subtrees within
+      the use case's behavior tree, not as procedural calls made after the tree has run.
     verification: >-
       Inspection of all use-case `execute()` methods confirms that no protocol-observable
       state changes or message sends occur in procedural code after
       `BTBridge.execute_with_setup()` returns.
   - id: BT-06-006
     priority: MUST_NOT
-    kind: project
+    kind: architecture
     verification: >-
       Marked tests in `test/core/behaviors/report/test_develop_fix_tree.py` and
       `test/core/use_cases/received/test_embargo_invite_lapse.py` confirm the guarded

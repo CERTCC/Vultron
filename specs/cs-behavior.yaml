@@ -1833,14 +1833,13 @@ groups:
     - story_2022_107
   - id: CSB-15-004
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
-      A DEPLOYER-only actor (holds CVDRole.DEPLOYER but not CVDRole.VENDOR)
-      attempting the d→D transition MUST be permitted to proceed only when at least
-      one participant holding CVDRole.VENDOR in the same case has reached vf.state=VF
-      (fix-ready). The DEPLOYER-only actor has vf=None (structural) and
-      d=DDimension(state=CS_d.d) prior to the transition; the transition advances
-      d.state to CS_d.D, reflecting deployment of an externally-produced fix.
+      A participant that holds the DEPLOYER role but not the VENDOR role MUST be permitted
+      to make the d→D transition only when at least one participant holding the VENDOR role
+      in the same case has reached F (fix ready). Such a participant has no vendor-fix (VF)
+      state of its own and is at d before the transition; the transition moves it to D,
+      recording deployment of a fix another participant produced.
     rationale: >-
       Under the structural VFD split (Concern #2595), a DEPLOYER-only participant
       has vf=None (structural absence) and d=DDimension (deployer path only). The
@@ -1892,6 +1891,8 @@ groups:
     tags:
     - state-machine
     - protocol
+    lint_suppress:
+    - missing_story_reference
 - id: CSB-16
   title: CS Write-Boundary Transition Validation
   description: >-

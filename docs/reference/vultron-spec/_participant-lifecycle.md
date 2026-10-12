@@ -70,7 +70,7 @@ Two paths bring an actor into a case, and they differ in who initiates:
   `Reject(Invite)` closes the inert record (RM Received → Closed) and keeps it as history, so the CASE_MANAGER can see that the invitation was extended and declined ([CM-11-007](../specs/protocol.md#cm-11-007)).
   Every stub Invite carries a reply deadline.
   When it passes unanswered, the Invite closes as expired and the record is left unchanged: still inert, at RM Received, with its embargo consent row still `INVITED` ([CM-11-014](../specs/protocol.md#cm-11-014)).
-  After joining, the participant judges the case by answering the full-case Invite, not the original report Offer ([CM-11-011](../specs/protocol.md#cm-11-011), [CM-11-020](../specs/project.md#cm-11-020)).
+  After joining, the participant judges the case by answering the full-case Invite, not the original report Offer ([CM-11-011](../specs/protocol.md#cm-11-011), [CM-11-020](../specs/protocol.md#cm-11-020)).
 - **Suggested actor.** An existing participant proposes a third party — "this vendor is also affected" — by sending `Offer(CaseParticipant)` to the CASE_MANAGER.
   The proposal is a recommendation, not an invitation: the Case Owner decides whether to act on it, and if it does, the CASE_MANAGER then sends the `Invite` above.
   An implementation MUST NOT treat `Offer(CaseParticipant)` as an invitation to the proposed actor.

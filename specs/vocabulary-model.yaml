@@ -427,11 +427,15 @@ groups:
       from serialized output.
   - id: VM-07-002
     priority: MUST
-    kind: project
-    statement: Serialized wire-layer objects MUST use camelCase field aliases in output, not Python snake_case field names
+    kind: foundation
+    statement: >-
+      Serialized messages MUST use the ActivityStreams 2.0 property names, which are
+      camelCase, never another spelling such as Python snake_case field names.
     verification: Unit tests `test_render_returns_camel_case_keys` in `test/adapters/driven/test_wire_render_adapter.py`
       and `test_camelcase_keys` in `test/adapters/driving/fastapi/test_responses.py` confirm that JSON output uses
       camelCase keys rather than Python snake_case names.
+    tags:
+    - as2
   - id: VM-07-003
     priority: MUST_NOT
     kind: project

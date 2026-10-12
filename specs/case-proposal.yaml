@@ -414,12 +414,15 @@ groups:
     - story_2022_012
   - id: CP-05-006
     priority: MUST
-    kind: project
-    statement: 'The case-actor service MUST handle duplicate `Create(as_CaseProposal)` idempotently: if the same proposal
-      (the same proposal identifier) has already been accepted, it MUST re-send the stored `Accept(as_CaseProposal)` unchanged,
-      with its original identifier, and MUST NOT create a second `VulnerabilityCase`. When that case is fully closed
-      (its ledger holds `case_fully_closed`), it MUST instead answer with `Reject(as_CaseProposal)` and MUST NOT commit
-      any `CaseLedgerEntry` for the case or change its state (CM-23-013).'
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST handle a duplicate `Create(CaseProposal)` idempotently: if the
+      same proposal (the same proposal identifier) has already been accepted, it MUST
+      re-send the stored `Accept(CaseProposal)` unchanged, with its original identifier, and
+      MUST NOT create a second `VulnerabilityCase`. When that case is fully closed (its
+      ledger holds `case_fully_closed`), it MUST instead answer with `Reject(CaseProposal)`
+      and MUST NOT commit any `CaseLedgerEntry` for the case or change its state
+      (CM-23-013).
     rationale: >-
       A duplicate proposal is the only signal the case-actor gets that its acceptance
       was lost, so answering it is the recovery path CONCERN-2367 found missing.
@@ -453,12 +456,15 @@ groups:
       spec_id: ASK-08-001
     - rel_type: depends_on
       spec_id: CM-23-013
+    lint_suppress:
+    - missing_story_reference
   - id: CP-05-007
     priority: MUST
-    kind: project
-    statement: A report receiver that has sent `Create(as_CaseProposal)` and received neither `Accept(as_CaseProposal)` nor
-      `Reject(as_CaseProposal)` by the proposal's deadline MUST treat the proposal as expired and MUST NOT continue waiting
-      indefinitely.
+    kind: protocol
+    statement: >-
+      A report receiver that has sent `Create(CaseProposal)` and received neither
+      `Accept(CaseProposal)` nor `Reject(CaseProposal)` by the proposal's deadline MUST
+      treat the proposal as expired and MUST NOT continue waiting indefinitely.
     rationale: >-
       CONCERN-2367 found that a silently lost `Accept` stalls the handshake
       permanently, because no party holds a timeout. The proposal is an ask
@@ -473,6 +479,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ASK-05-001
+    lint_suppress:
+    - missing_story_reference
   - id: CP-05-008
     priority: MUST
     kind: protocol

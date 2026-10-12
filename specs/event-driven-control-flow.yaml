@@ -99,7 +99,7 @@ groups:
     - story_2022_106
   - id: EDF-03-005
     priority: MUST_NOT
-    kind: project
+    kind: architecture
     verification: >-
       Inspection confirms each cascade lives in the receiving actor's own tree and is
       triggered by receipt of the peer's outgoing activity, with no cascade logic copied

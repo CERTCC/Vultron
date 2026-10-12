@@ -69,7 +69,7 @@ For two of them, the CASE_MANAGER or the Case Owner may assert the change on the
 |---|---|---|
 | `v → V`, the Vendor is aware | The CASE_MANAGER or the Case Owner | The notification is evidenced: any acknowledgment from the Vendor, even a read receipt of its invitation ([PRM-06-003](../../reference/specs/protocol.md#prm-06-003)). The write does not change the Vendor's RM state |
 | `d → D`, the fix is deployed | The CASE_MANAGER or the Case Owner | The same evidenced pattern, and rarely — for example, a Deployer that joined and has since gone quiet ([PRM-06-004](../../reference/specs/protocol.md#prm-06-004)). The write succeeds only when the Deployer's RM state is consistent with deployment |
-| `f → F`, the fix is ready | Nobody | Fix readiness is not knowable from outside the Vendor, so only the Vendor asserts it ([PRM-06-005](../../reference/specs/project.md#prm-06-005)) |
+| `f → F`, the fix is ready | Nobody | Fix readiness is not knowable from outside the Vendor, so only the Vendor asserts it ([PRM-06-005](../../reference/specs/protocol.md#prm-06-005)) |
 
 An on-behalf assertion targets an existing participant only.
 One whose target is not a participant in the case is refused before any write, and it never creates a participant ([PRM-06-006](../../reference/specs/protocol.md#prm-06-006)).
@@ -77,7 +77,7 @@ A status update is not a way into a case.
 An actor joins a case only through the invitation flow.
 
 A Vendor that takes part in a case is, by definition, aware of it.
-So a Vendor never reports itself as unaware: its valid fix-path reports are `Vf` and `VF` ([PRM-06-002](../../reference/specs/project.md#prm-06-002)).
+So a Vendor never reports itself as unaware: its valid fix-path reports are `Vf` and `VF` ([PRM-06-002](../../reference/specs/protocol.md#prm-06-002)).
 The only `v` a Vendor participant carries is the one the CASE_MANAGER writes when the invitation creates its record.
 Any reply to that invitation sets `V`.
 The on-behalf `v → V` assertion exists for the case in between: an invited Vendor that has acknowledged the invitation but not yet answered it.
@@ -411,7 +411,7 @@ A sender that received one after close would read it as an answer to its request
 `Reject(Leave)` already means "close declined", so it cannot be misread.
 
 A new case proposal is not a late message about the case, because it names a report, not a case.
-When a proposal resolves to a closed case, the CASE_MANAGER answers it with `Reject(CaseProposal)` under either setting, and records nothing for the case ([CP-05-006](../../reference/specs/project.md#cp-05-006), [CP-05-008](../../reference/specs/protocol.md#cp-05-008)).
+When a proposal resolves to a closed case, the CASE_MANAGER answers it with `Reject(CaseProposal)` under either setting, and records nothing for the case ([CP-05-006](../../reference/specs/protocol.md#cp-05-006), [CP-05-008](../../reference/specs/protocol.md#cp-05-008)).
 That reply is a decision on the proposal, so it cannot be misread either.
 
 The boundary stops new writes, not reads.
@@ -433,7 +433,7 @@ For that reason the Case Owner should leave last, after the other participants h
 ## Closed is terminal, so defer instead
 
 RM `CLOSED` has no way out.
-Once a participant reaches it, no further RM change is possible for that participant in that case ([RMB-14-006](../../reference/specs/project.md#rmb-14-006)).
+Once a participant reaches it, no further RM change is possible for that participant in that case ([RMB-14-006](../../reference/specs/protocol.md#rmb-14-006)).
 There is no rejoin: making `CLOSED` reversible would need a second lifecycle for one participant record, and the protocol does not define one ([ADR-0085](../../adr/0085-case-lifecycle-boundaries.md)).
 
 A participant that expects to come back should move to RM `DEFERRED` instead ([RMB-14-007](../../reference/specs/protocol.md#rmb-14-007)).

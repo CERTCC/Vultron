@@ -168,10 +168,12 @@ groups:
     - story_2022_088
   - id: SYNC-02-004
     priority: MUST_NOT
-    kind: project
-    statement: Each `Announce(CaseLedgerEntry)` activity MUST embed the full inline `CaseLedgerEntry` object in its `object` field;
-      a URI-only reference MUST NOT be used, because the recipient needs all entry fields (including `prev_log_hash` and `entry_hash`)
-      to validate the hash chain without an additional round-trip to the sender's DataLayer
+    kind: protocol
+    statement: >-
+      Each `Announce(CaseLedgerEntry)` activity MUST embed the full inline `CaseLedgerEntry`
+      object in its `object` field; a URI-only reference MUST NOT be used, because the
+      recipient needs all entry fields (including the entry hash and its predecessor's hash)
+      to validate the hash chain without an additional round-trip to the sender.
     verification: >-
       Integration tests in `test/demo/` confirm that Announce(CaseLedgerEntry) embeds
       the full inline CaseLedgerEntry with entry_hash and prev_log_hash and

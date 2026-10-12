@@ -1486,7 +1486,7 @@ groups:
     - story_2022_006
   - id: RMB-14-006
     priority: MUST_NOT
-    kind: project
+    kind: protocol
     statement: >-
       The RM state machine MUST NOT define any transition out of RM.CLOSED to a
       different RM state. RM.CLOSED is terminal: once a participant's RM state

@@ -275,7 +275,7 @@ groups:
     - story_2022_023
   - id: EMB-02-002
     priority: MUST_NOT
-    kind: project
+    kind: protocol
     verification: >-
       `test/core/use_cases/received/test_embargo_owner_decision.py::test_an_activation_with_pxa_set_is_refused_uncommitted`
       and
@@ -286,13 +286,12 @@ groups:
       decision, `pxa_embargo_ineligible` on a participant's acceptance), so X or A set
       refuses the activation as P does.
     statement: >-
-      A Participant MUST NOT process EA to transition EM to Active when the case
-      is already public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or
-      attacks have been observed (q^cs ∈ ·····A). The Participant MUST instead
-      emit ER to signal the embargo is not viable. Where the case's EM is moved
-      only by the case owner's `Accept(EmbargoEvent, target=Case)` (MSM-07-008),
-      the CASE_MANAGER refuses that activation with `REFUSED` before committing
-      it, and sends no ER for it.
+      A Participant MUST NOT process EA to transition EM to Active when the case is already
+      public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or attacks have been
+      observed (q^cs ∈ ·····A). The Participant MUST instead emit ER to signal the embargo
+      is not viable. Where the case's EM is moved only by the case owner's
+      `Accept(EmbargoEvent, target=Case)` (MSM-07-008), the CASE_MANAGER refuses that
+      activation before committing it to the case ledger, and sends no ER for it.
     rationale: >-
       VP-06-001 prohibits accepting embargoes once public disclosure has occurred.
       In the CASE_MANAGER topology an ER is a `Reject(Invite(EmbargoEvent))`,

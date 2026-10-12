@@ -49,7 +49,7 @@ see [MSM-05-001](../specs/protocol.md#msm-05-001).
 `reject_invite_actor_to_case`, `reject_case_proposal`,
 `reject_case_ownership_transfer`). A receiver cannot infer "error" from the
 verb alone. The `reject_case_ledger_entry` semantic is also an `as:Reject` but
-it is the ledger NAK described below — not an ordinary refusal ([MSM-05-003](../specs/project.md#msm-05-003)).
+it is the ledger NAK described below — not an ordinary refusal ([MSM-05-003](../specs/protocol.md#msm-05-003)).
 
 ---
 

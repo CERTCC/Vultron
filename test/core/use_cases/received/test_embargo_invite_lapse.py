@@ -457,6 +457,7 @@ class TestInviteReceiptStoresNoDeadline:
         )
 
 
+@pytest.mark.spec("CLP-10-015")
 class TestInviteeIsTheAddressee:
     """The invitee is the activity's ``to:`` recipient, not the receiving actor.
 
@@ -1395,6 +1396,7 @@ class TestInviteeIsTheAddressee:
         assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
 
+@pytest.mark.spec("CLP-10-015")
 class TestInviteeIdProperty:
     """Unit tests for the ``to:``-derived invitee accessors."""
 

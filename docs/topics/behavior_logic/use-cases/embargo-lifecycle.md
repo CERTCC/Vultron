@@ -230,7 +230,7 @@ The embargo is over for everyone at once, which is the one thing about the EM sc
 | Requirement | Obligation |
 |---|---|
 | [EMB-01-002](../../../reference/specs/protocol.md#emb-01-002) | A proposal MUST be refused with ER when the case is public, exploited, or attacked |
-| [EMB-02-002](../../../reference/specs/project.md#emb-02-002) | An EA MUST NOT activate an embargo on a public case; emit ER |
+| [EMB-02-002](../../../reference/specs/protocol.md#emb-02-002) | An EA MUST NOT activate an embargo on a public case; emit ER |
 | [EMB-03-001](../../../reference/specs/protocol.md#emb-03-001) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
 | [EMB-06-001](../../../reference/specs/protocol.md#emb-06-001) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` |
 | [EMB-13-002](../../../reference/specs/protocol.md#emb-13-002) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |

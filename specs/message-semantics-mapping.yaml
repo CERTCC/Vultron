@@ -622,15 +622,19 @@ groups:
     - missing_story_reference
   - id: MSM-05-003
     priority: MUST_NOT
-    kind: project
-    statement: Implementations MUST NOT infer error semantics from the `as:Reject` verb alone, because `as:Reject` also
-      carries legitimate protocol rejections including `close_report`, `reject_invite_to_embargo_on_case`,
-      `reject_invite_actor_to_case`, `reject_case_proposal`, and `reject_case_ownership_transfer`.
+    kind: protocol
+    statement: >-
+      Implementations MUST NOT infer error semantics from the `as:Reject` verb alone,
+      because `as:Reject` also carries legitimate protocol rejections, including closing a
+      report and declining an embargo invitation, a case invitation, a case proposal or a
+      case-ownership transfer.
     rationale: '`as:Reject` is overloaded across error reporting and ordinary protocol refusal. A receiver that treats every
       `as:Reject` as a fault will misclassify routine protocol traffic as errors.'
     verification: >-
       Inspection of the semantic registry confirms multiple non-error entries are
       keyed to `as:Reject` patterns.
+    lint_suppress:
+    - missing_story_reference
   - id: MSM-05-004
     priority: MUST_NOT
     kind: process

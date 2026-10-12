@@ -1770,22 +1770,25 @@ groups:
   specs:
   - id: VP-17-001
     priority: MUST
-    kind: project
-    statement: All direct mutations to the canonical case state MUST route through the CASE_MANAGER; no participant or use-case
-      handler MAY write to canonical case state directly.
+    kind: protocol
+    statement: >-
+      All changes to the canonical case state MUST go through the CASE_MANAGER; no
+      participant MAY change canonical case state directly.
     rationale: >-
       This single-writer axiom prevents concurrent-write races and ensures that all shared
       state changes flow through the actor's consistency checks and persistence layer.
       The CS participant-specific axes (RM, VFD) are owned by each participant's
       `CaseParticipant` record and are intentionally excluded from this restriction.
     verification: >-
-      Inspection of `vultron/core/models/case_actor.py` confirms that
-      canonical case state is encapsulated within the CaseActor, and
-      integration tests in `test/demo/` confirm no use-case handler writes
-      to canonical state outside the actor boundary.
+      `test/core/use_cases/received/test_close_case_role_semantics.py::TestCaseActorRMClosedRecordingIsRoleGated::test_non_case_manager_receiver_commits_no_canonical_entry`
+      confirms that a receiver which does not hold the CASE_MANAGER role commits no
+      canonical ledger entry when it processes a case closure.
     relationships:
     - rel_type: refines
       spec_id: VP-02-001
+    stories:
+    - story_2022_045
+    - story_2022_046
   - id: VP-17-002
     priority: MUST_NOT
     kind: protocol
