@@ -37,6 +37,8 @@ groups:
             note: >-
               Completion summaries belong in `append-history implementation`,
               not in the incoming learnings queue.
+        adr:
+          - ADR-0054
       - id: BW-01-002
         priority: MUST_NOT
         kind: process

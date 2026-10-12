@@ -160,6 +160,8 @@ groups:
     stories:
     - story_2022_074
     - story_2022_088
+    adr:
+    - ADR-0013
 - id: SM-07
   title: State Subsets and Guards
   specs:

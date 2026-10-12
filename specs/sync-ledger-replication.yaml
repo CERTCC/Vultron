@@ -576,6 +576,8 @@ groups:
     stories:
     - story_2022_045
     - story_2022_088
+    adr:
+    - ADR-0018
   - id: SYNC-10-002
     priority: MUST
     kind: protocol
@@ -591,6 +593,8 @@ groups:
       (SYNC-10-002).
     stories:
     - story_2022_088
+    adr:
+    - ADR-0018
   - id: SYNC-10-003
     priority: SHOULD
     kind: protocol
@@ -598,6 +602,8 @@ groups:
       Catch-up freshness checks SHOULD use the actor's last acknowledged canonical hash and
       replay mechanisms so that action gating is based on canonical log position, not local
       wall-clock assumptions
+    adr:
+    - ADR-0018
   - id: SYNC-10-004
     priority: MUST
     kind: protocol

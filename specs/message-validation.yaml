@@ -34,6 +34,8 @@ groups:
     stories:
     - story_2022_012
     - story_2022_038
+    adr:
+    - ADR-0005
   - id: MV-01-005
     priority: MUST
     kind: protocol

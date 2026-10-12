@@ -28,6 +28,8 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Activities added to outbox MUST be persisted to DataLayer immediately
+    adr:
+    - ADR-0012
   - id: OX-01-004
     priority: MUST
     kind: project

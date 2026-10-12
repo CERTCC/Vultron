@@ -8,6 +8,7 @@ description: >
   BT-IDM-01/02/03 anti-pattern reference.
 related_specs:
   - specs/behavior-tree-integration.yaml
+  - specs/behavior-tree-node-design.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-pitfalls.md
@@ -35,6 +36,19 @@ gives implementation guidance for locating new behaviors before coding them.
 **Source**: `vultron-bt.txt` (full tree dump from the simulation engine),
 `docs/topics/behavior_logic/` (narrative documentation per subtree),
 `vultron/bt/` (simulation implementation, do NOT modify).
+
+**How the simulation's nodes are built.** The simulation runs on the
+project's own engine in `vultron.bt.base`, not on `py_trees`. Its trees build
+common nodes — sequences, fallbacks, condition checks, actions, fuzzers,
+inverters — through the factory functions in `vultron.bt.base.factory`
+rather than by subclassing the engine's node classes directly. The point is to
+keep one place that decides how such a node is made, so the engine underneath
+can change without touching the trees that use it, and to keep
+`vultron.bt.base` limited to base classes. This governs only that legacy
+engine. It does not apply to the `py_trees` nodes under
+`vultron/core/behaviors/`, whose construction the BTND requirements set, and
+since BT-02-002 freezes `vultron/bt/` it is a reading aid for the simulation
+rather than a rule new code meets. Provenance: ADR-0004.
 
 ### The Trunk-Removed Branches Model
 

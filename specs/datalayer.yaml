@@ -542,6 +542,7 @@ groups:
     - persistence
     adr:
     - ADR-0073
+    - ADR-0012
   - id: DL-07-003
     priority: MUST
     kind: project
@@ -645,6 +646,7 @@ groups:
     - persistence
     adr:
     - ADR-0073
+    - ADR-0081
   - id: DL-07-008
     priority: MUST
     kind: project
@@ -706,6 +708,33 @@ groups:
     - behavior-tree
     adr:
     - ADR-0073
+  - id: DL-07-010
+    priority: MUST
+    kind: project
+    statement: >-
+      `POST /actors/` MUST reject with 422 an `actor_id` whose scheme and authority do not match the
+      node's configured base URL, and MUST NOT create a store or actor record for it. A peer actor
+      MUST instead be registered through `POST /actors/{actor_id}/peers/`, which writes the peer's
+      actor record into the store of the hosted actor named in the path (DL-07-007), answers 404 when
+      that path names no actor this node hosts, and is idempotent: registering a peer id that the
+      hosted actor already holds returns the existing record rather than a second one.
+    rationale: >-
+      Minting a store for every posted id made the node claim to host actors living elsewhere, and
+      two foreign ids sharing a final path segment collided on one store, so the second silently got
+      the first actor's record (#2549). Rejecting foreign authorities at the route, and registering
+      peers into the knower's own store, keeps hosting and knowing apart. Recorded in ADR-0081.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-007
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_actors.py::TestCreateActor::test_a_foreign_absolute_id_is_rejected`
+      asserts the 422 and that no actor is created; `TestRegisterPeer` asserts the peer lands in the
+      hosted actor's store, that a second registration returns 200 with the existing record, that the
+      peer is absent from `GET /actors/`, and that an unhosted path actor returns 404.
+    tags:
+    - persistence
+    adr:
+    - ADR-0081
 - id: DL-08
   title: Storage Fidelity for Inline-Required References
   description: >-

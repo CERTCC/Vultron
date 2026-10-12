@@ -89,3 +89,20 @@ has joined a case is by definition aware of it. Enforced by
 Implementation: `SvcAddOnBehalfStatusUseCase` in
 `vultron/core/use_cases/triggers/case/add_on_behalf_status.py`; BT guards
 in `vultron/core/behaviors/case/nodes/on_behalf_guards.py`.
+
+---
+
+## The Finder Role Is Retired (ADR-0078)
+
+Finder is not a CVD role in the Vultron taxonomy. None of the protocol state
+machines (RM, EM, CS, PEC) treats a Finder differently from a Reporter. An actor
+that finds a vulnerability and enters the protocol to report it is a Reporter,
+and holds `CVDRole.REPORTER`. There is no separate combined Finder-Reporter role.
+Who discovered the vulnerability is metadata, not a role: record it in the report
+content or in case notes. The formal protocol's process count is defined over
+Reporters, Vendors, Coordinators, Deployers and Others.
+
+The code has not caught up. `CVDRole.FINDER` and the Finder participant classes
+still exist and still appear in demos and stored data, and #2677 owns removing
+them. Do not build new behavior on the Finder role in the meantime: new code
+that needs the reporting party uses `CVDRole.REPORTER`.
