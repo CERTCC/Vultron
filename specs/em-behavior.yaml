@@ -2408,8 +2408,9 @@ groups:
     verification: >-
       `test_em_transition_table_is_declared_and_enforced` in
       `test/core/states/test_em_transition_table.py` asserts the table is
-      declared and a step whose EM move is not in it is refused; it is a strict
-      `xfail` until #4449 lands.
+      declared and a step whose EM move is not in it is refused, and
+      `test_a_refused_em_move_leaves_the_register_unchanged` that the refusal
+      writes nothing.
     adr:
     - ADR-0130
     testable: true
