@@ -18,6 +18,7 @@ related_specs:
   - specs/embargo-policy.yaml
 related_notes:
   - notes/case-communication-model.md
+  - notes/case-ledger-authority.md
   - notes/embargo-lifecycle.md
   - notes/participant-embargo-consent.md
   - notes/participant-role-management.md
