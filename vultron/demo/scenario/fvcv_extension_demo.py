@@ -38,9 +38,9 @@ from vultron.demo.helpers.invite_chain import (
 )
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
+    case_actor_dump_target,
     dump_case_ledgers,
     replica_route_key,
-    resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -80,6 +80,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     BASE_URL,
     DataLayerClient,
     assert_demo_success,
+    case_actor_id_on,
     check_server_availability,
     demo_check,
     demo_gate,
@@ -143,6 +144,13 @@ ROLES: list[ActorRole] = [
         has_id=True,
         id_help="Deterministic full URI for the Vendor2 actor (optional).",
     ),
+    ActorRole(
+        name="case-actor",
+        url_env="VULTRON_CASE_ACTOR_BASE_URL",
+        default_url="http://localhost:7905/api/v2",
+        url_help="Base URL of the CaseActor container API "
+        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+    ),
 ]
 _ROLES = role_map(ROLES)
 
@@ -150,6 +158,7 @@ FINDER_BASE_URL = _ROLES["finder"].url
 VENDOR_BASE_URL = _ROLES["vendor"].url
 COORDINATOR_BASE_URL = _ROLES["coordinator"].url
 VENDOR2_BASE_URL = _ROLES["vendor2"].url
+CASE_ACTOR_BASE_URL = _ROLES["case-actor"].url
 
 #: ``vultron-demo fvcv-extension --help`` text. Lives here rather than in
 #: ``cli.py`` because the sub-command is generated from the registry and the
@@ -189,15 +198,24 @@ def reset_containers(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
 ) -> None:
-    """Reset all four FVCV containers to a clean baseline."""
+    """Reset the four FVCV containers and the dedicated case-actor container.
+
+    The case-actor container's CaseActor identity is re-seeded after the reset,
+    since Vendor1 proposes the case to it (DEMOMA-06-004).
+    """
     targets: list[tuple[str, DataLayerClient]] = [
         ("Finder", finder_client),
         ("Vendor1", vendor_client),
         ("Coordinator", coordinator_client),
         ("Vendor2", vendor2_client),
     ]
-    _reset_containers(targets, reset_fn=reset_datalayer)
+    _reset_containers(
+        targets,
+        reset_fn=reset_datalayer,
+        case_actor_client=case_actor_client,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +233,7 @@ def _phase_report_submission(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     finder_id: str | None,
     vendor_id: str | None,
     coordinator_id: str | None,
@@ -240,6 +259,7 @@ def _phase_report_submission(
         vendor_client=vendor_client,
         coordinator_client=coordinator_client,
         vendor2_client=vendor2_client,
+        case_actor_client=case_actor_client,
     )
 
     finder = vendor = coordinator = vendor2 = None
@@ -309,7 +329,7 @@ def _phase_report_submission(
 
         run_case_invite_chain(
             case=case,
-            case_manager_client=vendor_client,
+            case_manager_client=case_actor_client,
             invitee_name="Coordinator",
             invitee_client=coordinator_client,
             invitee=coordinator,
@@ -375,6 +395,7 @@ def _phase_coordinator_suggests_vendor2(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
     coordinator_in_coordinator: as_Actor,
@@ -453,7 +474,7 @@ def _phase_coordinator_suggests_vendor2(
         invitee_in_own_container=vendor2_in_vendor2,
         invite_timeout=60.0,
         replica_timeout=60.0,
-        ledger_client=vendor_client,
+        ledger_client=case_actor_client,
         reply_timeout=60.0,
     )
 
@@ -497,7 +518,7 @@ def _phase_coordinator_suggests_vendor2(
             offer=offer,
             report=report,
             finder=finder,
-            auth_client=vendor_client,
+            auth_client=case_actor_client,
             case=case,
             invited_obj=vendor2,
             timeout_seconds=60.0,
@@ -831,12 +852,14 @@ def _phase_case_closure(
     coordinator: as_Actor,
     coordinator_in_coordinator: as_Actor,
     case: as_VulnerabilityCase,
+    case_actor_client: DataLayerClient,
 ) -> None:
     """Close the case from all four participants and verify terminal state.
 
     Vendor2, the Coordinator and the Finder leave first; Vendor1, the Case
     Owner throughout, leaves last, once their departures are recorded
-    (CM-23-015).
+    (CM-23-015) in the CASE_MANAGER's store on the dedicated case-actor
+    container.
     """
     logger.info("─" * 80)
     logger.info("Phase 7: Case closure — all participants RM.CLOSED")
@@ -845,7 +868,7 @@ def _phase_case_closure(
     close_case_owner_last(
         case=case,
         milestone="M8",
-        authority_client=vendor_client,
+        authority_client=case_actor_client,
         others=[
             CaseLeaver(client=vendor2_client, actor=vendor2_in_vendor2),
             CaseLeaver(
@@ -907,6 +930,7 @@ def _phase_dump_case_ledgers(
     coordinator: as_Actor,
     vendor2: as_Actor,
     case: as_VulnerabilityCase,
+    case_actor_client: DataLayerClient,
     demo_name: str = "fvcv-extension",
 ) -> None:
     """Dump case ledger entries from each actor container to JSONL files.
@@ -936,13 +960,9 @@ def _phase_dump_case_ledgers(
             vendor2_client,
             replica_route_key(vendor2_client, "vendor2"),
         ),
+        # The canonical ledger, from the dedicated case-actor container.
+        case_actor_dump_target(case_actor_client),
     ]
-    # The case-actor is a sub-actor inside the vendor1 container.
-    case_actor_route_key = resolve_case_actor_route_key(case)
-    if case_actor_route_key is not None:
-        targets.append(
-            LedgerDumpTarget("case-actor", vendor_client, case_actor_route_key)
-        )
 
     dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
 
@@ -952,6 +972,7 @@ def run_fvcv_extension_demo(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     finder_id: str | None = None,
     vendor_id: str | None = None,
     coordinator_id: str | None = None,
@@ -967,6 +988,7 @@ def run_fvcv_extension_demo(
     logger.info("Vendor1 container:     %s", vendor_client.base_url)
     logger.info("Coordinator container: %s", coordinator_client.base_url)
     logger.info("Vendor2 container:     %s", vendor2_client.base_url)
+    logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
     with scenario_harness("fvcv-extension") as harness:
         (
@@ -984,6 +1006,7 @@ def run_fvcv_extension_demo(
             vendor_client,
             coordinator_client,
             vendor2_client,
+            case_actor_client,
             finder_id,
             vendor_id,
             coordinator_id,
@@ -1006,6 +1029,7 @@ def run_fvcv_extension_demo(
                 coordinator=coordinator,
                 vendor2=vendor2,
                 case=case,
+                case_actor_client=case_actor_client,
                 demo_name=harness.demo_name,
             )
         )
@@ -1017,6 +1041,7 @@ def run_fvcv_extension_demo(
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
             vendor2_client=vendor2_client,
+            case_actor_client=case_actor_client,
             vendor=vendor,
             vendor_in_vendor=vendor_in_vendor,
             coordinator_in_coordinator=coordinator_in_coordinator,
@@ -1091,6 +1116,7 @@ def run_fvcv_extension_demo(
             coordinator,
             coordinator_in_coordinator,
             case,
+            case_actor_client,
         )
 
     logger.info("=" * 80)
@@ -1116,6 +1142,7 @@ def main(
     vendor_url: str | None = None,
     coordinator_url: str | None = None,
     vendor2_url: str | None = None,
+    case_actor_url: str | None = None,
     finder_id: str | None = None,
     vendor_id: str | None = None,
     coordinator_id: str | None = None,
@@ -1129,6 +1156,8 @@ def main(
         vendor_url: Override base URL for the Vendor1 container.
         coordinator_url: Override base URL for the Coordinator container.
         vendor2_url: Override base URL for the Vendor2 container.
+        case_actor_url: Override base URL for the dedicated CaseActor
+            container.
         finder_id: Optional deterministic URI for the Finder actor.
         vendor_id: Optional deterministic URI for the Vendor1 actor.
         coordinator_id: Optional deterministic URI for the Coordinator actor.
@@ -1138,11 +1167,17 @@ def main(
     v_url = vendor_url or VENDOR_BASE_URL
     c_url = coordinator_url or COORDINATOR_BASE_URL
     v2_url = vendor2_url or VENDOR2_BASE_URL
+    ca_url = case_actor_url or CASE_ACTOR_BASE_URL
 
     finder_client = DataLayerClient(base_url=f_url)
     vendor_client = DataLayerClient(base_url=v_url)
     coordinator_client = DataLayerClient(base_url=c_url)
     vendor2_client = DataLayerClient(base_url=v2_url)
+    # Bound to the CaseActor: a /datalayer/ read names whose store it is about
+    # (ADR-0073).
+    case_actor_client = DataLayerClient(
+        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
+    )
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [
@@ -1150,6 +1185,7 @@ def main(
             ("Vendor1", vendor_client),
             ("Coordinator", coordinator_client),
             ("Vendor2", vendor2_client),
+            ("CaseActor", case_actor_client),
         ]
         for label, client in targets:
             if not check_server_availability(client):
@@ -1171,6 +1207,7 @@ def main(
         vendor_client=vendor_client,
         coordinator_client=coordinator_client,
         vendor2_client=vendor2_client,
+        case_actor_client=case_actor_client,
         finder_id=finder_id,
         vendor_id=vendor_id,
         coordinator_id=coordinator_id,

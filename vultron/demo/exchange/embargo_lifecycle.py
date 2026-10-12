@@ -50,14 +50,20 @@ from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
     LEDGER_COVERAGE_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
+    case_manager_store,
     find_embargo_invite_for_actor,
-    resolve_case_actor_store_id,
     wait_for_case_em_state,
     wait_for_embargo_proposal_indexed,
     wait_for_participant_embargo_accepted,
     wait_for_participant_embargo_consent,
 )
-from vultron.demo.utils import demo_check, demo_gate, demo_step, ref_id
+from vultron.demo.utils import (
+    DataLayerClient,
+    demo_check,
+    demo_gate,
+    demo_step,
+    ref_id,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -182,6 +188,7 @@ def _await_consent_committed(
     answerer: ActorSession,
     case_id: str,
     embargo_id: str,
+    case_manager_client: DataLayerClient | None = None,
 ) -> None:
     """Gate on *answerer*'s consent being ``AGREED`` in the CASE_MANAGER's store.
 
@@ -189,14 +196,17 @@ def _await_consent_committed(
     from invited to accepted.  A signatory's answer to a revision changes no
     consent state (EP-09-004), so there is nothing to observe there.
     """
+    client, dl_actor_id = case_manager_store(
+        observer.client, case_id, case_manager_client
+    )
     wait_for_participant_embargo_consent(
-        observer.client,
+        client,
         case_id,
         answerer.actor.id_,
         embargo_id,
         EmbargoConsentState.AGREED,
         COMMIT_TIMEOUT_SECONDS,
-        dl_actor_id=resolve_case_actor_store_id(observer.client, case_id),
+        dl_actor_id=dl_actor_id,
     )
 
 
@@ -205,6 +215,7 @@ def _verify_embargo_active(
     case: as_VulnerabilityCase,
     embargo_id: str,
     canonical: ActorSession | None = None,
+    case_manager_client: DataLayerClient | None = None,
 ) -> None:
     """Check *embargo_id* is active in the CASE_MANAGER's store and every replica.
 
@@ -215,18 +226,19 @@ def _verify_embargo_active(
     of it (``ACTIVE`` both before and after).
     """
     if canonical is not None:
+        client, dl_actor_id = case_manager_store(
+            canonical.client, case.id_, case_manager_client
+        )
         with demo_check(
             "CASE_MANAGER's canonical case has EM.ACTIVE with embargo"
             f" {embargo_id}"
         ):
             wait_for_case_em_state(
-                canonical.client,
+                client,
                 case.id_,
                 EM.ACTIVE,
                 COMMIT_TIMEOUT_SECONDS,
-                dl_actor_id=resolve_case_actor_store_id(
-                    canonical.client, case.id_
-                ),
+                dl_actor_id=dl_actor_id,
                 active_embargo_id=embargo_id,
             )
     for label, session in replicas:
@@ -258,6 +270,7 @@ def demo_propose_and_activate_embargo(
     vendor: ActorSession,
     case: as_VulnerabilityCase,
     days: int = PROPOSED_EMBARGO_DAYS,
+    case_manager_client: DataLayerClient | None = None,
 ) -> None:
     """Propose an embargo as the reporter and bring it to ``EM.ACTIVE``.
 
@@ -277,6 +290,9 @@ def demo_propose_and_activate_embargo(
         vendor: The remaining participant, bound to the vendor's container.
         case: The case the embargo is for.
         days: Length of the proposed embargo, in days.
+        case_manager_client: Client for the CaseActor's own container, when it
+            runs in one; the CASE_MANAGER's store is then read there
+            (:func:`~vultron.demo.helpers.polling.case_manager_store`).
 
     A failed step is recorded by ``demo_gate`` / ``demo_check`` and skips the
     steps that depend on it; ``assert_demo_success()`` surfaces it.
@@ -299,7 +315,11 @@ def demo_propose_and_activate_embargo(
             owner=("Coordinator", sessions["Coordinator"]),
             embargo_id=embargo_id,
             committed=lambda answerer: _await_consent_committed(
-                sessions["Coordinator"], answerer, case.id_, embargo_id
+                sessions["Coordinator"],
+                answerer,
+                case.id_,
+                embargo_id,
+                case_manager_client,
             ),
         )
         _verify_embargo_active(
@@ -307,6 +327,7 @@ def demo_propose_and_activate_embargo(
             case,
             embargo_id,
             canonical=sessions["Coordinator"],
+            case_manager_client=case_manager_client,
         )
         for label, session in sessions.items():
             with demo_check(
@@ -328,6 +349,7 @@ def demo_propose_embargo_revision(
     owner: ActorSession,
     case: as_VulnerabilityCase,
     days: int = REVISED_EMBARGO_DAYS,
+    case_manager_client: DataLayerClient | None = None,
 ) -> None:
     """Revise the active embargo and bring the revision to ``EM.ACTIVE``.
 
@@ -354,6 +376,8 @@ def demo_propose_embargo_revision(
         owner: The case owner.
         case: The case whose embargo is revised.
         days: Length of the revised embargo, in days.
+        case_manager_client: Client for the CaseActor's own container, when it
+            runs in one; the CASE_MANAGER's store is then read there.
 
     Failures are recorded as in :func:`demo_propose_and_activate_embargo`.
     """
@@ -366,6 +390,9 @@ def demo_propose_embargo_revision(
     proposer = proposing.with_case(case)
     acceptor = accepting.with_case(case)
     deciding = owner.with_case(case)
+    canonical_client, canonical_store = case_manager_store(
+        deciding.client, case.id_, case_manager_client
+    )
     with demo_gate("Proposer's revision reaches the CASE_MANAGER"):
         proposal = proposer.propose_embargo_revision(end_time=_end_time(days))
         embargo_id = _proposed_embargo_id(
@@ -378,13 +405,11 @@ def demo_propose_embargo_revision(
             f"CASE_MANAGER's canonical case is at EM.REVISE for {embargo_id}"
         ):
             wait_for_case_em_state(
-                deciding.client,
+                canonical_client,
                 case.id_,
                 EM.REVISE,
                 COMMIT_TIMEOUT_SECONDS,
-                dl_actor_id=resolve_case_actor_store_id(
-                    deciding.client, case.id_
-                ),
+                dl_actor_id=canonical_store,
             )
             _answer_in_owner_order(
                 proposer=proposer,
@@ -393,14 +418,12 @@ def demo_propose_embargo_revision(
                 embargo_id=embargo_id,
                 committed=lambda answerer: (
                     wait_for_participant_embargo_accepted(
-                        deciding.client,
+                        canonical_client,
                         case.id_,
                         answerer.actor.id_,
                         embargo_id,
                         COMMIT_TIMEOUT_SECONDS,
-                        dl_actor_id=resolve_case_actor_store_id(
-                            deciding.client, case.id_
-                        ),
+                        dl_actor_id=canonical_store,
                     )
                 ),
             )
@@ -415,11 +438,14 @@ def demo_propose_embargo_revision(
                 case,
                 embargo_id,
                 canonical=deciding,
+                case_manager_client=case_manager_client,
             )
 
 
 def demo_terminate_embargo(
-    terminating: ActorSession, case: as_VulnerabilityCase
+    terminating: ActorSession,
+    case: as_VulnerabilityCase,
+    case_manager_client: DataLayerClient | None = None,
 ) -> None:
     """Terminate the active embargo and check the CASE_MANAGER recorded it.
 
@@ -433,17 +459,23 @@ def demo_terminate_embargo(
         terminating: Any signatory participant authorized to terminate, bound
             to its own container.  The CASE_MANAGER's store is read through
             that container when it is co-hosted there, else through the
-            actor's own replica (:func:`resolve_case_actor_store_id`).
+            actor's own replica
+            (:func:`~vultron.demo.helpers.polling.resolve_case_actor_store_id`).
         case: The case whose embargo ends.
+        case_manager_client: Client for the CaseActor's own container, when it
+            runs in one; the canonical case is then read there instead.
     """
     session = terminating.with_case(case)
     with demo_step("Terminating actor ends the embargo"):
         session.terminate_embargo()
     with demo_check("CASE_MANAGER's canonical case has EM.EXITED"):
+        client, dl_actor_id = case_manager_store(
+            session.client, case.id_, case_manager_client
+        )
         wait_for_case_em_state(
-            session.client,
+            client,
             case.id_,
             EM.EXITED,
             COMMIT_TIMEOUT_SECONDS,
-            dl_actor_id=resolve_case_actor_store_id(session.client, case.id_),
+            dl_actor_id=dl_actor_id,
         )

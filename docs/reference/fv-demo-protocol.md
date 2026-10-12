@@ -22,18 +22,18 @@ Every activity named below is documented, with its canonical example, on the [Me
 ## Actors and topology
 
 The compose stack starts every actor container the multi-actor scenarios share.
-The FV scenario uses two of them and three logical actors:
+The FV scenario uses three of them, one per logical actor:
 
 | Actor | CVD role(s) | Container | Actor id |
 |:------|:------------|:----------|:---------|
 | Finder | `REPORTER` | `finder` | `http://finder:7999/api/v2/actors/{id}` |
 | Vendor | `VENDOR`, `CASE_OWNER` | `vendor` | `http://vendor:7999/api/v2/actors/{id}` |
-| Case Actor | `CASE_MANAGER` | `vendor` (co-hosted) | `http://vendor:7999/api/v2/actors/case-actor` |
+| Case Actor | `CASE_MANAGER` | `case-actor` | `http://case-actor:7999/api/v2/actors/case-actor` |
 
 The **Case Actor** is the actor that enacts the `CASE_MANAGER` role for the case.
 It is the single writer of the canonical case ledger, and every case-scoped activity a participant sends is addressed to it ([The CASE_MANAGER and the Case Ledger](../topics/case_lifecycle/case_manager_and_ledger.md)).
-The Vendor's container hosts it as a second actor record with its own inbox, because the Vendor's `case_actor_service_url` points at the Vendor's own container.
-The dedicated `case-actor` container in the compose file takes no part in this scenario, and the demo runner asserts at the end of Phase 2 that it holds no case data.
+It runs on the dedicated `case-actor` container, because every container's `case_actor_service_url` names that container (CP-08-008).
+That container holds the canonical case and ledger, and the demo runner asserts at the end of Phase 2 that it holds the case with its Case Actor as the `CASE_MANAGER` participant.
 
 The Finder is not a protocol role.
 The actor labeled Finder holds `REPORTER`, the role of whoever submits the report ([ADR-0078](../adr/0078-retire-finder-role.md)).
@@ -179,7 +179,7 @@ The `actor` is the Case Actor, acting as `CASE_MANAGER`, while the case's `attri
 {
   "type": "Create",
   "id": "urn:uuid:ac0e2f61-…",
-  "actor": "http://vendor:7999/api/v2/actors/case-actor",
+  "actor": "http://case-actor:7999/api/v2/actors/case-actor",
   "to": [
     "http://vendor:7999/api/v2/actors/{vendor_id}",
     "http://finder:7999/api/v2/actors/{finder_id}"
@@ -217,7 +217,7 @@ This phase reads the two replicas and sends nothing.
 1. The demo runner reads the highest ledger index the Vendor's replica holds.
 2. It waits until the Finder's replica holds a contiguous ledger up to that index.
 3. It compares the two replicas: the participant index, the active embargo id, and the ledger tail hash must match.
-4. It reads the dedicated `case-actor` container and asserts that it holds no case.
+4. It reads the dedicated `case-actor` container and asserts that it holds the case, with its Case Actor as a `CASE_MANAGER` participant.
 
 Ledger entries reach a replica through `Announce(CaseLedgerEntry)`, one activity per entry per participant.
 Entries can arrive out of order; a replica that receives an entry ahead of its predecessor answers with `Reject(CaseLedgerEntry)`, and the Case Actor replays the missing range ([Ledger Replication Messages](messages/ledger_replication.md)).
@@ -230,7 +230,7 @@ Entries can arrive out of order; a replica that receives an entry ahead of its p
 | Matching `actorParticipantIndex` | both replicas |
 | Matching active embargo (the register's `ACTIVE` entry) | both replicas |
 | Matching ledger tail hash | both replicas |
-| No case data | dedicated `case-actor` container |
+| Case held, Case Actor is `CASE_MANAGER` | dedicated `case-actor` container |
 
 ---
 
@@ -367,7 +367,7 @@ The owner's departure closes the case, and the Case Actor records nothing a part
   "type": "Leave",
   "id": "urn:uuid:541b09bc-…",
   "actor": "http://vendor:7999/api/v2/actors/{vendor_id}",
-  "to": ["http://vendor:7999/api/v2/actors/case-actor"],
+  "to": ["http://case-actor:7999/api/v2/actors/case-actor"],
   "object": {
     "type": "VulnerabilityCase",
     "id": "urn:uuid:8eee4e72-…",

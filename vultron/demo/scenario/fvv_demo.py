@@ -39,9 +39,9 @@ from vultron.demo.helpers.invite_chain import (
 )
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
+    case_actor_dump_target,
     dump_case_ledgers,
     replica_route_key,
-    resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -79,6 +79,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     BASE_URL,
     DataLayerClient,
     assert_demo_success,
+    case_actor_id_on,
     check_server_availability,
     demo_check,
     demo_gate,
@@ -136,6 +137,13 @@ ROLES: list[ActorRole] = [
         has_id=True,
         id_help="Deterministic full URI for the Vendor2 actor (optional).",
     ),
+    ActorRole(
+        name="case-actor",
+        url_env="VULTRON_CASE_ACTOR_BASE_URL",
+        default_url="http://localhost:7903/api/v2",
+        url_help="Base URL of the CaseActor container API "
+        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+    ),
 ]
 _ROLES = role_map(ROLES)
 
@@ -143,6 +151,7 @@ _ROLES = role_map(ROLES)
 FINDER_BASE_URL = _ROLES["finder"].url
 VENDOR_BASE_URL = _ROLES["vendor"].url
 VENDOR2_BASE_URL = _ROLES["vendor2"].url
+CASE_ACTOR_BASE_URL = _ROLES["case-actor"].url
 
 #: ``vultron-demo fvv --help`` text. Lives here rather than in ``cli.py``
 #: because the sub-command is generated from the registry and the scenario
@@ -176,14 +185,23 @@ def reset_containers(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     vendor2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
 ) -> None:
-    """Reset all three FVV containers to a clean baseline."""
+    """Reset the three FVV containers and the dedicated case-actor container.
+
+    The case-actor container's CaseActor identity is re-seeded after the reset,
+    since Vendor1 proposes the case to it (DEMOMA-06-004).
+    """
     targets: list[tuple[str, DataLayerClient]] = [
         ("Finder", finder_client),
         ("Vendor1", vendor_client),
         ("Vendor2", vendor2_client),
     ]
-    _reset_containers(targets, reset_fn=reset_datalayer)
+    _reset_containers(
+        targets,
+        reset_fn=reset_datalayer,
+        case_actor_client=case_actor_client,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +213,7 @@ def _phase_report_submission(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     vendor2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     finder_id: str | None,
     vendor_id: str | None,
     vendor2_id: str | None,
@@ -216,6 +235,7 @@ def _phase_report_submission(
         finder_client=finder_client,
         vendor_client=vendor_client,
         vendor2_client=vendor2_client,
+        case_actor_client=case_actor_client,
     )
 
     finder = vendor = vendor2 = None
@@ -271,7 +291,7 @@ def _phase_report_submission(
         # gate, the accept and the replica wait (ADR-0058, EDF-06-005, #3038).
         run_case_invite_chain(
             case=case,
-            case_manager_client=vendor_client,
+            case_manager_client=case_actor_client,
             invitee_name="Vendor2",
             invitee_client=vendor2_client,
             invitee=vendor2,
@@ -318,7 +338,7 @@ def _phase_report_submission(
                 offer=offer,
                 report=report,
                 finder=finder,
-                auth_client=vendor_client,
+                auth_client=case_actor_client,
                 case=case,
                 invited_obj=vendor2,
             )
@@ -626,11 +646,13 @@ def _phase_case_closure(
     finder: as_Actor,
     finder_in_finder: as_Actor,
     case: as_VulnerabilityCase,
+    case_actor_client: DataLayerClient,
 ) -> None:
     """Close the case from all three participants and verify terminal state.
 
     Vendor2 and the Finder leave first; Vendor1, the Case Owner, leaves
-    last, once their departures are recorded (CM-23-015).
+    last, once their departures are recorded (CM-23-015) in the
+    CASE_MANAGER's store on the dedicated case-actor container.
     """
     logger.info("─" * 80)
     logger.info("Phase 6: Case closure — all participants RM.CLOSED")
@@ -639,7 +661,7 @@ def _phase_case_closure(
     close_case_owner_last(
         case=case,
         milestone="M7",
-        authority_client=vendor_client,
+        authority_client=case_actor_client,
         others=[
             CaseLeaver(client=vendor2_client, actor=vendor2_in_vendor2),
             CaseLeaver(client=finder_client, actor=finder_in_finder),
@@ -704,6 +726,7 @@ def _phase_dump_case_ledgers(
     vendor: as_Actor,
     vendor2: as_Actor,
     case: as_VulnerabilityCase,
+    case_actor_client: DataLayerClient,
     demo_name: str = "fvv",
 ) -> None:
     """Dump case ledger entries from each actor container to JSONL files.
@@ -728,13 +751,9 @@ def _phase_dump_case_ledgers(
             vendor2_client,
             replica_route_key(vendor2_client, "vendor2"),
         ),
+        # The canonical ledger, from the dedicated case-actor container.
+        case_actor_dump_target(case_actor_client),
     ]
-    # The case-actor is a sub-actor inside the vendor1 container.
-    case_actor_route_key = resolve_case_actor_route_key(case)
-    if case_actor_route_key is not None:
-        targets.append(
-            LedgerDumpTarget("case-actor", vendor_client, case_actor_route_key)
-        )
 
     dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
 
@@ -743,6 +762,7 @@ def run_fvv_demo(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     vendor2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     finder_id: str | None = None,
     vendor_id: str | None = None,
     vendor2_id: str | None = None,
@@ -754,6 +774,7 @@ def run_fvv_demo(
     logger.info("Finder container:  %s", finder_client.base_url)
     logger.info("Vendor1 container: %s", vendor_client.base_url)
     logger.info("Vendor2 container: %s", vendor2_client.base_url)
+    logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("fvv") as harness:
         finder, vendor, vendor_in_vendor, vendor2, _report, _offer, case = (
@@ -761,6 +782,7 @@ def run_fvv_demo(
                 finder_client,
                 vendor_client,
                 vendor2_client,
+                case_actor_client,
                 finder_id,
                 vendor_id,
                 vendor2_id,
@@ -778,6 +800,7 @@ def run_fvv_demo(
                 vendor=vendor,
                 vendor2=vendor2,
                 case=case,
+                case_actor_client=case_actor_client,
                 demo_name=harness.demo_name,
             )
         )
@@ -836,6 +859,7 @@ def run_fvv_demo(
             finder,
             finder_in_finder,
             case,
+            case_actor_client,
         )
 
     logger.info("=" * 80)
@@ -860,6 +884,7 @@ def main(
     finder_url: str | None = None,
     vendor_url: str | None = None,
     vendor2_url: str | None = None,
+    case_actor_url: str | None = None,
     finder_id: str | None = None,
     vendor_id: str | None = None,
     vendor2_id: str | None = None,
@@ -872,6 +897,8 @@ def main(
         finder_url: Override base URL for the Finder container.
         vendor_url: Override base URL for the Vendor1 container.
         vendor2_url: Override base URL for the Vendor2 container.
+        case_actor_url: Override base URL for the dedicated CaseActor
+            container.
         finder_id: Optional deterministic URI for the Finder actor.
         vendor_id: Optional deterministic URI for the Vendor1 actor.
         vendor2_id: Optional deterministic URI for the Vendor2 actor.
@@ -879,16 +906,23 @@ def main(
     f_url = finder_url or FINDER_BASE_URL
     v_url = vendor_url or VENDOR_BASE_URL
     v2_url = vendor2_url or VENDOR2_BASE_URL
+    ca_url = case_actor_url or CASE_ACTOR_BASE_URL
 
     finder_client = DataLayerClient(base_url=f_url)
     vendor_client = DataLayerClient(base_url=v_url)
     vendor2_client = DataLayerClient(base_url=v2_url)
+    # Bound to the CaseActor: a /datalayer/ read names whose store it is about
+    # (ADR-0073).
+    case_actor_client = DataLayerClient(
+        base_url=ca_url, actor_id=case_actor_id_on(ca_url)
+    )
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [
             ("Finder", finder_client),
             ("Vendor1", vendor_client),
             ("Vendor2", vendor2_client),
+            ("CaseActor", case_actor_client),
         ]
         for label, client in targets:
             if not check_server_availability(client):
@@ -909,6 +943,7 @@ def main(
         finder_client=finder_client,
         vendor_client=vendor_client,
         vendor2_client=vendor2_client,
+        case_actor_client=case_actor_client,
         finder_id=finder_id,
         vendor_id=vendor_id,
         vendor2_id=vendor2_id,

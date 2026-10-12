@@ -44,9 +44,9 @@ from vultron.demo.helpers.invite_chain import (
 )
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
+    case_actor_dump_target,
     dump_case_ledgers,
     replica_route_key,
-    resolve_case_actor_route_key,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -218,15 +218,22 @@ def reset_containers(
     case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
 ) -> None:
-    """Reset all five FCCV-handoff containers to a clean baseline."""
+    """Reset all five FCCV-handoff containers to a clean baseline.
+
+    The dedicated case-actor container's CaseActor identity is re-seeded after
+    the reset, since C1 proposes the case to it (DEMOMA-06-004).
+    """
     targets: list[tuple[str, DataLayerClient]] = [
         ("Finder", finder_client),
         ("C1", c1_client),
         ("C2", c2_client),
-        ("CaseActor", case_actor_client),
         ("Vendor", vendor_client),
     ]
-    _reset_containers(targets, reset_fn=reset_datalayer)
+    _reset_containers(
+        targets,
+        reset_fn=reset_datalayer,
+        case_actor_client=case_actor_client,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +332,7 @@ def _phase_ownership_handoff(
     finder_client: DataLayerClient,
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     c1: as_Actor,
     c1_in_c1: as_Actor,
     c2: as_Actor,
@@ -346,7 +354,7 @@ def _phase_ownership_handoff(
     # the accept and the replica wait (ADR-0058, EDF-06-005, #3038).
     run_case_invite_chain(
         case=case,
-        case_manager_client=c1_client,
+        case_manager_client=case_actor_client,
         invitee_name="C2",
         invitee_client=c2_client,
         invitee=c2,
@@ -482,6 +490,7 @@ def _phase_c2_invites_vendor(
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     c2: as_Actor,
     c2_in_c2: as_Actor,
     case_actor_id: str,
@@ -514,7 +523,7 @@ def _phase_c2_invites_vendor(
     # delivery gate (ADR-0058 nested-block model, EDF-06-005, #3038).
     run_case_invite_chain(
         case=case,
-        case_manager_client=c1_client,
+        case_manager_client=case_actor_client,
         invitee_name="Vendor",
         invitee_client=vendor_client,
         invitee=vendor,
@@ -573,7 +582,7 @@ def _phase_c2_invites_vendor(
             offer=offer,
             report=report,
             finder=finder,
-            auth_client=c1_client,
+            auth_client=case_actor_client,
             case=case,
             invited_obj=vendor,
             timeout_seconds=90.0,
@@ -873,6 +882,7 @@ def _phase_case_closure(
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
+    case_actor_client: DataLayerClient,
 ) -> None:
     """Close the case from all four participants and verify terminal state.
 
@@ -886,9 +896,9 @@ def _phase_case_closure(
 
     close_case_owner_last(
         case=case,
-        # The CASE_MANAGER stays a sub-actor on C1's container after the
-        # handoff, so its store is read through C1's client.
-        authority_client=c1_client,
+        # The handoff moves CASE_OWNER, not CASE_MANAGER: the CaseActor stays on
+        # the dedicated case-actor container, so its store is read there.
+        authority_client=case_actor_client,
         others=[
             CaseLeaver(client=c1_client, actor=c1_in_c1),
             CaseLeaver(client=vendor_client, actor=vendor_in_vendor),
@@ -941,6 +951,7 @@ def _phase_dump_case_ledgers(
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     case: as_VulnerabilityCase,
     demo_name: str = "fccv-handoff",
 ) -> None:
@@ -971,13 +982,9 @@ def _phase_dump_case_ledgers(
             vendor_client,
             replica_route_key(vendor_client, "vendor2"),
         ),
+        # The canonical ledger lives on the dedicated case-actor container.
+        case_actor_dump_target(case_actor_client),
     ]
-    # The case-actor is a sub-actor inside the C1 container.
-    case_actor_route_key = resolve_case_actor_route_key(case)
-    if case_actor_route_key is not None:
-        targets.append(
-            LedgerDumpTarget("case-actor", c1_client, case_actor_route_key)
-        )
 
     dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
 
@@ -1040,12 +1047,15 @@ def run_fccv_handoff_demo(
                 c1_client=c1_client,
                 c2_client=c2_client,
                 vendor_client=vendor_client,
+                case_actor_client=case_actor_client,
                 case=case,
                 demo_name=harness.demo_name,
             )
         )
 
-        # Discover the CaseActor's dynamic sub-actor ID before the handoff phase.
+        # Read the CaseActor's id off the case's participant index rather than
+        # assuming it: the Invite check in Phase 3 asserts the Invite was
+        # emitted by the actor actually holding CASE_MANAGER on this case.
         dynamic_case_actor_id = find_case_actor_participant_id(
             c1_client, case.id_
         )
@@ -1062,6 +1072,7 @@ def run_fccv_handoff_demo(
             finder_client=finder_client,
             c1_client=c1_client,
             c2_client=c2_client,
+            case_actor_client=case_actor_client,
             c1=c1,
             c1_in_c1=c1_in_c1,
             c2=c2,
@@ -1075,6 +1086,7 @@ def run_fccv_handoff_demo(
             c1_client=c1_client,
             c2_client=c2_client,
             vendor_client=vendor_client,
+            case_actor_client=case_actor_client,
             c2=c2,
             c2_in_c2=c2_in_c2,
             case_actor_id=dynamic_case_actor_id,
@@ -1159,6 +1171,7 @@ def run_fccv_handoff_demo(
             vendor,
             vendor_in_vendor,
             case,
+            case_actor_client,
         )
 
     logger.info("=" * 80)

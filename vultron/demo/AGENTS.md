@@ -151,6 +151,28 @@ See
 [`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
 § "Docker Compose Service Names Are Not Actor Names". (ISSUE-1216, ISSUE-1786)
 
+### The CaseActor Lives on the Dedicated `case-actor` Container
+
+Every Docker scenario proposes its cases to
+`http://case-actor:7999/api/v2/actors/case-actor` (CP-08-008, DEMOMA-06-004).
+So each scenario takes a `case_actor_client` bound with `case_actor_id_on(url)`
+and passes it in three places:
+
+- to `reset_containers(..., case_actor_client=...)`, which resets the container
+  and then re-seeds the identity, since the reset wipes it and nothing else
+  restores it;
+- to every helper that reads or acts on the CASE_MANAGER's store
+  (`case_manager_client`, `ledger_client`, `authority_client`, the invite-path
+  `auth_client`, `case_manager_store`);
+- to `case_actor_dump_target` for the `case-actor` ledger.
+
+A participant's replica is not a stand-in for the CaseActor's store: some
+participant RM transitions the CaseActor makes are not ledgered, so the replica
+can lag them indefinitely. Replica-versus-replica sync checks still read the
+participants. See
+[`notes/case-proposal.md`](../../notes/case-proposal.md) § "The Dedicated
+Case-Actor Container". (#1876)
+
 ### Exchange Demos: Discover the Canonical Case from the DataLayer
 
 After `validate-report`, the BT fires `ProposeReportCaseToActorNode` and the

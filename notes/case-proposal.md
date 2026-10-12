@@ -8,6 +8,7 @@ description: >
   "requesting case initialization" from "creating the case."
 related_specs:
   - specs/case-proposal.yaml
+  - specs/multi-actor-demo.yaml
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
   - specs/semantic-extraction.yaml
@@ -23,6 +24,7 @@ related_notes:
   - notes/case-ledger-authority.md
   - notes/datalayer-design.md
   - notes/case-bootstrap-trust.md
+  - notes/fv-demo.md
 relevant_packages:
   - vultron/wire/as2/vocab/objects
   - vultron/core/models/events
@@ -353,7 +355,7 @@ in the mapping returned by `use_case_map()`.
 
 | Issue | Relationship |
 |-------|-------------|
-| #810 | **Blocked by this**: demo routing to dedicated case-actor container requires the CaseProposal protocol to be in place before `CreateCaseActorNode` can be adapted for the demo layer. Note: the current FV demo passes all convergence invariants (all 26 invariants PASS as of #1025 review), confirming that #810 is architectural improvement work rather than a blocking bug. |
+| #810 | Closed. Its successor #1876 routes every Docker scenario's proposals to the dedicated case-actor container; see "The Dedicated Case-Actor Container" below. |
 | #811 | Spec + ADR for CaseActor dynamic spawning — a broader concern; CaseProposal is a prerequisite input. |
 | #812 | Implementation of CaseActor dynamic spawning — blocked by #811 and this work. |
 
@@ -411,6 +413,42 @@ environment:
 This is a TEMPORARY per-actor config field pending a proper actor-ID-to-endpoint
 resolution mechanism (issues #1189, #1092). Normative requirements: CP-08-001
 through CP-08-003.
+
+### The Dedicated Case-Actor Container (#1876)
+
+In `docker/docker-compose-multi-actor.yml` every actor container, and the
+`case-actor` container itself, sets
+`VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2`
+(CP-08-003, CP-08-008, DEMOMA-06-004). So, in every scenario:
+
+- **Delivery target**: the report receiver's `Create(as_CaseProposal)` goes to
+  the container identity `http://case-actor:7999/api/v2/actors/case-actor`.
+  It is one identity for every case, never a per-case slug (#1872).
+- **Who seeds it**: the demo runner. Its reset clears every record on every
+  node, the CaseActor included, and no container seeds itself at startup. So
+  the shared `reset_containers` helper in `vultron/demo/helpers/seeding.py`
+  re-seeds the identity through `seed_case_actor_identity` whenever it is
+  given the `case_actor_client`. Without that step every proposal answers 404.
+- **Who holds what**: the case-actor container's CaseActor store holds the
+  canonical `VulnerabilityCase`, its ledger, and the participant records. The
+  CaseActor appears in them as the `CASE_MANAGER` participant; there is no
+  separate CaseActor service record. Each participant container holds a
+  replica, plus one address-book copy of the CaseActor
+  (`EnsureCaseActorHostedNode`). That copy publishes no inbox: the node's own
+  store for the remote id stays empty.
+- **Reading the CaseActor's state from a demo**: read it through the
+  case-actor container's client. A participant's replica is no substitute:
+  the CaseActor applies some participant RM transitions without a ledger
+  entry, so the replica can lag them indefinitely. The shared helpers take
+  that client as `case_manager_client` / `authority_client` / `auth_client`
+  (for the invite path), or read it via `case_manager_store`. The FV demo checks
+  the topology with `verify_case_actor_holds_records`, and every scenario dumps
+  the `case-actor` ledger from that container (DEMOMA-06-005).
+
+**Not the end state.** One pre-provisioned CaseActor serving every case is a
+stepping stone. CaseActor Spawning (#1092, with #811–#813) replaces it with a
+CaseActor process spawned per case, under its own first-class identity. Do not
+build on the singleton as if it were permanent.
 
 ### Pitfall: `server_base_url` is NOT the CaseActor service URL
 

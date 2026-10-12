@@ -48,6 +48,7 @@ from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.rm import RM
 from vultron.demo.utils import (
     DataLayerClient,
+    case_actor_id_on,
     demo_check,
     demo_step,
     seed_actor,
@@ -1144,11 +1145,15 @@ def seed_containers_fcvcv(
 def reset_containers(
     labeled_clients: Sequence[tuple[str, DataLayerClient]],
     reset_fn: Callable[..., object],
+    case_actor_client: DataLayerClient | None = None,
 ) -> None:
     """Reset a set of labeled containers to a clean baseline.
 
     This generic helper iterates over *labeled_clients*, calling *reset_fn*
     on each, then verifies that no ``VulnerabilityCase`` records remain.
+    When *case_actor_client* is given, the dedicated case-actor container is
+    reset with the others and its CaseActor identity is then re-seeded
+    (:func:`seed_case_actor_identity`).
 
     Keeping the reset loop here (rather than in a scenario module) allows any
     multi-container scenario to reuse it without importing from
@@ -1165,21 +1170,30 @@ def reset_containers(
             admits the keyword call, and ``object`` says the result is never
             inspected (CS-11-001).
             Pass the module-local reference so test patches take effect.
+        case_actor_client: Client for the dedicated case-actor container, bound
+            to its CaseActor (:func:`~vultron.demo.utils.case_actor_id_on`).
+            Every actor container proposes its cases to that CaseActor
+            (CP-08-008, DEMOMA-06-004), so a run cannot start until the identity
+            exists again.
 
     Raises:
         AssertionError: If any container still has ``VulnerabilityCase``
             records after the reset.
 
-    Spec: D5-2.
+    Spec: D5-2, DEMOMA-01-003.
     """
+    targets = list(labeled_clients)
+    if case_actor_client is not None:
+        targets.append(("CaseActor", case_actor_client))
+
     label = client = None
     with demo_step("Resetting actor containers to a clean baseline"):
-        for label, client in labeled_clients:
+        for label, client in targets:
             result = reset_fn(client=client)
             logger.debug("%s reset result: %s", label, result)
 
     with demo_check("All actor containers start with no persisted cases"):
-        for label, client in labeled_clients:
+        for label, client in targets:
             for actor_id in _actors_to_verify(label, client):
                 cases = client.get(
                     client.dl_path("VulnerabilityCases/", actor_id=actor_id)
@@ -1189,6 +1203,45 @@ def reset_containers(
                         f"{label} container was not reset cleanly"
                         f" (actor {actor_id}): {cases}"
                     )
+
+    if case_actor_client is not None:
+        with demo_step("Re-seeding the dedicated case-actor identity"):
+            seed_case_actor_identity(case_actor_client)
+
+
+def seed_case_actor_identity(case_actor_client: DataLayerClient) -> as_Actor:
+    """Re-create the dedicated case-actor container's CaseActor identity.
+
+    Every actor container proposes its cases to
+    ``http://case-actor:7999/api/v2/actors/case-actor`` (CP-08-008), and the
+    inbox route answers 404 for an actor its node does not host (ADR-0073). The
+    reset in :func:`reset_containers` clears every record on the node,
+    including that identity, and no demo container seeds itself on startup, so
+    without this every ``Create(CaseProposal)`` delivery 404s and the case never
+    opens. Matches ``docker/seed-configs/seed-case-actor.yaml``.
+
+    The identity is constant — one CaseActor serving every case (#1872) — so it
+    is seeded before any report exists.
+
+    Args:
+        case_actor_client: Client connected to the dedicated case-actor
+            container.
+
+    Returns:
+        The seeded (or pre-existing) CaseActor ``as_Actor``; ``POST /actors/``
+        is idempotent.
+    """
+    actor = _own_actor(
+        case_actor_client,
+        seed_actor(
+            client=case_actor_client,
+            name="CaseActor",
+            actor_type="Service",
+            actor_id=case_actor_id_on(case_actor_client.base_url),
+        ),
+    )
+    logger.info("CaseActor identity seeded: %s", actor.id_)
+    return actor
 
 
 def _actors_to_verify(label: str, client: DataLayerClient) -> list[str]:

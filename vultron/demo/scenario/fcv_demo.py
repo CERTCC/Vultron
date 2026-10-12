@@ -18,8 +18,9 @@
 Orchestrates the CVD lifecycle to VFdPxa closure across four containers:
 Finder, Coordinator (CASE_OWNER), Vendor, and CaseActor.
 
-Coordinator receives the Finder's report, creates the case (holding
-CASE_OWNER), the CaseActor service actor holds CASE_MANAGER.  The Finder is
+Coordinator receives the Finder's report and proposes the case to the
+CaseActor in the dedicated case-actor container, which creates it and holds
+CASE_MANAGER; the Coordinator holds CASE_OWNER.  The Finder is
 seated as reporter when the case is created (CM-22-002), so it is never
 invited; the Coordinator directly invites Vendor (``invite-actor-to-case``).
 Vendor accepts the report and embargo, advances through the fix lifecycle
@@ -161,7 +162,7 @@ def reset_containers(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None = None,
+    case_actor_client: DataLayerClient,
 ) -> None:
     """Reset FCV containers to a clean baseline."""
     targets: list[tuple[str, DataLayerClient]] = [
@@ -169,9 +170,11 @@ def reset_containers(
         ("Coordinator", coordinator_client),
         ("Vendor", vendor_client),
     ]
-    if case_actor_client is not None:
-        targets.append(("CaseActor", case_actor_client))
-    _reset_containers(targets, reset_fn=reset_datalayer)
+    _reset_containers(
+        targets,
+        reset_fn=reset_datalayer,
+        case_actor_client=case_actor_client,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +191,7 @@ def _phase_report_submission(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None,
+    case_actor_client: DataLayerClient,
     finder_id: str | None,
     coordinator_id: str | None,
     vendor_id: str | None,
@@ -246,6 +249,7 @@ def _phase_report_submission(
 
 def _phase_invite_vendor(
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
     finder_client: DataLayerClient,
     coordinator_in_coordinator: as_Actor,
@@ -274,6 +278,7 @@ def _phase_invite_vendor(
         reporter=finder,
         reporter_client=finder_client,
         coordinator_client=coordinator_client,
+        case_actor_client=case_actor_client,
         vendor=vendor,
         vendor_client=vendor_client,
     )
@@ -423,6 +428,7 @@ def _phase_publication(
 def _phase_case_closure(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
     coordinator_in_coordinator: as_Actor,
     vendor_in_vendor: as_Actor,
@@ -437,6 +443,7 @@ def _phase_case_closure(
     everyone_closes_case(
         reporter_client=finder_client,
         coordinator_client=coordinator_client,
+        case_actor_client=case_actor_client,
         vendor_client=vendor_client,
         reporter_in_reporter=finder_in_finder,
         coordinator_in_coordinator=coordinator_in_coordinator,
@@ -448,16 +455,22 @@ def _phase_case_closure(
 def _phase_dump_case_ledgers(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor_client: DataLayerClient,
     case: as_VulnerabilityCase,
     demo_name: str = "fcv",
 ) -> None:
-    """Dump case ledger entries from each actor container to JSONL files."""
+    """Dump case ledger entries from each actor container to JSONL files.
+
+    The ``case-actor`` ledger is read from the dedicated case-actor container,
+    which holds the canonical ledger (DEMOMA-06-005).
+    """
     dump_coordinated_case_ledgers(
         demo_name=demo_name,
         reporter_name="finder",
         reporter_client=finder_client,
         coordinator_client=coordinator_client,
+        case_actor_client=case_actor_client,
         vendor_client=vendor_client,
         case=case,
     )
@@ -467,7 +480,7 @@ def run_fcv_demo(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None = None,
+    case_actor_client: DataLayerClient,
     finder_id: str | None = None,
     coordinator_id: str | None = None,
     vendor_id: str | None = None,
@@ -479,8 +492,7 @@ def run_fcv_demo(
     logger.info("Finder container:      %s", finder_client.base_url)
     logger.info("Coordinator container: %s", coordinator_client.base_url)
     logger.info("Vendor container:      %s", vendor_client.base_url)
-    if case_actor_client is not None:
-        logger.info("CaseActor container:   %s", case_actor_client.base_url)
+    logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
     with scenario_harness("fcv") as harness:
         (
@@ -508,6 +520,7 @@ def run_fcv_demo(
             lambda: _phase_dump_case_ledgers(
                 finder_client=finder_client,
                 coordinator_client=coordinator_client,
+                case_actor_client=case_actor_client,
                 vendor_client=vendor_client,
                 case=case,
                 demo_name=harness.demo_name,
@@ -516,6 +529,7 @@ def run_fcv_demo(
 
         vendor_in_vendor = _phase_invite_vendor(
             coordinator_client=coordinator_client,
+            case_actor_client=case_actor_client,
             vendor_client=vendor_client,
             finder_client=finder_client,
             coordinator_in_coordinator=coordinator_in_coordinator,
@@ -569,6 +583,7 @@ def run_fcv_demo(
         _phase_case_closure(
             finder_client=finder_client,
             coordinator_client=coordinator_client,
+            case_actor_client=case_actor_client,
             vendor_client=vendor_client,
             coordinator_in_coordinator=coordinator_in_coordinator,
             vendor_in_vendor=vendor_in_vendor,
