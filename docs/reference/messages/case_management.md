@@ -199,7 +199,8 @@ print(json2md(accept_case_ownership_transfer()))
 
 - **Protocol role:** The recipient declines the ownership transfer offer.
   The refusal is addressed to the CASE_MANAGER, not to the actor that made the offer ([CM-21-010](../specs/protocol.md#cm-21-010)).
-  The CASE_MANAGER accepts it only from the proposed owner of an open offer it recorded ([CM-21-013](../specs/protocol.md#cm-21-013)), then records it in the ledger and sends the entry to every participant, which closes the offer ([CM-21-012](../specs/protocol.md#cm-21-012)).
+  The CASE_MANAGER acts on it only when it comes from the proposed owner of an open offer it recorded ([CM-21-013](../specs/protocol.md#cm-21-013)).
+  It records the refusal in the ledger and sends the entry to every participant, which closes the offer ([CM-21-012](../specs/protocol.md#cm-21-012)).
   Ownership is unchanged.
 - **Trigger:** the recipient sends it with `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer`, whose body names the `offer_id` it declines ([TRIG-11-005](../specs/protocol.md#trig-11-005), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Triggering transition:** none — roster operation.

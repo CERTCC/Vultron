@@ -89,7 +89,7 @@ Case Actor inbox receives Reject:
 The proposed owner refuses an offer with the `reject-case-ownership-transfer` trigger ([TRIG-11-005](../../reference/specs/protocol.md#trig-11-005)), and the refusal is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)).
 The protocol treats a refusal like an acceptance: the CASE_MANAGER records it in the ledger and sends the entry to every participant, which is how the participant who made the offer learns of it ([CM-21-012](../../reference/specs/protocol.md#cm-21-012)).
 Only the proposed owner named in an open offer may refuse it ([CM-21-013](../../reference/specs/protocol.md#cm-21-013)).
-The CASE_MANAGER refuses a refusal from anyone else, records nothing for it, and the offer stays open.
+The CASE_MANAGER does not act on a refusal from anyone else: it records nothing, and the offer stays open.
 Ownership stays where it was: the ledger entry closes the offer, and no participant's copy of the case changes in any other way.
 
 ## Offering again, withdrawing, and the deadline
