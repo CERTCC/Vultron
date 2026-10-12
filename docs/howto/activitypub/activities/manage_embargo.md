@@ -131,7 +131,17 @@ See [Early Termination](../../../topics/process_models/em/early_termination.md).
 
 ## See it end to end
 
-{% include-markdown "./_demo_manage_embargo.md" %}
+!!! example "Try it: `vultron-demo manage-embargo`"
+
+    {% include-markdown "./_demo_manage_embargo.md" %}
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=manage-embargo docker compose -f docker/docker-compose.yml run --rm demo
+    ```
+
+    The scenario runs an activate-then-terminate path and a reject-then-repropose path.
 
 ---
 

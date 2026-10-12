@@ -128,7 +128,17 @@ The other participants still receive the Invite and answer it, and only those th
 
 ## See it end to end
 
-{% include-markdown "./_demo_establish_embargo.md" %}
+!!! example "Try it: `vultron-demo establish-embargo`"
+
+    {% include-markdown "./_demo_establish_embargo.md" %}
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=establish-embargo docker compose -f docker/docker-compose.yml run --rm demo
+    ```
+
+    The scenario runs both the accepted and the rejected proposal.
 
 ---
 

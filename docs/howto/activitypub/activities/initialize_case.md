@@ -93,7 +93,15 @@ Every one of these is committed to the case ledger by the CASE_MANAGER and fanne
 
 ## See it end to end
 
-{% include-markdown "./_demo_initialize_case.md" %}
+!!! example "Try it: `vultron-demo initialize-case`"
+
+    {% include-markdown "./_demo_initialize_case.md" %}
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=initialize-case docker compose -f docker/docker-compose.yml run --rm demo
+    ```
 
 ---
 

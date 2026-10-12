@@ -54,7 +54,17 @@ No `CaseLedgerEntry` is written, because report submission is not ledger-replica
 
 ## See it end to end
 
-{% include-markdown "./_demo_acknowledge.md" %}
+!!! example "Try it: `vultron-demo acknowledge`"
+
+    {% include-markdown "./_demo_acknowledge.md" %}
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=acknowledge docker compose -f docker/docker-compose.yml run --rm demo
+    ```
+
+    The scenario runs all three paths: acknowledge only, acknowledge then validate, and acknowledge then invalidate.
 
 ---
 

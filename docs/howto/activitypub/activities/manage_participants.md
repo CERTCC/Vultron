@@ -185,7 +185,17 @@ A participant that has not accepted the active embargo stays inert: the CASE_MAN
 
 ## See it end to end
 
-{% include-markdown "./_demo_manage_participants.md" %}
+!!! example "Try it: `vultron-demo manage-participants`"
+
+    {% include-markdown "./_demo_manage_participants.md" %}
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=manage-participants docker compose -f docker/docker-compose.yml run --rm demo
+    ```
+
+    The scenario runs invite, accept, status update, removal, and reinstatement, then the rejection path.
 
 ---
 

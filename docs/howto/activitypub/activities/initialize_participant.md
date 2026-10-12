@@ -75,7 +75,15 @@ The `Accept(Invite(Actor))` appears as a ledger entry, and each participant's re
 
 ## See it end to end
 
-{% include-markdown "./_demo_initialize_participant.md" %}
+!!! example "Try it: `vultron-demo initialize-participant`"
+
+    {% include-markdown "./_demo_initialize_participant.md" %}
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=initialize-participant docker compose -f docker/docker-compose.yml run --rm demo
+    ```
 
 ---
 

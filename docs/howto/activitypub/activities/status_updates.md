@@ -112,7 +112,17 @@ Each of these is committed by the CASE_MANAGER and fanned out, so checking your 
 
 ## See it end to end
 
-{% include-markdown "./_demo_status_updates.md" %}
+!!! example "Try it: `vultron-demo status-updates`"
+
+    {% include-markdown "./_demo_status_updates.md" %}
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=status-updates docker compose -f docker/docker-compose.yml run --rm demo
+    ```
+
+    The scenario adds a note, a case status, and a participant status.
 
 ---
 

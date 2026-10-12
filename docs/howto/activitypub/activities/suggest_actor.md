@@ -108,7 +108,17 @@ The same holds for an actor the case has removed.
 
 ## See it end to end
 
-{% include-markdown "./_demo_suggest_actor.md" %}
+!!! example "Try it: `vultron-demo suggest-actor`"
+
+    {% include-markdown "./_demo_suggest_actor.md" %}
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=suggest-actor docker compose -f docker/docker-compose.yml run --rm demo
+    ```
+
+    The scenario runs both outcomes: the Case Owner accepts one suggestion and rejects another.
 
 ---
 

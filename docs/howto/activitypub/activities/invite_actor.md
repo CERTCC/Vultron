@@ -118,7 +118,17 @@ If you are not the Case Owner but you know an actor belongs on the case, suggest
 
 ## See it end to end
 
-{% include-markdown "./_demo_invite_actor.md" %}
+!!! example "Try it: `vultron-demo invite-actor`"
+
+    {% include-markdown "./_demo_invite_actor.md" %}
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=invite-actor docker compose -f docker/docker-compose.yml run --rm demo
+    ```
+
+    The scenario invites one coordinator that accepts and a second that rejects.
 
 ---
 
