@@ -376,6 +376,7 @@ moves onto the kind itself (MSM-08-010) so no table like this one is kept by han
 | `NAMED_ACTOR` (the addressee kind) | the addressee of the *request*, e.g. "the addressee of the case proposal" |
 | author (planned, #4433) | the author of the *object*, e.g. "the note's author" |
 | `EXECUTING_ACTOR` | the receiving actor itself |
+| `ANY_ACTOR` (a new report only, HP-01-010) | any actor |
 | `SenderExemption` | not yet checked |
 
 About half the received use cases are exempt today, so the column fills in

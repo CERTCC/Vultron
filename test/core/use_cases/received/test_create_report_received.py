@@ -20,6 +20,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.behaviors.sender_entitlement import SenderEntitlementKind
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
@@ -174,6 +175,47 @@ class TestCreateReportNoStandaloneParticipantStatus:
         stored_report = dl.read("https://example.org/reports/r-store-1")
         assert stored_report is not None, (
             "as_VulnerabilityReport should be stored"
+        )
+
+
+class TestCreateReportSenderEntitlement:
+    """Any actor may send a new report (HP-01-010)."""
+
+    @pytest.mark.spec("HP-01-010")
+    def test_sender_outside_any_case_is_applied(self):
+        """A sender that takes part in no case still has its report kept."""
+        report = VulnerabilityReport(
+            id_="https://example.org/reports/r-stranger-1"
+        )
+        activity = VultronActivity(
+            id_="https://example.org/activities/create-stranger-1",
+            type_="Create",
+            actor="https://example.org/users/stranger",
+        )
+        event = CreateReportReceivedEvent(
+            semantic_type=MessageSemantics.CREATE_REPORT,
+            activity_id=activity.id_,
+            actor_id="https://example.org/users/stranger",
+            object_=report,
+            activity=activity,
+            receiving_actor_id="https://test.example/api/v2/actors/receiver",
+        )
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/receiver",
+        )
+
+        result = CreateReportReceivedUseCase(dl, event).execute()
+
+        assert dl.list_objects("VulnerabilityCase") == []
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert dl.read(report.id_) is not None
+
+    @pytest.mark.spec("HP-01-010")
+    def test_declares_any_actor(self):
+        assert (
+            CreateReportReceivedUseCase.sender_entitlement
+            is SenderEntitlementKind.ANY_ACTOR
         )
 
 
