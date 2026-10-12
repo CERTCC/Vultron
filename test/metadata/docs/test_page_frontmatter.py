@@ -212,6 +212,7 @@ def _repo(
     nav=None,
     auto_append=None,
     not_in_nav="adr/**\n",
+    exclude_docs=None,
 ):
     """Build a minimal checkout: ``mkdocs.yml`` plus ``docs/`` files.
 
@@ -220,6 +221,8 @@ def _repo(
     about it.
     """
     config: dict[str, object] = {"nav": nav or [], "not_in_nav": not_in_nav}
+    if exclude_docs:
+        config["exclude_docs"] = exclude_docs
     if auto_append:
         config["markdown_extensions"] = [
             {"pymdownx.snippets": {"auto_append": auto_append}}
@@ -423,6 +426,36 @@ class TestFragments:
         assert tree.fragments == {"includes/note.md": ("a/index.md", "b.md")}
         assert "includes/note.md" not in tree.pages
         check_docs_frontmatter(root)
+
+    def test_excluded_file_no_page_includes_is_neither(self, tmp_path):
+        """An ``exclude_docs`` file is never built, so it has no reader."""
+        root = _repo(
+            tmp_path,
+            {"a.md": _READER, "_gen/table.md": "| a |\n|---|\n| b |\n"},
+            nav=["a.md"],
+            exclude_docs="_gen/\n",
+        )
+
+        tree = classify_docs_tree(root)
+
+        assert "_gen/table.md" not in tree.pages
+        assert "_gen/table.md" not in tree.fragments
+        check_docs_frontmatter(root)
+
+    def test_excluded_file_a_page_includes_is_a_fragment(self, tmp_path):
+        root = _repo(
+            tmp_path,
+            {
+                "a.md": _READER + '{% include-markdown "_gen/table.md" %}\n',
+                "_gen/table.md": "| a |\n|---|\n| b |\n",
+            },
+            nav=["a.md"],
+            exclude_docs="_gen/\n",
+        )
+
+        assert classify_docs_tree(root).fragments == {
+            "_gen/table.md": ("a.md",)
+        }
 
     def test_unprefixed_target_resolves_against_docs(self, tmp_path):
         """From a nested host, a target without ``./`` is still docs-relative."""

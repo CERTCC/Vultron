@@ -88,6 +88,7 @@ ENTRIES: list[SemanticEntry] = [
                     "case for a report"
                 ),
                 anchor="create-case-proposal",
+                heading="Create case proposal",
                 description=(
                     "Submits a case proposal for the attached report to the "
                     "service's inbox. No case exists yet."
@@ -113,6 +114,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Case Actor Service agrees to open the proposed case",
                 anchor="accept-case-proposal",
+                heading="Accept case proposal",
                 description=(
                     "Accepts the case proposal and tells the proposing actor "
                     "that a case will be opened for its report."
@@ -134,6 +136,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a Case Actor Service declines to open the proposed case",
                 anchor="reject-case-proposal",
+                heading="Reject case proposal",
                 description="Rejects the case proposal. No case is opened.",
                 example="reject_case_proposal",
             ),
@@ -154,6 +157,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the Case Manager has opened a case for a submitted report"
                 ),
                 anchor="create-case",
+                heading="Create case",
                 description=(
                     "Mints the vulnerability case, seats its initial "
                     "participants and links the report. The Case Manager sends"
@@ -178,6 +182,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the Case Manager has recorded a change to the case object"
                 ),
                 anchor="update-case",
+                heading="Update case",
                 description=(
                     "Sends the changed case object, for example after a title "
                     "edit or an applied ownership transfer."
@@ -255,6 +260,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the Case Owner links a further report to an existing case"
                 ),
                 anchor="add-report-to-case",
+                heading="Add report to case",
                 description=(
                     "Adds a vulnerability report to the case named by the "
                     "target."

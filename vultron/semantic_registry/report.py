@@ -71,6 +71,7 @@ ENTRIES: list[SemanticEntry] = [
                     " submit the report"
                 ),
                 anchor="create-report",
+                heading="Create report",
                 description=(
                     "Mints the vulnerability report object. It precedes the "
                     "Offer that submits the report."
@@ -152,6 +153,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a report receiver judges the report valid",
                 anchor="report-valid",
+                heading="Validate report",
                 description=(
                     "Designates the report as valid, moving the sender's RM "
                     "state to Valid."
@@ -179,6 +181,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a report receiver judges the report invalid",
                 anchor="report-invalid",
+                heading="Invalidate report",
                 description=(
                     "Designates the report as invalid, moving the sender's RM "
                     "state to Invalid."
@@ -206,6 +209,7 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when="a report receiver closes the report",
                 anchor="report-closed",
+                heading="Close report",
                 description=(
                     "Closes the report, moving the sender's RM state to "
                     "Closed."

@@ -205,14 +205,10 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             f"{_NODES}/suggest_actor/conditions.py",
             "ActorAlreadyParticipantNode.update",
         ),
-        # R2 — defer-to-downstream / optional lookup / best-effort index write.
+        # R2 — defer-to-downstream / optional lookup.
         (
             f"{_NODES}/participant/trigger_validation.py",
             "ValidateTriggerTransitionsNode.update",
-        ),
-        (
-            f"{_NODES}/suggest_actor/emit.py",
-            "RecordRecommendationRecommenderNode.update",
         ),
         # LEN — lenient guards / diagnostics; never fail the tree on absence.
         (

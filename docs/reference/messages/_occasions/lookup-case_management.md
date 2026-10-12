@@ -1,0 +1,25 @@
+<!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
+
+| When… | Send | Sent by | Distinguished by | Details |
+|---|---|---|---|---|
+| the Case Manager has opened a case for a submitted report | `Create(VulnerabilityCase)` | not yet checked | — | [Create case](../case_management.md#create-case) |
+| the Case Manager has recorded a change to the case object | `Update(VulnerabilityCase)` | not yet checked | — | [Update case](../case_management.md#update-case) |
+| the Case Owner links a further report to an existing case | `Add(VulnerabilityReport)[target=VulnerabilityCase]` | the case owner | — | [Add report to case](../case_management.md#add-report-to-case) |
+| a Participant offers a CVD role on the case to another actor | `Offer(CaseParticipantRole)[context=VulnerabilityCase]` | not yet checked | — | [Offer case participant role](../case_management.md#offer-case-participant-role) |
+| an actor accepts a role offered to it on the case | `Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | not yet checked | — | [Accept case participant role](../case_management.md#accept-case-participant-role) |
+| an actor declines a role offered to it on the case | `Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | not yet checked | — | [Reject case participant role](../case_management.md#reject-case-participant-role) |
+| the Case Owner offers to transfer ownership of the case to another actor | `Offer(VulnerabilityCase)` | not yet checked | — | [Offer case ownership transfer](../case_management.md#offer-case-ownership-transfer) |
+| an actor accepts an offer of case ownership | `Accept(Offer(VulnerabilityCase))` | the addressee of the vulnerability case | — | [Accept case ownership transfer](../case_management.md#accept-case-ownership-transfer) |
+| an actor declines an offer of case ownership | `Reject(Offer(VulnerabilityCase))` | not yet checked | — | [Reject case ownership transfer](../case_management.md#reject-case-ownership-transfer) |
+| the Case Manager invites an actor to join the case | `Invite(Actor)[target=VulnerabilityCaseStub]` | not yet checked | — | [Invite actor to case](../case_management.md#invite-actor-to-case) |
+| an invited actor agrees to join the case | `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` | the invitee | — | [Accept invite to case](../case_management.md#accept-invite-to-case) |
+| an invited actor declines to join the case | `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` | the invitee | — | [Reject invite to case](../case_management.md#reject-invite-to-case) |
+| the Case Manager has replayed the case ledger to a newly joined Participant | `Invite(Actor)[target=VulnerabilityCase]` | the case manager | — | [Send Full-Case Invite](../case_management.md#invite-actor-to-full-case) |
+| a Participant asked by a Full-Case Invite judges the case valid | `Accept(Invite(Actor)[target=VulnerabilityCase])` | the invitee | — | [Accept Full-Case Invite](../case_management.md#accept-full-case-invite) |
+| a Participant asked by a Full-Case Invite judges the case invalid | `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` | the invitee | — | [Tentatively reject Full-Case Invite](../case_management.md#tentatively-reject-full-case-invite) |
+| a Participant asked by a Full-Case Invite closes the case | `Reject(Invite(Actor)[target=VulnerabilityCase])` | the invitee | — | [Reject Full-Case Invite](../case_management.md#reject-full-case-invite) |
+| the Case Manager has admitted a new Participant to the case | `Announce(VulnerabilityCase)` | not yet checked | — | [Announce vulnerability case](../case_management.md#announce-vulnerability-case) |
+| a Participant ends its participation in the case | `Leave(VulnerabilityCase)` | not yet checked | — | [Close case](../case_management.md#close-case) |
+| a Participant is about to add an actor's participant record to the case | `Create(CaseParticipant)[context=VulnerabilityCase]` | not yet checked | — | [Create case participant](../case_management.md#create-case-participant) |
+| the Case Owner reinstates a removed Participant | `Add(CaseParticipant)[target=VulnerabilityCase]` | the case owner | — | [Add case participant to case](../case_management.md#add-case-participant-to-case) |
+| the Case Owner removes a Participant from active participation | `Remove(CaseParticipant)[target=VulnerabilityCase]` | the case owner | — | [Remove case participant from case](../case_management.md#remove-case-participant-from-case) |
