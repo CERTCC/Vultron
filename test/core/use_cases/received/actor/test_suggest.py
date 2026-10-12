@@ -271,7 +271,6 @@ class TestOfferActorToCaseReceivedUseCase:
         assert record.recommender_id == recommender_id
         case = cast(VulnerabilityCase, dl.read(case_id))
         assert isinstance(case, VulnerabilityCase)
-        assert "recommendation_recommender_index" not in case.model_dump()
         assert "recommendationRecommenderIndex" not in case.model_dump(
             mode="json", by_alias=True
         ), (

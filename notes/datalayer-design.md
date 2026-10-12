@@ -25,6 +25,7 @@ related_notes:
   - notes/case-bootstrap-trust.md
   - notes/case-proposal.md
 relevant_packages:
+  - vultron/core/models/actor_recommendation_record.py
   - vultron/core/ports
   - vultron/adapters/driven
   - vultron/wire/as2/vocab

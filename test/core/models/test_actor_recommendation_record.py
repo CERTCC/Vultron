@@ -69,9 +69,6 @@ def test_every_field_is_required_and_non_empty(field: str) -> None:
 
 @pytest.mark.spec("CLP-07-014")
 def test_the_record_is_not_part_of_the_case() -> None:
-    assert "recommendation_recommender_index" not in (
-        VulnerabilityCase.model_fields
-    )
     assert not any(
         "recommend" in name for name in VulnerabilityCase.model_fields
     )

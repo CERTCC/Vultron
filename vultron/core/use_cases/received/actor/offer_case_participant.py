@@ -188,7 +188,7 @@ def _require_recorded_recommendation(
     for the case when that recommendation arrived (case bookkeeping,
     CLP-07-014).  CM-16-006/007 step 3 sends the decision
     to that recommender, so an Accept/Reject whose inner Offer names no
-    ``origin``, or an ``origin`` the index does not hold, has nobody to notify
+    ``origin``, or an ``origin`` with no such record, has nobody to notify
     and cannot be applied.
 
     Until #3877 the missing id was passed on as ``""`` and the notification
