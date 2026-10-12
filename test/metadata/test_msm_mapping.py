@@ -39,6 +39,7 @@ from vultron.metadata.msm._mapping import (
     ROW_SPECS,
     SENT_BY_WORDING,
     MappingStatus,
+    answered_request,
     discriminator,
     mapping_status,
     sent_by,
@@ -284,22 +285,28 @@ def test_sent_by_refuses_an_undeclared_entitlement():
         sent_by(entry, entry.occasions[0])
 
 
-def _expected_sent_by(entry: SemanticEntry) -> str:
+def _expected_sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     """Recompute "Sent by" from the declaration, independently of the code.
 
     Reads the declaration rather than pinning per-entry strings, so a use case
     that trades an exemption for a real rule changes the value without
-    breaking this test.
+    breaking this test.  The addressee wording reuses ``answered_request``,
+    which the synthetic-entry tests above pin to literal strings.
     """
     declared = getattr(entry.use_case_class, "sender_entitlement", None)
     if isinstance(declared, SenderExemption):
         base = NOT_YET_CHECKED
     elif declared is SenderEntitlementKind.NAMED_ACTOR:
-        base = "the addressee of the "
+        base = f"the addressee of the {answered_request(entry)}"
     else:
         assert isinstance(declared, SenderEntitlementKind)
         base = SENT_BY_WORDING[declared]
-    return base
+    if not occasion.usual_senders:
+        return base
+    roles = ", ".join(
+        r.value.replace("_", " ") for r in occasion.usual_senders
+    )
+    return f"{base} (usually: {roles})"
 
 
 @pytest.mark.spec("MSM-08-005")
@@ -311,8 +318,6 @@ def _expected_sent_by(entry: SemanticEntry) -> str:
 def test_registry_sent_by_follows_the_declared_entitlement(
     entry: SemanticEntry, occasion: Occasion
 ):
-    value = sent_by(entry, occasion)
-    assert value.startswith(_expected_sent_by(entry))
+    assert sent_by(entry, occasion) == _expected_sent_by(entry, occasion)
     for role in occasion.usual_senders:
         assert isinstance(role, CVDRole)
-        assert role.value.replace("_", " ") in value

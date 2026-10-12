@@ -470,9 +470,9 @@ every row of the expansion alike, and DF-09-010 lets the heading stand in.
 **Each occasion's example shows its own distinguisher.** Until #4429 the CV, CF
 and CD sections of `cs.md` rendered the same `add_status_to_participant()`
 example, which dispatches correctly and carries `vf_state` `Vf`, the vendor
-awareness value, so the CF and CD sections showed a value that is not theirs. A dispatch check alone
-passes that, so MSM-08-003 also requires the example to carry a field-value
-distinguisher. A state context is the receiver's state, not payload, so no
+awareness value, so the CF and CD sections showed a value that is not theirs.
+A dispatch check alone passes that, so MSM-08-003 also requires the example to
+carry a field-value distinguisher. A state context is the receiver's state, not payload, so no
 example carries it.
 
 **A distinguisher is typed.** Either a field value checked against the field's

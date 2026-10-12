@@ -58,6 +58,8 @@ class SemanticEntry:
             has none.
 
     Raises:
+        TypeError: At construction, when ``occasions`` is not a tuple or
+            ``page`` is not a ``MessagePage``.
         ValueError: At construction, when a non-fallback entry declares no
             occasion or no page, or a fallback declares either.
     """
@@ -76,6 +78,11 @@ class SemanticEntry:
         if not isinstance(self.occasions, tuple):
             raise TypeError(
                 f"{self.semantics.name}: occasions must be a tuple"
+            )
+        if self.page is not None and not isinstance(self.page, MessagePage):
+            raise TypeError(
+                f"{self.semantics.name}: page must be a MessagePage, not"
+                f" {type(self.page).__name__}"
             )
         if self.semantics in DISPATCHER_FALLBACKS:
             if self.occasions or self.page is not None:

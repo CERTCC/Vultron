@@ -248,6 +248,11 @@ def test_entry_occasions_must_be_a_tuple():
         _entry(occasions=[_occasion()])
 
 
+def test_entry_page_must_be_a_message_page():
+    with pytest.raises(TypeError, match="MessagePage"):
+        _entry(page="general")
+
+
 @pytest.mark.spec("MSM-08-001")
 @pytest.mark.parametrize("semantics", sorted(DISPATCHER_FALLBACKS))
 def test_dispatcher_fallback_needs_no_occasion(semantics: MessageSemantics):
@@ -307,6 +312,12 @@ def test_occasions_were_collected():
 
 @pytest.mark.spec("MSM-08-004")
 def test_occasion_anchors_are_unique_across_the_registry():
+    """The uniqueness half of MSM-08-004.
+
+    That each anchor resolves to one section on its page, and that each
+    section is referenced by a table row, is tested once the pages carry
+    occasion sections (#4431).
+    """
     counts = Counter(occasion.anchor for _, occasion in _OCCASIONS)
     assert [a for a, n in counts.items() if n > 1] == []
 
@@ -330,6 +341,17 @@ def test_occasion_example_dispatches_to_its_own_entry(
     activity = build()
     assert isinstance(activity, as_Activity)
     assert find_matching_semantics(activity) is entry.semantics
+    matching = [
+        other.semantics
+        for other in SEMANTIC_REGISTRY
+        if other.semantics not in DISPATCHER_FALLBACKS
+        and other.pattern is not None
+        and other.pattern.match(activity)
+    ]
+    assert matching == [entry.semantics], (
+        f"{occasion.example}() matches {matching}, not only"
+        f" {entry.semantics.name} (MSM-08-003)"
+    )
     distinguisher = occasion.distinguisher
     if isinstance(distinguisher, FieldValue):
         carrier = getattr(activity, "object_", None)
