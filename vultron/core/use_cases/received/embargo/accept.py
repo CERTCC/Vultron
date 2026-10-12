@@ -36,7 +36,6 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.em import EM
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
-    unaddressed_copy_refusal,
 )
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
@@ -47,7 +46,7 @@ from vultron.core.use_cases.received._embargo_pxa import (
     pxa_embargo_ineligible,
     run_pxa_refusal_tree,
 )
-from vultron.core.use_cases.received._sender_preflight import sender_refusal
+from vultron.core.use_cases.received._sender_preflight import door_refusal
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -379,29 +378,20 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         accepting_actor_id = request.actor_id
         invite_id = request.invite_id or ""
 
-        # Door check before any tree or write, after the shape checks
-        # that write nothing: an unaddressed copy is refused (HP-01-005,
-        # ADR-0118).
+        # Before any tree or write, since the expiry, EMB-17 and P/X/A paths
+        # below all write or send: the case must not be fully closed
+        # (CM-23-013), the copy must be addressed here (HP-01-005, ADR-0118),
+        # and the sender must be the Invite's invitee (EP-09-010, HP-01-006).
         if (
-            refusal := unaddressed_copy_refusal(
-                receiving_actor_id,
-                request,
-                label="Accept(Invite(EmbargoEvent))",
-            )
-        ) is not None:
-            return refusal
-
-        # The sender must be the recorded Invite's invitee before anything is
-        # written or sent: the P/X/A rejection, the expiry commit and the
-        # EMB-17 routing all write (EP-09-010, HP-01-006, ADR-0115).
-        if (
-            refusal := sender_refusal(
+            refusal := door_refusal(
                 self._dl,
                 receiving_actor_id,
+                request,
                 SenderIsInviteeNode(
                     invite_id=request.invite_id,
                     sender_actor_id=accepting_actor_id,
                 ),
+                case_id=case_id,
                 label="Accept(Invite(EmbargoEvent))",
                 sync_port=self._sync_port,
             )

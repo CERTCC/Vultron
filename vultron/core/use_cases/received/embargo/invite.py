@@ -41,7 +41,10 @@ from vultron.core.use_cases.received._embargo_pxa import (
     pxa_embargo_ineligible,
     refuse_pxa_invite,
 )
-from vultron.core.use_cases.received._sender_preflight import sender_refusal
+from vultron.core.use_cases.received._sender_preflight import (
+    post_close_refusal_before_tree,
+    sender_refusal,
+)
 from vultron.errors import VultronProtocolViolationError
 
 if TYPE_CHECKING:
@@ -185,6 +188,19 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         case_id = request.context_id or ""
         # ``activity_id`` is a required ``NonEmptyString`` on every event.
         invite_id = request.activity_id
+
+        # CM-23-013: the shape checks below answer with a ProcessingFault
+        # before any tree runs; after close nothing is answered (CM-23-017).
+        if (
+            refusal := post_close_refusal_before_tree(
+                self._dl,
+                receiving_actor_id,
+                request,
+                case_id=case_id or None,
+                sync_port=self._sync_port,
+            )
+        ) is not None:
+            return refusal
 
         embargo_id = request.object_id
         if not embargo_id:

@@ -322,6 +322,7 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
     assert isinstance(tree.children[0], IntakeReceivedActivityNode)
     assert names == [
         "IntakeReceivedActivityNode",
+        "CaseOpenToExternalWrites",
         "Guard",
         "GuardedCommitCaseLedgerEntryBT",
         "Effect",
@@ -336,6 +337,7 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
     assert isinstance(no_commit.children[0], IntakeReceivedActivityNode)
     assert [c.name for c in no_commit.children] == [
         "IntakeReceivedActivityNode",
+        "CaseOpenToExternalWrites",
         "Guard",
         "Effect",
     ]

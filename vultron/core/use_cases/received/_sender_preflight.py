@@ -21,18 +21,32 @@ closing a pending ask) or have no tree at all.
 :func:`sender_refusal` runs the same guard node from
 :mod:`vultron.core.behaviors.sender_entitlement` as a one-node tree, so the
 predicate stays in that module (HP-01-007) and the handler only asks.
+
+:func:`post_close_refusal_before_tree` does the same for the post-close write
+boundary (CM-23-013): it runs the factory's own
+:class:`~vultron.core.behaviors.case.nodes.post_close.CaseOpenToExternalWritesNode`
+as a one-node tree, so a handler that writes or sends before its tree runs
+asks the one guard rather than carrying a closed-case check of its own.
 """
 
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.post_close import (
+    CaseOpenToExternalWritesNode,
+)
+from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
+from vultron.core.use_cases._helpers import unaddressed_copy_refusal
+from vultron.core.use_cases.received._bt_verdict import (
+    post_close_refusal,
+    verdict_from_bt,
+)
 
 
 def sender_refusal(
@@ -70,3 +84,66 @@ def sender_refusal(
     if verdict.disposition is HandlerDisposition.APPLIED:
         return None
     return verdict
+
+
+def post_close_refusal_before_tree(
+    dl: CasePersistence,
+    receiving_actor_id: str,
+    request: VultronEvent,
+    *,
+    case_id: str | None,
+    sync_port: SyncActivityPort | None,
+) -> HandlerResult | None:
+    """Return ``REFUSED`` when the case is fully closed here, else ``None``.
+
+    For a handler that writes or sends before its received tree runs: the
+    factory's post-close guard (CM-23-013) would refuse the tree, but too
+    late to stop what ran first.  Nothing is written or sent; the dropped
+    activity is logged by the guard, with no reply (CM-23-017).
+
+    Raises:
+        VultronBTInternalError: The guard failed on an internal error.
+    """
+    tree = py_trees.composites.Sequence(
+        name="PostClosePreflight",
+        memory=False,
+        children=[CaseOpenToExternalWritesNode(case_id=case_id)],
+    )
+    result = BTBridge(datalayer=dl, sync_port=sync_port).execute_with_setup(
+        tree=tree, actor_id=receiving_actor_id, activity=request
+    )
+    if (refusal := post_close_refusal(tree)) is not None:
+        return refusal
+    verdict_from_bt(tree, result, label="PostClosePreflight")
+    return None
+
+
+def door_refusal(
+    dl: CasePersistence,
+    receiving_actor_id: str,
+    request: VultronEvent,
+    guard: py_trees.behaviour.Behaviour,
+    *,
+    case_id: str,
+    label: str,
+    sync_port: SyncActivityPort | None,
+) -> HandlerResult | None:
+    """The first refusal owed before a handler writes, or ``None``.
+
+    In order: the case is fully closed (CM-23-013), the copy was not
+    addressed to this receiver (HP-01-005), the sender is not entitled
+    (HP-01-006).  None of the three writes or sends anything.
+    """
+    return (
+        post_close_refusal_before_tree(
+            dl,
+            receiving_actor_id,
+            request,
+            case_id=case_id,
+            sync_port=sync_port,
+        )
+        or unaddressed_copy_refusal(receiving_actor_id, request, label=label)
+        or sender_refusal(
+            dl, receiving_actor_id, guard, label=label, sync_port=sync_port
+        )
+    )

@@ -3768,23 +3768,32 @@ groups:
       or MAY drop the activity with no reply at all. A participant MUST NOT rely
       on receiving a reply to an activity it sends after the case has closed.
       The sender's RM state on the canonical ledger stays at its last rung
-      (CM-23-012).
+      (CM-23-012). The boundary covers every activity class — RM (R*), EM, CS
+      and general-inquiry (GI) traffic such as `Add(Note)` alike — and is a hard
+      kill switch, not a selective gate (ADR-0085). The CASE_MANAGER MAY keep
+      answering a replica's resync request (`Reject(CaseLedgerEntry)`) by
+      replaying entries the ledger already holds, because a replay appends
+      nothing; it MUST NOT append a new entry on behalf of an external
+      participant.
     rationale: >-
-      In a deployment the process managing a closed case can exit once closure has
-      fanned out, leaving nothing to receive a late message. This rule makes the
-      prototype's CASE_MANAGER behave the same way: nothing reaches the ledger, and a
-      reply is a courtesy. The receipt commit is suppressed because it opens the closure
+      A deployment's process for a closed case can exit once closure has fanned out.
+      The prototype's CASE_MANAGER behaves the same way: nothing reaches the ledger,
+      and a reply is a courtesy. The receipt commit is suppressed because it opens the closure
       whose status entries would close the sender on the replicas (CLP-10-006,
-      CM-23-001). A participant that wants its
-      departure recorded leaves first (CM-23-015). #4162 owns this.
+      CM-23-001). A participant that wants its departure recorded leaves first
+      (CM-23-015). Resync is exempt: a replay appends nothing.
     verification: >-
-      A test confirms that after an owner Leave(VulnerabilityCase) has committed
+      Tests confirm that after an owner Leave(VulnerabilityCase) has committed
       `case_fully_closed`, a later inbound activity for the case — a bystander's
-      Leave(VulnerabilityCase) among them — commits no CaseLedgerEntry and changes no RM
-      or case state, and that the CASE_MANAGER either sends an `as:Reject` or sends
-      nothing:
-      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_bystander_leave_after_owner_close_is_refused`,
-      a strict `xfail` naming #4162 and #4065 until they land.
+      Leave(VulnerabilityCase) and an `Add(Note, target=Case)` among them — commits no
+      CaseLedgerEntry and changes no RM or case state, and that the CASE_MANAGER either
+      sends an `as:Reject` or sends nothing:
+      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_bystander_leave_after_owner_close_is_refused`
+      and `TestPostCloseWriteBoundary`. `test/core/behaviors/case/test_receive_activity_tree.py::TestPostCloseStage`
+      confirms every received tree carries the guard and that the resync tree is
+      exempt. Over each demo scenario's exported ledger,
+      `test_invariant_18_no_participant_act_after_case_fully_closed` confirms no
+      participant act follows `case_fully_closed`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-003
@@ -3895,6 +3904,38 @@ groups:
     - ADR-0114
     stories:
     - story_2022_066
+  - id: CM-23-017
+    priority: MUST
+    kind: project
+    statement: >-
+      The reference CASE_MANAGER MUST choose its CM-23-013 reply at one
+      configuration point, `ActorConfig.post_close_reply`, whose default is
+      `drop`. With `drop` it sends nothing for any activity that arrives after
+      `case_fully_closed`. With `reject` it answers a late
+      Leave(VulnerabilityCase) with Reject(Leave(VulnerabilityCase)) and sends
+      nothing for any other late activity. Every other late activity MUST be
+      dropped with no reply under both settings, and a late activity MUST be
+      reported `REFUSED` under both. The drop MUST be logged at INFO with the
+      activity id, the sender's actor id and the case id.
+    rationale: >-
+      A Reject that wraps most activities already carries a protocol meaning for its
+      recipient: Reject(Invite) is a declined invitation and Reject(Offer(...)) a
+      declined offer, so a reply to a late Invite or Offer would be misread as a
+      decision. Reject(Leave(VulnerabilityCase)) already means "close declined"
+      (CM-23-011) and cannot be misread. Dropping is the default because it is what an
+      exited process does, and CM-23-013 already tells participants not to rely on a
+      reply.
+    verification: >-
+      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseWriteBoundary`
+      drives a late Leave under both settings (one Reject under `reject`, none under
+      `drop`), confirms the default is `drop`, confirms a late Add(Note) gets no reply
+      under both settings through the inbox dispatcher, and confirms the INFO log line.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-013
+    adr:
+    - ADR-0131
+    - ADR-0085
 - id: CM-24
   title: CASE_MANAGER-Delegated Activity Authorship Contract
   description: >-

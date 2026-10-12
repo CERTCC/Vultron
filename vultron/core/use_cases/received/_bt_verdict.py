@@ -25,6 +25,8 @@ assertion is ``REFUSED``, and a programming error is neither — it propagates.
 - A leadership skip (the tree never ran) → ``SKIPPED``.
 - ``internal_error``, or a node missing its DataLayer or a port → raise
   :class:`~vultron.errors.VultronBTInternalError`.
+- The post-close guard refused (CM-23-013) → ``REFUSED``, ahead of any other
+  reading of the failure.
 - Any other ``FAILURE`` → ``REFUSED``, with the failing leaf's reason.
 
 :func:`applied_or_raise` is the variant for a tree that only stores or commits:
@@ -54,6 +56,9 @@ from vultron.core.behaviors.case.nodes.conditions import (
 )
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
+)
+from vultron.core.behaviors.case.nodes.post_close import (
+    CaseOpenToExternalWritesNode,
 )
 from vultron.core.behaviors.case.nodes.reference_list import (
     CaseReferenceEditPendingNode,
@@ -259,6 +264,30 @@ def failure_reason(
     )
 
 
+def post_close_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> HandlerResult | None:
+    """The refusal owed when the post-close guard dropped the activity.
+
+    ``None`` unless the tree's
+    :class:`~vultron.core.behaviors.case.nodes.post_close.CaseOpenToExternalWritesNode`
+    refused: this actor is the case's CASE_MANAGER and the case is fully
+    closed, so the tree recorded nothing (CM-23-013).  The verdict is
+    ``REFUSED`` whatever the handler would otherwise read from the failure,
+    so :func:`verdict_from_bt` and :func:`applied_or_raise` both ask this
+    first, and a handler that maps a tree's failure itself asks it too.
+    """
+    for node in _root(tree).iterate():
+        if (
+            isinstance(node, CaseOpenToExternalWritesNode)
+            and node.status == Status.FAILURE
+        ):
+            return HandlerResult.refused(
+                node.feedback_message or "case is fully closed (CM-23-013)"
+            )
+    return None
+
+
 def verdict_from_bt(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     result: BTExecutionResult,
@@ -279,6 +308,8 @@ def verdict_from_bt(
         return HandlerResult.applied()
     if result.leader_skipped:
         return HandlerResult.skipped("not the replication leader")
+    if (refusal := post_close_refusal(tree)) is not None:
+        return refusal
     if result.internal_error:
         raise VultronBTInternalError(f"{label}: {result.feedback_message}")
     reason = failure_reason(tree, result)
@@ -336,11 +367,15 @@ def applied_or_raise(
 
     A tree that only stores or commits what the handler has already accepted
     fails only when the DataLayer does, so its failure is a local fault, never
-    a verdict on the sender.
+    a verdict on the sender — except the post-close guard every received tree
+    carries, whose refusal is returned (CM-23-013).
 
     Raises:
         VultronBTInternalError: The run failed for any reason.
     """
+    if (refusal := post_close_refusal(tree)) is not None:
+        # The one refusal such a tree can meet: the case closed (CM-23-013).
+        return refusal
     verdict = verdict_from_bt(tree, result, label=label)
     if verdict.disposition is HandlerDisposition.REFUSED:
         raise VultronBTInternalError(verdict.reason or label)
@@ -358,5 +393,6 @@ __all__ = [
     "node_succeeded",
     "not_case_manager",
     "not_case_manager_refusal",
+    "post_close_refusal",
     "verdict_from_bt",
 ]

@@ -27,6 +27,9 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.case.nodes.post_close import (
+    CaseOpenToExternalWritesNode,
+)
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
@@ -73,12 +76,14 @@ class TestUpdateCaseBTStructure:
         )
 
         assert tree.name == "UpdateCaseBT"
-        # Intake first (CLP-10-017, ADR-0111), then the sender-ownership guard,
-        # then the CASE_MANAGER-gated effects.  No commit stage:
+        # Intake first (CLP-10-017, ADR-0111), the post-close guard
+        # (CM-23-013), then the sender-ownership guard, then the
+        # CASE_MANAGER-gated effects.  No commit stage:
         # Update(VulnerabilityCase) is not a canonical payload signature (see
         # create_update_case_received_tree).
-        assert [child.__class__ for child in tree.children[:3]] == [
+        assert [child.__class__ for child in tree.children[:4]] == [
             IntakeReceivedActivityNode,
+            CaseOpenToExternalWritesNode,
             CheckCaseUpdateOwnerNode,
             CaseManagerGate,
         ]
@@ -90,7 +95,7 @@ class TestUpdateCaseBTStructure:
         # new field values from that Announce (SeedAnnouncedCaseNode), never
         # from the direct Update.  A non-manager skips the whole body rather
         # than failing.
-        guard = tree.children[2]
+        guard = tree.children[3]
         assert guard.name == "ApplyAndBroadcastCaseUpdateBT"
         skip, body = guard.children
         assert skip.name == "SkipIfNotCaseManager"

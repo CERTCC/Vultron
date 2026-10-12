@@ -26,7 +26,10 @@ from vultron.core.behaviors.sender_entitlement import (
     exempt,
 )
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
-from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
@@ -67,7 +70,11 @@ class CreateProcessingFaultReceivedUseCase:
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
         )
-        applied_or_raise(tree, result, label="CreateProcessingFaultReceivedBT")
+        verdict = applied_or_raise(
+            tree, result, label="CreateProcessingFaultReceivedBT"
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            return verdict  # the case is fully closed (CM-23-013)
         logger.warning(
             "ProcessingFault received from '%s' for activity '%s'"
             " (fault object: %s)",
