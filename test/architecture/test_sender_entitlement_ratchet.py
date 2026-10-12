@@ -181,3 +181,28 @@ def test_old_node_name_removed_from_former_module(module_path, class_name):
         f"vultron.core.behaviors.sender_entitlement (ADR-0115, AC-2). "
         f"Remove the definition and update any importers."
     )
+
+
+# ---------------------------------------------------------------------------
+# HP-01-011: ANY_ACTOR is reserved for the two new-report use cases
+# ---------------------------------------------------------------------------
+
+#: The received use cases HP-01-010 entitles any actor to send to.
+ANY_ACTOR_USE_CASES = frozenset(
+    {"CreateReportReceivedUseCase", "SubmitReportReceivedUseCase"}
+)
+
+
+@pytest.mark.spec("HP-01-011")
+def test_any_actor_is_declared_only_by_new_report_use_cases():
+    """``ANY_ACTOR`` declares no check, so it must not spread as an exemption."""
+    declaring = {
+        use_case_class.__name__
+        for _semantics, use_case_class in _received_entries()
+        if getattr(use_case_class, "sender_entitlement", None)
+        is SenderEntitlementKind.ANY_ACTOR
+    }
+    assert declaring == ANY_ACTOR_USE_CASES, (
+        "Only the use cases receiving a new report may declare ANY_ACTOR "
+        f"(HP-01-011); found {sorted(declaring)}"
+    )

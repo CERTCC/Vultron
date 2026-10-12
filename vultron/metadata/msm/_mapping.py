@@ -169,6 +169,7 @@ SENT_BY_WORDING: dict[SenderEntitlementKind, str] = {
     SenderEntitlementKind.ACTIVE_PARTICIPANT: "an active participant",
     SenderEntitlementKind.INVITEE: "the invitee",
     SenderEntitlementKind.EXECUTING_ACTOR: "the receiving actor itself",
+    SenderEntitlementKind.ANY_ACTOR: "any actor",
 }
 
 #: The "Sent by" wording for a use case whose sender is not yet checked.

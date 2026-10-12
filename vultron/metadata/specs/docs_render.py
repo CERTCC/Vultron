@@ -10,7 +10,7 @@ Usage (in a markdown-exec Python block)::
     from vultron.metadata.specs.docs_render import render_for_kind
 
     registry = load_registry()
-    print(render_for_kind("domain", registry))
+    print(render_for_kind("protocol", registry))
 """
 
 from __future__ import annotations
@@ -55,9 +55,17 @@ _REL_LABEL: dict[RelationType, str] = {
     RelationType.SATISFIES: "Satisfies",
 }
 
+#: Rendered in place of the requirement list for a kind no spec carries yet.
+_EMPTY_KIND_NOTICE = (
+    '!!! note "No requirements yet"\n\n'
+    "    No requirement in the specification corpus carries "
+    "`kind: {kind}` yet.\n"
+)
+
 # SpecKind → URL slug for cross-kind anchor links
 _KIND_SLUG: dict[SpecKind, str] = {
     SpecKind.PROTOCOL: "protocol",
+    SpecKind.FOUNDATION: "foundation",
     SpecKind.ARCHITECTURE: "architecture",
     SpecKind.PROJECT: "project",
     SpecKind.PROCESS: "process",
@@ -287,14 +295,15 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
     """Render all spec files matching *kind* as rich MkDocs Material markdown.
 
     Args:
-        kind: A :class:`SpecKind` string value (e.g. ``"domain"``).
+        kind: A :class:`SpecKind` string value (e.g. ``"protocol"``).
         registry: A loaded :class:`SpecRegistry`.
 
     Returns:
         A markdown string ready for embedding via markdown-exec.
 
     Raises:
-        ValueError: If no spec files have this kind in the registry.
+        ValueError: If *kind* is not a :class:`SpecKind` value. A valid kind
+            that no spec carries renders a notice saying so.
     """
     try:
         target_kind = SpecKind(kind)
@@ -314,10 +323,10 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
         )
     ]
     if not matching:
-        raise ValueError(
-            f"No spec files with kind={kind!r} found in registry. "
-            "Add a new docs page when you add a new SpecKind."
-        )
+        # A valid kind no spec carries yet still has its page (every SpecKind
+        # has one, test_kind_page_coverage.py), so the build must not fail on
+        # it; the page says so instead of rendering nothing.
+        return _EMPTY_KIND_NOTICE.format(kind=target_kind.value)
 
     lines: list[str] = []
 
