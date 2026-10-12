@@ -1290,7 +1290,7 @@ groups:
     rationale: 'The five-node simulator sequence encodes a single policy-driven decision ("should we acquire an exploit?")
       in granular boolean flags that are unnecessary in production. Collapsing to two call-out points (Retriever + Evaluator)
       reduces seam count while keeping the exploit-repo query independently swappable. Implemented by issue #1309 (PR #1566).
-      See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse 1: Exploit-strategy subtree" and ADR-0027.'
+      See ADR-0027 and `docs/developer/reference/bt-fuzzer/rm-exploit.md`.'
     tracking_issue: '#1200 (planning); #1249 (factory-fn Idea — already implemented on main); #1309 (implementation — closed by PR #1566)'
     adr:
     - ADR-0027
@@ -1307,8 +1307,7 @@ groups:
     rationale: 'The `NoPublish*` bypass leaves and `PublicationIntentsSet` flag check are structural artifacts of the simulator
       BT representation; they do not represent real call-out points. In production the `PrioritizePublicationIntents` Evaluator
       output drives arm execution directly. The `ShouldPublishX` gate nodes are named positively per BTND-08-001. Implemented
-      by issue #1310. See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse 2: Publication-intent subtree"
-      and ADR-0028.'
+      by issue #1310. See ADR-0028 and `docs/developer/reference/bt-fuzzer/rm-publication.md`.'
     tracking_issue: '#1200 (planning); #1310 (implementation)'
     adr:
     - ADR-0028
@@ -1331,8 +1330,7 @@ groups:
       uninvited candidate. Because that monitor is on the call-in surface rather than a call-out capability
       (BT-18-013), its seam is a trigger endpoint and not a bundle field. The downstream accept/invite/bootstrap cascade already
       works; no inline BT loop is required. The tick-driven `create_report_to_others_tree` module from #1311 was an
-      implementation artifact of the intermediate design and has been removed (see issue #1848, ADR-0047, and
-      notes/bt-fuzzer-rm-reporting.md § "Sentinel supersession note").
+      implementation artifact of the intermediate design and has been removed (see issue #1848 and ADR-0047).
     tracking_issue: '#1311 (partial implementation, superseded); #1252 (planning — closed; sentinel approach adopted); #1848 (removal — closed by PR)'
     adr:
     - ADR-0029
@@ -1348,8 +1346,8 @@ groups:
       includes a broadcast-for-participant-comment step is an open design question to be resolved at implementation time.'
     rationale: 'The single `Publish` simulator leaf stood in for a full advisory publication workflow. In production, drafting,
       review, and submission are distinct operations with separate external seams. The Actuator shape for submission is confirmed
-      by ADR-0024 (Actuator amendment, 2026-07-07). See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse 4:
-      Publish leaf" and ADR-0030 (accepted 2026-07-22). The participant-comment broadcast question in the review phase was deferred
+      by ADR-0024 (Actuator amendment, 2026-07-07). See ADR-0030 (accepted 2026-07-22)
+      and `docs/developer/reference/bt-fuzzer/rm-publication.md`. The participant-comment broadcast question in the review phase was deferred
       to a follow-on issue (AC-4, issue #1312).'
     tracking_issue: '#1200 (planning); #1312 (implemented)'
     adr:

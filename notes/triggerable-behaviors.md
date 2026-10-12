@@ -2,326 +2,77 @@
 title: "Triggerable Behaviors: Design Notes"
 status: active
 kind: guidance
-tags: [triggers, demo, run-mode, api, classification, wrapper-pattern]
-description: "Design notes for triggerable behaviors: API endpoints, CLI commands, BT integration, behavior routing patterns, trigger classification, and the demo/prod URL split."
+tags: [triggers, bt-design, call-out-points]
+description: "Rules for designing triggerable behaviors: classifying BT nodes into condition checks, evaluation tasks, and execution tasks; capturing side effects the reference diagrams omit; keeping placeholder nodes as integration seams."
 related_specs:
   - specs/triggerable-behaviors.yaml
   - specs/behavior-tree-integration.yaml
-  - specs/configuration.yaml
-  - specs/code-style.yaml
 related_notes:
-  - notes/triggerable-behaviors-resolved.md
-  - notes/bt-fuzzer-nodes.md
   - notes/bt-integration.md
   - notes/do-work-behaviors.md
-  - notes/domain-model-separation.md
   - notes/protocol-event-cascades.md
 relevant_packages:
-  - transitions
   - vultron/adapters/driving/fastapi
   - vultron/core/use_cases/triggers
-  - vultron/bt
+  - vultron/core/behaviors
 ---
 
 # Triggerable Behaviors: Design Notes
 
-**Cross-references**: `specs/behavior-tree-integration.yaml` BT-08,
-`docs/topics/behavior_logic/` (reference behavior tree docs)
+A triggerable behavior is initiated by the local actor's own decision, not by
+an inbound message; it is the counterpart of the received-message pipeline.
+The trigger API contract is `specs/triggerable-behaviors.yaml`; the
+general-purpose vs. demo-only classification rules are in
+`vultron/core/use_cases/triggers/AGENTS.md`. The reference trees these
+behaviors implement are under `docs/topics/behavior_logic/`.
 
 ---
 
-## Background
+## Per-Actor DataLayer
 
-The Vultron Protocol defines two categories of actor behavior:
-
-1. **Reactive behaviors** — triggered by an incoming ActivityStreams message
-   (already fully implemented via the handler pipeline).
-2. **Triggerable behaviors** — initiated by the local actor based on their
-   own internal state and decision-making, not in direct response to a
-   message.
-
-Triggerable behaviors are the counterpart to the inbound handler pipeline.
-The full CVD protocol cannot be demonstrated without them; a complete
-implementation requires both sides.
-
-Reference documentation for the behavior trees these behaviors correspond to:
-
-- `docs/topics/behavior_logic/rm_bt.md`
-- `docs/topics/behavior_logic/rm_validation_bt.md`
-- `docs/topics/behavior_logic/rm_prioritization_bt.md`
-- `docs/topics/behavior_logic/rm_closure_bt.md`
-- `docs/topics/behavior_logic/em_bt.md`
-- `docs/topics/behavior_logic/em_eval_bt.md`
-- `docs/topics/behavior_logic/em_propose_bt.md`
+A trigger endpoint resolves the acting actor's own DataLayer from `actor_id`
+through dependency injection (`get_trigger_dl` in
+`vultron/adapters/driving/fastapi/deps.py`), never a shared store, because the
+actor id is the store name (DL-07-004).
 
 ---
 
----
+## Classify Each Node Before Mapping It to a Trigger
 
-## Endpoint Design Sketch
+When deciding which nodes of a reference BT become triggerable behaviors,
+classify each node; only execution tasks are natural trigger units.
 
-```http
-POST /actors/{actor_id}/trigger/{behavior-name}
-Content-Type: application/json
+- **Condition checks** — a boolean fact about current state ("is report
+  valid?", "timer expired?"). They map to DataLayer queries or computed
+  properties and are never triggers on their own.
+- **Evaluation tasks** — judgment that available data cannot fully automate
+  ("evaluate credibility", "current terms ok?"). They become call-out points
+  (ADR-0025): a human-in-the-loop interface, an LLM-assisted evaluator, or a
+  policy rule. The simulator stubs for them are cataloged in
+  `docs/developer/reference/bt-fuzzer/index.md`.
+- **Execution tasks** — a concrete action with observable side effects
+  (emitting a protocol message, updating case state, creating objects).
 
-{
-  "offer_id":  "...",   // for report-scoped behaviors (required)
-  "report_id": "...",   // confirmation check for report-scoped behaviors
-  "case_id":   "...",   // for case-scoped behaviors
-  "params":    { ... }, // behavior-specific parameters (e.g., SSVC values)
-  "note":      "..."    // optional free-text; embedded in outgoing activity
-}
-```
-
-Response on success:
-
-```http
-HTTP 202 Accepted
-Content-Type: application/json
-
-{
-  "activity": { ... }   // the resulting ActivityStreams activity
-}
-```
-
-The formal spec is `specs/triggerable-behaviors.yaml` (TRIG-01 through
-TRIG-07).
+The `docs/topics/behavior_logic/` diagrams were drawn by hand; when a diagram
+and its text disagree, the text is authoritative.
 
 ---
 
-## Relationship to Actor Independence
+## Capture Side Effects the Diagrams Omit
 
-Triggerable behaviors are scoped to a single actor's internal state. The
-trigger endpoint MUST resolve the correct per-actor DataLayer instance from
-`actor_id`. This dependency exists whether or not full actor independence
-is implemented. Design trigger endpoints to accept a
-DataLayer instance via dependency injection so that per-actor isolation
-can be retrofitted later without changing the endpoint contract.
-
-**See**: `notes/domain-model-separation.md` "Per-Actor DataLayer Options"
-for isolation design options.
+The reference diagrams draw "emit FOO" as a single message, but each emit has
+cascading effects (state transitions, case-object updates, participant
+notifications). A trigger's BT MUST model every protocol-relevant side effect,
+even ones the diagram omits, and the trigger tree's module docstring lists
+them. Cascades into downstream behaviors are BT subtrees, not procedural calls
+after the tree runs (BT-06-005).
 
 ---
 
-## BT Node Classification: Condition Checks, Evaluation Tasks, Execution Tasks
+## Keep Placeholder Nodes as Integration Seams
 
-When analyzing which nodes in a BT sub-tree are candidates for triggerable
-behaviors, it helps to classify each node by type:
-
-- **Condition checks** — evaluate a boolean fact about the current state
-  (e.g., "is report valid?", "is EM state ACTIVE?", "timer expired?").
-  These map directly to DataLayer queries or computed properties and do not
-  need to be exposed as triggerable behaviors on their own.
-
-- **Evaluation tasks** — require judgment or assessment that cannot be
-  fully automated from available data alone. Examples: "evaluate
-  credibility", "evaluate priority", "evaluate embargo terms", "stop
-  trying?", "current terms ok?". In the original simulation these were
-  represented as fuzzer nodes (see `notes/bt-fuzzer-nodes.md`). In a real
-  implementation they become either: (a) calls to a human-in-the-loop
-  interface, (b) LLM-assisted evaluators with structured prompts, or (c)
-  policy-rule evaluators for cases where the logic can be fully specified.
-
-- **Execution tasks** — perform a concrete action with observable side
-  effects: emitting a protocol message ("emit RV", "emit EA"), updating
-  case state, creating objects. These are the natural units for triggerable
-  behaviors.
-
-The documentation in `docs/topics/behavior_logic/` uses these node types
-in diagrams (condition nodes use "stadium" shape in Mermaid). However,
-the diagrams were built by hand and may contain inconsistencies; use the
-accompanying text as the authoritative source when diagrams disagree.
-
----
-
-## Side Effects of "Emit FOO" Behaviors
-
-The diagrams in `docs/topics/behavior_logic/` simplify "emit FOO" nodes to
-look like single-message outputs. In practice each execution task may have
-cascading side effects. Implementers MUST capture all relevant side effects
-in the BT structure for each triggerable behavior, even when they are not
-shown in the original diagram.
-
-Known side effects by behavior:
-
-| Behavior | Side effects beyond sending the message |
-|---|---|
-| `validate-report` (emit RV) | Create `VulnerabilityCase`; link reporter as participant; set receiver as case owner; trigger embargo resolution; link `VulnerabilityReport` to case |
-| `reject-report` (emit RI hard) | Close the offer; log reason; no case created |
-| `engage-case` (emit RA) | Update participant RM state to ACTIVE; log event |
-| `defer-case` (emit RD) | Update participant RM state to DEFERRED; log event |
-| `close-report` | Update RM state; log event; potentially trigger downstream notifications |
-| `terminate-embargo` (emit ET) | Update `CaseStatus.em_state`; notify all participants; log reason |
-| `propose-embargo` (emit EV/EP) | Create or update `EmbargoEvent` on case; notify participants |
-| `evaluate-embargo` (emit EA) | Update local embargo acceptance state; send Accept/Reject |
-
-The above is a non-exhaustive list. As implementation proceeds, each
-triggerable behavior SHOULD document its full side-effect list in its
-implementation module docstring.
-
----
-
-## Placeholder Behaviors and Logging
-
-Some execution nodes in the BT docs represent local processes whose
-implementation details are outside the scope of the current prototype.
-Examples: "close report" (internal workflow), "accept" / "defer" (internal
-priority queue updates), "exit embargo" (external notification), "gather info".
-
-These placeholder nodes MUST:
-
-1. Log a structured event at INFO level when executed (so the behavior is
-   observable in logs even if no external action is taken).
-2. Return SUCCESS to allow the BT to continue (they are not blocking).
-3. Be clearly labeled as placeholders in code (e.g., with a docstring
-   comment like `# Placeholder: implement external callback in production`).
-
-**Design Decision**: Placeholder nodes serve as future callback hooks.
-Do NOT remove them — they are the correct place to attach future
-integrations (task queues, webhook callbacks, ITSM integrations, etc.).
-
----
-
-## SSVC-Based Prioritization
-
-The "evaluate priority" node in `rm_prioritization_bt.md` is a judgment
-call that in a full implementation maps to SSVC
-(Stakeholder-Specific Vulnerability Categorization) evaluation.
-
-Proposed implementation path:
-
-1. **Collect case data**: Gather known facts about the vulnerability
-   (report content, case state, embargo status, participant roles).
-2. **Evaluate decision points**: For each SSVC decision point (e.g.,
-   Exploitation, Automatable, Impact), either:
-   - Apply a rule-based evaluator if the answer can be derived from
-     structured case data.
-   - Prompt a human or LLM evaluator: present the case context and ask
-     the evaluator to select the best answer from the allowed values, with
-     reasoning. The prompt SHOULD instruct the evaluator to "select all
-     answers that cannot be ruled out" to err on the side of caution.
-3. **Apply decision table**: Feed the selected decision point values into
-   an SSVC `DecisionTable` to produce a prioritization outcome.
-4. **Map to RM state**: For the prototype, map the SSVC outcome to
-   binary `engage` / `defer`. In a full implementation the a full SSVC
-   outcome set (e.g., *Defer*, *Scheduled*, *Out-of-Cycle*, *Immediate*, or
-   others; different SSVC models have different outcome sets) MAY be
-   supported.
-
-The `engage-case` / `defer-case` triggers directly correspond to this
-engage/defer binary. The "accept" and "defer" placeholder nodes in
-`rm_prioritization_bt.md` represent internal priority queue actions
-(not the protocol messages). They should succeed unconditionally in
-the prototype.
-
-**See also**: `notes/bt-fuzzer-nodes.md` (SSVC-adjacent fuzzer nodes),
-`specs/prototype-shortcuts.yaml` PROTO-05-001 (prioritization stub policy).
-
----
-
-## Per-Behavior Design Notes
-
-### Embargo Evaluation (evaluate-embargo)
-
-"evaluate" in the embargo tree has two layers:
-
-1. **Mechanical evaluation** (automatable): Does the proposed embargo have
-   a valid end date? Is the duration within the actor's policy limits?
-   (See `specs/embargo-policy.yaml`.) Does it follow the practices in
-   `docs/topics/process_models/em/`?
-
-2. **Judgment evaluation** (human-in-the-loop or LLM-assisted): Is the
-   embargo duration proportionate to the case? Is the justification
-   reasonable? Are the terms commensurate with the coordinating parties'
-   constraints?
-
-**Design Decision**: Implement the mechanical layer first. Stub the
-judgment layer as a placeholder that always returns SUCCESS.
-
-### Embargo Proposal (propose-embargo)
-
-"Select terms" during embargo proposal is a judgment call that CAN be
-stubbed as "apply default embargo policy" (see
-`docs/topics/process_models/em/defaults.md`). The stub SHOULD:
-
-1. Load the actor's `embargo_policy` record (see `specs/embargo-policy.yaml`).
-2. Apply the preferred duration as the proposed term.
-3. Log the selection.
-
-A "customize defaults" extension point SHOULD be stubbed as a placeholder
-node that always succeeds and logs a debug event.
-
-Emit EV and Emit EP may have side effects; cross-reference
-`docs/topics/process_models/em/` for the specific state transitions
-triggered by each.
-
-### Embargo Termination (terminate-embargo)
-
-"other reason?" is a judgment call; stub as a placeholder. "timer expired?"
-is a condition check that can be implemented as a direct comparison of the
-current time against the embargo end date in the `EmbargoEvent`.
-
-"exit embargo" is a local process placeholder for external callback hooks
-(e.g., triggering advisory publication pipelines). It MUST log when
-executed.
-
-### CVE ID Assignment (assign-cve-id)
-
-`docs/topics/behavior_logic/id_assignment_bt.md` describes a simplified
-tree based on CNA rules. Implementation guidance:
-
-- "id assigned?" — condition check; query case for existing CVE ID.
-- "is CNA?" — condition check; query actor profile for CNA role.
-- "in scope?" / "assignable?" — partially automatable via CNA Rules
-  4.1 (<https://www.cve.org/resourcessupport/allresources/cnarules#section_4_CNA_Operational_Rules>).
-  This is a candidate for an LLM-assisted evaluator: present the case
-  and the relevant CNA rule text, ask the evaluator to answer a series
-  of structured questions about scope and assignability.
-- "emit CVE" — execution task; call CVE Services API or record a
-  locally-generated placeholder ID.
-
-### Identify Participants (identify-participants)
-
-This is a judgment call well-suited to LLM assistance or human review:
-
-1. Present the case information and ask an evaluator to identify potentially
-   affected parties (vendors, coordinators, affected users).
-2. The evaluator suggests new participants.
-3. A human or policy rule reviews and confirms the suggestions.
-4. For confirmed suggestions, trigger the "notify-others" flow (which uses
-   `Invite(Actor, CaseStub)` semantics — see below).
-
-The `Suggest(Actor)` protocol message is already semantically supported,
-which enables an agent workflow where a suggester-agent evaluates cases and
-proposes participants, and the case owner accepts or rejects those proposals
-via the normal accept/reject flow.
-
-### Notify Others (notify-actor)
-
-The "notify others" behavior (report to others) iterates over a list of
-potential participants and sends each an `Invite(Actor, CaseStub)` message.
-Key design constraints:
-
-1. **Embargo must be established first** (or the invitation implies
-   acceptance of existing embargo terms). Before sending an `Invite`, the
-   system SHOULD verify that either:
-   - No embargo is active, or
-   - The actor being invited is known to have compatible embargo policy
-     (see `specs/embargo-policy.yaml`), or
-   - The invitation is constructed to imply embargo acceptance upon
-     acceptance of the invitation.
-
-2. **Pre-acceptance information sharing**: Before an invited actor accepts,
-   the case information shared with them SHOULD be restricted to a
-   "invitation-ready" subset (see below). Full case details SHOULD only
-   be shared once the invitation is accepted.
-
-3. **Triggering**: This behavior MAY be triggered event-by-event (i.e.,
-   one invitation per trigger call) rather than as a batch loop. This
-   allows it to be fired immediately when a new participant is identified
-   without requiring a separate batch-iteration mechanism.
-
-4. **"effort limit exceeded?"** — stub as a placeholder that always
-   succeeds (no-op for prototype); log when executed.
-
----
+Some reference-tree nodes stand for local processes outside the prototype's
+scope ("exit embargo", "accept"/"defer" in the priority queue, "gather
+info"). Keep them: they are where real integrations (task queues, webhooks,
+ITSM) attach. Each one logs at INFO when it runs, returns `SUCCESS` so it
+never blocks the tree, and is labeled a placeholder in its docstring.

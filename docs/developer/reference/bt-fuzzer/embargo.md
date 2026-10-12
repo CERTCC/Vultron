@@ -1,0 +1,263 @@
+---
+stakeholder_type: [project-contributor]
+---
+
+# Embargo management fuzzer nodes
+
+These stub nodes belong to `EmbargoManagementBt` and its sub-trees (`TerminateEmbargoBt`, `_ConsiderTerminatingActiveEmbargo`, `_ProposeEmbargoBt`, `_ChooseEmProposedResponse`) in `vultron/bt/embargo_management/behaviors.py`.
+They model the negotiation, evaluation, and lifecycle management of coordinated disclosure embargoes.
+
+See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+
+## `ExitEmbargoWhenDeployed`
+
+- **Node name**: `ExitEmbargoWhenDeployed`
+- **btz type**: `ProbablyFail` (p=0.33)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_MaybeExitWhenDeployed` (within `TerminateEmbargoBt`)
+- **Semantic function**: Condition/action — decide whether a deployed fix is sufficient reason to exit an active embargo
+- **Input dependency**: Human or policy judgment; deployment event plus site policy on post-deployment embargo continuation
+- **Notes**: Modeled as unlikely because deployment alone is usually insufficient (e.g., partial rollout, emergency deployment)
+- **Automation potential**: **Medium** — deployment status check is automatable via patch-management or case-state APIs; the *decision* to exit still requires policy-rule evaluation or human confirmation.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenDeployed`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`exit_embargo_when_deployed_factory` param) — condition guard in the ReasonSelector, checked before delegating to `terminate_embargo_bt`; the same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
+
+## `ExitEmbargoWhenFixReady`
+
+- **Node name**: `ExitEmbargoWhenFixReady`
+- **btz type**: `UsuallyFail` (p=0.25)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_MaybeExitWhenFixReady` (within `TerminateEmbargoBt`)
+- **Semantic function**: Condition/action — decide whether a ready (but not yet deployed) fix is sufficient reason to exit the embargo
+- **Input dependency**: Human or policy judgment; fix-readiness status plus organizational policy
+- **Notes**: Less common than deployment-triggered exit; vendor may want to coordinate simultaneous deployment across affected population first
+- **Automation potential**: **Medium** — fix-readiness flag is queryable automatically; the exit decision depends on configurable organizational policy that may require human override.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenFixReady`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`exit_embargo_when_fix_ready_factory` param) — condition guard in the ReasonSelector, checked before delegating to `terminate_embargo_bt`; the same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
+
+## `ExitEmbargoForOtherReason`
+
+- **Node name**: `ExitEmbargoForOtherReason`
+- **btz type**: `OneInTwoHundred` (p=0.005)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_OtherReasonToExitEmbargo` (within `TerminateEmbargoBt`)
+- **Semantic function**: Condition — catch-all for exiting an embargo for reasons other than fix readiness, deployment, timer expiry, public awareness, known exploits, or observed attacks
+- **Input dependency**: Human judgment; rare edge-case policy decision
+- **Notes**: Intentionally very rare in simulation; represents extraordinary circumstances
+- **Automation potential**: **Low** — rare edge case representing extraordinary circumstances; fundamentally requires human judgment that cannot be anticipated by a general policy rule.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoForOtherReason`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`exit_embargo_for_other_reason_factory` param) — rare fallback condition guard in the ReasonSelector for extraordinary circumstances; the same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
+
+## `EmbargoTimerExpired`
+
+- **Node name**: `EmbargoTimerExpired`
+- **btz type**: `OneInOneHundred` (p=0.01)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_SufficientCauseToTerminateActiveEmbargo` (within `TerminateEmbargoBt`)
+- **Semantic function**: Condition — check whether the embargo's agreed-upon deadline has passed
+- **Input dependency**: System clock compared to the embargo expiry timestamp recorded in the case; fully automatable
+- **Notes**: Rare in simulation (most ticks occur well before expiry); in production this is a simple timestamp comparison
+- **Automation potential**: **High** — simple system-clock comparison against the recorded embargo expiry timestamp; fully automatable with no human involvement.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoTimerExpired`
+- **Call-out point shape**: Retriever — on-demand synchronous check: reads the embargo expiry timestamp from the case DataLayer, compares it to the current system clock, and returns SUCCESS/FAILURE with no output keys.
+  The BT tick drives this node; it does not run independently or fire a trigger endpoint.
+  A timestamp comparison is the simplest kind of structured fact (ADR-0024 BT-18-006: binary on-demand queries are Retrievers, not Sentinels).
+- **Factory-fn placement**: Not placed in a production factory. `create_terminate_active_embargo_tree` models actor-chosen exit reasons only; invite-deadline expiry is handled by `vultron.core.behaviors.embargo.expiry_tree`.
+
+## `OnEmbargoExit`
+
+- **Node name**: `OnEmbargoExit`
+- **btz type**: `AlwaysSucceed` (p=1.00)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_ConsiderTerminatingActiveEmbargo`
+- **Semantic function**: Action — execute any site-specific tasks required when leaving an active embargo (notifications, logging, downstream triggers)
+- **Input dependency**: Site-specific integration hook; may invoke notification APIs, case management system updates, etc.
+- **Notes**: Always succeeds in simulation; production implementation must ensure idempotent execution
+- **Automation potential**: **High** — integration hook (notifications, state updates, downstream triggers); can be fully automated via API calls to notification and case-management systems.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoExit`
+- **Call-out point shape**: Actuator — fires integration hooks on embargo exit; invokes notification APIs, case-management state-write calls, and downstream trigger endpoints.
+  There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
+- **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`on_embargo_exit_factory` param) — Actuator effect node in the `TerminateActiveEmbargoBT` Sequence, after the AuthorizeEmbargoExit Selector and before `terminate_embargo_bt`
+
+## `EmbargoExitPolicyGuard`
+
+- **Node name**: `EmbargoExitPolicyGuard`
+- **btz type**: `AlwaysSucceed` (p=1.00)
+- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Parent tree**: `AuthorizeEmbargoExit` (within `create_terminate_active_embargo_tree`)
+- **Semantic function**: Condition — check whether site policy permits the actor to proceed with voluntary embargo termination after a reason has been selected (e.g., no active revision negotiation, no pending approvals)
+- **Input dependency**: Automated policy evaluation; integration with case-management or approval-workflow systems
+- **Notes**: Always succeeds in simulation (happy path assumes policy permits); in production may invoke an approval queue or rule engine
+- **Automation potential**: **High** — rule-based checks (pending revision, approval status) are fully automatable via case-management API calls.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoExitPolicyGuard`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`embargo_exit_policy_guard_factory` param) — first arm of the AuthorizeEmbargoExit Selector, after the ReasonSelector succeeds and before OnEmbargoExit
+
+## `EmbargoExitOverride`
+
+- **Node name**: `EmbargoExitOverride`
+- **btz type**: `AlwaysFail` (p=0.00)
+- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Parent tree**: `AuthorizeEmbargoExit` (within `create_terminate_active_embargo_tree`)
+- **Semantic function**: Condition — actor explicitly accepts responsibility for overriding a policy veto and proceeding with voluntary embargo termination; produces a distinct audit-trail entry for the override
+- **Input dependency**: Explicit actor acknowledgment; may invoke an escalation endpoint or confirmation dialog
+- **Notes**: Always fails in simulation (override is not active by default); in production an integrator wires this to an escalation acknowledgment mechanism; the override is logged separately from the normal policy path
+- **Automation potential**: **Low** — override requires explicit actor acknowledgment for accountability; should not be auto-approved.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoExitOverride`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`embargo_exit_override_factory` param) — second (fallback) arm of the AuthorizeEmbargoExit Selector; reached only when EmbargoExitPolicyGuard returns FAILURE
+
+## `StopProposingEmbargo`
+
+- **Node name**: `StopProposingEmbargo`
+- **btz type**: `UsuallyFail` (p=0.25)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_ConsiderAbandoningProposedEmbargo` (within `_ProposeEmbargoBt`)
+- **Semantic function**: Condition — human or policy decision to give up on negotiating an embargo (e.g., too many counter-proposals, time pressure)
+- **Input dependency**: Human judgment or policy-driven escalation trigger
+- **Notes**: Modeled as uncommon; parties are usually willing to keep negotiating
+- **Automation potential**: **Low** — fundamentally a negotiation-fatigue judgment; depends on relationship context and subjective assessment of negotiation prospects; requires human decision.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.StopProposingEmbargo`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: Simulator-only.
+  It gates the simulator's tick-based "keep proposing until effort is exhausted" loop (`_EnsureSufficientEffortToAchieveEmbargo`), which has no event trigger in the prototype.
+  The `stop_proposing_embargo_factory` slot feeds only the `create_manage_embargo_tree` stub Sequence.
+
+## `SelectEmbargoOfferTerms`
+
+- **Node name**: `SelectEmbargoOfferTerms`
+- **btz type**: `AlwaysSucceed` (p=1.00)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_ProposeNewEmbargo` and `_ProposeEmbargoRevision` (within `_ProposeEmbargoBt`)
+- **Semantic function**: Action — choose the specific terms (duration, conditions) to include in an embargo proposal or counter-proposal
+- **Input dependency**: Human decision or policy-driven term selection; could be automated from organizational policy templates
+- **Notes**: Always succeeds in simulation; in production may involve negotiation-support tooling or policy lookup
+- **Automation potential**: **Medium** — standard terms (duration, conditions) can be drawn from organizational policy templates automatically; atypical situations may need human review.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.SelectEmbargoOfferTerms`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: Outbound propose flow: the term-selection seam that supplies proposal terms ahead of the propose trigger use case (`SvcProposeEmbargoUseCase` → `propose_embargo_trigger_bt`), also reused by the EMB-15-003 counter arm (counter = re-propose).
+  Today the `select_embargo_offer_terms_factory` slot feeds only the `create_manage_embargo_tree` stub Sequence.
+
+## `WantToProposeEmbargo`
+
+- **Node name**: `WantToProposeEmbargo`
+- **btz type**: `RandomSucceedFail` / `UniformSucceedFail` (p=0.50)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_ConsiderProposingEmbargo` (within `_EmNone`)
+- **Semantic function**: Condition — does the participant currently wish to initiate an embargo negotiation?
+- **Input dependency**: Human or automated policy decision; depends on case context, role, and organizational policy
+- **Notes**: Default recommendation is to propose an embargo; fuzzer exercises both paths equally
+- **Automation potential**: **Medium** — default policy (always propose) can be automated; exceptions (e.g., already-public vulnerability, no vendor identified) could be rule-encoded, but edge cases may need human override.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.WantToProposeEmbargo`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: Outbound propose flow: the operator or policy decision to invoke `SvcProposeEmbargoUseCase` at all, a gate on the trigger rather than a node in a decision tree.
+  Today the `want_to_propose_embargo_factory` slot feeds only the `create_manage_embargo_tree` stub Sequence.
+
+## `WillingToCounterEmbargoProposal`
+
+- **Node name**: `WillingToCounterEmbargoProposal`
+- **btz type**: `UsuallyFail` (p=0.25)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_AvoidCounterProposal` (within `_EmProposed`)
+- **Semantic function**: Condition — is the participant willing to respond to an incoming embargo proposal with a counter-proposal rather than accepting or rejecting it outright?
+- **Input dependency**: Human judgment or policy; generally discouraged in favor of accepting and then proposing a revision
+- **Notes**: Intentionally low probability; the recommended behavior is to accept the current proposal and negotiate revisions separately
+- **Automation potential**: **Low** — nuanced negotiation judgment about whether countering is strategically preferable to accepting and revising; best left to human discretion.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.WillingToCounterEmbargoProposal`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: `vultron.core.behaviors.embargo.response_decision_tree.create_embargo_response_decision_tree` (`willing_to_counter_factory` param) — gates the counter arm of the inbound embargo-response decision seam (EMB-15-003), Flow A only.
+  Its DETERMINISTIC default is FAILURE (accept-then-revise is preferred); on SUCCESS the arm delegates to `propose_embargo_trigger_bt`.
+
+## `ReasonToProposeEmbargoWhenDeployed`
+
+- **Node name**: `ReasonToProposeEmbargoWhenDeployed`
+- **btz type**: `AlmostCertainlyFail` (p=0.07)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_AvoidNewEmbargoesInCsDeployedUnlessReason`
+- **Semantic function**: Condition — is there an unusual reason to start a new embargo negotiation even though the fix has already been deployed?
+- **Input dependency**: Human judgment; exceptional circumstance requiring explicit decision
+- **Notes**: Very rare by design; post-deployment embargo proposals are exceptional
+- **Automation potential**: **Low** — highly exceptional circumstance; no general rule can anticipate valid reasons, so human judgment is required.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ReasonToProposeEmbargoWhenDeployed`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: Outbound propose flow: an exceptional-case precondition on invoking `SvcProposeEmbargoUseCase` after fix deployment (CS `···D··`).
+  Today the `reason_to_propose_when_deployed_factory` slot feeds only the `create_manage_embargo_tree` stub Sequence.
+
+## `EvaluateEmbargoProposal`
+
+- **Node name**: `EvaluateEmbargoProposal`
+- **btz type**: `UsuallySucceed` (p=0.75)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_EvaluateAndAcceptProposedEmbargo` (within `_ChooseEmProposedResponse`)
+- **Semantic function**: Condition/action — assess an incoming embargo proposal and decide whether to accept it
+- **Input dependency**: Human analyst review, or an automated policy compatibility check comparing proposed terms against organizational policy
+- **Notes**: Modeled as usually succeeding (acceptance is the common outcome); in production may involve structured negotiation support
+- **Automation potential**: **Medium** — basic compatibility check (is proposed duration within policy bounds?) is automatable; final accept/reject for out-of-range proposals typically needs human review.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EvaluateEmbargoProposal`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: `vultron.core.behaviors.embargo.response_decision_tree.create_embargo_response_decision_tree` (`evaluate_embargo_proposal_factory` param) — the default-accept Evaluator of the inbound embargo-response decision seam (EMB-15-001), behind the CASE_OWNER-bypass authorization Selector (EMB-15-002).
+  On SUCCESS it delegates to the flow-appropriate accept BT (`accept_embargo_trigger_bt` for a Flow A proposal; `accept_invite_to_embargo_tree` for a Flow B invitation).
+
+## `OnEmbargoAccept`
+
+- **Node name**: `OnEmbargoAccept`
+- **btz type**: `AlwaysSucceed` (p=1.00)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_EvaluateAndAcceptProposedEmbargo`
+- **Semantic function**: Action — execute site-specific tasks triggered when an embargo proposal is accepted (e.g., notify stakeholders, record agreement, start embargo timer)
+- **Input dependency**: Integration hook; may invoke notification APIs, calendar/timer services, case management system updates
+- **Notes**: Always succeeds in simulation; must be idempotent in production
+- **Automation potential**: **High** — notification dispatch, timer initialization, and state-update actions are all integration-automatable via APIs.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoAccept`
+- **Call-out point shape**: Actuator — fires integration hooks on embargo acceptance; invokes notification APIs, embargo timer-service initialization calls, and case-management state writes.
+  There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
+- **Factory-fn placement**: Not wired yet: the `on_embargo_accept_factory` slot exists in `EmbargoCallOutBundle`, and `create_manage_embargo_tree` reserves it for the accept arm.
+
+## `OnEmbargoReject`
+
+- **Node name**: `OnEmbargoReject`
+- **btz type**: `AlwaysSucceed` (p=1.00)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_RejectProposedEmbargo` (within `_ChooseEmProposedResponse`)
+- **Semantic function**: Action — execute site-specific tasks triggered when an embargo proposal is rejected (e.g., notify stakeholders, log rejection rationale)
+- **Input dependency**: Integration hook; notification APIs and case management updates
+- **Notes**: Always succeeds in simulation; must be idempotent in production
+- **Automation potential**: **High** — notification dispatch and logging actions are fully automatable via APIs.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoReject`
+- **Call-out point shape**: Actuator — fires integration hooks on embargo rejection; invokes notification APIs and case-management state writes for the rejection rationale.
+  There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
+- **Factory-fn placement**: Not wired yet: the `on_embargo_reject_factory` slot exists in `EmbargoCallOutBundle`, and `create_manage_embargo_tree` reserves it for the reject arm (EMB-15-004).
+
+## `CaseOwnerApprovesEmbargoResponse`
+
+- **Node name**: `CaseOwnerApprovesEmbargoResponse`
+- **btz type**: `AlwaysSucceed` (p=1.00)
+- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Parent tree**: `AuthorizeSelector` (within `create_embargo_response_decision_tree`, as the second child of the `AuthorizeSelector` Selector — reached only when the deciding actor is NOT a `CVDRole.CASE_OWNER`)
+- **Semantic function**: Condition — a non-CASE_OWNER actor (e.g. the CASE_MANAGER processing an inbound overture on the owner's behalf) requests authorization from the case owner before accepting or countering.
+  Defaults to approval in simulation (owner approval assumed).
+- **Input dependency**: Human approval / adjudication — final authority rests with the case owner (a human or configured policy agent)
+- **Notes**: Gate only; no content artifact placed on the blackboard.
+  In production this seam would be fulfilled by an Evaluator-type Coordination Agent (UI prompt, LLM adjudicator, or policy rule) returning the owner's decision.
+- **Automation potential**: **Low** — final authority rests with the case owner; not auto-approvable by default.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CaseOwnerApprovesEmbargoResponse`
+- **Call-out point shape**: Evaluator — records an adjudication decision (approve/deny); no blackboard output_keys (pass/fail gate only per BT-18-006).
+- **Factory-fn placement**: `vultron.core.behaviors.embargo.response_decision_tree.create_embargo_response_decision_tree` (`case_owner_approves_embargo_response_factory` param) — second child of the `AuthorizeSelector`, reached when `CheckIsCaseOwnerNode` returns FAILURE (EMB-15-002).
+
+## `CurrentEmbargoAcceptable`
+
+- **Node name**: `CurrentEmbargoAcceptable`
+- **btz type**: `AlmostAlwaysSucceed` (p=0.90)
+- **Source file**: `embargo_management/fuzzer.py`
+- **Parent tree**: `_ChooseEmActiveResponse` (within `_EmActive`)
+- **Semantic function**: Condition — is the participant satisfied with the current active embargo terms, or do they wish to propose a revision?
+- **Input dependency**: Human judgment or automated policy check comparing current embargo terms against organizational preferences
+- **Notes**: Modeled as usually acceptable; revision proposals are relatively uncommon
+- **Automation potential**: **Medium** — automated comparison of current terms against policy preferences is feasible; edge cases and dynamic negotiation contexts may still require human judgment.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CurrentEmbargoAcceptable`
+- **Call-out point shape**: Evaluator
+- **Factory-fn placement**: A continuous-monitoring evaluator with no inbound-message trigger, so it belongs to active-embargo monitoring under epic #1147, not to the EMB-15 response seam.
+  Today the `current_embargo_acceptable_factory` slot feeds only the `create_manage_embargo_tree` stub Sequence.

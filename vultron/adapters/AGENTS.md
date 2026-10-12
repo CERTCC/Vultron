@@ -61,7 +61,7 @@ wrap every workflow step and verification block. See
 
 Scenario demos MUST puppeteer via trigger endpoints, not spoof inboxes
 directly. See
-[notes/event-driven-control-flow.md](../../notes/event-driven-control-flow.md).
+[vultron/demo/AGENTS.md](../demo/AGENTS.md).
 
 ---
 

@@ -20,7 +20,6 @@ related_notes:
   - notes/embargo-lifecycle.md
   - notes/bt-integration.md
   - notes/call-out-configuration.md
-  - notes/bt-fuzzer-rm-threat.md
   - notes/message-type-reference.md
   - notes/bt-pitfalls.md
   - notes/case-communication-model.md
@@ -666,4 +665,4 @@ changes. The inbound adoption path was refactored onto `EmitCaseStatusUpdateNode
 - Spec: `specs/received-status-handling.yaml` RSH-01 through RSH-04
 - Source Concern: CONCERN-1667
 - Source Idea: IDEA-1836
-- Superseded approach: `notes/bt-fuzzer-rm-threat.md` (sentinel integration context)
+- Superseded approach: `docs/developer/reference/bt-fuzzer/rm-threat.md` (sentinel integration context)

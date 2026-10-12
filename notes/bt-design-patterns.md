@@ -11,6 +11,7 @@ related_specs:
 related_notes:
   - notes/bt-composability.md
   - notes/bt-integration.md
+  - notes/bt-pitfalls.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -32,18 +33,11 @@ in Robotics and AI: An Introduction*. arXiv:1709.00084v6.
 Sections referenced: Chapter "Design Principles" and Chapter "Analysis of
 Efficiency, Safety, and Robustness".
 
-**Formal requirements cross-referenced here**:
+**Formal requirements**: BTND-06 (one per pattern below), BT-06-003, BT-06-004.
 
-- `specs/behavior-tree-node-design.yaml` — `BTND-06-*`
-- `specs/behavior-tree-integration.yaml` — `BT-06-003`, `BT-06-004`
-
-**See also**:
-
-- `notes/bt-integration.md` — Vultron-specific architecture decisions
-- `notes/bt-composability.md` — fractal composability and the
-  trunk-removed-branches model
-- `notes/bt-composability.md` — fractal composability, reusability
-  anti-patterns, and node design checklist
+**See also**: `notes/bt-integration.md` (Vultron-specific architecture
+decisions); `notes/bt-composability.md` (fractal composability, reusability
+anti-patterns, node design checklist).
 
 ---
 
@@ -73,42 +67,11 @@ checks all preconditions before attempting the action.
 This makes every stateful node **automatically idempotent**: re-ticking an
 already-satisfied goal costs only a cheap condition check.
 
-### Simulator example
+### Example
 
-```python
-# vultron/bt/report_management/_behaviors/validate_report.py
-
-RMValidateBt = fallback_node(
-    "RMValidateBt",
-    "Validate the report (idempotent).",
-    RMinStateValid,        # goal already achieved? → SUCCESS
-    _HandleRmI,            # recover from INVALID
-    _ValidationSequence,   # attempt validation
-    _InvalidateReport,     # fallback: mark invalid
-)
-```
-
-`RMinStateValid` is the postcondition check. The remaining children execute
-only when the report is not yet valid.
-
-### Prototype example (py_trees)
-
-```python
-import py_trees
-
-goal_check = ReportAlreadyValid(name="ReportAlreadyValid", dl=dl)
-do_validate = py_trees.composites.Sequence(
-    name="ValidateSequence", memory=False
-)
-do_validate.add_children([
-    ReportInReceivedOrInvalidState(name="InValidatableState", dl=dl),
-    EvaluateCredibility(name="EvaluateCredibility", dl=dl),
-    TransitionToValid(name="TransitionToValid", dl=dl),
-])
-
-root = py_trees.composites.Selector(name="ValidateReport", memory=False)
-root.add_children([goal_check, do_validate])
-```
+`RMValidateBt` in `vultron/bt/report_management/_behaviors/validate_report.py`
+is a Fallback whose first child, `RMinStateValid`, is the goal check; the
+validation children run only when the report is not yet valid.
 
 ### When to use
 
@@ -210,24 +173,14 @@ back-chaining (Pattern 4).
 Every BT node that performs a protocol state transition (RM, EM, CS state
 machine update, emitting an AS2 activity) SHOULD follow PPA structure:
 
-```python
-# Postcondition: RM is already VALID → SUCCESS
-# Precondition:  RM is in RECEIVED or INVALID
-# Action:        transition RM to VALID, emit RV
-
-validate_ppa = fallback_node(
-    "ValidatePPA",
-    "PPA: RM → VALID",
-    RMinStateValid,                       # postcondition
-    sequence_node(
-        "_DoValidate",
-        "Preconditions + action",
-        RMinStateReceivedOrInvalid,       # precondition
-        EvaluateReportValidity,           # action step 1
-        q_rm_to_V,                        # action step 2: transition
-        EmitRV,                           # action step 3: notify
-    ),
-)
+```text
+Fallback
+  ├─ RM is VALID                     ← postcondition
+  └─ Sequence
+       ├─ RM is RECEIVED or INVALID  ← precondition
+       ├─ EvaluateReportValidity     ← action steps
+       ├─ transition RM → VALID
+       └─ emit RV
 ```
 
 ### When to use
@@ -326,20 +279,11 @@ Fallback
 
 ### Vultron application
 
-Safety guards appear throughout the simulator wherever state machine
-preconditions must hold before a protocol action is taken:
-
-```python
-# Only propose embargo if not already in an active embargo
-_MaybePropose = sequence_node(
-    "MaybePropose",
-    "Propose embargo only if none is active.",
-    EMinStateNoneOrExited,   # ← safety / precondition guard
-    SelectEmbargoOfferTerms,
-    q_em_to_P,
-    EmitEP,
-)
-```
+Safety guards appear throughout the simulator wherever state-machine
+preconditions must hold before a protocol action. For example, the
+`ProposeNewEmbargo` sequence in `vultron/bt/embargo_management/behaviors.py`
+starts with `EMinStateNoneOrPropose`, so no new proposal is made while an embargo
+is active.
 
 ### When to use
 
@@ -393,15 +337,9 @@ Vultron operates in a **multi-party, adversarial, open world**:
   transaction semantics without needing memory.
 
 **Default**: Use `memory=False` for all composites unless you can
-explicitly justify a closed-loop, externally-controlled context.
-
-```python
-# Correct: non-memory Sequence — re-evaluates all children each tick
-py_trees.composites.Sequence(name="MySeq", memory=False)
-
-# Use with caution: memory Sequence — skips already-succeeded children
-py_trees.composites.Sequence(name="MySeq", memory=True)
-```
+explicitly justify a closed-loop, externally-controlled context. A
+`memory=False` Sequence is not transactional either: earlier children's writes
+survive a later child's `FAILURE` (BTND-06-008).
 
 **Formal requirement**: `BTND-06-006`
 
@@ -470,11 +408,11 @@ subtree in disguise.
 | Explicit Success Conditions | Per-step condition pair | SHOULD | Multi-step inits |
 | PPA | Postcondition–Precondition–Action | SHOULD | Every state transition |
 | Back-chaining | Recursive PPA expansion | MAY | Multi-step deliberative trees |
-| Safety via Sequence | Guard node first | SHOULD | Before irreversible actions |
+| Safety via Sequence | Guard node first | MUST | Before irreversible actions |
 | Memory Nodes | Non-reactive composites | MAY (with caution) | Closed-loop only |
 | Granularity | Leaf vs subtree | SHOULD | All new node design |
 
-The three SHOULD patterns (Implicit Sequences, PPA, Safety) are not
+Implicit Sequences, PPA, and Safety are not
 alternatives — they compose together. A typical Vultron BT node looks like:
 
 ```text
@@ -505,7 +443,7 @@ Selector                            ← effect slot (one per event type)
   ├─ Sequence
   │    ├─ IsFooLedgerEntryNode      ← SUCCESS iff entry IS this type
   │    └─ ApplyFooEffectNode        ← fires only when IsFoo succeeded
-  └─ AlwaysSuccess("FooSkipped")    ← no-op path; name ends with "Skipped"
+  └─ Success("FooSkipped")          ← no-op path; name ends with "Skipped"
 ```
 
 **Condition naming rule (BTND-08-001)**: Condition nodes in this idiom MUST

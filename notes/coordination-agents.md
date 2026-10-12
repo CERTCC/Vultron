@@ -22,7 +22,6 @@ description: >
   shape patterns, trust/execution authority, and composite capability design. Records
   why Sentinel is a call-in pattern rather than a fifth shape.
 related_notes:
-  - notes/bt-fuzzer-nodes.md
   - notes/bt-integration.md
   - notes/agentic-workflow.md
   - notes/call-out-configuration.md
@@ -454,8 +453,8 @@ Agentic Participants epic, #2450).
 
 ## Terminology Note
 
-`notes/bt-fuzzer-nodes.md` and the per-domain fuzzer notes
-(`bt-fuzzer-nodes-embargo.md`, `bt-fuzzer-nodes-report-management.md`, etc.)
+the fuzzer node catalog
+(`docs/developer/reference/bt-fuzzer/index.md` and its per-domain pages)
 use the phrase **"external dependency touchpoints"** for what we now call
 **call-out points**. These notes predate the canonical term. The terminology
 should be aligned when those notes are next edited; do not introduce new

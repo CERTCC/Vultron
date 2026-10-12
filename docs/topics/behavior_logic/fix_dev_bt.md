@@ -19,6 +19,11 @@ The behavioral requirements for this tree are specified in the
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
 
+!!! note "Notional external process"
+
+    Fix development is notional here: it happens outside Vultron.
+    Vultron records its outcome as a state change and does not automate the work itself.
+
 !!! note "Legacy design diagram"
 
     The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
