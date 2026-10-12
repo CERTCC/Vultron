@@ -13,6 +13,7 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import (
+    FOUNDATION_STANDARD_TAGS,
     AdrStatus,
     BehavioralSpec,
     BehaviorStep,
@@ -972,10 +973,11 @@ def test_behavioral_spec_round_trips_through_yaml(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_spec_kind_contains_exactly_four_tiers():
+def test_spec_kind_contains_exactly_five_tiers():
     # SR-02-005 canary: catches silent removal or misspelling of any tier.
     expected = {
         "protocol",
+        "foundation",
         "architecture",
         "project",
         "process",
@@ -1047,6 +1049,45 @@ def test_load_registry_process_kind(tmp_path):
     spec = registry.get("DP-01-001")
     assert registry.get_effective_kind("DP-01-001") == SpecKind.PROCESS
     assert spec.priority == RFC2119Priority.MUST
+
+
+def test_load_registry_foundation_kind_with_standard_tag(tmp_path):
+    """kind: foundation and its standard tag load through load_registry (ADR-0133)."""
+    data = {
+        "id": "FD",
+        "title": "Foundation spec file",
+        "description": "Spec file for foundation kind smoke test",
+        "scope": ["production"],
+        "groups": [
+            {
+                "id": "FD-01",
+                "title": "Foundation group",
+                "specs": [
+                    {
+                        "id": "FD-01-001",
+                        "priority": "MUST",
+                        "kind": "foundation",
+                        "statement": "Object IDs MUST be treated as opaque URIs.",
+                        "tags": ["as2"],
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "foundation.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    assert registry.get_effective_kind("FD-01-001") == SpecKind.FOUNDATION
+    assert registry.get_effective_tags("FD-01-001") == [SpecTag.AS2]
+
+
+def test_foundation_standard_tags_name_the_three_standards():
+    """MS-12-009: the source-standard tags are exactly as2, activitypub, http."""
+    assert {tag.value for tag in FOUNDATION_STANDARD_TAGS} == {
+        "as2",
+        "activitypub",
+        "http",
+    }
+    assert set(SpecTag) >= FOUNDATION_STANDARD_TAGS
 
 
 # ---------------------------------------------------------------------------

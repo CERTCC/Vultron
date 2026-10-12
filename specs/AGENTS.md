@@ -98,7 +98,7 @@ When updating specs per LEARN_prompt instructions:
 different implementation of the Vultron protocol notice if this requirement
 were violated?" If **no**, the requirement is an internal convention — route
 it to `AGENTS.md`, not `specs/`. This test operationalizes MS-05-004
-(declarative requirements) and the four-tier taxonomy (MS-12): if it fails
+(declarative requirements) and the five-kind taxonomy (MS-12): if it fails
 the protocol or architecture tier tests, it belongs in `project` or `process`
 kind — and if it also fails the externally-visible test, it belongs in
 `AGENTS.md` rather than specs at all.
@@ -113,11 +113,14 @@ are all in
 [`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md). The ones
 that bite most often:
 
-- **`kind:`** — exactly `protocol`, `architecture`, `project`, `process`.
-  `implementation` is not valid, and the rejection can read like a YAML syntax
-  error. Which one to pick is a decision tree, not a judgment call: apply
-  MS-12-001 → MS-12-005 in order (see `notes/spec-authoring-rules.md`), and do
-  not infer a `kind` from the surrounding entries in the same file.
+- **`kind:`** — exactly `protocol`, `foundation`, `architecture`, `project`,
+  `process`. `implementation` is not valid, and the rejection can read like a
+  YAML syntax error. Who must obey a rule decides its kind; naming code never
+  does (MS-12-002, ADR-0133). Split a spec that mixes kinds (MS-12-010), then
+  apply the MS-12 tree in MS-12-005's order (see
+  `notes/spec-authoring-rules.md`), and do not infer a `kind` from the
+  surrounding entries in the same file. A `foundation` spec carries the tag of
+  its standard: `as2`, `activitypub`, or `http` (MS-12-009).
 - **`lint_suppress: [missing_story_reference]`** — a guarded escape hatch,
   not a free one. MS-12-007's PR-only growth guard
   (`test/architecture/test_spec_kind_ratchet.py`) fails any PR that adds the

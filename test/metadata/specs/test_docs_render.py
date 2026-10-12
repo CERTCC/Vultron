@@ -1,7 +1,8 @@
 """Tests for vultron.metadata.specs.docs_render.render_for_kind (AC-1).
 
 Covers: priority badges, group/file headers, behavioral ECA blocks,
-cross-kind relationship links, ValueError for unknown/empty kind,
+cross-kind relationship links, ValueError for an unknown kind, the notice
+for a kind no spec carries yet,
 and SpecTag.BEHAVIORAL detection.
 """
 
@@ -164,7 +165,7 @@ def behavioral_registry(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# ValueError for unknown / empty kind
+# ValueError for an unknown kind; a notice for an empty one
 # ---------------------------------------------------------------------------
 
 
@@ -173,10 +174,17 @@ def test_render_for_kind_unknown_raises(general_registry):
         render_for_kind("nonexistent-kind", general_registry)
 
 
-def test_render_for_kind_no_matching_files_raises(general_registry):
-    """Requesting a kind with no files should raise ValueError."""
-    with pytest.raises(ValueError, match="No spec files with kind"):
-        render_for_kind("process", general_registry)
+def test_render_for_kind_with_no_specs_renders_a_notice(general_registry):
+    """A valid kind no spec carries renders a notice, not an error.
+
+    Every kind has a page (test_kind_page_coverage.py), and a new kind such as
+    ``foundation`` has no specs until the corpus is swept (ADR-0133), so the
+    docs build must not fail on it.
+    """
+    output = render_for_kind("process", general_registry)
+    assert "No requirements yet" in output
+    assert "`kind: process`" in output
+    assert "<h2" not in output and "##" not in output
 
 
 # ---------------------------------------------------------------------------
@@ -599,12 +607,18 @@ def test_render_for_kind_may_material_icon(general_registry):
 def test_render_for_kind_real_registry_produces_output(
     kind: SpecKind, real_registry
 ):
-    """Every SpecKind must render non-empty output from the real spec registry."""
-    md = render_for_kind(kind.value, real_registry)
-    assert len(md) > 0
-    # At minimum one spec ID pattern should appear
-    import re
+    """Every SpecKind renders its specs, or the notice when it has none yet.
 
+    ``foundation`` carries no spec until the corpus sweep relabels the
+    inherited-standard rules (ADR-0133), so its page shows the notice.
+    """
+    md = render_for_kind(kind.value, real_registry)
+    carried = any(
+        spec.kind == kind for spec in real_registry.all_specs.values()
+    )
+    if not carried:
+        assert "No requirements yet" in md
+        return
     assert re.search(r"[A-Z]{2,8}-\d{2}-\d{3}", md), (
         f"No spec IDs found in rendered output for kind={kind.value!r}"
     )

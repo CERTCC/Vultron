@@ -70,7 +70,7 @@ groups:
     verification_debt: '#2574'
     statement: >-
       Spec entries MUST include a `kind` field from the `SpecKind` StrEnum; one of
-      `protocol`, `architecture`, `project`, `process`.
+      `protocol`, `foundation`, `architecture`, `project`, `process`.
   - id: SR-01-010
     priority: SHOULD
     kind: project
@@ -131,8 +131,14 @@ groups:
   - id: SR-02-005
     priority: MUST
     kind: project
-    verification_debt: '#2574'
-    statement: '`SpecKind` MUST include all four portability tiers: `protocol`, `architecture`, `project`, `process`.'
+    statement: >-
+      `SpecKind` MUST include all five portability tiers: `protocol`, `foundation`,
+      `architecture`, `project`, `process`.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_spec_kind_contains_exactly_five_tiers` fails when
+      a tier is missing, misspelled, or added without amending this requirement.
+    adr:
+    - ADR-0133
   - id: SR-02-006
     priority: MUST
     kind: project

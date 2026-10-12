@@ -53,14 +53,15 @@ def test_live_corpus_has_no_unsuppressed_protocol_kind_code_references():
     """No story-less ``kind: protocol`` spec names a codebase construct.
 
     The same detector ``spec-lint`` runs, applied to the real ``specs/``
-    tree. A failure lists the offending IDs; the fix is to apply the
-    MS-12-001 → MS-12-005 tree to each, not to add a suppression.
+    tree. A failure lists the offending IDs; the fix is to reword each
+    statement or split the spec (MS-12-010), not to relabel it or add a
+    suppression — naming code does not decide a kind (MS-12-002).
     """
     registry = load_registry(_SPEC_DIR)
     errors = check_protocol_kind_code_references(registry)
     assert errors == [], (
         f"{len(errors)} story-less protocol spec(s) reference code "
-        f"(MS-12-006). Apply the MS-12-001 → MS-12-005 decision tree to each:\n"
+        f"(MS-12-006). Reword or split each (MS-12-010); do not relabel:\n"
         + "\n".join(f"  {e}" for e in errors)
     )
 
@@ -78,8 +79,9 @@ def test_no_pr_adds_a_missing_story_suppression():
         pytest.skip(check.skipped)
     assert not check.added, check.failure_message(
         "lint_suppress: [missing_story_reference] carrier(s)",
-        "A new suppression is almost always a misclassified kind: apply the "
-        "MS-12-001 → MS-12-005 tree, or map the spec to a user story.",
+        "A new suppression is almost always a misclassified kind: split a "
+        "mixed spec (MS-12-010), apply the MS-12 tree in MS-12-005's order, "
+        "or map the spec to a user story.",
     )
 
 
@@ -93,6 +95,6 @@ def test_no_spec_carries_protocol_kind_with_code_reference():
     )
     assert not carriers, (
         f"{len(carriers)} spec(s) carry lint_suppress: "
-        f"[protocol_kind_with_code_reference]: {sorted(carriers)}. Apply the "
-        f"MS-12-001 → MS-12-005 tree instead of suppressing MS-12-006."
+        f"[protocol_kind_with_code_reference]: {sorted(carriers)}. Reword or "
+        f"split each spec (MS-12-010) instead of suppressing MS-12-006."
     )

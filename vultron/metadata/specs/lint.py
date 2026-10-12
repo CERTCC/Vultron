@@ -25,6 +25,7 @@ from vultron.metadata.adr.lifecycle import (
 from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.adr.schema import AdrFrontmatter
 from vultron.metadata.specs.kind_classification import (
+    check_foundation_standard_tags,
     check_protocol_kind_code_references,
     suppression_status_lines,
 )
@@ -1022,6 +1023,7 @@ def lint(
     hard_errors.extend(_check_phantom_symbols(registry, source_scan))
     hard_errors.extend(_check_missing_story_references(registry))
     hard_errors.extend(check_protocol_kind_code_references(registry))
+    hard_errors.extend(check_foundation_standard_tags(registry))
 
     warnings.extend(_check_per_spec_advisory_warnings(registry))
     verification_errors, verification_lines = check_verification_coverage(

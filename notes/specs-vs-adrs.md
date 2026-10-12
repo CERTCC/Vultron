@@ -3,7 +3,7 @@ title: Specs vs. ADRs — Delineation Guidelines
 status: active
 kind: guidance
 related_specs:
-  - specs/meta-specifications.yaml (MS-11-007, MS-11-008, MS-14)
+  - specs/meta-specifications.yaml (MS-11-007, MS-11-008, MS-12, MS-14)
   - specs/spec-registry.yaml (SR-07-017)
   - specs/architecture.yaml (ARCH-25)
 related_notes:
@@ -201,8 +201,9 @@ This gate operationalizes two existing rules:
 
 - **MS-05-004**: Requirements must be declarative — describing *what* the
   system must do, not *how* it is implemented internally.
-- **MS-12** (four-tier taxonomy): A requirement that cannot pass the
-  `protocol` or `architecture` tier tests is `project` or `process` kind.
+- **MS-12** (five-kind taxonomy, ADR-0133): A requirement that cannot pass
+  the `protocol`, `foundation`, or `architecture` tier tests is `project` or
+  `process` kind.
   If it also fails the externally-visible test — i.e., only this codebase
   cares about it — it belongs in `AGENTS.md` rather than `specs/` entirely.
 

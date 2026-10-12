@@ -428,3 +428,61 @@ class TestRequirementsText:
             _exit_code(monkeypatch, "--text", "--topic", "", str(dump_dir))
             == 2
         )
+
+
+# ---------------------------------------------------------------------------
+# --kind accepts every SpecKind, including foundation (ADR-0133)
+# ---------------------------------------------------------------------------
+
+FOUNDATION_YAML = {
+    "id": "FND",
+    "title": "Foundation",
+    "description": "Rules inherited from the standards beneath Vultron",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "FND-01",
+            "title": "Identifiers",
+            "specs": [
+                {
+                    "id": "FND-01-001",
+                    "priority": "MUST",
+                    "kind": "foundation",
+                    "statement": "Object IDs MUST be treated as opaque URIs.",
+                    "tags": ["as2"],
+                },
+                {
+                    "id": "FND-01-002",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "An Accept MUST reference the Offer.",
+                },
+            ],
+        }
+    ],
+}
+
+
+def test_cli_kind_filter_selects_foundation(monkeypatch, capsys, dump_dir):
+    """`--kind foundation` is a valid filter and keeps only that kind."""
+    (dump_dir / "fnd.yaml").write_text(yaml.dump(FOUNDATION_YAML))
+    captured = _run(
+        monkeypatch,
+        capsys,
+        "--topic",
+        "FND",
+        "--kind",
+        "foundation",
+        str(dump_dir),
+    )
+    assert _ids(captured.out) == {"FND-01-001"}
+
+
+def test_cli_unknown_kind_lists_foundation_as_valid(
+    monkeypatch, capsys, dump_dir
+):
+    code = _exit_code(
+        monkeypatch, "--topic", "CM", "--kind", "bogus", str(dump_dir)
+    )
+    assert code == 2
+    assert "foundation" in capsys.readouterr().err

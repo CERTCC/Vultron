@@ -5,10 +5,8 @@ level: 400
 
 # Architecture Specifications
 
-Implementation-independent structural guidance transferable across languages and
-frameworks. Covers hexagonal boundaries, event-driven dispatch, port/adapter
-patterns, and fail-fast principles. Not required for Vultron compliance per se,
-but recommended for any conformant implementation.
+Recommended structure that carries over to other languages but is not required for Vultron compliance.
+Behavior trees, and keeping protocol behavior inside the behavior tree, are architecture, as are hexagonal boundaries, event-driven dispatch, port and adapter patterns, and fail-fast principles.
 
 ```python exec="true" idprefix=""
 import sys
