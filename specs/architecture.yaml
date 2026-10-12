@@ -1570,8 +1570,8 @@ groups:
     and the ActivityStreams 2.0 (AS2) wire format is one of two ways those same classes are
     written out. Each requirement here states one consequence of that decision in full, so a
     reader needs no decision record to know the rule. Finer-grained requirements in ARCH-12,
-    ARCH-20, ARCH-22, ARCH-23, SDO-01, MV-11 and VM-06 refine these and are named in the
-    statement that each one refines.
+    ARCH-20, ARCH-22, ARCH-23, SDO-01, MV-11 and VM-06 refine these; where one does, the
+    statement it refines names it.
   rationale: >-
     The rules were first written as the numbered decision details of ADR-0099, which chose one
     object model over three alternatives: relocating the shared core/wire root to a
@@ -1604,8 +1604,9 @@ groups:
       and not on the persistence dump; `test_rekey_wire_identity_renames_only_identity_keys` in
       `test/adapters/driven/test_db_record.py` asserts the persistence path renames only the
       three identity keys; and `test_core_object_derives_as2_spellings_and_accepts_field_names`
-      in `test/architecture/test_hierarchy_invariants.py` asserts both spellings are accepted
-      on input.
+      in `test/architecture/test_hierarchy_invariants.py` asserts `CoreObject` derives the
+      alias, keeps `populate_by_name`, and reads a field from both its AS2 spelling and its
+      Python name.
     adr:
     - ADR-0099
   - id: ARCH-25-002
@@ -1630,10 +1631,12 @@ groups:
     verification: >-
       `test/architecture/test_core_no_as2_spellings.py` asserts no module under
       `vultron/core/` types an AS2 spelling;
+      `test_every_core_vocabulary_entry_derives_as2_spellings` in
+      `test/architecture/test_hierarchy_invariants.py` asserts every core vocabulary entry
+      inherits the alias generator; and
       `test_promoted_core_classes_are_exactly_as2_representable` in
-      `test/architecture/test_wire_no_core_object_annotations.py` asserts the closed-world
-      projected key set; and `test/architecture/test_core_by_alias_dumps.py` pins the
-      `by_alias` output against its baseline.
+      `test/architecture/test_wire_no_core_object_annotations.py` asserts no field of a
+      promoted core class projects a snake_case Python name onto the wire.
     adr:
     - ADR-0099
   - id: ARCH-25-003
@@ -1656,11 +1659,13 @@ groups:
       accepted deliberately; records that never cross the wire (dead letters, pending-queue
       entries, role and lifecycle participant subclasses) stay free of it.
     verification: >-
-      `test/architecture/test_wire_no_core_object_annotations.py` asserts message-shape slots
-      name core classes and that each promoted core class is exactly AS2-representable; the
-      identity tests `TestVulnerabilityCaseWireRoundTrip` in `test/core/models/test_case.py`
-      and its siblings in `test/core/models/test_case_actor.py` and
-      `test/core/models/test_case_reference.py` assert `as_X is X`; and
+      `test_every_wire_name_for_a_domain_type_is_its_core_class` in
+      `test/architecture/test_hierarchy_invariants.py` asserts every `as_<Name>` the wire
+      layer binds for a core domain class is that class itself, so a message slot naming a
+      domain type names its core class;
+      `test_promoted_core_classes_are_exactly_as2_representable` in
+      `test/architecture/test_wire_no_core_object_annotations.py` asserts each promoted core
+      class projects only AS2 spellings; and
       `test/architecture/test_core_no_to_core_duck_typing.py` asserts nothing looks for a
       `to_core()` projection.
     adr:
@@ -1681,9 +1686,11 @@ groups:
       loose inbound data.
     verification: >-
       `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` asserts `as_Base` stands directly
-      on `pydantic.BaseModel`; `TestCoreRoots` and `test_wire_vocabulary_inherits_nothing_from_core`
-      in `test/architecture/test_hierarchy_invariants.py` assert core has exactly two roots and
-      that no wire class inherits from either.
+      on `pydantic.BaseModel`; `TestCoreRoots` in
+      `test/architecture/test_hierarchy_invariants.py` asserts `CoreObject` stands directly on
+      `CoreRecord`, that `CoreRecord` carries the identity fields only, and that the retired
+      middle roots are not restored; and `test_wire_vocabulary_inherits_nothing_from_core` in
+      the same file asserts no wire class inherits from either core root.
     adr:
     - ADR-0099
   - id: ARCH-25-005
@@ -1702,8 +1709,10 @@ groups:
       ontology and every peer valid. It was validated byte-for-byte against the former wire
       output before the rest of the one-object model was built.
     verification: >-
-      `test/core/models/test_dimension_bare_serialization.py` asserts the bare-value dump, that
-      both the bare and the mapping form are read, and that core and wire AS2 output agree.
+      `test/core/models/test_dimension_bare_serialization.py` asserts the bare-value dump and
+      that both the bare and the mapping form are read; its
+      `test_enclosing_field_alias_carries_the_bare_state_on_the_wire` pins the AS2 form to
+      literal values (`rmState`, `emState` and `pxaState` each carry the bare state).
     adr:
     - ADR-0099
   - id: ARCH-25-006
@@ -1752,10 +1761,10 @@ groups:
       measurement showed the disposition fell out of class ancestry and this rule replaced it
       (#3900).
     verification: >-
-      `test/wire/as2/test_unknown_key_disposition.py` runs one matrix over every position an
-      unknown key can arrive in (envelope, generic AS2 object, `Link`, untyped inline dict,
-      inline domain object), asserting a near miss is refused naming both spellings and a
-      foreign key is set aside and reported once;
+      `test/wire/as2/test_unknown_key_disposition.py` runs a foreign-key matrix over the
+      positions an unknown key can arrive in (envelope, generic AS2 object, `Link`, untyped
+      inline dict, inline domain object), asserting the key is set aside and reported once, and
+      a near-miss matrix asserting a near miss is refused naming both spellings;
       `test/architecture/test_no_receive_path_reparse.py` asserts nothing on the receive path
       re-validates from the raw body; and `test_unknown_key_raises_for_every_core_vocabulary_entry`
       and `test_every_core_object_forbids_extra_with_no_exemption_list` in
@@ -1818,8 +1827,8 @@ groups:
     verification: >-
       `test/wire/as2/test_rehydration_materialisation.py` asserts `rehydrate()` materialises a
       bare ID in a model-only slot, refuses an unresolvable reference there, leaves a
-      URI-admitting slot untouched, and gives the materialised activity its own actor rather
-      than a synthesised one.
+      URI-admitting slot untouched, and keeps a `case_activity` reference as its IRI rather
+      than fabricating an activity attributed to the case owner.
     adr:
     - ADR-0099
   - id: ARCH-25-010

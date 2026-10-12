@@ -51,7 +51,9 @@ Reference: `docs/adr/archived/0017-domain-wire-object-separation.md` (superseded
 
 import pytest
 
+from test.support.core_vocab import import_all_core_models
 from test.support.model_keys import accepted_keys, dumped_keys
+from test.support.subclasses import all_subclasses
 from vultron.core.models.base import CoreObject, CoreRecord
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -63,7 +65,9 @@ ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
 #: The AS2 Activity Vocabulary properties whose domain is ``Object`` (W3C
 #: Activity Vocabulary section 4), plus ``id`` and ``type``. Listed here rather
 #: than read off a model so that a property dropped from every model still
-#: fails (ARCH-25-008).
+#: fails (ARCH-25-008). The natural-language map forms (``contentMap``,
+#: ``nameMap``, ``summaryMap``) are not listed because neither root declares
+#: them yet (#4471).
 AS2_OBJECT_PROPERTIES = frozenset(
     {
         "id",
@@ -337,15 +341,47 @@ class TestCoreRoots:
             )
 
 
-def _all_subclasses(cls: type) -> set[type]:
-    found: set[type] = set()
-    pending = [cls]
-    while pending:
-        for sub in pending.pop().__subclasses__():
-            if sub not in found:
-                found.add(sub)
-                pending.append(sub)
-    return found
+@pytest.mark.spec("ARCH-25-003")
+def test_every_wire_name_for_a_domain_type_is_its_core_class() -> None:
+    """A domain type has one class: each ``as_<Name>`` the wire layer binds
+    for a core class ``<Name>`` is that class itself, and no wire class takes
+    the name. A message slot naming a domain type therefore names its core
+    class, whichever spelling the annotation uses.
+
+    Activities are out of scope: an activity envelope such as
+    ``as_VultronActivity`` is wire-only message shape with no core
+    counterpart (ARCH-25-010), not a domain type."""
+    import importlib
+    import pkgutil
+
+    import vultron.wire
+    from vultron.core.models.activity import VultronActivity
+
+    import_all_core_models()
+    core = {
+        cls.__name__: cls
+        for cls in all_subclasses(CoreRecord)
+        if cls.__module__.startswith("vultron.core.")
+        and not issubclass(cls, VultronActivity)
+    }
+    aliases: dict[str, set[type]] = {}
+    for info in pkgutil.walk_packages(vultron.wire.__path__, "vultron.wire."):
+        module = importlib.import_module(info.name)
+        for attr, value in vars(module).items():
+            if attr.startswith("as_") and attr[3:] in core:
+                aliases.setdefault(attr, set()).add(value)
+
+    assert aliases, "no as_* name for a core class found; the walk is vacuous"
+    separate = sorted(
+        f"{name} -> {value!r}"
+        for name, values in aliases.items()
+        for value in values
+        if value is not core[name[3:]]
+    )
+    assert not separate, (
+        "wire names for a domain type that are not its core class "
+        f"(ARCH-25-003): {separate}"
+    )
 
 
 @pytest.mark.spec("ARCH-25-010")
@@ -363,7 +399,7 @@ def test_every_wire_activity_class_lives_under_the_wire_package() -> None:
 
     production = {
         cls
-        for cls in _all_subclasses(as_Activity)
+        for cls in all_subclasses(as_Activity)
         if cls.__module__.startswith("vultron.")
     }
     assert production, "no as_Activity subclass found; the walk is vacuous"
@@ -514,3 +550,11 @@ class TestCoreObjectModelConfig:
             "CoreObject must still accept Python field names, or persisted rows"
             " (which are keyed by field name) become unreadable"
         )
+
+        owner = "https://example.org/actors/owner"
+        for spelling in ("attributedTo", "attributed_to"):
+            obj = CoreObject.model_validate({spelling: owner})
+            assert obj.attributed_to == owner, (
+                f"CoreObject did not read {spelling!r} as attributed_to"
+                " (ARCH-25-001)"
+            )
