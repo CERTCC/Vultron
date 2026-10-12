@@ -31,7 +31,7 @@ import logging
 import py_trees
 
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
-    AcceptCaseOwnershipTransferNode,
+    AcceptRecordedOwnershipOfferNode,
     ForwardOfferToTransfereeNode,
 )
 from vultron.core.behaviors.case.nodes.store_received_object import (
@@ -40,23 +40,36 @@ from vultron.core.behaviors.case.nodes.store_received_object import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsOwnershipTransfereeNode,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def create_accept_ownership_transfer_tree(
     case_id: str,
-    new_owner_id: str,
+    offer_id: str | None,
+    sender_id: str,
+    accept_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``AcceptCaseOwnershipTransferReceivedUseCase``.
 
     Uses the standard ``create_receive_activity_tree`` factory to enforce the
-    CLP-10-006 ordering: guarded-commit (CaseLedgerEntry + Announce broadcast)
-    fires after ``AcceptCaseOwnershipTransferNode`` succeeds (CM-21-007).
+    CLP-10-006 ordering: the sender guard runs before anything is committed
+    (CM-21-011, HP-01-006), and the guarded commit (CaseLedgerEntry +
+    Announce broadcast) fires before ``AcceptRecordedOwnershipOfferNode``
+    applies the change (CM-21-007) to the transferee the recorded Offer
+    names, never to the sender.
 
     Args:
         case_id: URI of the case whose ownership is being transferred.
-        new_owner_id: URI of the actor accepting (and becoming) the new owner.
+        offer_id: The Offer the Accept names (the recorded Offer or the
+            CASE_MANAGER's forward of it).
+        sender_id: The Accept's sender.  The sender guard checks it: at the
+            CASE_MANAGER it must be the transferee of the open Offer it
+            recorded; at a replica it must be the CASE_MANAGER.
+        accept_id: The Accept's own id, so a redelivery is recognised.
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -64,6 +77,12 @@ def create_accept_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="AcceptOwnershipTransferBT",
         case_id=case_id,
+        sender_guard=SenderIsOwnershipTransfereeNode(
+            case_id=case_id,
+            offer_id=offer_id,
+            sender_actor_id=sender_id,
+            answer_id=accept_id,
+        ),
         precondition_guards=[],
         # A receiver that does not hold the case is simply not its
         # CASE_MANAGER (ADR-0087 Regime 3), for both the guarded commit and
@@ -75,19 +94,18 @@ def create_accept_ownership_transfer_tree(
         # (OwnershipTransfer slot), so a replica learns the new owner from the
         # fan-out, not from a direct Accept (#3814).
         manager_effects=[
-            AcceptCaseOwnershipTransferNode(
-                case_id=case_id,
-                new_owner_id=new_owner_id,
-            ),
+            AcceptRecordedOwnershipOfferNode(
+                case_id=case_id, offer_id=offer_id
+            )
         ],
         manager_case_id=case_id,
         manager_gate_name="AcceptOwnershipTransferIfCaseManager",
         manager_case_may_be_absent=True,
     )
     logger.debug(
-        "Created AcceptOwnershipTransferBT for case='%s' new_owner='%s'",
+        "Created AcceptOwnershipTransferBT for case='%s' offer='%s'",
         case_id,
-        new_owner_id,
+        offer_id,
     )
     return tree
 

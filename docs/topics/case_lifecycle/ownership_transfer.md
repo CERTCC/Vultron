@@ -56,12 +56,19 @@ Accepting actor sends trigger: accept-case-ownership-transfer
       to: [case_actor_id]     ← MUST route through Case Actor (CM-21-006)
 
 Case Actor inbox receives Accept:
-  1. Applies the CASE_OWNER role change (CM-21-001 through CM-21-004).
-  2. Commits CaseLedgerEntry (ownership-transferred).   ← CM-21-007
-  3. Announce(CaseLedgerEntry) → all participants.
+  0. Checks the sender is the proposed owner of an open
+     offer it recorded (anyone else: refused).          ← CM-21-011
+  1. Commits CaseLedgerEntry (ownership-transferred).   ← CM-21-007
+  2. Announce(CaseLedgerEntry) → all participants.
+  3. Applies the CASE_OWNER role change (CM-21-001 through CM-21-004).
 ```
 
 The proposed owner answers the CASE_MANAGER, not the participant who made the offer.
+The CASE_MANAGER acts on an acceptance only when its sender is the proposed owner named in an offer it recorded for the case ([CM-21-011](../../reference/specs/protocol.md#cm-21-011)).
+That offer must also still be open, with no other answer to it recorded.
+It refuses an acceptance from anyone else, or a second acceptance of the same offer, and ownership stays where it was.
+The new owner is the actor the recorded offer names, not whoever sent the acceptance.
+A participant's own copy of the case takes the ownership change only from the CASE_MANAGER.
 On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
 The previous owner keeps any other roles it held and stays a participant in the case ([CM-21-008, CM-21-009](../../reference/specs/protocol.md#cm-21)).
 The CASE_MANAGER then records the completed transfer in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).

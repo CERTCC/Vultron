@@ -36,7 +36,7 @@ class UnknownUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for unknown activities"
+        "#4522", "no sender check for unknown activities"
     )
 
     def __init__(
@@ -65,7 +65,7 @@ class UnresolvableObjectUseCase:
     """
 
     sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4070", "no sender check for unresolvable object activities"
+        "#4522", "no sender check for unresolvable object activities"
     )
 
     def __init__(
