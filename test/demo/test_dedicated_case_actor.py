@@ -29,6 +29,7 @@ from collections.abc import Callable
 from typing import Any
 from unittest.mock import patch
 
+import httpx2 as httpx
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
@@ -117,8 +118,19 @@ class TestResetReseedsTheCaseActor:
         assert case_actor_id_on(base) not in _hosted_actor_ids(ca_client)
 
 
+def _http_error(path: str, status: int) -> httpx.HTTPStatusError:
+    request = httpx.Request("GET", f"{_CA_BASE}{path}")
+    return httpx.HTTPStatusError(
+        f"{status} for {path}",
+        request=request,
+        response=httpx.Response(status, request=request),
+    )
+
+
 def _reads(
-    case: dict[str, Any] | None, participant: as_CaseParticipant | None
+    case: dict[str, Any] | None,
+    participant: as_CaseParticipant | None,
+    case_status: int = 404,
 ) -> Callable[..., dict]:
     """A ``DataLayerClient.get`` double serving one case and one participant."""
 
@@ -128,7 +140,7 @@ def _reads(
                 raise AssertionError("404 participant not found")
             return participant.model_dump(by_alias=True, mode="json")
         if case is None:
-            raise AssertionError("404 case not found")
+            raise _http_error(path, case_status)
         return case
 
     return fake_get
@@ -153,13 +165,13 @@ def _participant(roles: list[CVDRole]) -> as_CaseParticipant:
 
 
 class TestVerifyCaseActorHoldsRecords:
-    def _verify(self, case, participant):
+    def _verify(self, case, participant, case_status=404):
         client = DataLayerClient(base_url=_CA_BASE, actor_id=_CA_ID)
         with patch.object(
             DataLayerClient,
             "get",
             autospec=True,
-            side_effect=_reads(case, participant),
+            side_effect=_reads(case, participant, case_status),
         ):
             return verify_case_actor_holds_records(client, _CASE_ID)
 
@@ -171,8 +183,13 @@ class TestVerifyCaseActorHoldsRecords:
 
     def test_fails_when_the_dedicated_container_lacks_the_case(self):
         """The co-located shortcut: the receiver created the case locally."""
-        with pytest.raises(AssertionError):
+        with pytest.raises(AssertionError, match="does not hold case"):
             self._verify(None, None)
+
+    def test_a_server_error_is_not_reported_as_an_absent_case(self):
+        """A 500 is a different fault from "the case is not there"."""
+        with pytest.raises(httpx.HTTPStatusError):
+            self._verify(None, None, case_status=500)
 
     def test_fails_when_the_case_actor_is_not_a_participant(self):
         with pytest.raises(AssertionError, match="not a participant"):

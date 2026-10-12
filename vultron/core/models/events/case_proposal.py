@@ -21,7 +21,7 @@ Covers the three CaseProposal message flows:
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -54,6 +54,23 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     # already refused a claim to ``CASE_MANAGER`` (CP-01-012).  Empty seats the
     # proposer as ``CASE_OWNER`` only.
     proposer_case_roles: list[CVDRole] = Field(default_factory=list)
+
+    @field_validator("proposer_case_roles")
+    @classmethod
+    def _proposer_claims_no_case_manager(
+        cls, value: list[CVDRole]
+    ) -> list[CVDRole]:
+        """Refuse ``CASE_MANAGER`` here too, so core is fail-fast (CP-01-012).
+
+        The parse edge already refuses it; this keeps any core caller that
+        builds the event directly from seating a second CASE_MANAGER.
+        """
+        if CVDRole.CASE_MANAGER in value:
+            raise ValueError(
+                "proposer_case_roles claims CASE_MANAGER, which only the"
+                " CaseActor holds (CP-01-012)"
+            )
+        return value
 
     @property
     def proposal_id(self) -> str | None:

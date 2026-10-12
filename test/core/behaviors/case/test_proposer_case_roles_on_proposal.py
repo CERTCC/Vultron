@@ -154,6 +154,51 @@ class TestNoProposerClaimsCaseManager:
                 }
             )
 
+    def test_a_create_carrying_the_claim_is_refused_by_the_inbox_parser(
+        self,
+    ):
+        """The refusal holds at ``parse_activity``, the real parse edge.
+
+        ``as_Create.model_validate`` alone would degrade the inline proposal to
+        a generic object, so only the full parse proves the claim is refused.
+        """
+        from vultron.wire.as2.errors import VultronParseValidationError
+        from vultron.wire.as2.parser import parse_activity
+
+        body = as_Create(
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=_proposal(proposer_case_roles=[CVDRole.VENDOR]),
+            to=[_CASE_ACTOR_URI],
+        ).model_dump(by_alias=True, mode="json", exclude_none=True)
+        body["object"]["proposerCaseRoles"] = ["vendor", "case_manager"]
+
+        with pytest.raises(VultronParseValidationError, match="CP-01-012"):
+            parse_activity(body)
+
+    def test_a_malformed_role_is_refused_not_dropped(self):
+        """A non-string role is never read as "no roles" (CP-01-011)."""
+        with pytest.raises(ValidationError, match="proposerCaseRoles items"):
+            as_CaseProposal.model_validate(
+                {
+                    "id": _PROPOSAL_URI,
+                    "type": "CaseProposal",
+                    "attributedTo": _VENDOR_URI,
+                    "object": _REPORT_URI,
+                    "target": _CASE_ACTOR_URI,
+                    "proposerCaseRoles": [1, "vendor"],
+                }
+            )
+
+    def test_the_core_event_refuses_a_case_manager_claim(self):
+        """Core is fail-fast too: no caller can seat a second CASE_MANAGER."""
+        with pytest.raises(ValidationError, match="CP-01-012"):
+            CreateCaseProposalReceivedEvent(
+                activity_id="https://example.org/activities/create-p",
+                actor_id=_VENDOR_URI,
+                proposer_profile=VultronOrganization(id_=_VENDOR_URI),
+                proposer_case_roles=[CVDRole.CASE_MANAGER],
+            )
+
 
 @pytest.mark.spec("CP-01-011")
 class TestTheCaseActorReceivesThem:

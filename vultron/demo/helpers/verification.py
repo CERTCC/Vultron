@@ -603,6 +603,10 @@ def verify_case_actor_holds_records(
     try:
         case_data = case_actor_client.get(case_actor_client.dl_path(case_id))
     except httpx.HTTPStatusError as exc:
+        # Only a 404 means "absent"; any other status is a different fault and
+        # must not be reported as a proposal handled elsewhere.
+        if exc.response.status_code != httpx.codes.NOT_FOUND:
+            raise
         raise AssertionError(
             f"Dedicated case-actor container ({case_actor_client.base_url})"
             f" does not hold case {case_id!r} in CaseActor {case_actor_id}'s"

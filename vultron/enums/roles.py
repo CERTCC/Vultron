@@ -80,19 +80,23 @@ def serialize_roles(roles: list[CVDRole]) -> list[str]:
     return [role.value for role in roles]
 
 
-def validate_roles(value: object) -> list[CVDRole]:
+def validate_roles(
+    value: object, field_name: str = "default_case_roles"
+) -> list[CVDRole]:
     """Coerce a list of strings or CVDRole members to ``list[CVDRole]``.
 
     Accepts either a list of ``CVDRole`` enum members (pass-through) or a
     list of string values (e.g. from JSON deserialization).  ``None`` is
-    treated as an empty list (field omitted).  Any other non-list type raises
-    ``ValueError`` so misconfigured scalar values are caught early.
+    treated as an empty list (field omitted).  Any other non-list type, or a
+    list item that is neither a string nor a ``CVDRole``, raises
+    ``ValueError`` naming ``field_name`` so a malformed value is refused rather
+    than read as "no roles".
     """
     if value is None:
         return []
     if not isinstance(value, list):
         raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
-            f"default_case_roles must be a list of CVDRole strings, got {type(value).__name__!r}: {value!r}"
+            f"{field_name} must be a list of CVDRole strings, got {type(value).__name__!r}: {value!r}"
         )
     result: list[CVDRole] = []
     for item in value:
@@ -100,4 +104,10 @@ def validate_roles(value: object) -> list[CVDRole]:
             result.append(item)
         elif isinstance(item, str):
             result.append(CVDRole(item.lower()))
+        else:
+            # ValueError, not TypeError: Pydantic only turns ValueError into a
+            # ValidationError, and callers are field validators.
+            raise ValueError(  # noqa: TRY004
+                f"{field_name} items must be CVDRole strings, got {type(item).__name__!r}: {item!r}"
+            )
     return result

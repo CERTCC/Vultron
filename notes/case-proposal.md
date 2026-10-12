@@ -46,9 +46,9 @@ Refined by: `docs/adr/0041-caseactor-authoritative-case-initialization.md`
 
 ## Motivation
 
-`CreateCaseActorNode` currently creates the CaseActor locally in the receiver's
-DataLayer. When the case-actor service is external (issue #810), the receiver
-needs a way to tell the case-actor service about a new case.
+The CaseActor may run in another container from the report receiver (see
+§ "The Dedicated Case-Actor Container (#1876)"), so the receiver needs a way
+to tell the case-actor service about a new case it cannot create there itself.
 
 Sending `Create(VulnerabilityCase)` from the report receiver is not correct. In
 ActivityStreams, `Create(X)` means "I created X." The report receiver is not the

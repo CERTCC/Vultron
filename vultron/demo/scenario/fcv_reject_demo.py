@@ -83,7 +83,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     DataLayerClient,
     assert_demo_success,
     bound_case_actor_client,
-    case_actor_id_on,
     check_server_availability,
     demo_check,
     demo_gate,

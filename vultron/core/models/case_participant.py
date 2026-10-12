@@ -129,7 +129,7 @@ class CaseParticipant(CoreObject):
     @field_validator("case_roles", mode="before")
     @classmethod
     def _validate_case_roles(cls, value: object) -> list[CVDRole]:
-        return validate_roles(value)
+        return validate_roles(value, field_name="case_roles")
 
     @model_validator(mode="before")
     @classmethod

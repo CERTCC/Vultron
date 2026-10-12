@@ -197,7 +197,7 @@ class as_CaseProposal(as_VultronObject):
     @field_validator("proposer_case_roles", mode="before")
     @classmethod
     def _validate_proposer_case_roles(cls, value: object) -> list[CVDRole]:
-        return validate_roles(value)
+        return validate_roles(value, field_name="proposerCaseRoles")
 
     @field_validator("proposer_case_roles")
     @classmethod

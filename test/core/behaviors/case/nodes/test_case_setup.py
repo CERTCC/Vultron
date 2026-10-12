@@ -64,7 +64,7 @@ class TestUpdateActorOutboxReExport:
 
 
 # ---------------------------------------------------------------------------
-# CreateCaseActorNode (blackboard variant) tests
+# ActorConfig.case_actor_service_url tests
 # ---------------------------------------------------------------------------
 
 
