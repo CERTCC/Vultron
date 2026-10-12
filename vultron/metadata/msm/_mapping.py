@@ -145,8 +145,9 @@ def discriminator(occasions: Iterable[Occasion]) -> str | None:
 # "Sent by" (MSM-08-005).
 # ---------------------------------------------------------------------------
 
-#: The "Sent by" wording per entitlement kind, from
-#: ``notes/message-type-reference.md`` § "Planning decisions (#4418)".
+#: The "Sent by" wording per entitlement kind (MSM-08-005, decided in #4418).
+#: Moving it onto the kind itself is planned (MSM-08-010,
+#: ``notes/message-occasion-table.md``).
 #: ``NAMED_ACTOR`` is worded from the answered request; see :func:`sent_by`.
 SENT_BY_WORDING: dict[SenderEntitlementKind, str] = {
     SenderEntitlementKind.CASE_MANAGER: "the case manager",
