@@ -51,7 +51,6 @@ _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
 _REJECT_INVITE_ACTOR_TO_CASE_EVENT = "reject_invite_actor_to_case"
 _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 _REMOVE_NOTE_FROM_CASE_EVENT = "remove_note_from_case"
-_CLOSE_CASE_EVENT = "close_case"
 _ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
 _ACCEPT_CASE_OWNERSHIP_TRANSFER_EVENT = "accept_case_ownership_transfer"
 # The revision relay's event types (EP-09-007, ADR-0113).  The proposal and
@@ -234,29 +233,6 @@ class IsInviteRejectEventNode(_SingleEventTypeNode):
     """
 
     matched_event_type = _REJECT_INVITE_ACTOR_TO_CASE_EVENT
-
-
-class IsCloseCaseEventNode(_SingleEventTypeNode):
-    """Precondition: return SUCCESS when this log entry IS a close-case event.
-
-    Used as the precondition in the ``CloseCaseEffects`` Selector's inner
-    Sequence in ``AnnounceLogEntryReceivedBT``::
-
-        Selector(CloseCaseEffects)
-          Sequence
-            IsCloseCaseEventNode   ← SUCCESS iff event_type matches
-            ApplyCloseCaseFromLedgerNode
-          Inverter(IsCloseCaseEventNode)  ← SUCCESS iff wrong event type
-
-    The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
-    ApplyCloseCaseFromLedgerNode fails, both branches of the Selector fail and
-    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
-
-    Per BTND-08-001, BTND-08-002, CM-23-003, SYNC-12-001.
-    """
-
-    matched_event_type = _CLOSE_CASE_EVENT
 
 
 class IsSubmitReportEventNode(_SingleEventTypeNode):

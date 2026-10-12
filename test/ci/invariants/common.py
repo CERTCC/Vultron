@@ -616,13 +616,12 @@ def check_rm_closed_termination(
 ) -> list[str]:
     """The log terminates with every participant in RM=CLOSED (Invariant 7).
 
-    Recognises two event types as RM-state carriers:
-
-    - ``add_participant_status_to_participant``: explicit RM state for the
-      participant in the ``payloadSnapshot`` (pre-ADR-0050 CS transitions).
-    - ``close_case``: signals ``RM=CLOSED`` for the departing actor whose ID
-      is in ``payloadSnapshot.actor`` (ADR-0050 canonical closure path via
-      ``Leave(VulnerabilityCase)``).
+    Only ``add_participant_status_to_participant`` entries carry an RM state.
+    A ``close_case`` entry records the received ``Leave``; the RM transitions
+    it caused are the status entries the CASE_MANAGER commits after it, one
+    per step, and a replica reaches ``RM.CLOSED`` only by applying them
+    (CM-23-001).  Reading ``close_case`` as ``RM.CLOSED`` would let a missing
+    step entry pass unseen (#4210).
     """
     auth = auth_entries(replicas)
     latest_rm: dict[str, str] = {}
@@ -633,19 +632,11 @@ def check_rm_closed_termination(
             p_id, rm_state = participant_status_identity_and_rm(snap)
             if p_id and rm_state:
                 latest_rm[p_id] = rm_state
-        elif et == "close_case":
-            # close_case entries record the departing actor in payloadSnapshot.actor
-            # (ADR-0050: Leave(VulnerabilityCase) is the canonical RM closure path).
-            actor_val = snap.get("actor")
-            if isinstance(actor_val, dict):
-                actor_val = actor_val.get("id")
-            if isinstance(actor_val, str) and actor_val:
-                latest_rm[actor_val] = "CLOSED"
 
     if not latest_rm:
         return [
-            "No add_participant_status_to_participant or close_case entries"
-            " found in case-actor log"
+            "No add_participant_status_to_participant entries found in"
+            " case-actor log"
         ]
 
     return [

@@ -24,10 +24,11 @@ by semantic concern (BTND-07-004):
   departure effect is the same; what differs is whether the whole case also
   closes); the second is reached only on the owner path (CM-23-002 step 2).
 
-- :mod:`.record` — :class:`CommitCaseActorRMClosedEntryNode`, which records the
-  CASE_MANAGER's transition as a canonical
-  ``add_participant_status_to_participant`` ledger entry and fans it out, so the
-  replicas can observe it rather than infer it (CM-23-005).
+- :mod:`.record` — :class:`CommitRMClosureEntriesNode`, which records each
+  closure step an advance node wrote, for the leaving actor or for the
+  CASE_MANAGER itself, as a canonical ``add_participant_status_to_participant``
+  ledger entry and fans it out, so the replicas apply the steps rather than
+  derive them (CM-23-001, CM-23-005).
 
 - :mod:`.settle` — :class:`ExpirePendingInvitesOnCloseNode`, which expires
   every embargo Invite still awaiting a reply before ``case_fully_closed``
@@ -51,7 +52,7 @@ from vultron.core.behaviors.case.nodes.leave.decline import (
     EmitRejectCloseCaseNode,
 )
 from vultron.core.behaviors.case.nodes.leave.record import (
-    CommitCaseActorRMClosedEntryNode,
+    CommitRMClosureEntriesNode,
 )
 from vultron.core.behaviors.case.nodes.leave.settle import (
     ExpirePendingInvitesOnCloseNode,
@@ -60,7 +61,7 @@ from vultron.core.behaviors.case.nodes.leave.settle import (
 __all__ = [
     "AdvanceCaseActorToRMClosedNode",
     "AdvanceParticipantToRMClosedNode",
-    "CommitCaseActorRMClosedEntryNode",
+    "CommitRMClosureEntriesNode",
     "EmitRejectCloseCaseNode",
     "ExpirePendingInvitesOnCloseNode",
     "LATE_LEAVE_DECLINE",

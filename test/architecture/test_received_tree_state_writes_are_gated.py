@@ -167,7 +167,6 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
         for cls in (
             "ApplyCaseParticipantRoleGrantFromLedgerNode",
             "ApplyCaseStatusFromLedgerNode",
-            "ApplyCloseCaseFromLedgerNode",
             "ApplyEmbargoAbandonmentFromLedgerNode",
             "ApplyEmbargoAcceptanceFromLedgerNode",
             "ApplyEmbargoActivationFromLedgerNode",

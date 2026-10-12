@@ -1987,7 +1987,7 @@ class TestCaseLedgerInvariants:
 
         The CASE_MANAGER reaches ``RM.CLOSED`` here through its own
         ``add_participant_status_to_participant`` entry, committed by
-        ``CommitCaseActorRMClosedEntryNode`` on the owner-Leave path (CM-23-005).
+        ``CommitRMClosureEntriesNode`` on the owner-Leave path (CM-23-005).
         Before ISSUE-2505 that transition was applied only to the Case Actor's
         own store and never recorded, so this assertion could not pass and the
         test carried a blanket ``xfail``.

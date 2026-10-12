@@ -562,7 +562,10 @@ Five traps, all found the hard way:
    URI puts a foreign clock in that actor's claimed stream, which trap 2 then
    reports as a regression, and leaves CLP-14-007/008 comparing the receiver's
    clock against itself. A snapshot the CASE_MANAGER genuinely authors (its own
-   actor URI) does use its own clock.
+   actor URI) does use its own clock. The per-step RM closure status entries a
+   `Leave` causes are of this kind (CM-23-001): the CASE_MANAGER wrote the
+   transition, so `actor` is the CASE_MANAGER and only the status inside is
+   attributed to the leaver.
 
    One known exception: the expired-invitation entry that the owner-close
    settle step commits (CM-23-014). The CM-28-009 snapshot names the invitee
@@ -860,15 +863,29 @@ attributed elsewhere:
 
 | Entry | `payloadSnapshot.actor` | Why it cannot stand in |
 |---|---|---|
-| `close_case` | the *departing* actor | `ApplyCloseCaseFromLedgerNode` fires for the leaver, and the Case Actor never sends itself a `Leave` |
+| `close_case` | the *departing* actor | records the leaver's `Leave` and no RM state; the Case Actor never sends itself a `Leave` |
 | `case_fully_closed` | the *owner* who left | attributed to the owner, and has no effect node at all |
 
 So for months the CASE_MANAGER advanced itself to `RM.CLOSED` correctly
 (`AdvanceCaseActorToRMClosedNode`, CM-23-002 step 2) while every replica read it
 as permanently `RM.ACCEPTED`. The three bootstrap transitions
 (`RECEIVED`/`VALID`/`ACCEPTED`) were recorded; the terminal one was not.
-`CommitCaseActorRMClosedEntryNode` (`case/nodes/leave/record.py`) is that
+`CommitRMClosureEntriesNode` (`case/nodes/leave/record.py`) is that
 missing record.
+
+**The same holds for the leaver (#4091, #4210).** A replica once derived the
+leaver's closure from `close_case` by walking the RM table from its own stored
+state, which wrote a step no entry backed when the replica lagged. Now the
+CASE_MANAGER commits one `add_participant_status_to_participant` entry per RM
+step it writes for the leaver, straight after `close_case`, and `close_case`
+has no replay slot (CM-23-001, CM-23-016). The owner-close order is
+`close_case`, the Case Owner's steps, the CASE_MANAGER's own steps, one
+expired-invitation entry per pending Invite, then `case_fully_closed`
+(CM-23-002, CM-23-014). These status entries are the CASE_MANAGER's own acts:
+`payloadSnapshot.actor` is the CASE_MANAGER and `published` its clock, and the
+status inside is attributed to the leaver. That is the ordinary "genuinely
+authors" case of trap 3, not a new exception, and invariant 18 is unaffected
+because every one of them precedes `case_fully_closed`.
 
 **Recording it is best-effort, deliberately.** The node warns and returns
 SUCCESS on every path where it cannot produce the entry. CM-23-002 orders this
@@ -879,6 +896,9 @@ the non-owner path, leaving a half-closed case with no diagnostic. Losing one
 transition's visibility beats losing the case's write-boundary entry.
 `_commit_one` in `nodes/proposal_ledger.py` makes the same call for the same
 event type, reserving hard failure for the load-bearing genesis entry.
+Best-effort covers a commit the nested tree *refuses*, not a crash inside it:
+a nested result flagged `internal_error` raises `VultronBTInternalError`, as in
+the settle step, so a bug never reads as a WARNING (CONCERN-3019, #4113).
 
 **Why this entry is committed synchronously rather than through the loopback.**
 The standard path for a *participant's* protocol-significant event is

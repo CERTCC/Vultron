@@ -798,9 +798,9 @@ class BTBridge:
                 # The two only diverge on `_store_for_actor`'s foreign-authority
                 # fall-through: reconciliation normally makes
                 # `self.datalayer.actor_id` and `/actor_id` the same actor, and
-                # the three sites that pass the store's own actor to a nested
-                # call (`case/nodes/leave/advance.py` twice,
-                # `case/nodes/close_case_effect.py`) therefore usually pass the
+                # the sites that pass the store's own actor to a nested call
+                # (`case/nodes/participant/rm_closure.py`, reached from
+                # `case/nodes/leave/advance.py` twice) therefore usually pass the
                 # value already on the blackboard.  Where they do not — a case
                 # whose CASE_MANAGER sits on another container after a handoff
                 # (CP-08-003) — `OwnerLeaveSeq`

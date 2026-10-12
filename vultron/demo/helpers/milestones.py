@@ -476,18 +476,15 @@ def _ref(value: object) -> str | None:
 def _rm_on_ledger(entry: Mapping[str, object]) -> tuple[str, str] | None:
     """Return ``(actor_id, rm_state)`` when *entry* records an RM state.
 
-    A ``close_case`` entry records its sender at ``RM.CLOSED`` (ADR-0050); a
-    participant status entry records the RM state of the actor its status is
-    attributed to.  Every other entry records no RM state.
+    Only a participant status entry records an RM state: that of the actor its
+    status is attributed to.  A ``close_case`` entry records the received
+    ``Leave`` and no RM state; the transitions the Leave caused are the status
+    entries the CASE_MANAGER commits after it (CM-23-001).
     """
     snapshot = entry.get("payload_snapshot")
     if not isinstance(snapshot, Mapping):
         return None
-    event_type = entry.get("event_type")
-    if event_type == _CLOSE_CASE:
-        actor_id = _ref(snapshot.get("actor"))
-        return (actor_id, RM.CLOSED.value) if actor_id else None
-    if event_type == _PARTICIPANT_STATUS:
+    if entry.get("event_type") == _PARTICIPANT_STATUS:
         status = snapshot.get("object")
         if not isinstance(status, Mapping):
             return None
@@ -511,8 +508,9 @@ def case_closure_violations(
 
     - It has exactly one ``case_fully_closed`` entry (CM-23-002).
     - Every actor in *departed_actor_ids* has a ``close_case`` entry before
-      ``case_fully_closed``, and the last RM state the ledger records for it
-      before that boundary is ``RM.CLOSED`` (CM-23-001, CM-23-015).
+      ``case_fully_closed``, and the last RM state a status entry records for
+      it before that boundary is ``RM.CLOSED`` (CM-23-001, CM-23-015).  The
+      ``close_case`` entry itself records no RM state.
     - ``case_fully_closed`` is the last entry that records a participant's
       act: every later entry records the CASE_MANAGER's own act, its
       ``payloadSnapshot.actor`` being *case_manager_id* (CM-23-013).
@@ -571,13 +569,17 @@ def _departure_violations(
     rm_states: dict[str, str] = {}
     left: set[str] = set()
     for entry in before:
-        recorded = _rm_on_ledger(entry)
-        if recorded is None:
-            continue
-        actor_id, rm_state = recorded
-        rm_states[actor_id] = rm_state
         if entry.get("event_type") == _CLOSE_CASE:
-            left.add(actor_id)
+            snapshot = entry.get("payload_snapshot")
+            if isinstance(snapshot, Mapping) and (
+                leaver := _ref(snapshot.get("actor"))
+            ):
+                left.add(leaver)
+            continue
+        recorded = _rm_on_ledger(entry)
+        if recorded is not None:
+            actor_id, rm_state = recorded
+            rm_states[actor_id] = rm_state
 
     violations: list[str] = []
     for actor_id in departed_actor_ids:

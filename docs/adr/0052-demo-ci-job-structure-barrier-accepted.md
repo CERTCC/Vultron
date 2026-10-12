@@ -1,6 +1,5 @@
 ---
-status: accepted-provisional
-status_override: Set by the epoch lint rollout (#4196); the status predates the check and awaits a human's review against its epoch.
+status: accepted
 date: 2026-08-05
 created: 2026-08-05
 updated: 2026-08-05
@@ -8,6 +7,7 @@ revision: 1
 deciders: Allen D. Householder
 consulted: []
 informed: []
+lint_suppress: [status_prose_contradiction]
 stakeholder_type: [project-contributor]
 ---
 
@@ -118,3 +118,10 @@ Per-commit granularity was judged unnecessary: a time-range bisect across a
 typical 4–6 PR batch is sufficient to identify regressions. DEMOCI-02-013,
 DEMOCI-02-014, DEMOCI-02-015, and DEMOCI-05-002 in `specs/demo-ci.yaml` were
 updated accordingly.
+
+## Amendment — 2026-10-12
+
+The status moved from `accepted-provisional` to `accepted` when its lifecycle epoch reached day 28 (ADR-0120, #4521).
+The reason given in Decision Outcome for the provisional status no longer holds: the scenario coverage split is designed and built (DEMOCI-06).
+The minimum PR set and the full post-merge set are resolved from `.github/demo-scenarios.json` by the `scenarios` job in `.github/workflows/demo-integration.yml`, and the coverage matrix is in `notes/demo-ci-scenario-coverage.md`.
+The barrier decision stands with the reduced PR set.

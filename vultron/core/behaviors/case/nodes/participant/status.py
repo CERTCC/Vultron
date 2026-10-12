@@ -15,12 +15,13 @@
 
 """Participant status snapshot node for add-participant-status trigger BT.
 
-The write boundary validates its own writes (BTND-10-001, BTND-10-003): five
+The write boundary validates its own writes (BTND-10-001, BTND-10-003):
 production call sites reach :class:`CreateParticipantStatusNode` without passing
 through :class:`~vultron.core.behaviors.case.nodes.participant\
 .trigger_validation.ValidateTriggerTransitionsNode` — ``develop_fix.py``,
-``deploy_fix.py``, ``close_case_effect.py`` and two in ``leave.py`` — and for
-those this node's check is the only validation.  Both nodes evaluate the same
+``deploy_fix.py`` and the closure writer ``participant/rm_closure.py`` that
+``leave/advance.py`` uses twice — and for those this node's check is the only
+validation.  Both nodes evaluate the same
 composed rule set via :func:`~vultron.core.behaviors.case.nodes.participant\
 .common.validate_participant_status_write` (BTND-10-002, ADR-0086).
 """
