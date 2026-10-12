@@ -57,7 +57,7 @@ Epoch 1 ends on the first test-verified dependent or a backstop timer, whichever
 
 ### Epochs
 
-Epochs are measured from `updated`.
+The timers are measured from `updated`; the dependency event is not.
 
 | Epoch | Ends | `status` | Editing |
 |---|---|---|---|
@@ -65,19 +65,20 @@ Epochs are measured from `updated`.
 | 2 | at day 28 | `accepted-provisional` | Ask the human whether to edit in place or supersede. |
 | 3 | never | `accepted` | Supersede; see the edit tiers. |
 
-A test-verified dependent is a spec requirement on `main` that cites the ADR in `adr:` and whose verification names a test file that exists.
+A test-verified dependent is a spec requirement that cites the ADR in `adr:` and whose verification names a test file that exists, counted in the tree being checked: the pull request's head for a pull-request check, `main` for the scheduled report.
 It is the signal the material test asks for: once something is built on the ADR, rewriting it freely can make that thing wrong.
 The first dependent ends epoch 1 and nothing more; the first implementation is often where a detail turns out wrong, and fixing it in place with the human's yes is cheaper than a superseding ADR.
-The pull request that adds it must set the ADR to `accepted-provisional` in the same change, because it is the change that moved the facts; a check against the merge base enforces it.
+The pull request that creates it, whether by adding a requirement, by adding `adr:` or a verification to an existing one, or by adding the test file, must set the ADR to `accepted-provisional` in the same change, because it is the change that moved the facts; a check against the merge base enforces it.
 The day-14 and day-28 timers are a backstop for an ADR nothing tests, so that every ADR eventually hardens.
 A material edit bumps `updated` and restarts both timers, but not the dependency: an ADR that has a test-verified dependent never returns to epoch 1.
 
 Status only moves forward.
 The computed epoch is a floor: a status already ahead of it stands, so a change to these timers never demotes an ADR that agents have built on as `accepted`.
-A pull request that moves a status ahead of its epoch must carry a `status_override:` naming a human's reason, and the override is visible in the frontmatter.
+A material edit that restarts the timers keeps a status already ahead, under the `status_override:` the edit already needs.
+A pull request that moves a status ahead of its epoch must add or change a `status_override:` naming a human's reason; an override already on the base does not cover a new promotion, and the override is visible in the frontmatter.
 
 The clock alone never fails a merge-blocking check, because an ADR crossing a boundary changes no commit.
-A pull request that materially edits an ADR (its `updated` date changes, or the ADR is new) must leave the status on the epoch for that date, and a diff-based check against the merge base enforces it (#4196).
+A pull request that materially edits an ADR (its `updated` date changes, or the ADR is new) must leave the status on the epoch for that date or carry a `status_override:`, and a diff-based check against the merge base enforces it (#4196).
 A scheduled workflow reports every other ADR whose status is behind its epoch through one self-closing tracking issue and never fails the build; a human flips the status.
 
 ### Agents and `proposed` ADRs
@@ -102,16 +103,16 @@ Rewriting an accepted ADR under its own number is never correct.
 - Good, because citations of a settled ADR stay true.
 - Good, because a fresh decision can be corrected cheaply.
 - Good, because the human's required involvement is one question at a known moment.
-- Bad, because every ADR needs three extra frontmatter fields and a status lint.
 - Good, because an ADR nothing builds on can be revised for two weeks, however long it waits unread.
+- Bad, because every ADR needs three extra frontmatter fields and a status lint.
 - Bad, because the epoch depends on the spec corpus as well as the frontmatter, so a pull request that never touches an ADR can be required to change its status.
 - Bad, because the backstop is still a fixed clock; the dependency event and the human override exist for that reason.
 
 ## Validation
 
 `AdrFrontmatter` accepts `created`, `updated` and `revision` (`vultron/metadata/adr/schema.py`).
-The status-against-epoch lint is #4196 and the archive tooling is #4197.
-MS-14-007, MS-14-008, MS-14-010 and MS-14-012 state the requirements.
+The status-against-epoch lint is #4196, the archive tooling is #4197, and the tooling for revision 2 is #4501.
+MS-14-007 through MS-14-010 and MS-14-012 state the requirements.
 
 ## More Information
 
