@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: RM Fix Development and Deployment"
 status: active
+kind: guidance
 description: >
   Catalog of fuzzer (stub) BT nodes for Fix Development (`DevelopFixBt`)
   and Fix Deployment (`DeployFixBt`) sub-workflows: patch creation,

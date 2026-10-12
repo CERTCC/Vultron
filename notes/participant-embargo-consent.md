@@ -1,6 +1,7 @@
 ---
 title: Participant Embargo Consent (per-Embargo Rows)
 status: active
+kind: guidance
 description: >
   Design decisions for tracking per-participant embargo consent as one row per
   (participant, embargo); consent transitions and implementation patterns.

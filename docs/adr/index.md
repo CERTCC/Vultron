@@ -69,15 +69,16 @@ Enforcement is forward-only — a reference newly written into an ADR should res
 The `adr-added-reference-check` pre-commit hook and its pull-request twin fail a backticked path or code symbol that an edit adds and that resolves nowhere, and never judge a reference already on the merge base (MS-15-006).
 A record that deliberately names a removed symbol opts out with `lint_suppress: [phantom_symbol_ref]`, or `[phantom_path_ref]` for a path (MS-15-007).
 
-**How to edit an ADR**: follow the edit tiers in [ADR-0120](0120-adr-lifecycle-epochs-and-edit-tiers.md), which key off how long ago the ADR was last materially changed.
+**How to edit an ADR**: follow the edit tiers in [ADR-0120](0120-adr-lifecycle-epochs-and-edit-tiers.md), which key off the ADR's epoch: how long ago it was last materially changed, and whether a tested spec requirement depends on it yet.
 Editorial fixes and appended annotations are allowed at any time and change neither `updated` nor `revision`.
 A clarification that does not alter what anything built on the ADR must do is appended as a dated note, rather than written over the original text.
 A material change bumps `updated` and `revision`; on an `accepted-provisional` ADR, ask the human whether to edit in place or supersede.
 On an `accepted` ADR, a material change to one detail with the chosen option intact is a dated Amendment that quotes the text it replaces.
 A change of the chosen option is a new ADR that supersedes the old one; the old one is restored to its original text, marked `superseded`, and moved to `archived/` (MS-14-004).
 Never rewrite an accepted ADR under its own number.
-The `adr-lifecycle-check` pre-commit hook holds one part of this mechanically: on an `accepted` ADR last changed more than ten days ago, it refuses a changed `## Decision Outcome` or `## Considered Options` section that adds no new dated Amendment heading, and it refuses an `updated` bump that carries no `status_override` (MS-14-009).
-It reads no other section, does not check that an Amendment quotes what it replaces, and does not fire on an `accepted-provisional` ADR, so the remaining tiers are yours to honour.
+The `adr-lifecycle-check` pre-commit hook holds one part of this mechanically: on an ADR that is `accepted`, or was last changed 28 or more days ago, it refuses a changed `## Decision Outcome` or `## Considered Options` section that adds no new dated Amendment heading (MS-14-009).
+It also refuses an `updated` bump that carries no `status_override` on an ADR past its first epoch (MS-14-009).
+It reads no other section and does not check that an Amendment quotes what it replaces, so the remaining tiers are yours to honour.
 
 **What not to write into an ADR body.**
 Implementation detail that drifts independently of the decision costs a future reader — including an agent with a limited context window — attention on claims that were true once and are not checkable now.
@@ -146,7 +147,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy](0038-four-tier-specification-taxonomy.md)
 - [ADR-0039 Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
 - [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce UseCaseRequest](0040-use-case-result-envelope.md)
-- [ADR-0041 CASE_MANAGER-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md) *(revision 2)* — supersedes 0015-create-case-at-report-receipt.md
+- [ADR-0041 CASE_MANAGER-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md) *(revision 2)* — partially superseded by 0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md; supersedes 0015-create-case-at-report-receipt.md
 - [ADR-0042 Deliver All Inter-Actor Communication over HTTP; Retire the In-Process ASGI Delivery Shortcut](0042-http-only-inter-actor-delivery.md) — partially superseded by 0109-a-container-emits-only-as-actors-it-hosts.md
 - [ADR-0043 Use the ADR `status` Field as the Confidence Signal (Extend Its Vocabulary Rather Than Add a New Field)](0043-adr-status-as-confidence-signal.md)
 - [ADR-0044 Adopt py_trees Typed Ports for BT Node Blackboard Contracts](0044-py-trees-typed-ports-adoption.md)
@@ -218,9 +219,12 @@ General information about architectural decision records is available at <https:
 - [ADR-0118 An Expired Invite Is Not a Decline, and a Terminated Embargo Is Not the Start State](0118-pec-expired-and-unbound-exited-states.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0120 ADR Lifecycle: Three Epochs and Tiered Edits](0120-adr-lifecycle-epochs-and-edit-tiers.md) *(revision 2)* *(provisional)*
 - [ADR-0121 A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants](0121-joined-participant-judges-the-case-by-full-case-invite.md) *(provisional)* — supersedes 0070-invited-actor-rm-triage-via-ledger-backfill.md, 0084-participant-assertion-authority.md
+- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 5)* *(provisional)* — supersedes 0056-embargo-adherence-computed-field.md; partially supersedes 0048-pec-no-embargo-is-absence-not-pre-consent.md, 0091-rename-pec-no-embargo-to-unbound.md, 0093-signatory-declined-pec-transition.md, 0118-pec-expired-and-unbound-exited-states.md
 - [ADR-0123 An Embargo Invite May Name Its Terms by URI](0123-embargo-invite-may-name-its-terms-by-uri.md) *(provisional)*
+- [ADR-0127 Decision Records Leave Routine Agent Context; Specs and Notes Carry the Current State](0127-decision-records-leave-routine-agent-context.md) *(provisional)*
 - [ADR-0129 A Sender Rule States Every Position on Both Sides, and Is the Source of "Sent By"](0129-a-sender-rule-states-every-position-on-both-sides-and-is-the-source-of-sent-by.md) *(provisional)*
 - [ADR-0131 Post-Close Traffic Is Dropped, and Only a Late Leave May Be Answered](0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md) *(provisional)*
+- [ADR-0132 The Report Receiver Introduces the CASE_MANAGER to the Reporter](0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md) *(provisional)* — partially supersedes 0041-caseactor-authoritative-case-initialization.md
 
 ## Proposed ADRs
 
@@ -229,11 +233,9 @@ General information about architectural decision records is available at <https:
 - [ADR-0107 A Case Ledger Entry Is a Postmark on the Received Envelope; References Resolve by Dereference](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
 - [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 3)*
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md)
-- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 5)* — supersedes 0056-embargo-adherence-computed-field.md; partially supersedes 0048-pec-no-embargo-is-absence-not-pre-consent.md, 0091-rename-pec-no-embargo-to-unbound.md, 0093-signatory-declined-pec-transition.md, 0118-pec-expired-and-unbound-exited-states.md
 - [ADR-0124 The Case Is a Projection of Its Ledger: Every Change Is an Entry, and Replicas Copy](0124-case-is-a-projection-of-its-ledger.md) *(revision 2)*
 - [ADR-0125 A Case Splits by Its Owner Proposing a Child Case: the Child Links Its Parent and Inherits the Embargo Terms Only](0125-case-split-child-case-inherits-the-embargo-only.md)
 - [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)*
-- [ADR-0127 Decision Records Leave Routine Agent Context; Specs and Notes Carry the Current State](0127-decision-records-leave-routine-agent-context.md)
 - [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
 - [ADR-0130 EM Is Computed From the Embargo Register Under the EM Transition Table](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md) *(revision 2)*
 

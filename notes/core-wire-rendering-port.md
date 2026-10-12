@@ -1,6 +1,7 @@
 ---
 title: Core-to-Wire Rendering Port
 status: active
+kind: guidance
 description: >
   Why core needs wire-shaped JSON at all, why core-side renderings with per-field
   patches were the wrong way to get it, and the driven-port seam core uses

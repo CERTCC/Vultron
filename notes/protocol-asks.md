@@ -1,6 +1,11 @@
 ---
 title: Protocol Asks and Outstanding-Ask Registers
 status: active
+kind: plan
+tracks:
+  - "#2884"
+  - "#3188"
+  - "#3471"
 description: >
   Design guidance for the protocol-ask primitive: asking and terminating rather
   than suspending, conversation-state routing, the outstanding-ask register, ask

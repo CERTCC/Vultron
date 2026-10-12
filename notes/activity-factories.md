@@ -1,6 +1,7 @@
 ---
 title: "Activity Factories — Design Rules and Inventory"
 status: active
+kind: guidance
 tags: [factories, wire, outbound-activities, migration, as2]
 description: >
   Design decisions, full factory inventory, migration guide, and testing

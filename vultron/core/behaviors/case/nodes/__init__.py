@@ -27,8 +27,6 @@ Submodules:
 - ``participant``: Shared participant create-and-attach helper, status
   writer, and trigger-transition validation
 - ``embargo``: Default embargo initialization action nodes
-- ``close_case_effect``: Ledger-apply of a ``close_case`` entry on a replica
-  (ApplyCloseCaseFromLedgerNode; composes the participant-status writer)
 - ``intake``: Intake node — archives the received activity as received,
   first in every received tree (ADR-0111)
 - ``lifecycle``: Case log entry commit action node
@@ -56,9 +54,6 @@ from vultron.core.behaviors.case.nodes.case_lookup import (
 )
 from vultron.core.behaviors.case.nodes.case_setup import (
     EnsureCaseActorHostedNode,
-)
-from vultron.core.behaviors.case.nodes.close_case_effect import (
-    ApplyCloseCaseFromLedgerNode,
 )
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckAutoCaseCreationEnabledNode,
@@ -238,8 +233,6 @@ __all__ = [
     # delegation (leaf nodes)
     "AutoAcceptCaseParticipantRoleNode",
     "EmitRejectCaseParticipantRoleNode",
-    # close_case_effect (ledger-apply leaf node)
-    "ApplyCloseCaseFromLedgerNode",
     # lifecycle
     "CommitCaseLedgerEntryNode",
     # update

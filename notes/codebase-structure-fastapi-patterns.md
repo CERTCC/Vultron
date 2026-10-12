@@ -1,6 +1,7 @@
 ---
 title: "Codebase Structure: FastAPI and Test Patterns"
 status: active
+kind: guidance
 description: >
   Router test override pattern, circular import fixes, FastAPI response_model
   patterns, health check, Docker health check, formatter/pyright pragma

@@ -151,7 +151,9 @@ checklist. Pay particular attention to:
    integration patterns.
 2. Consult `notes/specs-vs-adrs.md` (MS-11-001–MS-11-006) to determine if an
    ADR was warranted.
-3. Check `docs/adr/index.md` for a relevant existing ADR:
+3. Check `docs/adr/index.md` for a relevant existing ADR, and read the body of
+   any record whose title covers the changed area. Weigh it by
+   `.agents/skills/shared/weighing-decision-records.md`:
    - PR *should have* an ADR and none referenced → **IMPROVE**
    - Existing ADR contradicted without amendment → **FAIL**
    - New ADR added: verify it follows `docs/adr/_adr-template.md`

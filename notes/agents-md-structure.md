@@ -1,6 +1,7 @@
 ---
 title: "AGENTS.md Structure: Routing Policy and Per-Directory Files"
 status: active
+kind: guidance
 description: >
   Policy for deciding what belongs in root AGENTS.md vs. per-directory
   AGENTS.md files vs. notes/ files. Establishes the routing decision tree

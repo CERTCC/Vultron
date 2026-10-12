@@ -243,6 +243,27 @@ def load_yaml(
         raise MetadataLoadError(f"not valid UTF-8: {exc}", path=shown) from exc
 
 
+def loads_yaml(
+    text: str,
+    shown: Path,
+    *,
+    loader: type[yaml.SafeLoader | yaml.CSafeLoader] = yaml.SafeLoader,
+) -> object:
+    """Parse YAML *text* that has no working-tree file behind it.
+
+    The text form of :func:`load_yaml`, for content read from elsewhere (a
+    blob at a commit). A fault is attributed to *shown*, for example
+    ``<ref>:specs/x.yaml``.
+
+    Raises:
+        MetadataLoadError: On a YAML syntax fault.
+    """
+    try:
+        return yaml.load(text, Loader=loader)  # noqa: S506 — caller's loader
+    except yaml.YAMLError as exc:
+        raise _yaml_error(exc, str(shown), "YAML parse error") from exc
+
+
 #: Lead-in for a frontmatter parse fault. Kept identical across loaders so the
 #: fault reads the same whichever directory the author edited.
 _FRONTMATTER_LEAD = "malformed YAML frontmatter"

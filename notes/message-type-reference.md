@@ -1,6 +1,7 @@
 ---
 title: "Message Type Reference: Formal Shorthands, AS2 Wire Forms, and the Mapping Between Them"
 status: active
+kind: guidance
 description: >-
   Design guidance for the consolidated per-message-type reference pages: why the
   formal message set and the AS2 wire vocabulary are different shapes, how the

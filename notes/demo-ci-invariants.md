@@ -1,6 +1,7 @@
 ---
 title: Demo CI Invariant Harness Design
 status: active
+kind: guidance
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml

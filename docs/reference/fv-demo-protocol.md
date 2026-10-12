@@ -137,6 +137,10 @@ POST /api/v2/actors/{vendor_id}/trigger/engage-case
    The embargo is therefore `ACTIVE` from the first ledger entry without a proposal round-trip (EP-04-001).
    It then sends `Accept(CaseProposal)` to the Vendor, followed by `Create(VulnerabilityCase)` to both the Vendor and the Finder.
    That `Create` carries the case with its participants inline; it is the [trust bootstrap](../topics/case_lifecycle/case_authority_and_trust.md#trust-bootstrap-how-a-participant-learns-whom-to-trust) that lets the Finder bind the Case Actor's identity to this case (CBT-01-001).
+
+   !!! note "ADR-0132 changes this step"
+       The specs now have the Case Actor send that `Create` to the Vendor only, and the Vendor send the Finder its own `Create` naming the Case Actor.
+       The demo follows the specs once [#4511](https://github.com/CERTCC/Vultron/issues/4511) lands.
 4. The Vendor's `validate-report` trigger sends Report Valid (RV) to the Case Actor, and the Vendor's participant record advances to `RM.VALID`.
 5. The Vendor's `engage-case` trigger sends Report/Case Accepted (RA), and the record advances to `RM.ACCEPTED`.
 
@@ -350,11 +354,19 @@ The owner's departure closes the case, and the Case Actor records nothing a part
 1. The Finder sends `Leave(VulnerabilityCase)`.
    As a non-owner, this advances only the Finder (CM-23-003); no other participant's RM state changes (CM-23-012).
    The Case Actor commits `close_case` for the Finder.
+   It then moves the Finder to `RM.CLOSED` and commits one `add_participant_status_to_participant` entry for each RM transition it writes, in order (CM-23-001).
+   The Finder is at `RM.ACCEPTED`, so that is one entry; a participant at `RM.VALID` would get two, for `VALID → DEFERRED` and `DEFERRED → CLOSED` (RMB-14-005).
 2. The demo waits until the Case Actor's own store shows the Finder at `RM.CLOSED`.
    A trigger returns before its effect commits, so the demo does not let the Vendor's `Leave` overtake the Finder's.
 3. The Vendor sends `Leave(VulnerabilityCase)`.
-   The Vendor is the `CASE_OWNER`, so this is an owner closure: the Case Actor commits `close_case` for the Vendor, advances its own participant record to `RM.CLOSED` and records that transition as an `add_participant_status_to_participant` entry (CM-23-005), then commits `case_fully_closed` (CM-23-002).
-4. Each entry is fanned out as `Announce(CaseLedgerEntry)`, and every replica applies it, which is how a participant learns that a peer has departed.
+   The Vendor is the `CASE_OWNER`, so this is an owner closure (CM-23-002).
+   The Case Actor commits `close_case` for the Vendor and then the Vendor's status entries.
+   It advances its own participant record to `RM.CLOSED` and commits those status entries too (CM-23-005).
+   It expires every embargo invitation still waiting for an answer, with one entry each (CM-23-014); the FV run has none.
+   Last, it commits `case_fully_closed`.
+4. Each entry is fanned out as `Announce(CaseLedgerEntry)`, and every replica applies it.
+   The leaving participant's own replica receives every status entry for its departure, the one that reaches `RM.CLOSED` included (CM-23-004).
+   A replica moves a departing participant only by applying those status entries: the `close_case` entry itself changes no RM state, and a replica never works out the steps from its own stored state (CM-23-016).
 
 ### Example: Leave(VulnerabilityCase)
 
@@ -404,9 +416,11 @@ The exact count of `add_participant_status_to_participant` and `add_case_status_
 | 18–19 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
 | 20–21 | `add_participant_status_to_participant`, `add_case_status_to_case` | Finder's `Pxa` status and the case status that follows it | 5 |
 | 22 | `close_case` | Finder | 6 |
-| 23 | `close_case` | Vendor | 6 |
-| 24 | `add_participant_status_to_participant` | Case Actor (its own `RM.CLOSED`) | 6 |
-| 25 | `case_fully_closed` | Vendor (owner closure) | 6 |
+| 23 | `add_participant_status_to_participant` | Case Actor (the Finder's `ACCEPTED → CLOSED`) | 6 |
+| 24 | `close_case` | Vendor | 6 |
+| 25 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
+| 26 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`) | 6 |
+| 27 | `case_fully_closed` | Vendor (owner closure) | 6 |
 
 The ledger ends at `case_fully_closed`: the Finder left first, so no participant act follows the owner closure.
 

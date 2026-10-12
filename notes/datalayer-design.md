@@ -1,6 +1,7 @@
 ---
 title: "DataLayer Design: Architecture and Migration Notes"
 status: active
+kind: guidance
 tags: [datalayer, ports, persistence, architecture, migration, hexagonal]
 description: >
   Architectural analysis of the DataLayer port contract, CasePersistence

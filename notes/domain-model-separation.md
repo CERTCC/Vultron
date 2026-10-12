@@ -1,6 +1,7 @@
 ---
 title: "Domain Model Separation: Wire, Domain, and Persistence"
 status: active
+kind: guidance
 description: >
   Analysis of wire/domain/persistence model coupling in VulnerabilityCase and
   recommended separation path.

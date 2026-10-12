@@ -1,6 +1,7 @@
 ---
 title: "History Management: Chunked Per-Entry Files"
 status: active
+kind: guidance
 description: >
   Design decisions and implementation guidance for the chunked history file
   system. Replaces the monolithic append-only plan/*HISTORY.md pattern with

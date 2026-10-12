@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Establish an Embargo
@@ -130,9 +130,7 @@ The other participants still receive the Invite and answer it, and only those th
 
 !!! example "Try it: `vultron-demo establish-embargo`"
 
-    ```bash
-    vultron-demo establish-embargo
-    ```
+    {% include-markdown "./_demo_establish_embargo.md" %}
 
     Or with Docker Compose:
 

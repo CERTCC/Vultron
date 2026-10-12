@@ -671,6 +671,38 @@ groups:
     - ADR-0127
     tags:
     - documentation
+  - id: MS-11-008
+    priority: MUST
+    kind: process
+    statement: >-
+      The routine context-loading skill (`deepen-context`) MUST route through decision records by the generated title
+      index and by the `adr:` edges requirements carry, read in the record-to-requirements direction, and MUST carry a
+      written list of the skills that read decision-record bodies in full, each with the reason it needs them. That list
+      MUST name at least decision auditing, record authoring, the learning workflow, issue planning and pull-request
+      triage. A skill kept in this repository and not on the list MUST NOT instruct an agent to read a decision-record
+      body, and each listed skill kept in this repository MUST weigh what it reads by the shared guidance on when a
+      record is challengeable.
+    rationale: >-
+      A record body is history, and its description of the code ages with every refactor while the decision stands;
+      loading it as routine context spends working memory on claims that no longer check out (ADR-0127). Writing the
+      exception list down keeps the narrowing from being over-read as "never read a record", and keeping the trust
+      weighting beside every remaining reader preserves how a provisional or hedging record is treated.
+    verification: >-
+      `test/metadata/test_routine_context_skips_adr_bodies.py` reads `.agents/skills/deepen-context/SKILL.md` and asserts
+      its Step 2 names `docs/adr/index.md`, `spec-dump --adr` and the prose-only grep, that its exception table lists
+      each required skill with a reason, and that each in-repository listed skill points at
+      `.agents/skills/shared/weighing-decision-records.md`. It scans every skill file under `.agents/skills/` off the list
+      for a reading verb whose object is a record path, a full record, a record body, a record ID, or "ADR(s)" or
+      "decision record(s)" other than the index, a title, the template or a status; its detector cases show it catches
+      the instruction this requirement replaced and plain forms such as "read the relevant ADRs", and passes routing
+      instructions.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-11-007
+    adr:
+    - ADR-0127
+    tags:
+    - documentation
 - id: MS-12
   title: SpecKind Classification Decision Tree
   description: Mechanical rules for assigning a `kind` value to a new or reclassified spec. Stop at the first matching
@@ -1222,7 +1254,9 @@ groups:
       `test/metadata/test_adr_lifecycle.py` checks that a status ahead of its epoch carried on the
       base passes both the edit check and the drift report, and that a pull request moving a status
       ahead of its epoch fails without a `status_override:`, fails when the override is unchanged
-      from the base, and passes when it adds or changes one.
+      from the base, and passes when it adds or changes one, including a status revived from
+      `rejected` or `deprecated`. It also checks that a status moved back fails with or without
+      an override.
     relationships:
     - rel_type: depends_on
       spec_id: MS-14-007

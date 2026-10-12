@@ -1,6 +1,7 @@
 ---
 title: Behavior Tree Composability and Reusability Design Notes
 status: active
+kind: guidance
 description: >
   Vultron's fractal composability principle for behavior trees; concrete
   patterns for composing and reusing behavioral subtrees; anti-patterns to avoid.

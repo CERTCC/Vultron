@@ -1,6 +1,7 @@
 ---
 title: Event-Driven Control Flow Design Notes
 status: active
+kind: guidance
 description: >
   Conceptual model for event-driven control flow in Vultron; actor reaction
   patterns and design rationale.

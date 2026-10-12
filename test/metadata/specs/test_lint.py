@@ -2108,14 +2108,16 @@ def test_lint_adr_status_disagreeing_with_epoch_is_not_a_lint_failure(
     assert "MS-14-007" not in capsys.readouterr().err
 
 
-def test_lint_reports_hardened_unsettled_adr_as_info(tmp_path):
-    """A tested dependent of an unsettled ADR is reported, not failed (MS-14-010)."""
-    import datetime as dt
-
-    today = dt.date(2026, 10, 20)
+@pytest.mark.spec("MS-14-010")
+def test_lint_warns_on_a_proposed_adr_with_tested_dependents(tmp_path):
+    """A tested dependent ends epoch 1 with no clock, so spec-lint can say so;
+    it warns, and never tells a human to promote with an override."""
     adr_dir = _make_adr_dir(tmp_path)
-    _write_dated_adr(adr_dir, "0099", "proposed", today.isoformat())
-    _write_dated_adr(adr_dir, "0098", "accepted", "2020-01-01")
+    _write_dated_adr(adr_dir, "0099", "proposed", "2026-10-20")
+    _write_dated_adr(adr_dir, "0098", "accepted-provisional", "2026-10-20")
+    _write_dated_adr(
+        adr_dir, "0097", "proposed", "2026-10-20", "status_override: held\n"
+    )
     (tmp_path / "test").mkdir()
     (tmp_path / "test" / "test_dep.py").write_text("")
 
@@ -2125,20 +2127,21 @@ def test_lint_reports_hardened_unsettled_adr_as_info(tmp_path):
                 "S",
                 (),
                 {
-                    "adr": ["ADR-0099", "ADR-0098"],
+                    "adr": ["ADR-0099", "ADR-0098", "ADR-0097"],
                     "verification": "`test/test_dep.py` checks it",
                 },
             )()
         }
 
     errors, warnings = lint_module._check_adr_status(
-        adr_dir, cast(SpecRegistry, _Reg()), today
+        adr_dir, cast(SpecRegistry, _Reg())
     )
     assert errors == []
-    infos = [w for w in warnings if w.startswith("[INFO]")]
-    assert len(infos) == 1
-    assert "0099-stub.md" in infos[0]
-    assert "TST-01-001" in infos[0]
+    (warning,) = [w for w in warnings if "MS-14-010" in w]
+    assert warning.startswith("[WARN] 0099-stub.md")
+    assert "TST-01-001" in warning
+    assert "status_override" not in warning
+    assert not [w for w in warnings if w.startswith("[INFO]")]
 
 
 @pytest.mark.spec("MS-12-007")

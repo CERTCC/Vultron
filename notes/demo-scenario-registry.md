@@ -1,6 +1,7 @@
 ---
 title: Demo Scenario Registry — Self-Registration, Derived Paths, and the Generate-vs-Check Split
 status: active
+kind: guidance
 description: >
   Implementation guidance for the self-registering demo scenario registry
   (ADR-0098): what the decorator carries and what is derived by convention, why

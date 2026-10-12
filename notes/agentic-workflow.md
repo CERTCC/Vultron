@@ -1,6 +1,7 @@
 ---
 title: Agentic Development Workflow
 status: active
+kind: guidance
 description: >
   Documents the skill-based agentic development pipeline used in this project:
   ingest-idea, learn, update-plan, and build. Explains the inputs, outputs,

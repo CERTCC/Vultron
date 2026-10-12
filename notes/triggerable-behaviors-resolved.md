@@ -1,6 +1,7 @@
 ---
 title: "Triggerable Behaviors: Resolved Design Decisions and Audit Results"
 status: active
+kind: guidance
 description: >
   Resolved trigger implementation decisions (P30-1), BT requirement
   for trigger use cases, general-purpose vs. demo-only trigger classification,

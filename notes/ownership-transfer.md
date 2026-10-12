@@ -1,6 +1,7 @@
 ---
 title: Ownership Transfer Protocol — Routing and Cascade Model
 status: active
+kind: guidance
 description: >
   Implementation guidance for the ownership-transfer routing model introduced
   in ADR-0053: Offer, Accept and Reject MUST route through the CASE_MANAGER so

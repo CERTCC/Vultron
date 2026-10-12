@@ -1,6 +1,7 @@
 ---
 title: Documentation Strategy Notes
 status: active
+kind: guidance
 description: >
   Documentation chronology and strategy for interpreting conflicting
   documentation generations in Vultron.

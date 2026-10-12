@@ -1,6 +1,34 @@
 ---
 title: CVD Recipe Scenario Injects
 status: active
+kind: plan
+tracks:
+  - "#1147"
+  - "#1156"
+  - "#1160"
+  - "#1279"
+  - "#1646"
+  - "#2052"
+  - "#2053"
+  - "#2054"
+  - "#2055"
+  - "#2056"
+  - "#2057"
+  - "#2058"
+  - "#2059"
+  - "#2060"
+  - "#2061"
+  - "#2064"
+  - "#2562"
+  - "#2841"
+  - "#3188"
+  - "#3477"
+  - "#3667"
+  - "#3669"
+  - "#3670"
+  - "#3673"
+  - "#3674"
+  - "#3675"
 description: >
   Classification of CERT Guide to CVD problem-solving recipes as Vultron
   scenario injects. Each recipe is mapped to the Vultron protocol constructs

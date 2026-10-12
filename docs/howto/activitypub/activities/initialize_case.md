@@ -1,6 +1,6 @@
 ---
 stakeholder_type: [platform-developer]
-level: 300
+level: 400
 ---
 
 # How to Initialize a Case
@@ -95,9 +95,7 @@ Every one of these is committed to the case ledger by the CASE_MANAGER and fanne
 
 !!! example "Try it: `vultron-demo initialize-case`"
 
-    ```bash
-    vultron-demo initialize-case
-    ```
+    {% include-markdown "./_demo_initialize_case.md" %}
 
     Or with Docker Compose:
 

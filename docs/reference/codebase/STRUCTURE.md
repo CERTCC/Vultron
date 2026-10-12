@@ -25,7 +25,7 @@ stakeholder_type: [project-contributor]
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary and ratchet tests | `test/architecture/test_core_no_adapter_imports.py` |
 | `specs/` | Structured YAML specification files | `specs/README.md` |
-| `notes/` | Durable design insight Markdown files | `notes/README.md` |
+| `notes/` | Working notes that inform work not yet done, each declaring `kind: guidance`, `plan`, or `generated` (NF-08) | `notes/README.md`, `.agents/skills/shared/notes-writing-guide.md` |
 | `archived_notes/` | Superseded design notes kept for reference | `archived_notes/README.md` |
 | `docs/` | MkDocs documentation source | `mkdocs.yml` |
 | `doc/examples/` | Committed JSON examples of the activity vocabulary | `doc/README.md` |
@@ -81,6 +81,7 @@ stakeholder_type: [project-contributor]
   - `wire-context` → `vultron.metadata.wire_context.sync:main` (generates the normative JSON-LD `@context` from the wire vocabulary, VM-10-001)
   - `bundle-fit` → `vultron.metadata.planning.bundle_fit:main` (two-stage issue-bundle selection for the `propose-bundle` skill); `pr-size` → `vultron.metadata.planning.size_bands:main` (the `size:` label band table); `targeted-tests` → `vultron.metadata.planning.targeted_tests:main` (the post-first-push local test gate derived from the branch diff, and the base-overlap check, PAD-18)
   - `learnings-index` → `vultron.metadata.history.incoming:main` (validates and indexes `plan/incoming/learnings/`)
+  - `notes-tracks` → `vultron.metadata.notes.tracks:main` (lists `plan` notes whose tracked issues are all closed, NF-09; advisory, never archives)
   - `append-history` → `vultron.metadata.history.cli:main`; `show-history` → `vultron.metadata.history.show_history_cli:main`; `backfill-implementation-history` → `vultron.metadata.history.backfill_implementation:main`
 - **How entry is selected**: via `[project.scripts]` in `pyproject.toml`; uvicorn deployment (`docker/Dockerfile`) uses `vultron.adapters.driving.fastapi.main:app`.
   The `Makefile` `api_dev` target still names `vultron.api:app`, which does not exist (see `CONCERNS.md`).

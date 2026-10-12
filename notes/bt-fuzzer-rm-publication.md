@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: RM Publication"
 status: active
+kind: guidance
 description: >
   Catalog of fuzzer (stub) BT nodes for the Publication sub-workflow
   (`PublicationBt`): publication readiness, disclosure decisions,

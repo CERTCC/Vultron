@@ -1,6 +1,7 @@
 ---
 title: "BT Fuzzer Nodes: RM Report Closure and Other Work"
 status: active
+kind: guidance
 description: >
   Catalog of fuzzer (stub) BT nodes for Report Closure (`CloseReportBt`)
   and Other Work (`RMDoWorkBt`) sub-workflows: close-case eligibility,
