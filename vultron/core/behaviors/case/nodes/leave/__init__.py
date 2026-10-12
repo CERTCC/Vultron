@@ -29,6 +29,10 @@ by semantic concern (BTND-07-004):
   ``add_participant_status_to_participant`` ledger entry and fans it out, so the
   replicas can observe it rather than infer it (CM-23-005).
 
+- :mod:`.settle` — :class:`ExpirePendingInvitesOnCloseNode`, which expires
+  every embargo Invite still awaiting a reply before ``case_fully_closed``
+  (CM-23-014).
+
 - :mod:`.decline` — :class:`EmitRejectCloseCaseNode`, the ``as:Reject`` arm for
   an owner close blocked by a live embargo (CM-23-011), and the optional reply
   to a Leave that arrives after ``case_fully_closed`` (CM-23-013).
@@ -49,11 +53,15 @@ from vultron.core.behaviors.case.nodes.leave.decline import (
 from vultron.core.behaviors.case.nodes.leave.record import (
     CommitCaseActorRMClosedEntryNode,
 )
+from vultron.core.behaviors.case.nodes.leave.settle import (
+    ExpirePendingInvitesOnCloseNode,
+)
 
 __all__ = [
     "AdvanceCaseActorToRMClosedNode",
     "AdvanceParticipantToRMClosedNode",
     "CommitCaseActorRMClosedEntryNode",
     "EmitRejectCloseCaseNode",
+    "ExpirePendingInvitesOnCloseNode",
     "LATE_LEAVE_DECLINE",
 ]

@@ -23,7 +23,8 @@ description: >
   repeat P/X/A signal queues no second ask (SYNC-11-002); who may send
   each received embargo message (ADR-0115, HP-01-006); and the P/X/A
   refusal tree, whose ER is its own decision record (HP-01-003, ID-04-005,
-  ADR-0123).
+  ADR-0123); and the owner-close settle step that expires every pending
+  Invite before case_fully_closed (CM-23-014).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -373,6 +374,22 @@ Each branch commits a synthesised entry so replicas learn the outcome
 
 A non-manager processing a late Accept receives `REFUSED` from the tree gate
 and applies no consent change (HP-01-005, BT-17-001).
+
+**Settle on owner close (CM-23-014)**: after close an Invite can only expire,
+so the owner-close sequence does not wait for any RSVP deadline.
+`ExpirePendingInvitesOnCloseNode` runs between the CASE_MANAGER's `RM.CLOSED`
+entry and `case_fully_closed`. For each pair that
+`EmbargoLifecycle.pending_invitations()` returns (an `INVITED` row on an open
+register entry), it runs the late-Accept path's own commit → effect subtree,
+`create_commit_and_record_expiry_tree`. So the entry type, the transition and
+the replica replay node (`ApplyInviteExpiryFromLedgerNode`) are one copy. A row
+on a final entry is frozen and is not pending, which covers a stub invitee's
+row on the embargo that the close already required to end. The entry names the
+last Invite the ledger records for that invitee and embargo. Its `published`
+is the CASE_MANAGER's clock, because the invitee sent nothing (the named
+exception in `notes/case-ledger-authority.md`, trap 3). Recording is
+best-effort, as for the `RM.CLOSED` entry: a failure here must not cost the
+case its `case_fully_closed`.
 See `notes/participant-embargo-consent.md` §"Synthesised Ledger Entries" for
 the full entry table and replay node inventory.
 

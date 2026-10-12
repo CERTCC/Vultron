@@ -123,6 +123,7 @@ What your closure does to the case depends on whether you are the Case Owner.
   The case stays open for everyone else (CM-23-003).
 - If you **are** the Case Owner, your `Leave(VulnerabilityCase)` closes the case.
   The CASE_MANAGER advances you and itself to `RM.CLOSED` and commits a `case_fully_closed` ledger entry (CM-23-002).
+  Before that entry, it expires every embargo Invite that still waits for a reply, and records one expired-invitation entry for each (CM-23-014).
   Every other participant keeps the RM state it already held — closure does not advance bystanders (CM-23-012).
 - If you want your departure recorded, leave **before** the Case Owner does (CM-23-015).
   Once the case is fully closed, the CASE_MANAGER records nothing more for it (CM-23-013).

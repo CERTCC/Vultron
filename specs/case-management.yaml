@@ -3332,10 +3332,12 @@ groups:
     See ADR-0050 (Leave is canonical for RM closure) and ADR-0051
     (CASE_MANAGER RM lifecycle).
 
-    Pending decision: the closure semantics in CM-23-002, CM-23-013 and CM-23-014
-    (what the owner's close does to pending Invites and to later Leaves; #4065, #4066)
-    await a separate decision by the maintainer. Nothing in this group changes
-    them until that decision is recorded.
+    Decided: the maintainer decided the closure semantics in CM-23-002, CM-23-013
+    and CM-23-014 (what the owner's close does to pending Invites and to later
+    Leaves) on 2026-10-12. ADR-0085 sets the owner-close write boundary.
+    ADR-0131 sets the CM-23-013 reply to late traffic: by default it is dropped,
+    and only a late Leave may get an as:Reject (#4065). The CM-23-014 settle step
+    is #4066 (PR #4489).
   specs:
   - id: CM-23-001
     priority: MUST
@@ -3826,7 +3828,12 @@ groups:
       A test confirms that an owner Leave(VulnerabilityCase) on a case with an unanswered Invite
       whose RSVP deadline is in the future moves that participant's consent to `TIMED_OUT`, commits
       the expired-invitation entry, and orders that entry after the CASE_MANAGER's RM.CLOSED entry
-      and before `case_fully_closed`.
+      and before `case_fully_closed`:
+      `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_owner_close_expires_pending_invite_before_boundary`.
+      `TestOwnerCloseSettlesPendingInvites` in the same file covers a case with no pending
+      Invite, several pending Invites, a row frozen by a final register entry, a stub
+      invitee's row on the embargo the close required to end, and replica replay of the
+      settled entry.
     relationships:
     - rel_type: refines
       spec_id: CM-23-002
