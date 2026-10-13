@@ -22,7 +22,6 @@ description: >
   shape patterns, trust/execution authority, and composite capability design. Records
   why Sentinel is a call-in pattern rather than a fifth shape.
 related_notes:
-  - notes/bt-fuzzer-nodes.md
   - notes/bt-integration.md
   - notes/agentic-workflow.md
   - notes/call-out-configuration.md
@@ -56,50 +55,6 @@ See ADR-0024 for the original taxonomy and ADR-0097 for the current one.
 > call-out shape. See
 > [The Sentinel pattern is call-in, not a shape](#the-sentinel-pattern-is-call-in-not-a-shape)
 > below for why, and BT-18-013 for the normative statement.
-
----
-
-## The Two Integration Surfaces
-
-Vultron has two distinct surfaces where external capabilities connect to the
-protocol. Understanding which surface you are working with is the first step
-in any capability shape design.
-
-### Trigger endpoints (call-in surface)
-
-`vultron/core/use_cases/triggers/` contains use cases that external parties
-invoke when they have already decided to take a protocol action. The decision
-has already been made; the use case executes it.
-
-```text
-External party → POST /actors/{id}/triggers/{action} → SvcXxxUseCase.execute()
-```
-
-This is the **call-in** surface: the agent drives the protocol.
-
-### Call-out points (call-out surface)
-
-Inside `vultron/core/behaviors/`, individual BT nodes reach points where
-they cannot proceed without external judgment — a decision, a fact, or
-generated content. These are call-out points: the protocol pauses and waits.
-
-```text
-BT node → call-out point → external party → response → BT continues
-```
-
-This is the **call-out** surface: the protocol drives the agent.
-
-All four capability shapes are called from the call-out surface. The Sentinel
-pattern operates exclusively on the call-in surface (it watches, then calls a
-trigger endpoint) — which is why it is a pattern rather than a shape.
-
-> **Key implication**: the Sentinel pattern has **no BT call-out point**. Nodes
-> that perform on-demand binary condition checks when the BT tick reaches them
-> are Retrievers (or ProtocolInternal if they check data the BT already owns).
-> Per BT-18-013, Sentinel is not an available call-out classification at all, so
-> Retriever is the only answer for a synchronous external query. See ADR-0024 §
-> "Boolean external queries are Retrievers, not Sentinels" and issue #1266
-> (FUZZ-08a-quart) for the reclassification audit.
 
 ---
 
@@ -454,9 +409,5 @@ Agentic Participants epic, #2450).
 
 ## Terminology Note
 
-`notes/bt-fuzzer-nodes.md` and the per-domain fuzzer notes
-(`bt-fuzzer-nodes-embargo.md`, `bt-fuzzer-nodes-report-management.md`, etc.)
-use the phrase **"external dependency touchpoints"** for what we now call
-**call-out points**. These notes predate the canonical term. The terminology
-should be aligned when those notes are next edited; do not introduce new
-uses of "touchpoint" to mean call-out point.
+Say **call-out point**, never "touchpoint" or "external dependency touchpoint":
+call-out point is the canonical term (ADR-0025).

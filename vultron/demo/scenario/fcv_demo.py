@@ -146,7 +146,7 @@ Workflow:
   7. Three-way notes exchange among all participants.
   8. Vendor advances to VF (fix ready); Vendor stops at VFd.
   9. All participants report publication; embargo terminates (EM.EXITED).
- 10. All participants close the case (RM.CLOSED on all replicas).
+ 10. All participants close the case (every RM.CLOSED in the Case Actor's store).
 """
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).

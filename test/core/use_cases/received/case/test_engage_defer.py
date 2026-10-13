@@ -555,7 +555,7 @@ class TestEngageCaseLedgerCommit:
         withheld = [
             r.getMessage()
             for r in caplog.records
-            if "not active on case" in r.getMessage()
+            if "not sent content on case" in r.getMessage()
         ]
         assert len(withheld) == 1
         assert inert_actor_id in withheld[0]

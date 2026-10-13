@@ -113,7 +113,7 @@ groups:
       Case)` messages arriving in parallel futures), two tree instances share the same blackboard namespace. A flat key like
       `suggested_roles` written by the first instance is silently overwritten by the second before the first instance reads
       it — causing the wrong role list to be emitted to the Case Owner. Namespacing by the execution-scoped ID (e.g., `suggested_roles_abc123`)
-      guarantees collision-free per-execution storage. See `notes/bt-integration.md` § "Namespaced Inter-Node Handoff Keys".
+      guarantees collision-free per-execution storage. See `notes/bt-pitfalls.md` § "Namespaced Inter-Node Handoff Keys".
       Discovered in CONCERN-1335.
     relationships:
     - rel_type: refines

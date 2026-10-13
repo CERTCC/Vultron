@@ -45,6 +45,7 @@ from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
+from vultron.demo.helpers.polling import case_manager_store
 from vultron.demo.helpers.sync import verify_replica_state
 from vultron.demo.utils import case_actor_id_on
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -1129,11 +1130,14 @@ class TestWaitForAllParticipantsRmClosed:
     def test_case_manager_does_not_block_rm_closure_check(
         self, client: TestClient, base: str
     ):
-        """CASE_MANAGER participant is excluded from the RM closure check.
+        """The CASE_MANAGER does not block the RM closure check in its store.
 
-        Close vendor and finder; the Case Actor (CASE_MANAGER role) must not
-        block ``_all_fetchable_participants_rm_closed`` from returning True,
-        whether or not the Case Actor has auto-closed.
+        Close vendor and finder; the Case Actor (CASE_MANAGER role) closes on
+        the owner's Leave (CM-23-005), so it does not block
+        ``_all_fetchable_participants_rm_closed`` from returning True.  The
+        check reads the CASE_MANAGER's own store: a closed participant's
+        replica is sent nothing after its own closure (CM-23-004), so the
+        Vendor's replica never learns the CASE_MANAGER closed.
         """
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
@@ -1154,10 +1158,13 @@ class TestWaitForAllParticipantsRmClosed:
         ActorSession(client=vendor_client, actor=vendor).with_case(
             case
         ).close_case()
-        case_data = vendor_client.get(vendor_client.dl_path(case.id_))
+        store_client, store_id = case_manager_store(vendor_client, case.id_)
+        assert store_id is not None, "the CaseActor is co-hosted in this test"
+        manager_client = store_client.model_copy(update={"actor_id": store_id})
+        case_data = manager_client.get(manager_client.dl_path(case.id_))
         refreshed_case = as_VulnerabilityCase.model_validate(case_data)
         result = demo._all_fetchable_participants_rm_closed(
-            vendor_client, refreshed_case
+            manager_client, refreshed_case
         )
         assert result is True
 
@@ -2254,8 +2261,12 @@ class TestFvMilestoneAssertions:
             )
         mock_m6.assert_called()
 
-    def test_phase_case_closure_calls_verify_case_closed(self):
-        """_phase_case_closure calls verify_case_closed at M7."""
+    def test_phase_case_closure_runs_the_closure_milestone(self):
+        """_phase_case_closure runs the shared closure milestone (CM-23-004).
+
+        The milestone checks the CASE_MANAGER's store and each leaver's own
+        replica inside ``close_case_owner_last``; the scenario only names it.
+        """
         import contextlib
 
         finder_client = self._client()
@@ -2277,11 +2288,8 @@ class TestFvMilestoneAssertions:
 
         with (
             patch.object(ActorSession, "close_case"),
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(demo, "verify_case_closed") as mock_m7,
-            patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
+            patch.object(demo, "close_case_owner_last") as mock_m7,
             patch.object(
                 demo,
                 "demo_check",
@@ -2300,7 +2308,8 @@ class TestFvMilestoneAssertions:
                 case=case,
                 case_actor_client=MagicMock(),
             )
-        mock_m7.assert_called()
+        mock_m7.assert_called_once()
+        assert mock_m7.call_args.kwargs.get("milestone") == "M7"
 
     @pytest.mark.spec("CM-23-015")
     def test_phase_case_closure_closes_the_case_owner_last(self):
@@ -2326,11 +2335,7 @@ class TestFvMilestoneAssertions:
                 autospec=True,
                 side_effect=record_close,
             ),
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
             stub_closure_gate(),
-            patch.object(demo, "verify_case_closed"),
-            patch.object(demo, "wait_for_event_type_in_ledger"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 demo,
                 "demo_check",
@@ -2435,66 +2440,6 @@ class TestFvCausalGates:
             )
 
         verify_case_active_called.assert_not_called()
-
-    def test_case_closure_skips_coverage_wait_when_close_case_entry_absent(
-        self,
-    ):
-        """demo_gate skips the coverage wait when the close_case entry never lands.
-
-        Runs the real ``demo_gate`` / ``demo_check`` (vultron/demo/AGENTS.md §
-        causal gating, rule 8): the gate must swallow the timeout, record one
-        ``GATE FAILED`` and skip the dependent wait — a patched-out context
-        would let the assertion propagate and prove nothing.
-        """
-        import vultron.demo.utils as demo_utils
-        from vultron.demo.utils import reset_demo_failures
-
-        finder_client = self._client()
-        vendor_client = self._client()
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        finder = self._actor("urn:test:finder")
-        finder_in_finder = self._actor("urn:test:finder")
-        case = self._case()
-
-        coverage_wait_called = MagicMock()
-
-        with (
-            patch.object(ActorSession, "close_case"),
-            patch.object(demo, "wait_for_all_participants_rm_closed"),
-            stub_closure_gate(),
-            patch.object(demo, "verify_case_closed"),
-            patch.object(
-                demo,
-                "wait_for_event_type_in_ledger",
-                side_effect=AssertionError(
-                    "timed out waiting for close_case entry"
-                ),
-            ),
-            patch.object(
-                demo,
-                "wait_for_replica_ledger_coverage",
-                side_effect=coverage_wait_called,
-            ),
-        ):
-            reset_demo_failures()
-            try:
-                demo._phase_case_closure(
-                    finder_client=finder_client,
-                    vendor_client=vendor_client,
-                    vendor=vendor,
-                    vendor_in_vendor=vendor_in_vendor,
-                    finder=finder,
-                    finder_in_finder=finder_in_finder,
-                    case=case,
-                    case_actor_client=MagicMock(),
-                )
-                coverage_wait_called.assert_not_called()
-                (failure,) = demo_utils._demo_failures
-                assert failure.startswith("GATE FAILED")
-                assert "close_case entry present" in failure
-            finally:
-                reset_demo_failures()
 
 
 def test_cli_help_phases_match_tutorial() -> None:

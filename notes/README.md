@@ -95,15 +95,6 @@ isolation.
 co-located actors in the same process, or investigating ASGI delivery
 404s or cross-actor data leakage.
 
-**`domain-model-separation.md`**
-Analysis of the current coupling between wire format (ActivityStreams), domain
-logic, and persistence in `VulnerabilityCase`. Documents the recommended
-three-layer separation and migration path, DataLayer isolation options (now
-superseded by Priority 325), and `FooActivity` vs `FooEvent` naming. Includes
-post-P75-2 architectural findings.
-**Load when**: refactoring `VulnerabilityCase` or related models, evaluating
-DataLayer backends, or planning domain/wire layer decoupling.
-
 **`datalayer-design.md`**
 DataLayer architecture notes: **per-actor storage isolation (ADR-0073)** — one
 store per hosted actor, holding only that actor's knowledge, resolved by
@@ -420,71 +411,6 @@ Derived from IDEA-1836 / ADR-0046; extended by CONCERN-3473 / ADR-0108.
 StatusAdoptionGate, EmbargoTeardownAuthorizationGate, or ThreatTerminationBranchNode;
 understanding the sentinel actor integration pattern.
 
-**`bt-fuzzer-nodes.md`**
-Index and background for the fuzzer node catalog. Fuzzer nodes are stub
-implementations in the legacy BT simulation (`vultron/bt/`) that stand in for
-real-world decision logic not yet implemented. Each fuzzer node is a
-**call-out point** — a location where the BT cannot proceed automatically and
-needs external input (data, a decision, or content). This file explains the
-entry format, automation potential categories, and the fuzzer base-type
-probability table, then indexes the per-domain sub-files.
-**Load when**: understanding what fuzzer nodes are and why they exist; mapping
-fuzzer nodes to capability shapes; jump directly to a sub-file for the
-actual catalog entries.
-
-**`bt-fuzzer-nodes-vul-discovery.md`**
-Fuzzer node catalog for the Vulnerability Discovery workflow
-(`vultron/bt/vul_discovery/`): `HaveDiscoveryPriority`, `DiscoverVulnerability`,
-`NoVulFound`.
-**Load when**: replacing fuzzer stubs in the vulnerability discovery BT.
-
-**`bt-fuzzer-nodes-embargo.md`**
-Fuzzer node catalog for the Embargo Management workflow
-(`vultron/bt/embargo_management/`): all exit-trigger, proposal/counter,
-acceptance/rejection, and timer nodes.
-**Load when**: replacing fuzzer stubs in the embargo management BT.
-
-**`bt-fuzzer-nodes-report-management.md`**
-Index file for all Report Management fuzzer-node catalogs. Contains the
-fuzzer base-type probability table, per-workflow catalog links, and the
-cross-cutting Production Collapse designs (collapses 1–4: exploit strategy,
-publication intents, notification loop, publish pipeline) and sentinel-stub
-sync guidance.
-**Load when**: looking up Production Collapse designs, reviewing the
-probability table, or navigating to a specific sub-workflow catalog.
-
-**`bt-fuzzer-rm-validation.md`** — Report Validation (`RMValidateBt`): credibility/validity checks and new-info sentinels.
-**Load when**: replacing fuzzer stubs in the report validation BT.
-
-**`bt-fuzzer-rm-prioritization.md`** — Report Prioritization (`RMPrioritizeBt`): priority assessment and ranking nodes.
-**Load when**: replacing fuzzer stubs in the report prioritization BT.
-
-**`bt-fuzzer-rm-id-assignment.md`** — Vulnerability ID Assignment (`AssignVulIdBt`): CVE ID acquisition nodes.
-**Load when**: replacing fuzzer stubs in the vulnerability ID assignment BT.
-
-**`bt-fuzzer-rm-fix.md`** — Fix Development + Deployment (`DevelopFixBt` / `DeployFixBt`): patch creation and rollout nodes.
-**Load when**: replacing fuzzer stubs in the fix development or deployment BT.
-
-**`bt-fuzzer-rm-exploit.md`** — Exploit Acquisition (`AcquireExploitBt`): exploit-presence checks and strategy nodes.
-**Load when**: replacing fuzzer stubs in the exploit acquisition BT.
-
-**`bt-fuzzer-rm-threat.md`** — Threat Monitoring (`MonitorThreatsBt`): active-threat detection and escalation nodes.
-**Load when**: replacing fuzzer stubs in the threat monitoring BT.
-
-**`bt-fuzzer-rm-publication.md`** — Publication (`PublicationBt`): disclosure decisions, content preparation, and advisory nodes.
-**Load when**: replacing fuzzer stubs in the publication BT.
-
-**`bt-fuzzer-rm-reporting.md`** — Reporting to Other Parties (`ReportToOthersBt`): outbound-report and participant-tracking nodes.
-**Load when**: replacing fuzzer stubs in the reporting-to-others BT.
-
-**`bt-fuzzer-rm-closure.md`** — Report Closure + Other Work (`CloseReportBt` / `RMDoWorkBt`): close-case eligibility and extensibility stub nodes.
-**Load when**: replacing fuzzer stubs in the report closure or other-work BT.
-
-**`bt-fuzzer-nodes-messaging.md`**
-Fuzzer node catalog for the Inbound Message Handling workflow
-(`vultron/bt/messaging/`): `FollowUpOnErrorMessage`.
-**Load when**: replacing fuzzer stubs in the inbound message handling BT.
-
 **`protocol-event-cascades.md`**
 Design principle for cascading automation: primary events vs cascading
 consequences, identified gaps in BT automation and activity addressing
@@ -712,17 +638,6 @@ for each consumer — including why `notes/` and `test/ci/` cannot use
 scenario dumper or its pre-commit hook, or wondering why a scenario table refuses
 to be hand-edited.
 
-**`codebase-structure-fastapi-patterns.md`**
-FastAPI and test infrastructure patterns: router test override pattern
-(`_shared_dl`, `dependency_overrides`), circular import fix pattern
-(`_helpers.py`), FastAPI `response_model` / `status_code` conventions,
-health check and Docker health check design, formatter/type-checker pragma notes,
-Python 3.14 compatibility deferral, surrogate-key routing collision
-handling, and logger name verification.
-**Load when**: writing FastAPI router tests, debugging import cycles,
-implementing health check endpoints, or resolving surrogate-key routing
-collisions.
-
 **`triggerable-behaviors.md`**
 Design notes for PRIORITY-30 trigger endpoints: trigger scope, endpoint
 design sketch, actor independence, BT node classification, three-way report
@@ -733,15 +648,6 @@ embargo acceptance tracking.
 **Load when**: implementing or modifying a trigger endpoint, designing the
 request/response schema for a new trigger, or working on per-behavior trigger
 logic.
-
-**`triggerable-behaviors-resolved.md`**
-Resolved trigger implementation design decisions and audit results: P30-1
-(outbox diff strategy), BT requirement for trigger use cases, general-purpose
-vs demo-only trigger classification, trigger audit results, wrapper pattern,
-sync-log-entry context field, and testing patterns.
-**Load when**: verifying whether a trigger use case requires a BT, looking up
-the resolved design rationale for the trigger architecture, or auditing trigger
-classification (demo-only vs general-purpose).
 
 **`architecture-ratchet-corpus.md`**
 Design decisions and measurements for the shared corpus pattern in

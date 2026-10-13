@@ -142,7 +142,9 @@ activity = add_note_to_case_activity(
 
 The CASE_MANAGER's **outbound broadcast** picks its recipients from
 `vultron/core/participants/recipients.py` (CM-10-007): case content goes to
-`case_content_recipients()` (active participants only), and a consent Invite
+`case_content_recipients()` (active participants not at RM.CLOSED; a ledger
+entry recording a closed participant's own closure still reaches it, through
+`ledger_entry_recipients()`, CM-23-004), and a consent Invite
 goes to `invitation_recipients()` (every participant not at RM.CLOSED, inert
 ones included). `test/architecture/test_active_participant_recipient_selection.py`
 keeps every other module from listing roster actor IDs for addressing.

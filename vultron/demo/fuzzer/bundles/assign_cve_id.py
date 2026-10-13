@@ -22,7 +22,7 @@ References
 ----------
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-23
-- Notes: ``notes/bt-fuzzer-rm-id-assignment.md``
+- Catalog: ``docs/developer/reference/bt-fuzzer/rm-id-assignment.md``
 """
 
 from __future__ import annotations

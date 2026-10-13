@@ -27,7 +27,7 @@ References
 ----------
 - Source: ``vultron/bt/messaging/inbound/_behaviors/fuzzer.py``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-16-003, BT-16-004, BT-16-005
-- Notes: ``notes/bt-fuzzer-nodes-messaging.md``
+- ADR: ``docs/adr/0049-core-does-not-model-error-message-types.md`` (no production counterpart)
 """
 
 from __future__ import annotations
