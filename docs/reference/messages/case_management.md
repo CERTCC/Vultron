@@ -220,10 +220,4 @@ The wire shape is the same whatever roles the participant holds; only `caseRoles
   A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to the CASE_MANAGER or to its peers.
 - **On receipt:** an inbox refuses a direct `Update(VulnerabilityCase)` as an unrecognized activity and changes nothing.
 - **Triggering transition:** none — metadata change, not a state transition.
-- **Example artifact:** [update_case.json](../examples/update_case.json).
-
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import update_case, json2md
-
-print(json2md(update_case()))
-```
+- **Example artifact:** [update_case.json](../examples/update_case.json), the snapshot shape as the case actor would author it.
