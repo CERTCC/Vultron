@@ -29,7 +29,6 @@ related_notes:
   - notes/embargo-default-semantics.md
   - notes/event-driven-control-flow.md
   - notes/participant-case-replica.md
-  - notes/fv-demo.md
   - notes/outbox.md
   - notes/inbox-orchestration.md
   - notes/use-case-protocol.md

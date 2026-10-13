@@ -1130,12 +1130,9 @@ def test_count_check_exempts_a_subsection_of_a_history_section(
     exemption fires on exactly the lines it exists to protect.
     """
     target = prose_root / "notes/demo-ci-scenario-coverage.md"
-    original = target.read_text()
-    assert "### Change history" in original
     target.write_text(
-        original.replace(
-            "### Change history", "### Change history\n\n#### PR log", 1
-        ),
+        target.read_text()
+        + "\n### Change history\n\n#### PR log\n\nNine scenarios ran.\n",
         encoding="utf-8",
     )
     assert restated_counts(prose_root) == []
