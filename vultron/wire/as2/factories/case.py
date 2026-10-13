@@ -362,9 +362,10 @@ def update_case_activity(
 ) -> as_Update:
     """Build an Update(as_VulnerabilityCase).
 
-    The form of the CASE_MANAGER's own entry for a change to the case
-    itself, such as its closure (CM-23-002 step 3, CLP-07-013).  ``context``
-    defaults to the case's URI (CLP-07-007).
+    The snapshot shape of a CASE_MANAGER-authored case-field ledger entry,
+    such as the case's closure (CM-23-002 step 3, CLP-07-013); never sent as
+    a message, so no pattern routes it (#4443).  ``context`` defaults to the
+    case's URI (CLP-07-007).
 
     Args:
         case: The updated ``as_VulnerabilityCase``.

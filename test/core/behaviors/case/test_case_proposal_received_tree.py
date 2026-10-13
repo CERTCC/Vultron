@@ -1358,25 +1358,6 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
     admits the CASE_OWNER and refuses the CASE_MANAGER acting as owner.
     """
 
-    @pytest.mark.parametrize(
-        ("sender", "expected"),
-        [(_VENDOR_URI, "SUCCESS"), (_CASE_ACTOR_URI, "FAILURE")],
-    )
-    def test_case_update_gate(self, make_payload, sender, expected):
-        from test.core.behaviors.bt_harness import BTTestScenario
-        from vultron.core.behaviors.case.nodes.update import (
-            CheckCaseUpdateOwnerNode,
-        )
-
-        dl, case, _ = _proposed_case_with_open_revision(make_payload)
-        scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
-
-        result = scenario.run(
-            CheckCaseUpdateOwnerNode(case_id=case.id_, sender_actor_id=sender)
-        )
-
-        assert result.status.name == expected
-
     def test_owner_activating_a_revision_records_the_owners_agreement(
         self, make_payload
     ):
@@ -2163,6 +2144,35 @@ class TestCM14005ReporterSignatory:
 
 class TestADR0041LedgerEntries:
     """ADR-0041 AC-4: canonical ledger entries committed natively."""
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_commits_the_creation_sequence_the_trigger_commits(
+        self, make_payload
+    ):
+        """The proposal path's entries follow the one creation rule (#4440).
+
+        ``creation_entry_sequence`` reads the sequence off the resulting case
+        file; the create-case trigger is pinned to the same rule in
+        ``test_create.py``, so a case created either way commits the same
+        entries.
+        """
+        from test.support.ledger import (
+            creation_entry_sequence,
+            ledger_entries,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+        (case,) = dl.list_objects("VulnerabilityCase")
+        assert isinstance(case, VulnerabilityCase)
+
+        expected = creation_entry_sequence(dl, case)
+        entries = ledger_entries(dl, case.id_)
+
+        assert [
+            (e.event_type, e.log_object_id) for e in entries[: len(expected)]
+        ] == expected
 
     def test_create_case_ledger_entry_present(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase

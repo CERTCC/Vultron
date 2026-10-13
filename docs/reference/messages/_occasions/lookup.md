@@ -26,7 +26,6 @@
 | When… | Send | Sent by | Distinguished by | Details |
 |---|---|---|---|---|
 | the Case Manager has opened a case for a submitted report | `Create(VulnerabilityCase)` | not yet checked | — | [Create case](../case_management.md#create-case) |
-| the Case Manager has recorded a change to the case object | `Update(VulnerabilityCase)` | not yet checked | — | [Update case](../case_management.md#update-case) |
 | the Case Owner links a further report to an existing case | `Add(VulnerabilityReport)[target=VulnerabilityCase]` | the case owner | — | [Add report to case](../case_management.md#add-report-to-case) |
 | a Participant offers a CVD role on the case to another actor | `Offer(CaseParticipantRole)[context=VulnerabilityCase]` | not yet checked | — | [Offer case participant role](../case_management.md#offer-case-participant-role) |
 | an actor accepts a role offered to it on the case | `Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | not yet checked | — | [Accept case participant role](../case_management.md#accept-case-participant-role) |

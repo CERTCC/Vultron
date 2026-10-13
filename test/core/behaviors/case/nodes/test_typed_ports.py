@@ -37,14 +37,12 @@ from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
 )
 from vultron.core.behaviors.case.nodes.update import (
     BroadcastCaseUpdateNode,
-    CheckCaseUpdateOwnerNode,
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckVendorRoleNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 
-SENDER_ID = "https://example.org/actors/update-sender"
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-001"
 PARTICIPANT_ID = "https://example.org/participants/p-001"
@@ -98,89 +96,6 @@ class TestActorAlreadyParticipantNodePorts:
         result = bt_scenario.run(
             ActorAlreadyParticipantNode(
                 recommended_id=ACTOR_ID, case_id=CASE_ID
-            ),
-            actor_id=ACTOR_ID,
-        )
-        bt_scenario.assert_failure(result)
-
-
-# ---------------------------------------------------------------------------
-# update.py — CheckCaseUpdateOwnerNode
-# ---------------------------------------------------------------------------
-
-
-class TestCheckCaseUpdateOwnerNodePorts:
-    def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = CheckCaseUpdateOwnerNode(case_id=CASE_ID)
-        node.setup_ports()
-        with pytest.raises(NoDataAvailable):
-            node.get_input("datalayer")
-
-    def test_failure_when_case_not_found(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        result = bt_scenario.run(
-            CheckCaseUpdateOwnerNode(case_id=CASE_ID), actor_id=ACTOR_ID
-        )
-        bt_scenario.assert_failure(result)
-
-    def test_success_when_sender_owns_case(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        """The gate authorizes the *sender*, not the executing actor.
-
-        The executing actor here is the receiver applying the update to its own
-        replica; whether it happens to own the case is irrelevant.
-        """
-        case = VulnerabilityCase(
-            id_=CASE_ID,
-            name="Test Case",
-            attributed_to=SENDER_ID,
-        )
-        bt_scenario.seed(case)
-        result = bt_scenario.run(
-            CheckCaseUpdateOwnerNode(
-                case_id=CASE_ID, sender_actor_id=SENDER_ID
-            ),
-            actor_id=ACTOR_ID,
-        )
-        bt_scenario.assert_success(result)
-
-    def test_failure_when_sender_is_not_owner(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        case = VulnerabilityCase(
-            id_=CASE_ID,
-            name="Test Case",
-            attributed_to="https://example.org/actors/other",
-        )
-        bt_scenario.seed(case)
-        result = bt_scenario.run(
-            CheckCaseUpdateOwnerNode(
-                case_id=CASE_ID, sender_actor_id=SENDER_ID
-            ),
-            actor_id=ACTOR_ID,
-        )
-        bt_scenario.assert_failure(result)
-
-    def test_failure_when_receiver_owns_case_but_sender_does_not(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        """Owning the case does not authorize applying someone else's update.
-
-        This is the case the pre-fix gate got backwards: it compared the
-        executing actor, so a receiver that owned the case accepted an update
-        from *any* sender.
-        """
-        case = VulnerabilityCase(
-            id_=CASE_ID,
-            name="Test Case",
-            attributed_to=ACTOR_ID,
-        )
-        bt_scenario.seed(case)
-        result = bt_scenario.run(
-            CheckCaseUpdateOwnerNode(
-                case_id=CASE_ID, sender_actor_id=SENDER_ID
             ),
             actor_id=ACTOR_ID,
         )
@@ -251,3 +166,39 @@ class TestBroadcastCaseUpdateNodePorts:
         bt_scenario.assert_failure(
             result, reason=f"case '{CASE_ID}' not found"
         )
+
+    @pytest.mark.spec("CBT-01-007")
+    @pytest.mark.spec("CM-06-001")
+    def test_refused_announce_is_a_reported_failure(
+        self, bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An ``Announce`` the adapter refuses is this node's FAILURE.
+
+        The adapter will not build an ``Announce(VulnerabilityCase)`` that
+        cannot embed every report the case names (CBT-01-007).  That refusal
+        is a reported outcome of the node, not an exception escaping
+        ``update()`` as an internal error of the whole tree (BT-HELPER-01).
+        """
+        from vultron.core.behaviors.case.nodes import update as update_nodes
+        from vultron.errors import VultronError
+
+        def _refuse(*_args: object, **_kwargs: object) -> None:
+            raise VultronError("report not in this store")
+
+        monkeypatch.setattr(update_nodes, "broadcast_case_update", _refuse)
+        bt_scenario.seed(
+            VulnerabilityCase(
+                id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+            )
+        )
+
+        result = bt_scenario.run(
+            BroadcastCaseUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
+            excluded_actor_ids=set(),
+        )
+
+        bt_scenario.assert_failure(
+            result, reason=f"could not broadcast case '{CASE_ID}'"
+        )
+        assert bt_scenario.dl.outbox_list() == [], "nothing was announced"

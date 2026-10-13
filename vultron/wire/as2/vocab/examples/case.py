@@ -46,6 +46,7 @@ from vultron.wire.as2.vocab.examples._base import (
     _REPORT,
     _VENDOR,
     case,
+    case_actor,
     gen_report,
     vendor,
 )
@@ -203,13 +204,17 @@ def undo_case_ownership_transfer() -> as_Undo:
 
 
 def update_case() -> as_Update:
+    """The snapshot shape of a CASE_MANAGER-authored case-field ledger entry.
+
+    Not a message any actor sends: no pattern routes a received
+    ``Update(VulnerabilityCase)`` (CLP-07-013, #4443), so the example is
+    authored by the case actor and carries no sender-voice ``content``.
+    """
     _case = case()
-    _vendor = vendor()
 
     _activity = update_case_activity(
         _case,
-        actor=_vendor.id_,
-        content="We're updating the case to reflect a transfer of ownership.",
+        actor=case_actor().id_,
     )
     return _activity
 

@@ -57,7 +57,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycleResult
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronBTInternalError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +139,14 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
             error = self._result_out.get("error")
             if isinstance(error, Exception):
                 raise error
+            if result.internal_error:
+                # A bug or a composition fault (a missing port), not a refused
+                # request: never reported as the client's error (ARCH-20-001).
+                # The received side classifies it the same way (_bt_verdict).
+                raise VultronBTInternalError(
+                    f"{type(self).__name__} failed on an internal error:"
+                    f" {result.feedback_message}"
+                )
             raise VultronValidationError(
                 f"{type(self).__name__} failed:"
                 f" {BTBridge.get_failure_reason(tree)}"
