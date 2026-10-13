@@ -39,17 +39,17 @@ from vultron.core.behaviors.sync.nodes import (
     FindCaseActorNode,
     SendMissingEntriesNode,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
     embargo_paused_from_index,
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
-    CollectNonClosedLogEntryRecipientsNode,
-    FanOutLogEntryExcludingClosedNode,
 )
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
+from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -84,8 +84,7 @@ def datalayer():
 
 
 _COLLECTORS = pytest.mark.parametrize(
-    "node_cls",
-    [CollectLogEntryRecipientsNode, CollectNonClosedLogEntryRecipientsNode],
+    "node_cls", [CollectLogEntryRecipientsNode]
 )
 
 
@@ -203,13 +202,14 @@ def test_fanout_backfills_an_admitted_peer_before_the_new_entry(
 
 @pytest.mark.spec("CM-10-005")
 @pytest.mark.spec("CM-10-006")
-def test_closed_fanout_does_not_backfill_a_closed_withheld_peer(
+def test_fanout_does_not_backfill_a_closed_withheld_peer(
     bridge, datalayer
 ) -> None:
-    """A collector's RM.CLOSED filter must not read a withheld peer as admitted.
+    """The collector's RM.CLOSED filter must not read a withheld peer as admitted.
 
-    The non-closed collector drops closed peers before it gates, so its
-    withheld list never names one; the backfill decides the gate itself.
+    The collector drops closed peers before it gates, so its withheld list
+    never names one; the backfill decides the gate itself, and a closed peer
+    is sent nothing further (CM-23-004).
     """
     seed_case(datalayer, embargo_active=True)
     entries = seed_ledger(datalayer, 3)
@@ -218,12 +218,7 @@ def test_closed_fanout_does_not_backfill_a_closed_withheld_peer(
     close(datalayer, NON_SIGNATORY_ID)
     sync_port.reset_mock()
 
-    fan_out(
-        bridge,
-        entries[2],
-        sync_port,
-        tree_cls=FanOutLogEntryExcludingClosedNode,
-    )
+    fan_out(bridge, entries[2], sync_port)
 
     assert all(NON_SIGNATORY_ID not in to for _, to in sends(sync_port))
     assert paused_from(datalayer) == 1
@@ -464,3 +459,89 @@ def test_replay_sends_nothing_to_a_removed_signatory(
     assert result.status == Status.SUCCESS
     sync_port.send_announce_log_entry.assert_not_called()
     assert paused_from(datalayer, SIGNATORY_ID) == 1
+
+
+# ---------------------------------------------------------------------------
+# CM-23-004: a closed participant receives its own closure entries only
+# ---------------------------------------------------------------------------
+
+
+def _closure_status_entry(datalayer, actor_id: str, log_index: int, prev):
+    """A status entry recording *actor_id*'s own (already written) closure."""
+    participant = datalayer.read(f"{actor_id}/participant")
+    assert isinstance(participant, CaseParticipant)
+    status_id = participant.participant_statuses[-1].id_
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=status_id,
+            event_type="add_participant_status_to_participant",
+            payload_snapshot={"type": "Add", "actor": MANAGER_ID},
+            prev_log_hash=prev.entry_hash,
+        )
+    )
+
+
+@pytest.mark.spec("CM-23-004")
+def test_fanout_sends_a_closed_signatory_only_its_own_closure(
+    bridge, datalayer
+) -> None:
+    """The closing step reaches the leaver; the entry after it does not."""
+    seed_case(datalayer, embargo_active=True)
+    entries = seed_ledger(datalayer, 2)
+    close(datalayer, SIGNATORY_ID)
+    own_closure = _closure_status_entry(
+        datalayer, SIGNATORY_ID, 2, entries[-1]
+    )
+    later = _make_entry(3, own_closure.entry_hash)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    fan_out(bridge, own_closure, sync_port)
+    fan_out(bridge, later, sync_port)
+
+    assert sends(sync_port) == [(2, [SIGNATORY_ID])]
+
+
+@pytest.mark.spec("CM-23-004")
+def test_replay_to_a_closed_peer_stops_at_its_own_closure(
+    bridge, datalayer
+) -> None:
+    """A closed peer's Reject is answered through its closure entry only."""
+    seed_case(datalayer, embargo_active=True)
+    entries = seed_ledger(datalayer, 2)
+    close(datalayer, SIGNATORY_ID)
+    own_closure = _closure_status_entry(
+        datalayer, SIGNATORY_ID, 2, entries[-1]
+    )
+    later = _make_entry(3, own_closure.entry_hash)
+    ledger = [*entries, own_closure, later]
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = replay(
+        bridge, ledger, peer_id=SIGNATORY_ID, from_index=0, sync_port=sync_port
+    )
+
+    assert result.status == Status.SUCCESS
+    assert sends(sync_port) == [(1, [SIGNATORY_ID]), (2, [SIGNATORY_ID])]
+
+
+@pytest.mark.spec("CM-23-004")
+def test_replay_to_a_closed_peer_past_its_closure_sends_nothing(
+    bridge, datalayer
+) -> None:
+    seed_case(datalayer, embargo_active=True)
+    entries = seed_ledger(datalayer, 2)
+    close(datalayer, SIGNATORY_ID)
+    own_closure = _closure_status_entry(
+        datalayer, SIGNATORY_ID, 2, entries[-1]
+    )
+    ledger = [*entries, own_closure, _make_entry(3, own_closure.entry_hash)]
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = replay(
+        bridge, ledger, peer_id=SIGNATORY_ID, from_index=2, sync_port=sync_port
+    )
+
+    assert result.status == Status.SUCCESS
+    assert sends(sync_port) == []

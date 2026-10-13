@@ -363,11 +363,13 @@ unit test. The guard was never missing; the single place to fix it was.
    by default, `LATE_JOINER_COVERAGE_TIMEOUT` for a late joiner — the widest
    budgets any copy carried, so sharing the loop tightened nothing) and wraps
    each per-replica wait in a demo context itself, the same way
-   `wait_for_participants_on_replicas` does. Called with `causal=True` (the
-   default) it is the `demo_gate` before the notes phase and the Phase 1
-   drain before Phase 2 (`phase_label="Phase 1 drain before Phase 2"`); with
-   `causal=False` and `phase_label="close phase"` it is the `demo_check` after
-   case closure, labelled temporal per EDF-06-006. It returns the replicas
+   `wait_for_participants_on_replicas` does. It is the `demo_gate` before the
+   notes phase and the Phase 1 drain before Phase 2
+   (`phase_label="Phase 1 drain before Phase 2"`). It is not used after case
+   closure: a closed participant is sent nothing after the entries recording
+   its own closure (CM-23-004), so no replica covers the authority's tail
+   then. The closure-phase wait is `wait_for_replica_ledger_ending_at`, run by
+   `close_case_owner_last` for each leaver. It returns the replicas
    whose wait passed, so a dependent step can be gated on coverage per
    replica. There is no other copy of the loop: `drain_phase1_ledger` in
    `polling.py` was the last one, invisible to the DEMOMA-23-006 ratchet while
@@ -451,12 +453,27 @@ of them at `RM.CLOSED`. A trigger returns 202 before its effect commits, so
 script order alone does not put the owner's `Leave` after the others on the
 ledger (EDF-06-002).
 
-After the owner leaves, the helper runs `verify_case_closure_recorded` from
-`vultron/demo/helpers/milestones.py` in its own `demo_check`. That check reads
-the CASE_MANAGER's ledger. It asserts that each departure is recorded at
-`RM.CLOSED` before `case_fully_closed`, and that no later entry records a
-participant's act. Pass the scenario's milestone label (`milestone="M7"`); the
-scenario adds only its replica checks.
+After the owner leaves, the helper runs the whole closure milestone, each part
+in its own `demo_check`, all read where the CASE_MANAGER lives
+(the scenario's authority client is the dedicated case-actor container, bound
+to its CaseActor, DEMOMA-06-004; `case_manager_store` in
+`vultron/demo/helpers/polling.py` scopes the reads):
+
+1. `verify_case_closure_recorded` (`vultron/demo/helpers/milestones.py`): each
+   departure is recorded at `RM.CLOSED` before `case_fully_closed`, and no later
+   entry records a participant's act.
+2. `verify_case_closed`: every participant is `RM.CLOSED` in the CASE_MANAGER's
+   store.
+3. For each leaver, the owner included: its own replica holds the ledger through
+   the last entry recording its own closure and nothing after it, and reads
+   itself `RM.CLOSED`.
+
+A participant at RM `CLOSED` is sent nothing after the entries that record its
+own closure (CM-23-004), so no participant replica holds every closure. Do not
+add an "all participants `RM.CLOSED` on every replica" check, or a close-phase
+coverage wait to the CASE_MANAGER's tail: both wait for entries a closed
+replica is never sent. Pass the scenario's milestone label (`milestone="M7"`);
+the scenario adds no closure checks of its own.
 
 Rules:
 
@@ -468,4 +485,4 @@ Rules:
   `test/ci/invariants/test_narrative_edges.py` checks that the edge rejects an
   owner-first closure.
 
-Source: #4163, CM-23-015
+Source: #4163, #4212, CM-23-015, CM-23-004

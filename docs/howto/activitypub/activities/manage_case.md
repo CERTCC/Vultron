@@ -120,6 +120,8 @@ There is no rejoin, so send the closure only when you are finished with the case
 Your own RM state does not change when you send the closure.
 The CASE_MANAGER records the `Leave`, then records each step that moves you to `RM.CLOSED` as its own ledger entry, and your replica applies those entries when they arrive (CM-23-001, CM-23-004).
 Do not write `RM.CLOSED` to your own replica in their place.
+Those entries are the last case content you receive: after your closure, the CASE_MANAGER sends you no further ledger entries, case announcements, status broadcasts, or embargo announcements (CM-23-004).
+If you are bound by an embargo that later ends early or gets shorter, the CASE_MANAGER still sends you a direct notice of that change (CM-31-009).
 
 What your closure does to the case depends on whether you are the Case Owner.
 
@@ -150,10 +152,11 @@ What your closure does to the case depends on whether you are the Case Owner.
 |---|---|
 | `Join(VulnerabilityCase)` | Your participant record shows `rm_state` = `ACCEPTED`. |
 | `Ignore(VulnerabilityCase)` | Your participant record shows `rm_state` = `DEFERRED`. |
-| `Leave(VulnerabilityCase)` | Your participant record shows `rm_state` = `CLOSED`. As Case Owner, also confirm a `case_fully_closed` ledger entry. |
+| `Leave(VulnerabilityCase)` | Your participant record shows `rm_state` = `CLOSED`. Your replica holds no ledger entry after the last entry that records your closure. A Case Owner does not receive the `case_fully_closed` entry, because it is already closed when the CASE_MANAGER writes it; that entry is in the CASE_MANAGER's ledger. |
 | `Reject(Offer(VulnerabilityReport))` | Your RM state is `CLOSED` and no case was created. |
 
-Each transition is committed to the case ledger, so the same `rm_state` should be visible on every participant's replica, not only your own.
+Each transition is committed to the case ledger, so the same `rm_state` should be visible on the replica of every participant that has not closed, not only your own.
+A participant that has already closed does not receive later transitions (CM-23-004).
 
 ---
 

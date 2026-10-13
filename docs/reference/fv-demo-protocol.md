@@ -96,10 +96,11 @@ sequenceDiagram
 
     note over F,CA: Phase 6 — Case closure
     F->>CA: Leave(VulnerabilityCase) — participant closes
+    CA-->>V: Announce(CaseLedgerEntry) ×n — the Finder's closure
+    CA-->>F: Announce(CaseLedgerEntry) ×n — its own closure, then nothing
     V->>CA: Leave(VulnerabilityCase) — owner closes last
-    CA-->>V: Announce(CaseLedgerEntry) ×n
-    CA-->>F: Announce(CaseLedgerEntry) ×n
-    note over F,CA: ✅ M7 — all participants RM.CLOSED
+    CA-->>V: Announce(CaseLedgerEntry) ×n — its own closure, then nothing
+    note over F,CA: ✅ M7 — all participants RM.CLOSED in the Case Actor's store
 ```
 
 A run also contains `Announce(VulnerabilityCase)` from the Case Actor to every participant, which seeds a replica, and `Reject(CaseLedgerEntry)` from a replica to the Case Actor, which reports that an entry arrived before its predecessor and asks for replay.
@@ -369,9 +370,13 @@ The owner's departure closes the case, and the Case Actor records nothing a part
    It advances its own participant record to `RM.CLOSED` and commits those status entries too (CM-23-005).
    It expires every embargo invitation still waiting for an answer, with one entry each (CM-23-014); the FV run has none.
    Last, it commits `case_fully_closed`.
-4. Each entry is fanned out as `Announce(CaseLedgerEntry)`, and every replica applies it.
-   The leaving participant's own replica receives every status entry for its departure, the one that reaches `RM.CLOSED` included (CM-23-004).
+4. Each entry is fanned out as `Announce(CaseLedgerEntry)` to every participant that has not closed, and each replica applies what it receives.
+   A closed participant receives its own closure entries and nothing after them (CM-23-004).
+   The leaving participant's replica receives its `close_case` entry and every status entry for its departure, the one that reaches `RM.CLOSED` included.
+   The Finder therefore receives none of the Vendor's closure entries.
+   The Vendor receives its own `close_case` and status entries, but not the Case Actor's own status entry or `case_fully_closed`.
    A replica moves a departing participant only by applying those status entries: the `close_case` entry itself changes no RM state, and a replica never works out the steps from its own stored state (CM-23-016).
+   A participant does not write its own `RM.CLOSED`; it waits for the Case Actor's entries.
 
 ### Example: Leave(VulnerabilityCase)
 
@@ -394,9 +399,11 @@ The owner's departure closes the case, and the Case Actor records nothing a part
 | Check | Where |
 |:------|:------|
 | Every departure recorded before `case_fully_closed`, and no participant act after it | Case Actor's ledger |
-| Every participant `RM.CLOSED`, including the `CASE_MANAGER` | both replicas |
-| `close_case` entry present | Vendor replica |
-| Ledger coverage contiguous to the Vendor's tail | Finder replica |
+| Every participant `RM.CLOSED`, including the `CASE_MANAGER` | Case Actor's store |
+| Ledger contiguous through the Finder's own last closure entry, and nothing after it; the Finder is `RM.CLOSED` | Finder replica |
+| Ledger contiguous through the Vendor's own last closure entry, and nothing after it; the Vendor is `RM.CLOSED` | Vendor replica |
+
+No participant replica is checked for every closure: a closed participant is sent nothing after its own closure entries (CM-23-004), so the Case Actor's store is where every closure is verified.
 
 ---
 
@@ -429,7 +436,9 @@ The exact count of `add_participant_status_to_participant` and `add_case_status_
 
 The ledger ends at `case_fully_closed`: the Finder left first, so no participant act follows the owner closure.
 
-The Finder's replica and the Vendor's replica hold the same sequence, entry for entry, once fan-out completes.
+Each participant's replica holds the same sequence, entry for entry, up to the last entry recording its own closure, and nothing after it (CM-23-004).
+The Finder's replica ends at index 23, its own closure step.
+The Vendor's replica ends at index 25, its own closure step, so it does not hold the Case Actor's own status entry or `case_fully_closed`.
 The demo runner exports all three ledgers as JSONL under `devlogs/fv/` at the end of a run, and the invariant harness in `test/ci/invariants/` checks them against the causal edges the [FV scenario narrative](../topics/scenarios/fv.md) declares.
 
 ---

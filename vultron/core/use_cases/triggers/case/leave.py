@@ -51,7 +51,8 @@ class SvcLeaveCaseUseCase(SvcActivityTriggerBase):
     receiver-side role semantics (owner closes all, non-owner departs only)
     are applied in :func:`~vultron.core.behaviors.case.receive_close_case_tree
     .create_close_case_received_tree` on the Case Actor, which records each RM
-    step as its own ledger entry and fans it out to every replica.
+    step as its own ledger entry and fans it out to every replica still
+    receiving case content, the departing actor's own included (CM-23-004).
 
     The sender does NOT update their own RM state here — its replica, like
     every other, applies the status entries the Case Actor commits, received
