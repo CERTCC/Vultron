@@ -13,6 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import dataclasses
 import posixpath
 import re
 import shutil
@@ -34,6 +35,7 @@ from vultron.metadata.msm._mapping import (
     OCCASION_TABLE_PATH,
     MappingStatus,
     OccasionTable,
+    PageLink,
     distinguished_by,
     load_occasion_table,
     section_heading,
@@ -42,6 +44,7 @@ from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
     FieldValue,
+    HowToGuide,
     MessagePage,
     Occasion,
     ProtocolShorthand,
@@ -126,7 +129,7 @@ def test_committed_yaml_loads_and_equals_a_fresh_derivation(table):
 
 def test_committed_yaml_carries_its_format_version():
     data = yaml.safe_load(OCCASION_TABLE_PATH.read_text(encoding="utf-8"))
-    assert data["format_version"] == 1
+    assert data["format_version"] == 2
 
 
 @pytest.mark.spec("MSM-08-001")
@@ -140,6 +143,8 @@ def test_every_occasion_has_one_row_and_one_section(table):
     assert sorted(_rows(table)) == sorted(declared)
     sections = {p.stem for p in (_FRAGMENTS / "sections").glob("*.md")}
     assert sections == set(declared)
+    embeds = {p.stem for p in (_FRAGMENTS / "embeds").glob("*.md")}
+    assert embeds == set(declared)
 
 
 def test_fragments_are_excluded_from_the_build():
@@ -289,7 +294,7 @@ def test_loader_names_line_and_column_of_a_fault_deep_in_the_table(
 @pytest.mark.spec("MS-17-001")
 def test_loader_names_the_key_line_of_a_schema_error(tmp_path):
     path = tmp_path / "occasions.yaml"
-    path.write_text("# header\nformat_version: 2\ngroups: []\n")
+    path.write_text("# header\nformat_version: 3\ngroups: []\n")
 
     with pytest.raises(MetadataLoadError) as exc:
         load_occasion_table(path, root=tmp_path)
@@ -712,3 +717,226 @@ def test_tables_carry_no_exec_block():
     """A table is mostly links, which an exec block would hide from MkDocs."""
     for path in _FRAGMENTS.glob("lookup*.md"):
         assert "exec=" not in path.read_text(encoding="utf-8"), path
+
+
+# ---------------------------------------------------------------------------
+# Embeds and "Seen in" (#4432).
+# ---------------------------------------------------------------------------
+
+_HOWTO = _DOCS / "howto/activitypub/activities"
+#: The embed directory as a how-to page's include directives name it.
+_EMBEDS_FROM_HOWTO = posixpath.relpath(
+    (_ROOT / gen.EMBED_DIR).as_posix(), _HOWTO.as_posix()
+)
+
+
+def _embed_directive(anchor: str, prefix: str = "../../../") -> str:
+    path = f"{prefix}reference/messages/_occasions/embeds/{anchor}.md"
+    return f'{{% include-markdown "{path}" %}}'
+
+
+def _docs_page(root: Path, docs_path: str, body: str) -> None:
+    page = root / "docs" / docs_path
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text(body, encoding="utf-8")
+
+
+_OWNERS = {"fix-readiness": MessagePage.CS, "create-note": MessagePage.GENERAL}
+
+
+def test_embedding_pages_reads_include_directives_under_docs(tmp_path):
+    """A page anywhere under ``docs/`` counts, once however often it
+    includes the embed, whether or not the embed file exists yet."""
+    _docs_page(
+        tmp_path,
+        "howto/guide.md",
+        "# Guide\n\n"
+        + _embed_directive("fix-readiness", "../")
+        + "\n\n"
+        + _embed_directive("fix-readiness", "../")
+        + "\n",
+    )
+    _docs_page(
+        tmp_path,
+        "topics/deep/page.md",
+        "# Topic\n\n" + _embed_directive("fix-readiness", "../../") + "\n",
+    )
+
+    found = gen.embedding_pages(_OWNERS, tmp_path)
+
+    assert found == {
+        "fix-readiness": ("howto/guide.md", "topics/deep/page.md")
+    }
+
+
+def test_embedding_pages_ignores_sections_and_the_fragment_directory(
+    tmp_path,
+):
+    """A message page includes the section, which is not an embed, and a
+    file in the fragment directory is generated, so never read."""
+    _docs_page(
+        tmp_path,
+        "reference/messages/cs.md",
+        '# CS\n\n{% include-markdown "./_occasions/sections/fix-readiness.md" %}\n',
+    )
+    _docs_page(
+        tmp_path,
+        "reference/messages/_occasions/embeds/stray.md",
+        '{% include-markdown "./fix-readiness.md" %}\n',
+    )
+
+    assert gen.embedding_pages(_OWNERS, tmp_path) == {}
+
+
+def test_embedding_pages_refuses_an_undeclared_anchor(tmp_path):
+    _docs_page(
+        tmp_path,
+        "howto/guide.md",
+        "# Guide\n\n" + _embed_directive("no-such-occasion", "../") + "\n",
+    )
+
+    with pytest.raises(ValueError, match=r"no-such-occasion\.md, which no"):
+        gen.embedding_pages(_OWNERS, tmp_path)
+
+
+def test_embedding_pages_refuses_an_embed_on_the_occasions_own_page(tmp_path):
+    """The reference page carries the section, so "Seen in" never names it."""
+    _docs_page(
+        tmp_path,
+        "reference/messages/cs.md",
+        '# CS\n\n{% include-markdown "./_occasions/embeds/fix-readiness.md" %}\n',
+    )
+
+    with pytest.raises(ValueError, match="own page includes its section"):
+        gen.embedding_pages(_OWNERS, tmp_path)
+
+
+def test_derive_refuses_a_declared_guide_that_does_not_embed_its_occasion(
+    tmp_path,
+):
+    guide = HowToGuide.STATUS_UPDATES
+    _docs_page(tmp_path, guide.value, "# How to Post\n\nNo embed here.\n")
+    entry = _entry(_occasion(howto=guide))
+
+    with pytest.raises(ValueError, match="do not embed the occasion"):
+        gen.derive_table([entry], tmp_path)
+
+
+def test_derive_lists_each_embedding_page_by_its_title(tmp_path):
+    guide = HowToGuide.STATUS_UPDATES
+    _docs_page(
+        tmp_path,
+        guide.value,
+        "# How to Post\n\n" + _embed_directive("stub-situation") + "\n",
+    )
+    (note,) = [
+        e
+        for e in SEMANTIC_REGISTRY
+        if e.semantics is MessageSemantics.CREATE_NOTE
+    ]
+    entry = dataclasses.replace(note, occasions=(_occasion(howto=guide),))
+
+    (row,) = gen.derive_table([entry], tmp_path).groups[0].occasions
+
+    assert row.seen_in == (PageLink(path=guide.value, title="How to Post"),)
+
+
+def test_section_lists_seen_in_pages_and_omits_the_line_without_any(table):
+    _, row = _rows(table)["fix-readiness"]
+    section = gen.render_section(row)
+    assert row.seen_in
+    links = ", ".join(
+        f"[{page.title}](../../../../{page.path})" for page in row.seen_in
+    )
+    assert f"- **Seen in:** {links}\n" in section
+    assert "How-to:" not in section
+
+    bare = row.model_copy(update={"seen_in": ()})
+    assert "Seen in" not in gen.render_section(bare)
+
+
+def test_embed_links_its_canonical_section_and_collapses_the_example(table):
+    """AC-1: separated from the host's prose, linked to its canonical
+    section, the example JSON collapsed (DF-01-003)."""
+    group, row = _rows(table)["fix-readiness"]
+    embed = gen.render_embed(group, row)
+    lines = embed.splitlines()
+
+    assert lines[0] == '!!! info "Fix Readiness (CF)"'
+    assert all(not line or line.startswith("    ") for line in lines[1:])
+    assert (
+        "    - **Reference:** [Fix Readiness (CF)](../../cs.md#fix-readiness)"
+        in lines
+    )
+    collapse = lines.index('    ??? example "Example activity"')
+    fence = lines.index('        ```python exec="true" idprefix=""')
+    assert collapse < fence
+    assert (
+        "        print(json2md(add_fix_readiness_to_participant()))" in lines
+    )
+
+
+def test_no_embed_carries_a_heading_or_reference_only_facts():
+    """No heading, so a host gains no anchor that could collide with its
+    own, and no fact the canonical section alone carries."""
+    embeds = sorted((_FRAGMENTS / "embeds").glob("*.md"))
+    assert embeds
+    for path in embeds:
+        text = path.read_text(encoding="utf-8")
+        assert not re.search(r"^\s*#", text, re.M), path
+        for fact in ("Seen in", "Formal definition", "Mapping status"):
+            assert fact not in text, (path, fact)
+
+
+def test_seen_in_never_names_a_reference_page(table):
+    pages = [
+        page.path for _, row in _rows(table).values() for page in row.seen_in
+    ]
+    assert pages
+    assert [p for p in pages if p.startswith("reference/")] == []
+
+
+def test_every_declared_guide_embeds_its_occasions_in_the_committed_table(
+    table,
+):
+    """AC-4: each guide shows the occasions its steps send."""
+    rows = _rows(table)
+    for entry in SEMANTIC_REGISTRY:
+        for occasion in entry.occasions:
+            if occasion.howto is None:
+                continue
+            _, row = rows[occasion.anchor]
+            assert occasion.howto.value in {p.path for p in row.seen_in}
+
+
+def test_every_embed_include_on_a_howto_page_is_page_relative():
+    """``include-markdown`` resolves an unprefixed path against ``docs/``."""
+    directives = [
+        (page.name, path)
+        for page in sorted(_HOWTO.glob("[!_]*.md"))
+        for path in _raw_includes(page)
+        if "/embeds/" in path
+    ]
+    assert directives
+    for name, path in directives:
+        assert path.startswith(f"{_EMBEDS_FROM_HOWTO}/"), (name, path)
+
+
+def test_the_sync_hook_watches_every_docs_page_and_the_include_reader():
+    """AC-2: a new include anywhere under ``docs/`` re-runs ``--check``."""
+    config = yaml.safe_load(
+        (_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    )
+    (hook,) = [
+        h
+        for repo in config["repos"]
+        for h in repo["hooks"]
+        if h["id"] == "msm-occasions-sync"
+    ]
+    files = re.compile(hook["files"])
+    for path in (
+        "docs/howto/activitypub/activities/status_updates.md",
+        "docs/topics/anything/page.md",
+        "vultron/metadata/docs/page_frontmatter.py",
+    ):
+        assert files.search(path), path

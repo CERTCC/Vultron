@@ -25,6 +25,20 @@ artifacts, and ``--check`` fails on any difference (MSM-06-001):
 - ``docs/reference/messages/_occasions/lookup-<page>.md`` — one page's slice.
 - ``docs/reference/messages/_occasions/sections/<anchor>.md`` — one section
   per occasion, anchored by the occasion's ID.
+- ``docs/reference/messages/_occasions/embeds/<anchor>.md`` — one embed per
+  occasion: what a page outside the reference includes at the step that sends
+  the occasion.  It is a box with no heading, holding the facts a sender acts
+  on, a link to the canonical section and the example JSON collapsed, so one
+  source renders in two places, separated and linked (DF-01-003, ADR-0128).
+
+Each section's "Seen in" lists the pages that include its embed.  It is read
+from the include directives of every page under ``docs/`` outside the
+fragment directory, never typed by hand, and the fragments themselves include
+nothing, so the pages that are read are never pages this generator writes:
+one ``--write`` settles a new include, and ``--check`` cannot loop.  The
+occasion's own message page carries the section, not the embed, so it never
+lists itself.  An occasion that declares a how-to guide must be embedded
+there, which is how the guides are held to show what their steps send.
 
 The table fragments are not named ``*table*.md``: ``lint-docs`` exempts that
 name as a generated content class, and these carry occasion prose it must
@@ -63,13 +77,15 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Sequence
+import textwrap
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
 
 from vultron.metadata.base import repo_root
+from vultron.metadata.docs.page_frontmatter import include_directives
 from vultron.metadata.file_loading import (
     MetadataLoadError,
     loads_yaml,
@@ -81,11 +97,11 @@ from vultron.metadata.msm._mapping import (
     EXEMPTED_SEMANTICS,
     OCCASION_TABLE_FORMAT_VERSION,
     OCCASION_TABLE_PATH,
-    HowToLink,
     MappingStatus,
     OccasionGroup,
     OccasionRow,
     OccasionTable,
+    PageLink,
     distinguished_by,
     load_occasion_table,
     mapping_status,
@@ -95,7 +111,6 @@ from vultron.metadata.msm._mapping import (
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
-    HowToGuide,
     MessagePage,
     ProtocolShorthand,
 )
@@ -113,6 +128,10 @@ YAML_PATH = OCCASION_TABLE_PATH.relative_to(
 
 #: Repository-relative directory holding every generated fragment.
 FRAGMENT_DIR = "docs/reference/messages/_occasions"
+
+#: Repository-relative directory holding each occasion's embed, the variant
+#: a page outside the reference includes where it sends the occasion.
+EMBED_DIR = f"{FRAGMENT_DIR}/embeds"
 
 #: The first line of every fragment.  An HTML comment, so it renders nowhere.
 FRAGMENT_MARKER = (
@@ -216,17 +235,69 @@ def wire_summary(entry: SemanticEntry) -> str:
 # ---------------------------------------------------------------------------
 
 
-def howto_title(guide: HowToGuide, root: Path) -> str:
-    """Return the H1 of *guide*'s page, the text a link to it carries.
+def page_title(docs_path: str, root: Path) -> str:
+    """Return the H1 of the ``docs/``-relative page *docs_path*.
 
     Raises:
         ValueError: When the page has no H1.
     """
-    path = root / "docs" / guide.value
+    path = root / "docs" / docs_path
     for section in iter_sections(path.read_text(encoding="utf-8")):
         if section.level == 1:
             return section.heading.strip()
-    raise ValueError(f"docs/{guide.value} has no H1 to title a link with")
+    raise ValueError(f"docs/{docs_path} has no H1 to title a link with")
+
+
+def embedding_pages(
+    owners: Mapping[str, MessagePage], root: Path
+) -> dict[str, tuple[str, ...]]:
+    """Return ``{anchor: docs/-relative pages}`` for every embedded occasion.
+
+    Reads the include directives of every page under ``docs/`` outside
+    :data:`FRAGMENT_DIR`, whose fragments include nothing, so the result never
+    depends on a file this generator writes.  A directive counts whether or
+    not the embed exists yet, so one ``--write`` settles a new include.
+
+    Args:
+        owners: Each occasion anchor, mapped to the message page that holds
+            its canonical section.
+        root: The repository root.
+
+    Raises:
+        ValueError: When a page includes the embed of an anchor no occasion
+            declares, or a message page includes an embed of its own
+            occasion, which it carries as a section instead.
+    """
+    docs = root / "docs"
+    fragments = Path(FRAGMENT_DIR).relative_to("docs")
+    embeds = Path(EMBED_DIR).relative_to("docs")
+    found: dict[str, list[str]] = {}
+    problems: list[str] = []
+    for host in sorted(docs.rglob("*.md")):
+        page = host.relative_to(docs)
+        if page.is_relative_to(fragments):
+            continue
+        for _, target, _ in include_directives(host, docs, existing=False):
+            path = Path(target)
+            if path.parent != embeds:
+                continue
+            anchor = path.stem
+            owner = owners.get(anchor)
+            if owner is None:
+                problems.append(
+                    f"docs/{page.as_posix()} includes {target}, "
+                    "which no occasion declares"
+                )
+            elif page.as_posix() == f"reference/messages/{owner.value}.md":
+                problems.append(
+                    f"docs/{page.as_posix()} includes {target}; "
+                    "the occasion's own page includes its section"
+                )
+            elif page.as_posix() not in found.setdefault(anchor, []):
+                found[anchor].append(page.as_posix())
+    if problems:
+        raise ValueError("; ".join(problems))
+    return {anchor: tuple(pages) for anchor, pages in found.items()}
 
 
 def derive_table(
@@ -238,8 +309,9 @@ def derive_table(
     Rows follow registry order within a group, which is dispatch order.
 
     Raises:
-        ValueError: When a page carrying occasions is in no table group, or a
-            derivation fails (a missing heading, an undeclared sender rule).
+        ValueError: When a page carrying occasions is in no table group, a
+            derivation fails (a missing heading, an undeclared sender rule),
+            or an occasion's declared how-to guide does not embed it.
     """
     base = root or repo_root()
     entries = [e for e in registry if e.semantics not in EXEMPTED_SEMANTICS]
@@ -248,6 +320,26 @@ def derive_table(
     if ungrouped:
         names = ", ".join(sorted(str(p) for p in ungrouped))
         raise ValueError(f"pages in no TABLE_GROUPS entry: {names}")
+
+    owners = {
+        o.anchor: e.page
+        for e in entries
+        if e.page is not None
+        for o in e.occasions
+    }
+    embedded = embedding_pages(owners, base)
+    unembedded = sorted(
+        f"{occasion.anchor} (docs/{occasion.howto.value})"
+        for entry in entries
+        for occasion in entry.occasions
+        if occasion.howto is not None
+        and occasion.howto.value not in embedded.get(occasion.anchor, ())
+    )
+    if unembedded:
+        raise ValueError(
+            "how-to guides that do not embed the occasion they declare: "
+            + ", ".join(unembedded)
+        )
 
     groups: list[OccasionGroup] = []
     for group in TABLE_GROUPS:
@@ -264,13 +356,9 @@ def derive_table(
                 status=mapping_status(entry, registry),
                 description=occasion.description,
                 notes=occasion.notes,
-                howto=(
-                    None
-                    if occasion.howto is None
-                    else HowToLink(
-                        path=occasion.howto,
-                        title=howto_title(occasion.howto, base),
-                    )
+                seen_in=tuple(
+                    PageLink(path=page, title=page_title(page, base))
+                    for page in embedded.get(occasion.anchor, ())
                 ),
                 example=occasion.example,
             )
@@ -381,10 +469,8 @@ def status_link(status: MappingStatus, prefix: str) -> str:
     return f"[{status.value}]({prefix}{STATUS_PAGE}#{STATUS_ANCHOR})"
 
 
-def render_section(row: OccasionRow) -> str:
-    """Render *row*'s section, linking from ``FRAGMENT_DIR/sections``."""
-    to_pages = "../../"
-    to_reference = "../" + to_pages
+def _send_facts(row: OccasionRow) -> list[str]:
+    """The facts a sender acts on, shared by a section and its embed."""
     facts = [
         f"- **When…** {row.when}",
         f"- **Send:** `{row.send}`",
@@ -392,11 +478,37 @@ def render_section(row: OccasionRow) -> str:
     ]
     if row.distinguished_by is not None:
         facts.append(f"- **Distinguished by:** {row.distinguished_by}")
-    if row.howto is not None:
-        facts.append(
-            f"- **How-to:** [{row.howto.title}]"
-            f"(../{to_reference}{row.howto.path.value})"
-        )
+    return facts
+
+
+def seen_in_link(page: PageLink, prefix: str) -> str:
+    """Link *page*, from a fragment *prefix* away from ``docs/``."""
+    return f"[{page.title}]({prefix}{page.path})"
+
+
+def _example_block(row: OccasionRow) -> str:
+    """The exec block that renders *row*'s example JSON at build time."""
+    return (
+        '```python exec="true" idprefix=""\n'
+        "from vultron.wire.as2.vocab.examples.vocab_examples import (\n"
+        f"    {row.example},\n"
+        "    json2md,\n"
+        ")\n"
+        "\n"
+        f"print(json2md({row.example}()))\n"
+        "```"
+    )
+
+
+def render_section(row: OccasionRow) -> str:
+    """Render *row*'s section, linking from ``FRAGMENT_DIR/sections``."""
+    to_pages = "../../"
+    to_reference = "../" + to_pages
+    to_docs = "../" + to_reference
+    facts = _send_facts(row)
+    if row.seen_in:
+        pages = ", ".join(seen_in_link(page, to_docs) for page in row.seen_in)
+        facts.append(f"- **Seen in:** {pages}")
     if row.shorthand is not None:
         facts.append(
             f"- **Formal definition:** {formal_link(row.shorthand, to_reference)}"
@@ -409,17 +521,33 @@ def render_section(row: OccasionRow) -> str:
     ]
     if row.notes is not None:
         blocks.append(row.notes)
-    blocks.append(
-        '```python exec="true" idprefix=""\n'
-        "from vultron.wire.as2.vocab.examples.vocab_examples import (\n"
-        f"    {row.example},\n"
-        "    json2md,\n"
-        ")\n"
-        "\n"
-        f"print(json2md({row.example}()))\n"
-        "```"
-    )
+    blocks.append(_example_block(row))
     return "\n\n".join(blocks)
+
+
+def _indent(text: str) -> str:
+    """Indent *text* one admonition level; blank lines stay empty."""
+    return textwrap.indent(text, "    ")
+
+
+def render_embed(group: OccasionGroup, row: OccasionRow) -> str:
+    """Render *row*'s embed, linking from :data:`EMBED_DIR`.
+
+    The embed is what a page outside the reference shows where one of its
+    steps sends the occasion: a box set apart from the host's own prose,
+    holding the facts a sender acts on, a link to the canonical section, and
+    the example JSON collapsed.  It carries no heading, so it adds no anchor
+    and no table-of-contents entry to its host, and leaves out the reference
+    facts (formal definition, mapping status, notes and "Seen in") that the
+    linked section holds (DF-01-003).
+    """
+    facts = _send_facts(row)
+    facts.append(f"- **Reference:** {details_link(group, row, '../../')}")
+    example = '??? example "Example activity"\n\n' + _indent(
+        _example_block(row)
+    )
+    body = "\n\n".join([row.description, "\n".join(facts), example])
+    return f'!!! info "{row.heading}"\n\n' + _indent(body)
 
 
 # ---------------------------------------------------------------------------
@@ -453,6 +581,9 @@ def desired_contents(
         for row in group.occasions:
             contents[f"{FRAGMENT_DIR}/sections/{row.anchor}.md"] = _fragment(
                 render_section(row)
+            )
+            contents[f"{EMBED_DIR}/{row.anchor}.md"] = _fragment(
+                render_embed(group, row)
             )
     return contents
 
@@ -568,6 +699,7 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "EMBED_DIR",
     "FRAGMENT_DIR",
     "FRAGMENT_MARKER",
     "STATUS_ANCHOR",
@@ -582,13 +714,16 @@ __all__ = [
     "details_link",
     "drift",
     "dump_table",
+    "embedding_pages",
     "format_pattern",
     "formal_link",
-    "howto_title",
     "main",
+    "page_title",
+    "render_embed",
     "render_section",
     "render_slice",
     "render_whole",
+    "seen_in_link",
     "status_link",
     "wire_summary",
     "write_artifacts",

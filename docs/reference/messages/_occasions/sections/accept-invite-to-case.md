@@ -7,7 +7,7 @@ Accepts the Stub Invite. The actor joins the case at RM Received.
 - **When…** an invited actor agrees to join the case
 - **Send:** `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
 - **Sent by:** the invitee
-- **How-to:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)
+- **Seen in:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""

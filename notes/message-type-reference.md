@@ -433,6 +433,43 @@ is a row of the slice, and no page has an exec block of its own (MSM-06-001,
 MSM-08-004). `mkdocs build --strict` and `docs-links` check that the links and
 anchors resolve once rendered.
 
+### The how-to embeds and "Seen in" (#4432)
+
+A how-to step that sends an occasion includes `_occasions/embeds/<anchor>.md`,
+not the section. The embed is a generated variant rendered from the same YAML
+row: an `!!! info` box with no heading, holding the description, "When…",
+"Send", "Sent by" and "Distinguished by", a **Reference** link to the canonical
+section, and the example in a collapsed `??? example`. A variant beats one
+fragment cut two ways with `start=`/`end=` and a hand-wrapped admonition: each
+step is one directive, the collapse cannot be forgotten, and the canonical link
+is derived. The section remains the one place for the formal definition, the
+mapping status and the notes.
+
+Three choices there are not obvious from the code:
+
+- **No heading, so no anchor clash.** An embed adds no `{ #anchor }` and no
+  table-of-contents entry to its host, so a how-to that embeds an occasion
+  whose section anchor is also on its reference page has nothing to collide.
+  The #4431 anchor tests hold unchanged, because they read only the message
+  pages.
+- **"Seen in" is read, never typed.** `embedding_pages` reads the include
+  directives of every page under `docs/` outside the fragment directory, with
+  `include_directives(..., existing=False)`, so a directive counts before the
+  embed exists and one `--write` settles it. The fragments include nothing, so
+  the pages read are never pages the generator writes, and `--check` cannot
+  loop. The occasion's own page includes the section, not the embed; an embed
+  there is refused, so "Seen in" never names the reference page. The hook
+  watches all of `docs/`. The row's `howto` link became `seen_in`
+  (`format_version` 2).
+- **A declared guide must embed its occasion.** `Occasion.howto` still names
+  the guide whose steps send it, and `derive_table` fails when that guide does
+  not include the embed, which is how the guides are held to show what they
+  send. The four full-case Invite occasions now declare
+  `manage_participants.md`, and `EA` and `ER` declare `establish_embargo.md`,
+  where their steps are. `Create(CaseParticipant)` declares none, because it is
+  the CASE_MANAGER's ledger entry for an inert record and no guide's step sends
+  it.
+
 ### Planning decisions (#4418)
 
 **"Sent by" is the receiver's rule, not the CVD convention.** The column states

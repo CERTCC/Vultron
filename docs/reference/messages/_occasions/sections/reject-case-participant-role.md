@@ -7,7 +7,7 @@ Declines the offered role. The roster does not change.
 - **When…** an actor declines a role offered to it on the case
 - **Send:** `Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])`
 - **Sent by:** not yet checked
-- **How-to:** [How to Delegate a Role to Another Participant](../../../../howto/activitypub/activities/role_delegation.md)
+- **Seen in:** [How to Delegate a Role to Another Participant](../../../../howto/activitypub/activities/role_delegation.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
