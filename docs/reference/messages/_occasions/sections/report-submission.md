@@ -9,6 +9,7 @@ Offers the report to a new Participant. The Offer may carry proposed embargo ter
 - **Sent by:** any actor (usually: reporter)
 - **How-to:** [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
 - **Formal definition:** [Report Submission (RS)](../../../formal_protocol/messages.md#rm-message-types)
+- **Mapping status:** [direct](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

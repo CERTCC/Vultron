@@ -6,7 +6,8 @@ Declines the ownership transfer offer. The current Case Owner keeps the case.
 
 - **When…** an actor declines an offer of case ownership
 - **Send:** `Reject(Offer(VulnerabilityCase))`
-- **Sent by:** not yet checked
+- **Sent by:** the addressee of the vulnerability case
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

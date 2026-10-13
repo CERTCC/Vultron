@@ -377,11 +377,8 @@ class OfferCaseOwnershipTransferRequest(CaseTriggerRequest):
     content: NonEmptyString | None = None
 
 
-class AcceptCaseOwnershipTransferRequest(BaseModel):
-    """Request body for the accept-case-ownership-transfer trigger endpoint.
-
-    Emits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back
-    to the offering actor (TRIG-11-002).
+class _OwnershipTransferAnswerRequest(BaseModel):
+    """The body shared by the transferee's two answers to an Offer.
 
     TRIG-03-001: Must include offer_id.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
@@ -390,6 +387,28 @@ class AcceptCaseOwnershipTransferRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     offer_id: NonEmptyString
+
+
+class AcceptCaseOwnershipTransferRequest(_OwnershipTransferAnswerRequest):
+    """Request body for the accept-case-ownership-transfer trigger endpoint.
+
+    Emits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor,
+    addressed to the case's CASE_MANAGER (TRIG-11-002, CM-21-006).
+
+    TRIG-03-001: Must include offer_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+
+class RejectCaseOwnershipTransferRequest(_OwnershipTransferAnswerRequest):
+    """Request body for the reject-case-ownership-transfer trigger endpoint.
+
+    Emits ``Reject(Offer(VulnerabilityCase))`` from the requesting actor,
+    addressed to the case's CASE_MANAGER (TRIG-11-005, CM-21-010).
+
+    TRIG-03-001: Must include offer_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
 
 
 class AddOnBehalfStatusRequest(CaseTriggerRequest):

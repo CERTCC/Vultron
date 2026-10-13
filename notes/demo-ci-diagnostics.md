@@ -19,6 +19,7 @@ related_notes:
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-authoring.md
   - notes/demo-scenario-registry.md
+  - notes/participant-role-management.md
 relevant_packages:
   - vultron/adapters/driven
   - vultron/adapters/driving/fastapi/routers
@@ -276,8 +277,8 @@ identified which layer broke.
 - **Invariant 6**: No RM-state oscillation after `CLOSED`. Tests the
   `add_participant_status` entries in the case-actor log. If this
   regresses, check `ValidateRMTransitionNode` for CLOSED terminal-state
-  guard ordering (see `notes/codebase-structure.md`
-  § "RM-TERMINAL-GUARD-928").
+  guard ordering (see `notes/participant-role-management.md`
+  § "RM Terminal Guard Must Run Before the Same-State Shortcut").
 - **Invariants 12–14**: log completeness and contiguity from genesis
   (`logIndex=0`). These, plus invariant 1, are the per-actor parametrized
   checks — one test case per entry in the harness's `_CHAIN_ACTORS` — so the
