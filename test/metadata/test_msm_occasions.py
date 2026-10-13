@@ -731,7 +731,8 @@ _EMBEDS_FROM_HOWTO = posixpath.relpath(
 
 
 def _embed_directive(anchor: str, prefix: str = "../../../") -> str:
-    path = f"{prefix}reference/messages/_occasions/embeds/{anchor}.md"
+    embeds = Path(gen.EMBED_DIR).relative_to("docs").as_posix()
+    path = f"{prefix}{embeds}/{anchor}.md"
     return f'{{% include-markdown "{path}" %}}'
 
 

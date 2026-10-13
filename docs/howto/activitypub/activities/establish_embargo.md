@@ -69,7 +69,8 @@ flowchart TB
 Embargo Proposal (EP) is implemented in ActivityStreams as `Invite(Event)`.
 The same activity carries a revision, Embargo Revision Proposal (EV); a receiver tells the two apart from the case's EM state rather than from the activity (MSM-02).
 
-1. Send `Invite(Event)` with the proposed `EmbargoEvent` as its `object` and the case as its `context`.
+1. Mint the proposed `EmbargoEvent` with `Create(Event)`, naming the case in `context`, or the report before a case exists.
+   Then send `Invite(Event)` with that `EmbargoEvent` as its `object` and the case as its `context`.
    The case moves to `EM.PROPOSED`.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/create-embargo-event.md" %}

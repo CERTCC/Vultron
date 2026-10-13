@@ -271,12 +271,14 @@ def embedding_pages(
     docs = root / "docs"
     fragments = Path(FRAGMENT_DIR).relative_to("docs")
     embeds = Path(EMBED_DIR).relative_to("docs")
+    message_pages = fragments.parent
     found: dict[str, list[str]] = {}
     problems: list[str] = []
     for host in sorted(docs.rglob("*.md")):
         page = host.relative_to(docs)
         if page.is_relative_to(fragments):
             continue
+        docs_path = page.as_posix()
         for _, target, _ in include_directives(host, docs, existing=False):
             path = Path(target)
             if path.parent != embeds:
@@ -285,16 +287,16 @@ def embedding_pages(
             owner = owners.get(anchor)
             if owner is None:
                 problems.append(
-                    f"docs/{page.as_posix()} includes {target}, "
+                    f"docs/{docs_path} includes {target}, "
                     "which no occasion declares"
                 )
-            elif page.as_posix() == f"reference/messages/{owner.value}.md":
+            elif page == message_pages / f"{owner.value}.md":
                 problems.append(
-                    f"docs/{page.as_posix()} includes {target}; "
+                    f"docs/{docs_path} includes {target}; "
                     "the occasion's own page includes its section"
                 )
-            elif page.as_posix() not in found.setdefault(anchor, []):
-                found[anchor].append(page.as_posix())
+            elif docs_path not in found.setdefault(anchor, []):
+                found[anchor].append(docs_path)
     if problems:
         raise ValueError("; ".join(problems))
     return {anchor: tuple(pages) for anchor, pages in found.items()}
@@ -541,8 +543,9 @@ def render_embed(group: OccasionGroup, row: OccasionRow) -> str:
     facts (formal definition, mapping status, notes and "Seen in") that the
     linked section holds (DF-01-003).
     """
+    to_pages = "../../"
     facts = _send_facts(row)
-    facts.append(f"- **Reference:** {details_link(group, row, '../../')}")
+    facts.append(f"- **Reference:** {details_link(group, row, to_pages)}")
     example = '??? example "Example activity"\n\n' + _indent(
         _example_block(row)
     )

@@ -272,6 +272,8 @@ groups:
     description: Sends a Stub Invite carrying the case stub and the embargo terms the invitee
       would agree to.
     seen_in:
+    - path: howto/activitypub/activities/initialize_participant.md
+      title: How to Seat a Participant on an Existing Case
     - path: howto/activitypub/activities/invite_actor.md
       title: How to Invite an Actor to a Case
     example: rm_invite_to_case
@@ -284,6 +286,8 @@ groups:
     status: none
     description: Accepts the Stub Invite. The actor joins the case at RM Received.
     seen_in:
+    - path: howto/activitypub/activities/initialize_participant.md
+      title: How to Seat a Participant on an Existing Case
     - path: howto/activitypub/activities/invite_actor.md
       title: How to Invite an Actor to a Case
     example: accept_invite_to_case

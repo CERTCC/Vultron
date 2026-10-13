@@ -52,7 +52,7 @@ sequenceDiagram
 
 1. Send `Offer(CaseParticipantRole)` to the target actor's inbox.
 2. Carry the role in a `CaseParticipantRole` object, name the target actor in `target`, and name the case in `context`.
-   `CaseParticipantRole` is a Vultron vocabulary type; its fields and a rendered example are under [Offer Case Participant Role](../../../reference/messages/case_management.md#offer-case-participant-role).
+   `CaseParticipantRole` is a Vultron vocabulary type.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/offer-case-participant-role.md" %}
 

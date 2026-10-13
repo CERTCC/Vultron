@@ -468,7 +468,8 @@ Three choices there are not obvious from the code:
   `manage_participants.md`, and `EA` and `ER` declare `establish_embargo.md`,
   where their steps are. `Create(CaseParticipant)` declares none, because it is
   the CASE_MANAGER's ledger entry for an inert record and no guide's step sends
-  it.
+  it (its stale prose is #4576). Two steps send an activity no occasion fits
+  yet (#4578).
 
 ### Planning decisions (#4418)
 
