@@ -70,6 +70,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # signature.  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
     ("Undo", "Offer"),
     ("Add", "Note"),
+    # A received note whose ``context`` names the case: its entry is the
+    # attachment's entry (CLP-07-013, #4441).
+    ("Create", "Note"),
     ("Remove", "Note"),  # remove_note_from_case
     ("Add", "VulnerabilityReport"),  # add_report_to_case
     ("Add", "CaseStatus"),  # add_case_status_to_case
