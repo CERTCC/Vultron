@@ -36,7 +36,6 @@ from vultron.core.models._helpers import as_utc, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.rsvp_deadline import (
     HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
-    INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 from vultron.core.models.wire_keys import wire_key
@@ -114,8 +113,12 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # ADR-0118).  Distinct from ("Reject", "Invite"), an explicit refusal.
     (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
     # CASE_MANAGER-authored no-op acknowledgement of a late Accept when the
-    # embargo is no longer active (EMB-17-004, ADR-0118).
-    (INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE, "Invite"),
+    # embargo is no longer active: it ignores the Accept, carried inline as
+    # received (EMB-17-004, CLP-07-013).
+    ("Ignore", "Accept"),
+    # CASE_MANAGER-authored closure of the case on the owner's Leave, carrying
+    # the closed case (case_fully_closed, CM-23-002 step 3, CLP-07-013).
+    ("Update", "VulnerabilityCase"),
     # CASE_MANAGER-authored honour decision for a late Accept when the embargo
     # is still active and matching (EMB-17-001, ADR-0118).
     (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
@@ -144,7 +147,9 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         # ADR-0118)
         (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
         # CASE_MANAGER-authored no-op acknowledgement (EMB-17-004, ADR-0118)
-        (INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE, "Invite"),
+        ("Ignore", "Accept"),
+        # CASE_MANAGER-authored case closure (CM-23-002 step 3)
+        ("Update", "VulnerabilityCase"),
         # CASE_MANAGER-authored honour decision (EMB-17-001, ADR-0118)
         (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
         # native case-initialization entries (ADR-0041, CM-22-003)

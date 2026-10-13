@@ -43,18 +43,17 @@ from typing import cast
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case_manager_commit import (
+    _CommitCaseManagerActivityBase,
+)
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
-    _EmitSingleActivityBase,
 )
-from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.participants.recipients import case_content_recipients
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 #: Build the decision activity addressed to *to* (``None``: nobody) and
 #: return ``(activity_id, sealed_blob)`` — the shape every embargo factory
@@ -72,84 +71,10 @@ EMBARGO_TEARDOWN_EVENT_TYPE = (
 COMMITTED_ACTIVITY_KEY = "committed_activity_id"
 
 
-class _CommitEmbargoDecisionBase(_EmitSingleActivityBase):
-    """Build → commit → (queue) one embargo decision activity.
-
-    Subclasses supply :meth:`_build`.  With ``notify_participants`` the
-    activity is addressed to every case-content recipient except the
-    executing actor, and queued when that audience is not empty; otherwise it
-    is addressed to nobody and only committed.
-
-    The queue write goes through the shared emit seam
-    (:meth:`_EmitSingleActivityBase._emit_through_seam`, OX-14-001); unlike
-    that base's ``update()``, this one catches nothing (see the module
-    docstring).
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        event_type: str,
-        notify_participants: bool = False,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._event_type = event_type
-        self._notify_participants = notify_participants
-
-    def _build(self, to: list[str] | None) -> tuple[str, str]:
-        """Return ``(activity_id, sealed_blob)`` for an activity sent *to*."""
-        raise NotImplementedError
-
-    def _build_all(self, to: list[str] | None) -> list[tuple[str, str]]:
-        """Return every ``(activity_id, sealed_blob)`` this decision commits.
-
-        One decision is one activity, except an abandonment, which answers
-        every open proposal at once (EMB-16-001) and overrides this.
-        """
-        return [self._build(to)]
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return f
-        case, failure = self._require_case(self._case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-        actor_id = cast(str, self.actor_id)
-        dl = cast(CaseOutboxPersistence, self.datalayer)
-
-        to = (
-            case_content_recipients(case, dl, excluding={actor_id})
-            if self._notify_participants
-            else []
-        )
-        committed = []
-        for activity_id, blob in self._build_all(to or None):
-            # A nested commit inherits the outer execution's ``/sync_port``,
-            # so the entry is announced to every participant replica
-            # (SYNC-02-002).
-            commit_emitted_activity(
-                datalayer=dl,
-                actor_id=actor_id,
-                case_id=self._case_id,
-                activity_id=activity_id,
-                activity_blob=blob,
-                event_type=self._event_type,
-            )
-            if to:
-                self._emit_through_seam(activity_id, blob)
-            committed.append(activity_id)
-        self.feedback_message = (
-            f"CASE_MANAGER committed '{self._event_type}' entry for"
-            f" {', '.join(repr(i) for i in committed)} on case"
-            f" '{self._case_id}' ({len(to)} participant(s) addressed)"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
+#: The embargo domain's name for the shared CASE_MANAGER build → commit →
+#: (queue) base (BTND-07-009); the frame is not embargo-specific, so it lives
+#: in :mod:`vultron.core.behaviors.case_manager_commit`.
+_CommitEmbargoDecisionBase = _CommitCaseManagerActivityBase
 
 
 class CommitEmbargoDecisionNode(_CommitEmbargoDecisionBase):

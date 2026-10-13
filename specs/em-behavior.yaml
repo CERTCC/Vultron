@@ -2176,7 +2176,10 @@ groups:
       When the CASE_MANAGER acknowledges a no-op late Accept (EMB-17-004), it
       MUST commit a distinct ledger entry of event type
       `invite_to_embargo_on_case_expired_noop` so that replicas can record the
-      acknowledgement without applying any PEC transition (RSH-08-004).
+      acknowledgement without applying any PEC transition (RSH-08-004). Its
+      payloadSnapshot MUST be the CASE_MANAGER's own factory-built
+      `Ignore(Accept(Invite(EmbargoEvent)))` carrying the late Accept as
+      received (CLP-07-013, VM-08-003).
     rationale: >-
       Without a committed entry the replica has no record that the late Accept
       was received and acknowledged; its chain position would be missing,

@@ -2096,6 +2096,7 @@ class TestLateAcceptHandling:
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
@@ -2115,6 +2116,26 @@ class TestLateAcceptHandling:
             participant.consent_for(embargo_id) == EmbargoConsentState.INVITED
         )
         assert not participant.is_signatory(fresh_case.active_embargo_id)
+
+        # The acknowledgement is the CASE_MANAGER's own Ignore of the Accept
+        # (CLP-07-013), and a redelivered Accept is acknowledged once: the
+        # Ignore's id is derived from the Accept (ID-04-004).
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        (noop,) = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+            and e.event_type == INVITE_EXPIRED_NOOP_EVENT_TYPE
+        ]
+        assert noop.payload_snapshot["type"] == "Ignore"
+        assert noop.payload_snapshot["actor"] == _COORD
+        assert noop.payload_snapshot["object"]["actor"] == _INVITEE
 
     @pytest.mark.spec("EMB-17-004")
     @pytest.mark.spec("CM-28-004")
@@ -2163,6 +2184,7 @@ class TestLateAcceptHandling:
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 

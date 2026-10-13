@@ -175,6 +175,17 @@ class _World:
         )
         return proposal_id
 
+    def late_accept(self) -> dict[str, Any]:
+        """A participant's embargo Accept, as the CASE_MANAGER receives it."""
+        _, blob = self.adapter.accept_embargo(
+            proposal_id=self.proposal_id(),
+            case_id=self.case_id,
+            actor=_PEER,
+            to=[_ACTOR],
+        )
+        accept: dict[str, Any] = json.loads(blob)
+        return accept
+
     def case_proposal(self) -> dict[str, Any]:
         _, blob = self.adapter.create_case_proposal(
             actor=_PEER,
@@ -263,6 +274,9 @@ RECIPES: dict[str, Recipe] = {
     "reject_close_case": lambda w: w.adapter.reject_close_case(
         case_id=w.case_id, actor=_ACTOR, close_sender=_PEER
     ),
+    "record_case_fully_closed": lambda w: w.adapter.record_case_fully_closed(
+        case_id=w.case_id, actor=_CASE_ACTOR
+    ),
     "add_object_to_case": lambda w: w.adapter.add_object_to_case(
         actor=_ACTOR, object_id=w.note_id, case_id=w.case_id
     ),
@@ -307,6 +321,11 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_PEER,
         to=[_ACTOR],
+    ),
+    "ignore_late_embargo_accept": lambda w: (
+        w.adapter.ignore_late_embargo_accept(
+            case_id=w.case_id, actor=_CASE_ACTOR, late_accept=w.late_accept()
+        )
     ),
     "activate_embargo": lambda w: w.adapter.activate_embargo(
         embargo_id=str(w.embargo.id_),

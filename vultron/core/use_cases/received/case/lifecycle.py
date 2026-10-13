@@ -176,7 +176,6 @@ class CloseCaseReceivedUseCase:
         tree = create_close_case_received_tree(
             case_id=case_id,
             activity_id=request.activity_id,
-            activity_obj=request.activity,
             sender_actor_id=request.actor_id,
             receiving_actor_id=receiving_actor_id,
             post_close_reply=self._actor_config.post_close_reply,

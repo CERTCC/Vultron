@@ -477,6 +477,24 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def record_case_fully_closed(
+        self,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """Create and persist the CASE_MANAGER's ``Update(VulnerabilityCase)`` closing the case.
+
+        The ``case_fully_closed`` entry's activity (CM-23-002 step 3): the
+        CASE_MANAGER's own act, carrying the closed case in full, committed
+        after the received ``Leave``'s ``close_case`` entry and the RM
+        closure entries it caused (CLP-07-013).  ``actor`` is the
+        CASE_MANAGER.  The ledger fan-out delivers it; it is not queued to
+        the outbox.  Its id is derived from the CASE_MANAGER and the case, so
+        a case closes once (ID-04-004).
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
     def accept_case_participant_offer(
         self,
         cp_offer_id: str,
@@ -759,6 +777,26 @@ class TriggerActivityPort(Protocol):
         """Create and persist a ``Reject(Invite)`` embargo-reject activity.
 
         Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def ignore_late_embargo_accept(
+        self,
+        case_id: str,
+        actor: str,
+        late_accept: dict[str, Any],
+    ) -> tuple[str, str]:
+        """Create and persist the CASE_MANAGER's ``Ignore`` of a late embargo ``Accept``.
+
+        The EMB-17-004 no-op acknowledgement: the Invite had expired and no
+        embargo remains for the Accept to bind, so the CASE_MANAGER records
+        that it received the answer and changes nothing.  ``actor`` is the
+        CASE_MANAGER; ``late_accept`` is the received ``Accept`` in its AS2
+        JSON form, carried inline as received.  The ledger fan-out delivers
+        it; it is not queued to the outbox.  Its id is derived from the
+        CASE_MANAGER and the Accept, so a redelivered Accept is acknowledged
+        once (ID-04-004).
+        Returns ``(activity_id, activity_blob)``.
         """
         ...
 

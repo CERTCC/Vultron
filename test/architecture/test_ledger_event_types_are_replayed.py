@@ -149,9 +149,11 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         "Read(Offer) acknowledges receipt and moves no RM state (RK, ADR-0021)"
     ),
     "case_fully_closed": (
-        "a marker; the transitions it summarises arrive as the"
+        "the CASE_MANAGER's Update(VulnerabilityCase) marking the write"
+        " boundary; it carries the case a replica at that ledger position"
+        " already holds, and the transitions it follows arrive as the"
         " add_participant_status_to_participant entries before it"
-        " (CM-23-002, CM-23-005)"
+        " (CM-23-002, CM-23-005, CM-23-016)"
     ),
     MS.CLOSE_CASE.value: (
         "records the received Leave; the RM transitions it caused arrive as"

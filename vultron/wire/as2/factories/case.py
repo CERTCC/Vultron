@@ -362,10 +362,14 @@ def update_case_activity(
 ) -> as_Update:
     """Build an Update(as_VulnerabilityCase).
 
+    The form of the CASE_MANAGER's own entry for a change to the case
+    itself, such as its closure (CM-23-002 step 3, CLP-07-013).  ``context``
+    defaults to the case's URI (CLP-07-007).
+
     Args:
         case: The updated ``as_VulnerabilityCase``.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``).
+            (e.g. ``actor``, ``to``, ``id_``).
 
     Returns:
         An ``as_Update`` whose ``object_`` is the case.
@@ -374,7 +378,9 @@ def update_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return _UpdateCaseActivity(object_=case, **kwargs)
+        return _UpdateCaseActivity(
+            object_=case, **with_case_context(kwargs, case)
+        )
     except ValidationError as exc:
         logger.warning("update_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(

@@ -24,7 +24,7 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 
 import logging
 from datetime import datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
 from pydantic import ValidationError
 
@@ -34,7 +34,10 @@ from vultron.core.models.rsvp_deadline import (
     RsvpDeadlineClamp,
     resolve_rsvp_deadline,
 )
-from vultron.wire.as2.factories._context import case_target_ref
+from vultron.wire.as2.factories._context import (
+    case_target_ref,
+    with_case_context,
+)
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
@@ -42,12 +45,14 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
+    _IgnoreLateEmbargoAcceptActivity,
     _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
+    as_Ignore,
     as_Invite,
     as_Reject,
     as_Remove,
@@ -242,6 +247,46 @@ def em_reject_embargo_activity(
         )
         raise VultronActivityConstructionError(
             "em_reject_embargo_activity: invalid arguments"
+        ) from exc
+
+
+def ignore_late_embargo_accept_activity(
+    late_accept: dict[str, Any],
+    **kwargs,
+) -> as_Ignore:
+    """Build the CASE_MANAGER's ``Ignore(Accept(Invite(EmbargoEvent)))`` (EMB-17-004).
+
+    The no-op acknowledgement of a late embargo ``Accept``: the Invite had
+    expired and no embargo remains for the Accept to bind, so the
+    CASE_MANAGER records the answer and changes nothing.  *late_accept* is
+    the received ``Accept`` in its AS2 JSON form, carried inline as received;
+    the ``Ignore`` is the CASE_MANAGER's own act (pass it as ``actor``).
+    ``context`` defaults to the case the Accept names.
+
+    Args:
+        late_accept: The received ``Accept(Invite(EmbargoEvent))``, with its
+            Invite inline.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``id_``, ``in_reply_to``, ``context``).
+
+    Returns:
+        An ``as_Ignore`` whose ``object_`` is the late Accept.
+
+    Raises:
+        VultronActivityConstructionError: If *late_accept* is not an embargo
+            Accept or Pydantic validation fails.
+    """
+    try:
+        accept = _EmAcceptEmbargoActivity.model_validate(late_accept)
+        return _IgnoreLateEmbargoAcceptActivity(
+            object_=accept, **with_case_context(kwargs, accept.context)
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "ignore_late_embargo_accept_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "ignore_late_embargo_accept_activity: invalid arguments"
         ) from exc
 
 

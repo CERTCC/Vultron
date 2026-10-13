@@ -21,6 +21,7 @@ from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
+    as_Ignore,
     as_Invite,
     as_Reject,
     as_Remove,
@@ -76,6 +77,26 @@ class _EmRejectEmbargoActivity(as_Reject):
     """
 
     object_: _EmProposeEmbargoActivity = Field(
+        default=..., validation_alias="object", serialization_alias="object"
+    )
+    context: as_VulnerabilityCaseRef = None
+
+
+class _IgnoreLateEmbargoAcceptActivity(as_Ignore):
+    """The CASE_MANAGER acknowledges a late embargo Accept as a no-op (EMB-17-004).
+
+    ``Ignore(Accept(Invite(EmbargoEvent)))``: the Invite had already expired
+    and the case holds no embargo the Accept could still bind (EM ``EXITED``
+    or ``NONE``), so the CASE_MANAGER records that it received the answer and
+    changes nothing.  It is the CASE_MANAGER's own act, from the clock: the
+    accepter's ``Accept`` is carried inline, as received, and the ``Ignore``
+    is attributed to the CASE_MANAGER alone.
+
+    object_: the late _EmAcceptEmbargoActivity (inline, as received)
+    context: the VulnerabilityCase the Invite was for
+    """
+
+    object_: _EmAcceptEmbargoActivity = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
     context: as_VulnerabilityCaseRef = None
