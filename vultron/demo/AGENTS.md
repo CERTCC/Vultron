@@ -43,7 +43,7 @@ update its own replica either. Activities route through the CaseActor, whose
 `Announce` every replica consumes — a replica that is not updating means the
 routing is wrong. See
 [`notes/ownership-transfer.md`](../../notes/ownership-transfer.md) § "The Accepting
-Actor's Replica Updates via the CaseActor's Announce". (CONCERN-1635, ISSUE-2719)
+Actor's Replica Updates via the CASE_MANAGER's Announce". (CONCERN-1635, ISSUE-2719)
 
 ### A Scenario Declares Itself Once; Every Consumer Is Generated
 
