@@ -32,6 +32,7 @@ from vultron.core.models.events.actor import (
     RejectInviteActorToFullCaseReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
     TentativeRejectInviteActorToFullCaseReceivedEvent,
+    UndoCaseOwnershipTransferReceivedEvent,
 )
 from vultron.core.models.events.base import (
     MessageSemantics,
@@ -128,6 +129,7 @@ AnyReceivedEvent = (
     | OfferCaseOwnershipTransferReceivedEvent
     | AcceptCaseOwnershipTransferReceivedEvent
     | RejectCaseOwnershipTransferReceivedEvent
+    | UndoCaseOwnershipTransferReceivedEvent
     | InviteActorToCaseReceivedEvent
     | AcceptInviteActorToCaseReceivedEvent
     | RejectInviteActorToCaseReceivedEvent
@@ -212,6 +214,7 @@ __all__ = [
     "OfferCaseOwnershipTransferReceivedEvent",
     "AcceptCaseOwnershipTransferReceivedEvent",
     "RejectCaseOwnershipTransferReceivedEvent",
+    "UndoCaseOwnershipTransferReceivedEvent",
     "InviteActorToCaseReceivedEvent",
     "AcceptInviteActorToCaseReceivedEvent",
     "RejectInviteActorToCaseReceivedEvent",

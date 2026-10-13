@@ -13,12 +13,14 @@ from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
     create_offer_ownership_transfer_tree,
     create_reject_ownership_transfer_tree,
+    create_undo_ownership_transfer_tree,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
+    UndoCaseOwnershipTransferReceivedEvent,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -210,14 +212,22 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         return verdict
 
 
+#: A received reply to an ownership-transfer Offer: the transferee's answer
+#: or the offerer's withdrawal.
+_OwnershipOfferReply = (
+    AcceptCaseOwnershipTransferReceivedEvent
+    | RejectCaseOwnershipTransferReceivedEvent
+    | UndoCaseOwnershipTransferReceivedEvent
+)
+
+
 def _names_no_case(
-    request: AcceptCaseOwnershipTransferReceivedEvent
-    | RejectCaseOwnershipTransferReceivedEvent,
+    request: _OwnershipOfferReply,
     verb: str,
 ) -> HandlerResult:
-    """The refusal of a transferee's answer (*verb*) that names no case.
+    """The refusal of a reply to an Offer (*verb*) that names no case.
 
-    Shared by the Accept and the Reject, before any tree is built.
+    Shared by the Accept, the Reject and the Undo, before any tree is built.
     """
     logger.warning(
         "%s(ownership transfer): '%s' from '%s' names no case",
@@ -231,18 +241,19 @@ def _names_no_case(
 def _run_ownership_answer(
     *,
     dl: CaseOutboxPersistence,
-    request: AcceptCaseOwnershipTransferReceivedEvent
-    | RejectCaseOwnershipTransferReceivedEvent,
+    request: _OwnershipOfferReply,
     tree: py_trees.behaviour.Behaviour,
     label: str,
     sync_port: SyncActivityPort | None,
     wire_render_port: "WireRenderPort | None",
+    applied_note: str | None = None,
 ) -> HandlerResult:
-    """Run the receive tree of a transferee's answer and read its verdict.
+    """Run the receive tree of a reply to an Offer and read its verdict.
 
-    Shared by the Accept and the Reject: a redelivery of the answer that
-    already closed the Offer is ``SKIPPED`` (HP-01-003); a refusal is logged
-    at WARNING with the sender and the case.
+    Shared by the Accept, the Reject and the Undo: a redelivery of the reply
+    that already closed the Offer is ``SKIPPED`` (HP-01-003); a refusal is
+    logged at WARNING with the sender and the case.  When *applied_note* is
+    given, an applied reply is logged at INFO with it.
     """
     receiving_actor_id = resolve_receiving_actor_id(
         dl, request.receiving_actor_id
@@ -268,6 +279,14 @@ def _run_ownership_answer(
             request.actor_id,
             request.case_id,
             verdict.reason,
+        )
+    elif applied_note and verdict.disposition is HandlerDisposition.APPLIED:
+        logger.info(
+            "Actor '%s' %s ownership transfer offer '%s' for case '%s'",
+            request.actor_id,
+            applied_note,
+            request.object_id,
+            request.case_id,
         )
     return verdict
 
@@ -368,20 +387,67 @@ class RejectCaseOwnershipTransferReceivedUseCase:
             sender_id=request.actor_id,
             answer_id=request.activity_id,
         )
-        verdict = _run_ownership_answer(
+        return _run_ownership_answer(
             dl=self._dl,
             request=request,
             tree=tree,
             label="RejectOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
+            applied_note="rejected (ownership unchanged)",
         )
-        if verdict.disposition is HandlerDisposition.APPLIED:
-            logger.info(
-                "Actor '%s' rejected ownership transfer offer '%s' for case"
-                " '%s' — ownership unchanged",
-                request.actor_id,
-                request.object_id,
-                case_id,
-            )
-        return verdict
+
+
+class UndoCaseOwnershipTransferReceivedUseCase:
+    """The CASE_MANAGER ledgers a withdrawn ownership-transfer Offer (CM-21-015).
+
+    At the CASE_MANAGER the sender must be the Case Owner that made an open
+    ownership-transfer Offer it recorded for the case; at any other replica
+    it must be the CASE_MANAGER.  Anyone else, or a withdrawal of an Offer
+    already answered or withdrawn, is ``REFUSED`` with nothing committed and
+    nothing sent.
+
+    An admitted Undo commits an ``undo_case_ownership_transfer`` entry and
+    broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every
+    replica (CM-21-014): the transferee learns it can no longer accept, and
+    the case may be offered again.  Ownership is unchanged.  A redelivery of
+    the Undo that already closed the Offer is ``SKIPPED`` (HP-01-003).
+    """
+
+    # The offerer, which must still be the Case Owner (CM-21-015).
+    sender_entitlement: ClassVar[SenderEntitlement] = (
+        SenderEntitlementKind.CASE_OWNER
+    )
+
+    def __init__(
+        self,
+        dl: CaseOutboxPersistence,
+        request: UndoCaseOwnershipTransferReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
+    ) -> None:
+        self._dl = dl
+        self._wire_render_port = wire_render_port
+        self._sync_port = sync_port
+        self._request: UndoCaseOwnershipTransferReceivedEvent = request
+
+    def execute(self) -> HandlerResult:
+        request = self._request
+        case_id = request.case_id
+        if case_id is None:
+            return _names_no_case(request, "Undo")
+        tree = create_undo_ownership_transfer_tree(
+            case_id=case_id,
+            offer_id=request.object_id,
+            sender_id=request.actor_id,
+            undo_id=request.activity_id,
+        )
+        return _run_ownership_answer(
+            dl=self._dl,
+            request=request,
+            tree=tree,
+            label="UndoOwnershipTransferBT",
+            sync_port=self._sync_port,
+            wire_render_port=self._wire_render_port,
+            applied_note="withdrew (ownership unchanged)",
+        )

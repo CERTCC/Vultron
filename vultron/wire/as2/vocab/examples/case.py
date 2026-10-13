@@ -25,6 +25,7 @@ from vultron.wire.as2.factories import (
     rm_close_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
+    undo_case_ownership_transfer_activity,
     update_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -37,6 +38,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Leave,
     as_Offer,
     as_Reject,
+    as_Undo,
     as_Update,
 )
 from vultron.wire.as2.vocab.examples._base import (
@@ -185,6 +187,18 @@ def reject_case_ownership_transfer() -> as_Reject:
         _offer,
         actor=_coordinator.id_,
         content=f"We're declining your offer to transfer ownership of case {_case.name} to us.",
+    )
+    return _activity
+
+
+def undo_case_ownership_transfer() -> as_Undo:
+    _case = case()
+    _vendor = vendor()
+    _offer = offer_case_ownership_transfer()
+    _activity = undo_case_ownership_transfer_activity(
+        _offer,
+        actor=_vendor.id_,
+        content=f"We're withdrawing our offer to transfer ownership of case {_case.name}.",
     )
     return _activity
 

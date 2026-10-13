@@ -71,7 +71,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderIsOwnershipTransfereeNode,
+    SenderIsOwnershipOfferPartyNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
@@ -235,7 +235,7 @@ def reference_edit_verdict(
 
 def _redelivery_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
-    guard_type: type[SenderIsOwnershipTransfereeNode]
+    guard_type: type[SenderIsOwnershipOfferPartyNode]
     | type[NoOpenOwnershipOfferNode],
     verdict: HandlerResult,
     fallback: str,
@@ -251,18 +251,20 @@ def ownership_answer_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     verdict: HandlerResult,
 ) -> HandlerResult:
-    """Report a redelivered ownership-transfer answer as ``SKIPPED``.
+    """Report a redelivered reply to an ownership-transfer Offer as ``SKIPPED``.
 
-    :class:`~vultron.core.behaviors.sender_entitlement.SenderIsOwnershipTransfereeNode`
-    fails with ``is_redelivery`` set when the answer is the one already
-    ledgered as closing its Offer, so nothing is re-applied.  That is the
-    benign no-op of a redelivery, not a refusal (HP-01-003, CM-21-011).
+    The reply's sender guard — a
+    :class:`~vultron.core.behaviors.sender_entitlement.SenderIsOwnershipOfferPartyNode`,
+    for the transferee's Accept or Reject or the offerer's withdrawal — fails
+    with ``is_redelivery`` set when the reply is the one already ledgered as
+    closing its Offer, so nothing is re-applied.  That is the benign no-op of
+    a redelivery, not a refusal (HP-01-003, CM-21-011, CM-21-015).
     """
     return _redelivery_verdict(
         tree,
-        SenderIsOwnershipTransfereeNode,
+        SenderIsOwnershipOfferPartyNode,
         verdict,
-        "ownership-transfer answer redelivered",
+        "ownership-transfer reply redelivered",
     )
 
 

@@ -104,4 +104,4 @@ The [CASE_MANAGER](../../../topics/case_lifecycle/case_manager_and_ledger.md) ro
 - [Case Management Messages](../../../reference/messages/case_management.md) — the wire format, pattern, and factory for each activity above
 - [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why a new object type was minted here rather than a new verb
 - [ADR-0039 — Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](../../../adr/0039-offer-case-participant-role-wire-type.md)
-- [Trigger API Reference](../../../reference/trigger-api.md#actor-participation) — request schema and endpoint details for `offer-case-participant-role`, `offer-case-ownership-transfer`, `accept-actor-recommendation`, `accept-case-ownership-transfer`, and `reject-case-ownership-transfer`
+- [Trigger API Reference](../../../reference/trigger-api.md#actor-participation) — request schema and endpoint details for `offer-case-participant-role`, `offer-case-ownership-transfer`, `accept-actor-recommendation`, `accept-case-ownership-transfer`, `reject-case-ownership-transfer`, and `withdraw-case-ownership-transfer`

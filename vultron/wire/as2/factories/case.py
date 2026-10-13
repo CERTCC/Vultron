@@ -69,6 +69,7 @@ from vultron.wire.as2.vocab.activities.case import (
     _RmRejectFullCaseInviteActivity,
     _RmRejectInviteToCaseActivity,
     _RmTentativeRejectFullCaseInviteActivity,
+    _UndoCaseOwnershipTransferActivity,
     _UpdateCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
@@ -85,6 +86,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Leave,
     as_Offer,
     as_Reject,
+    as_Undo,
     as_Update,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
@@ -628,6 +630,36 @@ def offer_case_ownership_transfer_activity(
         ) from exc
 
 
+_OwnershipReply = TypeVar("_OwnershipReply")
+
+
+def _ownership_offer_reply(
+    reply_class: Callable[..., _OwnershipReply],
+    label: str,
+    offer: as_Offer,
+    kwargs: dict[str, Any],
+) -> _OwnershipReply:
+    """Build *reply_class* around an ownership-transfer *offer*.
+
+    Shared by the transferee's Accept and Reject and the offerer's Undo.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails, as it
+            does for a plain ``as_Offer`` that is not an
+            ``_OfferCaseOwnershipTransferActivity``.
+    """
+    try:
+        return reply_class(
+            object_=cast(_OfferCaseOwnershipTransferActivity, offer),
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning("%s: invalid arguments: %s", label, exc)
+        raise VultronActivityConstructionError(
+            f"{label}: invalid arguments"
+        ) from exc
+
+
 def accept_case_ownership_transfer_activity(
     offer: as_Offer,
     **kwargs,
@@ -651,19 +683,12 @@ def accept_case_ownership_transfer_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _AcceptCaseOwnershipTransferActivity(
-            object_=cast(_OfferCaseOwnershipTransferActivity, offer),
-            **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "accept_case_ownership_transfer_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "accept_case_ownership_transfer_activity: invalid arguments"
-        ) from exc
+    return _ownership_offer_reply(
+        _AcceptCaseOwnershipTransferActivity,
+        "accept_case_ownership_transfer_activity",
+        offer,
+        kwargs,
+    )
 
 
 def reject_case_ownership_transfer_activity(
@@ -689,19 +714,44 @@ def reject_case_ownership_transfer_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    try:
-        return _RejectCaseOwnershipTransferActivity(
-            object_=cast(_OfferCaseOwnershipTransferActivity, offer),
-            **kwargs,
-        )
-    except ValidationError as exc:
-        logger.warning(
-            "reject_case_ownership_transfer_activity: invalid arguments: %s",
-            exc,
-        )
-        raise VultronActivityConstructionError(
-            "reject_case_ownership_transfer_activity: invalid arguments"
-        ) from exc
+    return _ownership_offer_reply(
+        _RejectCaseOwnershipTransferActivity,
+        "reject_case_ownership_transfer_activity",
+        offer,
+        kwargs,
+    )
+
+
+def undo_case_ownership_transfer_activity(
+    offer: as_Offer,
+    **kwargs,
+) -> as_Undo:
+    """Build an Undo(_OfferCaseOwnershipTransferActivity): a withdrawal.
+
+    The Case Owner that made the Offer withdraws it while it is open,
+    addressing the Undo to the CASE_MANAGER (CM-21-015).  The ``offer`` MUST
+    be an ``_OfferCaseOwnershipTransferActivity`` (i.e., the value returned
+    by :func:`offer_case_ownership_transfer_activity`).  A plain ``as_Offer``
+    will fail Pydantic validation and raise
+    :exc:`VultronActivityConstructionError`.
+
+    Args:
+        offer: The ``_OfferCaseOwnershipTransferActivity`` being withdrawn.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``).
+
+    Returns:
+        An ``as_Undo`` whose ``object_`` is the offer.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    return _ownership_offer_reply(
+        _UndoCaseOwnershipTransferActivity,
+        "undo_case_ownership_transfer_activity",
+        offer,
+        kwargs,
+    )
 
 
 def rm_invite_to_case_activity(

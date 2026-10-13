@@ -22,6 +22,9 @@ This demo script showcases two ownership transfer paths:
    accepts → case.attributed_to is updated to coordinator
 2. Reject path: current owner (vendor) offers case to coordinator → coordinator
    rejects → case.attributed_to remains with vendor
+3. Withdraw path: current owner (vendor) offers case to coordinator → vendor
+   withdraws the offer before it is answered → case.attributed_to remains
+   with vendor
 
 Each demo starts from a canonical, CaseActor-owned case (report submitted and
 validated, ``Create(CaseProposal)`` delivered, CaseActor creates the case) so
@@ -34,14 +37,14 @@ When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
 3. Discover actors (finder, vendor, coordinator) via the API
-4. Run both demo workflows (accept and reject)
+4. Run the demo workflows (accept, reject and withdraw)
 5. Verify side effects in the data layer
 
 Routing model (ADR-0053):
-Both the ``Offer(VulnerabilityCase)`` and the response to it are addressed to
-the **CaseActor's** inbox, never to the transferee or the offerer directly
-(CM-21-005, CM-21-006, CM-21-010).  The CaseActor records the Offer, commits a
-``CaseLedgerEntry``, broadcasts ``Announce(CaseLedgerEntry)`` to every
+The ``Offer(VulnerabilityCase)``, the response to it and its withdrawal are
+addressed to the **CaseActor's** inbox, never to the transferee or the offerer
+directly (CM-21-005, CM-21-006, CM-21-010, CM-21-015).  The CaseActor records
+the Offer, commits a ``CaseLedgerEntry``, broadcasts ``Announce(CaseLedgerEntry)`` to every
 participant — which is how actors outside the negotiation, such as the finder,
 learn a transfer is pending — and only then forwards a **new** Offer of its own
 to the transferee.  The demo therefore discovers the forwarded Offer by its
@@ -148,7 +151,7 @@ def _vendor_offers_ownership(
     vendor: as_Actor,
     coordinator: as_Actor,
     case_actor_id: str,
-) -> None:
+) -> str:
     """The vendor offers ownership to the coordinator through its trigger.
 
     The ``offer-case-ownership-transfer`` trigger (TRIG-11-001, DEMOMA-05-001)
@@ -158,6 +161,9 @@ def _vendor_offers_ownership(
     Addressing it to the vendor instead is what made receivers reject the
     Offer in #2142.  The demo gates on the CaseActor's ledger entry for it,
     the cause of the forward the next step waits for (EDF-06).
+
+    Returns:
+        The id of the Offer the vendor made, which it names to withdraw it.
     """
     offer = (
         ActorSession(client=client, actor=vendor)
@@ -177,6 +183,50 @@ def _vendor_offers_ownership(
             event_type="offer_case_ownership_transfer",
             dl_actor_id=case_actor_id,
         )
+    return offer.id_
+
+
+def _check_owner_unchanged(
+    client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    case_actor_id: str,
+    original_owner: object,
+    after: str,
+) -> None:
+    """Check the CaseActor's case is still attributed to *original_owner*.
+
+    Shared by the paths that close the Offer without a transfer: the
+    transferee's Reject and the vendor's withdrawal.  The caller gates on
+    the closing ledger entry first (EDF-06).
+    """
+    with demo_check("Case attributed_to still vendor"):
+        final_case = log_case_state(
+            client, case.id_, f"after {after}", actor_id=case_actor_id
+        )
+        if final_case is None:
+            raise ValueError(f"Could not retrieve case after {after}")
+        if final_case.attributed_to != original_owner:
+            raise ValueError(
+                f"Expected case owner to remain '{original_owner}'"
+                f" after {after}, got: {final_case.attributed_to}"
+            )
+        logger.info(
+            "Ownership unchanged — still with: %s",
+            final_case.attributed_to,
+        )
+
+
+def _initial_owner(
+    client: DataLayerClient, case: as_VulnerabilityCase, case_actor_id: str
+) -> object:
+    """Log the case's initial state and return its owner."""
+    initial_case = log_case_state(
+        client, case.id_, "initial", actor_id=case_actor_id
+    )
+    if initial_case is None:
+        raise ValueError("Could not retrieve initial case state")
+    logger.info("Initial owner: %s", initial_case.attributed_to)
+    return initial_case.attributed_to
 
 
 def demo_transfer_ownership_accept(
@@ -210,12 +260,7 @@ def demo_transfer_ownership_accept(
     )
 
     # Confirm initial owner is vendor
-    initial_case = log_case_state(
-        client, case.id_, "initial", actor_id=case_actor_id
-    )
-    if initial_case is None:
-        raise ValueError("Could not retrieve initial case state")
-    logger.info("Initial owner: %s", initial_case.attributed_to)
+    _initial_owner(client, case, case_actor_id)
 
     with demo_step(
         "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
@@ -298,13 +343,7 @@ def demo_transfer_ownership_reject(
         client, finder, vendor, coordinator
     )
 
-    initial_case = log_case_state(
-        client, case.id_, "initial", actor_id=case_actor_id
-    )
-    if initial_case is None:
-        raise ValueError("Could not retrieve initial case state")
-    original_owner = initial_case.attributed_to
-    logger.info("Initial owner: %s", original_owner)
+    original_owner = _initial_owner(client, case, case_actor_id)
 
     with demo_step(
         "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
@@ -357,30 +396,117 @@ def demo_transfer_ownership_reject(
         )
 
         with demo_step("Step 5: Verify case ownership unchanged"):
-            with demo_check("Case attributed_to still vendor"):
-                final_case = log_case_state(
-                    client, case.id_, "after reject", actor_id=case_actor_id
-                )
-                if final_case is None:
-                    raise ValueError("Could not retrieve case after reject")
-                if final_case.attributed_to != original_owner:
-                    raise ValueError(
-                        f"Expected case owner to remain '{original_owner}'"
-                        f" after reject, got: {final_case.attributed_to}"
-                    )
-                logger.info(
-                    "Ownership unchanged — still with: %s",
-                    final_case.attributed_to,
-                )
+            _check_owner_unchanged(
+                client, case, case_actor_id, original_owner, "reject"
+            )
 
     logger.info(
         "✅ DEMO COMPLETE (reject path): Ownership transfer rejected gracefully."
     )
 
 
+def demo_transfer_ownership_withdraw(
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: as_Actor,
+) -> None:
+    """
+    Demonstrates the withdrawal path of the transfer-ownership workflow.
+
+    Steps:
+    1. Setup: canonical CaseActor-owned case, coordinator added as participant
+    2. Vendor offers case ownership to coordinator
+       (OfferCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-005)
+    3. CaseActor forwards a new Offer to the coordinator; the demo discovers it
+    4. Before the coordinator answers, the vendor withdraws the Offer through
+       its ``withdraw-case-ownership-transfer`` trigger
+       (UndoCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-015,
+       TRIG-11-006)
+    5. Once the CaseActor has ledgered the withdrawal, verify
+       case.attributed_to remains with vendor
+
+    This follows the withdrawal branch in
+    docs/topics/case_lifecycle/ownership_transfer.md.
+    """
+    logger.info("=" * 80)
+    logger.info("DEMO: Transfer Ownership — Withdraw Path")
+    logger.info("=" * 80)
+
+    case, case_actor_id = _setup_transfer_precondition(
+        client, finder, vendor, coordinator
+    )
+    original_owner = _initial_owner(client, case, case_actor_id)
+
+    # Bound before the step (#2308): a failed step leaves no unbound name.
+    offer_id = ""
+    with demo_step(
+        "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
+    ):
+        offer_id = _vendor_offers_ownership(
+            client, case, vendor, coordinator, case_actor_id
+        )
+
+    with demo_gate(
+        "Step 3: CaseActor forwarded the Offer to the coordinator (CM-21-005)"
+    ):
+        forwarded_offer_id = await_forwarded_ownership_transfer_offer(
+            client, case=case, transferee=coordinator
+        )
+        logger.info("Forwarded offer id: %s", forwarded_offer_id)
+
+        with demo_step(
+            "Step 4: Vendor withdraws the ownership transfer offer"
+        ):
+            # Through the vendor's own trigger (DEMOMA-05-001, TRIG-11-006),
+            # naming the Offer the vendor made: that is the one the CaseActor
+            # ledgered, and the one the vendor's store holds.
+            undo = (
+                ActorSession(client=client, actor=vendor)
+                .quiet()
+                .withdraw_case_ownership_transfer(offer_id=offer_id)
+                .activity
+            )
+            logger.info("Vendor sent withdrawal: %s", logfmt(undo))
+            with demo_check(
+                "Withdrawal addressed to the CaseActor (CM-21-015)"
+            ):
+                recipients = recipient_ids(undo.to)
+                if recipients != [case_actor_id]:
+                    raise ValueError(
+                        f"Expected the Undo addressed to '{case_actor_id}',"
+                        f" got: {recipients}"
+                    )
+
+    # Gate on the cause (EDF-06): the CaseActor ledgers the withdrawal and
+    # broadcasts it (CM-21-015); that entry is what closes the Offer.
+    with demo_gate(
+        "CaseActor committed undo_case_ownership_transfer (CM-21-015)"
+    ):
+        wait_for_event_type_in_ledger(
+            client=client,
+            case_id=case.id_,
+            event_type="undo_case_ownership_transfer",
+            dl_actor_id=case_actor_id,
+        )
+
+        with demo_step("Step 5: Verify case ownership unchanged"):
+            _check_owner_unchanged(
+                client, case, case_actor_id, original_owner, "withdrawal"
+            )
+
+    logger.info(
+        "✅ DEMO COMPLETE (withdraw path): Ownership transfer offer withdrawn."
+    )
+
+
 _ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
     ("Demo: Transfer Ownership — Accept Path", demo_transfer_ownership_accept),
     ("Demo: Transfer Ownership — Reject Path", demo_transfer_ownership_reject),
+    (
+        "Demo: Transfer Ownership — Withdraw Path",
+        demo_transfer_ownership_withdraw,
+    ),
 ]
 
 

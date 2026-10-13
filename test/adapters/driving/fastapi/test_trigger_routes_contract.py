@@ -142,6 +142,7 @@ _BODIES: dict[str, dict[str, Any]] = {
     },
     "accept-case-ownership-transfer": {"offer_id": "urn:uuid:offer"},
     "reject-case-ownership-transfer": {"offer_id": "urn:uuid:offer"},
+    "withdraw-case-ownership-transfer": {"offer_id": "urn:uuid:offer"},
     "add-note-to-case": {
         "case_id": _CASE,
         "note_name": "Note",

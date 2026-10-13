@@ -133,6 +133,32 @@ class RejectCaseOwnershipTransferReceivedEvent(VultronEvent):
         return self.inner_object_id
 
 
+class UndoCaseOwnershipTransferReceivedEvent(VultronEvent):
+    """The offerer withdrew its offer to transfer ownership of a case.
+
+    ``Undo(Offer(VulnerabilityCase))``, sent by the Case Owner that made the
+    Offer and addressed to the CASE_MANAGER (CM-21-015).
+    """
+
+    semantic_type: Literal[MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER] = (
+        MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER
+    )
+
+    @property
+    def offer_id(self) -> str | None:
+        """The Offer withdrawn."""
+        return self.object_id
+
+    @property
+    def offer(self) -> "VultronActivity | None":
+        return cast("VultronActivity | None", self.object_)
+
+    @property
+    def case_id(self) -> str | None:
+        """The case the withdrawn Offer would have transferred."""
+        return self.inner_object_id
+
+
 class InviteActorToCaseReceivedEvent(VultronEvent):
     """Actor invited another actor to join a VulnerabilityCase."""
 

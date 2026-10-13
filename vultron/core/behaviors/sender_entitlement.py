@@ -73,6 +73,10 @@ Nodes
   ownership-transfer Offer: at the CASE_MANAGER the sender must be the
   transferee of the open Offer it recorded; at any other replica it must be
   the CASE_MANAGER (``NAMED_ACTOR`` kind; CM-21-011, CM-21-013, PCR-03-001)
+- ``SenderIsOwnershipOffererNode`` — guards a withdrawal of an
+  ownership-transfer Offer: at the CASE_MANAGER the sender must be the Case
+  Owner that made the open Offer it recorded; at any other replica it must be
+  the CASE_MANAGER (``CASE_OWNER`` kind; CM-21-015, PCR-03-001)
 - ``SenderIsExecutingActorNode`` — guards that the sender equals the executing
   actor; merged from ``CheckSenderIsExecutingActorNode``
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
@@ -89,7 +93,7 @@ Spec: HP-01-006, HP-01-007, CM-10-004, PCR-03-001.
 import logging
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any
+from typing import Any, ClassVar
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
@@ -927,24 +931,27 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
 
 
 # ---------------------------------------------------------------------------
-# Condition node: NAMED_ACTOR (the transferee of a recorded ownership Offer)
+# Condition nodes: the parties to a recorded ownership-transfer Offer
 # ---------------------------------------------------------------------------
 
 
-class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
-    """Guard: sender may answer this ownership-transfer Offer to this receiver.
+class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
+    """Guard: sender may reply to this ownership-transfer Offer at this receiver.
 
-    The entitlement depends on who receives the answer (CM-21-011,
-    CM-21-013, PCR-03-001):
+    Shared by the transferee's answer (:class:`SenderIsOwnershipTransfereeNode`)
+    and the offerer's withdrawal (:class:`SenderIsOwnershipOffererNode`).  The
+    entitlement depends on who receives the reply (CM-21-011, CM-21-013,
+    CM-21-015, PCR-03-001):
 
-    - At the **CASE_MANAGER** the sender must be the transferee named in an
-      ownership-transfer Offer the CASE_MANAGER recorded for the case, and
-      the Offer must still be open: no other answer is ledgered for it
-      (CM-21-014).  The Offer is read from this store's ledger, never from
-      the copy the answer embeds, which the sender wrote.
-    - A **redelivery** of the answer that already closed the Offer is not a
+    - At the **CASE_MANAGER** the sender must be the party to an
+      ownership-transfer Offer the CASE_MANAGER recorded for the case that
+      the subclass names (:meth:`_party_refusal`), and the Offer must still be
+      open: no answer or withdrawal is ledgered for it (CM-21-014).  The Offer
+      is read from this store's ledger, never from the copy the reply embeds,
+      which the sender wrote.
+    - A **redelivery** of the reply that already closed the Offer is not a
       refusal (HP-01-003), but it must change nothing: by then ownership may
-      have moved on through a later Offer, and re-applying the old answer
+      have moved on through a later Offer, and re-applying the old reply
       would hand it back with no ledger entry.  The guard sets
       :attr:`is_redelivery` and fails, so nothing downstream runs, and the
       handler reports the run as ``SKIPPED``.
@@ -955,69 +962,91 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
     leaves nothing to establish the sender's standing against, so the sender
     is refused.
 
-    The transferee is the addressee of the request, so the kind is
-    ``NAMED_ACTOR`` (ADR-0129).
-
-    Spec: CM-21-011, CM-21-013, CM-21-014, PCR-03-001, HP-01-006.
+    Spec: CM-21-011, CM-21-013, CM-21-014, CM-21-015, PCR-03-001, HP-01-006.
     """
+
+    _spec: ClassVar[str]
+    """The requirement a refusal cites; each subclass names its own."""
 
     def __init__(
         self,
         case_id: str,
         offer_id: str | None,
         sender_actor_id: str,
-        answer_id: str,
+        reply_id: str,
         name: str | None = None,
     ) -> None:
         """Create the guard.
 
         Args:
-            case_id: The case the answer names.
-            offer_id: The Offer the answer names (``None`` when it names
+            case_id: The case the reply names.
+            offer_id: The Offer the reply names (``None`` when it names
                 none, which refuses at the CASE_MANAGER).
-            sender_actor_id: The answer's sender.
-            answer_id: The answer's own id, so a redelivery is recognised.
+            sender_actor_id: The reply's sender.
+            reply_id: The reply's own id, so a redelivery is recognised.
             name: Optional node name.
         """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._offer_id = offer_id
         self._sender_actor_id = sender_actor_id
-        self._answer_id = answer_id
+        self._reply_id = reply_id
         self.is_redelivery = False
-        """``True`` when the last run found the answer already ledgered as
+        """``True`` when the last run found the reply already ledgered as
         the one that closed the Offer: a benign no-op, not a refusal."""
 
     def _refuse(self, reason: str) -> Status:
-        self.feedback_message = f"{reason} — REFUSED (CM-21-011, HP-01-006)"
+        self.feedback_message = f"{reason} — REFUSED ({self._spec}, HP-01-006)"
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
-    def _check_open_offer(self, offer: RecordedOwnershipOffer) -> Status:
-        """The CASE_MANAGER arm: the sender is the transferee of *offer*,
-        which no answer has closed yet."""
-        sender = self._sender_actor_id
-        if not same_actor_id(sender, offer.transferee_id):
-            return self._refuse(
-                f"Sender '{sender}' is not the transferee"
-                f" '{offer.transferee_id}' of ownership-transfer Offer"
-                f" '{offer.offer_id}'"
-            )
-        if offer.answer_id == self._answer_id:
+    def _party_refusal(
+        self, offer: RecordedOwnershipOffer, manager_id: str
+    ) -> str | None:
+        """Why the sender is not the party to *offer* this reply needs.
+
+        *manager_id* is the case's CASE_MANAGER, which recorded *offer*.
+        Returns ``None`` when the sender is that party.
+        """
+        raise NotImplementedError
+
+    def _standing_refusal(
+        self, case: VulnerabilityCase, offer: RecordedOwnershipOffer
+    ) -> str | None:
+        """Why the party may not reply to the *open* Offer now, if at all.
+
+        Checked last, once the Offer is known to be open, so a reply to a
+        closed Offer is refused as closed.  ``None`` by default.
+        """
+        return None
+
+    def _check_open_offer(
+        self,
+        case: VulnerabilityCase,
+        offer: RecordedOwnershipOffer,
+        manager_id: str,
+    ) -> Status:
+        """The CASE_MANAGER arm: the sender is the right party to *offer*,
+        which nothing has closed yet."""
+        if (why := self._party_refusal(offer, manager_id)) is not None:
+            return self._refuse(why)
+        if offer.answer_id == self._reply_id:
             self.is_redelivery = True
             self.feedback_message = (
-                f"Answer '{self._answer_id}' already closed ownership-transfer"
+                f"Reply '{self._reply_id}' already closed ownership-transfer"
                 f" Offer '{offer.offer_id}' — redelivery, nothing to apply"
                 " (HP-01-003)"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        if offer.is_answered_other_than(self._answer_id):
+        if offer.is_answered_other_than(self._reply_id):
             return self._refuse(
                 f"Ownership-transfer Offer '{offer.offer_id}' for case"
-                f" '{self._case_id}' was already answered by"
-                f" '{offer.answer_id}'"
+                f" '{self._case_id}' was already closed by"
+                f" '{offer.answer_id}' ({offer.closed_by_event_type})"
             )
+        if (why := self._standing_refusal(case, offer)) is not None:
+            return self._refuse(why)
         return Status.SUCCESS
 
     def update(self) -> Status:
@@ -1044,7 +1073,7 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
         if same_actor_id(self.actor_id, manager_id):
             if self._offer_id is None:
                 return self._refuse(
-                    f"Sender '{sender}' answers no ownership-transfer Offer"
+                    f"Sender '{sender}' names no ownership-transfer Offer"
                 )
             try:
                 offer = recorded_ownership_offer(
@@ -1052,11 +1081,11 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
                 )
             except VultronNotFoundError as exc:
                 return self._refuse(
-                    f"Sender '{sender}' answers Offer '{self._offer_id}',"
+                    f"Sender '{sender}' names Offer '{self._offer_id}',"
                     f" which this CASE_MANAGER never recorded for case"
                     f" '{self._case_id}' ({exc})"
                 )
-            return self._check_open_offer(offer)
+            return self._check_open_offer(case, offer, manager_id)
         if same_actor_id(sender, manager_id):
             return Status.SUCCESS
         return self._refuse(
@@ -1064,6 +1093,82 @@ class SenderIsOwnershipTransfereeNode(SenderEntitlementConditionNode):
             f" '{self._case_id}', the only actor a participant takes an"
             " ownership change from (PCR-03-001)"
         )
+
+
+class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
+    """Guard: sender may answer this ownership-transfer Offer to this receiver.
+
+    At the CASE_MANAGER the sender must be the transferee named in an open
+    ownership-transfer Offer the CASE_MANAGER recorded for the case
+    (CM-21-011, CM-21-013); everything else is the shared rule of
+    :class:`SenderIsOwnershipOfferPartyNode`.
+
+    The transferee is the addressee of the request, so the kind is
+    ``NAMED_ACTOR`` (ADR-0129).
+
+    Spec: CM-21-011, CM-21-013, CM-21-014, PCR-03-001, HP-01-006.
+    """
+
+    _spec = "CM-21-011"
+
+    def _party_refusal(
+        self, offer: RecordedOwnershipOffer, manager_id: str
+    ) -> str | None:
+        sender = self._sender_actor_id
+        if same_actor_id(sender, offer.transferee_id):
+            return None
+        return (
+            f"Sender '{sender}' is not the transferee"
+            f" '{offer.transferee_id}' of ownership-transfer Offer"
+            f" '{offer.offer_id}'"
+        )
+
+
+class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
+    """Guard: sender may withdraw this ownership-transfer Offer at this receiver.
+
+    At the CASE_MANAGER the sender must be the Case Owner that made an open
+    ownership-transfer Offer the CASE_MANAGER recorded for the case
+    (CM-21-015): the participant the recorded Offer speaks for — its
+    ``attributedTo`` only when the CASE_MANAGER sent it on that participant's
+    behalf, else its ``actor`` (CM-24-002) — and holding
+    ``CVDRole.CASE_OWNER`` now.  Everything else is the shared rule of
+    :class:`SenderIsOwnershipOfferPartyNode`, so a withdrawal of an Offer
+    already answered or withdrawn is refused and a redelivered withdrawal is
+    recognised.
+
+    The kind is ``CASE_OWNER``.
+
+    Spec: CM-21-015, CM-21-014, PCR-03-001, HP-01-006.
+    """
+
+    _spec = "CM-21-015"
+
+    def _party_refusal(
+        self, offer: RecordedOwnershipOffer, manager_id: str
+    ) -> str | None:
+        sender = self._sender_actor_id
+        offerer_id = offer.offerer_id(manager_id)
+        if offerer_id is not None and same_actor_id(sender, offerer_id):
+            return None
+        return (
+            f"Sender '{sender}' is not the offerer"
+            f" '{offerer_id}' of ownership-transfer Offer"
+            f" '{offer.offer_id}'"
+        )
+
+    def _standing_refusal(
+        self, case: VulnerabilityCase, offer: RecordedOwnershipOffer
+    ) -> str | None:
+        assert self.datalayer is not None
+        sender = self._sender_actor_id
+        if not _holds_case_owner_role(self.datalayer, case, sender):
+            return (
+                f"Sender '{sender}' made ownership-transfer Offer"
+                f" '{offer.offer_id}' but does not hold CASE_OWNER on case"
+                f" '{self._case_id}'"
+            )
+        return None
 
 
 # ---------------------------------------------------------------------------

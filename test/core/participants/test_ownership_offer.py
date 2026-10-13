@@ -22,6 +22,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.ownership_offer import (
+    open_ownership_offer,
     recorded_ownership_offer,
 )
 from vultron.errors import VultronNotFoundError
@@ -50,9 +51,10 @@ def _ledger(
     event_type: str,
     at: datetime,
     target: str | None = _TRANSFEREE,
+    **snapshot_extra: str,
 ) -> None:
     """Seed one ledger entry directly; only the fields read here matter."""
-    snapshot = {"id": object_id}
+    snapshot = {"id": object_id, **snapshot_extra}
     if target is not None:
         snapshot["target"] = target
     dl.save(
@@ -165,3 +167,74 @@ def test_same_second_forward_resolves_to_the_later_offer_for_its_transferee(
     assert offer.offer_id == "urn:offer:2"
     assert offer.transferee_id == _TRANSFEREE
     assert offer.pair.is_pending()
+
+
+_OWNER = "https://example.org/actors/owner"
+
+
+@pytest.mark.spec("CM-21-015")
+def test_offerer_is_the_participant_a_delegated_offer_speaks_for(dl):
+    """CM-24-002: the CASE_MANAGER sends it; ``attributedTo`` names the owner."""
+    _ledger(
+        dl,
+        0,
+        "urn:offer:1",
+        "offer_case_ownership_transfer",
+        _T0,
+        actor=_MANAGER,
+        attributedTo=_OWNER,
+    )
+
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+
+    assert offer.offerer_id(_MANAGER) == _OWNER
+
+
+@pytest.mark.spec("CM-21-015")
+def test_offerer_of_an_offer_sent_directly_is_its_actor(dl):
+    _ledger(
+        dl,
+        0,
+        "urn:offer:1",
+        "offer_case_ownership_transfer",
+        _T0,
+        actor=_OWNER,
+    )
+
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+
+    assert offer.offerer_id(_MANAGER) == _OWNER
+
+
+@pytest.mark.spec("CM-21-015")
+@pytest.mark.spec("CM-24-002")
+def test_attributed_to_counts_only_on_an_offer_the_manager_sent(dl):
+    """A direct Offer's ``attributedTo`` is an unchecked claim: ignored."""
+    _ledger(
+        dl,
+        0,
+        "urn:offer:1",
+        "offer_case_ownership_transfer",
+        _T0,
+        actor=_OWNER,
+        attributedTo="urn:actor:someone_else",
+    )
+
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+
+    assert offer.offerer_id(_MANAGER) == _OWNER
+
+
+@pytest.mark.spec("CM-21-014")
+@pytest.mark.spec("CM-21-015")
+def test_withdrawal_closes_the_offer(dl):
+    """A withdrawal entry closes the Offer as an answer does (AC-7)."""
+    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
+    assert open_ownership_offer(dl, _CASE_ID) is not None
+    _ledger(dl, 1, "urn:undo:1", "undo_case_ownership_transfer", _T0)
+
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+
+    assert offer.answer_id == "urn:undo:1"
+    assert offer.closed_by_event_type == "undo_case_ownership_transfer"
+    assert open_ownership_offer(dl, _CASE_ID) is None

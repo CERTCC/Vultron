@@ -29,8 +29,12 @@ def demo_env(client):
 
 @pytest.mark.parametrize(
     "demo_fn",
-    [demo.demo_transfer_ownership_accept, demo.demo_transfer_ownership_reject],
-    ids=["transfer_accept", "transfer_reject"],
+    [
+        demo.demo_transfer_ownership_accept,
+        demo.demo_transfer_ownership_reject,
+        demo.demo_transfer_ownership_withdraw,
+    ],
+    ids=["transfer_accept", "transfer_reject", "transfer_withdraw"],
 )
 def test_demo(demo_env, demo_fn, caplog):
     """
@@ -47,6 +51,11 @@ def test_demo(demo_env, demo_fn, caplog):
     - Vendor offers case ownership to coordinator
     - Coordinator rejects the offer
     - Case attributed_to remains with vendor
+
+    For the withdraw path, verifies:
+    - Vendor offers case ownership to coordinator
+    - Vendor withdraws the offer before it is answered
+    - The CaseActor ledgers the withdrawal; attributed_to remains with vendor
     """
     import logging
 

@@ -89,6 +89,16 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [reject_case_ownership_transfer.json](../examples/reject_case_ownership_transfer.json).
 
+{% include-markdown "./_occasions/sections/withdraw-case-ownership-transfer.md" %}
+
+- **Routing:** the withdrawal is addressed to the CASE_MANAGER ([CM-21-015](../specs/protocol.md#cm-21-015)).
+  The CASE_MANAGER acts on it only when it comes from the Case Owner that made an open offer it recorded.
+  It records the withdrawal in the ledger and sends the entry to every participant, which closes the offer: the proposed owner can no longer accept it, and the case may be offered again ([CM-21-014](../specs/protocol.md#cm-21-014)).
+  A withdrawal from anyone else, or of an offer already answered or withdrawn, is refused with nothing recorded and nothing sent.
+- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer`, whose body names the `offer_id` it withdraws ([TRIG-11-006](../specs/protocol.md#trig-11-006), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Triggering transition:** none — roster operation.
+- **Example artifact:** [undo_case_ownership_transfer.json](../examples/undo_case_ownership_transfer.json).
+
 {% include-markdown "./_occasions/sections/invite-actor-to-case.md" %}
 
 - **Who decides:** the Case Owner decides whom to invite; a participant that wants a third party brought in sends a recommendation instead ([Suggest actor to case](general.md#suggest-actor-to-case)).

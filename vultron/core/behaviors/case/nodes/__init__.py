@@ -120,6 +120,7 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
     EmitOfferCaseOwnershipTransferNode,
     EmitRejectCaseOwnershipTransferNode,
+    EmitWithdrawCaseOwnershipTransferNode,
     ForwardOfferToTransfereeNode,
 )
 from vultron.core.behaviors.case.nodes.participant import (
@@ -241,6 +242,7 @@ __all__ = [
     "EmitOfferCaseOwnershipTransferNode",
     "EmitAcceptCaseOwnershipTransferNode",
     "EmitRejectCaseOwnershipTransferNode",
+    "EmitWithdrawCaseOwnershipTransferNode",
     "ForwardOfferToTransfereeNode",
     # role_gates (gated composites)
     "create_case_manager_gated_tree",

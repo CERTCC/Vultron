@@ -10,6 +10,8 @@ from vultron.semantic_registry import (
 )
 from vultron.wire.as2.extractor import (
     ActivityPattern,
+    OfferCaseOwnershipTransferActivityPattern,
+    UndoCaseOwnershipTransferActivityPattern,
 )
 from vultron.wire.as2.factories import (
     accept_case_participant_role_activity,
@@ -19,6 +21,7 @@ from vultron.wire.as2.factories import (
     reject_case_participant_role_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
+    undo_case_ownership_transfer_activity,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -300,12 +303,13 @@ def test_unknown_activity_type_with_bare_string_object_returns_unknown():
     types (those with at least one registered pattern).
     """
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Undo,
+        as_Flag,
     )
 
-    # as_Undo has no registered Vultron patterns; a bare-string object_ should
-    # return UNKNOWN, not UNKNOWN_UNRESOLVABLE_OBJECT.
-    activity = as_Undo(
+    # as_Flag has no registered Vultron patterns; a bare-string object_ should
+    # return UNKNOWN, not UNKNOWN_UNRESOLVABLE_OBJECT.  (as_Undo was the
+    # example until Undo(Offer(VulnerabilityCase)) got a pattern, CM-21-015.)
+    activity = as_Flag(
         actor="https://example.org/alice",
         object_="urn:uuid:some-object",
     )
@@ -994,3 +998,32 @@ def test_owner_embargo_decisions_are_distinct_from_invite_answers(
     import vultron.wire.as2.vocab.examples.embargo as examples
 
     assert find_matching_semantics(getattr(examples, example)()) == expected
+
+
+# ---------------------------------------------------------------------------
+# VAM-04-015 — the ownership-transfer withdrawal, Undo(Offer(VulnerabilityCase))
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("VAM-04-015")
+@pytest.mark.spec("CM-21-015")
+def test_undo_of_ownership_offer_matches_the_withdrawal_pattern():
+    case = as_VulnerabilityCase(name="Withdrawn")
+    offer = offer_case_ownership_transfer_activity(
+        case,
+        target="https://example.org/coordinator",
+        actor="https://example.org/vendor",
+    )
+    undo = undo_case_ownership_transfer_activity(
+        offer, actor="https://example.org/vendor"
+    )
+
+    assert (
+        UndoCaseOwnershipTransferActivityPattern.object_
+        is OfferCaseOwnershipTransferActivityPattern
+    )
+    assert UndoCaseOwnershipTransferActivityPattern.match(undo)
+    assert (
+        find_matching_semantics(undo)
+        == MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER
+    )
