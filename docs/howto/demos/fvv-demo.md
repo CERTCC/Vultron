@@ -102,11 +102,11 @@ sequenceDiagram
 
     note over F,V2: Phase 3 — Notes Exchange
 
-    F->>V1: Add(Note, target=Case) — question from Finder
+    F->>V1: Create(Note), Add(Note, target=Case) — question from Finder
     note right of V1: note committed to case ledger
-    V1-->>F: ledger entry replicated (add_note_to_case)
-    V1-->>V2: ledger entry replicated (add_note_to_case)
-    V1->>V1: Add(Note, target=Case) — Vendor1 reply
+    V1-->>F: ledger entries replicated (create_note, add_note_to_case)
+    V1-->>V2: ledger entries replicated (create_note, add_note_to_case)
+    V1->>V1: Create(Note), Add(Note, target=Case) — Vendor1 reply
     note right of V1: reply note committed to case ledger
 
     note over F,V2: Phase 4 — Fix Lifecycle (both vendors, independent paths)
@@ -153,7 +153,9 @@ Both Finder and Vendor2 DataLayers are synchronized with Vendor1.
 ### Phase 3 — Notes exchange
 
 The Finder adds a question note to the case; Vendor1 replies.
-Each note is sent to the Case Actor, which commits an `add_note_to_case` entry to the case ledger and fans it out to every participant via `Announce(CaseLedgerEntry)`.
+Each note is sent to the Case Actor as a `Create(Note)` and an `Add(Note)`.
+The Case Actor commits a `create_note` entry, which attaches the note, and then an `add_note_to_case` entry to the case ledger.
+It fans both entries out to every participant via `Announce(CaseLedgerEntry)`.
 This phase ends with a `✓ Notes exchange complete` line rather than a numbered milestone.
 
 ### Phase 4 — Fix lifecycle (M4–M5)

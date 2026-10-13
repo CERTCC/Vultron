@@ -24,6 +24,7 @@ from vultron.core.behaviors.sync.nodes import (
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _ADD_NOTE_TO_CASE_EVENT,
     _ADD_PARTICIPANT_STATUS_EVENT,
+    _CREATE_NOTE_EVENT,
     _REMOVE_EMBARGO_EVENT,
     _REMOVE_NOTE_FROM_CASE_EVENT,
 )
@@ -39,6 +40,8 @@ from vultron.core.models.participant_event_types import (
         (IsRemoveEmbargoEventNode, _REMOVE_EMBARGO_EVENT),
         (IsParticipantStatusEventNode, _ADD_PARTICIPANT_STATUS_EVENT),
         (IsAddNoteEventNode, _ADD_NOTE_TO_CASE_EVENT),
+        # A received Create(Note) naming the case attaches it too (#4441).
+        (IsAddNoteEventNode, _CREATE_NOTE_EVENT),
         (IsRemoveNoteEventNode, _REMOVE_NOTE_FROM_CASE_EVENT),
         (IsCreateCaseParticipantEventNode, CREATE_CASE_PARTICIPANT_EVENT_TYPE),
         (IsInviteAcceptEventNode, "accept_invite_actor_to_case"),
