@@ -158,13 +158,15 @@ repos:
         # wire patterns and type enums behind "Send", the received use cases
         # and sender rules behind "Sent by", the MessageSemantics enum, the
         # state enums behind "Distinguished by", the example modules the
-        # sections name, the how-to pages whose titles the sections link with,
-        # the generator and the metadata helpers it calls, and the artifacts
-        # themselves, so a hand-edit is caught too.
+        # sections name, every page under docs/ (an include directive on any
+        # page adds it to an occasion's "Seen in", whose link text is the
+        # page's H1), mkdocs.yml (its draft_docs and exclude_docs keep a page
+        # out of "Seen in"), the generator and the metadata helpers it calls, and the
+        # artifacts themselves, so a hand-edit is caught too.
         # test_committed_occasion_artifacts_are_in_sync in
         # test/metadata/test_msm_occasions.py enforces the check in CI and is
         # the backstop for a deletion, which no `files:` pattern can match.
-        files: ^(vultron/semantic_registry/.*\.py|vultron/wire/as2/extractor/.*\.py|vultron/core/use_cases/received/.*\.py|vultron/core/behaviors/sender_entitlement\.py|vultron/enums/roles\.py|vultron/core/models/events/base\.py|vultron/core/models/enums\.py|vultron/wire/as2/enums\.py|vultron/core/states/.*\.py|vultron/metadata/(markdown_tables|file_loading|generated_files)\.py|vultron/wire/as2/vocab/examples/.*\.py|vultron/metadata/msm/.*\.(py|yaml)|docs/howto/activitypub/activities/[^_][^/]*\.md|docs/reference/messages/_occasions/.*\.md)$
+        files: ^(vultron/semantic_registry/.*\.py|vultron/wire/as2/extractor/.*\.py|vultron/core/use_cases/received/.*\.py|vultron/core/behaviors/sender_entitlement\.py|vultron/enums/roles\.py|vultron/core/models/events/base\.py|vultron/core/models/enums\.py|vultron/wire/as2/enums\.py|vultron/core/states/.*\.py|vultron/metadata/(base|markdown_tables|file_loading|generated_files|docs/page_frontmatter)\.py|vultron/wire/as2/vocab/examples/.*\.py|vultron/metadata/msm/.*\.(py|yaml)|docs/.*\.md|mkdocs\.yml)$
         pass_filenames: false
 
       - id: wire-context-sync

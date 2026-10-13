@@ -98,8 +98,13 @@ Once the report is at `RM.VALID` and a case exists, prioritize it and take one o
 
 - If you intend to work the case now, send Report/Case Accepted (RA), implemented in ActivityStreams as `Join(VulnerabilityCase)`.
   You are joining the case; your RM state becomes `ACCEPTED` as a result of joining, not as a separate claim about the report.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/report-accepted.md" %}
+
 - If you intend to work it later, send Report/Case Deferred (RD), `Ignore(VulnerabilityCase)`.
   Deferring is likewise a decision about the case, and your RM state becomes `DEFERRED` as a result (MSM-01-004, MSM-01-005).
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/report-deferred.md" %}
 
 Deferring is reversible.
 To re-engage a deferred case, send the same `Join(VulnerabilityCase)` activity you would have sent the first time — there is no separate re-engagement activity, and the earlier deferral remains part of the case history.
@@ -112,7 +117,12 @@ Pick the closure activity that matches what exists.
 
 - If a case exists, send `Leave(VulnerabilityCase)`.
   The formal message set has no name for this closure, even though ADR-0050 makes it the canonical one.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/close-case.md" %}
+
 - If the report was invalidated before any case was created, send Report Closed (RC), `Reject(Offer(VulnerabilityReport))`.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/report-closed.md" %}
 
 `RM.CLOSED` is terminal (ADR-0085).
 There is no rejoin, so send the closure only when you are finished with the case.
