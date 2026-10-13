@@ -123,8 +123,8 @@ Offering owner sends trigger: offer-case-ownership-transfer
   with end_time (optional)                              ← TRIG-11-007
   → Offer(VulnerabilityCase, endTime=deadline)
 
-Case Actor inbox receives an Accept, Reject or Undo of the offer,
-or a new Offer for the case:
+Case Actor inbox receives an Accept, Reject or Undo of the offer
+from its party, or a new Offer for the case:
   0. Is the open offer past its endTime?                ← CM-21-017
      yes: Commits CaseLedgerEntry (offer expired),
           Announce(CaseLedgerEntry) → all participants.
@@ -143,6 +143,7 @@ This is stricter than the deadline on an embargo invitation, which is a strong s
 
 The CASE_MANAGER checks the deadline only when it handles an acceptance, refusal or withdrawal of the offer, or a new offer for the case; nothing runs on a timer ([CM-21-017](../../reference/specs/protocol.md#cm-21-017)).
 When it finds the open offer past its deadline, it first records the expiry in the ledger and sends the entry to every participant, and then handles the activity.
+Only the proposed owner's acceptance or refusal, or the offering owner's withdrawal, prompts this check, so an actor with no part in the offer cannot make the CASE_MANAGER record anything ([HP-01-006](../../reference/specs/protocol.md#hp-01-006)).
 The expiry entry is distinct from a refusal: nobody declined, the deadline passed.
 It closes the offer like an acceptance, a refusal or a withdrawal, so a late answer is refused, a withdrawal of the expired offer is refused, and a new offer for the case is admitted.
 Only the CASE_MANAGER decides that an offer expired; every other participant learns it from the entry.
