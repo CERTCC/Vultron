@@ -206,6 +206,18 @@ on the authority and broke in replication — start at Layer 2. They were one
 aggregate test under one `xfail` until ISSUE-3385; splitting them is what lets a
 future known defect be scoped to the one property it owns.
 
+**`per_actor_replica_rm_closed_termination` checks a leaver's own closure
+only.** A participant at RM `CLOSED` is sent nothing after the entries that
+record its own closure (CM-23-004, #4212), so no participant replica holds every
+closure. The check reads each leaver's last own-closure entry off the
+`case-actor` log (`own_closure_tail_index`, the reading the live closure
+`demo_check` uses) and asserts the leaver's replica ends exactly there, with the
+leaver itself at `CLOSED`. A replica that ends later was sent content after it
+left; one that ends earlier missed its own closure step. Invariant 7 remains the
+check that every participant closed, on the `case-actor` log. The late-joiner
+checks (invariant 8, below) likewise compare only up to the late actor's own
+last entry.
+
 **Invariant 8 is scenario-local, not universal — and there is more than one of
 it.** Late-joiner backfill has to name a specific early actor and late actor,
 which differ per scenario, so the factory cannot inject it. Instead every
@@ -495,8 +507,8 @@ Common causal waits (should be `demo_gate`):
 |---|---|
 | `wait_for_participant_rm_state` to RM.VALID | `engage-case` trigger (rejects at 422 if RM.VALID not committed) |
 | `wait_for_case_on_container` (replica present) | `wait_for_replica_ledger_coverage` (needs genesis hash to anchor chain) |
-| `wait_for_replica_ledger_coverage` (`causal=True`) | any state comparison across replicas — `run_sync_verification_phase` composes both |
-| `wait_for_event_type_in_ledger` (close phase) | reading ledger tail on a complete replica |
+| `wait_for_replica_ledger_coverage` | any state comparison across replicas — `run_sync_verification_phase` composes both |
+| `wait_for_participant_rm_state` to RM.CLOSED in the CASE_MANAGER's store | the Case Owner's `Leave` (`close_case_owner_last`, CM-23-015) |
 
 Common temporal waits (may stay `demo_check` if they do not gate a
 downstream step):
@@ -586,13 +598,17 @@ wait_for_replica_ledger_coverage(
     auth_client=vendor_client,
     replicas=[(finder_client, "Finder")],
     case_id=case.id_,
-    phase_label="close phase",
-    causal=False,  # temporal: nothing but the dump depends on it (EDF-06-006)
+    phase_label="notes phase",
 )
 ```
 
 Apply this after every phase that introduces a new ledger tail before a devlog
-dump. The helper reads the authority tail, waits for *contiguous* coverage of
+dump, except case closure. After closure no replica covers the authority's
+tail, because a closed participant is sent nothing after the entries recording
+its own closure (CM-23-004). There, `close_case_owner_last` waits for each
+leaver's replica to end at its own closure (`wait_for_replica_ledger_ending_at`
+in `vultron/demo/helpers/sync.py`) before the dump runs.
+The helper reads the authority tail, waits for *contiguous* coverage of
 every index up to it on each replica (a tail-hash-only wait misses an
 intermediate entry that arrives after the tail, #1363), and wraps each wait in
 a demo context so a timeout accumulates instead of crashing the run. The same

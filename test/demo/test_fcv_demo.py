@@ -541,8 +541,12 @@ class TestFcvMilestoneAssertions:
             )
         mock_m6.assert_called()
 
-    def test_phase_case_closure_calls_verify_case_closed(self):
-        """_phase_case_closure calls verify_case_closed at M7."""
+    def test_phase_case_closure_runs_the_closure_milestone(self):
+        """_phase_case_closure runs the shared closure milestone (CM-23-004).
+
+        The milestone checks the CASE_MANAGER's store and each leaver's own
+        replica inside ``close_case_owner_last``; the scenario only names it.
+        """
         import contextlib
 
         coordinator_client = self._client()
@@ -564,13 +568,8 @@ class TestFcvMilestoneAssertions:
 
         with (
             patch.object(ActorSession, "close_case"),
-            patch.object(
-                coordinated_case, "wait_for_all_participants_rm_closed"
-            ),
             stub_closure_gate(),
-            patch.object(coordinated_case, "verify_case_closed") as mock_m7,
-            patch.object(coordinated_case, "wait_for_event_type_in_ledger"),
-            patch.object(coordinated_case, "wait_for_replica_ledger_coverage"),
+            patch.object(coordinated_case, "close_case_owner_last") as mock_m7,
             patch.object(
                 coordinated_case,
                 "demo_check",
@@ -589,7 +588,8 @@ class TestFcvMilestoneAssertions:
                 finder_in_finder=finder_in_finder,
                 case=case,
             )
-        mock_m7.assert_called()
+        mock_m7.assert_called_once()
+        assert mock_m7.call_args.kwargs.get("milestone") == "M7"
 
 
 # ---------------------------------------------------------------------------

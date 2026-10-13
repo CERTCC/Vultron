@@ -1,28 +1,15 @@
 ---
-title: "Triggerable Behaviors: Resolved Design Decisions and Audit Results"
-status: active
-kind: guidance
-description: >
-  Resolved trigger implementation decisions (P30-1), BT requirement
-  for trigger use cases, general-purpose vs. demo-only trigger classification,
-  trigger audit results, wrapper pattern, sync-log-entry context field, and
-  testing patterns.
-related_specs:
-  - specs/triggerable-behaviors.yaml
-  - specs/behavior-tree-integration.yaml
-  - specs/configuration.yaml
-  - specs/code-style.yaml
-related_notes:
-  - notes/triggerable-behaviors.md
-  - notes/bt-integration.md
-  - notes/bt-fuzzer-nodes.md
-  - notes/do-work-behaviors.md
-  - notes/protocol-event-cascades.md
-relevant_packages:
-  - transitions
-  - vultron/adapters/driving/fastapi
-  - vultron/core/use_cases/triggers
-  - vultron/bt
+source: NOTES-triggerable-behaviors-resolved--whole-file
+timestamp: '2026-10-12T19:34:12.657380+00:00'
+title: 'Triggerable Behaviors: Resolved Design Decisions and Audit Results (whole
+  file)'
+type: note
+---
+
+**Archived:** 2026-10-12
+**Reason:** delivered — every decision is implemented and governed by specs; the file is a record of the P30-1 trigger work, not guidance for open work
+**Superseded by:** `specs/triggerable-behaviors.yaml` (TRIG-03, TRIG-04, TRIG-08–TRIG-10), `specs/behavior-tree-integration.yaml` BT-06-005/006, `vultron/core/use_cases/triggers/AGENTS.md`
+
 ---
 
 # Triggerable Behaviors: Resolved Design Decisions and Audit Results

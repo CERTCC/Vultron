@@ -130,10 +130,14 @@ No participant deploys a fix in this scenario: deployment is a Deployer's step, 
 
 Both the Finder and the Vendor indicate that their participation in the case is complete.
 Each departure is recorded as a `close_case` entry in the ledger, followed by one participant status entry for each step the Case Actor takes to move that participant to RM `CLOSED`.
-Every replica moves the participant only by applying those status entries.
+A replica moves the participant only by applying those status entries; a participant never records its own closure.
+A participant that has closed receives its own `close_case` entry and the status entries for its own closure, and nothing after them.
 The Finder leaves first.
+After its closure, the Finder receives no further entries, so it does not learn of the Vendor's departure.
 The Vendor is the Case Owner, so it leaves last: its departure also closes the case, and a departure sent after that is not recorded.
 The Case Actor records its own closure as a participant status entry, then records `case_fully_closed`, the last entry for a participant's act.
+The Vendor has already closed when the Case Actor writes these two entries, so the Vendor does not receive them.
+The Case Actor's own ledger is where the closure of every participant is recorded.
 
 *Antecedent:* `validate_report` and `engage_case` are both present in the ledger.
 The Vendor's `close_case` follows the Finder's.

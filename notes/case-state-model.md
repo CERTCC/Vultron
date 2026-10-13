@@ -594,8 +594,8 @@ need to be formally specified. A cognitive agent delegating the judgment
 call is an alternative to fixed heuristics.
 
 **See**: `specs/agentic-readiness.yaml` and `specs/case-management.yaml` for
-the CVD action rules; `notes/bt-fuzzer-nodes.md` for related external
-touchpoints.
+the CVD action rules; `docs/developer/reference/bt-fuzzer/index.md` for
+related call-out points.
 
 ---
 

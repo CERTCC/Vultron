@@ -1,81 +1,13 @@
 ---
-title: "BT Fuzzer Nodes: Report Management (Index)"
-status: active
-kind: guidance
-description: >
-  Index of per-RM-sub-workflow fuzzer-node catalogs; includes the fuzzer base-type
-  probability table and cross-cutting production-collapse designs for four simulator
-  subtree groups (issue #1200). Individual per-workflow catalogs are split into
-  focused files listed below.
-related_specs:
-  - specs/behavior-tree-integration.yaml
-related_notes:
-  - notes/bt-integration.md
-  - notes/bt-canonical-reference.md
-  - notes/bt-fuzzer-nodes.md
-  - notes/coordination-agents.md
-  - notes/bt-fuzzer-rm-validation.md
-  - notes/bt-fuzzer-rm-prioritization.md
-  - notes/bt-fuzzer-rm-id-assignment.md
-  - notes/bt-fuzzer-rm-fix.md
-  - notes/bt-fuzzer-rm-exploit.md
-  - notes/bt-fuzzer-rm-threat.md
-  - notes/bt-fuzzer-rm-publication.md
-  - notes/bt-fuzzer-rm-reporting.md
-  - notes/bt-fuzzer-rm-closure.md
-  - notes/call-out-configuration.md
-relevant_packages:
-  - vultron/bt/report_management
+source: NOTES-bt-fuzzer-nodes-report-management--production-collapse-designs
+timestamp: '2026-10-12T19:38:59.022971+00:00'
+title: Production Collapse Designs (four RM subtree collapses)
+type: note
 ---
 
-# BT Fuzzer Nodes: Report Management
-
-These are the stub nodes for report management BT sub-trees:
-`ValidateReportBt`, `PrioritizeReportBt`, `AssignVulIdBt`, `DevelopFixBt`,
-`DeployFixBt`, `MonitorThreatsBt`, `AcquireExploitBt`, `PublicationBt`,
-`ReportToOthersBt`, `CloseReportBt`, and `OtherWorkBt` (all sourced from
-`vultron/bt/report_management/fuzzer/`). See `notes/bt-fuzzer-nodes.md`
-for background on what fuzzer nodes are and the full catalog index.
-
-**Fuzzer base types quick reference:**
-
-| btz type | Success probability |
-|---|---|
-| `AlwaysSucceed` | 1.00 |
-| `AlmostCertainlySucceed` | 0.93 |
-| `AlmostAlwaysSucceed` | 0.90 |
-| `UsuallySucceed` | 0.75 |
-| `OftenSucceed` / `LikelySucceed` | 0.70 |
-| `ProbablySucceed` | 0.67 |
-| `UniformSucceedFail` / `RandomSucceedFail` | 0.50 |
-| `SuccessOrRunning` | 0.50 (never fails; returns SUCCESS or RUNNING) |
-| `ProbablyFail` | 0.33 |
-| `OftenFail` | 0.30 |
-| `UsuallyFail` | 0.25 |
-| `AlmostAlwaysFail` / `RarelySucceed` | 0.10 |
-| `AlmostCertainlyFail` | 0.07 |
-| `OneInTwenty` | 0.05 |
-| `OneInOneHundred` | 0.01 |
-| `OneInTwoHundred` | 0.005 |
-| `AlwaysFail` | 0.00 |
-
----
-
-## Per-Workflow Catalogs
-
-Each RM sub-workflow's fuzzer-node catalog is in a focused file:
-
-| Sub-workflow | File |
-|---|---|
-| Report Validation (`RMValidateBt`) | [bt-fuzzer-rm-validation.md](bt-fuzzer-rm-validation.md) |
-| Report Prioritization (`RMPrioritizeBt`) | [bt-fuzzer-rm-prioritization.md](bt-fuzzer-rm-prioritization.md) |
-| Vulnerability ID Assignment (`AssignVulIdBt`) | [bt-fuzzer-rm-id-assignment.md](bt-fuzzer-rm-id-assignment.md) |
-| Fix Development + Deployment (`DevelopFixBt` / `DeployFixBt`) | [bt-fuzzer-rm-fix.md](bt-fuzzer-rm-fix.md) |
-| Exploit Acquisition (`AcquireExploitBt`) | [bt-fuzzer-rm-exploit.md](bt-fuzzer-rm-exploit.md) |
-| Threat Monitoring (`MonitorThreatsBt`) | [bt-fuzzer-rm-threat.md](bt-fuzzer-rm-threat.md) |
-| Publication (`PublicationBt`) | [bt-fuzzer-rm-publication.md](bt-fuzzer-rm-publication.md) |
-| Reporting to Other Parties (`ReportToOthersBt`) | [bt-fuzzer-rm-reporting.md](bt-fuzzer-rm-reporting.md) |
-| Report Closure + Other Work (`CloseReportBt` / `RMDoWorkBt`) | [bt-fuzzer-rm-closure.md](bt-fuzzer-rm-closure.md) |
+**Archived:** 2026-10-12
+**Reason:** delivered: all four collapses are built under vultron/core/behaviors/report/ and their decisions are recorded
+**Superseded by:** ADR-0027, ADR-0028, ADR-0029/ADR-0047, ADR-0030; BT-20-001..004; catalog at docs/developer/reference/bt-fuzzer/
 
 ---
 
@@ -317,56 +249,3 @@ those Actuators are each replaced by this full `PublishArtifactBT` subtree.
 (called from `create_publication_tree` per arm via `_make_artifact_arm`)
 
 **Spec requirements**: BT-20-004 (see `specs/behavior-tree-integration.yaml`)
-
----
-
-## A `NoNew*` Flag Implies an Upstream Sentinel Seam
-
-A BT condition node named `NoNew*` does not compute anything — it *reads a flag*
-that something else had to write. Whenever you meet one, trace the flag to its
-writer and record that writer as a **Sentinel** call-out point in the catalog. The
-node is the consumer; the seam is upstream of it, outside the tree.
-
-The three worked instances are
-[`bt-fuzzer-rm-validation.md`](bt-fuzzer-rm-validation.md) § "`NoNewValidationInfo`",
-[`bt-fuzzer-rm-prioritization.md`](bt-fuzzer-rm-prioritization.md), and
-[`bt-fuzzer-rm-fix.md`](bt-fuzzer-rm-fix.md): in each, the Sentinel registers with
-an external event source and writes a change-detection flag to the BT blackboard
-or local DataLayer, which the `NoNew*` node then reads each tick. Shape assignment
-follows ADR-0024's seam-structure decision tree, not the flag's automation
-potential — see [`call-out-configuration.md`](call-out-configuration.md).
-
-Leaving the Sentinel unrecorded makes the node look self-contained and hides a
-real integration point, which is how the stub gaps below arise.
-
----
-
-## Sentinel Stubs Must Be Synced When the Upstream Issue Closes
-
-(ISSUE-1177, 2026-07-14)
-
-A catalog entry with `New-arch cross-ref: *(to be implemented — see FUZZ-08x)*`
-where the referenced issue is now **closed** is a gap — the stub was never
-promoted.
-
-When FUZZ-08f (Sentinel shape, issue #1175) closed, three catalog entries
-here carried `*(to be implemented — see FUZZ-08f)*`:
-
-- `NewValidationInfoSentinel` — was implemented; cross-ref updated.
-- `NewPrioritizationInfoSentinel` — left unimplemented.
-- `NewDeploymentInfoSentinel` — left unimplemented.
-
-Only the first was added; the other two remained as unimplemented stubs with
-no matching class in `call_out_point.py`.
-
-**Pattern to apply** during domain-sweep audits (FUZZ-08h style):
-
-1. Grep catalog entries for `*(to be implemented — see FUZZ-08x)*`.
-2. Check if the referenced issue is closed.
-3. If closed but the class is absent from `call_out_point.py`, it is a gap —
-   add the class and update the catalog cross-ref line.
-
-The domain-sweep audit is the right checkpoint for this; catching it there
-prevents gaps from persisting across multiple closed issues.
-
----

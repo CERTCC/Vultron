@@ -142,3 +142,30 @@ class TestFullHistoryNoViolation:
             replicas, early_actor="early", late_actor="late"
         )
         assert not violations
+
+
+class TestLateJoinerThatLeftFirst:
+    """A late joiner that left first is owed nothing after its own last entry.
+
+    CM-23-004: a closed participant is sent nothing after the entries that
+    record its own closure, so the early actor's later entries are not
+    missing from it.
+    """
+
+    def test_entries_after_the_late_actors_tail_are_not_missing(self):
+        early = _chain("early", 10)
+        late = early[:6]
+        replicas = {"early": early, "late": late}
+        assert not check_late_joiner_has_full_history(
+            replicas, early_actor="early", late_actor="late"
+        )
+
+    def test_a_gap_before_the_late_actors_tail_is_still_missing(self):
+        early = _chain("early", 10)
+        late = early[:3] + early[4:6]
+        replicas = {"early": early, "late": late}
+        violations = check_late_joiner_has_full_history(
+            replicas, early_actor="early", late_actor="late"
+        )
+        assert violations
+        assert "[3]" in violations[0]

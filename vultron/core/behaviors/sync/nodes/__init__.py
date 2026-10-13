@@ -29,7 +29,8 @@ Submodules:
 - ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-002)
 - ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
 - ``embargo_backfill``: ``BackfillAdmittedParticipantsNode`` (CM-10-006)
-- ``fanout``: Fan-out action nodes, plain and RM.CLOSED-filtered
+- ``fanout``: Fan-out action nodes; RM.CLOSED participants are skipped
+  except for the entries recording their own closure (CM-23-004)
 - ``effects``: Ledger-apply side-effect nodes (note, invite-accept)
 - ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, with the
   monotonic-RM ratchet (ADR-0061)
@@ -90,8 +91,6 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
-    CollectNonClosedLogEntryRecipientsNode,
-    FanOutLogEntryExcludingClosedNode,
     FanOutLogEntryNode,
     SendLogEntryToEachNode,
 )
@@ -236,10 +235,8 @@ __all__ = [
     "SendMissingEntriesNode",
     "ReplayMissingEntriesNode",
     "CollectLogEntryRecipientsNode",
-    "CollectNonClosedLogEntryRecipientsNode",
     "SendLogEntryToEachNode",
     "FanOutLogEntryNode",
-    "FanOutLogEntryExcludingClosedNode",
     # embargo_backfill
     "BackfillAdmittedParticipantsNode",
     # re-exported helper function (backward compat)
