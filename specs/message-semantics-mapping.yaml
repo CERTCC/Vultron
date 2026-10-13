@@ -616,7 +616,7 @@ groups:
       Between deliveries, silence and unreachability are observationally equivalent. Documenting this as a
       deliberate MAY-level property (rather than a defect) closes the liveness question raised by CONCERN-3006
       without foreclosing a future heartbeat mechanism (CaseActorHeartbeat is already sketched in
-      notes/sync-ledger-replication.md for the multi-node CASE_MANAGER cluster design).
+      notes/case-actor-cluster.md for the multi-node CASE_MANAGER cluster design).
     verification: >-
       No normative heartbeat requirement exists in specs/sync-ledger-replication.yaml;
       this entry records the absence as intentional.
@@ -686,7 +686,7 @@ groups:
       collapse or an evolved mechanism gives it a second home.
     rationale: 'Without a completeness check a new registry entry can be added without ever being documented, so every entry
       needs one page that owns it. A bare "exactly one page" rule would be unsatisfiable, because the mapping is many-to-many
-      — see `notes/message-type-reference.md` for the entries that legitimately need a second home. A *primary* page keeps the
+      — see `docs/reference/messages/` for the entries that legitimately need a second home. A *primary* page keeps the
       completeness guarantee without contradicting MSM-06-003. The dispatch fallbacks are the intended exemptions.'
     verification: >-
       A ratchet test enumerates `SEMANTIC_REGISTRY` and asserts exactly one primary-page

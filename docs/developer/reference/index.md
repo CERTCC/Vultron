@@ -15,6 +15,10 @@ Explanation material.
 - [Codebase conventions](../../reference/codebase/CONVENTIONS.md)
 - [Codebase testing](../../reference/codebase/TESTING.md)
 
+## Maintainer reference pages
+
+- [Behavior tree (BT) fuzzer node catalog](bt-fuzzer/index.md): the simulator's stub nodes and the prototype call-out points that replace them.
+
 ## Maintainer source-of-truth files in the repository
 
 Use these repository paths directly in your editor:

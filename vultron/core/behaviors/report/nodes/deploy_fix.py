@@ -30,7 +30,7 @@ Six nodes implement the ``DeployFixBT`` guard/action logic:
 
 References: Issue #1825; Source #1248; Concern #1813.
 Spec BT-06-001, BT-18-004; ADR-0021 CLP-10-001 (CD via Case Actor); ADR-0025.
-Notes: ``notes/bt-fuzzer-rm-fix.md``.
+Catalog: ``docs/developer/reference/bt-fuzzer/rm-fix.md``.
 """
 
 import logging
@@ -246,7 +246,8 @@ class CheckNoNewDeploymentInfoNode(DataLayerConditionWithPorts):
 
     This node is NOT a call-out injection seam — the external agent seam is at
     the Sentinel that writes the flag, not at this consuming condition
-    (see ``notes/bt-fuzzer-rm-fix.md`` § ``NoNewDeploymentInfo``).  Defaulting
+    (see ``docs/developer/reference/bt-fuzzer/rm-fix.md``
+    § ``NoNewDeploymentInfo``).  Defaulting
     to SUCCESS when the key is absent matches the legacy fuzzer's
     ``UsuallySucceed`` (p=0.75) happy path: most ticks have no new info.
 
