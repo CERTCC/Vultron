@@ -1000,9 +1000,12 @@ class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
-    def _party_refusal(self, offer: RecordedOwnershipOffer) -> str | None:
+    def _party_refusal(
+        self, offer: RecordedOwnershipOffer, manager_id: str
+    ) -> str | None:
         """Why the sender is not the party to *offer* this reply needs.
 
+        *manager_id* is the case's CASE_MANAGER, which recorded *offer*.
         Returns ``None`` when the sender is that party.
         """
         raise NotImplementedError
@@ -1018,11 +1021,14 @@ class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
         return None
 
     def _check_open_offer(
-        self, case: VulnerabilityCase, offer: RecordedOwnershipOffer
+        self,
+        case: VulnerabilityCase,
+        offer: RecordedOwnershipOffer,
+        manager_id: str,
     ) -> Status:
         """The CASE_MANAGER arm: the sender is the right party to *offer*,
         which nothing has closed yet."""
-        if (why := self._party_refusal(offer)) is not None:
+        if (why := self._party_refusal(offer, manager_id)) is not None:
             return self._refuse(why)
         if offer.answer_id == self._reply_id:
             self.is_redelivery = True
@@ -1079,7 +1085,7 @@ class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
                     f" which this CASE_MANAGER never recorded for case"
                     f" '{self._case_id}' ({exc})"
                 )
-            return self._check_open_offer(case, offer)
+            return self._check_open_offer(case, offer, manager_id)
         if same_actor_id(sender, manager_id):
             return Status.SUCCESS
         return self._refuse(
@@ -1105,7 +1111,9 @@ class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
 
     _spec = "CM-21-011"
 
-    def _party_refusal(self, offer: RecordedOwnershipOffer) -> str | None:
+    def _party_refusal(
+        self, offer: RecordedOwnershipOffer, manager_id: str
+    ) -> str | None:
         sender = self._sender_actor_id
         if same_actor_id(sender, offer.transferee_id):
             return None
@@ -1121,7 +1129,9 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
 
     At the CASE_MANAGER the sender must be the Case Owner that made an open
     ownership-transfer Offer the CASE_MANAGER recorded for the case
-    (CM-21-015): the participant the recorded Offer speaks for, and holding
+    (CM-21-015): the participant the recorded Offer speaks for — its
+    ``attributedTo`` only when the CASE_MANAGER sent it on that participant's
+    behalf, else its ``actor`` (CM-24-002) — and holding
     ``CVDRole.CASE_OWNER`` now.  Everything else is the shared rule of
     :class:`SenderIsOwnershipOfferPartyNode`, so a withdrawal of an Offer
     already answered or withdrawn is refused and a redelivered withdrawal is
@@ -1134,15 +1144,16 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
 
     _spec = "CM-21-015"
 
-    def _party_refusal(self, offer: RecordedOwnershipOffer) -> str | None:
+    def _party_refusal(
+        self, offer: RecordedOwnershipOffer, manager_id: str
+    ) -> str | None:
         sender = self._sender_actor_id
-        if offer.offerer_id is not None and same_actor_id(
-            sender, offer.offerer_id
-        ):
+        offerer_id = offer.offerer_id(manager_id)
+        if offerer_id is not None and same_actor_id(sender, offerer_id):
             return None
         return (
             f"Sender '{sender}' is not the offerer"
-            f" '{offer.offerer_id}' of ownership-transfer Offer"
+            f" '{offerer_id}' of ownership-transfer Offer"
             f" '{offer.offer_id}'"
         )
 

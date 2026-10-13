@@ -187,7 +187,7 @@ def test_offerer_is_the_participant_a_delegated_offer_speaks_for(dl):
 
     offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
 
-    assert offer.offerer_id == _OWNER
+    assert offer.offerer_id(_MANAGER) == _OWNER
 
 
 @pytest.mark.spec("CM-21-015")
@@ -203,7 +203,26 @@ def test_offerer_of_an_offer_sent_directly_is_its_actor(dl):
 
     offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
 
-    assert offer.offerer_id == _OWNER
+    assert offer.offerer_id(_MANAGER) == _OWNER
+
+
+@pytest.mark.spec("CM-21-015")
+@pytest.mark.spec("CM-24-002")
+def test_attributed_to_counts_only_on_an_offer_the_manager_sent(dl):
+    """A direct Offer's ``attributedTo`` is an unchecked claim: ignored."""
+    _ledger(
+        dl,
+        0,
+        "urn:offer:1",
+        "offer_case_ownership_transfer",
+        _T0,
+        actor=_OWNER,
+        attributedTo="urn:actor:someone_else",
+    )
+
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+
+    assert offer.offerer_id(_MANAGER) == _OWNER
 
 
 @pytest.mark.spec("CM-21-014")

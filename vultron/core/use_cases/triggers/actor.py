@@ -612,6 +612,18 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
 
     _verb = "withdrew"
 
+    def _prepare(self) -> None:
+        super()._prepare()
+        # The withdrawal goes to the CASE_MANAGER or nowhere (CM-21-015,
+        # PCR-08-011).  The offerer holds the case it offered, and a case
+        # always has a CASE_MANAGER (CM-24-006), so either missing is a
+        # not-found, refused before any tree runs, as the offer trigger does.
+        case = resolve_case(self._case_id, self._dl)
+        if resolve_case_manager_id(case, self._dl) is None:
+            raise VultronNotFoundError(
+                "CASE_MANAGER", f"(for case '{case.id_}')"
+            )
+
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return withdraw_case_ownership_transfer_trigger_bt(
             offer_id=self._offer_id,

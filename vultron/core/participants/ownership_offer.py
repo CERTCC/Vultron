@@ -53,6 +53,7 @@ from vultron.core.models.protocol_pair import (
 )
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.errors import VultronNotFoundError
 
 
@@ -66,18 +67,40 @@ class RecordedOwnershipOffer:
             which may differ from the id the answer names (its forward).
         transferee_id: The actor the Offer names as the new owner, read from
             the ledger entry's ``target``.
-        offerer_id: The participant that made the Offer, read from the ledger
-            entry: its ``attributedTo`` when the CASE_MANAGER sent it on that
-            participant's behalf (CM-24-002), else its ``actor``.  ``None``
-            when the entry names neither.
+        offer_actor_id: The ledgered Offer's ``actor``, its sender.
+        offer_attributed_to: The ledgered Offer's ``attributedTo``, the
+            participant a delegated Offer speaks for (CM-24-002).  Read
+            through :meth:`offerer_id`, never on its own: nothing validates
+            it on an Offer the CASE_MANAGER did not send.
         pair: The Offer's request/reply state, read from the ledger.
     """
 
     case_id: str
     offer_id: str
     transferee_id: str
-    offerer_id: str | None
+    offer_actor_id: str | None
+    offer_attributed_to: str | None
     pair: ProtocolPair
+
+    def offerer_id(self, manager_id: str) -> str | None:
+        """The participant that made the Offer, as *manager_id* recorded it.
+
+        A delegated Offer carries the CASE_MANAGER as ``actor`` and the
+        requesting participant as ``attributedTo`` (CM-24-001, CM-24-002), so
+        it speaks for that participant.  Any other Offer speaks for its
+        ``actor``: an ``attributedTo`` a participant wrote on an Offer it sent
+        itself is a claim to speak for someone else, which nothing checks
+        (CLP-07-003 validates only ``actor``), so it is ignored — the rule the
+        Offer's own handler applies when it forwards the Offer.  ``None``
+        when the entry names no offerer.
+
+        Args:
+            manager_id: The case's CASE_MANAGER.
+        """
+        actor_id = self.offer_actor_id
+        if actor_id is not None and same_actor_id(actor_id, manager_id):
+            return self.offer_attributed_to
+        return actor_id
 
     @property
     def answer_id(self) -> str | None:
@@ -120,17 +143,14 @@ def _entry_target(entry: CaseLedgerEntry) -> str | None:
     return _as_id(entry.payload_snapshot.get("target"))
 
 
-def _entry_offerer(entry: CaseLedgerEntry) -> str | None:
-    """The participant the ledgered Offer speaks for.
+def _entry_actor(entry: CaseLedgerEntry) -> str | None:
+    """The ledgered Offer's sender (its ``actor``)."""
+    return _as_id(entry.payload_snapshot.get("actor"))
 
-    A delegated Offer carries the CASE_MANAGER as ``actor`` and the
-    requesting participant as ``attributedTo`` (CM-24-001, CM-24-002); an
-    Offer the participant sent itself carries it as ``actor``.
-    """
-    snapshot = entry.payload_snapshot
-    return _as_id(snapshot.get(wire_key("attributed_to"))) or _as_id(
-        snapshot.get("actor")
-    )
+
+def _entry_attributed_to(entry: CaseLedgerEntry) -> str | None:
+    """The participant the ledgered Offer claims to speak for, if any."""
+    return _as_id(entry.payload_snapshot.get(wire_key("attributed_to")))
 
 
 def _type_name(obj: object) -> str | None:
@@ -240,7 +260,8 @@ def _recorded(
         case_id=case_id,
         offer_id=entry.log_object_id,
         transferee_id=transferee_id,
-        offerer_id=_entry_offerer(entry),
+        offer_actor_id=_entry_actor(entry),
+        offer_attributed_to=_entry_attributed_to(entry),
         pair=pair,
     )
 

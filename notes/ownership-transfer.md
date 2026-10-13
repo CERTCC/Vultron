@@ -529,8 +529,11 @@ later transfer, so an Offer can also close without an answer (#4490):
   Reject (`UndoCaseOwnershipTransferReceivedUseCase`,
   `create_undo_ownership_transfer_tree`). The sender guard is
   `SenderIsOwnershipOffererNode`: the sender must be the participant the
-  recorded Offer speaks for (its `attributedTo`, else its `actor`, read from
-  the ledger entry) and still hold `CASE_OWNER`. It shares
+  recorded Offer speaks for and still hold `CASE_OWNER`. That is its
+  `attributedTo` only when the CASE_MANAGER is its `actor` (the delegated
+  shape, CM-24-002), else its `actor`: an `attributedTo` on an Offer a
+  participant sent itself is an unchecked claim, ignored here as the Offer
+  handler ignores it when forwarding (`RecordedOwnershipOffer.offerer_id`). It shares
   `SenderIsOwnershipOfferPartyNode` with the transferee's guard, so a
   withdrawal of a closed Offer is refused and a redelivered one is
   `SKIPPED`. The entry closes the Offer because

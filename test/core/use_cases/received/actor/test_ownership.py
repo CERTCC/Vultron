@@ -1830,6 +1830,45 @@ class TestWithdrawalOfOwnershipTransfer:
         assert "undo_case_ownership_transfer" in _event_types(dl)
 
     @pytest.mark.spec("CM-21-015")
+    @pytest.mark.spec("CM-24-002")
+    def test_attributed_to_on_a_direct_offer_does_not_move_the_offerer(
+        self, make_payload
+    ):
+        """An Offer the Case Owner sent itself speaks for its ``actor``.
+
+        An ``attributedTo`` it carries is a claim nothing checks, so the
+        offerer is still the sender: its withdrawal is admitted, and the
+        actor named in ``attributedTo`` is not the offerer.
+        """
+        case_id = "https://example.org/cases/case_ot_undo_claimed"
+        dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+        disposition, offer = deliver(
+            _COORDINATOR_ID,
+            "https://example.org/activities/offer_undo_claimed",
+            attributed_to="https://example.org/actors/someone_else",
+        )
+        assert disposition is HandlerDisposition.APPLIED
+        entries_before = _event_types(dl)
+        roles_before = _owner_roles(dl, case_id)
+
+        claimed = _undo(
+            dl,
+            make_payload,
+            offer,
+            sender="https://example.org/actors/someone_else",
+        )
+
+        assert claimed.disposition is HandlerDisposition.REFUSED
+        assert claimed.reason is not None
+        assert "is not the offerer" in claimed.reason
+        _assert_nothing_changed(dl, case_id, roles_before, entries_before)
+
+        result = _undo(dl, make_payload, offer)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert "undo_case_ownership_transfer" in _event_types(dl)
+
+    @pytest.mark.spec("CM-21-015")
     @pytest.mark.spec("HP-01-006")
     def test_withdrawal_from_a_non_offerer_changes_nothing(self, make_payload):
         """The transferee cannot withdraw the Offer made to it."""

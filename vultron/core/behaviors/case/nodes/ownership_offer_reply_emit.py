@@ -146,7 +146,8 @@ class EmitWithdrawCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
             # when it sent the Offer directly, so the port's last-resort
             # addressing would send the withdrawal to its own sender.  A
             # withdrawal goes to the CASE_MANAGER or nowhere (CM-21-015,
-            # PCR-08-011).
+            # PCR-08-011).  The trigger refuses this case before the tree
+            # runs; the check here keeps the node safe on its own.
             raise VultronNotFoundError(
                 "CASE_MANAGER", f"(for case '{self.case_id}')"
             )

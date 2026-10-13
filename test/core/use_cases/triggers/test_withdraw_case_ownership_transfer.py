@@ -41,7 +41,7 @@ from vultron.core.use_cases.triggers.requests import (
     WithdrawCaseOwnershipTransferTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories.case import (
     offer_case_ownership_transfer_activity,
 )
@@ -184,8 +184,8 @@ def test_raises_when_offer_names_no_case():
 
 @pytest.mark.spec("CM-21-015")
 @pytest.mark.spec("PCR-08-011")
-def test_withdrawal_with_no_case_manager_to_address_is_not_sent(actor_store):
-    """A store that cannot name the CASE_MANAGER sends nothing.
+def test_withdrawal_of_an_offer_for_a_case_not_held_is_not_sent(actor_store):
+    """A store that does not hold the case cannot name its CASE_MANAGER.
 
     The Offer the owner sent directly names the owner as ``actor``; falling
     back to it would address the withdrawal to its own sender.
@@ -201,6 +201,39 @@ def test_withdrawal_with_no_case_manager_to_address_is_not_sent(actor_store):
     )
     dl.create(offer)
 
-    with pytest.raises(VultronValidationError, match="CASE_MANAGER"):
+    with pytest.raises(VultronNotFoundError, match="VulnerabilityCase"):
+        _execute(dl, owner.id_, offer.id_)
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("CM-21-015")
+@pytest.mark.spec("PCR-08-011")
+def test_withdrawal_with_no_case_manager_to_address_is_not_sent(actor_store):
+    """A held case whose roster names no CASE_MANAGER sends nothing.
+
+    It is refused as not found before the tree runs, as the offer trigger
+    refuses the same case, rather than failing inside the emit node.
+    """
+    owner, dl = actor_store("Vendor")
+    case = as_VulnerabilityCase(attributed_to=owner.id_, name="No manager")
+    participant = as_CaseParticipant(
+        attributed_to=owner.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case.actor_participant_index[owner.id_] = participant.id_
+    case.case_participants.append(participant.id_)
+    dl.create(participant)
+    dl.create(case)
+    offer = offer_case_ownership_transfer_activity(
+        case=as_VulnerabilityCase.model_validate(
+            {"id": case.id_, "name": case.name}
+        ),
+        target="https://example.org/actors/coordinator",
+        actor=owner.id_,
+    )
+    dl.create(offer)
+
+    with pytest.raises(VultronNotFoundError, match="CASE_MANAGER"):
         _execute(dl, owner.id_, offer.id_)
     assert dl.outbox_list() == []
