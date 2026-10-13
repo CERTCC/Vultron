@@ -208,9 +208,9 @@ groups:
       intake); a replica's receipt of `Announce(CaseLedgerEntry)`, which applies an
       entry rather than asserting one; activities about the ledger itself, namely the
       CASE_MANAGER's refusal notice (CLP-05-001) and a replica's
-      `Reject(CaseLedgerEntry)` asking for redelivery; the activities CLP-10-013
-      deliberately leaves unledgered, namely the owner's `Update(VulnerabilityCase)`
-      and a replica's receipt of `Announce(VulnerabilityCase)` (ADR-0111); and a
+      `Reject(CaseLedgerEntry)` asking for redelivery; the activity CLP-10-013
+      deliberately leaves unledgered, namely a replica's receipt of
+      `Announce(VulnerabilityCase)` (ADR-0111); and a
       message no pattern matches or whose object cannot be resolved. The list is
       closed: a new kind of activity that carries no entry MUST be added here
       first.
@@ -1166,7 +1166,7 @@ groups:
       `case_id`, so that a canonical ledger entry is committed for each admitted
       activity, exactly when the received activity's `(type, object)` pair is a
       canonical payload signature (`_CANONICAL_PAYLOAD_SIGNATURES`); a tree whose
-      received activity has no canonical signature — `Update(VulnerabilityCase)`, the
+      received activity has no canonical signature — the
       `Announce(CaseLedgerEntry)` replication envelope (CLP-10-004) — MUST pass
       `case_id=None` and omit the commit stage rather than commit an entry the
       canonical-entry check would refuse. One canonical signature is exempt from
@@ -1176,12 +1176,14 @@ groups:
     rationale: 'Amended with ADR-0111: the rule as first written required a commit for
       every factory-built tree, which the CASE_MANAGER refused for an
       `Update(VulnerabilityCase)` the moment the update tree moved onto the factory
-      (#3870). ADR-0111 (#3936) records that an owner''s `Update(VulnerabilityCase)`
-      is deliberately not a ledgered assertion: no production code sends it, it
-      has no protocol story, and `Announce(CaseLedgerEntry)` fan-out already
-      carries every ledgered case change (ADR-0108). The `Announce(VulnerabilityCase)`
-      receiver is never the CASE_MANAGER, so a `case_id` would only make the
-      commit gate skip (#4304). `Add(CaseParticipant)` was exempt until #4081 made
+      (#3870). ADR-0111 (#3936) recorded that an owner''s `Update(VulnerabilityCase)`
+      is not a ledgered assertion: no production code sends it, it has no protocol
+      story, and `Announce(CaseLedgerEntry)` fan-out already carries every ledgered
+      case change (ADR-0108). Its received path then changed the case with no
+      entry, which CLP-07-013 forbids, so it was removed (#4443). The
+      `Announce(VulnerabilityCase)` receiver is never the CASE_MANAGER, so a
+      `case_id` would only make the commit gate skip (#4304).
+      `Add(CaseParticipant)` was exempt until #4081 made
       it the Case Owner''s reinstatement request: its commit landed together with
       its replica apply node (`ApplyReinstateCaseParticipantFromLedgerNode`,
       RSH-08-004), so it now commits. The `Reject(Offer)` and `TentativeReject(Offer)` trees
@@ -1205,11 +1207,10 @@ groups:
       contained `ValidateRMTransitionNode` after `GuardedCommit`, masked by a `_rm_was_carried_forward()`
       workaround. `add_case_status_tree` previously used a plain `py_trees.Sequence`
       with no commit at all. Both were corrected in ISSUE-2254.'
-    verification: '`create_update_case_received_tree` passes `case_id=None` and its
-      structure test asserts no `GuardedCommitCaseLedgerEntryBT` child; a tree for a
-      canonical signature passes `case_id` and the ordering ratchet finds the commit
-      after the guards. A receive-side test per committing tree asserts the CASE_MANAGER
-      commits the entry once, any other receiver skips it, and a refused activity
+    verification: 'A tree for a canonical signature passes `case_id` and the
+      ordering ratchet finds the commit after the guards. A receive-side test per
+      committing tree asserts the CASE_MANAGER commits the entry once, any other
+      receiver skips it, and a refused activity
       leaves no entry; the `Announce(VulnerabilityCase)` tree is asserted to have
       no commit child.'
     adr:

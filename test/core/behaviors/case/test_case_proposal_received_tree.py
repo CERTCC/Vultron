@@ -1358,25 +1358,6 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
     admits the CASE_OWNER and refuses the CASE_MANAGER acting as owner.
     """
 
-    @pytest.mark.parametrize(
-        ("sender", "expected"),
-        [(_VENDOR_URI, "SUCCESS"), (_CASE_ACTOR_URI, "FAILURE")],
-    )
-    def test_case_update_gate(self, make_payload, sender, expected):
-        from test.core.behaviors.bt_harness import BTTestScenario
-        from vultron.core.behaviors.case.nodes.update import (
-            CheckCaseUpdateOwnerNode,
-        )
-
-        dl, case, _ = _proposed_case_with_open_revision(make_payload)
-        scenario = BTTestScenario(actor_id=_CASE_ACTOR_URI, dl=dl)
-
-        result = scenario.run(
-            CheckCaseUpdateOwnerNode(case_id=case.id_, sender_actor_id=sender)
-        )
-
-        assert result.status.name == expected
-
     def test_owner_activating_a_revision_records_the_owners_agreement(
         self, make_payload
     ):

@@ -359,7 +359,7 @@ def verdict_from_bt(
     Args:
         tree: The tree that ran (or its ``BehaviourTree`` wrapper).
         result: What ``BTBridge`` returned for it.
-        label: Names the handler's step in a reason, e.g. ``"UpdateCaseBT"``.
+        label: Names the handler's step in a reason, e.g. ``"EngageCaseBT"``.
 
     Raises:
         VultronBTInternalError: The run failed on an internal error.
