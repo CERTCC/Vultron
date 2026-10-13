@@ -30,6 +30,7 @@ Per specs/behavior-tree-integration.yaml BT-15-001, BT-15-002.
 
 import logging
 from collections.abc import Callable
+from datetime import datetime
 
 import py_trees
 
@@ -217,6 +218,7 @@ def offer_case_ownership_transfer_trigger_bt(
     requesting_actor_id: str,
     content: str | None = None,
     captured: dict | None = None,
+    end_time: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the offer-case-ownership-transfer workflow.
 
@@ -230,6 +232,8 @@ def offer_case_ownership_transfer_trigger_bt(
         requesting_actor_id: Offering actor URI; the Offer is attributed to it
             through the delegated-authorship helper (CM-24-002, CM-24-005).
         captured: Optional dict; ``captured["activity"]`` is set on success.
+        end_time: Optional deadline to answer the Offer, set as its
+            activity-level ``end_time`` (TRIG-11-007, CM-21-016).
 
     Returns:
         Sequence containing a single EmitOfferCaseOwnershipTransferNode.
@@ -244,6 +248,7 @@ def offer_case_ownership_transfer_trigger_bt(
                 content=content,
                 requesting_actor_id=requesting_actor_id,
                 captured=captured,
+                end_time=end_time,
             ),
         ],
     )

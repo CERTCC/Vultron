@@ -38,6 +38,7 @@ BTND-07-003.
 """
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from py_trees.common import Status
@@ -69,7 +70,9 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
 
     Calls ``trigger_activity_factory.offer_case_ownership_transfer()`` with
     ``actor=self.actor_id``, ``case_id``, and ``transferee_id``, then queues
-    the resulting activity in the actor's outbox (TRIG-11-001).
+    the resulting activity in the actor's outbox (TRIG-11-001).  An
+    ``end_time`` becomes the Offer's activity-level ``end_time``, the deadline
+    to answer it (TRIG-11-007, CM-21-016); without one the Offer carries none.
     """
 
     def __init__(
@@ -80,12 +83,14 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
         content: str | None = None,
         captured: dict | None = None,
         name: str | None = None,
+        end_time: datetime | None = None,
     ) -> None:
         super().__init__(captured=captured, name=name)
         self.case_id = case_id
         self.transferee_id = transferee_id
         self.content = content
         self.requesting_actor_id = requesting_actor_id
+        self.end_time = end_time
 
     def _call_factory(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
@@ -112,6 +117,7 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
             content=self.content,
             to=case_actor_id,
             attributed_to=authorship.attributed_to,
+            end_time=self.end_time,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
@@ -136,6 +142,9 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
 
     Logs WARNING and returns FAILURE when ``trigger_activity_factory`` is absent
     from the blackboard — this leaves all outboxes untouched.
+
+    The forward carries the received Offer's ``end_time``, so the transferee,
+    which holds and answers the forward, knows its deadline (CM-21-016).
     """
 
     def __init__(
@@ -145,11 +154,13 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
         original_actor_id: str,
         captured: dict | None = None,
         name: str | None = None,
+        end_time: datetime | None = None,
     ) -> None:
         super().__init__(captured=captured, name=name)
         self.case_id = case_id
         self.transferee_id = transferee_id
         self.original_actor_id = original_actor_id
+        self.end_time = end_time
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -184,6 +195,7 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
             actor=authorship.actor,
             to=[self.transferee_id],
             attributed_to=authorship.attributed_to,
+            end_time=self.end_time,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:

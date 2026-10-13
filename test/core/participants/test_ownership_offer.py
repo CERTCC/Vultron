@@ -238,3 +238,47 @@ def test_withdrawal_closes_the_offer(dl):
     assert offer.answer_id == "urn:undo:1"
     assert offer.closed_by_event_type == "undo_case_ownership_transfer"
     assert open_ownership_offer(dl, _CASE_ID) is None
+
+
+@pytest.mark.spec("CM-21-014")
+@pytest.mark.spec("CM-21-017")
+def test_expiry_closes_the_offer(dl):
+    """The CASE_MANAGER's expiry entry closes the Offer (AC-7)."""
+    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
+    _ledger(dl, 1, "urn:offer:1", "offer_case_ownership_transfer_expired", _T0)
+
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+
+    assert offer.closed_by_expiry
+    assert open_ownership_offer(dl, _CASE_ID) is None
+
+
+@pytest.mark.spec("CM-21-016")
+def test_deadline_is_read_from_the_ledgered_offer_in_utc(dl):
+    """The ledgered Offer's endTime is the deadline, in UTC (CS-13-001)."""
+    _ledger(
+        dl,
+        0,
+        "urn:offer:1",
+        "offer_case_ownership_transfer",
+        _T0,
+        endTime="2026-10-01T17:00:00+05:00",
+    )
+
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+
+    assert offer.end_time == _T0
+    assert offer.end_time is not None and offer.end_time.tzinfo == UTC
+    assert not offer.is_past_deadline(_T0 - timedelta(seconds=1))
+    # The deadline instant itself is too late.
+    assert offer.is_past_deadline(_T0)
+
+
+@pytest.mark.spec("CM-21-016")
+def test_offer_without_a_deadline_never_passes_one(dl):
+    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
+
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+
+    assert offer.end_time is None
+    assert not offer.is_past_deadline(_T0 + timedelta(days=365))

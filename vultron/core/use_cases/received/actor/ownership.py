@@ -1,6 +1,7 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
+from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar
 
 import py_trees
@@ -9,13 +10,16 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
 )
+from vultron.core.behaviors.case.ownership_expiry_tree import (
+    create_ownership_offer_expiry_tree,
+)
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
     create_offer_ownership_transfer_tree,
     create_reject_ownership_transfer_tree,
     create_undo_ownership_transfer_tree,
 )
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
@@ -53,6 +57,54 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _expire_overdue_offer(
+    *,
+    dl: CaseOutboxPersistence,
+    case_id: str,
+    receiving_actor_id: str,
+    now: datetime,
+    sync_port: SyncActivityPort | None,
+    wire_render_port: "WireRenderPort | None",
+) -> None:
+    """Ledger the expiry of the case's open Offer if its deadline passed.
+
+    The CASE_MANAGER evaluates expiry lazily, when it processes an Accept,
+    Reject or Undo of an ownership-transfer Offer or a new Offer for the case
+    (CM-21-017), so each of those use cases runs this first.  The expiry is
+    the CASE_MANAGER's own act, committed before the received activity is
+    judged (CLP-07-013), and so a tree of its own rather than a stage of the
+    received tree, which commits nothing before its guards (CLP-10-010) — the
+    split the embargo Invite expiry makes
+    (``AcceptInviteToEmbargoOnCaseReceivedUseCase._run_expiry_tree``).  Any
+    other store skips it: a replica never computes an expiry.
+
+    A commit the expiry tree could not make is logged and leaves the Offer
+    open; the received tree still refuses a reply after the deadline
+    (CM-21-016) and a new Offer while the old one is open (CM-21-014), so a
+    lost expiry record never admits what the deadline forbids.
+
+    Raises:
+        VultronBTInternalError: the expiry tree failed internally (ADR-0095).
+    """
+    tree = create_ownership_offer_expiry_tree(case_id=case_id, now=now)
+    result = BTBridge(
+        datalayer=dl,
+        wire_render_port=wire_render_port,
+        sync_port=sync_port,
+    ).execute_with_setup(tree=tree, actor_id=receiving_actor_id)
+    verdict = verdict_from_bt(
+        tree, result, label="ExpireOverdueOwnershipOfferBT"
+    )
+    if verdict.disposition is HandlerDisposition.REFUSED:
+        logger.warning(
+            "ExpireOverdueOwnershipOfferBT: no expiry recorded for case '%s'"
+            " at '%s': %s",
+            case_id,
+            receiving_actor_id,
+            verdict.reason,
+        )
 
 
 class OfferCaseOwnershipTransferReceivedUseCase:
@@ -149,14 +201,28 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             else None
         )
 
-        # One tree, run once (CLP-10-005).  The guarded commit fires only when
-        # receiving_actor_id is the CaseActor (CheckIsCaseManagerNode gate), and
-        # the CM-gated ForwardOfferToTransfereeNode in the effect section does
-        # the CM-21-005 forward — no procedural outbox write here.
+        if case_id is not None:
+            # A new Offer for the case is one of the moments the CASE_MANAGER
+            # checks the open Offer's deadline (CM-21-017): an expired one is
+            # closed before this Offer is judged against it (CM-21-014).
+            _expire_overdue_offer(
+                dl=self._dl,
+                case_id=case_id,
+                receiving_actor_id=receiving_actor_id,
+                now=now_utc(),
+                sync_port=self._sync_port,
+                wire_render_port=self._wire_render_port,
+            )
+
+        # The received tree, run once (CLP-10-005).  The guarded commit fires
+        # only when receiving_actor_id is the CaseActor (CheckIsCaseManagerNode
+        # gate), and the CM-gated ForwardOfferToTransfereeNode in the effect
+        # section does the CM-21-005 forward — no procedural outbox write here.
         tree = create_offer_ownership_transfer_tree(
             case_id=case_id,
             transferee_id=transferee_id,
             original_actor_id=original_actor_id,
+            answer_deadline=request.answer_deadline,
             store_offer=StoreReceivedObjectNode(
                 request.activity_type,
                 request.activity_id,
@@ -246,17 +312,33 @@ def _run_ownership_answer(
     label: str,
     sync_port: SyncActivityPort | None,
     wire_render_port: "WireRenderPort | None",
+    case_id: str,
+    now: datetime,
     applied_note: str | None = None,
 ) -> HandlerResult:
     """Run the receive tree of a reply to an Offer and read its verdict.
 
-    Shared by the Accept, the Reject and the Undo: a redelivery of the reply
-    that already closed the Offer is ``SKIPPED`` (HP-01-003); a refusal is
-    logged at WARNING with the sender and the case.  When *applied_note* is
-    given, an applied reply is logged at INFO with it.
+    Shared by the Accept, the Reject and the Undo.  The CASE_MANAGER first
+    ledgers the expiry of the case's open Offer if its deadline passed
+    (CM-21-017), so a reply to it is refused as closed (CM-21-016).  A
+    redelivery of the reply that already closed the Offer is ``SKIPPED``
+    (HP-01-003); a refusal is logged at WARNING with the sender and the
+    case.  When *applied_note* is given, an applied reply is logged at INFO
+    with it.
+
+    *now* is the instant the deadline is compared against, by the expiry and
+    by the reply's sender guard alike; *tree* was built with it.
     """
     receiving_actor_id = resolve_receiving_actor_id(
         dl, request.receiving_actor_id
+    )
+    _expire_overdue_offer(
+        dl=dl,
+        case_id=case_id,
+        receiving_actor_id=receiving_actor_id,
+        now=now,
+        sync_port=sync_port,
+        wire_render_port=wire_render_port,
     )
     bridge = BTBridge(
         datalayer=dl,
@@ -327,11 +409,13 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         case_id = request.case_id
         if case_id is None:
             return _names_no_case(request, "Accept")
+        now = now_utc()
         tree = create_accept_ownership_transfer_tree(
             case_id=case_id,
             offer_id=request.object_id,
             sender_id=request.actor_id,
             answer_id=request.activity_id,
+            now=now,
         )
         return _run_ownership_answer(
             dl=self._dl,
@@ -340,6 +424,8 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             label="AcceptOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
+            case_id=case_id,
+            now=now,
         )
 
 
@@ -381,11 +467,13 @@ class RejectCaseOwnershipTransferReceivedUseCase:
         case_id = request.case_id
         if case_id is None:
             return _names_no_case(request, "Reject")
+        now = now_utc()
         tree = create_reject_ownership_transfer_tree(
             case_id=case_id,
             offer_id=request.object_id,
             sender_id=request.actor_id,
             answer_id=request.activity_id,
+            now=now,
         )
         return _run_ownership_answer(
             dl=self._dl,
@@ -394,6 +482,8 @@ class RejectCaseOwnershipTransferReceivedUseCase:
             label="RejectOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
+            case_id=case_id,
+            now=now,
             applied_note="rejected (ownership unchanged)",
         )
 
@@ -436,11 +526,13 @@ class UndoCaseOwnershipTransferReceivedUseCase:
         case_id = request.case_id
         if case_id is None:
             return _names_no_case(request, "Undo")
+        now = now_utc()
         tree = create_undo_ownership_transfer_tree(
             case_id=case_id,
             offer_id=request.object_id,
             sender_id=request.actor_id,
             undo_id=request.activity_id,
+            now=now,
         )
         return _run_ownership_answer(
             dl=self._dl,
@@ -449,5 +541,7 @@ class UndoCaseOwnershipTransferReceivedUseCase:
             label="UndoOwnershipTransferBT",
             sync_port=self._sync_port,
             wire_render_port=self._wire_render_port,
+            case_id=case_id,
+            now=now,
             applied_note="withdrew (ownership unchanged)",
         )

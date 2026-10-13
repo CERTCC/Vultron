@@ -238,8 +238,9 @@ groups:
     sent_by: not yet checked
     semantics: offer_case_ownership_transfer
     status: none
-    description: Offers the case to the actor named by the target, for example from a Reporter
-      to a Coordinator.
+    description: 'Offers the case to the actor named by the target, for example from a Reporter
+      to a Coordinator. An `endTime`, when present, is the deadline to answer: the CASE_MANAGER
+      refuses a later answer and records the offer as expired.'
     seen_in: []
     example: offer_case_ownership_transfer
   - anchor: accept-case-ownership-transfer

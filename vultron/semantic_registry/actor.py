@@ -308,7 +308,10 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Offer case ownership transfer",
                 description=(
                     "Offers the case to the actor named by the target, for "
-                    "example from a Reporter to a Coordinator."
+                    "example from a Reporter to a Coordinator. An `endTime`, "
+                    "when present, is the deadline to answer: the "
+                    "CASE_MANAGER refuses a later answer and records the "
+                    "offer as expired."
                 ),
                 example="offer_case_ownership_transfer",
             ),

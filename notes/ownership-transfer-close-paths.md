@@ -21,8 +21,8 @@ related_notes:
 
 # Ownership Transfer — Closing an Offer Without an Answer
 
-This note is the design #4491 implements. Withdrawal is built; the deadline and
-expiry are not yet. The Offer, Accept and Reject paths, and the one-open-Offer guard,
+This note is the design #4491 implements; withdrawal, the deadline and expiry
+are all built. The Offer, Accept and Reject paths, and the one-open-Offer guard,
 are in [ownership-transfer](ownership-transfer.md). Every closing entry's
 `event_type` is in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, which every "is it
 open?" reader uses, so a new closing entry needs no other change to close the Offer.
@@ -53,11 +53,35 @@ an Offer can also close without an answer (#4490):
   - **Ledger.** `undo_case_ownership_transfer` is `NO_REPLICA_EFFECT`, for the
     Reject's reason (RSH-08-004). `("Undo", "Offer")` is a canonical, owner-authored
     payload signature.
-- **Deadline (CM-21-016, TRIG-11-007).** The Offer may carry an activity-level
-  `end_time`, set through the offer trigger. Unlike an embargo `Invite.end_time`
+- **Deadline (CM-21-016, TRIG-11-007) — implemented.** The Offer may carry an
+  activity-level `end_time`, set through the offer trigger's optional `end_time`
+  (aware, in the future, held in UTC). Unlike an embargo `Invite.end_time`
   (CM-28-001), it is binding: an Accept or Reject processed after it is refused.
-- **Expiry (CM-21-017).** The CASE_MANAGER finds an expired Offer lazily, when it next
-  processes an answer, an Undo or a new Offer for the case, and commits a distinct
-  expiry entry before acting. Replicas learn expiry from that entry and never compute
-  it, as for embargo Invite expiry (CM-28-014). The expiry entry's `event_type` joins
-  `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`.
+  - **Where it is read.** The wire edge puts it on the event in UTC
+    (`OfferCaseOwnershipTransferReceivedEvent.answer_deadline`) and on the
+    activity snapshot with the offset it arrived with (CS-13-005), so the
+    ledgered Offer carries it; `RecordedOwnershipOffer.end_time` reads it back in
+    UTC. The CASE_MANAGER's forward carries it to the transferee.
+  - **Two readers, one deadline.** `SenderIsOwnershipOfferPartyNode` refuses a
+    reply at or after `end_time` even when no expiry entry exists, so a lost
+    expiry commit never admits a late answer; the expiry step runs first and
+    normally makes the guard refuse it as closed instead. Both compare against
+    the same `now`, read once per delivery from `now_utc()`.
+- **Expiry (CM-21-017) — implemented.** The CASE_MANAGER finds an expired Offer
+  lazily, when it next processes an Accept, Reject or Undo of the Offer or a new
+  Offer for the case, and commits a distinct
+  `offer_case_ownership_transfer_expired` entry before acting
+  (`create_ownership_offer_expiry_tree`, `ExpireOverdueOwnershipOfferNode`). The
+  snapshot is the CASE_MANAGER's own `Expire(Offer)`, stamped with its clock; its
+  `event_type` is in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so it closes
+  the Offer. It is `NO_REPLICA_EFFECT`: replicas learn expiry from the entry and
+  never compute it, as for embargo Invite expiry (CM-28-014).
+  - **Why a tree of its own.** The expiry is the CASE_MANAGER's clock decision,
+    committed as its own entry before the activity changes anything (CLP-07-013),
+    and a received tree commits nothing before its guards (CLP-10-010). So each
+    of the four use cases runs the CASE_MANAGER-gated expiry tree, then its
+    received tree — the split the embargo Invite expiry makes
+    (`AcceptInviteToEmbargoOnCaseReceivedUseCase._run_expiry_tree`). After
+    `case_fully_closed` the expiry tree changes nothing (CM-23-013).
+  - **Ask kind.** `OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRY` is `AskExpiry.VOID`
+    (ASK-03-002): a late reply authorizes nothing.

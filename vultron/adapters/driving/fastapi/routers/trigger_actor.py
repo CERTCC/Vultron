@@ -440,6 +440,7 @@ def trigger_offer_case_ownership_transfer(
             case_id=body.case_id,
             transferee_id=body.transferee_id,
             content=body.content,
+            end_time=body.end_time,
         ),
         dispatcher=dispatcher,
         dl=actor_dl,
