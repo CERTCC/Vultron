@@ -19,6 +19,8 @@ Provides:
 
 - :func:`ownership_offer_expiry_snapshot` — the expiry entry's
   ``payloadSnapshot``, a CASE_MANAGER-authored ``Expire(Offer)``.
+- :class:`OfferParty` and :class:`ExpiryPrompt` — the reply that prompts the
+  check, and which party to the Offer must have sent it.
 - :class:`ExpireOverdueOwnershipOfferNode` — finds the case's open
   ownership-transfer Offer and, when its ``end_time`` has passed, commits the
   expiry entry and broadcasts it.
@@ -29,7 +31,9 @@ BT-17-001): only the CASE_MANAGER evaluates expiry, and a replica learns it
 from the entry, never by reading the clock (CM-21-017).
 """
 
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import Any, cast
 
 from py_trees.common import Status
@@ -47,9 +51,41 @@ from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.ownership_offer import (
     RecordedOwnershipOffer,
     open_ownership_offer,
+    recorded_ownership_offer,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.errors import VultronBTInternalError
+from vultron.core.predicates.addressing import same_actor_id
+from vultron.errors import VultronBTInternalError, VultronNotFoundError
+
+
+class OfferParty(Enum):
+    """The party to an ownership-transfer Offer whose reply is checked."""
+
+    TRANSFEREE = "transferee"
+    """Answers the Offer: Accept or Reject (CM-21-011)."""
+
+    OFFERER = "offerer"
+    """Withdraws the Offer: Undo (CM-21-015)."""
+
+
+@dataclass(frozen=True)
+class ExpiryPrompt:
+    """The reply that prompts the CASE_MANAGER to check the Offer's deadline.
+
+    The expiry is ledgered only for a reply to the open Offer from its party,
+    so a sender with no standing never makes the CASE_MANAGER write
+    (HP-01-006).  The reply's own guard still refuses it afterwards.
+
+    Attributes:
+        sender_id: The reply's sender.
+        offer_id: The Offer the reply names: the recorded Offer or the
+            forward of it (CM-21-005); ``None`` when it names none.
+        party: Which party to the Offer the sender must be.
+    """
+
+    sender_id: str
+    offer_id: str | None
+    party: OfferParty
 
 
 def ownership_offer_expiry_snapshot(
@@ -97,8 +133,16 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
     next reads it as closed: a late Accept or Reject is refused (CM-21-016),
     and a new Offer is admitted.
 
-    SUCCESS when there is nothing to expire (no open Offer, no deadline, or
-    one not yet passed) and when the expiry is committed.  The commit runs as
+    With a *prompt* (an Accept, Reject or Undo), the expiry is ledgered only
+    when the reply names the open Offer and comes from the party
+    :class:`ExpiryPrompt` names: the sender's standing is established before
+    the CASE_MANAGER writes anything (HP-01-006), as the embargo Invite
+    expiry checks the invitee first.  A new Offer prompts with no *prompt*:
+    its sender is not checked yet (#4540).
+
+    SUCCESS when there is nothing to expire (no open Offer, no deadline, one
+    not yet passed, or a reply that does not prompt it) and when the expiry
+    is committed.  The commit runs as
     a nested tree, as the owner-close settle step's does, because which Offer
     expires is known only when the node runs.  A commit the nested tree
     refuses is FAILURE with its reason; an internal error is raised
@@ -111,11 +155,16 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
     """
 
     def __init__(
-        self, case_id: str, now: datetime, name: str | None = None
+        self,
+        case_id: str,
+        now: datetime,
+        prompt: ExpiryPrompt | None = None,
+        name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._now = now
+        self._prompt = prompt
         self.expired_offer_id: str | None = None
 
     def update(self) -> Status:
@@ -131,7 +180,49 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
             )
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
+        if (why := self._not_prompted_by_party(offer)) is not None:
+            self.feedback_message = (
+                f"ownership-transfer Offer '{offer.offer_id}' on case"
+                f" '{self._case_id}' is past its end_time, but {why}; its"
+                " expiry is not ledgered for this reply (HP-01-006)"
+            )
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
         return self._commit_expiry(offer)
+
+    def _not_prompted_by_party(
+        self, offer: RecordedOwnershipOffer
+    ) -> str | None:
+        """Why the prompting reply does not entitle an expiry, or ``None``.
+
+        ``None`` with no prompt (a new Offer), or when the reply names *offer*
+        and its sender is the prompt's party to it.
+        """
+        prompt = self._prompt
+        if prompt is None:
+            return None
+        assert self.datalayer is not None and self.actor_id is not None
+        if prompt.offer_id is None:
+            return "the reply names no Offer"
+        try:
+            named = recorded_ownership_offer(
+                self.datalayer, self._case_id, prompt.offer_id, self.actor_id
+            )
+        except VultronNotFoundError:
+            return f"the reply names Offer '{prompt.offer_id}', never recorded"
+        if named.offer_id != offer.offer_id:
+            return f"the reply names another Offer, '{named.offer_id}'"
+        party_id = (
+            offer.transferee_id
+            if prompt.party is OfferParty.TRANSFEREE
+            else offer.offerer_id(self.actor_id)
+        )
+        if party_id is None or not same_actor_id(prompt.sender_id, party_id):
+            return (
+                f"its sender '{prompt.sender_id}' is not its"
+                f" {prompt.party.value} '{party_id}'"
+            )
+        return None
 
     def _commit_expiry(self, offer: RecordedOwnershipOffer) -> Status:
         assert self.actor_id is not None and offer.end_time is not None
@@ -177,5 +268,7 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
 
 __all__ = [
     "ExpireOverdueOwnershipOfferNode",
+    "ExpiryPrompt",
+    "OfferParty",
     "ownership_offer_expiry_snapshot",
 ]

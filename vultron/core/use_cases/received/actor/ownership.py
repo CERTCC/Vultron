@@ -7,6 +7,10 @@ from typing import TYPE_CHECKING, ClassVar
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
+    ExpiryPrompt,
+    OfferParty,
+)
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
 )
@@ -68,6 +72,7 @@ def _expire_overdue_offer(
     now: datetime,
     sync_port: SyncActivityPort | None,
     wire_render_port: "WireRenderPort | None",
+    prompt: ExpiryPrompt | None = None,
 ) -> None:
     """Ledger the expiry of the case's open Offer if its deadline passed.
 
@@ -81,6 +86,12 @@ def _expire_overdue_offer(
     (``AcceptInviteToEmbargoOnCaseReceivedUseCase._run_expiry_tree``).  Any
     other store skips it: a replica never computes an expiry.
 
+    A reply (*prompt*) prompts the expiry only when it names the open Offer
+    and comes from its party, so a sender with no standing never makes the
+    CASE_MANAGER write (HP-01-006) — as the embargo Invite expiry checks the
+    invitee before it runs.  A new Offer passes no prompt: its sender is not
+    checked yet (#4540).
+
     A commit the expiry tree could not make is logged and leaves the Offer
     open; the received tree still refuses a reply after the deadline
     (CM-21-016) and a new Offer while the old one is open (CM-21-014), so a
@@ -89,7 +100,9 @@ def _expire_overdue_offer(
     Raises:
         VultronBTInternalError: the expiry tree failed internally (ADR-0095).
     """
-    tree = create_ownership_offer_expiry_tree(case_id=case_id, now=now)
+    tree = create_ownership_offer_expiry_tree(
+        case_id=case_id, now=now, prompt=prompt
+    )
     result = BTBridge(
         datalayer=dl,
         wire_render_port=wire_render_port,
@@ -317,6 +330,7 @@ def _run_ownership_answer(
     wire_render_port: "WireRenderPort | None",
     case_id: str,
     now: datetime,
+    party: OfferParty,
     applied_note: str | None = None,
 ) -> HandlerResult:
     """Run the receive tree of a reply to an Offer and read its verdict.
@@ -330,7 +344,9 @@ def _run_ownership_answer(
     with it.
 
     *now* is the instant the deadline is compared against, by the expiry and
-    by the reply's sender guard alike; *tree* was built with it.
+    by the reply's sender guard alike; *tree* was built with it.  *party* is
+    the party to the Offer the reply's sender must be for the reply to
+    prompt the expiry (HP-01-006).
     """
     receiving_actor_id = resolve_receiving_actor_id(
         dl, request.receiving_actor_id
@@ -343,6 +359,11 @@ def _run_ownership_answer(
         now=now,
         sync_port=sync_port,
         wire_render_port=wire_render_port,
+        prompt=ExpiryPrompt(
+            sender_id=request.actor_id,
+            offer_id=request.object_id,
+            party=party,
+        ),
     )
     bridge = BTBridge(
         datalayer=dl,
@@ -430,6 +451,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             wire_render_port=self._wire_render_port,
             case_id=case_id,
             now=now,
+            party=OfferParty.TRANSFEREE,
         )
 
 
@@ -488,6 +510,7 @@ class RejectCaseOwnershipTransferReceivedUseCase:
             wire_render_port=self._wire_render_port,
             case_id=case_id,
             now=now,
+            party=OfferParty.TRANSFEREE,
             applied_note="rejected (ownership unchanged)",
         )
 
@@ -547,5 +570,6 @@ class UndoCaseOwnershipTransferReceivedUseCase:
             wire_render_port=self._wire_render_port,
             case_id=case_id,
             now=now,
+            party=OfferParty.OFFERER,
             applied_note="withdrew (ownership unchanged)",
         )

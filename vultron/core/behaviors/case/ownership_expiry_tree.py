@@ -34,6 +34,10 @@ committed as its own entry, before the activity it is processing changes
 anything (CLP-07-013).  It is not part of the received tree: that tree
 commits nothing before its guards (CLP-10-010).
 
+An Accept, Reject or Undo prompts the expiry only when it names the open
+Offer and comes from its party (the transferee, or the offerer), so a sender
+with no standing never makes the CASE_MANAGER write (HP-01-006).
+
 A store that is not the case's CASE_MANAGER runs nothing: a replica learns
 an expiry from the entry and never computes one (CM-21-017, BT-17-001).
 The entry changes no replica state of its own; it closes the Offer because
@@ -47,6 +51,7 @@ import py_trees
 
 from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
     ExpireOverdueOwnershipOfferNode,
+    ExpiryPrompt,
 )
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
@@ -57,7 +62,7 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 
 
 def create_ownership_offer_expiry_tree(
-    case_id: str, now: datetime
+    case_id: str, now: datetime, prompt: ExpiryPrompt | None = None
 ) -> py_trees.behaviour.Behaviour:
     """Build the CASE_MANAGER-gated lazy expiry of the case's open Offer.
 
@@ -65,6 +70,9 @@ def create_ownership_offer_expiry_tree(
         case_id: The case whose open ownership-transfer Offer is checked.
         now: The instant the Offer's ``end_time`` is compared against; the
             caller passes the same one to the received tree it runs next.
+        prompt: The Accept, Reject or Undo that prompts the check, so the
+            expiry is ledgered only for a reply to the open Offer from its
+            party (HP-01-006); ``None`` for a new Offer (#4540).
 
     Returns:
         A tree that succeeds when nothing was due or the expiry was committed,
@@ -85,7 +93,9 @@ def create_ownership_offer_expiry_tree(
                         name="CaseFullyClosed",
                         child=CaseOpenToExternalWritesNode(case_id=case_id),
                     ),
-                    ExpireOverdueOwnershipOfferNode(case_id=case_id, now=now),
+                    ExpireOverdueOwnershipOfferNode(
+                        case_id=case_id, now=now, prompt=prompt
+                    ),
                 ],
             )
         ],

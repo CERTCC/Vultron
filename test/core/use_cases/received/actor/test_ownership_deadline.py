@@ -301,3 +301,140 @@ def test_forward_carries_the_offers_deadline(make_payload):
     trigger_activity.offer_case_ownership_transfer.assert_called_once()
     _, kwargs = trigger_activity.offer_case_ownership_transfer.call_args
     assert kwargs["end_time"] == deadline
+
+
+class TestOnlyThePartyPromptsTheExpiry:
+    """HP-01-006: a sender with no standing never makes the CASE_MANAGER
+    write, so only a reply from the Offer's party prompts the expiry."""
+
+    @pytest.mark.spec("HP-01-006")
+    @pytest.mark.spec("CM-21-017")
+    @pytest.mark.parametrize(
+        "reply, sender",
+        [
+            # Not the transferee: an outsider, and the offerer itself.
+            (_accept, "https://example.org/users/mallory"),
+            (_reject, _VENDOR_ID),
+            # Not the offerer: the transferee.
+            (_undo, _COORDINATOR_ID),
+        ],
+    )
+    def test_late_reply_from_a_non_party_ledgers_nothing(
+        self, make_payload, reply, sender
+    ):
+        case_id = "https://example.org/cases/case_dl_non_party"
+        dl, _, _, offer = _expired_offer(make_payload, case_id)
+        entries_before = _event_types(dl)
+        outbox_before = dl.outbox_list()
+
+        result = reply(dl, make_payload, offer, sender=sender)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert _event_types(dl) == entries_before
+        assert _announces(dl, outbox_before) == []
+        assert _owner(dl, case_id) == _VENDOR_ID
+
+    @pytest.mark.spec("HP-01-006")
+    @pytest.mark.spec("CM-21-017")
+    def test_late_reply_naming_an_unrecorded_offer_ledgers_nothing(
+        self, make_payload
+    ):
+        """The transferee's reply prompts the expiry only for the open Offer."""
+        from vultron.wire.as2.factories import (
+            offer_case_ownership_transfer_activity,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case_id = "https://example.org/cases/case_dl_other_offer"
+        dl, _, _, _ = _expired_offer(make_payload, case_id)
+        entries_before = _event_types(dl)
+        unrecorded = offer_case_ownership_transfer_activity(
+            as_VulnerabilityCase(id_=case_id),
+            target=_COORDINATOR_ID,
+            actor=_VENDOR_ID,
+            to=[_CASE_ACTOR_ID],
+            id_=f"{case_id}/never-recorded",
+        )
+
+        result = _accept(dl, make_payload, unrecorded)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert _event_types(dl) == entries_before
+
+    @pytest.mark.spec("CM-21-017")
+    def test_the_partys_late_reply_after_a_non_partys_still_ledgers_it(
+        self, make_payload
+    ):
+        """A refused outsider leaves the expiry for the party's reply."""
+        case_id = "https://example.org/cases/case_dl_party_after"
+        dl, _, _, offer = _expired_offer(make_payload, case_id)
+
+        _accept(dl, make_payload, offer, sender="https://example.org/u/eve")
+        result = _accept(dl, make_payload, offer)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None and "CM-21-016" in result.reason
+        assert _event_types(dl).count(_EXPIRED) == 1
+
+
+@pytest.mark.spec("CM-23-013")
+@pytest.mark.spec("CM-21-017")
+def test_expiry_changes_nothing_once_the_case_is_fully_closed(make_payload):
+    """After ``case_fully_closed`` the CASE_MANAGER commits no expiry."""
+    from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+    from vultron.core.models.case_ledger import HashChainLedgerRecord
+
+    case_id = "https://example.org/cases/case_dl_closed"
+    dl, _, _, _ = _expired_offer(make_payload, case_id)
+    dl.create(
+        _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=case_id,
+                log_index=len(_event_types(dl)),
+                object_id=f"{case_id}/owner-leave",
+                event_type="case_fully_closed",
+                payload_snapshot={"actor": _VENDOR_ID},
+                prev_log_hash="0" * 64,
+            )
+        )
+    )
+    entries_before = _event_types(dl)
+    tree = create_ownership_offer_expiry_tree(case_id=case_id, now=now_utc())
+
+    result = BTBridge(
+        datalayer=dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_ID)
+
+    assert result.status.name == "SUCCESS"
+    assert _event_types(dl) == entries_before
+    assert _expiry_entries(dl) == []
+
+
+@pytest.mark.spec("CM-21-017")
+@pytest.mark.spec("CLP-12-002")
+def test_a_replica_admits_the_expiry_entry_the_case_manager_commits(
+    make_payload,
+):
+    """A replica learns the expiry from the entry, so its canonical-entry
+    check must admit the entry as the CASE_MANAGER wrote it."""
+    from vultron.core.behaviors.sync.nodes.canonical_entry import (
+        _CASE_AUTHORED_SIGNATURES,
+        _validate_canonical_entry,
+    )
+    from vultron.core.models.rsvp_deadline import EXPIRE_SNAPSHOT_TYPE
+
+    case_id = "https://example.org/cases/case_dl_replica_admits"
+    dl, _, _, offer = _expired_offer(make_payload, case_id)
+    _accept(dl, make_payload, offer)
+    (entry,) = _expiry_entries(dl)
+
+    assert (EXPIRE_SNAPSHOT_TYPE, "Offer") in _CASE_AUTHORED_SIGNATURES
+    _validate_canonical_entry(
+        case_id=case_id,
+        payload_snapshot=entry.payload_snapshot,
+        event_type=entry.event_type,
+    )
