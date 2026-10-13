@@ -2,7 +2,7 @@
 
 !!! info "Create note"
 
-    Mints a note for the case. It precedes the Add that attaches it.
+    Mints a note for the case. When the note's context names the case, the Case Manager attaches it and records the attachment in the case ledger, so the Add that follows changes nothing more.
 
     - **When…** a Participant has written a note it is about to post to the case
     - **Send:** `Create(Note)`
