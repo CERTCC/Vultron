@@ -42,6 +42,14 @@ _CORE = _corpus.REPO_ROOT / "vultron" / "core"
 #: replica steps that apply them today run the PEC transition themselves.
 _AWAITS_PARTICIPANT_COPY = "#4295"
 
+#: The ownership-transfer Offer expiry (CM-21-017, landed by #4586) is already
+#: the CASE_MANAGER's own act, but in the synthetic ``Expire`` type it shares
+#: with the invitation expiry.  ``Expire`` is no AS2 type and the wire
+#: vocabulary has no extension activity a factory could build it with; giving
+#: it one (a class and a JSON-LD term) or choosing another form is a protocol
+#: vocabulary decision, and it is the rest of #3743's AC-3.
+_AWAITS_EXPIRY_FORM = "#3743"
+
 #: Activity-shaped dict literals still built in core, by ``(file, function)``,
 #: with how many each holds.  Each row is removed by the issue it names; add
 #: none (VM-08-003).
@@ -54,6 +62,10 @@ _BASELINE: dict[tuple[str, str], tuple[int, str]] = {
         "vultron/core/behaviors/embargo/expiry_tree.py",
         "honour_late_accept_payload_snapshot",
     ): (1, _AWAITS_PARTICIPANT_COPY),
+    (
+        "vultron/core/behaviors/case/nodes/ownership_offer_expiry.py",
+        "ownership_offer_expiry_snapshot",
+    ): (1, _AWAITS_EXPIRY_FORM),
 }
 
 _ACTIVITY_KEYS = frozenset({"type", "actor"})
