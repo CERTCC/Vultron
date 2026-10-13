@@ -395,14 +395,16 @@ class VultronWiringError(VultronError):
 
 
 class VultronBTInternalError(VultronError):
-    """Raised when a received-side BT failed on an internal error.
+    """Raised when a received-side or trigger-side BT failed on an internal error.
 
     ``BTBridge`` catches a non-``VultronError`` exception escaping a node and
     reports it as ``FAILURE`` with ``internal_error=True``.  That is a
     programming error, not a protocol outcome, so a handler MUST NOT report it
     as ``HandlerDisposition.REFUSED`` (ADR-0095): it re-raises it as this
     exception so the inbox pipeline records it as a raised dispatch, traceback
-    and all, and it stays distinguishable from a refusal.
+    and all, and it stays distinguishable from a refusal.  A trigger raises it
+    for the same reason, so a server-side fault is never translated into the
+    client's 422.
     """
 
 

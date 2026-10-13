@@ -284,11 +284,16 @@ reconstructing a participant's causal order; they are verified by
 
 The CASE_MANAGER commits every initialization entry natively in
 `CommitNativeLedgerEntriesNode` (`vultron/core/behaviors/case/nodes/proposal_ledger.py`)
-while handling `Create(as_CaseProposal)` (CM-22-003, CLP-12). Order:
+while handling `Create(as_CaseProposal)` (CM-22-003, CLP-12). The create-case
+trigger composes the same node (`create_case_trigger_tree.py`), its creator being
+owner and CASE_MANAGER, so both creation paths commit one sequence; do not add a
+second copy (CLP-07-013). Order:
 
 1. `create_case` — `Create(VulnerabilityCase)`, actor CASE_MANAGER
 2. `add_report_to_case` — actor CASE_MANAGER
-3. `add_participant_status_to_participant` × N — actor CASE_MANAGER
+3. `add_participant_status_to_participant` × N — actor CASE_MANAGER; its
+   `target` is the participant record in full, the entry that carries the record
+   (a `Create(CaseParticipant)` shape is #4295's)
 4. `add_case_status_to_case` — actor **vendor URI**
 
 Snapshot shapes come from `vultron/core/behaviors/case/ledger_snapshots.py`.
@@ -298,7 +303,8 @@ Snapshot shapes come from `vultron/core/behaviors/case/ledger_snapshots.py`.
   carries the true consent value. A second entry shifts every downstream
   `log_index` and breaks "`log_index` order is causal order".
 - **Fail fast on genesis, best-effort after.** If step 1 fails, the node returns
-  FAILURE so no `Accept`/`Create` tells the vendor a case exists with no ledger.
+  FAILURE and the handler or trigger reports it. The node runs after the `Create`
+  is queued (CM-14-011, CP-09-009), so the failure is surfaced, not prevented.
   Steps 2–4 warn and continue.
 - **Step 4 names the vendor** because the vendor set the genesis status.
   `("Add", "CaseStatus")` is also in `_CASE_AUTHORED_SIGNATURES` (CLP-12-001), so
