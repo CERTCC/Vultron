@@ -59,7 +59,7 @@ References
 ----------
 - Issue: #1954
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-20-005
-- Notes: ``notes/bt-fuzzer-rm-fix.md``
+- Catalog: ``docs/developer/reference/bt-fuzzer/rm-fix.md``
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
 """
 

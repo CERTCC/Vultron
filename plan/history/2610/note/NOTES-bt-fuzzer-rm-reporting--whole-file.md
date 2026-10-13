@@ -1,20 +1,14 @@
 ---
-title: "BT Fuzzer Nodes: RM Reporting to Other Parties"
-status: active
-kind: guidance
-description: >
-  Catalog of fuzzer (stub) BT nodes for the Reporting to Other Parties
-  sub-workflow (`ReportToOthersBt`): coordinator/finder notification,
-  participant tracking, and outbound-report nodes used in simulation.
-related_specs:
-  - specs/behavior-tree-integration.yaml
-related_notes:
-  - notes/bt-fuzzer-nodes-report-management.md
-  - notes/bt-integration.md
-  - notes/bt-canonical-reference.md
-  - notes/bt-fuzzer-nodes.md
-relevant_packages:
-  - vultron/bt/report_management
+source: NOTES-bt-fuzzer-rm-reporting--whole-file
+timestamp: '2026-10-12T19:38:58.248804+00:00'
+title: 'BT fuzzer nodes: RM reporting to other parties (whole file)'
+type: note
+---
+
+**Archived:** 2026-10-12
+**Reason:** the production report-to-others tree was removed; party discovery moved to a call-in capability, so the catalog's placements describe nothing that exists
+**Superseded by:** ADR-0047; BT-20-003 (`specs/behavior-tree-integration.yaml`)
+
 ---
 
 ## Reporting to Other Parties

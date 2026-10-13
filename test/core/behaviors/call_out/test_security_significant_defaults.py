@@ -46,7 +46,7 @@ does not "harden" them (see ``notes/call-out-configuration.md`` §
    ``FAILURE`` tick) and the :class:`RequireCaseOwnerApprovalNode` membership in
    ``EXPECTED_CONSERVATIVE_GATES`` must be revised to check the security
    *property* rather than the interim mechanism. See
-   ``notes/call-out-configuration.md`` § "Mechanism vs. posture".
+   ``notes/call-out-configuration.md`` § "Posture vs. mechanism".
 """
 
 import dataclasses
@@ -157,7 +157,7 @@ def test_status_gates_conservative_default_blocks():
     returns an unconditional ``FAILURE`` default; when that lands, this
     assertion must be reframed to check the security property (a non-owner does
     not obtain SUCCESS by default), not the ``FAILURE`` tick. See the module
-    docstring and ``notes/call-out-configuration.md`` § "Mechanism vs. posture".
+    docstring and ``notes/call-out-configuration.md`` § "Posture vs. mechanism".
     """
     for f in dataclasses.fields(STATUS_AUTHORIZATION_DETERMINISTIC):
         node = getattr(STATUS_AUTHORIZATION_DETERMINISTIC, f.name)(f.name)

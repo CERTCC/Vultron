@@ -1,17 +1,14 @@
 ---
-title: "BT Fuzzer Nodes: Inbound Message Handling"
-status: active
-kind: guidance
-description: >
-  Catalog of fuzzer (stub) BT nodes for the Inbound Message Handling workflow
-  in the Vultron BT simulation.
-related_specs:
-  - specs/behavior-tree-integration.yaml
-related_notes:
-  - notes/bt-integration.md
-  - notes/bt-fuzzer-nodes.md
-relevant_packages:
-  - vultron/bt/messaging
+source: NOTES-bt-fuzzer-nodes-messaging--whole-file
+timestamp: '2026-10-12T19:38:58.625293+00:00'
+title: 'BT fuzzer nodes: inbound message handling (whole file)'
+type: note
+---
+
+**Archived:** 2026-10-12
+**Reason:** the only node, FollowUpOnErrorMessage, has no production analog: core does not model inbound protocol error messages
+**Superseded by:** ADR-0049
+
 ---
 
 # BT Fuzzer Nodes: Inbound Message Handling
