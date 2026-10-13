@@ -34,6 +34,7 @@
 | the Case Owner offers to transfer ownership of the case to another actor | `Offer(VulnerabilityCase)` | not yet checked | — | [Offer case ownership transfer](../case_management.md#offer-case-ownership-transfer) |
 | an actor accepts an offer of case ownership | `Accept(Offer(VulnerabilityCase))` | the addressee of the vulnerability case | — | [Accept case ownership transfer](../case_management.md#accept-case-ownership-transfer) |
 | an actor declines an offer of case ownership | `Reject(Offer(VulnerabilityCase))` | the addressee of the vulnerability case | — | [Reject case ownership transfer](../case_management.md#reject-case-ownership-transfer) |
+| the Case Owner withdraws an open offer of case ownership | `Undo(Offer(VulnerabilityCase))` | the case owner | — | [Withdraw case ownership transfer](../case_management.md#withdraw-case-ownership-transfer) |
 | the Case Manager invites an actor to join the case | `Invite(Actor)[target=VulnerabilityCaseStub]` | not yet checked | — | [Invite actor to case](../case_management.md#invite-actor-to-case) |
 | an invited actor agrees to join the case | `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` | the invitee | — | [Accept invite to case](../case_management.md#accept-invite-to-case) |
 | an invited actor declines to join the case | `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` | the invitee | — | [Reject invite to case](../case_management.md#reject-invite-to-case) |

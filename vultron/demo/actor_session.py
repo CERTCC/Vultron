@@ -416,6 +416,19 @@ class ActorSession:
             ),
         )
 
+    def withdraw_case_ownership_transfer(
+        self, *, offer_id: str
+    ) -> WireActivityResult:
+        """Withdraw an open case-ownership-transfer offer (withdraw-case-ownership-transfer)."""
+        return cast(
+            WireActivityResult,
+            self._post(
+                "withdraw-case-ownership-transfer",
+                {"offer_id": offer_id},
+                result_cls=WireActivityResult,
+            ),
+        )
+
     # -- demo-only triggers (path_prefix="demo") -------------------------
 
     def add_note_to_case(

@@ -262,6 +262,17 @@ groups:
     description: Declines the ownership transfer offer. The current Case Owner keeps the case.
     seen_in: []
     example: reject_case_ownership_transfer
+  - anchor: withdraw-case-ownership-transfer
+    heading: Withdraw case ownership transfer
+    when: the Case Owner withdraws an open offer of case ownership
+    send: Undo(Offer(VulnerabilityCase))
+    sent_by: the case owner
+    semantics: undo_case_ownership_transfer
+    status: none
+    description: Withdraws the ownership transfer offer before it is answered. The current
+      Case Owner keeps the case.
+    seen_in: []
+    example: undo_case_ownership_transfer
   - anchor: invite-actor-to-case
     heading: Invite actor to case
     when: the Case Manager invites an actor to join the case

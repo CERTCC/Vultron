@@ -23,6 +23,7 @@ from vultron.core.models.events.actor import (
     InviteActorToCaseReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
+    UndoCaseOwnershipTransferReceivedEvent,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import (
@@ -234,6 +235,16 @@ _CASES = [
     (
         RejectCaseOwnershipTransferReceivedEvent,
         MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
+        {"object_": _activity, "inner_object": _case},
+        [
+            ("offer_id", "object_id"),
+            ("offer", "object_"),
+            ("case_id", "inner_object_id"),
+        ],
+    ),
+    (
+        UndoCaseOwnershipTransferReceivedEvent,
+        MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER,
         {"object_": _activity, "inner_object": _case},
         [
             ("offer_id", "object_id"),

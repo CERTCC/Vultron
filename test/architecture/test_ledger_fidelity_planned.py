@@ -56,9 +56,5 @@ def test_ownership_transfer_reject_commits_an_entry():
 
 
 @pytest.mark.spec("CM-21-015")
-@pytest.mark.xfail(
-    strict=True,
-    reason="CM-21-015: no received use case withdraws an ownership Offer. #4491.",
-)
 def test_ownership_transfer_withdrawal_commits_an_entry():
     assert "undo_case_ownership_transfer" in received_commit_semantics()
