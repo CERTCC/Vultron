@@ -135,7 +135,7 @@ or a new Offer for the case:
 An offer may also carry an `end_time`, the deadline to answer it ([CM-21-016](../../reference/specs/protocol.md#cm-21-016)).
 The owner sets it with the `end_time` field of the `offer-case-ownership-transfer` trigger, which must be a future time with a timezone ([TRIG-11-007](../../reference/specs/protocol.md#trig-11-007)); without it, the offer stays open until it is answered or withdrawn.
 The forwarded offer carries the same deadline, so the proposed owner knows when it can no longer answer.
-The CASE_MANAGER reads the deadline in UTC, whatever offset the offer was sent with.
+The CASE_MANAGER reads the deadline in Coordinated Universal Time (UTC), whatever offset the offer was sent with.
 
 The deadline is binding: the CASE_MANAGER refuses an acceptance or refusal it processes after the deadline, so every participant knows who decides for the case once it passes.
 A refused late answer moves no role and is not recorded in the ledger.
