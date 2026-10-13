@@ -2,7 +2,12 @@
 title: Participant Case Replica — Implementation Notes
 status: active
 kind: guidance
-description: "Design notes for participant case replicas: per-actor case copies and synchronization model."
+description: >
+  Rules for participant case replicas: one inbox per actor with internal
+  routing on `context`, the CASE_MANAGER as sole replica writer, the
+  locally-derived trust anchors a seeding Announce needs, the late-joiner
+  cascade, report-to-case linking, and actor-scoped deferral of activities
+  with an unknown case context.
 related_specs:
   - specs/architecture.yaml
   - specs/participant-case-replica.yaml
@@ -14,6 +19,7 @@ related_notes:
   - notes/case-ledger-authority.md
   - notes/sync-ledger-replication.md
   - notes/case-joining.md
+  - notes/case-bootstrap-trust.md
 relevant_packages:
   - vultron/core/behaviors/case
   - vultron/core/models
@@ -22,402 +28,75 @@ relevant_packages:
 
 # Participant Case Replica — Implementation Notes
 
-**Relates to**: `specs/participant-case-replica.yaml`
-
-**Cross-references**: `specs/case-management.yaml`,
-`specs/sync-ledger-replication.yaml`, `specs/actor-knowledge-model.yaml`,
-`specs/case-bootstrap-trust.yaml`
-
-> **Supersession note**: The non-owner bootstrap guidance in this file is
-> partially superseded by `specs/case-bootstrap-trust.yaml` and
-> `notes/case-bootstrap-trust.md`. For the original report-submission path,
-> trust now starts with creator-signed `Create(VulnerabilityCase)`, not with
-> `Announce(VulnerabilityCase)` from the CASE_MANAGER.
-
----
-
-## Decision Table
-
-| Question | Decision | Rationale |
-|---|---|---|
-| Does each participant need a stub CASE_MANAGER clone? | No — one Actor, one inbox; routing is an internal concern. | Separate per-participant-per-case actors would explode the actor registry and add wire-protocol complexity with no protocol benefit. |
-| What is the bootstrap mechanism for delivering a full case snapshot? | Split by path: creator-signed `Create(VulnerabilityCase)` for the original report path; `Announce(VulnerabilityCase)` from the CASE_MANAGER after trust is established; invite-based bootstrap for late joiners. | Original report submitters already trust the report receiver, so that actor should introduce the CASE_MANAGER. Late joiners need trust establishment through invitation rather than report history. |
-| Who triggers initial sync for the original participants? | The report receiver sends one-time `Create(VulnerabilityCase)` to the original report submitter (ADR-0132). | This establishes trust in the CASE_MANAGER before later updates arrive from a different identity. |
-| Who triggers initial sync for late-joining participants? | The case creator establishes trust through `InviteActorToCase`, then the CASE_MANAGER sends `Announce(VulnerabilityCase)` after acceptance. | Keeps late-joiner trust establishment tied to the invite flow while preserving CASE_MANAGER-authoritative replication afterward. |
-| Who may update a participant's local case replica? | Only the CASE_MANAGER. Reject and log at WARNING for any other sender. | Enforces the single-writer invariant (CM-02-002). Matches the idea's explicit requirement. |
-| Does the case owner follow the same replica rules? | Yes. Even the case owner routes through the CASE_MANAGER and never writes directly to its local copy. | Holds whether the owner and CASE_MANAGER are two actors or one (CM-02-010 allows both); the owner's writes pass through the CASE_MANAGER role either way. |
-| Which field routes a case-scoped message to the right local handler? | `context` field, set to the case ID. | Already the established pattern in all demos. Consistent with AS2 semantics. |
-| What happens when an activity arrives with an unknown case context? | Queue, warn, request resync. Drop if no snapshot arrives within timeout. | Handles out-of-order delivery (snapshot and follow-up arrive in wrong order) without silently dropping or corrupting state. |
-| Should an actor maintain a report-to-case mapping? | Yes. Allows reporter actors to recognize that bootstrap `Create(Case)` and later `Announce(Case)` traffic belong to their prior `Offer(Report)`. | Enables the "reporter checks their open submissions" flow described in the idea. |
-
----
-
-## Architecture Overview
-
-```text
-Participant Actor (single inbox)
-  ├── Activity with context=case_id_A → Case-A replica handler
-  ├── Activity with context=case_id_B → Case-B replica handler
-  └── Activity with unknown context   → Queue + resync request
-```
-
-There is one externally-addressable Actor. Case-scoped routing is fully
-internal. The only entity that may update participant replicas is whoever holds
-`CVDRole.CASE_MANAGER` for the case. In the prototype that role is enacted by
-an actor labelled "CaseActor" — a cosmetic identity, never a synonym for the
-authority and never something to match on (ADR-0088). It is a role a container
-wears, one per container, **not** one per case
-(CP-08-002/003, #1872): the enacting actor's identity is the stable
-`{case_actor_service_url}/actors/case-actor`. Code MUST gate on the role rather
-than compare `actor_id` against a computed `case_actor_id` (CM-24-004).
-
-```text
-Case Lifecycle:
-  Case created
-    └── Case creator sends Create(VulnerabilityCase) to original report submitter
-          └── Submitter validates report linkage + CASE_MANAGER identity
-          └── Trusted CASE_MANAGER sends Announce(VulnerabilityCase) updates
-
-  New participant invited and accepts
-    └── Case creator sends InviteActorToCase
-          └── Invitee validates invite + CASE_MANAGER identity
-          └── CASE_MANAGER sends Announce(VulnerabilityCase) to new participant
-                └── New participant creates local replica
-```
-
----
-
-## Bootstrap Split by Participant Origin
-
-`Announce(VulnerabilityCase)` is still the right vehicle for CASE_MANAGER-led
-ongoing synchronization, but it is no longer the universal first-bootstrap
-message for non-owner participants.
-
-- **Original report path**: the report receiver sends one-time
-  `Create(VulnerabilityCase)` to the original report submitter to introduce the
-  case and the CASE_MANAGER.
-- **Post-bootstrap updates**: the trusted CASE_MANAGER sends
-  `Announce(VulnerabilityCase)` for ongoing synchronization.
-- **Late joiners**: `InviteActorToCase` establishes trust first, then the
-  CASE_MANAGER may send `Announce(VulnerabilityCase)`.
-
-### Trust Guard: Seeding Requires Prior Trust
-
-A participant MUST NOT create a local case replica from any arbitrary
-`Announce(VulnerabilityCase)` message. Before accepting a seeding announce
-as authoritative, the receiver must have prior trust established for that
-case through one of two paths:
-
-1. **Report-submission path**: the receiver has already processed a
-   `Create(VulnerabilityCase)` from the report receiver, which establishes the
-   local CASE_MANAGER identity before any `Announce` arrives.  The
-   `VultronReportCaseLink.case_manager_id` field carries the
-   trusted identity; `_find_case_actor_id()` returns it via path 1.
-2. **Invite/Accept path**: the receiver has processed an inbound
-   `InviteActorToCase` from the CASE_MANAGER, which leaves an invite trust
-   anchor in the receiver's DataLayer recording the expected CASE_MANAGER for
-   that case ID.  The authority check finds this anchor before the case is
-   seeded and admits only the expected actor.
-
-**Why the announced roster is not a trust anchor**: the roster is supplied by
-the sender.  A fabricated case naming the sender as its own `CASE_MANAGER`
-passes a roster-only check — nothing available at first contact can refute it.
-What the roster *does* catch is the realistic imposter that was previously
-caught by the `Service`-hosting scan (since removed by ADR-0088): an actor
-replaying a legitimate case whose roster names a *different* authority.  For
-that narrow use, reading the announced roster was correct but it is now
-superseded by the locally-derived anchor approach, which catches both the
-replay *and* the fabrication case.  `_announced_case_manager_id()` must NOT
-be used as the fallback when no local record exists — that fallback is the gap
-filed as concern #3274.
-
-**When neither anchor exists**: `_sender_is_trusted()` in
-`announce.py` MUST reject (WARNING logged, case NOT seeded) when
-`_find_case_actor_id()` returns `None` and no `VultronPendingCaseInbox` invite
-anchor is present.  There is no legitimate protocol sequence that delivers an
-unsolicited first-contact `Announce(VulnerabilityCase)` without a preceding
-`Create(VulnerabilityCase)` or `InviteActorToCase`.
-
-**Spec reference**: `PCR-03-004`, `PCR-07-010`.
-
-The receiver therefore also needs bootstrap-state awareness before treating a
-CASE_MANAGER-originated snapshot as authoritative:
-
-```python
-class AnnounceVulnerabilityCaseReceivedUseCase:
-    def __init__(
-        self, dl: DataLayer, request: AnnounceVulnerabilityCaseReceivedEvent
-    ) -> None:
-        self._dl = dl
-        self._request = request
-
-    def execute(self) -> None:
-        request = self._request
-        actor_id = request.actor_id
-        case = request.case
-
-        if case is None:
-            logger.warning(
-                "announce_case: no case object in event from actor '%s'",
-                actor_id,
-            )
-            return
-
-        # PCR-03-001 / PCR-03-004: only a locally anchored CASE_MANAGER may
-        # seed or update, and no anchor means reject.
-        #
-        # Note the shape. An earlier version of this guard read
-        # `if case_actor_id is not None and actor_id != case_actor_id`, which is
-        # silently permissive: an unresolvable authority meant "accept". That was
-        # tolerable only while the resolver was gated on the `case-actor` URL
-        # shape and so answered `None` for most cases. Once ADR-0088 made it
-        # answer from the role, the same `None` became reachable for a *seeded*
-        # replica — a roster naming no CASE_MANAGER, or one whose participant
-        # carries no `attributed_to` — and accepting there overwrote the stored
-        # record (#3273). Failing closed removes the whole class: there is no
-        # legitimate sequence that delivers a first-contact Announce with no
-        # preceding Create or Invite.
-        if not _sender_is_trusted(self._dl, case.id_, actor_id):
-            logger.warning(
-                "announce_case: untrusted sender '%s' for case '%s'"
-                " — Announce rejected (PCR-03-001, PCR-03-004, PCR-07-010)",
-                actor_id,
-                case.id_,
-            )
-            return
-
-        existing = self._dl.read(case.id_)
-        if existing is None:
-            logger.info(
-                "announce_case: creating local replica for case '%s'",
-                case.id_,
-            )
-            self._dl.save(case)
-        else:
-            logger.info(
-                "announce_case: updating local replica for case '%s'",
-                case.id_,
-            )
-            # Merge authoritative fields from the CASE_MANAGER's snapshot
-            self._dl.save(case)
-```
-
----
-
-## Late-Joiner Bootstrap: Cascade from `Accept(Invite(stub))`
-
-The invitee's participant record already exists when it accepts: the
-CASE_MANAGER created it, inert, when it sent the stub Invite (CM-11-006,
-ADR-0114). When the participant accepts the stub Invite, the
-`AcceptInviteToCaseUseCase` MUST activate that record and trigger
-`Announce(VulnerabilityCase)` and the ledger replay to the participant as a
-cascade (CM-11-008), followed by the full-case Invite queued after the last
-replayed entry (CM-11-010). This is a BT subtree, not a procedural post-BT
-call:
-
-```python
-# Target shape of the AcceptInviteToCase BT (the record is not created here):
-#
-#  SequenceNode
-#    ├── ValidateAcceptInviteNode
-#    ├── ActivateInvitedParticipantNode    ← RM stays RECEIVED (CM-11-001)
-#    ├── AnnounceFullCaseToNewParticipantNode  ← cascade node
-#    └── InviteToFullCaseNode              ← full-case Invite (CM-11-010)
-```
-
-Node names are illustrative; the inert record is created by
-`CreateInertInviteeParticipantNode` when the stub Invite is sent, and the
-accept-invite tree reuses it. See [case-joining.md](case-joining.md) for the full flow.
-
-`AnnounceFullCaseToNewParticipantNode` reads the current full case from the
-DataLayer and enqueues `Announce(VulnerabilityCase)` to the new participant's
-inbox via the outbox.
-
----
-
-## `context` Field as Case Routing Key
-
-All case-scoped activities MUST carry `context` set to the case ID. This
-applies to both directions:
-
-**CASE_MANAGER → Participant:**
-
-```python
-activity = AnnounceVulnerabilityCaseActivity(
-    actor=case_actor.id_,
-    object_=case,
-    to=[participant_actor.id_],
-    context=case.id_,   # PCR-04-002
-)
-```
-
-**Participant → CASE_MANAGER:**
-
-```python
-activity = AddNoteToCase(
-    actor=participant_actor.id_,
-    object_=note,
-    target=case,
-    to=[case_actor.id_],
-    context=case.id_,   # PCR-04-002
-)
-```
-
-The inbox dispatcher MUST extract `context` from the activity and use it
-to look up the relevant case replica before routing to the handler.
-
----
-
-## Report-to-Case Mapping
-
-When a reporter actor submits a report (`Offer(VulnerabilityReport)`), the
-local DataLayer SHOULD record:
-
-```python
-class ReportCaseLink(BaseModel):
-    report_id: str
-    case_id: str | None = None
-```
-
-When the reporter later receives `Announce(VulnerabilityCase)` and the case's
-`vulnerability_reports` list includes the known report ID, the handler links
-the case to the report:
-
-```python
-# In AnnounceVulnerabilityCaseReceivedUseCase.execute():
-for report_ref in case.vulnerability_reports:
-    report_id = _as_id(report_ref)
-    link = dl.read(f"report-case-link/{url_encode(report_id)}")
-    if link is not None and link.case_id is None:
-        link.case_id = case.id_
-        dl.save(link)
-        logger.info(
-            "announce_case: linked report '%s' to case '%s'",
-            report_id, case.id_,
-        )
-```
-
----
-
-## Unknown Case Context Handling
-
-When the inbox dispatcher encounters a `context` that does not match any
-known local case:
-
-```python
-def dispatch_case_scoped_activity(activity, dl):
-    case_id = activity.context
-    if dl.read(case_id) is None:
-        logger.warning(
-            "dispatch: unknown case context '%s' for activity '%s'"
-            " — queuing for resync",
-            case_id, activity.id_,
-        )
-        _enqueue_pending(activity)
-        _request_case_snapshot(case_id, activity.actor, dl)
-        return
-
-    # Normal routing
-    ...
-```
-
-Pending activities are keyed by `case_id`. When `Announce(VulnerabilityCase)`
-arrives and creates the replica, the dispatcher MUST replay any pending
-activities queued for that case ID.
-
-### Actor-Scoped Deferral
-
-The pending-activity queue MUST be **actor-scoped** (keyed by both
-`actor_id` and `case_id`), not global. This ensures that:
-
-1. Activities deferred for actor A's unknown case context do not interfere
-   with actor B's handling of the same case ID.
-2. Multi-actor deployments (e.g. multi-vendor scenarios) can replay deferred
-   activities per-actor after the appropriate replica is seeded.
-
-A global queue would allow activities intended for one actor to be replayed
-against a different actor's case replica, producing incorrect state.
-
-**Spec reference**: `PCR-06-004`.
-
----
-
-## Layer and Import Rules
-
-- `AnnounceVulnerabilityCaseReceivedUseCase` lives in
-  `vultron/core/use_cases/received/actor/announce.py`.
-- The recognition check (`_sender_is_trusted`) decides whether an inbound
-  `Announce(VulnerabilityCase)` may seed or update the local replica. It does
-  **not** scan for a `Service` object whose `context` is the case id; that
-  hosting signal was retired by ARCH-24-004, and it answered `None` during the
-  bootstrap window before any `Service` carries `context` (CM-02-012). Both of
-  its anchors are **locally derived**, which is the property that matters — the
-  sender supplies the announced roster, so anything read out of the payload is
-  the sender's own account of who may speak for the case:
-  - `_find_case_actor_id()` — the address recorded on a completed
-    `ReportCaseLink`, or else the `CVDRole.CASE_MANAGER` role-holder on the
-    local replica (`vultron/core/participants/authority.py`, ADR-0088,
-    ARCH-24-001).
-  - a `VultronPendingCaseInbox` invite anchor, written by
-    `InviteActorToCaseReceivedUseCase` when this receiver processed the invite,
-    which covers the late joiner before any replica exists (PCR-03-004 path b).
-    Three trust rules govern when and how the anchor is written
-    (`RecordInviteTrustAnchorNode`, issue #4185):
-    (1) the Invite's `object` must equal the receiving actor — a misaddressed
-    Invite is refused with no record written (AC-1);
-    (2) the anchor binds to the Invite's `actor` id (the named CaseActor), not
-    the transport-level delivering sender — the caller supplies the Invite's own
-    `actor` field (AC-2);
-    (3) a second Invite for the same case naming a *different* CaseActor is
-    refused at WARNING level and the existing anchor is left unchanged (AC-3).
-    Whether the named CaseActor is genuine cannot be verified until actor
-    identity and signatures are in place (#2841).
-  Neither answering means **reject**, not accept. The lookup is idempotent and
-  safe to call multiple times.
-- The late-joiner bootstrap node belongs in
-  `vultron/core/behaviors/case/` as part of the invite-acceptance BT,
-  not in the use-case `execute()` body.
-- `ReportCaseLink` belongs in `vultron/core/models/` and MUST NOT reference
-  any wire-layer types.
-
----
-
-## Testing Patterns
-
-```python
-# PCR-07-001: Announce from the CASE_MANAGER creates local replica
-def test_announce_creates_replica(dl, case_actor, new_case):
-    activity = AnnounceVulnerabilityCaseActivity(
-        actor=case_actor.id_,
-        object_=new_case,
-        to=["https://example.org/reporter"],
-        context=new_case.id_,
-    )
-    event = build_event(activity, actor_id="https://example.org/reporter")
-    AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
-    assert dl.read(new_case.id_) is not None
-
-
-# PCR-07-003: Announce from non-CASE_MANAGER is rejected
-def test_announce_from_non_case_actor_rejected(dl, imposter_actor, new_case,
-                                               caplog):
-    activity = AnnounceVulnerabilityCaseActivity(
-        actor=imposter_actor.id_,
-        object_=new_case,
-        to=["https://example.org/reporter"],
-        context=new_case.id_,
-    )
-    event = build_event(activity, actor_id="https://example.org/reporter")
-    with caplog.at_level(logging.WARNING):
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
-    assert dl.read(new_case.id_) is None
-    assert "not the CASE_MANAGER" in caplog.text
-
-
-# PCR-07-005: Activity with unknown context is queued, not applied
-def test_unknown_context_queued(dl, case_scoped_note_activity):
-    # case does not exist in dl yet
-    dispatch_case_scoped_activity(case_scoped_note_activity, dl)
-    assert dl.read(case_scoped_note_activity.context) is None
-    assert _is_enqueued(case_scoped_note_activity.id_)
-```
+Requirements: `specs/participant-case-replica.yaml` (PCR). First-contact
+bootstrap is in [case-bootstrap-trust.md](case-bootstrap-trust.md).
+
+## One Actor, One Inbox, Routing on `context`
+
+A participant is one externally addressable actor with one inbox; case-scoped
+routing is internal. Do not create per-participant or per-case actor clones:
+they explode the actor registry for no protocol benefit.
+
+- Every case-scoped activity, in both directions, MUST carry `context` set to
+  the case ID (PCR-04-002); the inbox uses it to find the local replica.
+- The enacting "CaseActor" is one per container, not one per case, at
+  `{case_actor_service_url}/actors/case-actor` (CP-08-002/003). Its label is
+  cosmetic: gate on `CVDRole.CASE_MANAGER`, never compare `actor_id` to a
+  computed case-actor id (CM-24-004, ADR-0088).
+
+## Only the CASE_MANAGER Writes a Replica
+
+Only the case's CASE_MANAGER may update a participant's replica; any other
+sender is rejected and logged at WARNING (CM-02-002). The case owner follows the
+same rule: its writes pass through the CASE_MANAGER role whether the two are one
+actor or two (CM-02-010).
+
+## A Seeding Announce Needs a Locally Derived Anchor (PCR-03-004)
+
+A participant MUST NOT create a replica from an arbitrary
+`Announce(VulnerabilityCase)`. `_sender_is_trusted()` in
+`vultron/core/use_cases/received/actor/announce.py` admits the sender only
+against an anchor the receiver derived itself:
+
+1. **Report path**: a completed `VultronReportCaseLink` recording
+   `case_manager_id` (written on the creator-signed `Create(VulnerabilityCase)`),
+   or the CASE_MANAGER role-holder on an existing replica (`_find_case_actor_id()`,
+   `vultron/core/use_cases/_helpers.py`).
+2. **Invite path**: a `VultronPendingCaseInbox` anchor written when the receiver
+   processed `InviteActorToCase` (`RecordInviteTrustAnchorNode`, #4185). It is
+   written only if the Invite's `object` is the receiving actor; it binds to the
+   Invite's `actor` field, not the transport sender; and a second Invite naming a
+   different CaseActor for the same case is refused, leaving the anchor
+   unchanged.
+
+No anchor means **reject**, never accept: no legitimate sequence delivers a
+first-contact Announce without a preceding Create or Invite (PCR-07-010, #3273).
+Do not fall back to the announced roster in the payload: the sender supplies
+it, so a fabricated case naming the sender as CASE_MANAGER
+passes (#3274). Do not reintroduce the retired `Service`-hosting scan
+(ARCH-24-004). Whether the named CaseActor is genuine awaits signatures (#2841).
+
+## Late Joiners: Cascade from `Accept(Invite(stub))`
+
+The invitee's record already exists, inert, from when the stub Invite was sent
+(`CreateInertInviteeParticipantNode`, CM-11-006). On the stub Accept the
+accept-invite tree activates that record (RM stays RECEIVED, CM-11-001), sends
+`Announce(VulnerabilityCase)` and the ledger replay (CM-11-008), then the
+full-case Invite queued after the last replayed entry (CM-11-010). This cascade
+is BT subtree work in `vultron/core/behaviors/case/`, not a procedural call in
+`execute()`. Full flow: [case-joining.md](case-joining.md).
+
+## Report-to-Case Linking
+
+A reporter records a `VultronReportCaseLink` (`vultron/core/models/`, no wire
+types) when it submits `Offer(VulnerabilityReport)`. When a later case snapshot
+lists that report in `vulnerability_reports`, the link gains the case ID, so the
+reporter recognizes the case as the outcome of its own submission.
+
+## Unknown Case Context: Queue, Never Apply (PCR-06)
+
+An activity whose `context` matches no local replica MUST NOT be discarded and
+MUST NOT update local state; queue it, request a snapshot, and replay it once
+the replica is seeded. The queue MUST be keyed by both receiving actor and case
+ID (`vultron/core/models/pending_case_inbox.py`, PCR-06-004): a global queue
+replays one co-located actor's activities against another's replica.

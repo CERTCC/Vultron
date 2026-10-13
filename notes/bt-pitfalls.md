@@ -30,6 +30,9 @@ related_notes:
   - notes/protocol-asks.md
   - notes/peer-broadcast-failure-semantics.md
   - notes/agentic-workflow.md
+  - notes/case-proposal.md
+  - notes/embargo-default-semantics.md
+  - notes/status-dimension-objects.md
 relevant_packages:
   - py_trees
   - vultron/core/behaviors
@@ -403,7 +406,7 @@ attributes must use `unwrap_call_out(node)`. Code that ticks a factory product
 outside a `BTBridge` tree must use `tick_once()` / `setup_with_descendants()`,
 never bare `update()` / `setup()` (see `_record_named_peer` in
 `use_cases/triggers/actor.py`). Rationale: [protocol-asks.md](protocol-asks.md)
-§ "The invariant is enforced, not just observed" (ADR-0080); bundle
+§ "Why there is nothing to suspend" (ADR-0080); bundle
 configuration: [call-out-configuration.md](call-out-configuration.md).
 
 ---

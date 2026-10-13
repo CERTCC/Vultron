@@ -1737,7 +1737,7 @@ groups:
       `Offer(VulnerabilityReport)` activity. This requirement is therefore reachable, and the
       reconciliation it describes is the shortest-wins comparison of EP-04-003. Note that the
       protocol default of EP-04-005 is not a candidate in that comparison (EP-04-006). Amended by
-      ADR-0096; see `notes/embargo-default-semantics.md` § "Resolved: Reporter Embargo Proposal
+      ADR-0096; see `notes/embargo-default-semantics.md` § "Reporter Embargo Proposal
       Mechanism (EP-04-004)".
     relationships:
     - rel_type: depends_on

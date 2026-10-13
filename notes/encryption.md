@@ -15,12 +15,11 @@ related_specs:
   - specs/message-validation.yaml
 related_notes:
   - archived_notes/federation_ideas.md
+  - notes/case-ledger-genesis-hardening.md
+  - notes/case-actor-cluster.md
 ---
 
 # Encryption implementation notes
-
-> **Tracked by**: issue #1156 and its children. This file is the design seed
-> for that implementation work.
 
 ## Overview
 
@@ -43,8 +42,7 @@ key-binding rule:
 - An actor that enacts `CVDRole.CASE_MANAGER` for several cases uses **one** key
   pair across all of them. This is the shape the prototype has: a single
   `case-actor` container identity holds N cases, and the case a given activity
-  belongs to travels in `activity.context` rather than in the actor URI
-  (ISSUE-1872).
+  belongs to travels in `activity.context` rather than in the actor URI.
 - Where a **case actor service** provisions a dedicated CASE_MANAGER actor per
   case (glossary, "Case Actor Service"), each case ends up with distinct key
   material — because each case has its own actor, not because a per-case key
@@ -54,11 +52,8 @@ Which of those a production deployment should use is unresolved, and it is the
 question that decides how much cryptographic separation exists between cases on
 one host. It belongs to the actor identity model (#2841, epic #1156).
 
-The pitfall this replaces: ENC-01 was written as "one key pair per case, bound
-to the CaseActor for that case's lifetime", which invited an implementation
-keyed on the case. Deriving anything per-case from a CaseActor's *identity* is
-the category error ADR-0088 names — no container has registered a per-case
-identity, so calls to it answer 404.
+Do not derive anything per-case from a CASE_MANAGER's identity: no container
+registers a per-case identity (ADR-0088).
 
 ## Principles
 

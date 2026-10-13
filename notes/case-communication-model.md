@@ -3,13 +3,12 @@ title: Case Communication Model
 status: active
 kind: guidance
 description: >
-  Canonical communication model for post-case-creation participant messaging:
-  all participant messages route through the CASE_MANAGER exclusively, and all
-  state updates propagate via CaseLedgerEntry broadcast. Captures the routing
-  rule, its rationale, common antipatterns, BT implementation guidance, and the
-  embargo revision relay (EP-09, ADR-0113): ledger entries carry state to
-  replicas but never set a parse-and-respond expectation. Also records that the
-  CASE_MANAGER gate checks the receiver, never the sender (HP-01-006, ADR-0115).
+  Rules for post-creation case messaging: every participant message routes
+  through the CASE_MANAGER and state reaches replicas only via CaseLedgerEntry
+  broadcast; which resolver to use; Invite/Accept routing; the embargo relay
+  (EP-09, ADR-0113), where ledger entries carry state but never ask; the
+  delegated-message pattern; and identity-spoofing antipatterns, including
+  reading the CASE_MANAGER gate as a sender check (HP-01-006, ADR-0115).
 related_specs:
   - specs/architecture.yaml
   - specs/embargo-policy.yaml
@@ -37,7 +36,10 @@ related_notes:
   - notes/protocol-asks.md
   - notes/case-joining.md
   - notes/received-status-authorization.md
+  - notes/message-occasion-table.md
   - notes/message-type-reference.md
+  - notes/case-proposal.md
+  - notes/ownership-transfer.md
 relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/core/use_cases/received
@@ -49,208 +51,90 @@ relevant_packages:
 
 # Case Communication Model
 
-**Source**: 2026-05-21 grill-me session. Normative requirements: `PCR-08`.
+Requirements: PCR-08, CM-24, HP-01. Decisions: ADR-0021, ADR-0088, ADR-0113, ADR-0115.
 
 ---
 
 ## The Canonical Communication Flow
 
-Once a case is created and the actor enacting `CVDRole.CASE_MANAGER` has been
-introduced to all participants, **all case-scoped participant messages MUST flow
-through the CASE_MANAGER exclusively**. The canonical flow is:
+Once the CASE_MANAGER has been introduced to the participants, **every case-scoped
+participant message goes to the CASE_MANAGER only**:
 
 ```text
 Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
 ```
 
-No participant may send a case-scoped message directly to another
-participant. The CASE_MANAGER is the single intermediary and single writer
-of authoritative case history.
-
-### Three-Phase Breakdown
-
-1. **Participant → CASE_MANAGER**: The originating participant sends
-   `Add(Note)`, `Add(ParticipantStatus)`, `Offer(Embargo)`, or any other
-   case-scoped activity addressed **only** to the CASE_MANAGER
-   (`to: [case_actor_id]`).
-
-2. **CASE_MANAGER processes + commits**: On receipt, the CASE_MANAGER validates
-   the activity, updates local case state, and commits a `CaseLedgerEntry`
-   recording the outcome (accepted or rejected).
-
-3. **Automatic broadcast**: The `CaseLedgerEntry` commit automatically triggers
-   `Announce(CaseLedgerEntry)` to all case participants. This is the **only**
-   mechanism by which participants learn of accepted case-state changes.
-
----
-
-## Scope: When Does This Rule Apply?
+The CASE_MANAGER validates the activity, updates the case, and commits a
+`CaseLedgerEntry`; the commit fans out `Announce(CaseLedgerEntry)`, the only way
+participants learn of case-state changes. No participant messages another directly.
 
 | Phase | Rule |
 |---|---|
-| **Before case creation** | Finder sends `Offer(Report)` directly to Vendor — no CASE_MANAGER exists yet. This direct peer message is the **only** exception. |
-| **Case creation / bootstrap** | Vendor sends `Create(VulnerabilityCase)` to Finder to introduce the CASE_MANAGER. This is the trust-bootstrap handshake (one-time exception). |
-| **Inviting a new participant** | See [Invite/Accept Handshake Routing](#inviteaccept-handshake-routing) below. The CASE_MANAGER sends `Invite` on the owner's behalf and processes `Accept`. |
-| **After case is active** | ALL subsequent messages from any participant go to the CASE_MANAGER only. No direct peer messaging. |
+| **Before case creation** | Finder sends `Offer(Report)` directly to Vendor — no CASE_MANAGER exists yet. The only peer-to-peer exception. |
+| **Case creation / bootstrap** | `Create(VulnerabilityCase)` introduces the CASE_MANAGER (trust bootstrap, one time). |
+| **Inviting a new participant** | See [Invite/Accept Handshake Routing](#inviteaccept-handshake-routing). |
+| **After case is active** | Every message from any participant goes to the CASE_MANAGER only. |
 
----
-
-## Why This Model
-
-The CASE_MANAGER is the single writer of authoritative shared history
-(see `notes/case-ledger-authority.md`). If participants send messages
-directly to each other:
-
-- Content arrives outside the canonical log, so replicas cannot
-  be rebuilt deterministically from the log alone.
-- The hash chain is not authoritative because state-changing events
-  are not all recorded in it.
-- The CASE_MANAGER cannot enforce validation, reject malformed assertions,
-  or maintain consistent ordering.
-- Demo and protocol analysis become unreliable because the actual
-  message flow diverges from the specified model.
+**Why:** the CASE_MANAGER is the single writer of case history
+([case-ledger-authority](case-ledger-authority.md)). A peer-to-peer message is outside
+the log, so replicas cannot be rebuilt from it, the hash chain is incomplete, and the
+CASE_MANAGER cannot validate or order it.
 
 ---
 
 ## Antipattern: the Whole Roster as Recipient List
 
-The retired `case_addressees(case, excluding_actor_id)` returned **all**
-actor IDs in the case participant index except the caller. Two things were
-wrong with using any such roster-wide list as `to:`:
-
-1. On the **participant sender** side it bypasses the CASE_MANAGER
-   (PCR-08-001/002).
-2. On the **CASE_MANAGER broadcast** side it reaches inert participants —
-   those that have not accepted the stub Invite, or are not a signatory to an
-   active embargo (CM-10-004, ADR-0114).
-
-```python
-# ❌ WRONG — sends to all participants directly, bypassing the CASE_MANAGER
-addressees = list(case.actor_participant_index)   # [vendor, finder]
-activity = add_note_to_case_activity(
-    note=note, target=case_id, actor=actor_id, to=addressees
-)
-```
-
-```python
-# ✅ CORRECT — send only to the CASE_MANAGER
-case_manager_id = _resolve_case_manager_id(case, dl)  # only the CASE_MANAGER actor
-activity = add_note_to_case_activity(
-    note=note, target=case_id, actor=actor_id, to=[case_manager_id]
-)
-```
-
-The CASE_MANAGER's **outbound broadcast** picks its recipients from
-`vultron/core/participants/recipients.py` (CM-10-007): case content goes to
-`case_content_recipients()` (active participants not at RM.CLOSED; a ledger
-entry recording a closed participant's own closure still reaches it, through
-`ledger_entry_recipients()`, CM-23-004), and a consent Invite
-goes to `invitation_recipients()` (every participant not at RM.CLOSED, inert
-ones included). `test/architecture/test_active_participant_recipient_selection.py`
-keeps every other module from listing roster actor IDs for addressing.
+Never address `to:` from the roster (`case.actor_participant_index` or similar). From a
+participant it bypasses the CASE_MANAGER (PCR-08-001); from the CASE_MANAGER it reaches
+inert participants (CM-10-004, ADR-0114). A participant sends to the CASE_MANAGER only.
+The CASE_MANAGER picks broadcast recipients from
+`vultron/core/participants/recipients.py` (CM-10-007): `case_content_recipients()` for
+content (active participants not at RM.CLOSED), `ledger_entry_recipients()` for
+ledger entries (adds back only a closed participant the entry is about, CM-23-004),
+and `invitation_recipients()` for consent Invites.
+`test/architecture/test_active_participant_recipient_selection.py` keeps every other
+module from listing roster ids for addressing.
 
 ---
 
 ## Implementation: Resolving the CASE_MANAGER ID
 
-The authority is the participant holding `CVDRole.CASE_MANAGER`. To resolve
-its actor ID from a known case:
+The authority is the participant holding `CVDRole.CASE_MANAGER`. Two resolvers answer
+different questions (ARCH-24-005; the full split is in
+[case-ledger-authority](case-ledger-authority.md) § "Three Questions That Look Like
+One"):
 
-```python
-from vultron.core.participants.authority import resolve_case_manager_id
-```
+- **`resolve_case_manager_id(case, dl)`** (`vultron/core/participants/authority.py`) —
+  "who is the authority?". Needs the case in hand; use it for every gate and authority
+  decision. `behaviors/` may import it directly (BTND-04-003).
+- **`_find_case_actor_id(dl, case_id)`** — "what address do I route to?". Adds one
+  bootstrap path, the `case_manager_id` on a completed `ReportCaseLink`, which answers
+  before the replica has a roster. Use it for addressing only (PCR-08-007, PCR-08-008).
 
-This extraction landed in PR #3219 under ADR-0088. `resolve_case_manager_id`
-is the canonical implementation used by all sender-side trigger use cases.
-
-**Which of the two resolvers to reach for.** They answer different questions,
-and picking the wrong one is how hosting signals crept back in before
-(ARCH-24-005; the full three-way split is in
-[case-ledger-authority](case-ledger-authority.md) § "Three Questions That Look
-Like One"):
-
-- **`resolve_case_manager_id(case, dl)`** — "am I / who is the authority?"
-  Needs a `VulnerabilityCase` in hand. Use it for every gate and every
-  authority decision. It lives in the neutral layer, so `behaviors/` may import
-  it directly (no `behaviors → use_cases` hop, BTND-04-003).
-- **`_find_case_actor_id(dl, case_id)`** — "what address do I route to?" Takes a
-  case *id* and adds one bootstrap path: the `case_manager_id` recorded on
-  a completed `ReportCaseLink`, which answers before the local replica has a
-  roster to read. Use it for addressing (`to:` / `cc:`) — PCR-08-007,
-  PCR-08-008.
-
-Neither consults a URL shape or a `Service` object's hosting location. ADR-0088
-removed both, along with the `is_case_actor_identity` predicate: an ordinary
-participant enacting `CASE_MANAGER` *is* the authority and *is* the address, and
-a `.../actors/case-actor` URL is a provisioning convenience with no protocol
-meaning (CM-02-013, ARCH-24-004).
+Neither consults a URL shape or hosting location: a `.../actors/case-actor` URL has no
+protocol meaning (CM-02-013, ADR-0088).
 
 ---
 
 ## Automatic CaseLedgerEntry + Broadcast Cascade
 
-Every CASE_MANAGER received-side handler that accepts a participant message
-MUST trigger the cascade automatically — not via a manual demo endpoint.
-The expected flow:
-
-1. CASE_MANAGER inbox receives participant activity.
-2. CASE_MANAGER's received-side use case (or BT) processes the assertion.
-3. On acceptance: the guarded commit records the entry, then
-   `FanOutLogEntryNode` (`core/behaviors/sync/nodes/fanout.py`) queues
-   `Announce(CaseLedgerEntry)` to all participants via the CASE_MANAGER outbox.
-4. `OutboxMonitor` drains the CASE_MANAGER outbox → delivers to each
-   participant's inbox.
-5. Participant's `AnnounceLedgerEntryReceivedUseCase` (`received/sync.py`)
-   processes the entry and updates the local replica.
-
-The `vultron/adapters/driving/fastapi/routers/demo_triggers.py`
-`sync-log-entry` endpoint exists only as a
-**test scaffold** for manually injecting log entries during demo
-verification. It MUST NOT be part of the normal message flow — the
-cascade must fire automatically as a consequence of any accepted
-participant message.
-
----
-
-## BT Implementation Guidance
-
-Sender-side trigger use cases (`SvcAddNoteToCaseUseCase`,
-`SvcAddParticipantStatusUseCase`, embargo triggers, etc.) currently contain
-routing logic and activity-construction code that belongs in Behavior Trees.
-The correct architecture:
-
-```text
-TriggerUseCase.execute()
-  └── Sets blackboard context (actor_id, case_id, payload)
-  └── Ticks BT
-
-SenderBT (Sequence)
-  ├── ResolveCaseManagerNode      # looks up CASE_MANAGER actor ID
-  ├── ConstructActivityNode       # builds the AS2 activity addressed to CASE_MANAGER
-  └── QueueToOutboxNode           # adds to actor outbox
-```
-
-Until BTs are implemented, the interim fix is to ensure all trigger use
-cases use `_resolve_case_manager_id()` instead of a roster-wide list as
-the recipient when building outbound participant activities.
+Every CASE_MANAGER received-side handler that accepts a participant message fires the
+cascade itself: guarded commit, then `FanOutLogEntryNode`
+(`core/behaviors/sync/nodes/fanout.py`) queues the `Announce` in the CASE_MANAGER
+outbox, and each participant's `AnnounceLedgerEntryReceivedUseCase` updates its replica.
+The `/actors/{actor_id}/demo/sync-log-entry` endpoint (`routers/demo_triggers.py`) is a
+test scaffold only; never part of the normal flow.
 
 ---
 
 ## Invite/Accept Handshake Routing
 
-Adding a new participant to an active case uses `RmInviteToCaseActivity` /
-`RmAcceptInviteToCaseActivity`. The stub Invite creates the invitee's
-participant record, but the record is **inert** — it receives no case content
-(CM-10-004) — so the standard CASE_MANAGER → broadcast model cannot deliver the
-invite. The CASE_MANAGER MUST still be the authoritative actor in the exchange.
-The join model is ADR-0114 and ADR-0121; the full flow is in
-[case-joining.md](case-joining.md).
+The stub Invite creates an **inert** record, which receives no case content
+(CM-10-004), so the broadcast cannot deliver the invite; the CASE_MANAGER still owns the
+exchange. The full join model is in [case-joining](case-joining.md) (ADR-0114,
+ADR-0121).
 
 ### Correct Flow
-
-The model below is CM-11 (ADR-0114, ADR-0121): the stub Invite creates the
-participant, `Accept(Invite(stub))` joins it, and the full-case Invite asks it to
-judge the case.
 
 ```text
 Case Owner triggers SvcInviteActorToCaseUseCase
@@ -273,8 +157,7 @@ AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
   2. CASE_MANAGER gate (create_case_manager_gated_tree, BT-17-001):
      a non-manager stops here and the handler reports REFUSED (HP-01-005)
   3. Activates the existing record: RM stays RECEIVED, VF V for a vendor,
-     consent row `AGREED` if an embargo is active (CM-11-001) — joining, not a
-     judgement of the case
+     consent row `AGREED` if an embargo is active (CM-11-001)
   4. Emits Announce(VulnerabilityCase) to the participant and replays the
      prior ledger to it (CM-11-008)
   5. Queues the full-case Invite(Actor, VulnerabilityCase) after the last
@@ -290,81 +173,44 @@ Reject(Invite(stub)) instead of Accept → RM.CLOSED on the kept, inert record
 
 ### Key Rules
 
-- `actor` on `RmInviteToCaseActivity` MUST be the **CASE_MANAGER's ID**.
-  `attributedTo` MAY carry the case owner's ID (PCR-08-007).
-- The invitee's `Accept` MUST be addressed **to the CASE_MANAGER**,
-  not to the case owner (PCR-08-008). The invitee holds no case yet, so its
-  inbox usually defers the Invite until the bootstrap the Accept brings; the
-  accept and reject triggers read the Invite through `read_received_activity()`
-  (`core/use_cases/_helpers.py`), which takes intake's archive record or that
-  deferred copy (CLP-10-017; see
-  [inbox-orchestration](inbox-orchestration.md)).
-- The CASE_MANAGER (not the case owner) MUST process the Accept and
-  record the invitee's RM transition (PCR-08-009). The same handler runs on
-  any actor holding a copy, so admitting, announcing and backfilling sit
-  behind the role gate; a receiver the gate turns away reports `REFUSED`
-  through `not_case_manager_refusal()`, never `SKIPPED` (HP-01-005, #3752).
-- The handler runs the tree as the **receiving** actor only
-  (`resolve_receiving_actor_id()`), never as a CASE_MANAGER address looked
-  up from the store: that ran the tree under a foreign identity and let the
-  gate pass for a store that was not the manager's (BT-17-006, #3823).
-- No `RmEngageCaseActivity` is emitted on behalf of the invitee. Accepting
-  the stub Invite is *joining* — RM stays `RECEIVED` (CM-11-001) — and
-  accepting the full-case Invite is RV (`RM.VALID`, CM-11-011). Neither is
-  engagement: only the participant's own `Join(VulnerabilityCase)` records
-  `RM.ACCEPTED` (CM-11-004).
+- The Invite's `actor` is the CASE_MANAGER; `attributedTo` MAY carry the case owner
+  (PCR-08-007).
+- The invitee's `Accept` goes **to the CASE_MANAGER**, not the case owner
+  (PCR-08-008). The invitee holds no case yet, so its inbox usually defers the Invite;
+  the accept and reject triggers read it through `read_received_activity()`
+  (`core/use_cases/_helpers.py`), which finds the archive record or the deferred copy
+  (CLP-10-017; [inbox-orchestration](inbox-orchestration.md)).
+- The CASE_MANAGER processes the Accept (PCR-08-009). The same handler runs on any
+  actor holding a copy, so its effects sit behind the role gate, and a receiver the gate
+  turns away reports `REFUSED` through `not_case_manager_refusal()`, never `SKIPPED`
+  (HP-01-005).
+- The handler runs the tree as the **receiving** actor (`resolve_receiving_actor_id()`),
+  never as a CASE_MANAGER address looked up from the store (BT-17-006).
+- Emit no `RmEngageCaseActivity` for the invitee. Accepting the stub is joining (RM
+  stays `RECEIVED`), accepting the full-case Invite is RV; only the participant's own
+  `Join(VulnerabilityCase)` records `RM.ACCEPTED` (CM-11-004).
 
 ### Implementation Pattern: Role-Gated Emit, CASE_MANAGER Executes
 
-**Updated by ADR-0073 / CM-24-004.** The emit must sit inside a composite gated
-on the executing actor holding `CVDRole.CASE_MANAGER` for the case
-(`create_case_manager_gated_tree`). Code MUST NOT instead resolve a
-`case_actor_id` and compare it against `actor_id`: the authority is a *role* held
-in the case, its holder may be any Actor type, and ungated the same helper is
-identity spoofing — any actor reaching it could emit as the CASE_MANAGER.
-
-Once the emit is role-gated the executing actor *is* the case manager, so
-`dl` already belongs to it and the activity and its outbox entry land in one store
-by construction (BT-05-006). That is also why `add_activity_to_outbox`'s first
-argument is now only a log label: **`dl` determines the queue**, and
-`record_outbox_item` — which enqueued against an explicit `actor_id`, bypassing
-`dl`'s scope — is gone, because there is no unscoped `dl` for it to compensate
-for.
-
-```python
-# Inside a CASE_MANAGER-gated composite, so `actor_id` is the case manager
-# and `dl` is its own store.
-activity_id = trigger_activity.invite_actor_to_case(
-    invitee_id=invitee_id,
-    case_id=case_id,
-    actor=actor_id,                # ← the role holder sends (CM-24-001)
-    attributed_to=requester_id,    # ← originating participant (CM-24-002)
-    to=[invitee_id],
-)
-add_activity_to_outbox(actor_id, activity_id, dl)   # ← dl *is* the manager's store
-```
-
-A case always has a `CVDRole.CASE_MANAGER` participant (CM-24-006), so there is
-no un-delegated path: a resolver that finds no holder fails rather than sending
-directly. The CM-24-003 fallback (`actor` = requester, `attributed_to = None`)
-is retired; the shared helper `delegated_authorship()` has no such arm.
+Put the emit inside `create_case_manager_gated_tree`. Never resolve a `case_actor_id`
+and compare it with `actor_id`: the authority is a *role*, and an ungated helper is
+identity spoofing (CM-24-004). Once gated, the executing actor *is* the CASE_MANAGER and
+`dl` is its store, so the activity and its outbox entry land in one store (BT-05-006):
+**`dl` determines the queue**, and `add_activity_to_outbox`'s actor argument is only a
+log label. A case always has a CASE_MANAGER (CM-24-006): a resolver that finds none
+fails; there is no un-delegated fallback.
 
 ---
 
 ## Embargo Relay: the Ledger Carries State, It Never Asks (EP-09, ADR-0113)
 
-The case Invite above is one instance of a general shape, and every embargo
-proposal — the first one for a case or a revision — is the second (EP-09-001):
-the rule is not only about revisions. A
-participant addresses its proposal to the CASE_MANAGER only (PCR-08-001). The
-CASE_MANAGER adjudicates it, moves the canonical case (`NONE → PROPOSED` or
-`ACTIVE → REVISE`), commits the proposal, and *then* relays it: one
-`Invite(EmbargoEvent)` per participant except the proposer, `actor` the
-CASE_MANAGER, `attributedTo` the proposer (CM-24), `end_time` stamped by the
-manager (CM-28-012), each emission committed. Participants answer the Invite
-addressed to them, to the CASE_MANAGER; the CASE_MANAGER commits each answer;
-the owner's answer also decides the embargo. Replicas reconstruct every step
-from the ledger (RSH-08-004).
+Every embargo proposal — first or revision — is relayed (EP-09-001). The participant
+addresses it to the CASE_MANAGER only. The CASE_MANAGER adjudicates, moves the case
+(`NONE → PROPOSED` or `ACTIVE → REVISE`), commits the proposal, then relays one
+`Invite(EmbargoEvent)` per participant except the proposer (`actor` the CASE_MANAGER,
+`attributedTo` the proposer, `end_time` stamped per CM-28-012), each emission committed.
+Participants answer the Invite addressed to them, to the CASE_MANAGER, which commits
+each answer; the owner's answer also decides the embargo.
 
 ```text
 Participant P sends Invite(EmbargoEvent B) → CASE_MANAGER
@@ -376,319 +222,142 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   CASE_MANAGER: EA/EC activates B or ER/EJ clears/keeps, commit → Announce to all
 ```
 
-The proposer's own trigger writes no EM state unless the proposer holds the
-CASE_MANAGER role: it emits to the manager alone, records the ask in the
-pending-assertion store, and its replica moves on the announced commit
-(EP-09-008). When the CASE_MANAGER is the one deciding by trigger — proposing,
-answering or ending an embargo — it writes, commits the decision as a ledger
-entry, and addresses nothing to itself: its proposal is relayed as one Invite
-per other participant, its `Accept`/`Reject` is addressed to nobody, and its
-`Remove(EmbargoEvent)` goes to every other participant (#4085, #4112;
-`notes/embargo-lifecycle.md` § "A trigger writes shared EM state only as the
-CASE_MANAGER"). The manager's commit is also the acknowledgement the
-behavioural specs call EK (EP-09-009).
-Only the CASE_MANAGER evaluates invite expiry; it commits the expiry entry
-behind the role gate, and a replica learns an expiry from that entry and never
-computes one (CM-28-014, ADR-0118).
+- **A proposer's trigger writes no EM state** unless it holds the CASE_MANAGER role: it
+  emits to the manager, records the ask in the pending-assertion store, and its replica
+  moves on the announced commit (EP-09-008).
+- **A CASE_MANAGER deciding by trigger** writes, commits, and addresses nothing to
+  itself (EP-09-008; `notes/embargo-lifecycle.md` § "Embargo Negotiation Relays
+  Through the CASE_MANAGER"). The commit is the EK acknowledgement (EP-09-009).
+- **Only the CASE_MANAGER evaluates invite expiry**; replicas learn it from the
+  committed entry and never compute it (CM-28-014, ADR-0118).
+- **`Announce(CaseLedgerEntry)` is a channel for case state, not a protocol
+  interaction.** A proposal or Invite *inside an entry* tells the participant the case's
+  state; it answers only an Invite addressed to it (EP-09-003). A non-manager that
+  receives a peer's proposal *directly* stores it and writes nothing (RSH-08-003).
+- **The owner MAY decide without waiting** for answers and SHOULD wait for some; there
+  is no quorum (EP-09-005, EP-09-006). The answers are still the consent records the
+  EP-05-001 activation cascade reads.
 
-The rule this pins down, because it kept getting mixed up: **an
-`Announce(CaseLedgerEntry)` is a channel for case state, not a protocol
-interaction.** A participant that sees a proposal or an Invite *inside a ledger
-entry* is being told the case's state; it is not being asked anything, and it
-answers only an Invite addressed to it (EP-09-003). Conversely, a non-manager
-that receives a peer's proposal *directly* is seeing a misrouting: it stores the
-activity and writes nothing (RSH-08-003). Neither path gets parse-and-respond
-handling. The protocol interactions the behavioural specs define (EV/EC/EJ)
-still happen — relayed — and the ledger records them; it does not replace them.
+### What the participant and its replica do
 
-### What the participant and its replica do (built in #3915)
-
-The participant side has two halves, and only the first runs on receipt:
-
-- **The Invite addressed to it.** The participant stores the Invite and the
-  `EmbargoEvent` it carries, then answers `Accept` or `Reject` to the
-  CASE_MANAGER through its response decision (EMB-15). It writes no EM and no
-  consent state (EP-09-003). `CanAnswerEmbargoInviteNode` gates the answer:
-  only the Invite's sole recipient answers (EP-09-010), and only once it holds
-  the case and the embargo, since the answer goes to the case's CASE_MANAGER
-  and carries the Invite whole; an invitee missing either keeps the Invite and
-  logs a WARNING. `SendEmbargoInviteAnswerNode` fails by raising, so a broken
-  accept never falls through to the reject arm.
-- **The ledger entries.** Every state change arrives as an
-  `Announce(CaseLedgerEntry)` and is applied by one slot of
-  `AnnounceLogEntryReceivedBT`, each through `EmbargoLifecycle` in `OBSERVED`
-  mode (EP-09-007, RSH-08-004):
+- **The Invite addressed to it.** Store the Invite and its `EmbargoEvent`, then answer
+  through the response decision (EMB-15); write no EM or consent state (EP-09-003).
+  `CanAnswerEmbargoInviteNode` lets only the sole recipient answer (EP-09-010), and
+  only once it holds the case and the embargo; otherwise it keeps the Invite and logs a
+  WARNING. `SendEmbargoInviteAnswerNode` fails by raising, so a broken accept never
+  falls through to the reject arm.
+- **The ledger entries.** Each is applied by one slot of `AnnounceLogEntryReceivedBT`,
+  through `EmbargoLifecycle` in `OBSERVED` mode (EP-09-007, RSH-08-004):
 
 | Entry (`event_type`) | Slot | Replica effect |
 |---|---|---|
 | proposal (`invite_to_embargo_on_case`, not a relay) | `EmbargoProposal` | stores B, `propose_embargo` (→ `PROPOSED`/`REVISE`), index recorded, proposer's consent |
-| relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | invitee PEC `INVITE` where legal; the RSVP deadline the entry carries as `endTime` stored (CM-28-013) |
+| relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | invitee PEC `INVITE` where legal; stores the `endTime` RSVP deadline (CM-28-013) |
 | `accept_invite_to_embargo_on_case` | `EmbargoAcceptance` | the answerer's consent, the owner's included; no register change (ADR-0122) |
 | `reject_invite_to_embargo_on_case` | `EmbargoRejection` | the answerer declines, the owner included; no register change |
-| `activate_embargo_on_case` (the owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | `activate_embargo`: B `ACTIVE`, A `SUPERSEDED`, owner `AGREE`, `CARRY_OVER` to a shorter B |
-| `reject_embargo_proposal_on_case` (the owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | `reject_embargo_proposal`: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent |
-| `invite_to_embargo_on_case_expired` (the CASE_MANAGER's expiry, attributed to the invitee) | `InviteExpiry` | invitee PEC `TIME_OUT` on that invitation's row (`INVITED → TIMED_OUT`); no deadline re-evaluated (CM-28-014) |
-| `honour_late_accept_invite_to_embargo_on_case` (the CASE_MANAGER's honour, attributed to the accepting actor) | `InviteHonourLateAccept` | `TIMED_OUT → AGREED` or `DECLINED → INVITED → AGREED` (EMB-17-001, EMB-17-009) |
-| `invite_to_embargo_on_case_expired_noop` (the CASE_MANAGER's no-op ack, attributed to the accepting actor) | `InviteExpiryNoop` | no PEC change (EMB-17-004, EMB-17-010) |
-| `invite_to_embargo_on_case_reinvite` (the CASE_MANAGER's own fresh Invite to a late accepter of a stale embargo; no `attributedTo`) | `EmbargoReinvite` | invitee PEC `INVITE` and the `endTime` deadline; no EM change, no proposal (EMB-17-003, EMB-17-011) |
+| `activate_embargo_on_case` (owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | `activate_embargo`: B `ACTIVE`, A `SUPERSEDED`, owner `AGREE`, `CARRY_OVER` to a shorter B |
+| `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | `reject_embargo_proposal`: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent |
+| `invite_to_embargo_on_case_expired` | `InviteExpiry` | invitee PEC `TIME_OUT` on that invitation's row; no deadline re-evaluated (CM-28-014) |
+| `honour_late_accept_invite_to_embargo_on_case` | `InviteHonourLateAccept` | `TIMED_OUT → AGREED` or `DECLINED → INVITED → AGREED` (EMB-17-001) |
+| `invite_to_embargo_on_case_expired_noop` | `InviteExpiryNoop` | no PEC change (EMB-17-004) |
+| `invite_to_embargo_on_case_reinvite` (no `attributedTo`) | `EmbargoReinvite` | invitee PEC `INVITE` and the `endTime` deadline; no EM change (EMB-17-003) |
 | `remove_embargo_event_from_case` | teardown | unchanged |
 
-The proposal and a relayed Invite share one event type and are told apart by
-`is_relayed_embargo_invite()`: an entry is a relay only when its `actor` is the
-case's CASE_MANAGER and `attributedTo` names somebody else, so a sender that
-puts a third party in `attributedTo` is still read as a proposal (PCR-08-010).
-Each apply node stores the `EmbargoEvent` from the entry's snapshot before it
-calls `EmbargoLifecycle`, so `active_embargo` never names a record the replica
-cannot read (EMB-18-003). A replica without the case skips; one with the case
-that cannot reconstruct the embargo fails, which blocks persisting the entry
-(SYNC-12-001). `test/architecture/test_embargo_relay_entries_are_replayed.py`
-is the ratchet, and `test_embargo_relay_replay.py` drives the cycle across
-per-actor stores (TB-06-007).
-
-The owner MAY decide without waiting for answers and SHOULD wait for some to
-gauge consensus; the protocol defines no quorum (EP-09-005, EP-09-006). The
-Invites still matter under fiat because their answers are the consent records
-the EP-05-001 activation cascade reads. Full write-up:
-`notes/embargo-lifecycle.md` § "Embargo Negotiation Relays Through the
-CASE_MANAGER".
-
-**There is no "no CASE_MANAGER" arm.** Both case-creation paths register a
-holder at birth and delegation hands the role on, so the resolver finding nobody
-means a corrupt roster, not a topology. CM-24-003's "send directly" fallback is
-superseded by CM-24-006; a resolver that finds no holder fails.
+- A proposal and a relay share one event type; `is_relayed_embargo_invite()` reads a
+  relay only when `actor` is the case's CASE_MANAGER and `attributedTo` names someone
+  else, so a third party in `attributedTo` from a participant is still a proposal
+  (PCR-08-010).
+- Each apply node stores the snapshot's `EmbargoEvent` before calling
+  `EmbargoLifecycle`, so `active_embargo` never names an unreadable record
+  (EMB-18-003). A replica without the case skips; one with the case that cannot
+  rebuild the embargo fails, blocking persistence (SYNC-12-001).
+- `test/architecture/test_embargo_relay_entries_are_replayed.py` is the ratchet;
+  `test_embargo_relay_replay.py` drives the cycle across per-actor stores.
 
 ---
 
 ## Delegated-Message Pattern
 
-Some case-scoped Activities are logically initiated by a participant but MUST
-be sent under the CASE_MANAGER's identity — because the protocol requires the
-CASE_MANAGER to be the recognised sender.  This is the **delegated-message
-pattern** (CM-24-001 through CM-24-005):
+An activity a participant initiates but the protocol requires from the CASE_MANAGER is
+sent with `actor` = the CASE_MANAGER and `attributed_to` = the requester (CM-24-001,
+CM-24-002), queued in the CASE_MANAGER's outbox (CM-24-004).
 
-```text
-Requesting actor calls trigger: <trigger-name>
-  → Trigger use case _prepare():
-      self._actor_id     = case_actor_id      ← CASE_MANAGER sends (CM-24-001)
-      self._attributed_to = requesting_actor_id  ← attribution preserved (CM-24-002)
-      # No holder found: raise (CM-24-006) — the CM-24-003 "send directly"
-      #                   fallback is retired (#3964)
-  → BT runs under the CASE_MANAGER's identity → activity queued in its outbox (CM-24-004)
-
-Recipient receives Activity:
-  actor        = case_actor_id       ← the CASE_MANAGER as sender
-  attributed_to = requesting_actor_id  ← who initiated the action
-```
-
-### Reference Implementation
-
-Use `delegated_authorship()` (`vultron/core/behaviors/delegated_authorship.py`)
-as the canonical implementation.  Every delegated emit, trigger-side or
-received-side, MUST call it (CM-24-005).  The caller names both identities; the
-helper looks nothing up:
-
-```python
-# Delegated-message contract (CM-24-001, CM-24-002, CM-24-006)
-authorship = delegated_authorship(
-    doing_actor_id=case_manager_id,       # the CASE_MANAGER executing the emit
-    requesting_actor_id=requesting_actor_id,  # whoever asked
-)
-# authorship.actor -> Activity.actor; authorship.attributed_to -> attributedTo
-```
-
-A trigger use case resolves the CASE_MANAGER with `resolve_case_manager_id()`
-and fails when there is none (CM-24-006); a received-side node passes
-`self.actor_id`, which the role gate makes the CASE_MANAGER.
-
-**The delegated emit runs where the CASE_MANAGER is hosted** (CM-24-004,
-ADR-0109).  A container emits only as actors it hosts, so a trigger on a
-container that does not host the CASE_MANAGER does not run the tree as the
-CASE_MANAGER.  It sends the requesting participant's *own* activity to the
-CASE_MANAGER — the owner's direct invite is the owner's recommend-actor
-`Offer(Actor, Case)` (CM-17-007) — and the CASE_MANAGER's received tree performs the delegated emit
-and commits the entry in that tree.  The CASE_MANAGER never addresses a `cc:`
-copy of its own emission to itself; the former self-copy compensated for a
-foreign-container emit and committed the same Invite twice when the two were
-co-hosted (#2996).  For the invite, #3821 landed this: `SvcInviteActorToCaseUseCase`
-(`core/use_cases/triggers/actor.py`) sends the owner's Offer, and the owner-direct
-branch of `create_recommend_actor_to_case_received_tree` (`suggest_actor_tree.py`)
-emits and commits the Invite.  #3822 lands the ownership-transfer trigger; until it
-does, that trigger still runs the delegated emit locally.
-
-### Delegated Flows (Exhaustive)
-
-| Trigger use case | Notes |
-|---|---|
-| `SvcInviteActorToCaseUseCase` | ✅ emits nothing delegated since #3821: it sends the owner's own Offer, and the delegated emit is the CASE_MANAGER's owner-direct branch of `create_recommend_actor_to_case_received_tree`, a received-side emit under `create_case_manager_gated_tree` (CM-17-007) |
-| `SvcOfferCaseOwnershipTransferUseCase` | ✅ fixed in #2173 |
-| `invite_to_embargo_on_case_tree` — CASE_MANAGER arm (EP-09-002) | ✅ built in #3913 (ADR-0113) — a *received*-side delegated emit, as CM-24-004 allows: `RelayEmbargoInviteToEachNode` relays `Invite(EmbargoEvent)` to every participant except the proposer with `actor=CASE_MANAGER`, `attributed_to=proposer`, each emission committed in the emitting tree; the proposer comes from `resolve_proposer_id()` (the Invite's `actor`, or its `attributedTo` when the proposal was itself relayed) |
-| Other trigger use cases | audit complete — no other delegated-emit callsites |
-
-### Shared-Helper Requirement (CM-24-005)
-
-All delegated emits MUST use the shared helper to enforce the pattern.  No
-callsite may independently reconstruct `actor/attributed_to` assignment.  See
-`specs/case-management.yaml` CM-24-005 for the normative requirement.
-`test/architecture/test_delegated_attribution_uses_helper.py` fails when a core
-function passes a delegated `attributed_to` to a trigger-activity factory
-without calling the helper.
-
-The received-side delegated emits (`RelayEmbargoInviteToEachNode` and its
-creation-time subclass, `EmitInviteActorToCaseNode`,
-`ForwardOfferToTransfereeNode`) call the same helper, which lives under
-`core/behaviors/` so BT nodes may import it (BTND-04-003).  For the embargo
-relay the asking actor is the proposer the manager adjudicated
-(`resolve_proposer_id()`, which honours an inbound `attributedTo` only when the
-Invite's `actor` is itself the CASE_MANAGER, so a participant cannot name a
-third party as proposer).
+- **Every delegated emit calls `delegated_authorship()`**
+  (`vultron/core/behaviors/delegated_authorship.py`, CM-24-005); no callsite assigns
+  `actor`/`attributed_to` itself. The caller names both identities; the helper looks
+  nothing up. `test/architecture/test_delegated_attribution_uses_helper.py` enforces it.
+- A trigger resolves the CASE_MANAGER with `resolve_case_manager_id()` and fails when
+  there is none (CM-24-006); a received-side node passes `self.actor_id`, which the role
+  gate makes the CASE_MANAGER.
+- **The delegated emit runs where the CASE_MANAGER is hosted** (ADR-0109). A trigger on
+  another container sends the requester's *own* activity to the CASE_MANAGER (for the
+  invite, the owner's `Offer(Actor, Case)`, CM-17-007), and the CASE_MANAGER's received
+  tree emits and commits. The ownership-transfer trigger still emits locally (#3822).
+- **The CASE_MANAGER never `cc:`s its own emission to itself**: co-hosted, that commits
+  the same activity twice.
+- For the embargo relay, `resolve_proposer_id()` honours an inbound `attributedTo` only
+  when the Invite's `actor` is the CASE_MANAGER, so a participant cannot name a third
+  party as proposer.
 
 ---
 
 ## Antipattern: Identity Spoofing in Received-Side Use Cases
 
-A received-side use case runs in one actor's DataLayer context. It MUST NOT
-construct activities or run BTs with `actor_id` set to a **different** actor.
-
-```python
-# ❌ WRONG — runs invitee's BT from the owner's DataLayer context
-bridge = BTBridge(datalayer=self._dl, ...)         # owner's DL
-tree = create_prioritize_subtree(actor_id=invitee_id)  # invitee's identity
-bridge.execute_with_setup(tree, actor_id=invitee_id)   # spoofed actor
-```
-
-```python
-# ✅ CORRECT — the CASE_MANAGER advances the participant's RM state through the
-# sole writer, in its own DataLayer, attributing the write to the participant —
-# no proxy activity and no spoofed participant BT (ADR-0089):
-BTBridge(datalayer=dl).execute_with_setup(
-    CreateParticipantStatusNode(
-        actor_id=invitee_id,        # subject of the write
-        rm_state=RM.VALID,          # Accept of the full-case Invite (CM-11-011)
-        vf_state=None, d_state=None, pxa_state=None,
-    ),
-    actor_id=case_actor_id,         # the executing actor (owner of this store)
-    case_id=case_id,
-)
-```
-
-A reply to the full-case Invite is the participant's judgement of the case
-(RV/RI/RC, CM-11-011; ADR-0121). The CASE_MANAGER records it as a direct RM
-state update, without emitting a proxy activity on the participant's behalf
-(PCR-08-010). The stub `Accept` moves no RM state at all (CM-11-001).
+A received-side use case runs in one actor's DataLayer. It MUST NOT build activities or
+run BTs with `actor_id` set to another actor (e.g. running the invitee's prioritize
+subtree from the owner's store). The CASE_MANAGER records a participant's reply to the
+full-case Invite (RV/RI/RC, CM-11-011) as a direct RM write through
+`CreateParticipantStatusNode` in its own store, with the participant as subject
+and itself as executing actor — no proxy activity (PCR-08-010, ADR-0089). The
+stub `Accept` moves no RM state (CM-11-001).
 
 ---
 
 ## Antipattern: Reading the CASE_MANAGER Gate as a Sender Check
 
-`create_case_manager_gated_tree` and `not_case_manager_refusal()` ask whether the
-**receiving** actor holds `CVDRole.CASE_MANAGER` (BT-17-001, HP-01-005). They say
-nothing about the sender. A tree whose effects sit behind that gate still applies
-an assertion from *any* sender unless something else checks who sent it. The
-CONCERN-3733 audit found ownership claims, self-admission through an Accept of an
-Invite that was never sent, note removal, and full-ledger replay on a rejected
-ledger entry, all behind a CASE_MANAGER gate.
+`create_case_manager_gated_tree` and `not_case_manager_refusal()` check that the
+**receiving** actor holds `CVDRole.CASE_MANAGER` (BT-17-001, HP-01-005); they say
+nothing about the sender. A gated tree applies an assertion from *any* sender unless
+something else checks who sent it.
 
-The sender check is a separate guard (HP-01-006, ADR-0115). Each received use case
-declares its sender entitlement once, the receive-tree factory composes the
-matching guard from the single sender-entitlement module, and a failed guard
-reports `REFUSED`. A reply to an ask is authorized by the ask naming its sender
-(the transferee of a recorded Offer, the invitee of a recorded Invite), never by
-the sender's own copy of the ask: an Accept that embeds an Invite proves nothing
-about the Invite the CASE_MANAGER sent (CM-11-017). A replica accepts
-case-state changes only from the CASE_MANAGER (PCR-03-001).
-
-The declaration is the whole rule, not a floor (HP-01-008, ADR-0129). It is
-composed of entitlement kinds, may require any one of several ("the note's
-author or the Case Owner"), and states the standing per addressee: the
-CASE_MANAGER, a participant, or an actor outside any case before one exists.
-A tree adds no narrower sender check of its own. Positions within one exchange
-(the invitee, the addressee of a request, the author of an object) are kinds,
-never `CVDRole` values (HP-01-009). The occasion lookup table derives its "Sent
-by" and "Send to" columns from these declarations; see
-[message-type-reference.md](message-type-reference.md) § Planning decisions
-(#4433).
+- **The sender check is a separate guard** (HP-01-006, ADR-0115). Each received use
+  case declares its sender entitlement once; the receive-tree factory composes the guard
+  from the sender-entitlement module; a failure reports `REFUSED`.
+- **A reply is authorized by the ask naming its sender** (the transferee of a recorded
+  Offer, the invitee of a recorded Invite), never by the sender's embedded copy of the
+  ask (CM-11-017). A replica accepts case-state changes only from the CASE_MANAGER
+  (PCR-03-001).
+- **The declaration is the whole rule** (HP-01-008, ADR-0129): composed of entitlement
+  kinds, possibly any-of, with standing per addressee. A tree adds no narrower sender
+  check. Positions within one exchange (invitee, addressee, author) are kinds, never
+  `CVDRole` values (HP-01-009). The occasion table will derive its "Sent by" and "Send
+  to" columns from these declarations
+  ([message-occasion-table](message-occasion-table.md), #4438).
 
 ---
 
 ## Antipattern: Received-Side Guarded Commit with Foreign CASE_MANAGER ID
 
-A subtler form of identity spoofing appears when a received-side use case
-resolves the CASE_MANAGER's ID from the DataLayer and then executes the
-guarded-commit BT under that foreign ID — even though the active DataLayer
-belongs to a different actor (e.g., the vendor actor). This was the pattern
-in `note.py` and `embargo.py` before ADR-0021 was established.
+Never resolve the CASE_MANAGER's id from the store and run the guarded-commit BT under
+it in another actor's DataLayer: the `Announce` is queued under the wrong actor and the
+canonical ledger never gets the entry (ADR-0021). Run the tree as the receiving actor
+(`resolve_receiving_actor_id()`) and pass the CASE_MANAGER effects as
+`create_receive_activity_tree(..., manager_effects=[...])`; the factory wraps them in
+the gate, and a received tree never calls the gate itself (BT-17-008). Then map a
+skipped gate to `REFUSED` with `not_case_manager_refusal()` (HP-01-005). See
+`vultron/core/behaviors/note/add_note_received_tree.py` for the shape.
 
-```python
-# ❌ WRONG — resolves a foreign actor ID and runs BT under that identity
-case_actor_id = _find_case_actor_id(self._dl, case_id)   # foreign ID
-BTBridge(datalayer=self._dl).execute_with_setup(         # vendor's DL
-    tree=create_guarded_commit_case_ledger_entry_tree(case_id),
-    actor_id=case_actor_id,   # ← spoofed: vendor's DL, the CASE_MANAGER's identity
-    ...
-)
-```
+The gate is what makes identity correct: role holder, receiving actor and store owner
+are one actor or the effects do not run (BT-05-006). The CASE_MANAGER's own inbox
+delivery is the only path to a canonical write (CLP-10-001).
 
-The problem: `self._dl` is the **vendor actor's** DataLayer (since the use case
-is running in the vendor's inbox), but `actor_id=case_actor_id` causes the BT
-to emit `Announce(CaseLedgerEntry)` as if authored by the CASE_MANAGER. The
-outbox entry is queued under the wrong actor, and the CASE_MANAGER's canonical
-ledger never receives it.
-
-The correct pattern runs the tree as the receiving actor and lets the tree
-decide, through the sanctioned role gate, whether that actor may act
-(BT-17-001, BTND-07-005). Code MUST NOT instead compare the receiving actor
-against a `case_actor_id` looked up from the store (CM-24-004): the authority
-is a *role* held in the case, not an address.
-
-```python
-# ✅ CORRECT — the tree runs as the receiving actor; the gate decides
-tree = create_receive_activity_tree(
-    ...,
-    # The factory wraps manager_effects in create_case_manager_gated_tree;
-    # a received tree never calls the gate itself (BT-17-008).
-    manager_effects=[AttachNoteNode(...), ...],
-    manager_case_id=case_id,
-    manager_gate_name="AttachNoteIfCaseManager",
-)
-result = BTBridge(datalayer=self._dl).execute_with_setup(
-    tree,
-    actor_id=resolve_receiving_actor_id(self._dl, request.receiving_actor_id),
-    activity=request,
-)
-verdict = verdict_from_bt(tree, result, label="AddNoteToCaseBT")
-if verdict.disposition is HandlerDisposition.APPLIED:
-    if (r := not_case_manager_refusal(tree, self._dl, case_id)) is not None:
-        verdict = r   # REFUSED: not the manager, or no case / no manager here
-```
-
-The gate is what makes the identity correct: the role holder, the receiving
-actor and the store owner are one actor or the effects do not run (BT-05-006).
-When a non-CASE_MANAGER receives the same activity (relay copy to finder,
-vendor's own inbox), the gate's skip arm succeeds so the tree still succeeds,
-and the handler turns that skip into `REFUSED` — the message was the manager's
-to act on and reached the wrong party (HP-01-005, #3752). The CASE_MANAGER's
-own inbox delivery — which arrives because the trigger tree emitted to
-`case_manager_id` (CLP-10-001) — is the only path to a canonical write.
-
-A test of a gated path MUST seed a `CVDRole.CASE_MANAGER` holder and pass it as
-`receiving_actor_id` (BT-17-005). A test that seeds no role holder never
-reaches the gated effects: the skip arm succeeds and the test passes for the
-wrong reason.
+**Tests of a gated path MUST seed a `CVDRole.CASE_MANAGER` holder and pass it as
+`receiving_actor_id`** (BT-17-005). Without one the skip arm succeeds and the test
+passes for the wrong reason.
 
 ### Why the `Announce(CaseLedgerEntry)` envelope is not a payload
 
-`Announce(CaseLedgerEntry)` is the replication wire envelope the CASE_MANAGER
-uses to broadcast canonical entries to participants (SYNC-02-002). It cannot
-appear as the `payloadSnapshot` of a canonical entry because the snapshot
-captures the protocol activity that *triggered* the entry, not the transport
-mechanism that *delivered* it. Think of it as a postcard (the protocol
-activity) placed inside a binder envelope (the `CaseLedgerEntry`) that is
-then mailed to all recipients (the `Announce` broadcast). The envelope is
-never its own contents.
-
-This is why `announce_case_ledger_entry` MUST NOT appear in
-`EXPECTED_EVENT_TYPES` for the canonical case-actor log (CLP-10-004).
-
-See ADR-0021 for the full decision record.
-
----
+`Announce(CaseLedgerEntry)` is the replication envelope (SYNC-02-002). A canonical
+entry's `payloadSnapshot` is the activity that *triggered* the entry, never the
+transport that delivered it, so `announce_case_ledger_entry` MUST NOT appear in
+`EXPECTED_EVENT_TYPES` for the canonical log (CLP-10-004, ADR-0021).

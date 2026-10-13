@@ -734,7 +734,9 @@ groups:
     semantics: create_note
     shorthand: GI
     status: expansion
-    description: Mints a note for the case. It precedes the Add that attaches it.
+    description: Mints a note for the case. When the note's context names the case, the Case
+      Manager attaches it and records the attachment in the case ledger, so the Add that follows
+      changes nothing more.
     howto:
       path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
