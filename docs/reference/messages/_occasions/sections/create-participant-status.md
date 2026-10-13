@@ -7,7 +7,7 @@ Mints a participant status object carrying `rm_state`, `vf_state` and `d_state`.
 - **When…** a Participant is about to announce a change to its own state in the case
 - **Send:** `Create(ParticipantStatus)`
 - **Sent by:** not yet checked
-- **How-to:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
+- **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""

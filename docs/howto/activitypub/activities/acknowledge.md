@@ -37,6 +37,9 @@ Sending `Read(Offer(VulnerabilityReport))` immediately before a verdict adds a m
 ## Send the acknowledgment
 
 1. Send `Read(Offer(VulnerabilityReport))` to the sender's inbox, with the original `Offer(VulnerabilityReport)` activity as its `object`.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/report-acknowledgment.md" %}
+
 2. Leave your RM state at `RECEIVED`.
    Acknowledgment is not a transition.
 

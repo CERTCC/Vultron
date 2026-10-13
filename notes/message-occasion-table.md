@@ -3,14 +3,13 @@ title: "Message Occasion Table: Generated Fragments, Addressees and Sender Rules
 status: active
 kind: plan
 tracks:
-  - "#4432"
   - "#4438"
   - "#4417"
 description: >-
   Remaining design for the occasion lookup table (ADR-0128, ADR-0129): how
-  "Sent by" and "Send to" are derived from the sender rule, the "Seen in"
-  column, the "When…" grammar, and typed distinguishers. Occasions, the
-  generated fragments and the pages that include them have landed.
+  "Sent by" and "Send to" are derived from the sender rule, the "When…"
+  grammar, and typed distinguishers. Occasions, the generated fragments, the
+  pages that include them and the how-to embeds with "Seen in" have landed.
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/handler-protocol.yaml
@@ -52,7 +51,7 @@ fragments (#4430) have landed (rules in `notes/message-type-reference.md`
 | sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
 | page | `SemanticEntry.page`, a `MessagePage` value |
 | `MappingStatus`, distinguished by | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
-| "Seen in" | the include directives on workflow pages |
+| "Seen in" | the include directives on `docs/` pages (landed, #4432) |
 
 The message pages include the generated fragments (#4431); the fragments exist
 because MkDocs does not rewrite a `.md` link printed from an exec block, and a

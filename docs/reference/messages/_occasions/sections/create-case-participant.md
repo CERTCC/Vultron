@@ -7,7 +7,6 @@ Mints a participant record that pairs an actor with its roles in the case. It pr
 - **When…** a Participant is about to add an actor's participant record to the case
 - **Send:** `Create(CaseParticipant)[context=VulnerabilityCase]`
 - **Sent by:** not yet checked
-- **How-to:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
