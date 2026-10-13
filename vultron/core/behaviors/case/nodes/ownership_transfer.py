@@ -144,7 +144,10 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
     from the blackboard — this leaves all outboxes untouched.
 
     The forward carries the received Offer's ``end_time``, so the transferee,
-    which holds and answers the forward, knows its deadline (CM-21-016).
+    which holds and answers the forward, knows its deadline (CM-21-016).  The
+    forward is an activity this node mints, so its timestamps serialise in
+    UTC (CS-13-005); the received Offer's own offset stays on its ledger
+    entry.
     """
 
     def __init__(

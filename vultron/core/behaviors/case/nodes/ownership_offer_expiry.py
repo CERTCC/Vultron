@@ -42,7 +42,7 @@ from vultron.core.behaviors.sync.commit_tree import (
 from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
 )
-from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_SNAPSHOT_TYPE
+from vultron.core.models.rsvp_deadline import EXPIRE_SNAPSHOT_TYPE
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.ownership_offer import (
     RecordedOwnershipOffer,
@@ -72,7 +72,7 @@ def ownership_offer_expiry_snapshot(
     uses (CM-28-009); its object type tells the two apart.
     """
     return {
-        "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
+        "type": EXPIRE_SNAPSHOT_TYPE,
         "actor": manager_id,
         "context": case_id,
         "published": published.isoformat(),

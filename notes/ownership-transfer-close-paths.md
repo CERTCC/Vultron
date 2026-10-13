@@ -15,6 +15,7 @@ related_specs:
   - specs/handler-protocol.yaml
   - specs/received-status-handling.yaml
   - specs/vultron-as2-mapping.yaml
+  - specs/protocol-asks.yaml
 related_notes:
   - notes/ownership-transfer.md
 ---

@@ -282,3 +282,15 @@ def test_offer_without_a_deadline_never_passes_one(dl):
 
     assert offer.end_time is None
     assert not offer.is_past_deadline(_T0 + timedelta(days=365))
+
+
+@pytest.mark.spec("ASK-03-002")
+@pytest.mark.spec("CM-21-016")
+def test_ownership_offer_expiry_is_void():
+    """A late answer authorizes nothing: the deadline is binding."""
+    from vultron.core.models.protocol_pair import (
+        OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRY,
+        AskExpiry,
+    )
+
+    assert OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRY is AskExpiry.VOID

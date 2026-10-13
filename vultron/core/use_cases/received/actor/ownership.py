@@ -64,6 +64,7 @@ def _expire_overdue_offer(
     dl: CaseOutboxPersistence,
     case_id: str,
     receiving_actor_id: str,
+    activity_id: str,
     now: datetime,
     sync_port: SyncActivityPort | None,
     wire_render_port: "WireRenderPort | None",
@@ -100,9 +101,10 @@ def _expire_overdue_offer(
     if verdict.disposition is HandlerDisposition.REFUSED:
         logger.warning(
             "ExpireOverdueOwnershipOfferBT: no expiry recorded for case '%s'"
-            " at '%s': %s",
+            " at '%s' before processing '%s': %s",
             case_id,
             receiving_actor_id,
+            activity_id,
             verdict.reason,
         )
 
@@ -209,6 +211,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
                 dl=self._dl,
                 case_id=case_id,
                 receiving_actor_id=receiving_actor_id,
+                activity_id=request.activity_id,
                 now=now_utc(),
                 sync_port=self._sync_port,
                 wire_render_port=self._wire_render_port,
@@ -336,6 +339,7 @@ def _run_ownership_answer(
         dl=dl,
         case_id=case_id,
         receiving_actor_id=receiving_actor_id,
+        activity_id=request.activity_id,
         now=now,
         sync_port=sync_port,
         wire_render_port=wire_render_port,
