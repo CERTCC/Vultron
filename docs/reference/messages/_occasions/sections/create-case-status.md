@@ -7,7 +7,7 @@ Mints a case status object carrying `em_state` and `pxa_state`. It precedes the 
 - **When…** a Participant is about to announce a change to the public state of the case
 - **Send:** `Create(CaseStatus)[context=VulnerabilityCase]`
 - **Sent by:** not yet checked
-- **How-to:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
+- **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""

@@ -61,7 +61,6 @@ from vultron.semantic_registry._entry import (
 from vultron.semantic_registry._occasion import (
     ANCHOR_PATTERN,
     FieldValue,
-    HowToGuide,
     MessagePage,
     Occasion,
     ProtocolShorthand,
@@ -354,19 +353,25 @@ SEMANTICS_TO_ROW: dict[MessageSemantics, RowSpec] = {
 OCCASION_TABLE_PATH: Path = Path(__file__).with_name("occasions.yaml")
 
 #: The occasion table's format version, written into the file from the start
-#: so that a later reader can tell the shapes apart.
-OCCASION_TABLE_FORMAT_VERSION: Final = 1
+#: so that a later reader can tell the shapes apart.  Version 2 replaced each
+#: row's declared ``howto`` link with the derived ``seen_in`` pages (#4432).
+OCCASION_TABLE_FORMAT_VERSION: Final = 2
 
 _ANCHOR = Annotated[str, Field(pattern=ANCHOR_PATTERN)]
 _RECORD = ConfigDict(frozen=True, extra="forbid")
 
 
-class HowToLink(BaseModel):
-    """The how-to guide whose steps send an occasion, with its page title."""
+class PageLink(BaseModel):
+    """A ``docs/`` page that embeds an occasion, with its page title.
+
+    Attributes:
+        path: The page, relative to ``docs/``.
+        title: The page's H1, the text a link to it carries.
+    """
 
     model_config = _RECORD
 
-    path: HowToGuide
+    path: NonEmptyString
     title: NonEmptyString
 
 
@@ -386,7 +391,9 @@ class OccasionRow(BaseModel):
         status: The entry's mapping status (MSM-06-003).
         description: What the activity does.
         notes: Further prose for the section.
-        howto: The how-to guide whose steps send it.
+        seen_in: The published pages outside the message pages that embed
+            the occasion, derived from their include directives, in path
+            order.
         example: The ``vocab_examples`` function that builds its example.
     """
 
@@ -403,7 +410,7 @@ class OccasionRow(BaseModel):
     status: MappingStatus
     description: NonEmptyString
     notes: NonEmptyString | None = None
-    howto: HowToLink | None = None
+    seen_in: tuple[PageLink, ...] = ()
     example: NonEmptyString
 
 
@@ -435,7 +442,7 @@ class OccasionTable(BaseModel):
 
     model_config = _RECORD
 
-    format_version: Literal[1]
+    format_version: Literal[2]
     groups: tuple[OccasionGroup, ...] = Field(min_length=1)
 
     @model_validator(mode="after")

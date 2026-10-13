@@ -52,7 +52,10 @@ sequenceDiagram
 
 1. Send `Offer(CaseParticipantRole)` to the target actor's inbox.
 2. Carry the role in a `CaseParticipantRole` object, name the target actor in `target`, and name the case in `context`.
-   `CaseParticipantRole` is a Vultron vocabulary type; its fields and a rendered example are under [Offer Case Participant Role](../../../reference/messages/case_management.md#offer-case-participant-role).
+   `CaseParticipantRole` is a Vultron vocabulary type.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/offer-case-participant-role.md" %}
+
 3. Wait for the reply.
    Nothing changes until the target answers.
 
@@ -73,8 +76,13 @@ Reply to the offering actor with the original `Offer` as your `object`.
 
 - If you are taking the role, send `Accept(Offer(CaseParticipantRole))`.
   You hold the role from that point.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/accept-case-participant-role.md" %}
+
 - If you are not, send `Reject(Offer(CaseParticipantRole))`.
   The roster is unchanged.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/reject-case-participant-role.md" %}
 
 Consider what the role obliges you to do before accepting.
 The [CASE_MANAGER](../../../topics/case_lifecycle/case_manager_and_ledger.md) role in particular makes you the single-writer authority for the case ledger, so accepting it moves real work onto your actor.

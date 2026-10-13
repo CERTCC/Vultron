@@ -7,7 +7,7 @@ Joins the case, moving the sender's RM state to Accepted. Engaging is a case-par
 - **When…** a Participant accepts the case for further action
 - **Send:** `Join(VulnerabilityCase)`
 - **Sent by:** an active participant
-- **How-to:** [How to Advance a Case Through Report Management](../../../../howto/activitypub/activities/manage_case.md)
+- **Seen in:** [How to Advance a Case Through Report Management](../../../../howto/activitypub/activities/manage_case.md)
 - **Formal definition:** [Report/Case Accepted (RA)](../../../formal_protocol/messages.md#rm-message-types)
 - **Mapping status:** [direct](../../index.md#mapping-status)
 

@@ -64,6 +64,9 @@ sequenceDiagram
    A stub Invite always names at least one role, and the CASE_MANAGER refuses to send one with none (CM-11-019).
 2. The CASE_MANAGER commits and sends `Invite(Actor)` to the actor's inbox, with a case stub as its `target` rather than the case itself (CM-11-013, CM-17-001), with itself as the ActivityStreams `actor` and your identity in `attributedTo` (PCR-08-007, PCR-08-008).
    The trigger's `202` response means only that your `Offer` was queued, so watch for the `Invite` on the CASE_MANAGER's ledger, not in the response.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/invite-actor-to-case.md" %}
+
 3. Set the reply deadline on the activity's `end_time`.
    When it is present that value settles precedence over the invitee's local policy window; when it is absent the policy window applies instead (CM-28-002, ADR-0065).
    Either way the effective deadline is clamped down to the embargo's own `end_time`, so an `end_time` that outlives the embargo does not buy the invitee extra time (EP-07-006).
@@ -80,9 +83,16 @@ sequenceDiagram
 Send your reply to the CASE_MANAGER, never to the Case Owner.
 
 - If you are joining the case, send `Accept(Invite(Actor))` with the `Invite` activity as its `object`.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/accept-invite-to-case.md" %}
+
 - If you are not joining, send `Reject(Invite(Actor))` with the `Invite` as its `object`.
 
+    {% include-markdown "../../../reference/messages/_occasions/embeds/reject-invite-to-case.md" %}
+
 On acceptance, the CASE_MANAGER commits the reply to the ledger, seats you at Report Management (RM) state `RM.RECEIVED`, signs your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) if an embargo is active, sends `Announce(VulnerabilityCase)` to seed your replica, and backfills the earlier ledger entries (CM-17-004).
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/announce-vulnerability-case.md" %}
 
 Expect `RM.RECEIVED`, not `RM.ACCEPTED`.
 Accepting an invitation says you are willing to join the case; it does not say you have validated the report, which you have not yet seen in full (CM-11-001).

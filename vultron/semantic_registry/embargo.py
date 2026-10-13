@@ -209,7 +209,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="accept_embargo",
                 distinguisher=StateContext(machine=EM, states=(EM.PROPOSED,)),
-                howto=HowToGuide.MANAGE_EMBARGO,
+                howto=HowToGuide.ESTABLISH_EMBARGO,
                 shorthand=ProtocolShorthand.EA,
             ),
             Occasion(
@@ -247,7 +247,7 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="reject_embargo",
                 distinguisher=StateContext(machine=EM, states=(EM.PROPOSED,)),
-                howto=HowToGuide.MANAGE_EMBARGO,
+                howto=HowToGuide.ESTABLISH_EMBARGO,
                 shorthand=ProtocolShorthand.ER,
             ),
             Occasion(

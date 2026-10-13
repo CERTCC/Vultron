@@ -7,7 +7,7 @@ Attaches the note to the case named by the target, for example to ask or answer 
 - **When…** a Participant posts a note to the case
 - **Send:** `Add(Note)[target=VulnerabilityCase]`
 - **Sent by:** not yet checked
-- **How-to:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
+- **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
 - **Mapping status:** [expansion](../../index.md#mapping-status)
 

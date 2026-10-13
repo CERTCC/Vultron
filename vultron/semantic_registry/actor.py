@@ -471,7 +471,7 @@ ENTRIES: list[SemanticEntry] = [
                     "position as the floor the reply must reach."
                 ),
                 example="invite_to_full_case",
-                howto=HowToGuide.INVITE_ACTOR,
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,
@@ -497,7 +497,7 @@ ENTRIES: list[SemanticEntry] = [
                     "carries the sender's own ledger position."
                 ),
                 example="accept_full_case_invite",
-                howto=HowToGuide.INVITE_ACTOR,
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
                 shorthand=ProtocolShorthand.RV,
             ),
         ),
@@ -524,7 +524,7 @@ ENTRIES: list[SemanticEntry] = [
                     "RM Invalid. It carries the sender's own ledger position."
                 ),
                 example="tentative_reject_full_case_invite",
-                howto=HowToGuide.INVITE_ACTOR,
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
                 shorthand=ProtocolShorthand.RI,
             ),
         ),
@@ -550,7 +550,7 @@ ENTRIES: list[SemanticEntry] = [
                     " carries the sender's own ledger position."
                 ),
                 example="reject_full_case_invite",
-                howto=HowToGuide.INVITE_ACTOR,
+                howto=HowToGuide.MANAGE_PARTICIPANTS,
                 shorthand=ProtocolShorthand.RC,
             ),
         ),
