@@ -37,8 +37,11 @@ fragment directory, never typed by hand, and the fragments themselves include
 nothing, so the pages that are read are never pages this generator writes:
 one ``--write`` settles a new include, and ``--check`` cannot loop.  The
 occasion's own message page carries the section, not the embed, so it never
-lists itself.  An occasion that declares a how-to guide must be embedded
-there, which is how the guides are held to show what their steps send.
+lists itself; no message page may include an embed.  A page the production
+build withholds (``draft_docs``, ``exclude_docs``) is not listed, and an embed
+must sit on the page a reader sees, not in a fragment another page includes
+whole.  An occasion that declares a how-to guide must be embedded there,
+which is how the guides are held to show what their steps send.
 
 The table fragments are not named ``*table*.md``: ``lint-docs`` exempts that
 name as a generated content class, and these carry occasion prose it must
@@ -84,7 +87,7 @@ from pathlib import Path
 
 import yaml
 
-from vultron.metadata.base import repo_root
+from vultron.metadata.base import mkdocs_config, repo_root, unbuilt_docs_spec
 from vultron.metadata.docs.page_frontmatter import include_directives
 from vultron.metadata.file_loading import (
     MetadataLoadError,
@@ -248,6 +251,26 @@ def page_title(docs_path: str, root: Path) -> str:
     raise ValueError(f"docs/{docs_path} has no H1 to title a link with")
 
 
+def _page_includes(
+    docs: Path, fragments: Path
+) -> tuple[dict[str, list[str]], set[str]]:
+    """Return each page's include targets, and the targets included whole.
+
+    Pages are the ``docs/``-relative ``*.md`` files outside *fragments*, in
+    path order; a target counts whether or not it exists yet.
+    """
+    directives: dict[str, list[str]] = {}
+    included: set[str] = set()
+    for host in sorted(docs.rglob("*.md")):
+        page = host.relative_to(docs)
+        if page.is_relative_to(fragments):
+            continue
+        found = list(include_directives(host, docs, existing=False))
+        included.update(target for _, target, whole in found if whole)
+        directives[page.as_posix()] = [target for _, target, _ in found]
+    return directives, included
+
+
 def embedding_pages(
     owners: Mapping[str, MessagePage], root: Path
 ) -> dict[str, tuple[str, ...]]:
@@ -256,45 +279,54 @@ def embedding_pages(
     Reads the include directives of every page under ``docs/`` outside
     :data:`FRAGMENT_DIR`, whose fragments include nothing, so the result never
     depends on a file this generator writes.  A directive counts whether or
-    not the embed exists yet, so one ``--write`` settles a new include.
+    not the embed exists yet, so one ``--write`` settles a new include.  A
+    page that ``mkdocs.yml``'s ``draft_docs`` or ``exclude_docs`` keeps out
+    of the production build is skipped: a "Seen in" link to it would point
+    at a page the published site withholds.
 
     Args:
         owners: Each occasion anchor, mapped to the message page that holds
             its canonical section.
-        root: The repository root.
+        root: The repository root, holding ``mkdocs.yml`` and ``docs/``.
 
     Raises:
         ValueError: When a page includes the embed of an anchor no occasion
-            declares, or a message page includes an embed of its own
-            occasion, which it carries as a section instead.
+            declares, a message page includes an embed (it carries sections),
+            or a file another page includes whole holds an embed, which would
+            list the fragment rather than the page a reader sees.
     """
     docs = root / "docs"
     fragments = Path(FRAGMENT_DIR).relative_to("docs")
     embeds = Path(EMBED_DIR).relative_to("docs")
     message_pages = fragments.parent
+    unbuilt = unbuilt_docs_spec(mkdocs_config(root))
+    directives, included = _page_includes(docs, fragments)
     found: dict[str, list[str]] = {}
     problems: list[str] = []
-    for host in sorted(docs.rglob("*.md")):
-        page = host.relative_to(docs)
-        if page.is_relative_to(fragments):
-            continue
-        docs_path = page.as_posix()
-        for _, target, _ in include_directives(host, docs, existing=False):
+    for docs_path, targets in directives.items():
+        for target in targets:
             path = Path(target)
             if path.parent != embeds:
                 continue
             anchor = path.stem
-            owner = owners.get(anchor)
-            if owner is None:
+            if anchor not in owners:
                 problems.append(
                     f"docs/{docs_path} includes {target}, "
                     "which no occasion declares"
                 )
-            elif page == message_pages / f"{owner.value}.md":
+            elif Path(docs_path).is_relative_to(message_pages):
                 problems.append(
                     f"docs/{docs_path} includes {target}; "
-                    "the occasion's own page includes its section"
+                    "a message page includes sections, not embeds"
                 )
+            elif docs_path in included:
+                problems.append(
+                    f"docs/{docs_path} includes {target} but is itself "
+                    "included whole by another page; embed the occasion on the "
+                    "page that includes it"
+                )
+            elif unbuilt.match_file(docs_path):
+                continue
             elif docs_path not in found.setdefault(anchor, []):
                 found[anchor].append(docs_path)
     if problems:

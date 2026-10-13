@@ -171,6 +171,7 @@ def _scratch_root(tmp_path: Path) -> Path:
     """A root carrying the how-to pages the sections are titled from."""
     howto = "docs/howto/activitypub/activities"
     shutil.copytree(_ROOT / howto, tmp_path / howto)
+    shutil.copy(_ROOT / "mkdocs.yml", tmp_path / "mkdocs.yml")
     return tmp_path
 
 
@@ -736,7 +737,18 @@ def _embed_directive(anchor: str, prefix: str = "../../../") -> str:
     return f'{{% include-markdown "{path}" %}}'
 
 
+#: The ``mkdocs.yml`` keys :func:`gen.embedding_pages` reads, as a scratch
+#: root carries them.
+_SCRATCH_MKDOCS = (
+    "draft_docs: |\n  developer/\n"
+    "exclude_docs: |\n  reference/messages/_occasions/\n"
+)
+
+
 def _docs_page(root: Path, docs_path: str, body: str) -> None:
+    config = root / "mkdocs.yml"
+    if not config.exists():
+        config.write_text(_SCRATCH_MKDOCS, encoding="utf-8")
     page = root / "docs" / docs_path
     page.parent.mkdir(parents=True, exist_ok=True)
     page.write_text(body, encoding="utf-8")
@@ -808,8 +820,85 @@ def test_embedding_pages_refuses_an_embed_on_the_occasions_own_page(tmp_path):
         '# CS\n\n{% include-markdown "./_occasions/embeds/fix-readiness.md" %}\n',
     )
 
-    with pytest.raises(ValueError, match="own page includes its section"):
+    with pytest.raises(ValueError, match="message page includes sections"):
         gen.embedding_pages(_OWNERS, tmp_path)
+
+
+def test_embedding_pages_refuses_an_embed_on_another_message_page(tmp_path):
+    """No message page lists in "Seen in", not only the occasion's own."""
+    _docs_page(
+        tmp_path,
+        "reference/messages/general.md",
+        '# General\n\n{% include-markdown "./_occasions/embeds/fix-readiness.md" %}\n',
+    )
+
+    with pytest.raises(
+        ValueError, match=r"general\.md includes .*message page includes"
+    ):
+        gen.embedding_pages(_OWNERS, tmp_path)
+
+
+def test_embedding_pages_refuses_an_embed_in_a_whole_included_fragment(
+    tmp_path,
+):
+    """The reader sees the hosting page, so a fragment would be the wrong
+    "Seen in" link; the embed belongs on the page."""
+    _docs_page(
+        tmp_path,
+        "topics/x/_frag.md",
+        _embed_directive("fix-readiness", "../../") + "\n",
+    )
+    _docs_page(
+        tmp_path,
+        "topics/x/page.md",
+        '# Page\n\n{% include-markdown "./_frag.md" %}\n',
+    )
+
+    with pytest.raises(
+        ValueError, match=r"_frag\.md includes .*included whole by another"
+    ):
+        gen.embedding_pages(_OWNERS, tmp_path)
+
+
+def test_embedding_pages_counts_a_page_another_quotes_from_a_marker(tmp_path):
+    """A page included only from a ``start=`` marker is still a page."""
+    _docs_page(
+        tmp_path,
+        "topics/x/quoted.md",
+        "# Quoted\n\n<!-- start -->\n\n"
+        + _embed_directive("fix-readiness", "../../")
+        + "\n",
+    )
+    _docs_page(
+        tmp_path,
+        "topics/x/page.md",
+        '# Page\n\n{% include-markdown "./quoted.md" start="<!-- start -->" %}\n',
+    )
+
+    assert gen.embedding_pages(_OWNERS, tmp_path) == {
+        "fix-readiness": ("topics/x/quoted.md",)
+    }
+
+
+def test_embedding_pages_skips_a_page_the_production_build_withholds(
+    tmp_path,
+):
+    """A ``draft_docs`` page is served locally but not published, so a
+    "Seen in" link to it would break the production build."""
+    _docs_page(
+        tmp_path,
+        "developer/draft.md",
+        "# Draft\n\n" + _embed_directive("fix-readiness", "../") + "\n",
+    )
+    _docs_page(
+        tmp_path,
+        "howto/guide.md",
+        "# Guide\n\n" + _embed_directive("fix-readiness", "../") + "\n",
+    )
+
+    assert gen.embedding_pages(_OWNERS, tmp_path) == {
+        "fix-readiness": ("howto/guide.md",)
+    }
 
 
 def test_derive_refuses_a_declared_guide_that_does_not_embed_its_occasion(
@@ -894,7 +983,7 @@ def test_seen_in_never_names_a_reference_page(table):
         page.path for _, row in _rows(table).values() for page in row.seen_in
     ]
     assert pages
-    assert [p for p in pages if p.startswith("reference/")] == []
+    assert [p for p in pages if p.startswith("reference/messages/")] == []
 
 
 def test_every_declared_guide_embeds_its_occasions_in_the_committed_table(
@@ -939,5 +1028,7 @@ def test_the_sync_hook_watches_every_docs_page_and_the_include_reader():
         "docs/howto/activitypub/activities/status_updates.md",
         "docs/topics/anything/page.md",
         "vultron/metadata/docs/page_frontmatter.py",
+        "vultron/metadata/base.py",
+        "mkdocs.yml",
     ):
         assert files.search(path), path

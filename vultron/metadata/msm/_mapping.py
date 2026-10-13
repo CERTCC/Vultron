@@ -390,8 +390,9 @@ class OccasionRow(BaseModel):
         status: The entry's mapping status (MSM-06-003).
         description: What the activity does.
         notes: Further prose for the section.
-        seen_in: The pages outside the reference that embed the occasion,
-            derived from their include directives, in path order.
+        seen_in: The published pages outside the message pages that embed
+            the occasion, derived from their include directives, in path
+            order.
         example: The ``vocab_examples`` function that builds its example.
     """
 

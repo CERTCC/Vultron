@@ -458,9 +458,11 @@ Three choices there are not obvious from the code:
   embed exists and one `--write` settles it. The fragments include nothing, so
   the pages read are never pages the generator writes, and `--check` cannot
   loop. The occasion's own page includes the section, not the embed; an embed
-  there is refused, so "Seen in" never names the reference page. The hook
-  watches all of `docs/`. The row's `howto` link became `seen_in`
-  (`format_version` 2).
+  on any message page is refused, so "Seen in" never names a reference page.
+  An embed in a fragment another page includes whole is refused too, since
+  the reader sees the host, and a `draft_docs`/`exclude_docs` page is skipped,
+  since production withholds it. The hook watches all of `docs/` and
+  `mkdocs.yml`. The row's `howto` link became `seen_in` (`format_version` 2).
 - **A declared guide must embed its occasion.** `Occasion.howto` still names
   the guide whose steps send it, and `derive_table` fails when that guide does
   not include the embed, which is how the guides are held to show what they
