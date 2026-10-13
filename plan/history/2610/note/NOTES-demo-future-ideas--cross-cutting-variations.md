@@ -5,7 +5,11 @@ title: 'Demo future ideas: cross-cutting variations table (delivered or re-homed
 type: note
 ---
 
-Archived from `notes/demo-future-ideas.md` by #4497 (notes sweep). All four source Ideas are closed: invitation rejection is the registered `fcv-reject` scenario (#2047); embargo variations are `rcv-embargo`/`rcvv-embargo` (DEMOMA-20/21); CVD recipe injects are tracked in `notes/cvd-recipe-injects.md` under epic #1160. Tentative rejection (#1221) is now Task #2050, listed in the note's role-expansion table.
+Archived from `notes/demo-future-ideas.md` by #4497 (notes sweep). All four source Ideas
+are closed: invitation rejection is the registered `fcv-reject` scenario (#2047);
+embargo variations are `rcv-embargo`/`rcvv-embargo` (DEMOMA-20/21); CVD recipe injects
+are tracked in `notes/cvd-recipe-injects.md` under epic #1160. Tentative rejection
+(#1221) is now Task #2050, listed in the note's role-expansion table.
 
 ---
 

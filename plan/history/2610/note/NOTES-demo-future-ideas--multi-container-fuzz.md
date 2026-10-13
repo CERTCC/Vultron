@@ -5,7 +5,12 @@ title: 'Demo future ideas: multi-container fuzz scenario (idea, no tracking issu
 type: note
 ---
 
-Archived from `notes/demo-future-ideas.md` by #4497 (notes sweep). No issue tracked the multi-container idea, and a plan note holds only tracked work. Its one live constraint (container reset and STOCHASTIC bundle configuration via environment variables must be designed first) is kept in `notes/call-out-simulation-plan.md` § "Multi-Actor In-Process Simulation (#1732, DEMOMA-18)", which tracks epic #1161. The in-process fuzz row stays in the note. Original row and paragraph:
+Archived from `notes/demo-future-ideas.md` by #4497 (notes sweep). No issue tracked the
+multi-container idea, and a plan note holds only tracked work. Its one live constraint
+(container reset and STOCHASTIC bundle configuration via environment variables must be
+designed first) is kept in `notes/call-out-simulation-plan.md` § "Multi-Actor In-Process
+Simulation (#1732, DEMOMA-18)", which tracks epic #1161. The in-process fuzz row stays
+in the note. Original row and paragraph:
 
 ---
 
@@ -22,5 +27,6 @@ partition check keys on.
 
 The multi-container variant is deferred until container reset and STOCHASTIC
 bundle configuration via environment variables are designed. See
-`notes/call-out-configuration.md` § "Multi-Actor In-Process Simulation" for
-the design decisions reached in the #1178 planning session.
+`notes/call-out-simulation-plan.md` § "Multi-Actor In-Process Simulation
+(#1732, DEMOMA-18)" for the design decisions reached in the #1178 planning
+session.

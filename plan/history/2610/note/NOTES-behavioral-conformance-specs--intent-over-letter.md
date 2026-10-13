@@ -9,7 +9,8 @@ Archived from `notes/behavioral-conformance-specs.md` by #4497 (notes sweep): th
 spec-versus-issue conflict rule is superseded by `notes/agentic-workflow.md`
 § "Spec Text Conflicts With Code" (the material test, and `## Spec amended` in the
 PR body). The closing BT gate-placement remark is not a spec-authoring rule; its
-lesson belongs with the behavior-tree pitfalls (`notes/bt-pitfalls.md`).
+lesson moved to `notes/bt-pitfalls.md` § "An Idempotency `Selector(…, Success)`
+Masks a Real Downstream FAILURE".
 
 ---
 

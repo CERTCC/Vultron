@@ -141,6 +141,10 @@ the promotion steps.
 - **Invariant 16 is injected only when the harness passes `narrative_path`**,
   because it reads the narrative's `causal_edges:` (DEMOMA-22-005).
   `test_every_harness_passes_a_narrative_path` enforces the argument.
+- **Invariant 17 is injected only when the harness passes `joined_invitees > 0`**.
+  It checks that the ledger holds a full-case Invite and a reply to it for each
+  invited actor (CM-11-010, CM-11-011). A failure means an invitee joined
+  without judging the case: start at Layer 2 for the missing Invite or reply.
 - **Invariant 18** runs `case_closure_violations` from
   `vultron/demo/helpers/milestones.py` over the `case-actor` log (CM-23-013). A
   failure names a participant act committed after `case_fully_closed`. Check the
@@ -227,9 +231,10 @@ when `devlogs/` is absent.
 
 Each matrix entry uploads, under the run's **Artifacts**:
 
-- **`<demo>-case-logs`** (always): `devlogs/<demo>/<actor>/<case-slug>-case-ledger.jsonl`
-  plus `dump-manifest.json`. Unpack it under the repo root's `devlogs/` and run
-  the harness locally against it. Each line is a serialized `CaseLedgerEntry`
+- **`<demo>-case-logs`** (always):
+  `devlogs/<demo>/<actor>/<case-slug>-case-ledger.jsonl` plus
+  `dump-manifest.json`. Unpack it under the repo root's `devlogs/` and run the
+  harness locally against it. Each line is a serialized `CaseLedgerEntry`
   (`vultron/core/models/case_ledger_entry.py`), camelCase on the wire.
 - **`<demo>-container-logs`** (on failure only): `combined.log` and one log per
   service. Use a failing entry's `caseId` as the grep anchor.

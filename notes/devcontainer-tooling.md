@@ -34,7 +34,7 @@ The devcontainer sets `PYTHONPATH=/app`, so any entry point that imports
 `vultron.*` (`spec-dump`, `append-history`, …) loads `/app`'s code instead of the
 working tree's. Prefix it: `PYTHONPATH= uv run spec-dump`. A `git commit` in a
 worktree outside `/app` needs it too, because the pre-commit hooks inherit the
-variable and a sync hook such as `docs-site` then checks the worktree against
+variable and a sync hook such as `docs-site-sync` then checks the worktree against
 `/app`'s generator and fails spuriously: `PYTHONPATH= git commit …`.
 
 ## `uv run` Fails With "Permission Denied": Rebuild, or `UV_NO_SYNC=1`

@@ -54,11 +54,12 @@ failure path must still leave `devlogs/<demo>/dump-manifest.json` (#2239).
 
 ### Layer 1 — In-harness failures (DEMOCI-10-001 through DEMOCI-10-005)
 
-- **`scenario_harness(demo_name)` owns the ordering** (`vultron/demo/helpers/harness.py`,
-  DEMOMA-23). It resets the failure accumulator, always dumps the ledgers on the
-  way out (return or any `BaseException`), then calls `assert_demo_success()`
-  last. A dump error is recorded in the manifest's `reason` and the original
-  exception re-raised with the `demo_check` failures attached (DEMOCI-10-004).
+- **`scenario_harness(demo_name)` owns the ordering**
+  (`vultron/demo/helpers/harness.py`, DEMOMA-23). It resets the failure
+  accumulator, always dumps the ledgers on the way out (return or any
+  `BaseException`), then calls `assert_demo_success()` last. A dump error is
+  recorded in the manifest's `reason` and the original exception re-raised with
+  the `demo_check` failures attached (DEMOCI-10-004).
 - **The dump always writes a manifest** (`dump_case_ledgers()` in
   `vultron/demo/helpers/ledger_dump.py`, from a `finally`), recording the case,
   captured-versus-target counts, and each missing actor with its reason. A

@@ -107,8 +107,9 @@ invariant that needs no extra scenario (Invariant 7), or by `demo_check`
 assertions that run wherever the scenario runs.
 
 When a scenario is added, decide its membership by this test: does it produce an
-event type or protocol path no member produces? `test_democi_06_002_names_exactly_the_pr_set_event_types`
-holds DEMOCI-06-002's event-type list equal to the members' harness constants.
+event type or protocol path no member produces?
+`test_democi_06_002_names_exactly_the_pr_set_event_types` holds DEMOCI-06-002's
+event-type list equal to the members' harness constants.
 
 ## Workflow Implementation (DEMOCI-06-003)
 

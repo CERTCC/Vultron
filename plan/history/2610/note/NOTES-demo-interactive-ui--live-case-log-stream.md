@@ -5,7 +5,13 @@ title: 'Demo interactive UI: live case log stream design (delivered by #3641)'
 type: note
 ---
 
-Archived from `notes/demo-interactive-ui.md` by #4497 (notes sweep). Delivered by #3641 (closed): the stream is `GET /api/v2/actors/{actor_id}/demo/cases/{case_id}/log/stream` in `vultron/adapters/driving/fastapi/routers/demo_triggers.py` and `vultron/adapters/driving/fastapi/ledger_stream.py` (TRIG-09), tested by `test/adapters/driving/fastapi/test_ledger_stream.py` and `test_ledger_stream_live.py`. The route-order and shutdown-hook rules are recorded in the code comments and docstrings there.
+Archived from `notes/demo-interactive-ui.md` by #4497 (notes sweep). Delivered by #3641
+(closed): the stream is `GET /api/v2/actors/{actor_id}/demo/cases/{case_id}/log/stream`
+in `vultron/adapters/driving/fastapi/routers/demo_triggers.py` and
+`vultron/adapters/driving/fastapi/ledger_stream.py` (TRIG-09), tested by
+`test/adapters/driving/fastapi/test_ledger_stream.py` and `test_ledger_stream_live.py`.
+The route-order and shutdown-hook rules are recorded in the code comments and docstrings
+there.
 
 ---
 

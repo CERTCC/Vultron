@@ -5,7 +5,12 @@ title: 'Demo future ideas: embargo lifecycle scenarios (delivered)'
 type: note
 ---
 
-Archived from `notes/demo-future-ideas.md` by #4497 (notes sweep). Delivered: the pre-submission negotiation gap (EP-04-003/004) closed with #3392, and the `report-with-embargo` exchange demo (`vultron/demo/exchange/report_with_embargo_demo.py`, #3393) demonstrates it; `rcv-embargo` and `rcvv-embargo` are registered scenarios. See `notes/embargo-default-semantics.md`.
+Archived from `notes/demo-future-ideas.md` by #4497 (notes sweep). Delivered: the
+pre-submission negotiation gap (EP-04-003/004) closed with #3392, and the
+`report-with-embargo` exchange demo
+(`vultron/demo/exchange/report_with_embargo_demo.py`, #3393) demonstrates it;
+`rcv-embargo` and `rcvv-embargo` are registered scenarios. See
+`notes/embargo-default-semantics.md`.
 
 ---
 

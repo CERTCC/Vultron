@@ -39,6 +39,10 @@ and unattended runs go unseen. It needs two steps: one on failure (file or updat
 a `ci:main-failure` issue, CISEC-05-001) and one on success (close it,
 CISEC-05-002).
 
+The workflow MUST grant `issues: write` (CISEC-02-002). A root-level
+`permissions: contents: read` block MUST become a map that also lists
+`issues: write`, or the action's issue calls fail with 403.
+
 ## Events Raised With `GITHUB_TOKEN` Never Trigger Other Workflows
 
 GitHub does not dispatch events a workflow raises with its own `GITHUB_TOKEN`

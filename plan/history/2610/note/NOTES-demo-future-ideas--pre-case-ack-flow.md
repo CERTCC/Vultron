@@ -5,7 +5,11 @@ title: 'Demo future ideas: pre-case ACK flow (stale plan, no tracking issue)'
 type: note
 ---
 
-Archived from `notes/demo-future-ideas.md` by #4497 (notes sweep). Stale: the plan for #1221 (Task #2050) explicitly does not use `auto_create_case=False`, so no planned demo exercises the pre-case ACK path, and the cited test docstring no longer mentions #1133. The flag itself shipped (#1272; `vultron/core/use_cases/received/report.py`). The demo idea is carried on epic #1160.
+Archived from `notes/demo-future-ideas.md` by #4497 (notes sweep). Stale: the plan
+for #1221 (Task #2050) explicitly does not use `auto_create_case=False`, so no planned demo
+exercises the pre-case ACK path, and the cited test docstring no longer mentions #1133.
+The flag itself shipped (#1272; `vultron/core/use_cases/received/report.py`). The demo
+idea is carried on epic #1160.
 
 ---
 
