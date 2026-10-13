@@ -27,7 +27,7 @@ References
 ----------
 - Source: ``vultron/bt/embargo_management/fuzzer.py``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-16-003, BT-16-004, BT-16-005
-- Notes: ``notes/bt-fuzzer-nodes-embargo.md``
+- Catalog: ``docs/developer/reference/bt-fuzzer/embargo.md``
 """
 
 from __future__ import annotations

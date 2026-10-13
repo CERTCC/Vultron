@@ -93,8 +93,12 @@ step up to the one that reaches `CLOSED` and waits for them rather than writing
 `CLOSED` itself. Later entries, `case_fully_closed` included, reach only participants
 not yet closed. The exception never widens entitlement, and the CM-31-009 embargo
 notice is the only other message a closed participant gets. Verify "all participants
-closed" in the CASE_MANAGER's store. Known gap: the fan-out still sends
-`case_fully_closed` to closed participants (#4212).
+closed" in the CASE_MANAGER's store (`vultron/demo/helpers/closure.py`), and check
+each departing actor's replica only for its own closure. Closed-skipping is not an
+option: the one ledger fan-out (`FanOutLogEntryNode`) uses
+`ledger_entry_recipients()`, which adds back only the closed participant the entry
+is about (`entry_records_own_closure()`), and a replay answering a closed peer's
+`Reject(CaseLedgerEntry)` stops at `closed_participant_ledger_cutoff()`.
 
 ## Authority to act
 

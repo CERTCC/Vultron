@@ -33,7 +33,7 @@ References
 - Source: ``vultron/bt/report_management/fuzzer/report_to_others.py``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-16-003, BT-16-004,
   BT-16-005
-- Notes: ``notes/bt-fuzzer-nodes-report-management.md``
+- ADR: ``docs/adr/0047-report-to-others-sentinel-over-inline-bt.md`` (no production counterpart)
 """
 
 from __future__ import annotations

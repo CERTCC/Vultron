@@ -54,7 +54,7 @@ References
 - Issue: #1817 / Source Idea: #1246
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-18-004
-- Notes: ``notes/bt-fuzzer-rm-id-assignment.md``
+- Catalog: ``docs/developer/reference/bt-fuzzer/rm-id-assignment.md``
 """
 
 import logging
@@ -92,7 +92,7 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
     Reads ``actor_roles`` from the blackboard (written by the BT setup phase)
     and returns SUCCESS when :attr:`CVDRole.CVE_NUMBERING_AUTHORITY` is
     present.  No external call; no factory seam (ProtocolInternal per
-    ``notes/bt-fuzzer-rm-id-assignment.md``).
+    ``docs/developer/reference/bt-fuzzer/rm-id-assignment.md``).
     """
 
     logger: logging.Logger  # type: ignore[assignment]
@@ -152,7 +152,8 @@ class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
     blackboard (vulnerability has a publication intent recorded by a prior
     BT run).  No external call; no factory seam (ProtocolInternal).
 
-    Per ``notes/bt-fuzzer-rm-id-assignment.md`` § "IsOrWillBePubliclyDisclosed":
+    Per ``docs/developer/reference/bt-fuzzer/rm-id-assignment.md``
+    § "IsOrWillBePubliclyDisclosed":
     the blackboard key is written by the publication-intent BT step before the
     CVE ID assignment step runs in the same tick sequence.
     """

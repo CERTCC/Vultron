@@ -85,8 +85,12 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
     actor's own act, so no claimed time is carried or invented.
 
     **Fan-out.**  Through the standard commit tree, to every active
-    participant.  The leaving actor's own replica therefore receives every
-    step, the one that reaches ``RM.CLOSED`` included (CM-23-004).
+    participant not at ``RM.CLOSED``, plus the closing actor itself: the
+    advance has already written its ``CLOSED`` when the first of these
+    entries fans out, but each entry records the closing actor's own closure,
+    so the shared selection still sends it (``ledger_entry_recipients``,
+    CM-23-004).  The leaving actor's replica therefore receives every step,
+    the one that reaches ``RM.CLOSED`` included, and nothing after them.
 
     Committed synchronously here rather than emitted as a self-addressed
     ``Add(ParticipantStatus)`` through the CLP-10-001 loopback, because

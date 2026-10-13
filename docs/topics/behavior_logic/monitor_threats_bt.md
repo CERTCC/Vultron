@@ -19,6 +19,8 @@ The behavioral requirements for this tree are specified in the
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
 
+{% include-markdown "../../includes/notional_external_process.md" %}
+
 !!! note "Legacy design diagram"
 
     The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
@@ -82,8 +84,7 @@ The three conditions of interest are taken straight from the [embargo exit crite
 In the event that one or more of these events is detected, the [Terminate Embargo Behavior Tree](em_terminate_bt.md) is triggered.
 
 There are many other good reasons to monitor and maintain awareness of cybersecurity threats.
-The behavior shown here is intended as a minimal set of things that CVD Participants should watch out for in the
-course of performing their CVD practice.
+The behavior shown here is intended as a minimal set of things that Coordinated Vulnerability Disclosure (CVD) Participants should watch out for in the course of performing their CVD practice.
 
 See also: [Terminate Embargo Behavior Tree](em_terminate_bt.md)
 

@@ -221,19 +221,28 @@ def stub_closure_gate() -> Iterator[MagicMock]:
     A mocked closure-phase test has no CASE_MANAGER store to read, so the
     gate's ``RM.CLOSED`` wait would poll a ``MagicMock`` until it timed out and
     then skip the owner's ``Leave``.  Patching the wait to return at once, and
-    the ledger check the helper runs after the owner leaves, lets such a test
-    check what it is about (call order, which milestones run).
+    the closure checks the helper runs after the owner leaves (the ledger
+    order, every record ``RM.CLOSED`` in the CASE_MANAGER's store, and each
+    leaver's own replica), lets such a test check what it is about (call
+    order, which milestones run).  The CASE_MANAGER's client is the authority
+    client itself.
     Yields the patched wait so a test can assert which departures it waited on.
     """
     with (
         patch(
-            "vultron.demo.helpers.closure.resolve_case_actor_store_id",
-            return_value=None,
+            "vultron.demo.helpers.closure._case_manager_reader",
+            side_effect=lambda client, _case_id: client,
         ),
         patch(
             "vultron.demo.helpers.closure.wait_for_participant_rm_state"
         ) as wait,
         patch("vultron.demo.helpers.closure.verify_case_closure_recorded"),
+        patch("vultron.demo.helpers.closure.verify_case_closed"),
+        patch(
+            "vultron.demo.helpers.closure.case_manager_ledger",
+            return_value=[],
+        ),
+        patch("vultron.demo.helpers.closure._verify_own_closure"),
     ):
         yield wait
 

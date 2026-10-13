@@ -21,7 +21,6 @@ related_notes:
   - notes/embargo-lifecycle.md
   - notes/bt-integration.md
   - notes/call-out-configuration.md
-  - notes/bt-fuzzer-rm-threat.md
   - notes/message-type-reference.md
   - notes/bt-pitfalls.md
   - notes/case-communication-model.md
@@ -108,7 +107,7 @@ participant) posts `Add(ParticipantStatus)` carrying the P/X/A change; the
 CASE_MANAGER's received tree decides whether to adopt it. The simulation
 `MonitorThreats` nodes are fuzzer stubs for the sentinel's internal logic and
 are not wired into the received pipeline (see
-[bt-fuzzer-rm-threat.md](bt-fuzzer-rm-threat.md)).
+`docs/developer/reference/bt-fuzzer/rm-threat.md`).
 
 ## Per-dimension partial accept (RSH-05, ADR-0061)
 

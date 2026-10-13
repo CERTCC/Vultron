@@ -21,7 +21,6 @@ description: >
   the Sentinel call-in pattern (#2450). Also states which surface a question
   belongs on and why Sentinel is not a fifth shape.
 related_notes:
-  - notes/bt-fuzzer-nodes.md
   - notes/bt-integration.md
   - notes/agentic-workflow.md
   - notes/call-out-configuration.md
@@ -44,13 +43,9 @@ shapes** — **Evaluator**, **Retriever**, **Composer**, **Actuator** — are th
 interface contracts that answer them. Definitions: `CONTEXT.md` § Capability
 Shapes; taxonomy: ADR-0097 (superseding ADR-0024's five shapes).
 
-## Two Integration Surfaces
-
-- **Call-in** — trigger endpoints (`vultron/core/use_cases/triggers/`,
-  `POST /actors/{id}/triggers/{action}`). The external party has already decided;
-  the use case executes it. The agent drives the protocol.
-- **Call-out** — call-out points inside `vultron/core/behaviors/`. The protocol
-  drives the agent. All four shapes live here.
+The call-in and call-out surfaces are defined in
+`notes/call-out-configuration.md` § "Two Integration Surfaces: Call-In and
+Call-Out"; all four shapes live on the call-out surface.
 
 ## Which Surface a Question Belongs On
 
@@ -120,8 +115,7 @@ For each, ask what actually drives the choice:
 
 The docstring's `Input category` and `Automation potential` give a first guess:
 `High` + `Environmental check` needs no capability; `Low` + `Human decision` is an
-Evaluator (or human). Call these "call-out points", never "external dependency
-touchpoints".
+Evaluator (or human). Say **call-out point**, never "touchpoint" (ADR-0025).
 
 ## The Sentinel Pattern Is Call-In, Not a Shape (#2450)
 

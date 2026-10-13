@@ -57,7 +57,7 @@ References
 - Concern: #1813 (Phase 1 stub missing guard nodes)
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-06-001, BT-18-004
-- Notes: ``notes/bt-fuzzer-rm-fix.md``
+- Catalog: ``docs/developer/reference/bt-fuzzer/rm-fix.md``
 """
 
 import logging

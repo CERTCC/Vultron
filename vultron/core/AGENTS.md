@@ -236,13 +236,11 @@ See [notes/bt-integration.md](../../notes/bt-integration.md) for:
 
 See [notes/bt-pitfalls.md](../../notes/bt-pitfalls.md) for:
 
-- py\_trees Blackboard Global State
+- No-Op Path Must Clear Output Blackboard Keys (the blackboard is process-global)
 - py\_trees `blackboard.get()` Raises KeyError for Unwritten READ Keys
-- Duplicate Method Definitions Silently Shadow Correct BT Logic
-- BT Blackboard Key Naming
-- BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs
-- Note Attachment Idempotency: Check `case.notes`, Not DataLayer Existence
-- Close Bugs With Evidence, Not Assumption
+- Namespaced Inter-Node Handoff Keys
+- BT Failure Reason Propagation
+- Use DataLayer Outbox for Idempotency, Not Module-Level Sets
 
 See [notes/bt-canonical-reference.md](../../notes/bt-canonical-reference.md) for:
 

@@ -31,10 +31,7 @@ from vultron.core.behaviors.sync.nodes import SendMissingEntriesNode
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
     embargo_paused_from_index,
 )
-from vultron.core.behaviors.sync.nodes.fanout import (
-    FanOutLogEntryExcludingClosedNode,
-    FanOutLogEntryNode,
-)
+from vultron.core.behaviors.sync.nodes.fanout import FanOutLogEntryNode
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -165,16 +162,9 @@ def paused_from(datalayer, peer_id: str = NON_SIGNATORY_ID) -> int | None:
     )
 
 
-def fan_out(
-    bridge,
-    entry,
-    sync_port,
-    *,
-    tree_cls: type[FanOutLogEntryNode]
-    | type[FanOutLogEntryExcludingClosedNode] = FanOutLogEntryNode,
-) -> None:
+def fan_out(bridge, entry, sync_port) -> None:
     result = bridge.execute_with_setup(
-        tree=tree_cls(case_id=CASE_ID),
+        tree=FanOutLogEntryNode(case_id=CASE_ID),
         actor_id=MANAGER_ID,
         log_entry=entry,
         sync_port=sync_port,

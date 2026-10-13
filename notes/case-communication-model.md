@@ -89,7 +89,9 @@ participant it bypasses the CASE_MANAGER (PCR-08-001); from the CASE_MANAGER it 
 inert participants (CM-10-004, ADR-0114). A participant sends to the CASE_MANAGER only.
 The CASE_MANAGER picks broadcast recipients from
 `vultron/core/participants/recipients.py` (CM-10-007): `case_content_recipients()` for
-content, `invitation_recipients()` for consent Invites.
+content (active participants not at RM.CLOSED), `ledger_entry_recipients()` for
+ledger entries (adds back only a closed participant the entry is about, CM-23-004),
+and `invitation_recipients()` for consent Invites.
 `test/architecture/test_active_participant_recipient_selection.py` keeps every other
 module from listing roster ids for addressing.
 
@@ -224,8 +226,8 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   emits to the manager, records the ask in the pending-assertion store, and its replica
   moves on the announced commit (EP-09-008).
 - **A CASE_MANAGER deciding by trigger** writes, commits, and addresses nothing to
-  itself (`notes/embargo-lifecycle.md` § "A trigger writes shared EM state only as the
-  CASE_MANAGER"). The commit is the EK acknowledgement (EP-09-009).
+  itself (EP-09-008; `notes/embargo-lifecycle.md` § "Embargo Negotiation Relays
+  Through the CASE_MANAGER"). The commit is the EK acknowledgement (EP-09-009).
 - **Only the CASE_MANAGER evaluates invite expiry**; replicas learn it from the
   committed entry and never compute it (CM-28-014, ADR-0118).
 - **`Announce(CaseLedgerEntry)` is a channel for case state, not a protocol
