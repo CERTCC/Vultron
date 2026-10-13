@@ -655,6 +655,7 @@ class TestRolesThreadingIntegration:
             event,
             sync_port=MagicMock(),
             wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(harness.manager_dl),
         ).execute()
 
         updated_case = cast(Any, harness.manager_dl.read(harness.case.id_))

@@ -43,7 +43,13 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from ._base import _case_for_wire, _seal, _to_wire, _to_wire_object
+from ._base import (
+    _case_for_wire,
+    _seal,
+    _seal_record,
+    _to_wire,
+    _to_wire_object,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +168,7 @@ class _CasesMixin:
         case_id: str,
         actor: str,
     ) -> tuple[str, str]:
-        """Create and persist the CASE_MANAGER's ``Update(VulnerabilityCase)`` closing the case.
+        """Build and seal the CASE_MANAGER's ``Update(VulnerabilityCase)`` closing the case.
 
         The ``case_fully_closed`` entry's activity (CM-23-002 step 3): the
         closed case is carried in full, its references inline
@@ -177,15 +183,7 @@ class _CasesMixin:
             actor=actor,
             id_=derived_activity_id("case-fully-closed", actor, case_id),
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "record_case_fully_closed: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _seal_record(self._dl, activity)
 
     def add_object_to_case(
         self,

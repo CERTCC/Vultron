@@ -78,10 +78,16 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         self._case_id = case_id
         self._event_type = event_type
         self._notify_participants = notify_participants
+        #: The ids of the activities the last :meth:`update` committed.
+        self.committed_activity_ids: list[str] = []
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         """Return ``(activity_id, sealed_blob)`` for an activity sent *to*."""
         raise NotImplementedError
+
+    def _ledger_object_id(self, activity_id: str) -> str:
+        """The entry's ``log_object_id``: the activity itself, by default."""
+        return activity_id
 
     def _build_all(self, to: list[str] | None) -> list[tuple[str, str]]:
         """Return every ``(activity_id, sealed_blob)`` this decision commits.
@@ -104,7 +110,11 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
             )
         case, failure = self._require_case(self._case_id)
         if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
+            # Regime 1 (ADR-0087).  A FAILURE, unlike the missing factory
+            # above: every arm that composes this node has already read the
+            # case (the owner-close arm through its Case Owner guard), so a
+            # case missing here cannot pass for a guard that did not pass.
+            return failure
         actor_id = cast(str, self.actor_id)
         dl = cast(CaseOutboxPersistence, self.datalayer)
 
@@ -122,7 +132,7 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
                 datalayer=dl,
                 actor_id=actor_id,
                 case_id=self._case_id,
-                activity_id=activity_id,
+                activity_id=self._ledger_object_id(activity_id),
                 activity_blob=blob,
                 event_type=self._event_type,
                 check_freshness=self._CHECK_LEDGER_FRESHNESS,
@@ -130,6 +140,7 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
             if to:
                 self._emit_through_seam(activity_id, blob)
             committed.append(activity_id)
+        self.committed_activity_ids = committed
         self.feedback_message = (
             f"CASE_MANAGER committed '{self._event_type}' entry for"
             f" {', '.join(repr(i) for i in committed)} on case"

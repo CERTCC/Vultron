@@ -23,15 +23,13 @@ existed, the record did not.
 Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005, ADR-0051.
 """
 
+import json
 import logging
 from typing import cast
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.ledger_snapshots import (
-    build_add_participant_status_snapshot,
-)
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
@@ -192,22 +190,21 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        if self.wire_render_port is None:
-            # A snapshot cannot be rendered without the port, and a snapshot is
-            # the whole point of the entry — so skip the entry rather than
-            # commit an empty payload. Loudly: ISSUE-2505 was masked for months
-            # by a silently absent wire_render_port on the genesis commit path.
+        if self.trigger_activity_factory is None:
+            # The entry's snapshot is the factory-built activity's sealed blob
+            # (VM-08-003), so without the port there is nothing to commit:
+            # skip the entry rather than commit an empty payload.  Loudly:
+            # ISSUE-2505 was masked for months by a silently absent port on
+            # the genesis commit path.
             #
-            # Deliberately *not* _require_wire_render_port(): elsewhere a
-            # missing port is a wiring fault that raises, but this entry sits
-            # inside CM-23-002's closure Sequence, and _best_effort() explains
-            # why losing the entry is the lesser loss.  In a composed tree the
-            # Leave's own guarded commit has already required the port, so
-            # this branch is reached only when this node alone is blind to it.
+            # Deliberately *not* _require_trigger_activity_port(): elsewhere
+            # a missing port is a wiring fault that raises, but this entry
+            # sits inside CM-23-002's closure Sequence, and _best_effort()
+            # explains why losing the entry is the lesser loss.
             return self._best_effort(
-                "no WireRenderPort — cannot render the RM closure"
-                f" ParticipantStatus snapshots of '{self._closing_actor_id}',"
-                " so they are not recorded"
+                "no TriggerActivityPort — cannot build the RM closure"
+                f" Add(ParticipantStatus) activities of"
+                f" '{self._closing_actor_id}', so they are not recorded"
             )
 
         case, failure = self._require_case(self._case_id)
@@ -301,8 +298,9 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
     ) -> str | None:
         """Commit one closure status as a canonical ledger entry.
 
-        The snapshot is the CASE_MANAGER's own act (``actor`` is the
-        receiving CASE_MANAGER, ``published`` its clock); the status it
+        The snapshot is the CASE_MANAGER's own act, the factory-built
+        ``Add(ParticipantStatus)`` sealed blob (``actor`` is the receiving
+        CASE_MANAGER, ``published`` its clock, VM-08-003); the status it
         carries is the closing actor's.
 
         Idempotent: ``CreateLogEntryNode`` skips an entry that already exists
@@ -315,7 +313,6 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
         """
         assert self.datalayer is not None
         assert self.actor_id is not None
-        assert self.wire_render_port is not None
 
         rm_name = participant_status_rm_state(status).name
         status_id = getattr(status, "id_", None)
@@ -325,13 +322,16 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts):
                 f" '{self._closing_actor_id}' has no id_"
             )
 
-        snapshot = build_add_participant_status_snapshot(
-            status,
-            participant,
-            self.actor_id,
-            self._case_id,
-            self.wire_render_port,
+        assert self.trigger_activity_factory is not None
+        _, blob = (
+            self.trigger_activity_factory.record_participant_status_added(
+                status=status,
+                participant=participant,
+                case_id=self._case_id,
+                actor=self.actor_id,
+            )
         )
+        snapshot = json.loads(blob)
 
         result = BTBridge(
             datalayer=cast(CaseOutboxPersistence, self.datalayer)

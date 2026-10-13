@@ -46,6 +46,9 @@ from datetime import datetime, timedelta
 from typing import Any, Protocol
 
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.enums.roles import CVDRole
 
 
@@ -482,7 +485,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
     ) -> tuple[str, str]:
-        """Create and persist the CASE_MANAGER's ``Update(VulnerabilityCase)`` closing the case.
+        """Build and seal the CASE_MANAGER's ``Update(VulnerabilityCase)`` closing the case.
 
         The ``case_fully_closed`` entry's activity (CM-23-002 step 3): the
         CASE_MANAGER's own act, carrying the closed case in full, committed
@@ -492,6 +495,92 @@ class TriggerActivityPort(Protocol):
         the outbox.  Its id is derived from the CASE_MANAGER and the case, so
         a case closes once (ID-04-004).
         Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    # -----------------------------------------------------------------------
+    # The CASE_MANAGER's own case-file changes, recorded in the case ledger
+    #
+    # Each builds the activity a ledger entry records, as the CASE_MANAGER
+    # (``actor``), carrying the changed object as the CASE_MANAGER holds it;
+    # its sealed blob is the entry's ``payloadSnapshot`` (CLP-07-013,
+    # VM-08-003).  None is queued to the outbox: the ledger fan-out delivers
+    # it.  Each id is derived from the CASE_MANAGER and what changed, so a
+    # re-run hands back the body the first run sealed (ID-04-004).  Each
+    # returns ``(activity_id, activity_blob)``.
+    # -----------------------------------------------------------------------
+
+    def record_case_created(
+        self,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """The genesis ``Create(VulnerabilityCase)`` (``create_case``), the case as stored."""
+        ...
+
+    def record_report_added_to_case(
+        self,
+        report_id: str,
+        case_id: str,
+        actor: str,
+        offer_id: str | None = None,
+        offer_actor_id: str | None = None,
+    ) -> tuple[str, str]:
+        """``Add(VulnerabilityReport, target=case)`` (``add_report_to_case``).
+
+        The stored report is carried inline.  ``offer_id`` and
+        ``offer_actor_id``, when given, are the report's Offer provenance
+        (CP-01-007), carried for participants who were never sent the Offer.
+        """
+        ...
+
+    def record_participant_status_added(
+        self,
+        status: ParticipantStatus,
+        participant: CaseParticipant,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """``Add(ParticipantStatus, target=participant)`` (``add_participant_status_to_participant``).
+
+        Both are carried inline, as the caller just stored them.
+        """
+        ...
+
+    def record_case_status_added(
+        self,
+        status: CaseStatus,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """``Add(CaseStatus, target=case)`` (``add_case_status_to_case``).
+
+        *status* is carried inline; it may be one the caller persists only
+        once the entry is committed.
+        """
+        ...
+
+    def record_case_participant_created(
+        self,
+        participant: CaseParticipant,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """``Create(CaseParticipant)`` (``create_case_participant``), the record as stored."""
+        ...
+
+    def record_case_announced(
+        self,
+        case_id: str,
+        actor: str,
+        event_type: str,
+        object_id: str,
+    ) -> tuple[str, str]:
+        """``Announce(VulnerabilityCase)`` for the demo ``sync-log-entry`` verb.
+
+        The stored case is carried inline.  The id is derived from the
+        CASE_MANAGER, the case, *event_type* and *object_id*, so one request
+        repeated commits one entry.
         """
         ...
 
@@ -786,7 +875,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         late_accept: dict[str, Any],
     ) -> tuple[str, str]:
-        """Create and persist the CASE_MANAGER's ``Ignore`` of a late embargo ``Accept``.
+        """Build and seal the CASE_MANAGER's ``Ignore`` of a late embargo ``Accept``.
 
         The EMB-17-004 no-op acknowledgement: the Invite had expired and no
         embargo remains for the Accept to bind, so the CASE_MANAGER records

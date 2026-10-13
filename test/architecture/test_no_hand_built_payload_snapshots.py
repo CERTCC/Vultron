@@ -22,60 +22,38 @@ and sealed (VM-08-003).  A dict literal shaped like an activity, with a
 activity nobody sent, which is what case closure and the late-Accept
 acknowledgement did before #3743.
 
-Every such literal is located by file and enclosing function and compared
-to an exact baseline, so a new site fails and a removed one must be taken
-out (the set may only shrink, ARCH-18-002).  Each baseline row names the
-issue that removes it.
+Every such literal is counted by file and enclosing function and compared to
+an exact baseline, so a new site, or a second literal in a baselined
+function, fails, and a removed one must be taken out (the set may only
+shrink, ARCH-18-002).  Each baseline row names the issue that removes it.
 """
 
 import ast
+from collections import Counter
 from collections.abc import Iterator
 
 from test.architecture import _corpus
 
 _CORE = _corpus.REPO_ROOT / "vultron" / "core"
 
-_REMAINDER = "#4584"
+#: The two embargo-invitation snapshots wait on the participant-record copy
+#: design (#4295): their natural form is the CASE_MANAGER's change to the
+#: invitee's consent row, carried in full and copied by a replica, and the
+#: replica steps that apply them today run the PEC transition themselves.
+_AWAITS_PARTICIPANT_COPY = "#4295"
 
-#: Activity-shaped dict literals still built in core, by ``(file, function)``.
-#: Each row is removed by the issue it names; add none (VM-08-003).
-_BASELINE: dict[tuple[str, str], str] = {
+#: Activity-shaped dict literals still built in core, by ``(file, function)``,
+#: with how many each holds.  Each row is removed by the issue it names; add
+#: none (VM-08-003).
+_BASELINE: dict[tuple[str, str], tuple[int, str]] = {
     (
         "vultron/core/behaviors/embargo/expiry_tree.py",
         "expiry_payload_snapshot",
-    ): _REMAINDER,
+    ): (1, _AWAITS_PARTICIPANT_COPY),
     (
         "vultron/core/behaviors/embargo/expiry_tree.py",
         "honour_late_accept_payload_snapshot",
-    ): _REMAINDER,
-    (
-        "vultron/core/behaviors/case/ledger_snapshots.py",
-        "build_create_case_snapshot",
-    ): _REMAINDER,
-    (
-        "vultron/core/behaviors/case/ledger_snapshots.py",
-        "build_add_report_to_case_snapshot",
-    ): _REMAINDER,
-    (
-        "vultron/core/behaviors/case/ledger_snapshots.py",
-        "build_add_participant_status_snapshot",
-    ): _REMAINDER,
-    (
-        "vultron/core/behaviors/case/ledger_snapshots.py",
-        "build_add_case_status_snapshot",
-    ): _REMAINDER,
-    (
-        "vultron/core/behaviors/case/ledger_snapshots.py",
-        "build_create_case_participant_snapshot",
-    ): _REMAINDER,
-    (
-        "vultron/core/behaviors/case_status_snapshot.py",
-        "EmitCaseStatusUpdateNode.update",
-    ): _REMAINDER,
-    (
-        "vultron/core/use_cases/triggers/sync_log_entry.py",
-        "SvcSyncLogEntryUseCase._prepare",
-    ): _REMAINDER,
+    ): (1, _AWAITS_PARTICIPANT_COPY),
 }
 
 _ACTIVITY_KEYS = frozenset({"type", "actor"})
@@ -89,6 +67,19 @@ def _constant_keys(node: ast.Dict) -> set[str]:
     }
 
 
+def _is_activity_shaped(node: ast.AST) -> bool:
+    """A ``{...}`` literal or ``dict(...)`` call with ``type`` and ``actor`` keys."""
+    if isinstance(node, ast.Dict):
+        return _constant_keys(node) >= _ACTIVITY_KEYS
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "dict"
+    ):
+        return {kw.arg for kw in node.keywords if kw.arg} >= _ACTIVITY_KEYS
+    return False
+
+
 def _activity_literals(
     node: ast.AST, scope: tuple[str, ...] = ()
 ) -> Iterator[tuple[str, int]]:
@@ -99,20 +90,17 @@ def _activity_literals(
         ):
             yield from _activity_literals(child, (*scope, child.name))
             continue
-        if (
-            isinstance(child, ast.Dict)
-            and _constant_keys(child) >= _ACTIVITY_KEYS
-        ):
+        if _is_activity_shaped(child):
             yield ".".join(scope) or "<module>", _corpus.node_line(child)
         yield from _activity_literals(child, scope)
 
 
-def _sites() -> dict[tuple[str, str], list[int]]:
-    found: dict[tuple[str, str], list[int]] = {}
-    for path, tree in _corpus.files_mentioning('"actor"', under=_CORE):
+def _sites() -> Counter[tuple[str, str]]:
+    found: Counter[tuple[str, str]] = Counter()
+    for path, tree in _corpus.all_trees(_CORE):
         rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
-        for qualname, line in _activity_literals(tree):
-            found.setdefault((rel, qualname), []).append(line)
+        for qualname, _ in _activity_literals(tree):
+            found[(rel, qualname)] += 1
     return found
 
 
@@ -133,27 +121,35 @@ def test_the_scan_sees_a_literal_inside_a_method():
     assert [q for q, _ in _activity_literals(tree)] == ["Node.update"]
 
 
+def test_the_scan_sees_a_dict_call():
+    tree = _corpus.parse_inline(
+        "def build():\n    return dict(type='Leave', actor='urn:a')\n"
+    )
+    assert [q for q, _ in _activity_literals(tree)] == ["build"]
+
+
 def test_core_builds_no_new_payload_snapshot_by_hand():
     """Activity-shaped dict literals in core equal the baseline (VM-08-003)."""
     actual = _sites()
-    added = {
-        f"{path}::{qualname} (lines {lines})"
-        for (path, qualname), lines in actual.items()
-        if (path, qualname) not in _BASELINE
+    expected = {site: count for site, (count, _) in _BASELINE.items()}
+    changed = {
+        f"{path}::{qualname} ({expected.get((path, qualname), 0)} -> {count})"
+        for (path, qualname), count in actual.items()
+        if count != expected.get((path, qualname), 0)
     }
-    removed = {
+    gone = {
         f"{path}::{qualname}"
-        for (path, qualname) in _BASELINE
+        for (path, qualname) in expected
         if (path, qualname) not in actual
     }
-    assert not added and not removed, (
+    assert not changed and not gone, (
         "Activity-shaped dict literals under vultron/core/ changed"
         " (VM-08-003).\n"
-        f"  new (build the activity with a factory through"
-        f" TriggerActivityPort and commit its sealed blob): {sorted(added)}\n"
-        f"  gone (remove the baseline row): {sorted(removed)}"
+        f"  new or more (build the activity with a factory through"
+        f" TriggerActivityPort and commit its sealed blob): {sorted(changed)}\n"
+        f"  gone (remove the baseline row): {sorted(gone)}"
     )
 
 
 def test_each_baseline_row_names_its_issue():
-    assert all(issue.startswith("#") for issue in _BASELINE.values())
+    assert all(issue.startswith("#") for _, issue in _BASELINE.values())

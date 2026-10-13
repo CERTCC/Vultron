@@ -37,7 +37,7 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-from ._base import _seal, _to_wire
+from ._base import _seal, _seal_record, _to_wire
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +164,7 @@ class _EmbargoMixin:
         actor: str,
         late_accept: dict[str, Any],
     ) -> tuple[str, str]:
-        """Create and persist the CASE_MANAGER's ``Ignore`` of a late embargo ``Accept``.
+        """Build and seal the CASE_MANAGER's ``Ignore`` of a late embargo ``Accept``.
 
         The EMB-17-004 no-op acknowledgement.  *late_accept* is carried
         inline; *actor* (the CASE_MANAGER) is the ``Ignore``'s
@@ -186,15 +186,7 @@ class _EmbargoMixin:
             in_reply_to=accept_id,
             id_=derived_activity_id("late-accept-ignore", actor, accept_id),
         )
-        try:
-            self._dl.create(activity)
-        except VultronAlreadyExistsError:
-            logger.warning(
-                "ignore_late_embargo_accept: activity '%s' already exists"
-                " — skipping",
-                activity.id_,
-            )
-        return _seal(self._dl, activity)
+        return _seal_record(self._dl, activity)
 
     def activate_embargo(
         self,

@@ -2454,11 +2454,11 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
 
     @pytest.fixture
     def rm_closed_node_without_port(self, monkeypatch):
-        """Blind only the RM.CLOSED recording node to the render port.
+        """Blind only the RM.CLOSED recording node to the trigger-activity port.
 
-        The rest of the tree keeps the port: the Leave's own guarded commit
-        needs it and fails closed without it (ARCH-20-001).  This isolates the
-        one entry the node skips when it cannot render its snapshot.
+        The rest of the tree keeps the port: the closure commit needs it and
+        raises without it (ARCH-15-001).  This isolates the one entry the node
+        skips when it cannot build its activity.
         """
         from vultron.core.behaviors.case.nodes.leave.record import (
             CommitRMClosureEntriesNode,
@@ -2468,7 +2468,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
 
         def _initialise_without_port(node) -> None:
             original(node)
-            node.wire_render_port = None
+            node.trigger_activity_factory = None
 
         monkeypatch.setattr(
             CommitRMClosureEntriesNode,
@@ -2480,7 +2480,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
     def test_missing_port_still_commits_case_fully_closed(
         self, rm_closed_node_without_port
     ):
-        """No WireRenderPort: the entry is skipped, the case still fully closes."""
+        """No TriggerActivityPort: the entry is skipped, the case still fully closes."""
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
@@ -2492,7 +2492,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
 
         assert _case_fully_closed_present(dl), (
             "case_fully_closed must still be committed when the CASE_MANAGER's"
-            " own RM.CLOSED cannot be recorded — a missing WireRenderPort must"
+            " own RM.CLOSED cannot be recorded — a missing TriggerActivityPort must"
             " not strand the case half-closed (CM-23-002 steps 3-4)"
         )
 
@@ -2500,7 +2500,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
     def test_missing_port_still_takes_the_owner_arm(
         self, rm_closed_node_without_port
     ):
-        """No WireRenderPort: the owner arm ran, not the non-owner fallback.
+        """No TriggerActivityPort: the owner arm ran, not the non-owner fallback.
 
         The distinguishing effect is the CaseActor's own advance to RM.CLOSED
         (step 2), which only the owner arm performs. If a failed recording had
@@ -2529,7 +2529,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
     def test_missing_port_skips_only_the_case_actor_entry(
         self, rm_closed_node_without_port
     ):
-        """No WireRenderPort: the ledger entry is the only casualty.
+        """No TriggerActivityPort: the ledger entry is the only casualty.
 
         The honest cost of best-effort recording. This is ISSUE-2505 in
         miniature — replicas cannot see the CASE_MANAGER's closure on this run —
@@ -2545,7 +2545,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
         ).execute()
 
         assert not _case_actor_rm_closed_entries(dl), (
-            "without a WireRenderPort no snapshot can be rendered, so no entry"
+            "without a TriggerActivityPort no activity can be built, so no entry"
             " should be committed — an empty payload would be worse"
         )
 
@@ -2608,7 +2608,7 @@ class TestCaseActorRMClosedRecordingIsBestEffort:
             ).execute()
 
         assert any(
-            "WireRenderPort" in r.getMessage() for r in caplog.records
+            "TriggerActivityPort" in r.getMessage() for r in caplog.records
         ), (
             "the skipped entry must be logged via the stdlib logger; got"
             f" {[r.getMessage() for r in caplog.records]}"
