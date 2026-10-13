@@ -271,6 +271,7 @@ groups:
     status: none
     description: Withdraws the ownership transfer offer before it is answered. The current
       Case Owner keeps the case.
+    seen_in: []
     example: undo_case_ownership_transfer
   - anchor: invite-actor-to-case
     heading: Invite actor to case
