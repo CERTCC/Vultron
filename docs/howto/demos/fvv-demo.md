@@ -102,11 +102,11 @@ sequenceDiagram
 
     note over F,V2: Phase 3 — Notes Exchange
 
-    F->>V1: Add(Note, target=Case) — question from Finder
+    F->>V1: Create(Note), Add(Note, target=Case) — question from Finder
     note right of V1: note committed to case ledger
-    V1-->>F: ledger entry replicated (add_note_to_case)
-    V1-->>V2: ledger entry replicated (add_note_to_case)
-    V1->>V1: Add(Note, target=Case) — Vendor1 reply
+    V1-->>F: ledger entries replicated (create_note, add_note_to_case)
+    V1-->>V2: ledger entries replicated (create_note, add_note_to_case)
+    V1->>V1: Create(Note), Add(Note, target=Case) — Vendor1 reply
     note right of V1: reply note committed to case ledger
 
     note over F,V2: Phase 4 — Fix Lifecycle (both vendors, independent paths)
