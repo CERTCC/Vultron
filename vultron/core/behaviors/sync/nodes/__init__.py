@@ -127,7 +127,10 @@ from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
     EmitImpossibleStateFaultNode,
 )
-from vultron.core.behaviors.sync.nodes.port_guard import RequireSyncPortNode
+from vultron.core.behaviors.sync.nodes.port_guard import (
+    RequireSyncPortNode,
+    RequireWireRenderPortNode,
+)
 from vultron.core.behaviors.sync.nodes.receive import (
     BufferOutOfOrderEntryNode,
     BufferPreGenesisEntryNode,
@@ -220,6 +223,7 @@ __all__ = [
     "DeclineForeignLedgerCommitNode",
     # port guard
     "RequireSyncPortNode",
+    "RequireWireRenderPortNode",
     "UpdateReplicationStateNode",
     "CreateLogEntryNode",
     "PersistLogEntryNode",

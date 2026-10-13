@@ -2145,6 +2145,35 @@ class TestCM14005ReporterSignatory:
 class TestADR0041LedgerEntries:
     """ADR-0041 AC-4: canonical ledger entries committed natively."""
 
+    @pytest.mark.spec("CLP-07-013")
+    def test_commits_the_creation_sequence_the_trigger_commits(
+        self, make_payload
+    ):
+        """The proposal path's entries follow the one creation rule (#4440).
+
+        ``creation_entry_sequence`` reads the sequence off the resulting case
+        file; the create-case trigger is pinned to the same rule in
+        ``test_create.py``, so a case created either way commits the same
+        entries.
+        """
+        from test.support.ledger import (
+            creation_entry_sequence,
+            ledger_entries,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+        (case,) = dl.list_objects("VulnerabilityCase")
+        assert isinstance(case, VulnerabilityCase)
+
+        expected = creation_entry_sequence(dl, case)
+        entries = ledger_entries(dl, case.id_)
+
+        assert [
+            (e.event_type, e.log_object_id) for e in entries[: len(expected)]
+        ] == expected
+
     def test_create_case_ledger_entry_present(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
 

@@ -72,6 +72,7 @@ class SvcCreateCaseUseCase(SvcBTTriggerBase[CaseResult]):
             )
 
         return create_case_trigger_bt(
+            actor_id=self._actor_id,
             case_name=self._case_name,
             case_content=self._case_content,
             report_id=self._report_id,
