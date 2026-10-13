@@ -172,17 +172,6 @@ groups:
     - path: howto/activitypub/activities/initialize_case.md
       title: How to Initialize a Case
     example: create_case
-  - anchor: update-case
-    heading: Update case
-    when: the Case Manager has recorded a change to the case object
-    send: Update(VulnerabilityCase)
-    sent_by: not yet checked
-    semantics: update_case
-    status: none
-    description: Sends the changed case object, for example after a title edit or an applied
-      ownership transfer.
-    seen_in: []
-    example: update_case
   - anchor: add-report-to-case
     heading: Add report to case
     when: the Case Owner links a further report to an existing case

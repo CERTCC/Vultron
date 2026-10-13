@@ -145,9 +145,6 @@ CloseReportPattern = ActivityPattern(
 CreateCaseActivityPattern = ActivityPattern(
     activity_=TAtype.CREATE, object_=VOtype.VULNERABILITY_CASE
 )
-UpdateCaseActivityPattern = ActivityPattern(
-    activity_=TAtype.UPDATE, object_=VOtype.VULNERABILITY_CASE
-)
 EngageCasePattern = ActivityPattern(
     description=(
         "Actor engages (joins) a VulnerabilityCase, transitioning their RM "

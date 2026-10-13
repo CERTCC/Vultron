@@ -13,6 +13,7 @@ related_specs:
   - specs/case-management.yaml
   - specs/handler-protocol.yaml
   - specs/case-bootstrap-trust.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/bt-integration.md
@@ -46,6 +47,14 @@ does not sanitize semantic content.
 
 Only a `to` recipient of `Offer(Report)` creates a case; a `cc`-only receiver
 reports `REFUSED` with a reason naming the addressing (HP-01-005, HP-09-001).
+
+## A Received `Update(VulnerabilityCase)` Is Refused
+
+No actor sends `Update(VulnerabilityCase)` to the CASE_MANAGER: an inbound one
+resolves to `UNKNOWN` and is refused, because a received update would change
+the case with no ledger entry (CLP-07-013, #4443). The wire class is reserved
+as the snapshot shape of a CASE_MANAGER-authored case-field entry, but
+`_CANONICAL_PAYLOAD_SIGNATURES` does not admit it yet, so no code commits one.
 
 ## An Unresolvable `object_` Is a Dead Letter, Not a Missing Pattern
 

@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Guard that a ledger commit can be fanned out before it is minted."""
+"""Guards that a ledger commit can be rendered and fanned out before it is minted."""
 
 from __future__ import annotations
 
@@ -79,4 +79,22 @@ class RequireSyncPortNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-__all__ = ["RequireSyncPortNode"]
+class RequireWireRenderPortNode(DataLayerActionWithPorts):
+    """Raise ``VultronWiringError`` unless the tree has a ``wire_render_port``.
+
+    A ledger snapshot is the AS2 rendering of the record it carries, and core
+    never produces that shape itself (ARCH-20-001).  A tree that writes records
+    and then commits their entries places this ahead of its first write, so a
+    composition fault refuses before anything is stored instead of leaving
+    records no entry describes (CLP-07-013, #4440).
+    """
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def update(self) -> Status:
+        self._require_wire_render_port()
+        return Status.SUCCESS
+
+
+__all__ = ["RequireSyncPortNode", "RequireWireRenderPortNode"]
