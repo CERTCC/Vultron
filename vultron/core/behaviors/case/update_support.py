@@ -52,10 +52,11 @@ def apply_update_case_fields(
 def find_excluded_actor_ids(
     case: VulnerabilityCase, dl: CasePersistence
 ) -> set[str]:
-    """Return the inert participants a case-update broadcast leaves out.
+    """Return the participants a case-update broadcast leaves out.
 
-    Delegates to the shared selection (CM-10-007): the roster less the active
-    participants (CM-10-004).  Kept as its own step so the update tree can
+    Delegates to the shared selection (CM-10-007): the roster less the
+    participants sent case content — the inert ones (CM-10-004) and those at
+    RM ``CLOSED`` (CM-23-004).  Kept as its own step so the update tree can
     report whom it withheld the broadcast from; :func:`broadcast_case_update`
     applies the active check itself whatever this returns.
     """
@@ -65,9 +66,10 @@ def find_excluded_actor_ids(
         # is routine under ADR-0114, but whom an update skipped is worth
         # one operator-visible line.
         logger.info(
-            "update_case: %d participant(s) not active on case '%s' (not"
-            " joined, or not a signatory to the active embargo) — case update"
-            " will not be broadcast to them (CM-10-004): %s",
+            "update_case: %d participant(s) not sent content on case '%s'"
+            " (not joined, not a signatory to the active embargo, or at"
+            " RM.CLOSED) — case update will not be broadcast to them"
+            " (CM-10-004, CM-23-004): %s",
             len(excluded),
             case.id_,
             ", ".join(sorted(excluded)),

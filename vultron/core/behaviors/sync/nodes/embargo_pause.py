@@ -57,6 +57,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.participants.recipients import (
     case_content_recipients,
+    closed_participant_ledger_cutoff,
     inactive_joined_participants,
     is_case_content_recipient,
 )
@@ -210,6 +211,27 @@ def peer_is_withheld(
     """
     case = _require_case(datalayer, case_id, peer_id)
     return not is_case_content_recipient(case, datalayer, peer_id)
+
+
+def closed_peer_cutoff(
+    datalayer: CasePersistence,
+    *,
+    case_id: str,
+    peer_id: str,
+    entries: Iterable[CaseLedgerEntry],
+) -> int | None:
+    """Return the last ``log_index`` a closed *peer_id* may be sent (CM-23-004).
+
+    ``None`` when *peer_id* is not at RM ``CLOSED``.  Otherwise the index of
+    the last entry in *entries* that records its own closure, ``-1`` when
+    none does (:func:`~vultron.core.participants.recipients
+    .closed_participant_ledger_cutoff`).
+
+    Raises:
+        VultronError: *case_id* does not resolve to a case in *datalayer*.
+    """
+    case = _require_case(datalayer, case_id, peer_id)
+    return closed_participant_ledger_cutoff(case, datalayer, peer_id, entries)
 
 
 def peer_is_inactive_joined(

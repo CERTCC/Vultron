@@ -125,10 +125,10 @@ sequenceDiagram
 
     note over F,V2: Phase 6 — Case Closure
 
-    V1->>V1: closes case (RM → CLOSED)
-    F->>F: closes case (RM → CLOSED)
     V2->>V2: closes case (RM → CLOSED)
-    note over F,V2: ✅ M7 — All participants RM.CLOSED on all replicas
+    F->>F: closes case (RM → CLOSED)
+    V1->>V1: closes case last, as Case Owner (RM → CLOSED)
+    note over F,V2: ✅ M7 — All participants RM.CLOSED in the Case Actor's store
 ```
 
 ### Phase 1 — Report submission and case activation (M1)
@@ -178,9 +178,14 @@ The Case Actor sees the publication report from the Case Owner and terminates th
 ### Phase 6 — Case closure (M7)
 
 Each actor closes its participation with `Leave(VulnerabilityCase)` (RM → CLOSED).
-Vendor1 is the Case Owner, so its closure also closes the case: the Case Actor advances itself to `RM.CLOSED` and records that the case is fully closed.
+Vendor2 and the Finder leave first.
+Vendor1 is the Case Owner, so it leaves last, and its closure also closes the case: the Case Actor advances itself to `RM.CLOSED` and records that the case is fully closed.
 
-**M7 verified when:** All participants on all replicas are `RM.CLOSED`.
+A participant that has closed receives the ledger entries that record its own closure, and nothing after them (CM-23-004).
+No replica therefore holds every participant's closure: the Finder's replica does not learn that Vendor1 left, and Vendor1's replica does not receive the Case Actor's own closure or the `case_fully_closed` entry.
+The Case Actor's own store is where every closure is checked.
+
+**M7 verified when:** the Case Actor's ledger records every departure before `case_fully_closed`, every participant is `RM.CLOSED` in the Case Actor's store, and each departing actor's replica holds the ledger through its own closure and nothing after it.
 
 ---
 
@@ -194,7 +199,7 @@ Vendor1 is the Case Owner, so its closure also closes the case: the Case Actor a
 | `✅ M4:` | Finder replica: both vendors CS includes F (fix ready) |
 | `✅ M5:` | Finder replica: both vendors still at VFd |
 | `✅ M6:` | All replicas: CS.VFdPxa and EM.EXITED; all participants public-aware |
-| `✅ M7:` | All participants RM.CLOSED on all replicas |
+| `✅ M7:` | All participants RM.CLOSED in the Case Actor's store; each replica ends at its own closure |
 
 Between milestones, look for these prefixes:
 

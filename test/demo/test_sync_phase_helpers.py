@@ -108,27 +108,6 @@ class TestWaitForReplicaLedgerCoverage:
         assert "holds no CaseLedgerEntry" in failure
         assert "R1" not in failure and "R2" not in failure
 
-    def test_empty_authority_tail_is_a_temporal_check_failure_after_close(
-        self,
-    ):
-        """Closure use: the authority-empty failure is a CHECK, not a gate."""
-        auth = _client("auth")
-        with patch.object(
-            sync_module, "_get_log_entries_for_case", return_value=[]
-        ):
-            wait_for_replica_ledger_coverage(
-                auth_client=auth,
-                replicas=[(_client("r"), "Finder")],
-                case_id=_CASE_ID,
-                phase_label="close phase",
-                causal=False,
-            )
-        (failure,) = demo_utils._demo_failures
-        assert failure.startswith("CHECK FAILED")
-        assert auth.base_url in failure
-        assert "close phase" in failure
-        assert "EDF-06-006" in failure
-
     def test_polls_every_replica_in_order_against_the_authority_tail(self):
         replicas = [(_client(f"r{i}"), f"R{i}") for i in range(3)]
         calls: list[tuple[int, int]] = []
@@ -291,36 +270,10 @@ class TestWaitForReplicaLedgerCoverage:
                 auth_client=_client("auth"),
                 replicas=[(_client("r"), "Finder")],
                 case_id=_CASE_ID,
-                causal=True,
             )
         (failure,) = demo_utils._demo_failures
         assert failure.startswith("GATE FAILED")
         assert "Finder ledger coverage (sync-verification phase)" in failure
-
-    def test_temporal_wait_records_check_failure_labelled_temporal(self):
-        """Post-closure use: demo_check, labelled temporal (EDF-06-006)."""
-        with (
-            patch.object(
-                sync_module, "_get_log_entries_for_case", return_value=_TAIL
-            ),
-            patch.object(
-                sync_module,
-                "wait_for_contiguous_ledger_coverage",
-                side_effect=AssertionError("timed out"),
-            ),
-        ):
-            wait_for_replica_ledger_coverage(
-                auth_client=_client("auth"),
-                replicas=[(_client("r"), "Finder")],
-                case_id=_CASE_ID,
-                phase_label="close phase",
-                causal=False,
-            )
-        (failure,) = demo_utils._demo_failures
-        assert failure.startswith("CHECK FAILED")
-        assert "Finder ledger coverage (close phase)" in failure
-        assert "temporal" in failure
-        assert "EDF-06-006" in failure
 
 
 # ---------------------------------------------------------------------------

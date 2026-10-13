@@ -319,7 +319,7 @@ class TestCaseUseCases:
 
         assert any(
             actor_id in r.message
-            and "not active" in r.message
+            and "not sent content" in r.message
             and "CM-10-004" in r.message
             for r in caplog.records
         )

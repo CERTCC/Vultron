@@ -292,10 +292,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
         # CLOSED gets no embargo announcement (CM-23-004); a closed signatory
         # gets the CM-31-009 notice instead.
         self._recipients = case_content_recipients(
-            case,
-            self.datalayer,
-            excluding={self.actor_id or ""},
-            skip_closed=True,
+            case, self.datalayer, excluding={self.actor_id or ""}
         )
         if not self._recipients:
             self.feedback_message = (
