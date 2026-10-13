@@ -213,11 +213,6 @@ def test_reject_case_ownership_transfer_trigger_is_registered() -> None:
 
 
 @pytest.mark.spec("TRIG-11-006")
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="TRIG-11-006: no withdraw-case-ownership-transfer trigger yet. #4491.",
-)
 def test_withdraw_case_ownership_transfer_trigger_is_registered() -> None:
     assert "withdraw-case-ownership-transfer" in {
         row.verb for row in entries()

@@ -878,6 +878,18 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def withdraw_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Undo(Offer(VulnerabilityCase))`` ownership-transfer withdrawal.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-006).
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Processing fault (NACK)
     # -----------------------------------------------------------------------

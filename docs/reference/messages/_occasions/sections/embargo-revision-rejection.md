@@ -8,7 +8,7 @@ Records the sender's own refusal of the revision. The Case Owner keeps the prior
 - **Send:** `Reject(Invite(Event)[context=VulnerabilityCase])`
 - **Sent by:** the invitee
 - **Distinguished by:** EM state `REVISE`
-- **How-to:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
+- **Seen in:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
 - **Formal definition:** [Embargo Revision Rejection (EJ)](../../../formal_protocol/messages.md#em-message-types)
 - **Mapping status:** [collapse](../../index.md#mapping-status)
 

@@ -79,11 +79,23 @@ Embargo Revision Proposal (EV) is implemented in ActivityStreams as `Invite(Even
 
 1. Send `Invite(Event)` with the revised `EmbargoEvent`.
    The case moves to `EM.REVISE`.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-proposal.md" %}
+
 2. Each participant answers with Embargo Revision Acceptance (EC), `Accept(Invite(Event))`, or Embargo Revision Rejection (EJ), `Reject(Invite(Event))`.
    Either answer records only that participant's own consent to the revision, the Case Owner's included; the active embargo is unchanged.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-acceptance.md" %}
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-rejection.md" %}
+
 3. As Case Owner, send `Accept(Event)` with the revised `EmbargoEvent` as its `object` and the case as its `target`, once you judge the revision has carried, then `Announce(Event)`.
    The revision replaces the active embargo and your own consent to it is recorded.
    If the revision ends no later than the embargo it replaces, every participant that agreed to the old terms is bound by the new ones too.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/activate-embargo.md" %}
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/announce-embargo.md" %}
 
 A revision uses the same activities as an initial proposal.
 The receiver tells the two apart from the case's EM state: a proposal that arrives while the embargo is active is a revision (MSM-02).
@@ -91,6 +103,8 @@ The receiver tells the two apart from the case's EM state: a proposal that arriv
 To keep the current terms, send `Reject(Event)` with the same `object` and `target` as Case Owner instead.
 The case returns to `EM.ACTIVE` under the original terms, and no participant's consent changes.
 The embargo does not lapse because a revision failed.
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/reject-embargo-proposal.md" %}
 
 ---
 
@@ -100,6 +114,8 @@ Embargo Termination (ET) is implemented in ActivityStreams as `Remove(Event)`.
 
 Send `Remove(Event)`, then `Announce(Event)` so participants see that the embargo is gone.
 The case moves to `EM.EXITED`, with immediate effect.
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/embargo-termination.md" %}
 
 Only the CASE_MANAGER changes the case's EM state (EP-09-008).
 If you are the CASE_MANAGER, address `Remove(Event)` to every other participant and never to yourself (EMB-19-001).

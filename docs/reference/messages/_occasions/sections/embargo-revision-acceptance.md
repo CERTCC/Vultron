@@ -8,7 +8,7 @@ Records the sender's own consent to the revision. The revision replaces the acti
 - **Send:** `Accept(Invite(Event)[context=VulnerabilityCase])`
 - **Sent by:** the invitee
 - **Distinguished by:** EM state `REVISE`
-- **How-to:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
+- **Seen in:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
 - **Formal definition:** [Embargo Revision Acceptance (EC)](../../../formal_protocol/messages.md#em-message-types)
 - **Mapping status:** [collapse](../../index.md#mapping-status)
 

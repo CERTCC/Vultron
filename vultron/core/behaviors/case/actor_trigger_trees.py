@@ -44,6 +44,7 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
     EmitOfferCaseOwnershipTransferNode,
     EmitRejectCaseOwnershipTransferNode,
+    EmitWithdrawCaseOwnershipTransferNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
@@ -259,12 +260,16 @@ def _ownership_answer_trigger_bt(
     emit_node: (
         type[EmitAcceptCaseOwnershipTransferNode]
         | type[EmitRejectCaseOwnershipTransferNode]
+        | type[EmitWithdrawCaseOwnershipTransferNode]
     ),
     offer_id: str,
     case_id: str,
     captured: dict | None,
 ) -> py_trees.behaviour.Behaviour:
-    """The trigger-side tree shared by the transferee's Accept and Reject."""
+    """The trigger-side tree shared by every reply to an ownership Offer.
+
+    The transferee's Accept and Reject, and the offerer's withdrawal.
+    """
     root = py_trees.composites.Sequence(
         name=name,
         memory=False,
@@ -325,6 +330,34 @@ def reject_case_ownership_transfer_trigger_bt(
     return _ownership_answer_trigger_bt(
         "RejectCaseOwnershipTransferTriggerBT",
         EmitRejectCaseOwnershipTransferNode,
+        offer_id,
+        case_id,
+        captured,
+    )
+
+
+def withdraw_case_ownership_transfer_trigger_bt(
+    offer_id: str,
+    case_id: str,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the withdraw-case-ownership-transfer workflow.
+
+    Emits ``Undo(Offer(VulnerabilityCase))`` from the offerer, addressed to
+    the case's CASE_MANAGER (TRIG-11-006, CM-21-015).
+
+    Args:
+        offer_id: ID of the ``_OfferCaseOwnershipTransferActivity`` withdrawn.
+        case_id: ID of the VulnerabilityCase; used to resolve the
+            CASE_MANAGER.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single EmitWithdrawCaseOwnershipTransferNode.
+    """
+    return _ownership_answer_trigger_bt(
+        "WithdrawCaseOwnershipTransferTriggerBT",
+        EmitWithdrawCaseOwnershipTransferNode,
         offer_id,
         case_id,
         captured,
