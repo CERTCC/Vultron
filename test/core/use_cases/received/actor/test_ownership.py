@@ -29,6 +29,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -293,6 +294,8 @@ class TestOwnershipTransferUseCases:
             actor=case_actor_id,
             to=[transferee_id],
             attributed_to=vendor_id,
+            # The Offer named no deadline, so the forward carries none.
+            end_time=None,
         )
 
         # Forwarded offer must land in CaseActor's outbox (not transferee's slot).
@@ -405,6 +408,8 @@ class TestOwnershipTransferUseCases:
                 # The Offer's own id, so the CM-21-014 guard does not read a
                 # redelivery as an earlier open Offer.
                 "offer_id": activity.id_,
+                # No end_time on the Offer, so none for the forward to carry.
+                "answer_deadline": None,
             }
         ], (
             "execute() must build the ownership-transfer tree once, with the"
@@ -865,7 +870,13 @@ def _ownership_offer_harness(make_payload, case_id: str, forward=False):
 
 
 def _deadline_shortly() -> datetime:
-    return datetime.now(UTC) + timedelta(seconds=1)
+    """A deadline a second away, at the second precision of the clock.
+
+    The CASE_MANAGER reads ``now_utc()``, which drops microseconds, so a
+    deadline with a fraction of a second could still read as not passed
+    just after it.
+    """
+    return now_utc() + timedelta(seconds=1)
 
 
 def _wait_past(deadline: datetime) -> None:
@@ -1015,11 +1026,6 @@ def test_redelivered_answered_offer_is_skipped_while_a_newer_one_is_open(
 
 
 @pytest.mark.spec("CM-21-016")
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CM-21-016: an Accept after the Offer's end_time is applied. #4491.",
-)
 def test_accept_after_the_offer_deadline_is_refused(make_payload):
     """A transfer deadline is binding: a late answer changes nothing."""
     dl, deliver, _ = _ownership_offer_harness(
@@ -1043,11 +1049,6 @@ def test_accept_after_the_offer_deadline_is_refused(make_payload):
 
 
 @pytest.mark.spec("CM-21-017")
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="CM-21-017: an expired Offer is never ledgered as expired. #4491.",
-)
 def test_new_offer_after_an_expired_one_ledgers_the_expiry(make_payload):
     """The CASE_MANAGER finds the expiry lazily and records it before admitting."""
     dl, deliver, _ = _ownership_offer_harness(

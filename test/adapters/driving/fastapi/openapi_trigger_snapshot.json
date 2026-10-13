@@ -549,7 +549,7 @@
         "type": "object"
       },
       "OfferCaseOwnershipTransferRequest": {
-        "description": "Request body for the offer-case-ownership-transfer trigger endpoint.\n\nEmits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the\nrequesting actor to the specified transferee (TRIG-11-001).\n\nTRIG-03-001: Must include case_id and transferee_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the offer-case-ownership-transfer trigger endpoint.\n\nEmits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the\nrequesting actor to the specified transferee (TRIG-11-001).\n\nTRIG-03-001: Must include case_id and transferee_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nTRIG-11-007: Optional end_time, timezone-aware and in the future, is the\ndeadline to answer the Offer (CM-21-016); it is held in UTC.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -565,6 +565,18 @@
               }
             ],
             "title": "Content"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
           },
           "transferee_id": {
             "title": "Transferee Id",

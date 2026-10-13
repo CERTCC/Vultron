@@ -35,6 +35,7 @@ from typing import Any
 from vultron.core.models._helpers import as_utc, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.rsvp_deadline import (
+    EXPIRE_SNAPSHOT_TYPE,
     HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
     INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
@@ -113,6 +114,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
     # ADR-0118).  Distinct from ("Reject", "Invite"), an explicit refusal.
     (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
+    # CASE_MANAGER-authored record that an ownership-transfer Offer passed its
+    # end_time unanswered (CM-21-017).  Distinct from ("Reject", "Offer"), the
+    # transferee's decline.
+    (EXPIRE_SNAPSHOT_TYPE, "Offer"),
     # CASE_MANAGER-authored no-op acknowledgement of a late Accept when the
     # embargo is no longer active (EMB-17-004, ADR-0118).
     (INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE, "Invite"),
@@ -143,6 +148,8 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
         # ADR-0118)
         (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
+        # CASE_MANAGER-authored ownership-transfer Offer expiry (CM-21-017)
+        (EXPIRE_SNAPSHOT_TYPE, "Offer"),
         # CASE_MANAGER-authored no-op acknowledgement (EMB-17-004, ADR-0118)
         (INVITE_EXPIRED_NOOP_SNAPSHOT_TYPE, "Invite"),
         # CASE_MANAGER-authored honour decision (EMB-17-001, ADR-0118)

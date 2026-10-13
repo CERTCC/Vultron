@@ -34,7 +34,7 @@ relevant_packages:
 
 Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053. The participant-facing
 description is `docs/topics/case_lifecycle/ownership_transfer.md`. The close paths
-without an answer (withdrawal, built; deadline, planned) are in
+without an answer (withdrawal and the binding deadline, both built) are in
 [ownership-transfer-close-paths](ownership-transfer-close-paths.md). A
 participant's `Reject` is a case event, ledgered like its `Accept` (CLP-02-012;
 [case-ledger-authority](case-ledger-authority.md#two-meanings-of-reject)).

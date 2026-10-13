@@ -479,6 +479,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
 
         self._transferee_id = request.transferee_id
         self._content = request.content
+        self._end_time = request.end_time
 
         # Delegated-message contract: emit as the CASE_MANAGER, attributed to
         # the requester (CM-24-001, CM-24-002, CM-24-005).  A case always has a
@@ -502,6 +503,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
             content=self._content,
             requesting_actor_id=self._requesting_actor_id,
             captured=self._captured,
+            end_time=self._end_time,
         )
 
     def _handle_result(self) -> None:

@@ -18,8 +18,9 @@ Demonstrates the workflow for transferring case ownership via the Vultron API.
 
 This demo script showcases two ownership transfer paths:
 
-1. Accept path: current owner (vendor) offers case to coordinator → coordinator
-   accepts → case.attributed_to is updated to coordinator
+1. Accept path: current owner (vendor) offers case to coordinator, with a
+   deadline to answer (TRIG-11-007) → the forwarded Offer carries it →
+   coordinator accepts in time → case.attributed_to is updated to coordinator
 2. Reject path: current owner (vendor) offers case to coordinator → coordinator
    rejects → case.attributed_to remains with vendor
 3. Withdraw path: current owner (vendor) offers case to coordinator → vendor
@@ -54,7 +55,9 @@ properties rather than by the original offer's id (EDF-06-004).
 # Standard library imports
 import logging
 from collections.abc import Callable, Sequence
+from datetime import datetime, timedelta
 
+from vultron.core.models._helpers import from_now_utc
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
     wait_for_case_attributed_to,
@@ -151,8 +154,12 @@ def _vendor_offers_ownership(
     vendor: as_Actor,
     coordinator: as_Actor,
     case_actor_id: str,
+    end_time: datetime | None = None,
 ) -> str:
     """The vendor offers ownership to the coordinator through its trigger.
+
+    *end_time*, when given, is the Offer's deadline to answer (TRIG-11-007,
+    CM-21-016).
 
     The ``offer-case-ownership-transfer`` trigger (TRIG-11-001, DEMOMA-05-001)
     has the CaseActor send the Offer with ``attributed_to`` the vendor: the
@@ -172,6 +179,7 @@ def _vendor_offers_ownership(
         .offer_case_ownership_transfer(
             transferee_id=coordinator.id_,
             content=f"Offering to transfer ownership of {case.name} to you.",
+            end_time=end_time,
         )
         .activity
     )
@@ -184,6 +192,38 @@ def _vendor_offers_ownership(
             dl_actor_id=case_actor_id,
         )
     return offer.id_
+
+
+#: How long the accept path gives the coordinator to answer.  Generous, so
+#: the demo answers in time; the refusal of a late answer and the expiry
+#: record are pinned by the unit tests, not by waiting here (CM-21-016,
+#: CM-21-017).
+_ANSWER_WINDOW = timedelta(days=1)
+
+
+def _check_forward_carries_deadline(
+    client: DataLayerClient,
+    coordinator: as_Actor,
+    forwarded_offer_id: str,
+    deadline: datetime,
+) -> None:
+    """Check the Offer the coordinator holds names the vendor's deadline.
+
+    The coordinator answers the CaseActor's forward, not the vendor's Offer
+    (CM-21-005), so the forward is what must tell it when it may no longer
+    answer (CM-21-016).
+    """
+    with demo_check("Forwarded Offer carries the deadline to answer"):
+        forwarded = client.get(
+            client.dl_path(forwarded_offer_id, actor_id=coordinator.id_)
+        )
+        end_time = forwarded.get("endTime")
+        if end_time is None or datetime.fromisoformat(end_time) != deadline:
+            raise ValueError(
+                f"Expected the forwarded Offer to carry endTime {deadline},"
+                f" got: {end_time}"
+            )
+        logger.info("Forwarded Offer answer deadline: %s", end_time)
 
 
 def _check_owner_unchanged(
@@ -240,9 +280,11 @@ def demo_transfer_ownership_accept(
 
     Steps:
     1. Setup: canonical CaseActor-owned case, coordinator added as participant
-    2. Vendor offers case ownership to coordinator
-       (OfferCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-005)
-    3. CaseActor forwards a new Offer to the coordinator; the demo discovers it
+    2. Vendor offers case ownership to coordinator, with a deadline to
+       answer (OfferCaseOwnershipTransferActivity → **CaseActor** inbox,
+       CM-21-005, TRIG-11-007)
+    3. CaseActor forwards a new Offer to the coordinator, carrying the
+       deadline; the demo discovers it
     4. Coordinator accepts through its ``accept-case-ownership-transfer``
        trigger (AcceptCaseOwnershipTransferActivity → **CaseActor** inbox,
        CM-21-006, TRIG-11-002)
@@ -262,11 +304,13 @@ def demo_transfer_ownership_accept(
     # Confirm initial owner is vendor
     _initial_owner(client, case, case_actor_id)
 
+    deadline = from_now_utc(_ANSWER_WINDOW)
     with demo_step(
-        "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
+        "Step 2: Vendor offers case ownership to coordinator via the"
+        " CaseActor, with a deadline to answer"
     ):
         _vendor_offers_ownership(
-            client, case, vendor, coordinator, case_actor_id
+            client, case, vendor, coordinator, case_actor_id, end_time=deadline
         )
 
     with demo_gate(
@@ -276,6 +320,9 @@ def demo_transfer_ownership_accept(
             client, case=case, transferee=coordinator
         )
         logger.info("Forwarded offer id: %s", forwarded_offer_id)
+        _check_forward_carries_deadline(
+            client, coordinator, forwarded_offer_id, deadline
+        )
 
         with demo_step("Step 4: Coordinator accepts ownership transfer"):
             # Through the coordinator's own trigger (DEMOMA-05-001,
