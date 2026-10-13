@@ -71,13 +71,7 @@ EMBARGO_TEARDOWN_EVENT_TYPE = (
 COMMITTED_ACTIVITY_KEY = "committed_activity_id"
 
 
-#: The embargo domain's name for the shared CASE_MANAGER build → commit →
-#: (queue) base (BTND-07-009); the frame is not embargo-specific, so it lives
-#: in :mod:`vultron.core.behaviors.case_manager_commit`.
-_CommitEmbargoDecisionBase = _CommitCaseManagerActivityBase
-
-
-class CommitEmbargoDecisionNode(_CommitEmbargoDecisionBase):
+class CommitEmbargoDecisionNode(_CommitCaseManagerActivityBase):
     """Commit the decision a trigger use case builds (EP-09-008, #4085).
 
     *builder* is the use case's factory closure, so the use case captures the
@@ -155,7 +149,7 @@ class IndexOwnEmbargoProposalNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class CommitEmbargoTeardownNode(_CommitEmbargoDecisionBase):
+class CommitEmbargoTeardownNode(_CommitCaseManagerActivityBase):
     """Commit the CASE_MANAGER's ``Remove(EmbargoEvent)`` and tell the others.
 
     The cascade form of the terminate decision: it has no use case to build

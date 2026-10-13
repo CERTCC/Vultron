@@ -2178,8 +2178,9 @@ groups:
       `invite_to_embargo_on_case_expired_noop` so that replicas can record the
       acknowledgement without applying any PEC transition (RSH-08-004). Its
       payloadSnapshot MUST be the CASE_MANAGER's own factory-built
-      `Ignore(Accept(Invite(EmbargoEvent)))` carrying the late Accept as
-      received (CLP-07-013, VM-08-003).
+      `Ignore(Accept(Invite(EmbargoEvent)))` carrying the late Accept inline,
+      in the AS2 shape a received activity is recorded in (CLP-07-009,
+      CLP-07-013, VM-08-003).
     rationale: >-
       Without a committed entry the replica has no record that the late Accept
       was received and acknowledged; its chain position would be missing,

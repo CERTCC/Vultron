@@ -89,10 +89,10 @@ class _IgnoreLateEmbargoAcceptActivity(as_Ignore):
     and the case holds no embargo the Accept could still bind (EM ``EXITED``
     or ``NONE``), so the CASE_MANAGER records that it received the answer and
     changes nothing.  It is the CASE_MANAGER's own act, from the clock: the
-    accepter's ``Accept`` is carried inline, as received, and the ``Ignore``
+    accepter's ``Accept`` is carried inline and the ``Ignore``
     is attributed to the CASE_MANAGER alone.
 
-    object_: the late _EmAcceptEmbargoActivity (inline, as received)
+    object_: the late _EmAcceptEmbargoActivity (inline)
     context: the VulnerabilityCase the Invite was for
     """
 

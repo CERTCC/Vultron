@@ -1635,6 +1635,28 @@ class TestCaseFullyClosedIsTheCaseManagersOwnAct:
         assert types.index("close_case") < types.index("case_fully_closed")
         assert types[-1] == "case_fully_closed"
 
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("RSH-08-004")
+    def test_a_replica_stores_the_closure_and_changes_nothing(self):
+        """The replica stores the entry; the case it carries is already held.
+
+        Every RM step arrived as its own entry before it, so applying the
+        closure writes nothing (CM-23-016): the replica's case is the same
+        before and after it.
+        """
+        manager = _make_full_dl()
+        replica = _replica_of(manager)
+        _close(manager, OWNER_ID, "https://example.org/activities/leave-owner")
+        *before, closure = _case_ledger(manager)
+        assert closure.event_type == "case_fully_closed"
+        _deliver(replica, before)
+        case_before = replica.read_case(CASE_ID)
+
+        _deliver(replica, [closure])
+
+        assert replica.read(closure.id_) is not None
+        assert replica.read_case(CASE_ID) == case_before
+
     @pytest.mark.spec("CM-23-002")
     def test_a_close_with_no_factory_raises_rather_than_half_closing(self):
         """No trigger-activity factory is a wiring fault, not a non-owner Leave.

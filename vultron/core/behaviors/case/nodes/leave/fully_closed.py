@@ -23,13 +23,10 @@ ADR-0124).
 
 from typing import cast
 
-from py_trees.common import Status
-
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
 from vultron.core.predicates.case_closure import CASE_FULLY_CLOSED_EVENT_TYPE
-from vultron.errors import VultronWiringError
 
 
 class CommitCaseFullyClosedNode(_CommitCaseManagerActivityBase):
@@ -50,6 +47,11 @@ class CommitCaseFullyClosedNode(_CommitCaseManagerActivityBase):
     entries, and it changes nothing a replica at the same ledger position
     does not already hold (CM-23-016).
 
+    A missing trigger-activity factory raises (see the base class) rather
+    than failing the owner arm, which the enclosing ``OwnerOrNonOwnerEffects``
+    Selector would read as "the sender is not the Case Owner" and succeed
+    down the non-owner path: a half-closed case reported as SUCCESS.
+
     Per CM-23-002, CM-23-013, CLP-07-013, VM-08-003, ADR-0085, ADR-0124.
     """
 
@@ -65,23 +67,6 @@ class CommitCaseFullyClosedNode(_CommitCaseManagerActivityBase):
             notify_participants=False,
             name=name,
         )
-
-    def _require_factory(self) -> Status | None:
-        """Raise when the tree was built without the trigger-activity factory.
-
-        A FAILURE here would fail the owner arm, and the enclosing
-        ``OwnerOrNonOwnerEffects`` Selector would read that as "the sender is
-        not the Case Owner" and succeed down the non-owner path: a half-closed
-        case reported as SUCCESS.  A missing port is a composition fault, so
-        it raises instead (ARCH-15-001, ADR-0095).
-        """
-        if self.trigger_activity_factory is None:
-            raise VultronWiringError(
-                f"{self.name}: no trigger-activity factory to build the"
-                f" case_fully_closed activity of case '{self._case_id}'"
-                " (ARCH-15-001)"
-            )
-        return None
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None

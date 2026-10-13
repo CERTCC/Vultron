@@ -29,19 +29,23 @@ delivery.  The embargo decisions (``embargo/nodes/manager_commit.py``), the
 case closure (``case/nodes/leave/fully_closed.py``) and the late-Accept
 acknowledgement (``embargo/nodes/late_accept.py``) all subclass it.
 
-Like the relay node, it catches nothing: a failed factory call or commit is
-not a protocol refusal, so the exception escapes to ``BTBridge`` and the
-handler raises (BT-14-001).
+Like the relay node, it catches nothing: a missing factory, a failed factory
+call or a failed commit is not a protocol refusal, so the exception escapes to
+``BTBridge`` and the handler raises (BT-14-001, ARCH-15-001).
 """
 
 from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import _EmitSingleActivityBase
+from vultron.core.behaviors.helpers import (
+    TRIGGER_FACTORY_UNAVAILABLE,
+    _EmitSingleActivityBase,
+)
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.errors import VultronWiringError
 
 
 class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
@@ -90,9 +94,14 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return f
+        if self.trigger_activity_factory is None:
+            # A composition fault, not a refusal: a FAILURE here can be read
+            # by an enclosing Selector as a guard that did not pass (the
+            # owner-close arm, CM-23-002), so it raises (ARCH-15-001).
+            raise VultronWiringError(
+                f"{self.name}: {TRIGGER_FACTORY_UNAVAILABLE} to build the"
+                f" '{self._event_type}' activity of case '{self._case_id}'"
+            )
         case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)

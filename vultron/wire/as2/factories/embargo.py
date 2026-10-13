@@ -259,7 +259,7 @@ def ignore_late_embargo_accept_activity(
     The no-op acknowledgement of a late embargo ``Accept``: the Invite had
     expired and no embargo remains for the Accept to bind, so the
     CASE_MANAGER records the answer and changes nothing.  *late_accept* is
-    the received ``Accept`` in its AS2 JSON form, carried inline as received;
+    the received ``Accept`` in its AS2 JSON form, carried inline;
     the ``Ignore`` is the CASE_MANAGER's own act (pass it as ``actor``).
     ``context`` defaults to the case the Accept names.
 

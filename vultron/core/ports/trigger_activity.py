@@ -792,7 +792,7 @@ class TriggerActivityPort(Protocol):
         embargo remains for the Accept to bind, so the CASE_MANAGER records
         that it received the answer and changes nothing.  ``actor`` is the
         CASE_MANAGER; ``late_accept`` is the received ``Accept`` in its AS2
-        JSON form, carried inline as received.  The ledger fan-out delivers
+        JSON form, carried inline.  The ledger fan-out delivers
         it; it is not queued to the outbox.  Its id is derived from the
         CASE_MANAGER and the Accept, so a redelivered Accept is acknowledged
         once (ID-04-004).

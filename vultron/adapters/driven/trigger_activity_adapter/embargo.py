@@ -167,7 +167,7 @@ class _EmbargoMixin:
         """Create and persist the CASE_MANAGER's ``Ignore`` of a late embargo ``Accept``.
 
         The EMB-17-004 no-op acknowledgement.  *late_accept* is carried
-        inline as received; *actor* (the CASE_MANAGER) is the ``Ignore``'s
+        inline; *actor* (the CASE_MANAGER) is the ``Ignore``'s
         only author, and the ``Ignore`` is threaded to the Accept by
         ``inReplyTo``.  The id is derived from the CASE_MANAGER and the
         Accept, so a redelivered Accept hands back the body its first

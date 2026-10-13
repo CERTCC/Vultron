@@ -41,7 +41,7 @@ class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
     acknowledgement is the CASE_MANAGER's own decision, taken from the clock,
     so it is committed as its own entry (CLP-07-013): an
     ``Ignore(Accept(Invite(EmbargoEvent)))`` the factory builds as the
-    executing CASE_MANAGER, with the received Accept inline as received, and
+    executing CASE_MANAGER, with the received Accept inline, and
     its sealed blob is the entry's ``payloadSnapshot`` (VM-08-003).
 
     The received Accept is read from ``/activity`` and rendered through the
