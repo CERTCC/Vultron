@@ -353,7 +353,7 @@ intentionally unreachable. Drops to any *other* unregistered host (e.g. a
 `.test` host) log at `WARNING` — that is almost always a config leak or fixture
 bug. A WARNING in the demo-test output means a `Create(CaseProposal)` or similar
 activity was misaddressed; look for a stale-config leak upstream. See
-[notes/configuration.md](configuration.md) § "_TestClientRouter WARNING".
+[notes/configuration.md](configuration.md) § "Testing Pattern".
 
 Source: CONCERN-2323
 

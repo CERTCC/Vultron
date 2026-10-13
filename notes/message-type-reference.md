@@ -132,9 +132,10 @@ how-to tree.
 
 ## Examples
 
-- Message pages render examples with `markdown_exec` blocks calling
-  `vultron.wire.as2.vocab.examples.vocab_examples`; follow
-  `docs/reference/messages/*.md` and `docs/reference/activitypub/objects.md`.
+- Examples are `markdown_exec` blocks calling
+  `vultron.wire.as2.vocab.examples.vocab_examples`; follow the generated sections
+  under `docs/reference/messages/_occasions/sections/` and
+  `docs/reference/activitypub/objects.md`.
   `docs/reference/specs/protocol.md` is the exemplar for **mapping tables**
   (`render_for_kind`), not for examples. Tables are committed `include-markdown`
   fragments instead (ADR-0128, § Occasions), because MkDocs does not rewrite links
@@ -181,9 +182,10 @@ how-to tree.
 - **Fragments render from the re-parsed YAML, not from the registry**, so the
   YAML carries every fact a fragment shows; a new column is a field on
   `OccasionRow` plus a renderer change.
-- **The fragments are in `exclude_docs`**: built alone, a table links to
-  anchors its page lacks until it includes the sections, and each fragment would
-  publish a URL. `include-markdown` still reads them from disk.
+- **The fragments are in `exclude_docs`**: built alone, a table's links would be
+  checked against the wrong page, and each fragment would publish a URL.
+  `include-markdown` reads them from disk, so the links are checked on the host
+  page.
 - **The table fragments avoid the name `*table*.md`**: `lint-docs` exempts that
   name as generated, and their cells are occasion prose it must check (DF-09-007).
 - **The example stays an exec block inside the section fragment**: its IDs are
@@ -200,3 +202,17 @@ how-to tree.
   the Full-Case Invite replies carry; the link text and the heading are one
   string (the formal name and code when the shorthand is the occasion's own,
   otherwise the occasion's declared `heading`).
+- **How the pages include them**: `messages/index.md` opens with `lookup.md`;
+  each message page includes its slice, then one section per occasion in the
+  slice's dispatch order (`em.md` keeps its reading order). Hand-written text (the
+  introduction, an addendum, sections for shorthands with no wire activity) stays
+  around the includes; an addendum follows the section's JSON example, which is
+  the section's last block.
+- **Include paths start with `./`**: `include-markdown` resolves a path with no
+  `./` or `../` prefix against `docs/`, so `"_occasions/lookup.md"` finds nothing.
+- **The mapping status is in the generated section, not the table** (MSM-06-003):
+  the table's columns serve a sender.
+- `test/metadata/test_msm_occasions.py` checks each page includes its slice once,
+  each section once and on no other page, and no page has an exec block of its
+  own (MSM-06-001, MSM-08-004); `mkdocs build --strict` and `docs-links` check
+  the rendered links.

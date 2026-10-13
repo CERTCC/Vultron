@@ -5,13 +5,13 @@ This module derives what the occasions already say, so nothing here is typed
 by hand:
 
 - the mapping status of an entry (MSM-06-003, MSM-08-006);
-- the discriminator, the payload fields or state contexts that tell an
-  entry's occasions apart;
+- the "Distinguished by" value of an occasion, the field value or state
+  context that tells it apart from its entry's other occasions;
 - the "Sent by" value of an occasion, from the sender entitlement its received
   use case declares (MSM-08-005).
 
-:class:`RowSpec` is the derived view of one entry that the page renderer and
-the MSM-06-002 ratchet read.
+:class:`RowSpec` is the derived view of one entry that the MSM-06-002 ratchet
+reads.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -136,24 +136,6 @@ def mapping_status(
     if shorthand_is_shared(shorthand, registry):
         return MappingStatus.EXPANSION
     return MappingStatus.DIRECT
-
-
-def discriminator(occasions: Iterable[Occasion]) -> str | None:
-    """Name what tells the *occasions* of one entry apart, or ``None``.
-
-    A field-value distinguisher contributes its field name; a state context
-    contributes "<machine> state context".  Distinct names are joined with
-    `` / `` in first-seen order.
-    """
-    names: list[str] = []
-    for occasion in occasions:
-        d = occasion.distinguisher
-        if isinstance(d, FieldValue):
-            names.append(d.field)
-        elif isinstance(d, StateContext):
-            names.append(f"{d.machine.__name__} state context")
-    unique = list(dict.fromkeys(names))
-    return " / ".join(unique) if unique else None
 
 
 # ---------------------------------------------------------------------------
@@ -316,14 +298,12 @@ class RowSpec:
         page: Primary page slug under ``docs/reference/messages/``.
         shorthands: The distinct shorthands the entry's occasions carry.
         status: How the shorthands relate to this wire form.
-        discriminator: What tells the entry's occasions apart, or ``None``.
     """
 
     semantics: MessageSemantics
     page: str
     shorthands: tuple[str, ...]
     status: MappingStatus
-    discriminator: str | None
 
 
 def row_for(
@@ -343,7 +323,6 @@ def row_for(
         page=entry.page.value,
         shorthands=tuple(s.value for s in entry_shorthands(entry)),
         status=mapping_status(entry, registry),
-        discriminator=discriminator(entry.occasions),
     )
 
 
@@ -359,13 +338,6 @@ ROW_SPECS: tuple[RowSpec, ...] = tuple(
         key=lambda row: PAGE_SLUGS.index(row.page),
     )
 )
-
-#: Mapping from page slug → tuple of RowSpecs assigned to that page.
-PAGE_ROWS: dict[str, tuple[RowSpec, ...]] = {
-    slug: tuple(row for row in ROW_SPECS if row.page == slug)
-    for slug in PAGE_SLUGS
-    if any(row.page == slug for row in ROW_SPECS)
-}
 
 #: Mapping from ``MessageSemantics`` → ``RowSpec`` for O(1) lookup.
 SEMANTICS_TO_ROW: dict[MessageSemantics, RowSpec] = {

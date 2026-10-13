@@ -771,7 +771,7 @@ groups:
     verification_debt: '#3612'
     statement: Domain objects MUST NOT directly inherit from ActivityStreams base types, and wire classes MUST NOT carry
       translation methods; AS2 serialization MUST be performed by the rendering port (ARCH-20-001)
-      (see `notes/domain-model-separation.md` and ADR-0099)
+      (see `notes/wire-core-boundary.md` and ADR-0099)
     rationale: The two branches stay distinct type hierarchies, and the translation between them lives on the adapter side —
       the one layer permitted to see both — so neither branch imports the other.
     adr:
@@ -4362,7 +4362,7 @@ groups:
       An Observer that accepts the stub Invite consents to the active embargo
       (MV-10-006). The absence of a remediation function does not change what
       the Observer is entitled to receive once it is active. Introducing a separate
-      reduced delivery tier for Observers is deferred: `notes/stub-objects.md`
+      reduced delivery tier for Observers is deferred: `notes/selective-disclosure.md`
       describes the potential future mechanism but it is not yet implemented.
     verification: >-
       Integration tests in `test/demo/` confirm that an active Observer receives full

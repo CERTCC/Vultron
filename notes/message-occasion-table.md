@@ -3,15 +3,14 @@ title: "Message Occasion Table: Generated Fragments, Addressees and Sender Rules
 status: active
 kind: plan
 tracks:
-  - "#4431"
   - "#4432"
   - "#4438"
   - "#4417"
 description: >-
-  Remaining design for the occasion lookup table (ADR-0128, ADR-0129): the
-  pages rebuilt on the generated fragments, how "Sent by" and "Send to" are
-  derived from the sender rule, the "When…" grammar, and typed distinguishers.
-  Occasions on `SemanticEntry` landed in #4429, the generated fragments in #4430.
+  Remaining design for the occasion lookup table (ADR-0128, ADR-0129): how
+  "Sent by" and "Send to" are derived from the sender rule, the "Seen in"
+  column, the "When…" grammar, and typed distinguishers. Occasions, the
+  generated fragments and the pages that include them have landed.
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/handler-protocol.yaml
@@ -52,12 +51,12 @@ fragments (#4430) have landed (rules in `notes/message-type-reference.md`
 | send to (addressee) | `SemanticEntry.occasions` (ADR-0129) |
 | sent by | the side of the received use case's `sender_entitlement` matching the occasion's addressee (ADR-0115, ADR-0129) |
 | page | `SemanticEntry.page`, a `MessagePage` value |
-| `MappingStatus`, discriminator | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
+| `MappingStatus`, distinguished by | derived from the occasions by `vultron/metadata/msm/_mapping.py` (`evolved` declared on its occasion) |
 | "Seen in" | the include directives on workflow pages |
 
-The pages still render their old tables until #4431 rebuilds them on the
-generated fragments; the fragments exist because MkDocs does not rewrite a `.md`
-link printed from an exec block, and a lookup table is mostly links.
+The message pages include the generated fragments (#4431); the fragments exist
+because MkDocs does not rewrite a `.md` link printed from an exec block, and a
+lookup table is mostly links.
 
 ## "Sent by" is the receiver's rule
 

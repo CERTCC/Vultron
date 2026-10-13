@@ -8,6 +8,7 @@ Rejects the Stub Invite, which closes the invitee's participant record.
 - **Send:** `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`
 - **Sent by:** the invitee
 - **How-to:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

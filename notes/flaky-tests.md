@@ -45,8 +45,8 @@ and fall through to Level 2 (GitHub label search).
 > wall-clock second. A derived endpoint is an address and now carries no
 > stamp. The two tests pin the clock an hour ahead between create and read
 > (`test/support/clock.py`), so they now fail deterministically if the
-> regression returns. See `notes/datalayer-design.md` § "A Default Minted
-> From the Clock Cannot Round-Trip Through a Field That Does Not Store It".
+> regression returns. See `notes/datalayer-design.md` § "A Clock-Minted
+> Default Cannot Round-Trip Through a Field That Does Not Store It".
 >
 > Note: the two `test_integration_script_scenarios` entries were **hard-broken
 > on `main`, not flaky** — they failed deterministically. #2114 added a test that

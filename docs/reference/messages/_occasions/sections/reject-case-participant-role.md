@@ -8,6 +8,7 @@ Declines the offered role. The roster does not change.
 - **Send:** `Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])`
 - **Sent by:** not yet checked
 - **How-to:** [How to Delegate a Role to Another Participant](../../../../howto/activitypub/activities/role_delegation.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

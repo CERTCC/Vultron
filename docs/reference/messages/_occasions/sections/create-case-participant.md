@@ -8,6 +8,7 @@ Mints a participant record that pairs an actor with its roles in the case. It pr
 - **Send:** `Create(CaseParticipant)[context=VulnerabilityCase]`
 - **Sent by:** not yet checked
 - **How-to:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

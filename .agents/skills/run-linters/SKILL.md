@@ -45,7 +45,7 @@ G=.agents/skills/shared/run-if-changed.sh
   rewrap a line and move an inline `# noqa` off the line it suppresses.
 - Run mypy and pyright **after** formatting for the same reason: a wrapped line
   can strand a `# type: ignore[...]` or `# pyright: ignore[...]` on the wrong
-  line (see `notes/codebase-structure-fastapi-patterns.md`).
+  line (see `notes/codebase-structure.md`).
 - C901 enforces the complexity gate (`max-complexity = 10`); a function over
   CC=10 is a hard failure (IMPLTS-07-008).
 - RUF100 reports an unused `# noqa`. When your change fixes a baselined finding,

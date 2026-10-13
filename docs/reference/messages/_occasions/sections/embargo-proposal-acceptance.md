@@ -10,6 +10,7 @@ Records the sender's own consent to the proposed terms. The embargo becomes acti
 - **Distinguished by:** EM state `PROPOSED`
 - **How-to:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
 - **Formal definition:** [Embargo Proposal Acceptance (EA)](../../../formal_protocol/messages.md#em-message-types)
+- **Mapping status:** [collapse](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

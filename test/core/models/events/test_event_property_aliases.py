@@ -234,8 +234,12 @@ _CASES = [
     (
         RejectCaseOwnershipTransferReceivedEvent,
         MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
-        {"object_": _activity},
-        [("offer_id", "object_id"), ("offer", "object_")],
+        {"object_": _activity, "inner_object": _case},
+        [
+            ("offer_id", "object_id"),
+            ("offer", "object_"),
+            ("case_id", "inner_object_id"),
+        ],
     ),
     (
         AcceptInviteActorToCaseReceivedEvent,

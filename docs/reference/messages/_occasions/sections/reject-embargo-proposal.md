@@ -8,6 +8,7 @@ Rejects the proposal for the case. An active embargo stays in force on its curre
 - **Send:** `Reject(Event)[target=VulnerabilityCase]`
 - **Sent by:** the case owner
 - **How-to:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

@@ -7,6 +7,7 @@ Accepts the case proposal and tells the proposing actor that a case will be open
 - **When…** a Case Actor Service agrees to open the proposed case
 - **Send:** `Accept(CaseProposal)`
 - **Sent by:** the addressee of the case proposal
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

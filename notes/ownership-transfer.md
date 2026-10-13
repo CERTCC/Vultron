@@ -34,7 +34,7 @@ relevant_packages:
 
 Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053. The participant-facing
 description is `docs/topics/case_lifecycle/ownership_transfer.md`. The unbuilt close
-paths (ledgered Reject, withdrawal, deadline) are planned in
+paths (withdrawal, deadline) are planned in
 [ownership-transfer-close-paths](ownership-transfer-close-paths.md). A
 participant's `Reject` is a case event, ledgered like its `Accept` (CLP-02-012;
 [case-ledger-authority](case-ledger-authority.md#two-meanings-of-reject)).
@@ -105,6 +105,9 @@ CASE_MANAGER inbox receives Accept
   (CM-21-005) has its own id and is not ledgered, so `recorded_ownership_offer()`
   also accepts an Offer the CASE_MANAGER issued itself for the same case and
   transferee, published no earlier than the recorded Offer (latest such entry).
+- **Either answer closes the Offer for the other.** The Accept and the Reject share
+  `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so an Accept after a Reject (or the
+  reverse) is refused as "already answered".
 - **The Offer itself is not sender-checked** (#4540): anyone can record an Offer
   naming itself and then accept it, so do not treat a recorded Offer as proof of
   the offerer's authority.
@@ -164,6 +167,49 @@ node reads the new owner from the recorded Offer, never from the sender id. The
 factory already injects the guarded commit; a second `CommitCaseLedgerEntryNode`
 is an unguarded second writer that forks the hash chain (CLP-09-001).
 
+### The Reject Path (CM-21-010, CM-21-012 – CM-21-014)
+
+A declined transfer has the same shape as an accepted one:
+
+```text
+Transferee calls trigger: reject-case-ownership-transfer      ← TRIG-11-005
+  → Reject(Offer(VulnerabilityCase))
+      addressed:  to=[case_actor_id]                          ← CM-21-010
+
+CASE_MANAGER inbox receives Reject
+  → RejectCaseOwnershipTransferReceivedUseCase:
+      guard:  sender is the transferee of an open Offer
+              it recorded                                     ← CM-21-013
+              (anyone else: REFUSED, nothing written)
+      1. Commits CaseLedgerEntry (reject_case_ownership_transfer).  ← CM-21-012
+      2. Announce(CaseLedgerEntry) → all participants.
+```
+
+- **The Reject reuses the Accept's helper and guard** (CM-21-013):
+  `create_reject_ownership_transfer_tree` is the Accept's tree with no effects, and
+  `_run_ownership_answer` in `core/use_cases/received/actor/ownership.py` reads both
+  verdicts.
+- **The offerer learns of the decline from the broadcast.** It is not a recipient of
+  the Reject (CM-21-010).
+- **Replicas change no state.** `attributed_to` and every `CASE_OWNER` role stay; the
+  entry only closes the Offer, which every reader learns from the ledger itself, so
+  it has no replay effect (RSH-08-004).
+- **"Open" is read from the ledger.** An Offer is open until the ledger holds an
+  answer, withdrawal or expiry entry for it, found through `find_protocol_pair()`
+  with `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES` (CLP-11-001, CLP-11-003). The
+  replica's `VultronOwnershipTransferOfferRecord` is bookkeeping (CLP-07-014), never
+  the answer.
+- **One open Offer per case (CM-21-014).** The CASE_MANAGER refuses a new Offer while
+  one is open; once closed, the owner may offer again to anyone, the decliner
+  included. The check is `NoOpenOwnershipOfferNode`
+  (`core/behaviors/case/nodes/ownership_offer_guard.py`, reading
+  `open_ownership_offer()`) behind the CASE_MANAGER gate
+  `case_manager_admits_ownership_offer_guard`. The gate is load-bearing: the
+  transferee runs the same Offer tree on the forward, and its replica already holds
+  the ledgered Offer, still open. An Offer the ledger already records is a
+  redelivery: the guard sets `is_redelivery` and `ownership_offer_verdict` reports
+  `SKIPPED` (HP-01-003), so it is neither refused nor committed or forwarded again.
+
 ---
 
 ## Replica-side Materialization (SYNC Path)
@@ -219,5 +265,9 @@ import wire (ARCH-03-001). So the record also carries `actor_id` and `target_id`
   `target` must be inline (CLP-07), and `Add(CaseParticipant)` never seats a member
   (CM-31-011), so a missing transferee fails at commit with
   `payloadSnapshot.target must be an inline object`.
-- `await_forwarded_ownership_transfer_offer` rebuilds the factory activity the
-  accept/reject factories need, because the DataLayer reads back a plain `as_Offer`.
+- **The exchange demo drives every step through its actor's trigger**
+  (DEMOMA-05-001): the vendor's `offer-case-ownership-transfer`, then the
+  coordinator's `accept-` or `reject-case-ownership-transfer`. It gates on the
+  CASE_MANAGER's ledger entries (`offer_case_ownership_transfer`,
+  `reject_case_ownership_transfer`), not a timed read (EDF-06): the reject path's
+  "owner unchanged" check means nothing until the Reject is known processed.

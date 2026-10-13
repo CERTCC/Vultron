@@ -17,7 +17,6 @@ related_notes:
   - notes/bt-integration.md
   - notes/bt-fuzzer-nodes.md
   - notes/do-work-behaviors.md
-  - notes/domain-model-separation.md
   - notes/protocol-event-cascades.md
 relevant_packages:
   - transitions

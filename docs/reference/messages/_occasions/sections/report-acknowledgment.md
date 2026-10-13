@@ -9,6 +9,7 @@ Acknowledges receipt of the submitted report. Report submission is not replicate
 - **Sent by:** not yet checked (usually: vendor, coordinator)
 - **How-to:** [How to Report a Vulnerability](../../../../howto/activitypub/activities/report_vulnerability.md)
 - **Formal definition:** [Report Acknowledgment (RK)](../../../formal_protocol/messages.md#rm-message-types)
+- **Mapping status:** [direct](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

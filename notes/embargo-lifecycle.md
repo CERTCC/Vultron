@@ -93,9 +93,14 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   embargo in force never returns to `NONE` or `PROPOSED`.
 - **The EM state machine still governs EM (ADR-0130).** Each step names an EM
   trigger, and EM before and after MUST be one of that trigger's transitions
-  (EMB-18-005); the table is `test/core/states/test_em_transition_table.py`.
-  With several proposals open, `reject` and `accept` self-loop, and activating
-  one proposal leaves the others open as revisions.
+  (EMB-18-005). The table is `EM_TRANSITIONS` in `vultron/core/states/em.py`
+  (`is_em_transition()`; `create_em_machine()` / `em_transition_rows()` for
+  tools). `apply_register_step()` names the step's EM trigger
+  (`register_step_em_trigger()`; none or several is refused) and refuses a move
+  not in the table (`em_move_violations()`, EMB-18-006); the check is in the
+  step, so the CASE_MANAGER and every replica apply it alike. With several
+  proposals open, `reject` and `accept` self-loop, and activating one proposal
+  leaves the others open as revisions.
 - **`CaseStatus.em` is a frozen stamped copy.** Core reads `case.em_state`,
   never the copy. `append_case_status(em_state=...)` is refused, and a received
   `Add(CaseStatus)` whose EM differs has its EM refused and the case's carried

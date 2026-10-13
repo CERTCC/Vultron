@@ -95,15 +95,6 @@ isolation.
 co-located actors in the same process, or investigating ASGI delivery
 404s or cross-actor data leakage.
 
-**`domain-model-separation.md`**
-Analysis of the current coupling between wire format (ActivityStreams), domain
-logic, and persistence in `VulnerabilityCase`. Documents the recommended
-three-layer separation and migration path, DataLayer isolation options (now
-superseded by Priority 325), and `FooActivity` vs `FooEvent` naming. Includes
-post-P75-2 architectural findings.
-**Load when**: refactoring `VulnerabilityCase` or related models, evaluating
-DataLayer backends, or planning domain/wire layer decoupling.
-
 **`datalayer-design.md`**
 DataLayer architecture notes: **per-actor storage isolation (ADR-0073)** — one
 store per hosted actor, holding only that actor's knowledge, resolved by
@@ -711,17 +702,6 @@ for each consumer — including why `notes/` and `test/ci/` cannot use
 **Load when**: adding a demo scenario, editing any scenario table, working on the
 scenario dumper or its pre-commit hook, or wondering why a scenario table refuses
 to be hand-edited.
-
-**`codebase-structure-fastapi-patterns.md`**
-FastAPI and test infrastructure patterns: router test override pattern
-(`_shared_dl`, `dependency_overrides`), circular import fix pattern
-(`_helpers.py`), FastAPI `response_model` / `status_code` conventions,
-health check and Docker health check design, formatter/type-checker pragma notes,
-Python 3.14 compatibility deferral, surrogate-key routing collision
-handling, and logger name verification.
-**Load when**: writing FastAPI router tests, debugging import cycles,
-implementing health check endpoints, or resolving surrogate-key routing
-collisions.
 
 **`triggerable-behaviors.md`**
 Design notes for PRIORITY-30 trigger endpoints: trigger scope, endpoint
