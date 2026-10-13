@@ -34,6 +34,7 @@ Provides:
 """
 
 import logging
+from datetime import datetime
 
 import py_trees
 
@@ -63,6 +64,7 @@ def create_accept_ownership_transfer_tree(
     offer_id: str | None,
     sender_id: str,
     answer_id: str,
+    now: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``AcceptCaseOwnershipTransferReceivedUseCase``.
 
@@ -81,6 +83,9 @@ def create_accept_ownership_transfer_tree(
             CASE_MANAGER it must be the transferee of the open Offer it
             recorded; at a replica it must be the CASE_MANAGER.
         answer_id: The Accept's own id, so a redelivery is recognised.
+        now: The instant the Offer's ``end_time`` is compared against; an
+            Accept at or after it is refused (CM-21-016).  ``None`` reads the
+            clock when the guard runs.
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -93,6 +98,7 @@ def create_accept_ownership_transfer_tree(
             offer_id=offer_id,
             sender_actor_id=sender_id,
             reply_id=answer_id,
+            now=now,
         ),
         precondition_guards=[],
         # A receiver that does not hold the case is simply not its
@@ -126,6 +132,7 @@ def create_reject_ownership_transfer_tree(
     offer_id: str | None,
     sender_id: str,
     answer_id: str,
+    now: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``RejectCaseOwnershipTransferReceivedUseCase``.
 
@@ -141,6 +148,7 @@ def create_reject_ownership_transfer_tree(
             CASE_MANAGER's forward of it).
         sender_id: The Reject's sender, checked as for the Accept.
         answer_id: The Reject's own id, so a redelivery is recognised.
+        now: As for the Accept: a Reject after the deadline is refused.
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -155,6 +163,7 @@ def create_reject_ownership_transfer_tree(
             offer_id=offer_id,
             sender_actor_id=sender_id,
             reply_id=answer_id,
+            now=now,
         ),
         precondition_guards=[],
         # As for the Accept: a receiver not holding the case is not its
@@ -174,6 +183,7 @@ def create_undo_ownership_transfer_tree(
     offer_id: str | None,
     sender_id: str,
     undo_id: str,
+    now: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``UndoCaseOwnershipTransferReceivedUseCase``.
 
@@ -190,6 +200,7 @@ def create_undo_ownership_transfer_tree(
         sender_id: The Undo's sender: at the CASE_MANAGER it must be the
             offerer, still the Case Owner; at a replica, the CASE_MANAGER.
         undo_id: The Undo's own id, so a redelivery is recognised.
+        now: As for the Accept: an expired Offer cannot be withdrawn.
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -202,6 +213,7 @@ def create_undo_ownership_transfer_tree(
             offer_id=offer_id,
             sender_actor_id=sender_id,
             reply_id=undo_id,
+            now=now,
         ),
         precondition_guards=[],
         # As for the Reject: no effect follows the commit, and a receiver
@@ -222,6 +234,7 @@ def create_offer_ownership_transfer_tree(
     original_actor_id: str | None,
     store_offer: StoreReceivedObjectNode | None = None,
     offer_id: str | None = None,
+    answer_deadline: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``OfferCaseOwnershipTransferReceivedUseCase``.
 
@@ -248,6 +261,9 @@ def create_offer_ownership_transfer_tree(
             refuses it while an earlier ownership-transfer Offer for the case
             is open (CM-21-014); a redelivery of the same Offer is not an
             earlier one.
+        answer_deadline: The Offer's ``end_time`` in UTC, if it carries one
+            (CM-21-016); the forward carries it, so the transferee knows
+            when it may no longer answer.
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -266,6 +282,7 @@ def create_offer_ownership_transfer_tree(
                 case_id=case_id,
                 transferee_id=transferee_id,
                 original_actor_id=original_actor_id,
+                end_time=answer_deadline,
             )
         )
     precondition_guards: list[py_trees.behaviour.Behaviour] = []

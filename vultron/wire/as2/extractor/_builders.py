@@ -169,8 +169,15 @@ def _build_activity_snapshot(
     target: object,
     origin: object,
     context: object,
+    end_time: datetime | None = None,
 ) -> VultronActivity:
     """Build a VultronActivity snapshot from raw AS2 fields.
+
+    ``end_time`` is carried only when the caller passes it, with the offset
+    it arrived with (CS-13-005): for the ownership-transfer Offer it is the
+    binding deadline to answer, which the CASE_MANAGER reads back from the
+    ledgered Offer (CM-21-016).  Other activities' ``endTime`` is not part of
+    what their entries record.
 
     ``attributed_to`` is carried because it is the *only* record of who asked for
     a delegated message: under CM-24-001 the CaseActor is the `actor` of an
@@ -208,6 +215,7 @@ def _build_activity_snapshot(
         content=getattr(activity, "content", None) or None,
         suggested_roles=getattr(activity, "suggested_roles", None) or None,
         roles=getattr(activity, "roles", None) or None,
+        end_time=end_time,
     )
 
 
@@ -676,8 +684,12 @@ def _build_object_kwargs(
     activity: as_Activity,
     actor_id: str,
     origin: object,
+    activity_end_time: datetime | None = None,
 ) -> dict[str, Any]:
     """Build the domain-field kwargs dict for ``extract_intent``.
+
+    *activity_end_time* is passed through to the activity snapshot (see
+    :func:`_build_activity_snapshot`).
 
     Uses type_ string comparison because the wire parser returns ``as_Object``
     (base class) for nested objects; isinstance checks against Vultron subtypes
@@ -688,7 +700,13 @@ def _build_object_kwargs(
     kw: dict[str, Any] = {}
     if include_activity:
         kw["activity"] = _build_activity_snapshot(
-            activity, actor_id, obj, target, origin, context
+            activity,
+            actor_id,
+            obj,
+            target,
+            origin,
+            context,
+            end_time=activity_end_time,
         )
     if obj is None:
         return kw

@@ -220,11 +220,6 @@ def test_withdraw_case_ownership_transfer_trigger_is_registered() -> None:
 
 
 @pytest.mark.spec("TRIG-11-007")
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="TRIG-11-007: the offer trigger takes no end_time yet. #4491.",
-)
 def test_offer_case_ownership_transfer_trigger_accepts_end_time() -> None:
     (row,) = [
         row for row in entries() if row.verb == "offer-case-ownership-transfer"

@@ -63,6 +63,9 @@ from test.architecture._ledger_commit_inventory import (
     received_commit_semantics,
 )
 from vultron.core.models.events.base import MessageSemantics as MS
+from vultron.core.models.protocol_pair import (
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+)
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_EVENT_TYPE,
     HONOUR_LATE_ACCEPT_EVENT_TYPE,
@@ -183,6 +186,12 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         "the offerer's withdrawal closes the ownership-transfer Offer and"
         " changes no owner or role; the open state is read from the ledger"
         " itself, not from replica state (CM-21-014, CM-21-015)"
+    ),
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE: (
+        "the CASE_MANAGER's expiry record closes the ownership-transfer Offer"
+        " and changes no owner or role; the open state is read from the ledger"
+        " itself, so a replica learns the expiry from the entry and never"
+        " computes one (CM-21-014, CM-21-017)"
     ),
     MS.OFFER_CASE_PARTICIPANT_ROLE.value: (
         "the CASE_MANAGER records the role-delegation offer as an assertion"

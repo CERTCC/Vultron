@@ -842,12 +842,14 @@ class _ActorsMixin:
         content: str | None = None,
         to: list[str] | None = None,
         attributed_to: str | None = None,
+        end_time: datetime | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
         Emits the offer from ``actor`` to ``transferee_id``.  The case is read
         from the DataLayer and passed inline so the recipient can distinguish
-        this from a ``SUBMIT_REPORT`` offer (TRIG-11-001).
+        this from a ``SUBMIT_REPORT`` offer (TRIG-11-001).  *end_time*, when
+        given, is the Offer's deadline to answer (TRIG-11-007, CM-21-016).
         """
         case = _case_for_wire(self._dl, case_id)
         extra: dict[str, Any] = {
@@ -858,6 +860,8 @@ class _ActorsMixin:
             extra["content"] = content
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
+        if end_time is not None:
+            extra["end_time"] = end_time
         activity = offer_case_ownership_transfer_activity(
             case=case,
             target=transferee_id,

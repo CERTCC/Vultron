@@ -92,6 +92,7 @@ Spec: HP-01-006, HP-01-007, CM-10-004, PCR-03-001.
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum, auto
 from typing import Any, ClassVar
 
@@ -102,7 +103,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -946,8 +947,9 @@ class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
     - At the **CASE_MANAGER** the sender must be the party to an
       ownership-transfer Offer the CASE_MANAGER recorded for the case that
       the subclass names (:meth:`_party_refusal`), and the Offer must still be
-      open: no answer or withdrawal is ledgered for it (CM-21-014).  The Offer
-      is read from this store's ledger, never from the copy the reply embeds,
+      open: no answer, withdrawal or expiry is ledgered for it (CM-21-014),
+      and its ``end_time``, if any, has not passed (CM-21-016).  The Offer is
+      read from this store's ledger, never from the copy the reply embeds,
       which the sender wrote.
     - A **redelivery** of the reply that already closed the Offer is not a
       refusal (HP-01-003), but it must change nothing: by then ownership may
@@ -962,11 +964,22 @@ class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
     leaves nothing to establish the sender's standing against, so the sender
     is refused.
 
-    Spec: CM-21-011, CM-21-013, CM-21-014, CM-21-015, PCR-03-001, HP-01-006.
+    The deadline is read here as well as by the CASE_MANAGER's expiry step,
+    which runs first and ledgers the expiry
+    (:func:`~vultron.core.behaviors.case.ownership_expiry_tree.create_ownership_offer_expiry_tree`):
+    a reply after ``end_time`` is refused even when that record could not be
+    committed, so the deadline binds whatever the ledger holds.  A replica
+    never reads it: it learns an expiry only from the entry (CM-21-017).
+
+    Spec: CM-21-011, CM-21-013, CM-21-014, CM-21-015, CM-21-016, PCR-03-001,
+    HP-01-006.
     """
 
     _spec: ClassVar[str]
     """The requirement a refusal cites; each subclass names its own."""
+
+    _late_spec: ClassVar[str]
+    """The requirements a refusal after the Offer's deadline cites."""
 
     def __init__(
         self,
@@ -974,6 +987,7 @@ class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
         offer_id: str | None,
         sender_actor_id: str,
         reply_id: str,
+        now: datetime | None = None,
         name: str | None = None,
     ) -> None:
         """Create the guard.
@@ -984,6 +998,9 @@ class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
                 none, which refuses at the CASE_MANAGER).
             sender_actor_id: The reply's sender.
             reply_id: The reply's own id, so a redelivery is recognised.
+            now: The instant the Offer's deadline is compared against: the
+                one the CASE_MANAGER's expiry step used.  ``None`` reads the
+                clock when the guard runs.
             name: Optional node name.
         """
         super().__init__(name=name or self.__class__.__name__)
@@ -991,12 +1008,32 @@ class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
         self._offer_id = offer_id
         self._sender_actor_id = sender_actor_id
         self._reply_id = reply_id
+        self._now = now
         self.is_redelivery = False
         """``True`` when the last run found the reply already ledgered as
         the one that closed the Offer: a benign no-op, not a refusal."""
 
     def _refuse(self, reason: str) -> Status:
         self.feedback_message = f"{reason} — REFUSED ({self._spec}, HP-01-006)"
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def _refuse_late(self, offer: RecordedOwnershipOffer) -> Status:
+        """Refuse a reply to *offer* that came after its deadline.
+
+        The deadline is binding (CM-21-016): nothing the reply asks for is
+        done and it is not ledgered.  Each subclass cites the rule that
+        refuses its reply (:attr:`_late_spec`).
+        """
+        deadline = (
+            offer.end_time.isoformat() if offer.end_time is not None else "?"
+        )
+        self.feedback_message = (
+            f"Ownership-transfer Offer '{offer.offer_id}' for case"
+            f" '{self._case_id}' expired at its end_time {deadline}; reply"
+            f" '{self._reply_id}' from '{self._sender_actor_id}' came too late"
+            f" — REFUSED ({self._late_spec}, HP-01-006)"
+        )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
@@ -1040,11 +1077,15 @@ class SenderIsOwnershipOfferPartyNode(SenderEntitlementConditionNode):
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         if offer.is_answered_other_than(self._reply_id):
+            if offer.closed_by_expiry:
+                return self._refuse_late(offer)
             return self._refuse(
                 f"Ownership-transfer Offer '{offer.offer_id}' for case"
                 f" '{self._case_id}' was already closed by"
                 f" '{offer.answer_id}' ({offer.closed_by_event_type})"
             )
+        if offer.is_past_deadline(self._now or now_utc()):
+            return self._refuse_late(offer)
         if (why := self._standing_refusal(case, offer)) is not None:
             return self._refuse(why)
         return Status.SUCCESS
@@ -1110,6 +1151,7 @@ class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
     """
 
     _spec = "CM-21-011"
+    _late_spec = "CM-21-016"
 
     def _party_refusal(
         self, offer: RecordedOwnershipOffer, manager_id: str
@@ -1143,6 +1185,9 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
     """
 
     _spec = "CM-21-015"
+    # An expired Offer is closed (CM-21-017), and a closed one cannot be
+    # withdrawn (CM-21-015).
+    _late_spec = "CM-21-015, CM-21-017"
 
     def _party_refusal(
         self, offer: RecordedOwnershipOffer, manager_id: str
