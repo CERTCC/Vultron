@@ -355,8 +355,8 @@ def test_occasion_anchors_are_unique_across_the_registry():
     """The uniqueness half of MSM-08-004.
 
     That each anchor resolves to one section on its page, and that each
-    section is referenced by a table row, is tested once the pages carry
-    occasion sections (#4431).
+    section is referenced by a table row, is tested over the pages in
+    ``test/metadata/test_msm_occasions.py``.
     """
     counts = Counter(occasion.anchor for _, occasion in _OCCASIONS)
     assert [a for a, n in counts.items() if n > 1] == []

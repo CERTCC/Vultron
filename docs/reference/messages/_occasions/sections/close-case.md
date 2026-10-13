@@ -8,6 +8,7 @@ Leaves the case, moving the sender's RM state to Closed.
 - **Send:** `Leave(VulnerabilityCase)`
 - **Sent by:** not yet checked
 - **How-to:** [How to Advance a Case Through Report Management](../../../../howto/activitypub/activities/manage_case.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

@@ -8,6 +8,7 @@ Tells participants the terms of the active embargo. It proposes nothing.
 - **Send:** `Announce(Event)[context=VulnerabilityCase]`
 - **Sent by:** the case manager
 - **How-to:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
+- **Mapping status:** [none](../../index.md#mapping-status)
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (
