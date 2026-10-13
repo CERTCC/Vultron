@@ -34,7 +34,7 @@ The design rationale for keeping the two vocabularies distinct is recorded in [A
 ## The pages
 
 Each page includes its slice of the occasion table under an Occasions heading.
-One section per occasion follows, stating when it applies, the wire activity to send, who may send it, the field or state that distinguishes it, its mapping status, and a rendered example.
+One section per occasion follows, stating when it applies, the wire activity to send, who may send it, the field or state that distinguishes it, its mapping status, the how-to guides that embed it, and a rendered example.
 The four formal-model pages end with a section for each shorthand that has no dedicated wire activity.
 
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
