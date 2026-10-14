@@ -332,9 +332,13 @@ def _sender_guard_builders() -> set[tuple[str, str]]:
 
 def test_the_scan_counts_a_keyword_splat_into_the_factory() -> None:
     """A ``**kwargs`` splat cannot carry ``sender_guard`` past the ratchet."""
-    call = ast.parse("create_receive_activity_tree(name, **kwargs)").body[0]
-    assert isinstance(call, ast.Expr) and isinstance(call.value, ast.Call)
-    assert _may_pass_sender_guard(call.value)
+    # create_receive_activity_tree(**kwargs)
+    call = ast.Call(
+        func=ast.Name(id=_FACTORY),
+        args=[],
+        keywords=[ast.keyword(arg=None, value=ast.Name(id="kwargs"))],
+    )
+    assert _may_pass_sender_guard(call)
 
 
 @pytest.mark.spec("HP-01-008")
