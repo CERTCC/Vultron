@@ -101,7 +101,6 @@ _Site = tuple[str, str]
 _C = "vultron/core/behaviors/case"
 _E = "vultron/core/behaviors/embargo"
 _N = "vultron/core/behaviors/note"
-_R = "vultron/core/behaviors/report"
 _S = "vultron/core/behaviors/status"
 
 # ---------------------------------------------------------------------------
@@ -241,11 +240,6 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
 # replica_emit_exemptions.py)
 REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
-        (
-            "ACK_ECHO",
-            f"{_R}/received_report_trees.py",
-            "create_ack_report_received_tree",
-        ),
         (
             "CASE_PROPOSAL",
             f"{_C}/case_proposal_received_tree.py",

@@ -168,11 +168,13 @@ class TriggerActivityPort(Protocol):
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
+        content: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a ``Read(Offer(Report))`` ack-report activity.
 
-        Per ADR-0021 CLP-10-001: routes the activity to the Case Actor so the
-        CaseActor can commit a canonical ledger entry for this event.
+        RK is addressed to the reporter, never to the CASE_MANAGER, and is
+        never ledgered (RMB-08-003).  ``content`` carries the trigger's
+        optional ``note`` (TRIG-03-003).
         Returns ``(activity_id, activity_dict)``.
         """
         ...

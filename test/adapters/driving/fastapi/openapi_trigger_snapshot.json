@@ -73,6 +73,31 @@
         "title": "AcceptEmbargoRequest",
         "type": "object"
       },
+      "AckReportRequest": {
+        "description": "Request body for the ack-report trigger endpoint.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "offer_id": {
+            "title": "Offer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "offer_id"
+        ],
+        "title": "AckReportRequest",
+        "type": "object"
+      },
       "ActivityResult": {
         "additionalProperties": false,
         "description": "Result of a BT-backed trigger that emits one activity.\n\n``activity`` is the emitted activity's JSON object as the BT captured\nit, or ``None`` when the tree completed without capturing one (an\nidempotent no-op path); the key is emitted either way.\n``emitting_actor_id`` names the actor whose outbox holds the activity \u2014 on\na delegated emit that is the CASE_MANAGER, not the requesting actor\n(CM-24-001), and the router drains that actor's outbox.",
@@ -1902,6 +1927,59 @@
           }
         },
         "summary": "Judge the case valid: Accept(full-case Invite), RV.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/ack-report": {
+      "post": {
+        "description": "Triggers the ack-report behavior for the given actor. Emits a Read(Offer(VulnerabilityReport)) activity (RK) to the reporter and returns it in the response body (TRIG-04-001). Only an actor the Offer was addressed to may acknowledge it; it may do so whether or not a case exists, and RK is never sent to the CASE_MANAGER (RMB-08-003).",
+        "operationId": "actors_trigger_ack_report",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AckReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trigger report acknowledgement.",
         "tags": [
           "Triggers"
         ]

@@ -137,11 +137,18 @@ def test_submit_report_persists_activity_and_report(reporter, report, dl):
     assert dl.read(report.id_) is not None
 
 
-def test_read_activity_handler_noop_returns_applied(reporter, report, dl):
+def test_read_activity_from_a_non_addressee_is_refused(reporter, report, dl):
     activity = as_Read(
         actor=reporter, object_=as_Offer(actor=reporter, object_=report)
     )
-    _call_use_case(activity, AckReportReceivedUseCase, dl=dl)
+    # The receiver holds no record of the Offer naming the sender as its
+    # addressee, so the sender is not entitled to acknowledge it (RMB-08-004).
+    _call_use_case(
+        activity,
+        AckReportReceivedUseCase,
+        dl=dl,
+        expected=HandlerDisposition.REFUSED,
+    )
 
 
 def test_accept_offer(reporter, report, dl):

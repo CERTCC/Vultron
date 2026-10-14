@@ -150,7 +150,6 @@ SENT_BY_WORDING: dict[SenderEntitlementKind, str] = {
     SenderEntitlementKind.CASE_OWNER: "the case owner",
     SenderEntitlementKind.ACTIVE_PARTICIPANT: "an active participant",
     SenderEntitlementKind.INVITEE: "the invitee",
-    SenderEntitlementKind.EXECUTING_ACTOR: "the receiving actor itself",
     SenderEntitlementKind.ANY_ACTOR: "any actor",
 }
 

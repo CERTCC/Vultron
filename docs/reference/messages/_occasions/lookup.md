@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | a Reporter has written up a vulnerability and is about to submit the report | `Create(VulnerabilityReport)` | any actor (usually: finder, reporter) | — | [Create report](../rm.md#create-report) |
 | a Reporter submits a vulnerability report to a Vendor or Coordinator | `Offer(VulnerabilityReport)` | any actor (usually: reporter) | — | [Report Submission (RS)](../rm.md#report-submission) |
-| a report receiver has read a submitted report | `Read(Offer(VulnerabilityReport))` | not yet checked (usually: vendor, coordinator) | — | [Report Acknowledgment (RK)](../rm.md#report-acknowledgment) |
+| a report receiver has read a submitted report | `Read(Offer(VulnerabilityReport))` | the addressee of the vulnerability report (usually: vendor, coordinator) | — | [Report Acknowledgment (RK)](../rm.md#report-acknowledgment) |
 | a report receiver judges the report valid | `Accept(Offer(VulnerabilityReport))` | an active participant (usually: vendor, coordinator) | — | [Validate report](../rm.md#report-valid) |
 | a report receiver judges the report invalid | `TentativeReject(Offer(VulnerabilityReport))` | an active participant (usually: vendor, coordinator) | — | [Invalidate report](../rm.md#report-invalid) |
 | a report receiver closes the report | `Reject(Offer(VulnerabilityReport))` | an active participant (usually: vendor, coordinator) | — | [Close report](../rm.md#report-closed) |

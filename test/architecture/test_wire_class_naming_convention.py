@@ -68,6 +68,7 @@ def _import_tree(package: str) -> None:
 
 def _all_subclasses(cls: type) -> set[type]:
     found: set[type] = set()
+    sub: type
     for sub in cls.__subclasses__():
         found.add(sub)
         found |= _all_subclasses(sub)

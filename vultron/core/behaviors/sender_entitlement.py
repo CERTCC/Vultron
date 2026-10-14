@@ -29,8 +29,6 @@ Entitlement kinds
   (full active-participant predicate tracked by #2257)
 - ``NAMED_ACTOR`` — sender must match a specific named actor ID (e.g. a
   blackboard-resolved CaseActor identity)
-- ``EXECUTING_ACTOR`` — sender must equal the executing actor itself (ack echo
-  path, ISSUE-2667)
 - ``INVITEE`` — sender must be the sole ``to`` recipient of the recorded Invite
   it answers (EP-09-010, CM-11-017)
 - ``ANY_ACTOR`` — any actor may send it, whatever its standing in any case: a new
@@ -63,6 +61,9 @@ Nodes
 - ``SenderIsProposalAddresseeNode`` — guards that the sender is the actor the
   vendor addressed a CaseProposal to, as recorded on the report case link
   (``NAMED_ACTOR`` kind; CP-06-005)
+- ``SenderIsOfferAddresseeNode`` — guards that the sender is an actor the
+  ``Offer(VulnerabilityReport)`` was addressed to, as recorded on this store's
+  offer record (``NAMED_ACTOR`` kind; RMB-08-004)
 - ``SenderMayAssertEmbargoNode`` — guards an embargo activity: at the
   CASE_MANAGER the sender must hold the standing the activity needs (an active
   participant, or the Case Owner); at any other replica it must be the
@@ -77,8 +78,6 @@ Nodes
   ownership-transfer Offer: at the CASE_MANAGER the sender must be the Case
   Owner that made the open Offer it recorded; at any other replica it must be
   the CASE_MANAGER (``CASE_OWNER`` kind; CM-21-015, PCR-03-001)
-- ``SenderIsExecutingActorNode`` — guards that the sender equals the executing
-  actor; merged from ``CheckSenderIsExecutingActorNode``
 - ``SenderIsCaseOwnerNode`` — guards that the sender holds CVDRole.CASE_OWNER;
   merged from ``CheckIsCaseOwnerNode``
 
@@ -107,6 +106,7 @@ from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -117,6 +117,7 @@ from vultron.core.participants.ownership_offer import (
 from vultron.core.participants.recipients import is_case_content_recipient
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
+    is_addressed_to,
     normalise_actor_id,
     same_actor_id,
 )
@@ -171,9 +172,6 @@ class SenderEntitlementKind(Enum):
 
     NAMED_ACTOR = auto()
     """Sender must match a specific named actor ID."""
-
-    EXECUTING_ACTOR = auto()
-    """Sender must equal the executing actor (ack echo path)."""
 
     INVITEE = auto()
     """Sender must be the sole ``to`` recipient of the recorded Invite."""
@@ -715,6 +713,81 @@ class SenderIsProposalAddresseeNode(SenderEntitlementConditionNode):
 
 
 # ---------------------------------------------------------------------------
+# Condition node: NAMED_ACTOR (recorded Offer(Report) addressee)
+# ---------------------------------------------------------------------------
+
+
+class SenderIsOfferAddresseeNode(SenderEntitlementConditionNode):
+    """Guard: sender must be an actor the ``Offer(VulnerabilityReport)`` was
+    addressed to.
+
+    ``RK`` (``Read(Offer(VulnerabilityReport))``) is sent by the actor that
+    received the report submission, to the reporter (RMB-08-003).  The
+    reporter holds the Offer it sent, so this guard reads this store's
+    :class:`~vultron.core.models.offer_record.VultronOfferRecord` for the
+    acknowledged Offer and returns ``SUCCESS`` only when the sender is one of
+    its ``offer_to`` recipients.  The record is this store's own, never the
+    copy the acknowledgement embeds, which the sender wrote.
+
+    A store that holds no record of the Offer has nothing to establish the
+    sender's standing against, so the sender is refused.
+
+    The addressee of the request is the entitled sender, so the kind is
+    ``NAMED_ACTOR`` (ADR-0129).
+
+    Spec: RMB-08-004, HP-01-006.
+    """
+
+    def __init__(
+        self,
+        offer_id: str | None,
+        sender_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            offer_id: The Offer the acknowledgement names (``None`` when it
+                names none, which refuses).
+            sender_actor_id: The acknowledgement's sender.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.offer_id = offer_id
+        self.sender_actor_id = sender_actor_id
+
+    def _refuse(self, reason: str) -> Status:
+        self.feedback_message = f"{reason} — REFUSED (RMB-08-004, HP-01-006)"
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        if self.offer_id is None:
+            return self._refuse(
+                f"Acknowledgement from '{self.sender_actor_id}' names no Offer"
+            )
+        record = self.datalayer.read(
+            VultronOfferRecord.build_id(self.offer_id)
+        )
+        if not isinstance(record, VultronOfferRecord):
+            return self._refuse(
+                f"No record of Offer '{self.offer_id}' in this store, so"
+                f" sender '{self.sender_actor_id}' cannot be shown to be its"
+                " addressee"
+            )
+        if is_addressed_to(self.sender_actor_id, record.offer_to):
+            return Status.SUCCESS
+        return self._refuse(
+            f"Sender '{self.sender_actor_id}' is not an addressee of Offer"
+            f" '{self.offer_id}' ({record.offer_to})"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Condition node: embargo activity (CASE_MANAGER arm / replica arm)
 # ---------------------------------------------------------------------------
 
@@ -1217,50 +1290,6 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
 
 
 # ---------------------------------------------------------------------------
-# Condition node: EXECUTING_ACTOR
-# ---------------------------------------------------------------------------
-
-
-class SenderIsExecutingActorNode(SenderEntitlementConditionNode):
-    """Guard: sender must equal the executing actor.
-
-    Comparison uses :func:`~vultron.core.predicates.addressing.same_actor_id`,
-    so ids differing only by a trailing slash are considered equal.
-
-    Used to guard the ack echo path: the ``Read(Offer(Report))`` must have
-    been sent by the actor executing the tree (ISSUE-2667).
-
-    Merged from ``CheckSenderIsExecutingActorNode`` (ADR-0115, AC-2).
-
-    Spec: HP-01-006.
-    """
-
-    def __init__(self, sender_actor_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.sender_actor_id = sender_actor_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.actor_id is not None
-
-        if same_actor_id(self.sender_actor_id, self.actor_id):
-            return Status.SUCCESS
-
-        self.feedback_message = (
-            f"Sender '{self.sender_actor_id}' is not the executing actor"
-            f" '{self.actor_id}' — REFUSED (HP-01-006)"
-        )
-        self.logger.debug(
-            "%s: sender '%s' is not the executing actor '%s'",
-            self.name,
-            self.sender_actor_id,
-            self.actor_id,
-        )
-        return Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
 # Condition node: CASE_OWNER
 # ---------------------------------------------------------------------------
 
@@ -1419,7 +1448,7 @@ __all__ = [
     "SenderIsNamedActorNode",
     "SenderMayAssertEmbargoNode",
     "SenderIsInviteeNode",
-    "SenderIsExecutingActorNode",
+    "SenderIsOfferAddresseeNode",
     "SenderIsCaseOwnerNode",
     "SenderIsNoteAuthorNode",
 ]
