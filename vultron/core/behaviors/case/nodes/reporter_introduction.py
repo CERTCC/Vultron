@@ -19,7 +19,7 @@ The last step of the trusted route of the received
 ``Create(VulnerabilityCase)`` bootstrap tree
 (:func:`~vultron.core.behaviors.case.create_case_received_tree.create_create_case_received_tree`).
 
-Per specs/case-bootstrap-trust.yaml CBT-01-001, CBT-01-007, CBT-01-009 and
+Per specs/case-bootstrap-trust.yaml CBT-01-001, CBT-01-007, CBT-01-009, CBT-01-012 and
 specs/case-management.yaml CM-12-003.
 """
 
@@ -51,7 +51,7 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
     its report to (CBT-01-005); the snapshot names the CASE_MANAGER, so the
     reporter then records it (CBT-01-006).  The factory carries the stored
     case with its participants, reports and active embargo inline
-    (CBT-01-007), which relays the completed snapshot (CBT-01-009).
+    (CBT-01-007, CBT-01-012), which relays the completed snapshot (CBT-01-009).
 
     Sends nothing, and returns ``SUCCESS``, when:
 
