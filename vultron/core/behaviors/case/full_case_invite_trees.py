@@ -34,9 +34,9 @@ from vultron.core.behaviors.report.rm_declaration_tree import (
     rm_gap_note,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderIsCaseManagerNode,
-    SenderIsInviteeNode,
+    SenderRule,
 )
+from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.states.rm import RM
 
@@ -46,6 +46,8 @@ def create_invite_actor_to_full_case_received_tree(
     invitee_id: str,
     inviter_id: str,
     floor: LedgerPosition,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for the full-case ``Invite(Actor)[target=Case]``.
 
@@ -69,7 +71,10 @@ def create_invite_actor_to_full_case_received_tree(
     return create_receive_activity_tree(
         name="InviteActorToFullCaseReceivedBT",
         case_id=case_id,
-        sender_guard=SenderIsCaseManagerNode(case_id=case_id, anchored=True),
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=inviter_id, case_id=case_id, case_manager_anchored=True
+        ),
         precondition_guards=[],
         replica_effects=[
             create_participant_replica_gated_tree(
@@ -97,6 +102,8 @@ def create_full_case_invite_reply_received_tree(
     replier_id: str,
     position: LedgerPosition,
     rm_state: RM,
+    *,
+    sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for a reply to the full-case Invite.
 
@@ -126,8 +133,12 @@ def create_full_case_invite_reply_received_tree(
     return create_receive_activity_tree(
         name=name,
         case_id=case_id,
-        sender_guard=SenderIsInviteeNode(
-            invite_id=invite_id, sender_actor_id=replier_id, case_id=case_id
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=replier_id,
+            case_id=case_id,
+            invite_id=invite_id,
+            invite_is_case_join=True,
         ),
         precondition_guards=[
             CheckFullCaseReplyNode(

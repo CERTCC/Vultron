@@ -27,9 +27,9 @@ if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderMayAssertEmbargoNode,
+    SenderRule,
 )
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 class AnnounceEmbargoEventToCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_MANAGER
     )
 

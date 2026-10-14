@@ -17,6 +17,7 @@ from vultron.core.behaviors.case.nodes.invite_participant import (
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
     exempt,
 )
 from vultron.core.models.events.actor import (
@@ -144,7 +145,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
     events, and outbox work live in leaf nodes of the BT.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.INVITEE
     )
 
@@ -196,6 +197,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
             case_id=case_id,
             invitee_id=invitee_id,
             invite_id=invite_id,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -246,7 +248,7 @@ class RejectInviteActorToCaseReceivedUseCase:
     other receiver of a copy refuses (HP-01-005).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.INVITEE
     )
 

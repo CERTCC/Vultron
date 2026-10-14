@@ -68,8 +68,8 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ class OfferCaseParticipantReceivedUseCase:
     (HP-01-005, #3752).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_MANAGER
     )
 
@@ -131,6 +131,8 @@ class OfferCaseParticipantReceivedUseCase:
 
         tree = create_receive_offer_case_participant_tree(
             case_id=case_id,
+            sender_id=request.actor_id,
+            sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -321,7 +323,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
     receiver refuses (HP-01-005, #3752).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_OWNER
     )
 
@@ -390,6 +392,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
             case_id=case_id,
             sender_id=request.actor_id,
             roles=offer_roles,
+            sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -426,7 +429,7 @@ class RejectOfferCaseParticipantReceivedUseCase:
     (HP-01-005, #3752).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_OWNER
     )
 
@@ -492,6 +495,7 @@ class RejectOfferCaseParticipantReceivedUseCase:
             recommended_id=recommended_id,
             case_id=case_id,
             sender_id=request.actor_id,
+            sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
             datalayer=self._dl,

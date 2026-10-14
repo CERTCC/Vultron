@@ -53,6 +53,10 @@ from test.architecture.test_received_tree_case_manager_gate import (
 from vultron.core.behaviors.case.nodes.submit_report import (
     submit_report_received_effects,
 )
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlementKind,
+    SenderRule,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.ledger_position import LedgerPosition
@@ -85,6 +89,11 @@ def _domain_values() -> dict[type, Any]:
         LedgerPosition: LedgerPosition(log_index=0, entry_hash="0" * 64),
         RM: RM.ACCEPTED,
         CVDRole: CVDRole.VENDOR,
+        # The declared rule a migrated tree composes its sender guard from
+        # (HP-01-008); a guard is a condition, so any composable rule will do.
+        SenderRule: SenderRule.in_case(
+            SenderEntitlementKind.ACTIVE_PARTICIPANT
+        ),
     }
 
 

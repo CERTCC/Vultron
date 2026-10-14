@@ -22,7 +22,10 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.behaviors.sender_entitlement import SenderEntitlementKind
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlementKind,
+    SenderRule,
+)
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import SubmitReportReceivedEvent
@@ -820,7 +823,7 @@ class TestSubmitReportDisposition:
     def test_declares_any_actor(self):
         assert (
             SubmitReportReceivedUseCase.sender_entitlement
-            is SenderEntitlementKind.ANY_ACTOR
+            == SenderRule.before_case(SenderEntitlementKind.ANY_ACTOR)
         )
 
     @pytest.mark.spec("HP-01-005")
