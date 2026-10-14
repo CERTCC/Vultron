@@ -201,7 +201,7 @@ class StoreProposalReportNode(DataLayerAction):
     The fallback — rebuilding from the proposal's serialised ``object`` — can
     only be as good as that dict's spelling, and the dict the received-side use
     case has is a ``by_alias=True`` wire dump, because the ``Accept`` must carry
-    the proposal inline on the wire (CP-05-003, AKM-03-001). In wire spelling the
+    the proposal inline on the wire (CP-05-009, AKM-03-003). In wire spelling the
     reporter is ``attributedTo``; before the core model carried the AS2 alias,
     validating that dict quietly produced a report with no reporter, and the
     complaint surfaced three nodes later as "has no attributed_to" (#2482). The

@@ -167,17 +167,36 @@ groups:
     - story_2022_046
     - story_2022_088
   - id: SYNC-02-004
-    priority: MUST_NOT
+    priority: MUST
     kind: protocol
     statement: >-
-      Each `Announce(CaseLedgerEntry)` activity MUST embed the full inline `CaseLedgerEntry`
-      object in its `object` field; a URI-only reference MUST NOT be used, because the
-      recipient needs all entry fields (including the entry hash and its predecessor's hash)
-      to validate the hash chain without an additional round-trip to the sender.
+      The `object` of each `Announce(CaseLedgerEntry)` activity MUST be the `CaseLedgerEntry`
+      itself, carried inline or by reference, with every field the recipient needs to
+      validate the hash chain (including the entry hash and its predecessor's hash).
+    verification: >-
+      Integration tests in `test/demo/` confirm that Announce(CaseLedgerEntry) carries
+      the CaseLedgerEntry with entry_hash and prev_log_hash.
+    stories:
+    - story_2022_045
+  - id: SYNC-02-005
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST embed the full inline `CaseLedgerEntry` in the `object` of each
+      `Announce(CaseLedgerEntry)` and MUST NOT use a URI-only reference there.
+    rationale: >-
+      How this codebase meets SYNC-02-004; split from it so SYNC-02-004 states only what
+      other participants observe (MS-12-010). Inlining lets the recipient validate the hash
+      chain without a round-trip to the sender, and this codebase does not yet dereference
+      (AKM-05-003). An entry fetched by reference validates the same way, so carrying it
+      inline is a shortcut of this prototype reference implementation, not a protocol rule.
     verification: >-
       Integration tests in `test/demo/` confirm that Announce(CaseLedgerEntry) embeds
       the full inline CaseLedgerEntry with entry_hash and prev_log_hash and
       contains no URI-only reference.
+    relationships:
+    - rel_type: implements
+      spec_id: SYNC-02-004
 - id: SYNC-03
   title: Conflict Handling
   specs:
@@ -803,17 +822,35 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Semantic routing of an inbound Announce(CaseLedgerEntry) MUST resolve to the
-      log-entry semantic (ANNOUNCE_CASE_LEDGER_ENTRY) on first delivery using the typed
-      inline object obtained during parsing, without requiring a DataLayer round-trip; the
+      A receiver MUST treat an inbound Announce(CaseLedgerEntry) as the announcement of a
+      ledger entry on first delivery, without needing any stored record of the entry; the
       SYNC-12-003 already-stored gate MUST remain the sole mechanism that distinguishes
       first delivery from repeat delivery.
     verification: >-
       Integration tests in `test/demo/` confirm that an inbound Announce(CaseLedgerEntry)
-      is routed to ANNOUNCE_CASE_LEDGER_ENTRY using the typed inline object alone, without
-      a DataLayer lookup on first delivery.
+      is routed to ANNOUNCE_CASE_LEDGER_ENTRY on first delivery, without a DataLayer
+      lookup.
     stories:
     - story_2022_045
+  - id: SYNC-13-007
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST resolve an inbound Announce(CaseLedgerEntry) to the log-entry
+      semantic (ANNOUNCE_CASE_LEDGER_ENTRY) on first delivery using the typed inline object
+      obtained during parsing, without a DataLayer round-trip.
+    rationale: >-
+      How this codebase meets SYNC-13-004; split from it so SYNC-13-004 states only what
+      other participants observe (MS-12-010). Classifying from the inline object relies on
+      this codebase carrying the entry inline (SYNC-02-005), a shortcut of this prototype
+      reference implementation, not a protocol rule.
+    verification: >-
+      Integration tests in `test/demo/` confirm that an inbound Announce(CaseLedgerEntry)
+      is routed to ANNOUNCE_CASE_LEDGER_ENTRY using the typed inline object alone, without
+      a DataLayer lookup on first delivery.
+    relationships:
+    - rel_type: implements
+      spec_id: SYNC-13-004
 - id: SYNC-14
   title: Out-of-Order Entry Buffering and Drain
   description: >-

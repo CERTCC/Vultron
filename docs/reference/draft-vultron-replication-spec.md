@@ -189,10 +189,8 @@ Specifically, each replicated entry is delivered as
 
 Each `Announce(CaseLedgerEntry)` activity:
 
-- MUST embed the full inline `CaseLedgerEntry` object in its `object` field.
-  A URI-only reference MUST NOT be used, because the recipient needs all
-  entry fields (`prev_log_hash`, `entry_hash`) to validate the hash chain
-  without an additional round-trip to the sender's store. (SYNC-02-004)
+- MUST carry the `CaseLedgerEntry` itself as its `object`, inline or by reference, with every field the recipient needs to validate the hash chain (`prev_log_hash`, `entry_hash`). (SYNC-02-004)
+  The reference implementation embeds the full entry inline and never sends a URI-only reference (SYNC-02-005); that is a shortcut of the prototype, not a protocol rule.
 - MUST identify the sender, the target recipient, the log entry hash, and the
   predecessor hash. (SYNC-02-002)
 
@@ -204,9 +202,9 @@ individually, not broadcast. (SYNC-02-003)
 
 ### 4.3 Semantic Routing on First Delivery
 
-Semantic routing of an inbound `Announce(CaseLedgerEntry)` MUST resolve to
-the log-entry semantic using the typed inline object obtained during parsing,
-without requiring a DataLayer round-trip on first delivery. Message ingress
+A receiver MUST treat an inbound `Announce(CaseLedgerEntry)` as the announcement of a ledger entry on first delivery, without needing any stored record of the entry (SYNC-13-004).
+The reference implementation resolves the log-entry semantic from the typed inline object obtained during parsing, without a DataLayer round-trip (SYNC-13-007).
+Message ingress
 MUST NOT use the canonical ledger store as a scratch or lookup cache for
 routing, rehydration, or classification of an inbound announce. (SYNC-13-003,
 SYNC-13-004)
@@ -498,7 +496,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-02-001 | §4.1 | Replication MUST use `Announce` activities |
 | SYNC-02-002 | §4.1 | Each replication message MUST identify sender, recipient, hashes |
 | SYNC-02-003 | §4.2 | Replication MUST originate from the CASE_MANAGER |
-| SYNC-02-004 | §4.1 | `Announce(CaseLedgerEntry)` MUST embed full inline entry |
+| SYNC-02-004 | §4.1 | `Announce(CaseLedgerEntry)` MUST carry the entry, inline or by reference |
 | SYNC-03-001 | §5.1 | Receiver MUST reject on predecessor hash mismatch |
 | SYNC-03-002 | §5.2 | Sender MUST retry from last accepted hash after rejection |
 | SYNC-03-003 | §5.3 | Replication MUST be idempotent |
@@ -534,7 +532,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-13-001 | §2.2 | Entry in DataLayer means "committed and effects applied" |
 | SYNC-13-002 | §2.2 | Adapter/wire code MUST NOT write CaseLedgerEntry to DataLayer |
 | SYNC-13-003 | §4.3 | Ingress MUST NOT use ledger store as scratch for routing |
-| SYNC-13-004 | §4.3 | Routing MUST use typed inline object, not DataLayer round-trip |
+| SYNC-13-004 | §4.3 | First delivery MUST be recognized without a stored record of the entry |
 | SYNC-13-005 | §2.1 | Only the CASE_MANAGER MUST author CaseLedgerEntry records |
 | SYNC-13-006 | §2.2 | Participants MUST obtain entries only via Announce receive behavior |
 | SYNC-14-001 | §6.2 | Forward-gap entry MUST be retained in non-ledger holding area |

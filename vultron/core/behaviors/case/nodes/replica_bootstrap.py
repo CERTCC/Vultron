@@ -174,7 +174,7 @@ class CheckInlineParticipantsNode(py_trees.behaviour.Behaviour):
     """Trusted route: every participant must be an inline typed object.
 
     Refuses before anything is persisted, so the bootstrap is atomic: the full
-    payload is valid before any state is committed (CBT-01-007, CBT-05-008).
+    payload is valid before any state is committed (CBT-01-012, CBT-05-009).
     """
 
     def __init__(
@@ -192,7 +192,7 @@ class CheckInlineParticipantsNode(py_trees.behaviour.Behaviour):
         self.feedback_message = (
             f"Bootstrap Create(VulnerabilityCase) for case '{self.case_id}'"
             f" contains {len(bare)} bare-URI participant reference(s);"
-            f" inline typed objects required (CBT-01-007, CBT-05-008)"
+            f" inline typed objects required (CBT-01-012, CBT-05-008)"
         )
         logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE

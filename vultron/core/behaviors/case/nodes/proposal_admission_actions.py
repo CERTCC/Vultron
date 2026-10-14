@@ -210,8 +210,9 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
     """Emit ``Reject(as_CaseProposal)`` through the shared outbox seam.
 
     CP-05-004: when the case actor service declines a proposal it MUST send
-    ``Reject(as_CaseProposal)`` with the proposal embedded inline as ``object_``
-    so the report receiver has full context without a second round-trip (AKM-03-001).
+    ``Reject(as_CaseProposal)`` with the proposal as ``object_``.  This codebase
+    embeds it inline (CP-05-009) so the report receiver has full context without
+    a second round-trip (AKM-03-003).
 
     The node writes no case state and creates no participants.  It is reachable
     only from the decline arm, which runs ahead of ``ResolveCaseIdSelector`` and
@@ -244,7 +245,7 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
         assert self.actor_id is not None
         assert self.datalayer is not None
         if self._proposal_dict is None:
-            # A bare URI would be unreadable to the receiver (AKM-03-001), and
+            # A bare URI would be unreadable to the receiver (AKM-03-003), and
             # there is no inline proposal to fall back on, so refuse loudly
             # rather than sending a Reject the receiver cannot interpret.
             raise ValueError(
