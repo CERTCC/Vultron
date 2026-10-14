@@ -102,9 +102,12 @@ CASE_MANAGER inbox receives Accept
   `is_redelivery` and the run reports `SKIPPED` (HP-01-003).
 - **At any other replica** the sender must be the CASE_MANAGER (PCR-03-001).
 - **The transferee answers the forward, not the recorded Offer.** The forward
-  (CM-21-005) has its own id and is not ledgered, so `recorded_ownership_offer()`
-  also accepts an Offer the CASE_MANAGER issued itself for the same case and
-  transferee, published no earlier than the recorded Offer (latest such entry).
+  (CM-21-005) has its own id and is not ledgered, so it carries `inReplyTo` set to
+  the recorded Offer's id, and `recorded_ownership_offer()` follows that link,
+  read from the CASE_MANAGER's own stored forward (CM-21-018). Never match by
+  time: with second-precision stamps, a late answer to one Offer's forward closes
+  a newer Offer to the same transferee recorded in the same second (#4565). A
+  forward with no link is a protocol error, refused, with no time fallback.
 - **Either answer closes the Offer for the other.** The Accept and the Reject share
   `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so an Accept after a Reject (or the
   reverse) is refused as "already answered".
