@@ -148,7 +148,7 @@ For each requirement in the worklist:
    code-organization, test-coverage or build fact is not protocol. Apply the
    MS-12 tree in `notes/spec-authoring-rules.md`, correct `kind:`, and add a
    `verification:` clause if the move requires one (MS-10-008). Record the
-   verdict in the PR so #3601 does not re-adjudicate it.
+   verdict in the PR.
 4. **Remove the suppression** when a story is added; `scripts/apply_story_mappings.py`
    does the formatting-preserving edit. Never add one (MS-12-007).
 

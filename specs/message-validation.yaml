@@ -38,7 +38,7 @@ groups:
     - ADR-0005
   - id: MV-01-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The semantic-dispatch stage — the type lookup that runs after `parse_activity`
       has already accepted the activity against the AS2 vocabulary — MUST handle
@@ -52,11 +52,9 @@ groups:
       malformed inputs that fail AS2 vocabulary resolution are already rejected at
       parse (MV-01-001), so this requirement and its refinements MV-01-006/007
       govern only activities that have passed the parse threshold (ISSUE-3217).
-    lint_suppress:
-    - missing_story_reference
   - id: MV-01-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The semantic-dispatch stage MUST treat an activity whose type matches no
       entry in the semantic pattern registry (`SEMANTIC_REGISTRY`, consulted by
@@ -84,12 +82,13 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MV-01-005
-    lint_suppress:
-    - missing_story_reference
   - id: MV-01-007
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/core/behaviors/inbox/test_process_payload.py::TestProcessPayloadRejectsInvalidInput::test_dispatch_failure_returns_rejected`
+      confirms an internal dispatch error becomes a rejected outcome rather than
+      propagating to the caller.
     statement: >-
       The semantic-dispatch stage MUST NOT propagate internal dispatch
       errors to callers.
@@ -265,7 +264,7 @@ groups:
     - story_2022_106
   - id: MV-09-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The outbox handler MUST raise `VultronOutboxObjectIntegrityError` and abort delivery
       if the sealed body of an outbound initiating activity carries a bare string or an
@@ -276,8 +275,6 @@ groups:
       A unit test confirms that an outbound activity whose sealed body has `object` set to a
       bare string raises `VultronOutboxObjectIntegrityError` before any delivery attempt and
       without any DataLayer read beyond the sealed body itself.
-    lint_suppress:
-    - missing_story_reference
   - id: MV-09-003
     priority: MUST
     kind: project
@@ -358,8 +355,10 @@ groups:
     - ADR-0114
   - id: MV-10-003
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection of the DataLayer write paths confirms a stub object is never saved over
+      an existing full domain object of the same id.
     statement: The DataLayer MUST NOT overwrite a full domain object with a stub object
     rationale: >-
       A recipient may receive a stub for an object they already have in full; discarding preserves

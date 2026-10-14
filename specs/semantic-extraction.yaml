@@ -16,40 +16,55 @@ groups:
   specs:
   - id: SE-01-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The system MUST match activities using activity type and object type patterns
     verification: >-
       Inspection of `vultron/wire/` confirms that `find_matching_semantics()` tests
       each registered `ActivityPattern` against both the activity type and object
       type of the incoming activity.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-01-002
     priority: MUST
-    kind: protocol
+    kind: foundation
     statement: >-
-      The semantic extraction algorithm MUST handle both fully expanded objects and URI string
-      references defensively
+      A receiver MUST cope with an object given either inline or as a URI reference, as
+      ActivityStreams 2.0 allows.
+    verification: >-
+      In `test/adapters/driving/fastapi/test_ingress_received_evidence.py`,
+      `test_by_id_rehydration_carries_the_evidence_as_received` confirms that an `Offer`
+      whose `object` is a bare URI is parsed and its object resolved, and
+      `test_in_place_hydration_carries_the_evidence` confirms that an `Announce` carrying
+      its object inline is parsed as received.
+    tags:
+    - as2
+  - id: SE-01-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The semantic extraction algorithm MUST rehydrate a URI string reference before pattern
+      matching, and MUST handle both fully expanded objects and unresolved URI strings
+      defensively.
+    rationale: >-
+      How this codebase meets SE-01-002. Split from SE-01-002 so it states only the rule
+      ActivityStreams sets (MS-12-010).
     verification: >-
       Inspection of `vultron/wire/` confirms that the semantic extraction algorithm
       attempts to rehydrate bare URI string `object_` values before pattern matching,
       handling both expanded objects and unresolved URI strings defensively.
-    lint_suppress:
-    - missing_story_reference
+    relationships:
+    - rel_type: implements
+      spec_id: SE-01-002
   - id: SE-01-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'If rehydration fails for any nested object, the system MUST: (1) log a WARNING identifying the unresolvable URI, (2) return MessageSemantics.UNKNOWN for the containing activity, and (3) store the activity in a dead-letter record per SE-04-003.'
     verification: >-
       A unit test confirms that when `object_` rehydration fails,
       `find_matching_semantics()` logs a WARNING, returns
       `MessageSemantics.UNKNOWN`, and stores the activity in a dead-letter record
       without raising an exception.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-01-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Pattern matching MUST support type/subclass matching semantics for actor/object classes
     verification: >-
@@ -60,8 +75,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: SE-01-002
-    lint_suppress:
-    - missing_story_reference
 - id: SE-02
   title: Semantic Type Assignment
   specs:
@@ -76,30 +89,26 @@ groups:
       `MessageSemantics` enum value to each received AS2 activity.
   - id: SE-02-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The function MUST return the first matching semantic type
     verification: >-
       A unit test confirms that `find_matching_semantics()` returns the
       `MessageSemantics` value of the first `ActivityPattern` whose constraints match
       the supplied activity, ignoring any subsequent matching entries.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-02-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The function MUST return MessageSemantics.UNKNOWN if no patterns match
     verification: >-
       A unit test confirms that `find_matching_semantics()` returns
       `MessageSemantics.UNKNOWN` when no registered `ActivityPattern` in
       `SEMANTIC_REGISTRY` matches the supplied activity.
-    lint_suppress:
-    - missing_story_reference
 - id: SE-03
   title: Pattern Registry
   specs:
   - id: SE-03-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       `SEMANTIC_REGISTRY` MUST contain an entry with a non-`None` `pattern` for every
       supported `MessageSemantics` value except the `UNKNOWN` and
@@ -114,20 +123,16 @@ groups:
     verification: >-
       A unit test confirms that every `MessageSemantics` enum value other than the two
       sentinels has a `SEMANTIC_REGISTRY` entry whose `pattern` is not `None`.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Pattern registry MUST be ordered from most specific to least specific
     verification: >-
       A unit test confirms that `_validate_registry_order()` completes without
       raising `RegistryOrderError` on the current `SEMANTIC_REGISTRY`.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-03-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Every `ActivityPattern` entry in `SEMANTIC_REGISTRY` MUST discriminate on
       at minimum both Activity type AND Object type
@@ -139,24 +144,20 @@ groups:
       A unit test confirms that every `ActivityPattern` entry in
       `SEMANTIC_REGISTRY` has a non-`None` `activity_` field and a
       non-`None` `object_` field.
-    lint_suppress:
-    - missing_story_reference
 - id: SE-04
   title: Unrecognized Activity Handling
   specs:
   - id: SE-04-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The system MUST log unrecognized activities at WARNING level
     verification: >-
       A unit test confirms that presenting an activity with no matching pattern to
       `find_matching_semantics()` causes a WARNING-level log message to be emitted
       before returning `MessageSemantics.UNKNOWN`.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-04-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The system MUST distinguish two causes of `MessageSemantics.UNKNOWN`: 1. **No pattern
       match**: No registered `ActivityPattern` matched the activity structure → raise `VultronApiHandlerMissingSemanticError`
@@ -172,11 +173,9 @@ groups:
       `VultronApiHandlerMissingSemanticError` for a no-pattern-match and returns
       silently (storing a dead-letter record) for an unresolvable `object_` URI,
       distinguishing the two causes.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-04-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Dead-letter records for unresolvable-object_ activities MUST include: the full activity
       JSON, the unresolvable URI, the actor ID, and a timestamp. They MUST be stored in a
@@ -185,11 +184,9 @@ groups:
       A unit test confirms that the dead-letter record for an unresolvable-`object_`
       activity contains the full activity JSON, the unresolvable URI, the actor ID,
       and a timestamp, and is stored in the DataLayer collection.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-04-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       For any future synchronous processing path (non-background), UNKNOWN due to unresolvable
       `object_` MUST return HTTP 422 with an explanatory error body identifying the unresolvable
@@ -198,23 +195,19 @@ groups:
       A unit test confirms that the synchronous (non-background) processing path
       returns HTTP 422 with an error body identifying the unresolvable URI when
       `object_` cannot be resolved.
-    lint_suppress:
-    - missing_story_reference
 - id: SE-05
   title: Pattern Validation
   specs:
   - id: SE-05-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: All patterns MUST have corresponding MessageSemantics enum value
     verification: >-
       A unit test confirms that the `semantics` field of every `SEMANTIC_REGISTRY`
       entry is a valid member of the `MessageSemantics` enum.
-    lint_suppress:
-    - missing_story_reference
   - id: SE-05-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       All patterns MUST have a corresponding use-case class in the mapping returned by
       `use_case_map()`
@@ -225,8 +218,6 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: DR-02-002
-    lint_suppress:
-    - missing_story_reference
   - id: SE-05-003
     priority: MUST
     kind: project

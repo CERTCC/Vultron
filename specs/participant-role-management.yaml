@@ -89,7 +89,7 @@ groups:
     - story_2022_063
   - id: PRM-02-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`add_role()` MUST raise `KeyError` when `raise_when_present=True` and the given role is already present in
       the participant''s role set.'
     rationale: 'Callers that require strict single-assignment semantics (e.g. role initialization guards) need a fail-fast
@@ -99,8 +99,6 @@ groups:
       `KeyError` when the participant already holds that role.
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
   - id: PRM-02-004
     priority: MUST
     kind: protocol
@@ -132,7 +130,7 @@ groups:
     - story_2022_066
   - id: PRM-02-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`remove_role()` MUST raise `KeyError` when `raise_when_missing=True` and the given role is not present in
       the participant''s role set.'
     rationale: 'Callers that rely on strict presence checks before removal need a fail-fast path.'
@@ -141,8 +139,6 @@ groups:
       `KeyError` when the participant does not hold that role.
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
 - id: PRM-03
   title: Core Layer Rules
   specs:
@@ -160,7 +156,7 @@ groups:
     - tooling
   - id: PRM-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'Passing `case_roles=[...]` as a constructor argument when creating a CaseParticipant instance is permitted
       and does not violate PRM-03-001; the prohibition applies only to post-construction attribute mutation.'
     rationale: 'Constructor arguments are the canonical way to initialise an immutable value-object. This clarification prevents
@@ -170,8 +166,6 @@ groups:
       constructs successfully and `participant.roles` returns the initial role list.
     tags:
     - protocol
-    lint_suppress:
-    - missing_story_reference
   - id: PRM-03-003
     priority: MUST_NOT
     kind: project
@@ -301,13 +295,12 @@ groups:
     - missing_story_reference
   - id: PRM-06-002
     priority: MUST_NOT
-    kind: project
+    kind: protocol
     statement: >-
-      A participant holding ``CVDRole.VENDOR`` MUST NOT self-report a VF state
-      of ``CS_vf.vf`` (vendor-unaware).  Valid Vendor VF self-reports are
-      ``{CS_vf.Vf, CS_vf.VF}``.  The only ``vf`` a vendor participant carries is
-      the one the CASE_MANAGER writes when the stub Invite creates its record
-      (CM-11-006); any reply to that Invite sets ``V`` (CM-11-009) (ADR-0121,
+      A participant holding the VENDOR role MUST NOT self-report a vendor-fix state of vf
+      (vendor unaware). A vendor's valid self-reports are Vf and VF. The only vf a vendor
+      participant carries is the one the CASE_MANAGER writes when the stub Invite creates
+      its record (CM-11-006); any reply to that Invite sets V (CM-11-009) (ADR-0121,
       ADR-0114).
     rationale: >-
       A vendor that has answered its Invite, or otherwise acknowledged a message
@@ -405,12 +398,11 @@ groups:
     - story_2022_062
   - id: PRM-06-005
     priority: MUST_NOT
-    kind: project
+    kind: protocol
     statement: >-
-      ``f→F`` (fix ready, ``CS_vf.VF``) MUST NOT be asserted by any actor
-      other than the Vendor-role holder.  Fix readiness is not externally
-      knowable; no on-behalf assertion is ever permitted for this transition
-      (ADR-0121).
+      The f→F transition (fix ready, VF) MUST NOT be asserted by any actor other than the
+      Vendor-role holder. Fix readiness is not externally knowable; no on-behalf assertion
+      is ever permitted for this transition (ADR-0121).
     rationale: >-
       Allowing a non-vendor to assert fix-readiness would let the CASE_MANAGER
       fabricate protocol-visible fix state, undermining the meaning of the F

@@ -77,32 +77,28 @@ groups:
   specs:
   - id: OID-02-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The DataLayer MUST store and retrieve objects using their full-URI `as_id` as the primary key
     verification: A unit test confirms that `DataLayer.save(obj)` and `DataLayer.get(obj.as_id)` round-trip correctly
       using the full-URI key.
-    lint_suppress:
-    - missing_story_reference
   - id: OID-02-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`object_to_record()` MUST preserve the full-URI `as_id` when serializing objects to the DataLayer'
     verification: A unit test confirms that `object_to_record(obj)` includes the full-URI `as_id` value in the serialized
       record.
-    lint_suppress:
-    - missing_story_reference
   - id: OID-02-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`record_to_object()` MUST reconstruct objects using the full-URI `as_id` stored in the record'
     verification: A unit test confirms that `record_to_object(record)` produces an object whose `as_id` matches the full
       URI stored in the record.
-    lint_suppress:
-    - missing_story_reference
   - id: OID-02-004
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      Inspection confirms DataLayer lookups key on full-URI ids and that no lookup path
+      resolves a bare UUID.
     statement: DataLayer lookups MUST accept full-URI IDs; bare UUIDs MUST NOT be accepted as valid lookup keys
 - id: OID-03
   title: Blackboard Key Handling

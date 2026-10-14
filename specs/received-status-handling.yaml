@@ -160,8 +160,10 @@ groups:
     - story_2022_081
   - id: RSH-03-002
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/core/behaviors/status/test_add_case_status_bt.py::TestThreatTerminationBranchNode::test_no_sender_role_gate`
+      confirms a sender holding no role still triggers the teardown.
     statement: >
       `ThreatTerminationBranchNode` MUST NOT gate teardown on sender role
       (e.g., CASE_OWNER). Authorization is the responsibility of StatusAdoptionGate;
@@ -725,14 +727,12 @@ groups:
     - ADR-0122
   - id: RSH-05-019
     priority: MUST
-    kind: project
-    statement: >
-      When adjudicating the PXA dimension of a received `Add(CaseStatus)`, the
-      receiver MUST accept the asserted PXA state if and only if it is identical
-      to the current PXA state or it is a monotone forward move from the current
-      PXA state, as determined by `is_monotonic_pxa_forward()`. Any other
-      asserted PXA value MUST be refused and the current PXA value carried
-      forward (RSH-05-016).
+    kind: protocol
+    statement: >-
+      When adjudicating the PXA dimension of a received `Add(CaseStatus)`, the receiver MUST
+      accept the asserted PXA state if and only if it is identical to the current PXA state
+      or it is a monotone forward move from the current PXA state. Any other asserted PXA
+      value MUST be refused and the current PXA value carried forward (RSH-05-016).
     rationale: >
       PXA state is monotone: bits only advance from unaware to aware (p→P,
       x→X, a→A) and never reverse. The received-side filter uses the weaker
@@ -755,6 +755,9 @@ groups:
       received `Add(CaseStatus)` and by `ApplyCaseStatusFromLedgerNode` on the
       `add_case_status_to_case` ledger entry (RSH-08-004). CSB-16-002 strict
       single-step adjacency applies only to local write nodes, not to either.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: RSH-05-020
     priority: MUST
     kind: protocol
@@ -857,17 +860,17 @@ groups:
   - id: RSH-05-021
     priority: MUST
     kind: protocol
-    verification_debt: '#3612'
-    statement: >
-      When applying an `Announce(CaseLedgerEntry)` for an
-      `add_participant_status_to_participant` event, the behavior tree MUST
-      evaluate the composite-state entailments (RM↔VF and RM↔D per CSB-18-001,
-      VF↔D per CSB-17-001) against the effective participant state from the
-      entry. If any entailment is violated the tree MUST NOT apply the status
-      update, and MUST guarantee emission of `Create(ProcessingFault)` with
-      failure class `StatusAssertionRefused/ImpossibleState` to the CASE_MANAGER
-      as a guaranteed side-effect of the failure path (tree-structural guarantee,
-      not node-level side effect).
+    verification: >-
+      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceTreeEmitImpossibleStateFault::test_impossible_composite_state_emits_fault_and_blocks_persist`
+      confirms an entailment violation blocks the status update and emits
+      `Create(ProcessingFault)` to the CASE_MANAGER.
+    statement: >-
+      When applying an `Announce(CaseLedgerEntry)` whose entry adds a participant status, a
+      receiver MUST evaluate the composite-state entailments (RM↔VF and RM↔D per CSB-18-001,
+      VF↔D per CSB-17-001) against the effective participant state from the entry. If any
+      entailment is violated the receiver MUST NOT apply the status update, and MUST send
+      `Create(ProcessingFault)` with failure class `StatusAssertionRefused/ImpossibleState`
+      to the CASE_MANAGER.
     rationale: >
       A CASE_MANAGER that is buggy or hostile can commit an entry whose participant
       state violates `composite_state_violations()` — the same entailment set
@@ -911,9 +914,27 @@ groups:
       spec_id: RSH-05-007
     lint_suppress:
     - missing_story_reference
+  - id: RSH-05-024
+    priority: MUST
+    kind: project
+    statement: >-
+      In this codebase the fault RSH-05-021 requires MUST be emitted by the failure path of
+      the behavior tree that applies the entry (a tree-structural guarantee), not as a side
+      effect inside the node that applies the status.
+    rationale: >-
+      How this codebase meets RSH-05-021; split from it so RSH-05-021 states only what other
+      participants observe (MS-12-010).
+    verification: >-
+      Inspection of `vultron/core/behaviors/sync/announce_tree.py` confirms the fault is
+      emitted by `EmitImpossibleStateFaultNode`, the fallback child of the `ApplyOrFault`
+      Selector whose first child is `ApplyParticipantStatusFromLedgerNode`, so the apply
+      node only returns FAILURE and the tree supplies the emission.
+    relationships:
+    - rel_type: implements
+      spec_id: RSH-05-021
   - id: RSH-05-022
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       When `FilterParticipantStatusDimensionsNode` returns `FAILURE` for an
       `Add(ParticipantStatus, CaseParticipant)` (i.e. the assertion is wholly
@@ -946,8 +967,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: RSH-05-005
-    lint_suppress:
-    - missing_story_reference
 
 - id: RSH-06
   title: RM Anomaly Notification Policy (non-adjacent jumps and backward regressions)
@@ -1078,21 +1097,21 @@ groups:
 
   - id: RSH-06-006
     priority: MUST
-    kind: project
-    statement: >
+    kind: protocol
+    statement: >-
       The RM acceptance rule of RSH-06-001 through RSH-06-005 (accept a forward move
       including a non-adjacent one, refuse a backward move and carry the current value
-      forward, log the anomaly, and post the clarification note where a case context
-      exists) MUST be applied by the CASE_MANAGER to every received-side write of a
-      participant's RM state, whichever wire activity carried the declaration. This
-      includes the report activities `Accept(Offer(VulnerabilityReport))`,
+      forward, log the anomaly, and post the clarification note where a case context exists)
+      MUST be applied by the CASE_MANAGER to every received write of a participant's RM
+      state, whichever wire activity carried the declaration. This includes the report
+      activities `Accept(Offer(VulnerabilityReport))`,
       `TentativeReject(Offer(VulnerabilityReport))` and
       `Reject(Offer(VulnerabilityReport))`, the full-case Invite replies `Accept`,
-      `TentativeReject` and `Reject(Invite(Actor, VulnerabilityCase))` (CM-11-011), and
-      the case activities `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`, not
-      only `Add(ParticipantStatus, CaseParticipant)`. Adjacency-only validation
-      (`is_valid_rm_transition`) MUST NOT be the receive-side acceptance rule for any of
-      these.
+      `TentativeReject` and `Reject(Invite(Actor, VulnerabilityCase))` (CM-11-011), and the
+      case activities `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`, not only
+      `Add(ParticipantStatus, CaseParticipant)`. Adjacency-only validation, which accepts
+      only a move to an adjacent RM state, MUST NOT be the receive-side acceptance rule for
+      any of these.
     rationale: >
       The acceptance rule belongs to the state machine, not to the message. A
       transition accepted as a status snapshot but refused as the activity that
@@ -1107,6 +1126,9 @@ groups:
     adr:
     - ADR-0108
     - ADR-0121
+    stories:
+    - story_2022_074
+    - story_2022_088
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
@@ -1119,7 +1141,7 @@ groups:
   specs:
   - id: RSH-07-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       `StatusAdoptionGate` MUST default to requiring explicit Case Owner
       authorization before a non-owner participant's PXA assertion is adopted as
@@ -1138,11 +1160,9 @@ groups:
     adr:
     - ADR-0076
     - ADR-0080
-    lint_suppress:
-    - missing_story_reference
   - id: RSH-07-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       `EmbargoTeardownAuthorizationGate` MUST default to requiring explicit Case
       Owner authorization before embargo teardown side-effects execute. See also
@@ -1157,11 +1177,9 @@ groups:
     adr:
     - ADR-0076
     - ADR-0080
-    lint_suppress:
-    - missing_story_reference
   - id: RSH-07-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       Each status authorization gate MUST be composed as a conversation-state
       routing subtree per ASK-02-001, and MUST NOT be composed as a single-tick
@@ -1181,11 +1199,9 @@ groups:
       conservative default.
     adr:
     - ADR-0080
-    lint_suppress:
-    - missing_story_reference
   - id: RSH-07-005
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >
       A status authorization gate MUST NOT be satisfied by relaxing its default to a
       permissive backend in order to make a blocked path proceed.
@@ -1200,8 +1216,6 @@ groups:
     adr:
     - ADR-0076
     - ADR-0080
-    lint_suppress:
-    - missing_story_reference
   - id: RSH-07-003
     priority: MAY
     kind: project
@@ -1233,16 +1247,14 @@ groups:
   - id: RSH-08-001
     priority: MUST
     kind: protocol
-    statement: >
-      The subject of every received-side RM write MUST be the sending actor
-      (`request.actor_id`), never the receiving actor whose store the tree
-      executes in. The receiving actor's own RM state MUST move on receipt only
-      when it is itself the mover: when sender and receiver are the same actor,
-      or when CM-23-002 directs the CASE_MANAGER to advance its own participant
-      on Case Owner departure. The one write whose subject is neither is the
-      CASE_MANAGER's creation of an invitee's participant record when, in a
-      received-side tree, it emits the stub Invite (CM-11-006, CM-17-007,
-      CM-16-006): its subject is the invitee.
+    statement: >-
+      A received RM status declaration reports the sending actor's own RM state: its subject
+      MUST be the sender, never the receiver. A receiver's own RM state MUST move on receipt
+      only when it is itself the mover: when sender and receiver are the same actor, or when
+      CM-23-002 directs the CASE_MANAGER to advance its own participant on Case Owner
+      departure. The one write whose subject is neither is the CASE_MANAGER's creation of an
+      invitee's participant record when, in response to a received activity, it emits the
+      stub Invite (CM-11-006, CM-17-007, CM-16-006): its subject is the invitee.
     rationale: >
       A received activity is an assertion about the sender's state (HP-00-001)
       and participant status is self-declaratory (ADR-0121). BT-17-006 chooses
@@ -1258,6 +1270,25 @@ groups:
     - ADR-0114
     lint_suppress:
     - missing_story_reference
+  - id: RSH-08-005
+    priority: MUST
+    kind: project
+    statement: >-
+      A received-side tree MUST record a received RM declaration against the sending actor
+      (`request.actor_id`), never against the receiving actor whose store the tree executes
+      in.
+    rationale: >-
+      How this codebase meets RSH-08-001; split from it so RSH-08-001 states only what other
+      participants observe (MS-12-010).
+    verification: >-
+      Regression tests for the report-invalid and report-closed received-side use cases
+      assert the sender's participant reaches the target RM state and the receiving actor's
+      participant is unchanged.
+    relationships:
+    - rel_type: implements
+      spec_id: RSH-08-001
+    adr:
+    - ADR-0108
   - id: RSH-08-002
     priority: MUST
     kind: protocol
