@@ -941,7 +941,7 @@ groups:
       arrives afterwards records nothing (EMB-17-004). No separate outbound wire activity is
       emitted; the participant position is derived from the case.
     rationale: >-
-      A register with a TERMINATED entry accepts no further change (ADR-0122 invariant 4), so a
+      A register with a TERMINATED entry accepts no further change (ADR-0122), so a
       terminated embargo can never be invited to again. That is a fact about the case, which every replica holds once it replays the
       teardown, so it does not need to be copied onto each participant record as the terminal
       state it was before ADR-0122 (ADR-0118). Leaving the rows as they were also keeps the
