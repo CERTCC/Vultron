@@ -20,7 +20,7 @@ import types as _types
 import typing as _typing
 from datetime import datetime, timedelta
 from functools import cache
-from typing import Any, ClassVar
+from typing import Any
 
 from pydantic import (
     BaseModel,
@@ -243,21 +243,6 @@ class CoreObject(CoreRecord):
     # with CoreRecord.populate_by_name and ValidatedAssignmentMixin
     # validate_assignment across the MRO.
     model_config = ConfigDict(alias_generator=to_camel, extra="forbid")
-
-    #: Fields that are local bookkeeping, not AS2 properties: kept in the stored
-    #: row, dropped from the delivery payload.
-    #:
-    #: ADR-0099 detail 3 makes a class that can appear in a message slot exactly
-    #: AS2-representable and forbids it carrying "a field that cannot go on the
-    #: wire".  ``exclude=True`` is the obvious way to express that and is the
-    #: wrong one: it removes the field from *every* dump, including the
-    #: persistence dump, so the value stops being stored at all.  That is a data
-    #: loss rather than a wire-format fix — an invite RSVP deadline the local
-    #: actor set would simply vanish on the next read.
-    #:
-    #: Declared as a ClassVar so a subclass names its own local fields where they
-    #: are defined, rather than in a registry somewhere else that can fall behind.
-    local_only_fields: ClassVar[frozenset[str]] = frozenset()
 
     preview: NonEmptyString | None = None
     media_type: NonEmptyString | None = None
@@ -550,9 +535,6 @@ class CoreObject(CoreRecord):
         An explicitly-supplied ``context_`` wins, so a document parsed from the
         wire round-trips with the context it arrived with instead of being
         silently relabelled.
-
-        The same fork drops :attr:`local_only_fields` — see that attribute for
-        why those cannot simply use ``exclude=True``.
         """
         data = handler(self)
         if not isinstance(data, dict):
@@ -564,19 +546,9 @@ class CoreObject(CoreRecord):
             for name in type(self).model_computed_fields:
                 data.pop(name, None)
             return data
-        for name in self.local_only_fields:
-            data.pop(name, None)
-            field = type(self).model_fields.get(name)
-            alias = (
-                getattr(field, "serialization_alias", None) if field else None
-            )
-            if alias:
-                data.pop(alias, None)
-            data.pop(to_camel(name), None)
         for name in self._as2_unpublished_fields():
             data.pop(name, None)
             data.pop(type(self)._computed_field_wire_key(name), None)
-        data.update(self._as2_derived_fields())
         data["@context"] = self.context_ or VULTRON_CONTEXT_URI
         return data
 
@@ -590,15 +562,6 @@ class CoreObject(CoreRecord):
         publishes every computed field.
         """
         return frozenset()
-
-    def _as2_derived_fields(self) -> dict[str, Any]:
-        """Return AS2 keys derived from this object for the delivery form.
-
-        The counterpart of :attr:`local_only_fields`: a subclass whose AS2 form
-        carries a value core does not store supplies it here, so the derivation
-        lives on the class it describes.
-        """
-        return {}
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
