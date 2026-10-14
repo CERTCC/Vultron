@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Unit tests for vultron/core/models/dimensions.py."""
 
+from types import SimpleNamespace
+
 import pytest
 from pydantic import ValidationError
 
@@ -11,6 +13,8 @@ from vultron.core.models.dimensions import (
     EmDimension,
     PxaDimension,
     RmDimension,
+    dimension_state,
+    is_dimension_model,
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
@@ -232,3 +236,41 @@ class TestCaseStatusCarriesNoFlatShim:
             and getattr(v.func, "__qualname__", "").startswith("CaseStatus.")
         ]
         assert own_before == []
+
+
+class TestDimensionStateRead:
+    """``dimension_state`` / ``is_dimension_model`` (#4376)."""
+
+    def test_reads_the_state_of_a_dimension(self):
+        status = CaseStatus(
+            context="urn:case:1", pxa=PxaDimension(state=CS_pxa.PXa)
+        )
+        assert dimension_state(status, "pxa") is CS_pxa.PXa
+        assert dimension_state(status, "em") is EM.NONE
+
+    @pytest.mark.parametrize(
+        "carrier",
+        [None, "urn:case-status:ref", object(), SimpleNamespace(pxa=None)],
+        ids=["none", "bare-reference", "no-dimension", "none-dimension"],
+    )
+    def test_no_dimension_reads_as_none(self, carrier):
+        assert dimension_state(carrier, "pxa") is None
+
+    def test_flat_attribute_is_not_read(self):
+        """A retired flat ``pxa_state`` is not a fallback (SDO-03-003)."""
+        assert dimension_state(SimpleNamespace(pxa_state="PXA"), "pxa") is None
+
+    @pytest.mark.parametrize(
+        "annotation, expected",
+        [
+            (PxaDimension, True),
+            (EmDimension, True),
+            (RmDimension, True),
+            (CaseStatus, False),
+            (CS_pxa, False),
+            (str, False),
+            (PxaDimension | None, False),
+        ],
+    )
+    def test_is_dimension_model(self, annotation, expected):
+        assert is_dimension_model(annotation) is expected

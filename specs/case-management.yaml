@@ -2265,7 +2265,7 @@ groups:
       exists. Accepting without seeing embargo terms is not meaningfully informed consent (issue #1289, MV-10-006).'
     verification: Integration tests in `test/demo/` confirm that when `CaseStatus.em.state ==
       ACTIVE` at invite time, the case stub includes the `activeEmbargo` reference and embedded
-      `em_state` field.
+      `emState` field.
     relationships:
     - rel_type: implements
       spec_id: MV-10-006

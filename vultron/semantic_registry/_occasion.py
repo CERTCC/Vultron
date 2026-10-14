@@ -36,7 +36,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from vultron.core.models.dimensions import (
     DIMENSION_STATE_FIELD,
-    dimension_state,
     is_dimension_model,
 )
 from vultron.core.models.wire_keys import wire_key
@@ -271,7 +270,7 @@ class FieldValue(BaseModel):
         """
         held = getattr(carrier, self.field)
         if is_dimension_model(type(held)):
-            return dimension_state(carrier, self.field)
+            return getattr(held, DIMENSION_STATE_FIELD)
         return held
 
 

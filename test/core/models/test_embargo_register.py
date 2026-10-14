@@ -467,6 +467,33 @@ def test_append_case_status_bump_wins_over_a_passed_timestamp() -> None:
     assert after.updated == after.published
 
 
+def test_append_case_status_mints_a_fresh_id() -> None:
+    """The appended status is its own entry, not a second copy (#4637)."""
+    case = _case()
+    before = case.current_status
+    case.append_case_status(pxa=CS_pxa.Pxa)
+    ids = [
+        status.id_ if isinstance(status, CaseStatus) else status
+        for status in case.case_statuses
+    ]
+    assert case.current_status.id_ != before.id_
+    assert len(ids) == len(set(ids))
+
+
+def test_append_case_status_rederives_the_name() -> None:
+    """The label names the appended status's own states (#4637)."""
+    case = _case()
+    case.append_case_status(pxa=CS_pxa.Pxa)
+    status = case.current_status
+    assert status.name == f"{status.em.state.name} {CS_pxa.Pxa.name}"
+
+
+def test_append_case_status_keeps_an_explicit_name() -> None:
+    case = _case()
+    case.append_case_status(name="chosen", pxa=CS_pxa.Pxa)
+    assert case.current_status.name == "chosen"
+
+
 def test_construction_stamps_the_register_em_onto_the_status() -> None:
     """A received or stored case's status copy never disagrees (ADR-0122)."""
     case = _case(

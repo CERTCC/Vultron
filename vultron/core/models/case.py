@@ -467,8 +467,10 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         Inherits all fields from ``current_status`` then assigns each of
         *updates* by its ``CaseStatus`` field name, so passing
         ``pxa=CS_pxa.Pxa`` (or a ``PxaDimension``) keeps every other
-        dimension.  Each assignment is validated (ARCH-21-001).  Timestamps
-        are bumped to ensure the new entry sorts as ``current_status``.  EM is
+        dimension.  Each assignment is validated (ARCH-21-001).  The new
+        entry gets a fresh ``id_`` and a ``name`` derived from its own states
+        unless one is passed.  Timestamps are bumped to ensure the new entry
+        sorts as ``current_status``.  EM is
         not a status field to set: it is derived from the embargo register
         (ADR-0122), so ``em`` is refused.
 
@@ -494,11 +496,14 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         if latest is not None and latest >= now:
             now = latest + timedelta(microseconds=1)
 
-        status = current.model_copy()
-        # ``model_copy`` does not validate its update, so the overrides are
-        # assigned one by one under ``validate_assignment`` instead, and the
-        # case context and bumped timestamps are assigned last so that they
-        # always win.
+        # The new entry is its own status: a fresh ``id_``, and a ``name``
+        # left unset so ``CaseStatus._set_name`` re-derives the label from
+        # the new states on the first assignment below (an explicit ``name``
+        # in *updates* still wins).  ``model_copy`` does not validate its
+        # update, so the overrides are assigned one by one under
+        # ``validate_assignment`` instead, and the case context and bumped
+        # timestamps are assigned last so that they always win.
+        status = current.model_copy(update={"id_": _new_urn(), "name": None})
         for name, value in {
             **updates,
             "context": self.id_,
