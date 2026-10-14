@@ -334,12 +334,15 @@ class RelayEmbargoInviteToEachNode(
         )
         # Sent, then recorded: the entry records a completed act (ADR-0119).
         self._queue(activity_id)
+        committed = False
         try:
             self._commit_emission(activity_id, blob)
-        except Exception:
-            if self._withdraw_unrecorded:
+            committed = True
+        finally:
+            # The failure itself propagates (BT-14-001); an Invite no retry
+            # rebuilds is first taken back out of the outbox.
+            if not committed and self._withdraw_unrecorded:
                 self._withdraw(activity_id)
-            raise
         self._invite_where_legal(
             dl, recipient_id, invite_rsvp_deadline(json.loads(blob))
         )
