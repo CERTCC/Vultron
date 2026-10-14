@@ -162,7 +162,7 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
 - **Vacuous assertions** — broadcast guards need a third participant; hash-chain
   comparisons need presence checks before equality (`"" == ""` passes);
   `MagicMock` needs `spec=` wherever code uses `isinstance()`; the genesis-hash
-  path needs a stored case (CLP-08-995); `call_args.args` over `call_args[0]`.
+  path needs a stored case (CLP-08-004); `call_args.args` over `call_args[0]`.
 - **A test that "falls back to" a value for *malformed* input is asserting a
   bug** — absent input and unreadable input are different.
 - **A FAILURE test must prove the harness can produce its named reason** — the

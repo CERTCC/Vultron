@@ -29,6 +29,7 @@ related_notes:
   - notes/received-status-authorization.md
   - notes/case-state-model.md
   - notes/participant-case-replica.md
+  - notes/demo-ci-scenario-coverage.md
 relevant_packages:
   - vultron/core/participants/recipients.py
   - vultron/core/participants/stub_reply.py

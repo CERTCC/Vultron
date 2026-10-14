@@ -28,7 +28,6 @@ related_notes:
   - notes/case-ledger-authority.md
   - notes/datalayer-design.md
   - notes/case-bootstrap-trust.md
-  - notes/fv-demo.md
   - notes/configuration.md
 relevant_packages:
   - vultron/wire/as2/vocab/objects

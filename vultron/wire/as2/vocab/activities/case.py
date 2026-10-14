@@ -68,6 +68,22 @@ class _AddReportToCaseActivity(as_Add):
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
+    # The report's Offer provenance, carried on the CASE_MANAGER's
+    # ``add_report_to_case`` entry for the case's participants, who were never
+    # sent the Offer (CP-01-007, CM-11-020).  The same pair, and the same
+    # wire keys, as ``as_CaseProposal.offer_id``/``offer_actor_id``.
+    offer_id: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="offerId",
+        serialization_alias="offerId",
+        description="URI of the Offer(VulnerabilityReport) the report arrived in.",
+    )
+    offer_actor_id: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="offerActorId",
+        serialization_alias="offerActorId",
+        description="URI of the actor that sent the Offer named by offer_id.",
+    )
 
 
 # add CaseParticipant to VulnerabilityCase

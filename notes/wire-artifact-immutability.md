@@ -20,6 +20,7 @@ related_notes:
   - notes/core-wire-rendering-port.md
   - notes/activity-factories.md
   - notes/outbox.md
+  - notes/testing-pitfalls.md
 related_adrs:
   - ADR-0074
   - ADR-0107

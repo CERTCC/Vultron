@@ -35,6 +35,7 @@ related_notes:
   - notes/wire-artifact-immutability.md
   - notes/outbox-delivery-reliability.md
   - notes/participant-case-replica.md
+  - notes/demo-ci-diagnostics.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/core/models
@@ -296,7 +297,14 @@ second copy (CLP-07-013). Order:
    (a `Create(CaseParticipant)` shape is #4295's)
 4. `add_case_status_to_case` — actor **vendor URI**
 
-Snapshot shapes come from `vultron/core/behaviors/case/ledger_snapshots.py`.
+Each snapshot is the CASE_MANAGER's factory-built activity, sealed and committed
+verbatim: the `record_*` methods of `TriggerActivityPort`
+(`trigger_activity_adapter/ledger.py`). Core builds no snapshot dict itself
+(VM-08-003; `test/architecture/test_no_hand_built_payload_snapshots.py`).
+A record is sealed, not stored as an activity (`_seal_record`): it is no
+message, and a scan for the messages sent (one `Create(VulnerabilityCase)` per
+case, CP-09-009) must not count it. Its id is derived from the CASE_MANAGER and
+what changed, so a retry hands back the first sealed body (ID-04-004).
 
 - **Exactly one participant-status entry per participant** (CM-18-007). The
   default embargo is set before PEC state is fixed, so the single snapshot already

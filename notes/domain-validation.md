@@ -33,6 +33,7 @@ related_notes:
   - notes/architecture-ratchet-corpus.md
   - notes/lifecycle-staged-types.md
   - notes/status-dimension-objects.md
+  - notes/testing-pitfalls.md
 ---
 
 # Domain Object Validation — Strict vs. Loose Boundaries

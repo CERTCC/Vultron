@@ -18,7 +18,9 @@ ADR-0124): the CASE_MANAGER changes its own copy, then commits an entry that
 carries the change, and the ledger replicates it.  A replica stores what the
 entry carries, as received, and derives nothing.  Each function here commits
 one entry for one change, from the very object the CASE_MANAGER holds, so the
-ids and times in the entry are the ones in its store.
+ids and times in the entry are the ones in its store.  The entry's snapshot is
+the activity the trigger-activity port builds for that change and seals,
+verbatim (VM-08-003).
 
 - :func:`commit_case_participant_created` -- ``create_case_participant``
 - :func:`commit_participant_status_added` -- the existing
@@ -29,13 +31,8 @@ raises ``RuntimeError`` when the commit does not succeed, so the node fails
 rather than leaving a change no replica can learn of.
 """
 
-import json
 from typing import TYPE_CHECKING
 
-from vultron.core.behaviors.case.ledger_snapshots import (
-    build_add_participant_status_snapshot,
-    build_create_case_participant_snapshot,
-)
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_event_types import (
@@ -45,7 +42,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 
 def commit_case_participant_created(
@@ -54,18 +51,18 @@ def commit_case_participant_created(
     actor_id: str,
     case_id: str,
     participant: CaseParticipant,
-    wire_render_port: "WireRenderPort",
+    trigger_activity: "TriggerActivityPort",
 ) -> None:
     """Commit ``Create(CaseParticipant)`` for the record just created."""
-    snapshot = build_create_case_participant_snapshot(
-        participant, actor_id, case_id, wire_render_port
+    _, blob = trigger_activity.record_case_participant_created(
+        participant=participant, case_id=case_id, actor=actor_id
     )
     commit_emitted_activity(
         datalayer=datalayer,
         actor_id=actor_id,
         case_id=case_id,
         activity_id=participant.id_,
-        activity_blob=json.dumps(snapshot),
+        activity_blob=blob,
         event_type=CREATE_CASE_PARTICIPANT_EVENT_TYPE,
     )
 
@@ -77,17 +74,17 @@ def commit_participant_status_added(
     case_id: str,
     participant: CaseParticipant,
     status: ParticipantStatus,
-    wire_render_port: "WireRenderPort",
+    trigger_activity: "TriggerActivityPort",
 ) -> None:
     """Commit ``Add(ParticipantStatus)`` for the status just appended."""
-    snapshot = build_add_participant_status_snapshot(
-        status, participant, actor_id, case_id, wire_render_port
+    _, blob = trigger_activity.record_participant_status_added(
+        status=status, participant=participant, case_id=case_id, actor=actor_id
     )
     commit_emitted_activity(
         datalayer=datalayer,
         actor_id=actor_id,
         case_id=case_id,
         activity_id=status.id_,
-        activity_blob=json.dumps(snapshot),
+        activity_blob=blob,
         event_type="add_participant_status_to_participant",
     )

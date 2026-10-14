@@ -10,24 +10,25 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Structure of the owner-Leave ``case_fully_closed`` commit (#4113).
+"""Structure of the owner-Leave ``case_fully_closed`` commit (#4113, #3743).
 
-The inline ``CommitCaseFullyClosedBT`` sequence mints and fans out its entry
-outside the shared commit tree, so it carries its own port guard: without a
-sync port it must refuse before the entry is persisted, not after.
+``CommitCaseFullyClosedBT`` builds the CASE_MANAGER's own
+``Update(VulnerabilityCase)`` and commits its sealed blob, so it carries its
+own port guard: without a sync port it must refuse before the activity is
+built or the entry persisted, not after.
 """
 
 from __future__ import annotations
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.leave import (
+    CommitCaseFullyClosedNode,
+)
 from vultron.core.behaviors.case.receive_close_case_tree import (
     create_close_case_received_tree,
 )
-from vultron.core.behaviors.sync.nodes import (
-    PersistLogEntryNode,
-    RequireSyncPortNode,
-)
+from vultron.core.behaviors.sync.nodes import RequireSyncPortNode
 
 CASE_ID = "https://example.org/cases/c-close-tree"
 OWNER_ID = "https://example.org/actors/owner-close-tree"
@@ -46,7 +47,6 @@ def test_case_fully_closed_commit_guards_the_sync_port_before_persisting():
     tree = create_close_case_received_tree(
         case_id=CASE_ID,
         activity_id="https://example.org/activities/leave-1",
-        activity_obj=None,
         sender_actor_id=OWNER_ID,
         receiving_actor_id="https://example.org/actors/case-actor",
     )
@@ -55,9 +55,6 @@ def test_case_fully_closed_commit_guards_the_sync_port_before_persisting():
     children = list(commit.children)
 
     assert isinstance(children[0], RequireSyncPortNode)
-    persist_at = next(
-        i
-        for i, child in enumerate(children)
-        if isinstance(child, PersistLogEntryNode)
-    )
-    assert persist_at > 0
+    assert [type(child) for child in children[1:]] == [
+        CommitCaseFullyClosedNode
+    ]
