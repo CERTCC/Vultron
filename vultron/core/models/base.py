@@ -595,8 +595,8 @@ class CoreObject(CoreRecord):
         """Return AS2 keys derived from this object for the delivery form.
 
         The counterpart of :attr:`local_only_fields`: a subclass whose AS2 form
-        carries a value core does not store (``CaseActor``'s collection URIs)
-        supplies it here, so the derivation lives on the class it describes.
+        carries a value core does not store supplies it here, so the derivation
+        lives on the class it describes.
         """
         return {}
 

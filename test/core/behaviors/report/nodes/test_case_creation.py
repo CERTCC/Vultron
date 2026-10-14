@@ -25,13 +25,13 @@ from vultron.core.behaviors.report.nodes.case_creation import (
     CreateCaseNode,
 )
 from vultron.core.models.activity import VultronOffer
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.report import VulnerabilityReport
 
 
 def test_create_case_node(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """CreateCaseNode creates a VulnerabilityCase in the DataLayer."""
@@ -50,7 +50,7 @@ def test_create_case_node(
 @pytest.mark.spec("CLP-08-002")
 def test_create_case_node_anchors_the_genesis_hash_to_the_owner(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """A case its owner creates hashes on the owner (ADR-0117)."""
@@ -73,7 +73,7 @@ def test_create_case_node_anchors_the_genesis_hash_to_the_owner(
 
 def test_create_case_node_idempotency(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """CreateCaseNode handles duplicate case creation gracefully."""
@@ -92,12 +92,12 @@ def test_create_case_node_idempotency(
 
 def test_create_case_activity(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
     """CreateCaseActivity creates activity with recipients and embedded case."""
-    reporter = CaseActor(
+    reporter = VultronService(
         id_="https://example.org/actors/reporter",
         name="Reporter Co",
     )
@@ -139,7 +139,7 @@ def test_create_case_activity(
 
 def test_create_case_activity_missing_case_id(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
@@ -158,7 +158,7 @@ def test_create_case_activity_missing_case_id(
 
 def test_update_actor_outbox(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
 ) -> None:
@@ -184,7 +184,7 @@ def test_update_actor_outbox(
 
 def test_update_actor_outbox_missing_activity_id(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
 ) -> None:
     """UpdateActorOutbox fails if no preceding node set activity_id."""
     result = bt_scenario.run(UpdateActorOutbox(), actor_id=actor.id_)
@@ -193,7 +193,7 @@ def test_update_actor_outbox_missing_activity_id(
 
 def test_update_actor_outbox_logs_create_activity_type(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
     caplog: pytest.LogCaptureFixture,
@@ -216,7 +216,7 @@ def test_update_actor_outbox_logs_create_activity_type(
 
 def test_update_actor_outbox_logs_case_id_in_message(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
     offer: VultronOffer,
     caplog: pytest.LogCaptureFixture,

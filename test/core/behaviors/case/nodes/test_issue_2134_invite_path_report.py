@@ -25,7 +25,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
     compute_genesis_hash,
@@ -253,7 +253,7 @@ class TestApplyOfferReportFromLedgerNode:
 
     @pytest.fixture
     def case_actor(self, datalayer):
-        actor = CaseActor(
+        actor = VultronService(
             name="Case Actor",
             attributed_to=CASE_OWNER_ACTOR_ID,
             context=CASE_ID,
@@ -411,7 +411,7 @@ class TestInvitePathReportAvailableWithoutSpoof:
 
     @pytest.fixture
     def case_actor(self, datalayer):
-        actor = CaseActor(
+        actor = VultronService(
             name="Case Actor",
             attributed_to=CASE_OWNER_ACTOR_ID,
             context=CASE_ID,

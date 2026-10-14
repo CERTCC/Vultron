@@ -37,8 +37,8 @@ from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
 from vultron.core.models._helpers import parse_published
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.report import VulnerabilityReport
@@ -52,7 +52,7 @@ OFFER_ID = "https://example.org/activities/urn:uuid:offer-1"
 
 @pytest.fixture
 def vendor_actor(dl):
-    actor = CaseActor(id_=VENDOR_ID, name="Vendor Co")
+    actor = VultronService(id_=VENDOR_ID, name="Vendor Co")
     dl.create(actor)
     return actor
 

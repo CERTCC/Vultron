@@ -35,17 +35,6 @@ Defined in `vultron/core/models/case.py`.
 | `parent_cases`, `child_cases`, `sibling_cases` | URIs of related cases, held as IDs only (ADR-0017); no protocol flow sets them yet. A case split will set `parent_cases` on the child and `child_cases` on the parent, and leaves `sibling_cases` unwritten (ADR-0125) |
 | `active_participants` | Computed, not stored: the ids of the inline participant records that `is_active_participant` finds active, in roster order. Sent on the wire as `activeParticipants` only; the AS2 form leaves it out while any `case_participants` entry is a bare URI, so it is never a partial list. A received value that contradicts the recomputed one is refused (CM-31-003, ARCH-23-005) |
 
-## `CaseActor`
-
-Defined in `vultron/core/models/case_actor.py`.
-
-| Field | Description |
-|---|---|
-| `type_` | Always `Service` |
-| `outbox` | The actor's outbox; kept locally and not sent on the wire |
-
-The `CaseActor` is also registered in the case as a `CaseActorParticipant`, which holds both `CVDRole.COORDINATOR` and `CVDRole.CASE_MANAGER` (ADR-0051).
-
 ## `CaseParticipant`
 
 Defined in `vultron/core/models/case_participant.py`.
@@ -140,11 +129,6 @@ classDiagram
         genesis_hash str
     }
 
-    class CaseActor {
-        type_ Service
-        outbox VultronOutbox
-    }
-
     class CaseParticipant {
         id_ URI
         case_roles list~CVDRole~
@@ -181,7 +165,6 @@ classDiagram
     VulnerabilityCase "1" *--> "0..*" CaseStatus : case_statuses
     CaseParticipant "1" *--> "0..*" ParticipantStatus : participant_statuses
     CaseParticipant --> CVDRole : case_roles
-    CaseActor ..> CaseParticipant : registered as CaseActorParticipant
 ```
 
 ## See also

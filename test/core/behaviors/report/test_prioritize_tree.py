@@ -41,9 +41,9 @@ from vultron.core.behaviors.report.prioritize_tree import (
     create_prioritize_subtree,
 )
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.actor import VultronService
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
@@ -145,7 +145,7 @@ def case_manager_datalayer(case_manager_actor_id):
 
 @pytest.fixture
 def actor(datalayer, actor_id):
-    obj = CaseActor(id_=actor_id, name="Vendor Co")
+    obj = VultronService(id_=actor_id, name="Vendor Co")
     datalayer.create(obj)
     return obj
 
@@ -253,7 +253,7 @@ def case_with_manager(
     )
     datalayer.create(vendor_participant)
 
-    cm_actor = CaseActor(id_=case_manager_actor_id, name="Coordinator")
+    cm_actor = VultronService(id_=case_manager_actor_id, name="Coordinator")
     datalayer.create(cm_actor)
 
     cm_participant = CaseParticipant(
@@ -299,7 +299,7 @@ def case_with_manager_in_cm_store(
     )
     case_manager_datalayer.create(vendor_participant)
 
-    cm_actor = CaseActor(id_=case_manager_actor_id, name="Coordinator")
+    cm_actor = VultronService(id_=case_manager_actor_id, name="Coordinator")
     case_manager_datalayer.create(cm_actor)
 
     cm_participant = CaseParticipant(
@@ -628,7 +628,7 @@ def test_engage_only_affects_target_actor(
         context=case_id,
         case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
     )
-    cm_actor = CaseActor(id_=case_manager_actor_id, name="Coordinator")
+    cm_actor = VultronService(id_=case_manager_actor_id, name="Coordinator")
     dl.create(cm_actor)
     dl.create(participant_a)
     dl.create(participant_b)

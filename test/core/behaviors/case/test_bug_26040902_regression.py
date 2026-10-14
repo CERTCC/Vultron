@@ -115,7 +115,7 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         create_receive_report_case_tree,
     )
     from vultron.core.models.activity import VultronOffer
-    from vultron.core.models.case_actor import CaseActor
+    from vultron.core.models.actor import VultronService
     from vultron.core.models.report import VulnerabilityReport
     from vultron.core.models.report_case_link import VultronReportCaseLink
     from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
@@ -134,10 +134,10 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     )
 
     # Seed minimal DataLayer state (mirrors what upstream use cases create)
-    actor = CaseActor(id_=_actor_id, name="Vendor Co")
+    actor = VultronService(id_=_actor_id, name="Vendor Co")
     dl.create(actor)
 
-    reporter_actor = CaseActor(id_=_reporter_actor_id, name="Reporter Co")
+    reporter_actor = VultronService(id_=_reporter_actor_id, name="Reporter Co")
     dl.create(reporter_actor)
 
     report = VulnerabilityReport(

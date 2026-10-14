@@ -15,7 +15,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.wire.as2.factories import rm_submit_report_activity
 
 # imported for vocabulary registration side-effect
@@ -55,7 +55,7 @@ def reporter_actor_id():
 @pytest.fixture
 def actor(datalayer, actor_id):
     """Create vendor actor in the DataLayer with an outbox."""
-    obj = CaseActor(id_=actor_id, name="Vendor Co")
+    obj = VultronService(id_=actor_id, name="Vendor Co")
     datalayer.create(obj)
     return obj
 
@@ -63,7 +63,7 @@ def actor(datalayer, actor_id):
 @pytest.fixture
 def reporter_actor(datalayer, reporter_actor_id):
     """Create reporter actor in the DataLayer."""
-    obj = CaseActor(id_=reporter_actor_id, name="Reporter Co")
+    obj = VultronService(id_=reporter_actor_id, name="Reporter Co")
     datalayer.create(obj)
     return obj
 

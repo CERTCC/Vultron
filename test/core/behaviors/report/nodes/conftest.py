@@ -25,8 +25,8 @@ import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.models.activity import VultronOffer
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
@@ -38,9 +38,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 
 
 @pytest.fixture
-def actor(bt_scenario: BTTestScenario) -> CaseActor:
+def actor(bt_scenario: BTTestScenario) -> VultronService:
     """Create a test actor and persist it in the scenario DataLayer."""
-    obj = CaseActor(
+    obj = VultronService(
         id_="https://example.org/actors/vendor",
         name="Vendor Co",
     )
@@ -74,7 +74,7 @@ def report_case_link(
 def offer(
     bt_scenario: BTTestScenario,
     report: VulnerabilityReport,
-    actor: CaseActor,
+    actor: VultronService,
 ) -> VultronOffer:
     """Create a test offer and persist it in the scenario DataLayer."""
     obj = VultronOffer(actor=actor.id_, object_=report.id_)
@@ -86,7 +86,7 @@ def offer(
 def case(
     bt_scenario: BTTestScenario,
     report: VulnerabilityReport,
-    actor: CaseActor,
+    actor: VultronService,
 ) -> VulnerabilityCase:
     """Create a participant-less VulnerabilityCase linked to the test report.
 

@@ -40,8 +40,8 @@ from vultron.core.models.activity import (
     VultronAccept,
     VultronOffer,
 )
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -117,7 +117,7 @@ def _mock_read_helper(
             object_="test-report-123",
         )
     if id_.startswith("https://example.org/"):
-        return CaseActor(id_=id_, name="Test Actor")
+        return VultronService(id_=id_, name="Test Actor")
     if raise_on_missing:
         raise ValueError(f"Object not found: {id_}")
     return None

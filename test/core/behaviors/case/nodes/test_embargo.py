@@ -46,9 +46,8 @@ from vultron.core.behaviors.case.nodes.embargo_revision import (
     ResolveCreationTimeRevisionNode,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.actor import VultronOrganization, VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.report import VulnerabilityReport
@@ -86,8 +85,8 @@ def actor_id() -> str:
 
 
 @pytest.fixture
-def actor(bt_scenario: BTTestScenario, actor_id: str) -> CaseActor:
-    obj = CaseActor(id_=actor_id, name="Vendor Co")
+def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronService:
+    obj = VultronService(id_=actor_id, name="Vendor Co")
     bt_scenario.dl.create(obj)
     return obj
 
@@ -129,7 +128,7 @@ class TestInitializeDefaultEmbargoNode:
     def test_succeeds_and_sets_active_embargo(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
+        actor: VultronService,
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
@@ -147,7 +146,7 @@ class TestInitializeDefaultEmbargoNode:
     def test_em_state_advances_to_active(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
+        actor: VultronService,
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
@@ -165,7 +164,7 @@ class TestInitializeDefaultEmbargoNode:
     def test_fails_without_case_id(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
+        actor: VultronService,
         actor_id: str,
     ) -> None:
         result = bt_scenario.run(
@@ -179,7 +178,7 @@ class TestInitializeDefaultEmbargoNode:
     def test_idempotent_active_embargo_not_overwritten(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
+        actor: VultronService,
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
@@ -214,7 +213,7 @@ class TestInitializeDefaultEmbargoNode:
     def test_seeds_owner_as_signatory(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
+        actor: VultronService,
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
@@ -237,7 +236,7 @@ class TestInitializeDefaultEmbargoNode:
     def test_a_second_run_creates_no_orphan_embargo_event(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
+        actor: VultronService,
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
@@ -265,7 +264,7 @@ class TestInitializeDefaultEmbargoNode:
     def test_a_second_run_registers_no_second_revision(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
+        actor: VultronService,
         actor_id: str,
         case_obj: VulnerabilityCase,
     ) -> None:
@@ -343,7 +342,7 @@ class TestInitializeDefaultEmbargoNode:
     def test_advance_em_state_delegates_to_embargo_lifecycle(
         self,
         bt_scenario: BTTestScenario,
-        actor: CaseActor,
+        actor: VultronService,
         actor_id: str,
         case_obj: VulnerabilityCase,
         monkeypatch: pytest.MonkeyPatch,

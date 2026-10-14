@@ -23,8 +23,8 @@ from vultron.core.behaviors.report.nodes.conditions import (
     _CheckParticipantRMStateBase,
 )
 from vultron.core.behaviors.report.nodes.deploy_fix import RMinStateDeferred
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
@@ -64,7 +64,7 @@ def test_rm_in_state_deferred_target_rm() -> None:
 @pytest.fixture
 def case_with_accepted_participant(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> tuple[VulnerabilityCase, CaseParticipant]:
     """Case whose participant is in RM.ACCEPTED."""
@@ -106,7 +106,7 @@ def case_with_accepted_participant(
 @pytest.fixture
 def case_with_deferred_participant(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> tuple[VulnerabilityCase, CaseParticipant]:
     """Case whose participant is in RM.DEFERRED."""
@@ -147,7 +147,7 @@ def case_with_deferred_participant(
 
 def test_check_rm_state_accepted_succeeds_when_accepted(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     case_with_accepted_participant: tuple[VulnerabilityCase, CaseParticipant],
 ) -> None:
     """CheckRMStateAccepted returns SUCCESS when actor RM is ACCEPTED."""
@@ -161,7 +161,7 @@ def test_check_rm_state_accepted_succeeds_when_accepted(
 
 def test_check_rm_state_accepted_fails_when_deferred(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     case_with_deferred_participant: tuple[VulnerabilityCase, CaseParticipant],
 ) -> None:
     """CheckRMStateAccepted returns FAILURE when actor RM is DEFERRED."""
@@ -175,7 +175,7 @@ def test_check_rm_state_accepted_fails_when_deferred(
 
 def test_rm_in_state_deferred_succeeds_when_deferred(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     case_with_deferred_participant: tuple[VulnerabilityCase, CaseParticipant],
 ) -> None:
     """RMinStateDeferred returns SUCCESS when actor RM is DEFERRED."""
@@ -189,7 +189,7 @@ def test_rm_in_state_deferred_succeeds_when_deferred(
 
 def test_rm_in_state_deferred_fails_when_accepted(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     case_with_accepted_participant: tuple[VulnerabilityCase, CaseParticipant],
 ) -> None:
     """RMinStateDeferred returns FAILURE when actor RM is ACCEPTED."""
@@ -203,7 +203,7 @@ def test_rm_in_state_deferred_fails_when_accepted(
 
 def test_check_rm_state_accepted_fails_without_case(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
 ) -> None:
     """CheckRMStateAccepted returns FAILURE when case is not found."""
     result = bt_scenario.run(
@@ -218,7 +218,7 @@ def test_check_rm_state_accepted_fails_without_case(
 
 def test_check_rm_state_accepted_fails_without_participant(
     bt_scenario: BTTestScenario,
-    actor: CaseActor,
+    actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
     """CheckRMStateAccepted returns FAILURE when actor has no participant."""

@@ -35,6 +35,7 @@ from vultron.adapters.driving.fastapi.outbox_handler import (
     outbox_handler,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
     compute_genesis_hash,
@@ -51,7 +52,6 @@ from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     reject_log_entry_activity,
 )
-from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
@@ -143,7 +143,7 @@ def two_app_setup() -> Iterator[tuple]:
 @pytest.mark.spec("SYNC-07-002")
 @pytest.mark.spec("SYNC-02-003")
 def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
-    """as_CaseActor commit should replicate one as_CaseLedgerEntry to a peer replica."""
+    """The CaseActor commit should replicate one as_CaseLedgerEntry to a peer replica."""
     case_actor_iso, peer_iso, case_actor_tc, peer_tc = two_app_setup
 
     case_actor_base_api = f"{case_actor_iso.base_url}/api/v2"
@@ -175,7 +175,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
         context=case.id_,
         # Authority is the role, so the actor managing this case must hold it:
         # `FindCaseActorNode` and the commit gate both read the roster, not an
-        # `as_CaseActor` object's hosting `context` (ADR-0088, ARCH-24-004).
+        # the case actor `Service`'s hosting `context` (ADR-0088, ARCH-24-004).
         case_roles=[CVDRole.CASE_MANAGER],
     )
     peer_participant = as_CaseParticipant(
@@ -281,7 +281,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         context=case.id_,
         # Authority is the role, so the actor managing this case must hold it:
         # `FindCaseActorNode` and the commit gate both read the roster, not an
-        # `as_CaseActor` object's hosting `context` (ADR-0088, ARCH-24-004).
+        # the case actor `Service`'s hosting `context` (ADR-0088, ARCH-24-004).
         case_roles=[CVDRole.CASE_MANAGER],
     )
     peer_participant = as_CaseParticipant(
@@ -295,7 +295,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     case_actor_dl.save(case_actor_participant)
     case_actor_dl.save(peer_participant)
     case_actor_dl.save(case)
-    case_actor_dl.save(as_CaseActor(id_=case_actor_id, context=case.id_))
+    case_actor_dl.save(VultronService(id_=case_actor_id, context=case.id_))
 
     entry0 = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_902_base")
     entry1 = _make_log_entry(case.id_, 1, entry0.entry_hash, "sync_902_mid")
@@ -438,7 +438,7 @@ def test_sync_duplicate_delivery_idempotency(
         context=case.id_,
         # Authority is the role, so the actor managing this case must hold it:
         # `FindCaseActorNode` and the commit gate both read the roster, not an
-        # `as_CaseActor` object's hosting `context` (ADR-0088, ARCH-24-004).
+        # the case actor `Service`'s hosting `context` (ADR-0088, ARCH-24-004).
         case_roles=[CVDRole.CASE_MANAGER],
     )
     peer_participant = as_CaseParticipant(
@@ -451,7 +451,7 @@ def test_sync_duplicate_delivery_idempotency(
     case.actor_participant_index[peer_actor_id] = peer_participant.id_
 
     # Peer needs the case and participants in its DataLayer to process inbound
-    # Announce(as_CaseLedgerEntry) as a participant, not as a as_CaseActor owner.
+    # Announce(as_CaseLedgerEntry) as a participant, not as the CaseActor.
     peer_dl.save(case_actor_participant)
     peer_dl.save(peer_participant)
     peer_dl.save(case)

@@ -43,7 +43,7 @@ from vultron.core.behaviors.case.create_case_received_tree import (
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
-from vultron.core.models.case_actor import CaseActor
+from vultron.core.models.actor import VultronService
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events import MessageSemantics
@@ -111,7 +111,7 @@ def _store(
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner_id)
     dl.save(as_VulnerabilityReport(id_=REPORT_ID, name="r"))
-    dl.save(CaseActor(id_=MANAGER_ID, context=CASE_ID))
+    dl.save(VultronService(id_=MANAGER_ID, context=CASE_ID))
     case = as_VulnerabilityCase(
         id_=CASE_ID, name="4304", attributed_to=MANAGER_ID
     )
