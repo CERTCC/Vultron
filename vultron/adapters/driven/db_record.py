@@ -52,7 +52,7 @@ def _is_generic_object_ref(annotation: Any) -> bool:
     from narrowed refs, JSON-LD ``context``/``in_reply_to`` (typed ``Any``),
     and unrelated types' refs (``as_Relationship.subject``, …).
 
-    Under ADR-0099 detail 3 the aliases also admit ``CoreObject`` — a core
+    Under ARCH-25-003 (ADR-0099) the aliases also admit ``CoreObject`` — a core
     object *is* its own wire object, so it may sit inline in an activity — and
     that widened form is matched too.  Missing it silently drops ``object_``,
     ``target``, ``origin`` and ``instrument`` from dehydration, so a stored

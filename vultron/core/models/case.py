@@ -67,7 +67,7 @@ logger = logging.getLogger(__name__)
 def _present_key(data: dict[str, Any], field_name: str) -> str:
     """Return the spelling of *field_name* that *data* carries.
 
-    The AS2 spelling when present (an inbound case, ADR-0099 detail 2), else
+    The AS2 spelling when present (an inbound case, ARCH-25-002, ADR-0099), else
     the field name, so a validator writes back under the key it read.
     """
     as2 = wire_key(field_name)
@@ -222,7 +222,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         input).
 
         Both spellings of each input are read: the class is its own wire class
-        (ADR-0099 detail 3), so an inbound case arrives as ``attributedTo`` and
+        (ARCH-25-003, ADR-0099), so an inbound case arrives as ``attributedTo`` and
         ``genesisHash``.  On the inbound path (ADR-0103) an omitted or blank
         ``published`` is the sender claiming no time, never a cue to mint one.
 
@@ -265,7 +265,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
     def _init_case_statuses(cls, data: Any) -> Any:
         """Seed ``case_statuses`` with a default entry when empty.
 
-        Reads both spellings (ADR-0099 detail 2), and writes the seed under the
+        Reads both spellings (ARCH-25-002, ADR-0099), and writes the seed under the
         one already present so it is not shadowed by an empty camelCase list.
         """
         if not isinstance(data, dict):
@@ -295,7 +295,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         ``context`` that names another case (or none) is rewritten to this
         case's id.  This is the invariant the deleted
         ``as_VulnerabilityCase.set_cs_context`` held on the wire class; it moved
-        here with the collapse (ADR-0099 detail 3).
+        here with the collapse (ARCH-25-003, ADR-0099).
         """
         if not any(
             isinstance(cs, CaseStatus) and cs.context != self.id_

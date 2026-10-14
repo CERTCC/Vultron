@@ -328,7 +328,8 @@ what changed, so a retry hands back the first sealed body (ID-04-004).
   `("Add", "CaseStatus")` is also in `_CASE_AUTHORED_SIGNATURES` (CLP-12-001), so
   single-actor deployments (vendor is the CASE_MANAGER) validate too. That
   signature entry is correct, but adding it was never a substitute for removing
-  the old two-init-path back-fill (ADR-0041 Option 3).
+  the old two-init-path back-fill: the report receiver authors no initialization
+  entry (CM-22-003, ADR-0041).
 
 ## Per-Case Genesis Hash (CLP-08)
 

@@ -33,7 +33,7 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_offer_ownership_transfer_tree,
 )
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -117,6 +117,34 @@ def test_forward_offer_to_transferee_queues_in_case_actor_outbox(
     assert len(outbox) == 1, (
         f"Expected exactly 1 forwarded offer in CaseActor outbox; got {outbox}"
     )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="CM-21-018: the forward links to its recorded Offer with"
+    " inReplyTo. Tracked by #4631.",
+)
+@pytest.mark.spec("CM-21-018")
+@pytest.mark.executes_as(CASE_ACTOR_ID)
+def test_forward_offer_replies_to_the_recorded_offer(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """The forward names the recorded Offer it stands for in ``inReplyTo``."""
+    _seed_case(bt_scenario)
+    tree = create_offer_ownership_transfer_tree(
+        case_id=CASE_ID,
+        transferee_id=TRANSFEREE_ID,
+        original_actor_id=VENDOR_ID,
+    )
+
+    result = bt_scenario.run(
+        tree, actor_id=CASE_ACTOR_ID, activity=_offer_event()
+    )
+
+    assert result.status == Status.SUCCESS
+    (forward_id,) = bt_scenario.dl.outbox_list()
+    forward = bt_scenario.dl.read(forward_id)
+    assert _as_id(getattr(forward, "in_reply_to", None)) == OFFER_ID
 
 
 @pytest.mark.spec("CM-21-005")

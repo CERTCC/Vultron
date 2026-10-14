@@ -278,7 +278,7 @@ class TestResolveParticipantStateShapeGuard:
             as_CaseParticipant,
         )
 
-        # ``as_CaseParticipant`` *is* ``CaseParticipant`` (ADR-0099 detail 3), so
+        # ``as_CaseParticipant`` *is* ``CaseParticipant`` (ARCH-25-003, ADR-0099), so
         # the DataLayer hands back exactly the shape this resolver wants and the
         # state is readable.  There is no wire-shaped participant left to refuse.
         wire_participant = as_CaseParticipant(

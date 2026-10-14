@@ -23,8 +23,9 @@ CANCEL    : PROPOSED → CANCELLED  (with a TERMINATE, or on a threat signal
 
 ``REJECTED``, ``SUPERSEDED``, ``CANCELLED`` and ``TERMINATED`` are final.
 EM is :func:`derive_em` over the register's statuses, never set directly, and
-each step must move it along an EM transition (ADR-0130).  The step rules (which triggers may share a step, and
-invariant 4) live with the step itself in
+each step must move it along an EM transition (ADR-0130).  The step rules
+(which triggers may share a step, and that no step changes anything once an
+entry is ``TERMINATED``) live with the step itself in
 :mod:`vultron.core.models.embargo_register`; this module holds what can be
 checked on one set of statuses.
 """
@@ -131,9 +132,14 @@ def register_status_after(
 def register_invariant_violations(
     statuses: Iterable[EmbargoRegisterStatus],
 ) -> list[str]:
-    """Every register invariant (1–3 of ADR-0122) that *statuses* break.
+    """Every register invariant that *statuses* break (ADR-0122).
 
-    Invariant 4 — no change after a step has left an entry ``TERMINATED`` —
+    At most one entry is ``ACTIVE`` and at most one ``TERMINATED``, never one
+    of each; a ``SUPERSEDED`` entry exists only beside exactly one ``ACTIVE``
+    or ``TERMINATED`` entry; and no entry is ``PROPOSED`` while one is
+    ``TERMINATED``.
+
+    The rule that no step changes anything once an entry is ``TERMINATED``
     is about a step, not a set of statuses, so the step checks it.  An empty
     list means the statuses are a legal register.
     """

@@ -200,23 +200,6 @@ class TestCreateCaseActivity:
         _assert_accepts_inline(self.cls, as_VulnerabilityCase())
 
 
-class TestCreateCaseStatusActivity:
-    from vultron.wire.as2.vocab.activities.case import (
-        _CreateCaseStatusActivity,
-    )
-
-    cls = _CreateCaseStatusActivity
-
-    def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
-
-    def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
-
-    def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, as_CaseStatus(context=_STR_URI))
-
-
 class TestAddNoteToCaseActivity:
     from vultron.wire.as2.vocab.activities.case import _AddNoteToCaseActivity
 
@@ -483,23 +466,6 @@ class TestCreateParticipantActivity:
 
     def test_accepts_inline_participant(self):
         _assert_accepts_inline(self.cls, as_CaseParticipant())
-
-
-class TestCreateStatusForParticipantActivity:
-    from vultron.wire.as2.vocab.activities.case_participant import (
-        _CreateStatusForParticipantActivity,
-    )
-
-    cls = _CreateStatusForParticipantActivity
-
-    def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
-
-    def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
-
-    def test_accepts_inline_participant_status(self):
-        _assert_accepts_inline(self.cls, _participant_status())
 
 
 class TestAddStatusToParticipantActivity:

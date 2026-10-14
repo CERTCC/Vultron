@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Dimension objects serialize to a bare state value (ADR-0099 detail 5).
+"""Dimension objects serialize to a bare state value (ARCH-25-005, ADR-0099).
 
 A dimension object holds exactly one data field, ``state``; everything else on it
 is behaviour, and behaviour does not serialize. Its serialized form is therefore
@@ -22,7 +22,7 @@ the bare state value rather than a one-key ``{"state": ...}`` wrapper.
 The point of the change is that it costs nothing on the wire: with the wrapper
 gone, the core class plus a field alias produces the same AS2 output the wire
 class produced. :func:`test_core_participant_status_as2_output_matches_wire` is
-the acceptance test ADR-0099 names, and it is what moves detail 5 from argued to
+the acceptance test ADR-0099 names, and it is what moves ARCH-25-005 from argued to
 demonstrated.
 """
 
@@ -190,7 +190,7 @@ _EQUIVALENT_STATES = [
 def test_core_participant_status_as2_output_matches_wire(
     label, core_kwargs, wire_kwargs
 ):
-    """The acceptance test ADR-0099 names for detail 5.
+    """The acceptance test ADR-0099 names for ARCH-25-005.
 
     Core ``ParticipantStatus`` must serialize to the same AS2 payload the wire
     class produces. ``@context`` is excluded because the core object
@@ -315,7 +315,7 @@ class TestExplicitNullIsRefused:
 
     The removed ``_migrate_flat_fields`` before-validator guarded on
     ``raw is not None`` and fell back to the field default, so
-    ``{"rmState": None}`` quietly produced ``RM.START``. ADR-0099 detail 7's
+    ``{"rmState": None}`` quietly produced ``RM.START``. ARCH-25-007 (ADR-0099)'s
     fail-loudly rule refuses it instead: naming a dimension and supplying no
     state is a statement the caller cannot back, and it is a different input from
     not naming it at all.

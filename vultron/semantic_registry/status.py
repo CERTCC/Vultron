@@ -21,16 +21,12 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
-    CreateCaseStatusReceivedEvent,
-    CreateParticipantStatusReceivedEvent,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
     AddParticipantStatusToParticipantReceivedUseCase,
-    CreateCaseStatusReceivedUseCase,
-    CreateParticipantStatusReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
@@ -44,46 +40,16 @@ from vultron.semantic_registry._occasion import (
 from vultron.wire.as2.extractor import (
     AddCaseStatusToCasePattern,
     AddParticipantStatusToParticipantPattern,
-    CreateCaseStatusActivityPattern,
-    CreateParticipantStatusPattern,
 )
 from vultron.wire.as2.vocab.activities.case import (
     _AddStatusToCaseActivity,
-    _CreateCaseStatusActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
     _AddStatusToParticipantActivity,
-    _CreateStatusForParticipantActivity,
 )
 
 ENTRIES: list[SemanticEntry] = [
     # Case status
-    SemanticEntry(
-        semantics=MessageSemantics.CREATE_CASE_STATUS,
-        pattern=CreateCaseStatusActivityPattern,
-        event_class=CreateCaseStatusReceivedEvent,
-        use_case_class=CreateCaseStatusReceivedUseCase,
-        phrase="{actor} created a case status record",
-        wire_activity_class=_CreateCaseStatusActivity,
-        include_activity=True,
-        occasions=(
-            Occasion(
-                when=(
-                    "a Participant is about to announce a change to the public"
-                    " state of the case"
-                ),
-                anchor="create-case-status",
-                heading="Create case status",
-                description=(
-                    "Mints a case status object carrying `em_state` and "
-                    "`pxa_state`. It precedes the Add."
-                ),
-                example="create_case_status",
-                howto=HowToGuide.STATUS_UPDATES,
-            ),
-        ),
-        page=MessagePage.CS,
-    ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_CASE_STATUS_TO_CASE,
         pattern=AddCaseStatusToCasePattern,
@@ -147,32 +113,6 @@ ENTRIES: list[SemanticEntry] = [
         page=MessagePage.CS,
     ),
     # Participant status
-    SemanticEntry(
-        semantics=MessageSemantics.CREATE_PARTICIPANT_STATUS,
-        pattern=CreateParticipantStatusPattern,
-        event_class=CreateParticipantStatusReceivedEvent,
-        use_case_class=CreateParticipantStatusReceivedUseCase,
-        phrase="{actor} created a participant status record",
-        wire_activity_class=_CreateStatusForParticipantActivity,
-        include_activity=True,
-        occasions=(
-            Occasion(
-                when=(
-                    "a Participant is about to announce a change to its own "
-                    "state in the case"
-                ),
-                anchor="create-participant-status",
-                heading="Create participant status",
-                description=(
-                    "Mints a participant status object carrying `rm_state`, "
-                    "`vf_state` and `d_state`. It precedes the Add."
-                ),
-                example="create_participant_status",
-                howto=HowToGuide.STATUS_UPDATES,
-            ),
-        ),
-        page=MessagePage.CS,
-    ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         pattern=AddParticipantStatusToParticipantPattern,

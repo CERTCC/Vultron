@@ -1925,9 +1925,10 @@ groups:
     priority: MUST
     kind: project
     statement: 'ActorConfig MUST expose an `auto_create_case` boolean field with a default value of `True`.'
-    rationale: Receivers that follow the Option 3 protocol path (send Read(Offer(Report)) before deciding to accept or reject)
-      require the ability to delay case creation. The default (True) preserves the original ADR-0015 Option 4 "always create
-      at RM.RECEIVED" behavior for all existing actors and demos.
+    rationale: Receivers that acknowledge a report (send Read(Offer(Report)), VAM-02-003) before deciding to accept or reject
+      it require the ability to delay case creation. The default (True) starts a case at every `Offer(Report)` receipt
+      (RM.RECEIVED) for all existing actors and demos; the receiver proposes it and the CASE_MANAGER creates it
+      (CM-22-001), or the receiver creates it itself when it is the CASE_MANAGER (CM-12-001).
     verification: Inspection of `vultron/core/` confirms that `ActorConfig` declares an
       `auto_create_case` boolean field defaulting to `True`.
     relationships:
@@ -3473,6 +3474,43 @@ groups:
     - ADR-0053
     stories:
     - story_2022_050
+  - id: CM-21-018
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `Offer(VulnerabilityCase)` the CASE_MANAGER forwards to the transferee
+      (CM-21-005) MUST carry `inReplyTo` set to the id of the recorded Offer it
+      forwards. When an Accept or Reject names a forward, the CASE_MANAGER MUST
+      resolve it to the recorded Offer through that link, read from the forward it
+      sent and stored, and MUST NOT resolve it by comparing times. An answer naming
+      a forward that carries no `inReplyTo`, or whose link names no recorded Offer
+      for that case and transferee, MUST be refused as a protocol error, with no
+      ledger commit and no outbound activity.
+    rationale: >-
+      An answer closes exactly the Offer it answers (CM-21-014), and both the Accept
+      and the Reject commit. A forward that names nothing it stands for leaves the
+      CASE_MANAGER guessing: matching by time lets a late answer to one Offer close
+      a newer Offer to the same transferee recorded in the same second. `inReplyTo`
+      is the AS2 field that points one activity at the one it follows from, and
+      `context` is not free to carry the link: it already names the case.
+    verification: >-
+      A test marked `CM-21-018` runs the forward and asserts its `inReplyTo` is the
+      recorded Offer's id; a test delivers an answer to an earlier Offer's forward
+      after a later Offer to the same transferee is recorded in the same second and
+      asserts the later Offer stays open; a test delivers an answer naming a forward
+      with no `inReplyTo`, and one linked to another transferee's Offer, and asserts
+      each is refused with no ledger commit and no outbound activity.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-005
+    - rel_type: refines
+      spec_id: CM-21-014
+    - rel_type: refines
+      spec_id: CLP-11-001
+    adr:
+    - ADR-0053
+    stories:
+    - story_2022_050
 - id: CM-22
   title: CASE_MANAGER-Authoritative Case Creation
   description: >-
@@ -4748,8 +4786,8 @@ groups:
       A participant that did not answer made no decision, and code, logs, demos and replicas read
       the consent row, not ledger provenance (ADR-0118). An expired participant is re-invitable
       (CM-18-003), excluded from embargoed content like any non-signatory (CM-10-004), and made a
-      signatory by a late Accept the CASE_MANAGER honours (EMB-17-002). ADR-0118 reverses ADR-0065
-      part 5, which chose `DECLINED`.
+      signatory by a late Accept the CASE_MANAGER honours (EMB-17-002). ADR-0118 reverses ADR-0065's
+      choice to record a lapsed invitation as `DECLINED`.
     note: >-
       "Invitation" here is an `Invite(EmbargoEvent)`. An expired stub Invite
       (`Invite(Actor, VulnerabilityCaseStub)`) carries embargo terms but changes
@@ -5022,6 +5060,50 @@ groups:
     adr:
     - ADR-0118
     - ADR-0113
+    stories:
+    - story_2022_014
+    - story_2022_027
+  - id: CM-28-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The CASE_MANAGER MUST expire every `INVITED` consent row whose RSVP deadline has passed and
+      whose embargo register entry is an open proposal or the embargo in force, each through the
+      CM-28-009 expiry entry and its `TIME_OUT` effect, before it commits the case owner's
+      decision on an embargo proposal (MSM-07-008, MSM-07-009) and whenever it processes any other
+      received embargo activity for the case. A row of a replaced, rejected, cancelled or ended
+      embargo is frozen and MUST NOT be swept. The sweep MUST run only after every refusal check
+      of the activity admits it: its sender gate (HP-01-006) and its own refusals, such as an
+      embargo that is not an open proposal or a public, exploited or attacked CS (MSM-07-008), so
+      a refused activity writes nothing. It applies equally when the owner's own trigger runs on
+      the actor that holds `CVDRole.CASE_MANAGER` (EP-09-008).
+    rationale: >-
+      Expiry evaluated only on a late `Accept` and at owner close (CM-23-014) never records an
+      invitee that does not answer: its row stays `INVITED` until the case closes, so the case
+      owner, who learns of a timeout from the expiry entry's fan-out (MSM-07-007), decides on
+      the embargo without knowing about it (EP-09-006). The owner's decision is the moment the
+      timeout matters, and embargo activities are the acts that read the consent rows (CM-28-007),
+      so sweeping there keeps expiry lazy and needs no scheduler (CM-28-008).
+    verification: >-
+      Tests let an invitation pass its deadline unanswered, then deliver to the CASE_MANAGER, in
+      turn, the owner's `Accept(EmbargoEvent, target=Case)`, the owner's
+      `Reject(EmbargoEvent, target=Case)` and one other received embargo activity, and assert
+      for each that the `invite_to_embargo_on_case_expired` entry is committed before the
+      activity's own entry and the invitee's row reads `TIMED_OUT`; a test runs the owner's
+      embargo-decision trigger on the actor holding `CVDRole.CASE_MANAGER` and asserts the same.
+      Tests deliver the owner's decision from a non-owner, and from the owner naming an embargo
+      that is not an open proposal, and assert each is `REFUSED` with no expiry entry committed.
+      Tests assert a row whose deadline has not passed stays `INVITED`, an overdue `INVITED` row
+      of a replaced embargo is left unchanged, and a repeat sweep commits no second expiry entry.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-28-007
+    - rel_type: depends_on
+      spec_id: CM-28-009
+    - rel_type: depends_on
+      spec_id: CM-28-014
+    adr:
+    - ADR-0118
     stories:
     - story_2022_014
     - story_2022_027
@@ -5894,7 +5976,7 @@ groups:
       that case's ID, its new end time or the fact of termination, and the rationale.
     rationale: >-
       A notice informs and proposes nothing: a case's embargo changes only through its own
-      negotiation (ADR-0125, decision part 7). Committing it to the receiving ledger delivers
+      negotiation (ADR-0125). Committing it to the receiving ledger delivers
       it through the shared recipient selection, so the participants of one case learn of
       another's change without ever being addressed by it, and learn nothing else of that
       case.

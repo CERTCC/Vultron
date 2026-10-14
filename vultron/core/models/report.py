@@ -32,7 +32,7 @@ class VulnerabilityReport(CoreObject):
     Policy implementations receive this type when evaluating credibility
     and validity.  The wire name ``as_VulnerabilityReport`` in
     ``vultron.wire.as2.vocab.objects.vulnerability_report`` is an alias of
-    this class (ADR-0099 detail 3): a ``by_alias`` dump is its AS2 form
+    this class (ARCH-25-003, ADR-0099): a ``by_alias`` dump is its AS2 form
     (ARCH-12-003), and there is no separate wire class or projection step.
     """
 

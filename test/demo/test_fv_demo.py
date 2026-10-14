@@ -1958,7 +1958,7 @@ class TestCaseLedgerInvariants:
     #: commit-path completeness — see issue #789).
     _REQUIRED_EVENT_TYPES: frozenset[str] = frozenset(
         {
-            "add_participant_status_to_participant",  # participant tracking — CI invariant 7
+            "add_participant_status_to_participant",  # participant tracking — CI invariant 7.
             # offer_case_manager_role removed: ADR-0041 removes SendOfferCaseManagerRoleNode;
             # CaseActor self-assigns CASE_MANAGER natively without the offer/accept round-trip.
         }

@@ -102,9 +102,10 @@ does not. Consequences:
   cite the ADR as provenance (MS-11-004).
 - **A spec or note must not resolve its meaning by pointing into an ADR body.**
   Cite the ADR for *why*; state the rule where the reader already is. MS-11-007
-  forbids citing a numbered detail, and
-  `test/metadata/test_no_adr_detail_citations.py` fails one under `specs/` or
-  `notes/`.
+  forbids citing any numbered part of a record (a detail, rule, step, option,
+  part, invariant or section number), and
+  `test/metadata/test_no_decision_record_part_citations.py` fails one under
+  `specs/` or `notes/`.
 
 What stays in the body: the reasoning, the rejected options, and how the code
 looked then, written to read as of its time, with removed symbols annotated in

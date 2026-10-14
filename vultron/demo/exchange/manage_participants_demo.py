@@ -75,7 +75,6 @@ from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
     add_report_to_case_activity,
     add_status_to_participant_activity,
-    create_status_for_participant_activity,
     remove_participant_from_case_activity,
     rm_invite_to_case_activity,
     rm_reject_invite_to_case_activity,
@@ -170,15 +169,15 @@ def demo_manage_participants_accept(
     2. Vendor invites coordinator to case (RmInviteToCaseActivity)
     3. Coordinator accepts invitation (RmAcceptInviteToCaseActivity), which
        seats it (ADR-0114)
-    4. Coordinator creates a as_ParticipantStatus (CreateStatusForParticipantActivity)
-    5. Coordinator adds the status to their participant (AddStatusToParticipantActivity)
-    6. Vendor, as Case Owner, removes the coordinator participant
+    4. Coordinator adds a new status, carried inline, to their participant
+       (AddStatusToParticipantActivity)
+    5. Vendor, as Case Owner, removes the coordinator participant
        (RemoveParticipantFromCaseActivity)
-    7. Verify the coordinator's record stays on the case and carries the
+    6. Verify the coordinator's record stays on the case and carries the
        removal fact (CM-31-001)
-    8. Vendor, as Case Owner, reinstates the coordinator
+    7. Vendor, as Case Owner, reinstates the coordinator
        (AddParticipantToCaseActivity, CM-31-011)
-    9. Verify the removal fact is cleared and the coordinator was sent the
+    8. Verify the removal fact is cleared and the coordinator was sent the
        CASE_MANAGER's notice
 
     This follows the accept branch in
@@ -224,32 +223,17 @@ def demo_manage_participants_accept(
                     f" Index: {updated_case.actor_participant_index}"
                 )
 
-    participant_status = None
-    with demo_step("Step 4: Coordinator creates a as_ParticipantStatus"):
+    with demo_step(
+        "Step 4: Coordinator adds an as_ParticipantStatus to their participant"
+    ):
+        # The Add carries the new status inline: this implementation does not
+        # support a separate Create(ParticipantStatus) (#4598).
         participant_status = as_ParticipantStatus(
             context=coordinator_participant.id_,
             rm=RmDimension(state=RM.ACCEPTED),
             attributed_to=coordinator.id_,
             cvd_role=[CVDRole.COORDINATOR],
         )
-        create_status = create_status_for_participant_activity(
-            participant_status,
-            actor=coordinator.id_,
-            target=coordinator_participant.id_,
-        )
-        post_to_inbox_and_wait(client, coordinator.id_, create_status)
-        with demo_check("as_ParticipantStatus stored in data layer"):
-            # The coordinator's store: the activity was delivered to the
-            # coordinator's inbox, so that is the replica holding the status.
-            # The client is bound to the vendor (the recipient in most of these
-            # demos), so this read has to name the actor explicitly.
-            verify_object_stored(
-                client, participant_status.id_, actor_id=coordinator.id_
-            )
-
-    with demo_step(
-        "Step 5: Coordinator adds as_ParticipantStatus to their participant"
-    ):
         add_status = add_status_to_participant_activity(
             participant_status,
             actor=coordinator.id_,
@@ -261,9 +245,9 @@ def demo_manage_participants_accept(
                 client, case.id_, "after AddStatusToParticipantActivity"
             )
 
-    # Bound before the step so Step 7 can read it (#2308 ratchet).
+    # Bound before the step so Step 6 can read it (#2308 ratchet).
     remove_participant = None
-    with demo_step("Step 6: Vendor, as Case Owner, removes coordinator"):
+    with demo_step("Step 5: Vendor, as Case Owner, removes coordinator"):
         # The Case Owner's request to the CASE_MANAGER (CM-31-004).  The
         # vendor holds both roles here, so it posts to its own inbox.
         remove_participant = remove_participant_from_case_activity(
@@ -274,7 +258,7 @@ def demo_manage_participants_accept(
     # Single-use removal checks, inline for now; extract them into
     # helpers/verification.py when a second scenario removes a participant
     # (DEMOMA-17-001).
-    with demo_step("Step 7: Verify coordinator record is kept and inert"):
+    with demo_step("Step 6: Verify coordinator record is kept and inert"):
         with demo_check("Coordinator still on the case roster (CM-31-001)"):
             final_case = log_case_state(
                 client, case.id_, "after RemoveParticipantFromCaseActivity"
@@ -330,9 +314,9 @@ def demo_manage_participants_accept(
                     f" coordinator, found {len(notices)}"
                 )
 
-    # Bound before the step so Step 9 can read it (#2308 ratchet).
+    # Bound before the step so Step 8 can read it (#2308 ratchet).
     reinstate_participant = None
-    with demo_step("Step 8: Vendor, as Case Owner, reinstates coordinator"):
+    with demo_step("Step 7: Vendor, as Case Owner, reinstates coordinator"):
         # The Case Owner's request to the CASE_MANAGER (CM-31-011): the
         # removed coordinator is reinstated without accepting again.
         reinstate_participant = add_participant_to_case_activity(
@@ -343,7 +327,7 @@ def demo_manage_participants_accept(
     # Single-use reinstatement checks, inline for now; extract them into
     # helpers/verification.py when a second scenario reinstates a
     # participant (DEMOMA-17-001).
-    with demo_step("Step 9: Verify coordinator is active again"):
+    with demo_step("Step 8: Verify coordinator is active again"):
         with demo_check("Coordinator record no longer carries a removal"):
             record = client.get(client.dl_path(coordinator_participant.id_))
             if record.get("removalActivity") is not None:
