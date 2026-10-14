@@ -28,8 +28,8 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ class OfferActorToCaseReceivedUseCase:
     forwarded to the Case Owner (HP-01-006, #3668).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 

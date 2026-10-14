@@ -57,6 +57,7 @@ if TYPE_CHECKING:
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlement,
     SenderEntitlementKind,
+    SenderRule,
     exempt,
 )
 
@@ -412,7 +413,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
 
     # The transferee is the addressee of the Offer (ADR-0129); the guard is
     # two-sided: the CASE_MANAGER at a replica (PCR-03-001).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.NAMED_ACTOR
     )
 
@@ -472,7 +473,7 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     """
 
     # The same two-sided transferee rule as the Accept (ADR-0129).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.NAMED_ACTOR
     )
 
@@ -532,7 +533,7 @@ class UndoCaseOwnershipTransferReceivedUseCase:
     """
 
     # The offerer, which must still be the Case Owner (CM-21-015).
-    sender_entitlement: ClassVar[SenderEntitlement] = (
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
         SenderEntitlementKind.CASE_OWNER
     )
 

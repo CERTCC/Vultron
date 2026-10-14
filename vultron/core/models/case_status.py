@@ -61,6 +61,7 @@ class CaseStatus(CoreObject):
         default_factory=EmDimension,
         validation_alias=AliasChoices("emState", "em_state", "em"),
         serialization_alias="emState",
+        frozen=True,
     )
     pxa: PxaDimension = Field(
         default_factory=PxaDimension,
@@ -76,26 +77,22 @@ class CaseStatus(CoreObject):
     # above accept all three spellings, and ``_ScalarDimension``'s
     # ``_accept_bare_state`` accepts the bare state value the flat form carries.
 
-    # ``em_state``/``pxa_state`` are a read/write view onto the dimension, not a
-    # second place to keep the value: the dimension owns the state machine
+    # ``em_state``/``pxa_state`` are a view onto the dimension, not a second
+    # place to keep the value: the dimension owns the state machine
     # (ADR-0036, SDO-03-001) and the flat spelling is only how it serializes
-    # (ADR-0099 detail 5).  They exist because the deleted ``as_CaseStatus``
-    # carried ``em_state``/``pxa_state`` as real fields, so callers and tests
-    # written against the wire class read *and assigned* them.
-    #
-    # The setters are what make that compatibility real.  Read-only properties
-    # satisfied every reader and then failed on the first writer with
-    # "property has no setter" — which is not a compatibility shim, just a
-    # narrower break.
+    # (ADR-0099 detail 5).  ``pxa_state`` is read/write; ``em_state`` is
+    # read-only (SDO-03-006, EMB-18-001).  ``em`` is a frozen field and
+    # ``EmDimension`` a frozen model, so ``status.em = ...`` and
+    # ``status.em.state = ...`` raise ``ValidationError``, and ``em_state``
+    # has no setter, so ``status.em_state = ...`` raises ``AttributeError``.
+    # The owning ``VulnerabilityCase`` stamps the derived EM onto a copy via
+    # ``model_copy(update={"em": ...})`` rather than mutating the status
+    # (ADR-0122).
 
     @property
     def em_state(self) -> EM:
-        """The EM state value. A view onto ``em.state``."""
+        """The EM state value. Read-only view onto ``em.state`` (SDO-03-006)."""
         return self.em.state
-
-    @em_state.setter
-    def em_state(self, value: EM) -> None:
-        self.em = EmDimension(state=value)
 
     @property
     def pxa_state(self) -> CS_pxa:
