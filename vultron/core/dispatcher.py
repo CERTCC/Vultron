@@ -25,12 +25,17 @@ The ``get_dispatcher`` factory function is provided for adapter convenience.
 
 import logging
 from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
+from vultron.core.behaviors.embargo.end_time_tree import (
+    end_embargo_if_end_time_passed,
+)
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.errors import (
     UnroutableActivityError,
     VultronApiHandlerNotFoundError,
@@ -39,6 +44,8 @@ from vultron.errors import (
 
 if TYPE_CHECKING:
     from vultron.core.models.events import VultronEvent
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
+    from vultron.core.ports.case_persistence import CasePersistence
     from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
@@ -70,6 +77,14 @@ class DispatcherBase:
     semantic types.  Each factory receives the ``DataLayer`` and returns a
     dict of keyword arguments to pass to the use-case constructor.  Use cases
     whose constructors do not accept these kwargs are unaffected.
+
+    With *upkeep_port_factory*, the dispatcher runs the CASE_MANAGER's lazy
+    case upkeep before each activity it handles for a case: an embargo in
+    force whose end time has passed is ended with ``END_TIME_REACHED``
+    (ADR-0122), so the activity is handled against the embargo as it now
+    stands and no scheduler is needed.  The factory supplies the ports the
+    termination's commit and announcement need (``trigger_activity``,
+    ``sync_port``, ``wire_render_port``).  A non-manager does nothing.
     """
 
     def __init__(
@@ -82,9 +97,13 @@ class DispatcherBase:
             ]
             | None
         ) = None,
+        upkeep_port_factory: (
+            Callable[["DataLayer"], dict[str, Any]] | None
+        ) = None,
     ):
         self._use_case_map = use_case_map
         self._port_factories = port_factories or {}
+        self._upkeep_port_factory = upkeep_port_factory
 
     def dispatch(
         self, event: "VultronEvent", dl: "DataLayer"
@@ -129,6 +148,7 @@ class DispatcherBase:
             )
             return HandlerResult.refused(f"unroutable: {exc.reason}")
         use_case_class = self._get_use_case(event.semantic_type)
+        self._run_case_upkeep(event, dl)
         extra_kwargs: dict[str, Any] = {}
         port_factory = self._port_factories.get(event.semantic_type)
         if port_factory is not None:
@@ -151,6 +171,34 @@ class DispatcherBase:
                 " (UCORG-05-001)"
             )
         return result
+
+    def _run_case_upkeep(self, event: "VultronEvent", dl: "DataLayer") -> None:
+        """Run the CASE_MANAGER's lazy end-time check for the event's case.
+
+        Skipped without an upkeep port factory, or when the event names no
+        case or no receiving actor can be resolved.  A failed check is logged
+        by :func:`end_embargo_if_end_time_passed` and retried the next time
+        the case is handled; it never blocks the activity.
+        """
+        if self._upkeep_port_factory is None:
+            return
+        try:
+            case_id = self._extract_case_id(event)
+            actor_id = resolve_receiving_actor_id(
+                cast("CasePersistence", dl), event.receiving_actor_id
+            )
+        except (UnroutableActivityError, VultronValidationError):
+            return
+        ports = self._upkeep_port_factory(dl)
+        end_embargo_if_end_time_passed(
+            datalayer=cast("CaseOutboxPersistence", dl),
+            case_id=case_id,
+            actor_id=actor_id,
+            now=now_utc(),
+            trigger_activity=ports.get("trigger_activity"),
+            sync_port=ports.get("sync_port"),
+            wire_render_port=ports.get("wire_render_port"),
+        )
 
     def _enforce_join_backfill_gate(
         self, event: "VultronEvent", dl: "DataLayer"
@@ -260,9 +308,11 @@ def get_dispatcher(
         ]
         | None
     ) = None,
+    upkeep_port_factory: Callable[["DataLayer"], dict[str, Any]] | None = None,
 ) -> ActivityDispatcher:
     """Factory: return a ``DirectActivityDispatcher`` for the given routing table."""
     return DirectActivityDispatcher(
         use_case_map=use_case_map,
         port_factories=port_factories,
+        upkeep_port_factory=upkeep_port_factory,
     )

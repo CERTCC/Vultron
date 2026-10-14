@@ -21,6 +21,7 @@ from typing import Any, cast
 
 from vultron.adapters.outbox_sealed_body import derived_activity_id, is_sealed
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronAlreadyExistsError,
@@ -295,6 +296,8 @@ class _EmbargoMixin:
         embargo_id: str,
         case_id: str,
         actor: str,
+        *,
+        reason: TerminationReason,
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
@@ -308,6 +311,7 @@ class _EmbargoMixin:
         activity = remove_embargo_from_case_activity(
             embargo=embargo,
             origin=case_id,
+            reason=reason,
             context=case_id,
             actor=actor,
             to=to,

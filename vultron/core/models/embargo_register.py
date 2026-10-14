@@ -37,11 +37,11 @@ from pydantic.alias_generators import to_camel
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.em import EM_Trigger, is_em_transition
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     RegisterTrigger,
-    TerminationReason,
     derive_em,
     register_invariant_violations,
     register_status_after,
@@ -74,7 +74,9 @@ class EmbargoRegisterEntry(ValidatedAssignmentMixin, BaseModel):
     ``embargo`` is the ``EmbargoEvent`` or its id.  The object form is kept
     when a sender carried it, so a recipient can read the terms of the
     embargo in force without a dereference (AKM-03-001, DL-08-001).
-    ``replaces`` names the embargo an activated revision replaced.  Entries
+    ``replaces`` names the embargo an activated revision replaced.
+    ``termination`` is how a ``TERMINATED`` entry ended — the what and, when
+    recorded, the why (ADR-0122) — and is set on that status only.  Entries
     are frozen: they change only by :func:`apply_register_step`.
     """
 
@@ -88,11 +90,17 @@ class EmbargoRegisterEntry(ValidatedAssignmentMixin, BaseModel):
     embargo: NonEmptyString | EmbargoEvent
     status: EmbargoRegisterStatus
     replaces: NonEmptyString | None = None
+    termination: EmbargoTermination | None = None
 
     @model_validator(mode="after")
     def _status_fields_agree(self) -> "EmbargoRegisterEntry":
-        """Refuse a ``replaces`` the entry's status cannot carry."""
+        """Refuse a ``replaces`` or ``termination`` the status cannot carry."""
         problems: list[str] = []
+        if (self.termination is None) == (self.status == _S.TERMINATED):
+            problems.append(
+                "a termination is required on a TERMINATED entry and refused"
+                " otherwise"
+            )
         if self.replaces is not None and self.status not in _WAS_ACTIVE:
             problems.append(
                 f"replaces is set on a {self.status} entry, which was never"
@@ -124,18 +132,18 @@ class RegisterChange(ValidatedAssignmentMixin, BaseModel):
     trigger: RegisterTrigger
     #: ``PROPOSE`` only: the embargo object, kept inline on the new entry.
     embargo: EmbargoEvent | None = None
-    #: ``TERMINATE`` only, and required there.  The step does not store it:
-    #: replicas learn a termination from a ``Remove`` that does not yet carry
-    #: its reason, so recording it here would let registers disagree.
-    reason: TerminationReason | None = None
+    #: ``TERMINATE`` only, and required there: how the embargo ended, stored
+    #: on the ``TERMINATED`` entry.  A replica that learned the termination
+    #: from a ``Remove`` knows only its what (ADR-0122, #4294).
+    termination: EmbargoTermination | None = None
 
     @model_validator(mode="after")
     def _trigger_fields_agree(self) -> "RegisterChange":
-        """Refuse a reason or embargo object the trigger cannot carry (EH-07-001)."""
+        """Refuse a termination or embargo object the trigger cannot carry (EH-07-001)."""
         problems: list[str] = []
-        if (self.reason is None) == (self.trigger == _T.TERMINATE):
+        if (self.termination is None) == (self.trigger == _T.TERMINATE):
             problems.append(
-                "a reason is required on TERMINATE and refused otherwise"
+                "a termination is required on TERMINATE and refused otherwise"
             )
         if self.embargo is not None and (
             self.trigger != _T.PROPOSE or self.embargo.id_ != self.embargo_id
@@ -307,6 +315,8 @@ def _entry_after(
     update: dict[str, object] = {"status": status}
     if change.trigger == _T.ACTIVATE and superseded_id is not None:
         update["replaces"] = superseded_id
+    if change.termination is not None:
+        update["termination"] = change.termination
     # Revalidate rather than ``model_copy``: the copy skips validators.
     return EmbargoRegisterEntry.model_validate(
         {**entry.model_dump(), **update, "embargo": entry.embargo}
@@ -434,13 +444,19 @@ def rejection_changes(embargo_id: str) -> list[RegisterChange]:
 
 
 def termination_changes(
-    entries: Sequence[EmbargoRegisterEntry], reason: TerminationReason
+    entries: Sequence[EmbargoRegisterEntry], termination: EmbargoTermination
 ) -> list[RegisterChange]:
-    """The step that ends the embargo in force and cancels every proposal."""
+    """The step that ends the embargo in force and cancels every proposal.
+
+    The ``ACTIVE`` entry is ``TERMINATED`` recording *termination*, and every
+    ``PROPOSED`` entry is ``CANCELLED`` in the same step (EP-08-004).
+    """
     return [
         *(
             RegisterChange(
-                embargo_id=active_id, trigger=_T.TERMINATE, reason=reason
+                embargo_id=active_id,
+                trigger=_T.TERMINATE,
+                termination=termination,
             )
             for active_id in _ids_with(entries, _S.ACTIVE)
         ),

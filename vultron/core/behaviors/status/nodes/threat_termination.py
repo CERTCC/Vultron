@@ -41,11 +41,15 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_termination import (
+    ThreatSignal,
+    ThreatSignalTermination,
+    threat_signals_of,
+)
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_pxa
-from vultron.core.states.embargo_register import TerminationReason
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +88,17 @@ def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
     return cast(CS_pxa, pxa_state)
 
 
+def _status_of(status_obj: object) -> object:
+    """The status a cascade reacts to: a wrapper's ``case_status``, or itself."""
+    case_status = getattr(status_obj, "case_status", None)
+    return status_obj if case_status is None else case_status
+
+
 def pxa_embargo_teardown_bt(
-    *, case_id: str, result_out: dict[str, object]
+    *,
+    case_id: str,
+    result_out: dict[str, object],
+    signals: list[ThreatSignal] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """The embargo teardown a P/X/A signal calls for, by EM state.
 
@@ -93,6 +106,9 @@ def pxa_embargo_teardown_bt(
     EMB-07-001/002) and otherwise abandons every open proposal (PROPOSED,
     EMB-16-001).  Each subtree checks its own EM precondition first, so at
     most one of them writes, and only as the CASE_MANAGER (EP-09-008).
+    The termination is ``EARLY`` with a ``THREAT_SIGNAL`` cause naming
+    *signals*, or, when they are not known yet, the signals the case carries
+    at the write (ADR-0122).
     """
     return py_trees.composites.Selector(
         name="TeardownSelector",
@@ -101,7 +117,7 @@ def pxa_embargo_teardown_bt(
             terminate_embargo_bt(
                 case_id=case_id,
                 result_out=result_out,
-                reason=TerminationReason.THREAT_SIGNAL,
+                termination=ThreatSignalTermination(signals=signals),
             ),
             reject_proposed_embargo_bt(case_id=case_id, result_out=result_out),
         ],
@@ -154,9 +170,7 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
 
     def _threat_present(self) -> bool:
         """Return True if pxa state has at least one of P, X, or A set."""
-        case_status: object = getattr(self.status_obj, "case_status", None)
-        if case_status is None:
-            case_status = self.status_obj
+        case_status = _status_of(self.status_obj)
 
         # When status_obj carries no PXA info AND the caller has explicitly
         # opted in to the DataLayer fallback (set only by callers that know
@@ -302,8 +316,18 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
     ):
         super().__init__(name=name or self.__class__.__name__, memory=False)
         result_out: dict[str, object] = {}
+        # The signals of the triggering status when it names them; else the
+        # case's PXA at the write (the DataLayer-fallback callers).
+        threat = resolve_pxa_threat_state(_status_of(status_obj))
+        signals = (
+            threat_signals_of(threat) if isinstance(threat, CS_pxa) else []
+        )
         terminate_subtree = (
-            pxa_embargo_teardown_bt(case_id=case_id, result_out=result_out)
+            pxa_embargo_teardown_bt(
+                case_id=case_id,
+                result_out=result_out,
+                signals=signals or None,
+            )
             if case_id is not None
             else py_trees.behaviours.Success(name="TerminateEmbargoSkipped")
         )

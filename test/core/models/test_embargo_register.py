@@ -32,11 +32,14 @@ from vultron.core.models.embargo_register import (
     carry_embargo_inline,
     register_step_is_legal,
 )
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    ThreatSignal,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
     RegisterTrigger,
-    TerminationReason,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -53,7 +56,9 @@ CASE_ID = "https://example.org/cases/c1"
 A, B, C = (f"https://example.org/embargoes/{n}" for n in "abc")
 
 
-def _entry(embargo_id: str, status: S, **kw: str) -> EmbargoRegisterEntry:
+def _entry(embargo_id: str, status: S, **kw: Any) -> EmbargoRegisterEntry:
+    if status == S.TERMINATED:
+        kw.setdefault("termination", EmbargoTermination.early())
     return EmbargoRegisterEntry(embargo=embargo_id, status=status, **kw)
 
 
@@ -62,7 +67,9 @@ def _change(embargo_id: str, trigger: T, **kw: Any) -> RegisterChange:
 
 
 def _terminate(embargo_id: str) -> RegisterChange:
-    return _change(embargo_id, T.TERMINATE, reason=TerminationReason.EARLY)
+    return _change(
+        embargo_id, T.TERMINATE, termination=EmbargoTermination.early()
+    )
 
 
 def _statuses(entries: list[EmbargoRegisterEntry]) -> dict[str, S]:
@@ -242,11 +249,11 @@ def test_a_refusal_names_every_rule_the_step_breaks() -> None:
     "kw",
     [
         {"trigger": T.TERMINATE},
-        {"trigger": T.CANCEL, "reason": TerminationReason.EARLY},
+        {"trigger": T.CANCEL, "termination": EmbargoTermination.early()},
     ],
 )
-def test_a_reason_belongs_to_terminate_alone(kw: dict) -> None:
-    with pytest.raises(ValueError, match="reason"):
+def test_a_termination_belongs_to_terminate_alone(kw: dict) -> None:
+    with pytest.raises(ValueError, match="termination"):
         RegisterChange(embargo_id=A, **kw)
 
 
@@ -330,7 +337,7 @@ def test_threat_signal_with_an_embargo_in_force_terminates_it() -> None:
     propose(case, A)
     activate(case, A)
     propose(case, B)
-    terminate(case, TerminationReason.THREAT_SIGNAL)
+    terminate(case, EmbargoTermination.threat([ThreatSignal.P]))
     assert _statuses(case.embargo_register) == {
         A: S.TERMINATED,
         B: S.CANCELLED,
@@ -512,6 +519,7 @@ def test_the_register_round_trips_through_its_wire_spelling() -> None:
         "embargo": B,
         "status": "ACTIVE",
         "replaces": A,
+        "termination": None,
     }
     restored = VulnerabilityCase.model_validate(dumped)
     assert restored.embargo_register == case.embargo_register

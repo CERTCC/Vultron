@@ -47,6 +47,7 @@ from vultron.core.models.embargo_register import (
     repeated_ids,
     replaces_violations,
 )
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
@@ -664,6 +665,21 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
     def active_embargo_id(self) -> str | None:
         """The id of the register's ``ACTIVE`` entry, or ``None``."""
         return _as_id(self.active_embargo)
+
+    @property
+    def embargo_termination(self) -> EmbargoTermination | None:
+        """How the case's embargo ended, or ``None`` while none has (ADR-0122).
+
+        The ``termination`` of the register's ``TERMINATED`` entry.
+        """
+        return next(
+            (
+                entry.termination
+                for entry in self.embargo_register
+                if entry.status == EmbargoRegisterStatus.TERMINATED
+            ),
+            None,
+        )
 
     @property
     def proposed_embargo_ids(self) -> list[str]:

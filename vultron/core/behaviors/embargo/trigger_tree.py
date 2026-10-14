@@ -36,6 +36,7 @@ read-only routing guards, into two mutually exclusive arms
 """
 
 from collections.abc import Callable
+from datetime import datetime
 
 import py_trees
 
@@ -88,11 +89,13 @@ from vultron.core.behaviors.sender.nodes import (
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import (
+    TerminationRequest,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import (
     ASSERTED_ACTIVITY_KEY,
 )
-from vultron.core.states.embargo_register import TerminationReason
 
 _ACCEPT_EVENT_TYPE = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
 _REJECT_EVENT_TYPE = MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
@@ -509,16 +512,21 @@ def terminate_embargo_bt(
     *,
     case_id: str,
     result_out: dict[str, object],
-    reason: TerminationReason,
+    termination: TerminationRequest,
     activity_builder: EmbargoActivityBuilder | None = None,
     requested_by: str | None = None,
     actor_config: ActorConfig | None = None,
+    terminated_at: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Shared BT for terminating the active embargo (BT-19-001, EP-09-008).
 
-    *reason* is why the embargo ends: ``EARLY`` for a participant's own
-    decision, ``THREAT_SIGNAL`` for the CS ``P``/``X``/``A`` cascades
-    (ADR-0122).
+    *termination* is how the embargo ends (ADR-0122): ``EARLY`` with no
+    recorded cause for a participant's own decision,
+    :class:`ThreatSignalTermination` for the CS ``P``/``X``/``A`` cascades
+    (``EARLY``, caused by the signals the case carries at the write), and
+    ``END_TIME_REACHED`` for the end-time paths, claimed at
+    *terminated_at* and refused before the embargo's end time.  The
+    ``Remove`` carries only the what; the ``TERMINATED`` entry records both.
 
     Satisfies the routing-gated state-mutation ordering:
 
@@ -566,7 +574,8 @@ def terminate_embargo_bt(
         )
     else:
         commit = CommitEmbargoTeardownNode(case_id=case_id)
-        ask = ask_case_manager_to_terminate_once(case_id)
+        # The ask carries the what; a threat-signal termination is EARLY.
+        ask = ask_case_manager_to_terminate_once(case_id, termination.reason)
     capture, notices = embargo_ending_notice_nodes(
         case_id, requested_by=requested_by
     )
@@ -584,7 +593,10 @@ def terminate_embargo_bt(
                 as_case_manager=[
                     capture,
                     TerminateEmbargoLifecycleNode(
-                        case_id=case_id, result_out=result_out, reason=reason
+                        case_id=case_id,
+                        result_out=result_out,
+                        termination=termination,
+                        terminated_at=terminated_at,
                     ),
                     commit,
                     _make_emit_node(case_id),

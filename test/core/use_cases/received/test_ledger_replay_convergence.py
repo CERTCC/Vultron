@@ -55,7 +55,10 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.core.states.embargo_register import (
+    EmbargoRegisterStatus,
+    TerminationReason,
+)
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -432,7 +435,11 @@ def test_a_replica_follows_the_owners_embargo_removal():
     _send(
         net,
         remove_embargo_from_case_activity(
-            _embargo(net), origin=net.case_id, actor=OWNER, to=[MANAGER]
+            _embargo(net),
+            origin=net.case_id,
+            actor=OWNER,
+            to=[MANAGER],
+            reason=TerminationReason.EARLY,
         ),
     )
 
@@ -631,7 +638,11 @@ def test_embargo_removal_writes_nothing_at_an_active_replica():
         net,
         BYSTANDER,
         remove_embargo_from_case_activity(
-            _embargo(net), origin=net.case_id, actor=MANAGER, to=[BYSTANDER]
+            _embargo(net),
+            origin=net.case_id,
+            actor=MANAGER,
+            to=[BYSTANDER],
+            reason=TerminationReason.EARLY,
         ),
     )
 

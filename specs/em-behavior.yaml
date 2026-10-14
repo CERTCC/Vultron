@@ -1078,12 +1078,18 @@ groups:
     kind: protocol
     statement: >-
       A Participant entering EM Active SHOULD maintain the embargo by not
-      publishing information about the vulnerability until the embargo expires
-      or is terminated.
+      publishing information about the vulnerability until the embargo is
+      terminated, whether on reaching its end time or early. An embargo whose
+      end time has passed is ended by the CASE_MANAGER with the reason
+      `END_TIME_REACHED` (EMB-13-003); until that termination reaches a
+      Participant, its end time still bounds what it withholds.
     rationale: >-
       VP-05-014 specifies that Participants SHOULD NOT publish information about
       the vulnerability when there is an active embargo. Entering Active marks
-      the formal commitment to these terms.
+      the formal commitment to these terms. Reaching the end time does not end
+      the embargo by itself: the termination is a register change the
+      CASE_MANAGER commits, so every Participant learns of it the same way
+      (ADR-0122).
     testable: false
     lint_suppress:
     - testable_without_steps
@@ -1291,6 +1297,101 @@ groups:
     - rel_type: satisfies
       spec_id: VP-04-001
       note: Accepted embargoes MUST eventually terminate
+
+  - id: EMB-13-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the end time of the embargo in force has passed, the CASE_MANAGER
+      MUST end it with the reason `END_TIME_REACHED`, through one idempotent
+      termination path reached in either of two ways: its own lazy check when
+      it next handles the case, or an outside request to end the embargo at
+      its end time, such as from a Sentinel monitoring embargo timers. Both
+      commit the CASE_MANAGER's `Remove(EmbargoEvent)` with `content`
+      `END_TIME_REACHED` and run the full termination cascade. Whichever
+      arrives after the embargo has ended MUST commit nothing and MUST be
+      answered as already done. The outside request is made to the
+      CASE_MANAGER itself; a `Remove` received from the case owner is the
+      owner's own message and is ledgered on receipt like any other. An
+      `END_TIME_REACHED` termination claimed
+      before the embargo's end time MUST be refused, by the CASE_MANAGER
+      before it commits and by a replica that replays it.
+    rationale: >-
+      VP-04-001 requires every accepted embargo to have an end time, so every
+      embargo reaches one; recording the end as a termination keeps EM derived
+      from the register, and lets the content gate stop withholding content
+      under an embargo that has expired. The lazy check needs no scheduler;
+      the outside request lets a deployment end an embargo on time without
+      waiting for the next activity on the case. One path keeps the two from
+      both committing, which would break the register's invariant 4
+      (ADR-0122).
+    verification: >-
+      `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
+      covers the lazy check, the outside request, the order of the two and a
+      race between them; `test/core/use_cases/received/test_termination_reason.py`
+      covers the refusal of an early `END_TIME_REACHED` at the CASE_MANAGER and
+      at a replica.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      description: An embargo is in force and its end time has passed
+    postconditions:
+    - description: >-
+        The register's ACTIVE entry is TERMINATED with reason
+        END_TIME_REACHED, every open proposal CANCELLED, EM EXITED, and the
+        teardown announced
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: refines
+      spec_id: VP-04-001
+      note: Every accepted embargo has an end time; reaching it ends the embargo
+    - rel_type: depends_on
+      spec_id: EP-08-004
+      note: The termination cancels every open proposal in the same step
+    stories:
+    - story_2022_010
+    - story_2022_026
+
+  - id: EMB-13-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A termination `Remove(EmbargoEvent)` MUST carry what ended the embargo in
+      `content`, exactly `END_TIME_REACHED` or `EARLY`, checked at the parse
+      edge, where anything else MUST be refused; its `summary` carries a
+      human-readable account the protocol does not read. The `TERMINATED`
+      register entry MUST record that reason (the what) and, when known, a
+      structured cause (the why): a threat-signal termination records `EARLY`
+      with the cause `THREAT_SIGNAL` and the signals (`P`, `X`, `A`) that ended
+      it. The `Remove` does not carry the cause, so a replica that learns the
+      termination from the `Remove` records only the what; the cause reaches a
+      replica only with the register entry itself.
+    rationale: >-
+      The what is all a receiver needs to apply a termination and to check it
+      against the end time; the why is the CASE_MANAGER's record of its
+      decision. Keeping the why off the wire introduces no new AS2 property,
+      and leaves the set of causes open to extend (ADR-0122).
+    verification: >-
+      `test/core/use_cases/received/test_termination_reason.py` and
+      `test/core/models/test_embargo_termination.py` cover the parse-edge
+      check, the recorded what and why, and the replica's what-only record.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-13-001
+      note: Records why the ACTIVE entry was TERMINATED
+    stories:
+    - story_2022_080
+    - story_2022_026
 
   - id: EMB-13-002
     priority: MUST_NOT

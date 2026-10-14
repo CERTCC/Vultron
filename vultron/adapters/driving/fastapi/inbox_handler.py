@@ -177,9 +177,15 @@ def make_dispatcher() -> ActivityDispatcher:
         )
         for sem in use_cases
     }
+    # The CASE_MANAGER's lazy end-time check runs before each activity it
+    # handles for a case, and needs the ports a termination commits and
+    # announces with (ADR-0122).
     d = get_dispatcher(
         use_case_map=use_cases,
         port_factories=port_factories,
+        upkeep_port_factory=inbox_port_factories.with_received_baseline_ports(
+            _trigger_activity_port_factory
+        ),
     )
     logger.debug("Created inbox dispatcher: %s", type(d).__name__)
     return d

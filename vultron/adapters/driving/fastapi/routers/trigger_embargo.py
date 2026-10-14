@@ -249,7 +249,7 @@ def trigger_terminate_embargo(
     """
     return run_trigger(
         TerminateEmbargoTriggerRequest(
-            actor_id=actor_id, case_id=body.case_id
+            actor_id=actor_id, case_id=body.case_id, reason=body.reason
         ),
         dispatcher=dispatcher,
         dl=actor_dl,

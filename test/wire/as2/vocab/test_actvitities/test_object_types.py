@@ -429,10 +429,10 @@ class TestRemoveEmbargoFromCaseActivity:
     cls = _RemoveEmbargoFromCaseActivity
 
     def test_rejects_string(self):
-        _assert_rejects_string(self.cls)
+        _assert_rejects_string(self.cls, content="EARLY")
 
     def test_rejects_link(self):
-        _assert_rejects_link(self.cls)
+        _assert_rejects_link(self.cls, content="EARLY")
 
     def test_accepts_inline_embargo_event(self):
         _assert_accepts_inline(
@@ -440,7 +440,30 @@ class TestRemoveEmbargoFromCaseActivity:
             as_EmbargoEvent(
                 context="urn:uuid:case-123", end_time=days_from_now_utc(45)
             ),
+            content="EARLY",
         )
+
+    @pytest.mark.parametrize(
+        "content", [None, "", "early", "THREAT_SIGNAL", "Ended early."]
+    )
+    def test_refuses_content_that_is_not_a_termination_reason(self, content):
+        """AC-1 (#4293): ``content`` is exactly END_TIME_REACHED or EARLY."""
+        with pytest.raises(ValidationError, match="END_TIME_REACHED"):
+            _make_activity(
+                self.cls,
+                as_EmbargoEvent(
+                    context="urn:uuid:case-123",
+                    end_time=days_from_now_utc(45),
+                ),
+                content=content,
+            )
+
+    @pytest.mark.parametrize("content", ["END_TIME_REACHED", "EARLY"])
+    def test_accepts_each_termination_reason(self, content):
+        embargo = as_EmbargoEvent(
+            context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+        )
+        _assert_accepts_inline(self.cls, embargo, content=content)
 
 
 # ---------------------------------------------------------------------------

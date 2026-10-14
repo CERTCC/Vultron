@@ -13,7 +13,16 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Embargo termination trigger use case."""
+"""Embargo termination trigger use case.
+
+``reason=EARLY`` (the default) ends the embargo in force on the actor's own
+decision.  ``reason=END_TIME_REACHED`` is an outside request to end it at its
+end time, such as a Sentinel monitoring embargo timers sends: it runs the
+same idempotent path as the CASE_MANAGER's lazy check
+(:func:`~vultron.core.behaviors.embargo.end_time_tree.end_embargo_at_end_time_bt`),
+is refused before the end time, and is answered as already done — no
+activity — once the embargo has ended (ADR-0122).
+"""
 
 import json
 import logging
@@ -21,8 +30,17 @@ from typing import ClassVar, cast
 
 import py_trees.behaviour
 
+from vultron.core.behaviors.embargo.end_time_tree import (
+    EMBARGO_ALREADY_ENDED_KEY,
+    end_embargo_at_end_time_bt,
+)
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.models._helpers import now_utc
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.services.embargo_lifecycle import (
+    termination_timing_violations,
+)
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -33,6 +51,7 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
+from vultron.errors import VultronInvalidStateTransitionError
 
 logger = logging.getLogger(__name__)
 
@@ -49,18 +68,29 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         actor = resolve_actor(request.actor_id, dl)
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, dl)
+        self._reason: TerminationReason = request.reason
+        self._now = now_utc()
 
         # Resolve embargo_id only when active_embargo is set; when it is None
         # the HasActiveEmbargoNode BT precondition will halt the tree with a
         # typed VultronInvalidStateTransitionError before activity construction.
-        embargo_id = (
-            self._case.active_embargo
-            if isinstance(self._case.active_embargo, str)
-            else getattr(self._case.active_embargo, "id_", None)
-        )
+        embargo_id = self._case.active_embargo_id
         if embargo_id is not None:
             _coerce_embargo_event(dl.read(embargo_id), embargo_id)
         self._embargo_id = embargo_id or ""
+
+        # An end-time request before the end time is refused on every actor,
+        # so a participant never asks the CASE_MANAGER for one (ADR-0122).
+        violations = termination_timing_violations(
+            dl,
+            self._case,
+            EmbargoTermination.from_reason(self._reason),
+            self._now,
+        )
+        if violations:
+            raise VultronInvalidStateTransitionError(
+                f"Case '{self._case.id_}': " + "; ".join(violations)
+            )
 
     def _assertion_subject(self) -> str | None:
         return self._embargo_id or None
@@ -71,25 +101,46 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
                 embargo_id=self._embargo_id,
                 case_id=self._case.id_,
                 actor=self._actor_id,
+                reason=self._reason,
                 to=to,
             )
             self._captured["activity"] = json.loads(remove_blob)
             return remove_id, remove_blob
 
+        if self._reason == TerminationReason.END_TIME_REACHED:
+            return end_embargo_at_end_time_bt(
+                case_id=self._case.id_,
+                result_out=self._result_out,
+                now=self._now,
+                activity_builder=_build_activity,
+            )
         return terminate_embargo_bt(
             case_id=self._case.id_,
             result_out=self._result_out,
-            reason=TerminationReason.EARLY,
+            termination=EmbargoTermination.early(),
             activity_builder=_build_activity,
         )
+
+    def _handle_result(self) -> None:
+        if self._result_out.get(EMBARGO_ALREADY_ENDED_KEY):
+            # The other end-time request ended it first: nothing committed.
+            logger.info(
+                "Actor '%s': embargo on case '%s' had already ended —"
+                " end-time request answered as already done",
+                self._actor_id,
+                self._case.id_,
+            )
+            return
+        super()._handle_result()
 
     def _log_lifecycle_result(self) -> None:
         lr = self._lifecycle_result
         logger.info(
-            "Actor '%s' terminated embargo '%s' on case '%s' (EM %s → %s)",
+            "Actor '%s' terminated embargo '%s' on case '%s' (%s; EM %s → %s)",
             self._actor_id,
             self._embargo_id,
             self._case.id_,
+            self._reason,
             lr.em_before,
             lr.em_after,
         )

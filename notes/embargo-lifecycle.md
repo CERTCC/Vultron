@@ -105,10 +105,31 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   never the copy. `append_case_status(em_state=...)` is refused, and a received
   `Add(CaseStatus)` whose EM differs has its EM refused and the case's carried
   forward (RSH-05-023, SDO-03-006).
-- **Do not store the termination reason on the entry** while the replica's
-  `Remove` does not carry it, or the manager's and replica's registers disagree
-  (#4293). `TERMINATE` still requires a reason argument. A `Remove` naming an
-  embargo not in force changes nothing.
+- **A termination records what and why (ADR-0122, EMB-13-004).** The what
+  (`TerminationReason`: `END_TIME_REACHED` or `EARLY`) is the `Remove`'s
+  `content`, parsed at the edge (`termination_reason_from_content()`); the why
+  is a structured cause (`vultron/core/models/embargo_termination.py`), so far
+  only `ThreatSignalCause` naming `P`/`X`/`A`. Both sit on the `TERMINATED`
+  entry as one `EmbargoTermination`, required there and refused elsewhere. The
+  cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
+  triggering status, or, when unknown at build time, the case's PXA at the
+  write. Never put the why on the `Remove`: a replica that replays it
+  records only the what, until #4294 copies whole entries (a case snapshot's
+  `embargoRegister` already carries the entry, cause included). Read the
+  recorded what back from the register (`case.embargo_termination`) when
+  building the CASE_MANAGER's `Remove` and the CM-31-009 notices, so the wire
+  and the entry cannot disagree. A `Remove` naming an embargo not in force
+  changes nothing.
+- **End-time termination is one idempotent path (EMB-13-003).**
+  `end_embargo_at_end_time_bt` (`behaviors/embargo/end_time_tree.py`) answers
+  an already-`EXITED` case as done and otherwise runs `terminate_embargo_bt`
+  with `END_TIME_REACHED`. The CASE_MANAGER's lazy check runs it from the
+  dispatcher before each activity for a case (`upkeep_port_factory`); a
+  Sentinel reaches it through the terminate trigger with
+  `reason=END_TIME_REACHED`. `termination_timing_violations()` refuses an
+  `END_TIME_REACHED` claimed before the end time — in the trigger's
+  `_prepare`, the lifecycle, the received tree's guard
+  (`TerminationIsTimelyNode`, before the commit) and replica replay.
 
 ---
 

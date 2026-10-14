@@ -40,6 +40,7 @@ import importlib
 import inspect
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
+from enum import Enum
 from types import UnionType
 from typing import Any, Union, get_args, get_origin
 from unittest.mock import MagicMock
@@ -127,6 +128,28 @@ def _caller_supplied_nodes(name: str) -> list[py_trees.behaviour.Behaviour]:
     return _CALLER_SUPPLIED_NODES[name]()
 
 
+_NO_RULE = object()
+
+
+def _required_scalar(annotation: Any) -> Any:
+    """A value for a required flag, enum or optional parameter.
+
+    A required flag gets ``True``, which adds the node it guards, so the walk
+    sees it.  A required enum (a termination reason) gets its first member,
+    and a required optional value (a claimed time) ``None``: neither selects
+    which nodes exist.  :data:`_NO_RULE` when none applies.
+    """
+    members = _members(annotation)
+    if bool in members:
+        return True
+    enums = [m for m in members if inspect.isclass(m) and issubclass(m, Enum)]
+    if enums:
+        return next(iter(enums[0]))
+    if type(None) in get_args(annotation):
+        return None
+    return _NO_RULE
+
+
 def _argument_for(param: inspect.Parameter, domain: dict[type, Any]) -> Any:
     """A value for *param* that builds the factory's fullest tree.
 
@@ -148,9 +171,8 @@ def _argument_for(param: inspect.Parameter, domain: dict[type, Any]) -> Any:
         # bool flags, call-out bundles, configs and other wiring keep their
         # default: they select behaviour, not which nodes exist.
         return param.default
-    if bool in members:
-        # A required flag: True adds the node it guards, so the walk sees it.
-        return True
+    if (value := _required_scalar(param.annotation)) is not _NO_RULE:
+        return value
     if (
         any(
             inspect.isclass(m) and m.__name__.endswith("Event")

@@ -67,6 +67,10 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_termination import (
+    ThreatSignal,
+    ThreatSignalTermination,
+)
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -245,7 +249,11 @@ class _Manager:
     def terminate_as_owner(self) -> None:
         result = self.route(
             remove_embargo_from_case_activity(
-                _embargo(self.dl), origin=CASE_ID, actor=OWNER, to=[MANAGER]
+                _embargo(self.dl),
+                origin=CASE_ID,
+                actor=OWNER,
+                to=[MANAGER],
+                reason=TerminationReason.EARLY,
             )
         )
         assert result.disposition is HandlerDisposition.APPLIED
@@ -402,7 +410,7 @@ def _cascade_terminate(manager: _Manager) -> None:
         tree=terminate_embargo_bt(
             case_id=CASE_ID,
             result_out={},
-            reason=TerminationReason.THREAT_SIGNAL,
+            termination=ThreatSignalTermination(signals=[ThreatSignal.P]),
         ),
         actor_id=MANAGER,
         sync_port=sync_port,
@@ -655,7 +663,12 @@ class _Replica:
 
 def _termination_from(sender: str, dl: SqliteDataLayer, to: str) -> Any:
     return remove_embargo_from_case_activity(
-        _embargo(dl), origin=CASE_ID, context=CASE_ID, actor=sender, to=[to]
+        _embargo(dl),
+        origin=CASE_ID,
+        context=CASE_ID,
+        actor=sender,
+        to=[to],
+        reason=TerminationReason.EARLY,
     )
 
 
@@ -963,7 +976,11 @@ def test_owed_notice_without_a_trigger_factory_is_an_internal_fault() -> None:
         route_received(
             manager.dl,
             remove_embargo_from_case_activity(
-                _embargo(manager.dl), origin=CASE_ID, actor=OWNER, to=[MANAGER]
+                _embargo(manager.dl),
+                origin=CASE_ID,
+                actor=OWNER,
+                to=[MANAGER],
+                reason=TerminationReason.EARLY,
             ),
             receiving_actor_id=MANAGER,
             sync_port=SyncActivityAdapter(manager.dl),

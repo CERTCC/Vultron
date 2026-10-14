@@ -46,6 +46,7 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -93,6 +94,7 @@ def _make_remove_event(
         object_=CoreObject(id_=embargo.id_),
         origin=CoreObject(id_=case.id_),
         receiving_actor_id=receiver,
+        termination_reason=TerminationReason.EARLY,
         activity=VultronActivity(
             id_=activity_id,
             type_="Remove",
@@ -100,6 +102,7 @@ def _make_remove_event(
             object_=embargo.id_,
             origin=case.id_,
             context=case.id_,
+            content=TerminationReason.EARLY.value,
         ),
     )
 
@@ -120,6 +123,8 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -160,6 +165,8 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             case_id=case.id_,
             embargo_id=embargo_id,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -203,6 +210,8 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -239,6 +248,8 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -284,6 +295,8 @@ class TestRemoveEmbargoAnnouncedOnlyByTheCaseManager:
                 case_id=case.id_,
                 embargo_id=embargo.id_,
                 sender_actor_id=CASE_MANAGER_ACTOR,
+                termination_reason=TerminationReason.EARLY,
+                terminated_at=None,
             ),
             actor_id=executing_actor,
             activity=_make_remove_event(
@@ -364,6 +377,8 @@ class TestRemoveEmbargoTeardownFailuresSurface:
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -396,6 +411,8 @@ class TestRemoveEmbargoTeardownFailuresSurface:
             case_id=case.id_,
             embargo_id=embargo.id_,
             sender_actor_id=CASE_MANAGER_ACTOR,
+            termination_reason=TerminationReason.EARLY,
+            terminated_at=None,
         )
         bridge = BTBridge(
             datalayer=dl,

@@ -55,6 +55,7 @@ from vultron.core.models.fault_classes import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.states.embargo_register import TerminationReason
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -390,6 +391,7 @@ RECIPES: dict[str, Recipe] = {
         case_id=w.case_id,
         actor=_ACTOR,
         to=[_PEER],
+        reason=TerminationReason.EARLY,
     ),
     # actors
     "invite_actor_to_case": lambda w: w.adapter.invite_actor_to_case(
