@@ -82,14 +82,17 @@ from vultron.metadata.planning.bundle_fit.model import (
 )
 from vultron.metadata.planning.bundle_fit.parse import (
     _schedule_of,
+    epic_assignees,
     graphql_errors,
     parse_graphql,
 )
 from vultron.metadata.planning.bundle_fit.render import _render
 from vultron.metadata.planning.bundle_fit.select import (
+    HELD_WORKFLOW,
     coherence_hints,
     effective_schedule,
     eligibility,
+    epic_hold_reason,
     select_bundle,
 )
 
@@ -99,6 +102,7 @@ __all__ = [
     "DEFAULT_BUDGET",
     "DEFAULT_MAX_MEMBERS",
     "EXCLUDED_TIERS",
+    "HELD_WORKFLOW",
     "KNOWN_TIERS",
     "NON_TOPIC_LABELS",
     "PLANNING_PROJECT_NUMBER",
@@ -115,6 +119,8 @@ __all__ = [
     "coherence_hints",
     "effective_schedule",
     "eligibility",
+    "epic_assignees",
+    "epic_hold_reason",
     "graphql_errors",
     "main",
     "parse_graphql",

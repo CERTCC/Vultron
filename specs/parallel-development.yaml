@@ -225,7 +225,6 @@ groups:
       - id: PAD-04-001
         priority: MUST
         kind: process
-        verification_debt: '#2571'
         statement: >-
           An agent MUST claim an Issue before beginning work on it by having
           GitHub create a branch named `<prefix>/<issue-number>-<slug>` linked
@@ -239,16 +238,28 @@ groups:
           A branch created only in a local clone locks nothing across machines
           or cloud agents, and it is invisible to the stale-claim sweeper until
           a PR is pushed. A GitHub-created linked branch also appears in the
-          Issue's Development sidebar.
+          Issue's Development sidebar. `createLinkedBranch` answers an existing
+          name with a null `linkedBranch` rather than an error, and that null is
+          the "already claimed" signal; `gh issue develop` exits 0 in the same
+          case, so it is not a lock (ISSUE-4617).
+        verification: >-
+          `test/metadata/test_claim_scripts.py`: `claim-issue.sh` creates the
+          branch through `createLinkedBranch`, checks it out, and refuses
+          without assigning anyone when the branch already exists on GitHub.
       - id: PAD-04-002
         priority: MUST
         kind: process
-        verification_debt: '#2571'
         statement: >-
           After creating the claim branch, the agent MUST assign the Issue to
           the triggering user, MUST set its Project #24 `Status` to
           `In Progress` (PAD-16-008), and MUST post a comment on the Issue
-          identifying the agent session and branch name.
+          identifying the agent session and branch name. An Epic claimed this
+          way (to plan it) MUST NOT be assigned and carries no `Status`: its
+          assignee is the epic-run claim (PAD-19-001, PAD-16-012).
+        verification: >-
+          `test/metadata/test_claim_scripts.py`: a successful claim assigns
+          `@me`, comments with the branch name, and sets `Status`, all through
+          `announce-claim.sh`; a claim on an Epic only comments.
       - id: PAD-04-003
         priority: MUST_NOT
         kind: process
@@ -526,7 +537,8 @@ groups:
           for Epics with `Schedule=Focus` or `Schedule=Now` (Focus first),
           then querying for open unblocked leaf Issues that are sub-issues of
           those Epics, filtered to exclude Issues that carry `stale-claim`,
-          `needs-info`, or `ready-for-human`, or that are already assigned.
+          `needs-info`, or `ready-for-human`, that are already assigned, or
+          that are held by an epic run (PAD-19-002).
       - id: PAD-08-002
         priority: MUST
         kind: process
@@ -590,13 +602,20 @@ groups:
       - id: PAD-10-001
         priority: MUST
         kind: process
-        verification_debt: '#2571'
         statement: >-
           A scheduled GitHub Actions workflow (weekly cadence, also
           triggerable on `workflow_dispatch`) MUST scan for Issues that are
           assigned, have a claim branch on GitHub under any claim prefix
-          (PAD-04-001), have no open PR, and have not received a branch commit
-          within 3 days.
+          (PAD-04-001), have no open PR, and have had neither a branch commit
+          nor their claim within 3 days.
+        rationale: >-
+          GitHub creates a claim branch at the `main` tip, whose last commit
+          can already be older than 3 days when the claim is taken. The claim
+          time (the Issue's latest assignment) is therefore activity too.
+        verification: >-
+          `test/ci/test_stale_claim_sweeper.py` pins the claim-branch parse for
+          every prefix and the staleness decision in
+          `.github/scripts/stale_claim_sweeper.py`.
       - id: PAD-10-002
         priority: MUST
         kind: process
@@ -756,8 +775,8 @@ groups:
         statement: >-
           A work bundle MUST be selected in two stages: eligibility (open,
           unassigned, no `stale-claim`, `needs-info`, or `ready-for-human`
-          label, all `blockedBy` CLOSED, leaf), then
-          fit. Clearing eligibility MUST NOT by itself make an Issue a bundle
+          label, all `blockedBy` CLOSED, leaf, not held by an epic run per
+          PAD-19-002), then fit. Clearing eligibility MUST NOT by itself make an Issue a bundle
           member.
         rationale: >-
           Selection was eligibility-only and took the first five candidates in
@@ -910,7 +929,8 @@ groups:
           member of the bundle it is given while creating exactly one branch. It
           validates every member number before mutating anything, rejects a
           repeated member, and on a mid-bundle failure names the members already
-          claimed and deletes the branch so the claim can be retried.
+          claimed and deletes the branch, locally and on GitHub, so the claim
+          can be retried (`test/metadata/test_claim_scripts.py`).
 
   - id: PAD-16
     title: Project Board Status Path
@@ -1362,3 +1382,112 @@ groups:
         relationships:
         - rel_type: refines
           spec_id: PAD-18-001
+
+  - id: PAD-19
+    title: Epic Claim for an Epic Run
+    description: >-
+      An epic run is `work-epic-tasks` driving one Epic's open children to
+      completion across several waves. Its plan lives in a gitignored local
+      file, and claiming each child only when its wave starts left later-wave
+      Tasks looking free to every other agent. The Epic claim makes the run
+      visible on GitHub and holds the lane it owns.
+    specs:
+      - id: PAD-19-001
+        priority: MUST
+        kind: process
+        statement: >-
+          An epic run MUST claim its Epic after its plan is approved and before
+          any build starts, by assigning the Epic and posting a claim comment.
+          The claim MUST NOT use a label, a branch, or a Project #24 field, and
+          MUST be refused for an Epic that is already assigned.
+        rationale: >-
+          An Epic carries no `Status` (PAD-16-012) and no claim branch, and the
+          assignee is a fact GitHub keeps rather than a marker someone must
+          maintain. Refusing an assigned Epic stops two runs on one Epic.
+        verification: >-
+          `test/metadata/test_claim_scripts.py::TestEpicClaim`: `claim-epic.sh`
+          assigns and comments without setting `Status` or creating a branch,
+          and refuses an assigned, closed, or non-Epic issue.
+      - id: PAD-19-002
+        priority: MUST
+        kind: process
+        statement: >-
+          While an Epic is assigned, every open Task and Feature whose nearest
+          Epic ancestor it is MUST be held: selection MUST report it as not
+          workable, with the reason. Bugs, Ideas, and Concerns under that Epic
+          MUST NOT be held.
+        rationale: >-
+          The run owns the build lane, including Tasks planned for later waves.
+          Bugs, Ideas, and Concerns are left open on purpose so other agents
+          can keep fixing and planning while the run builds.
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestEpicClaim` and
+          `test/metadata/test_claim_scripts.py`: `bundle-fit` rejects Task and
+          Feature candidates under an assigned Epic at the eligibility stage,
+          keeps Bug, Idea, and Concern candidates, and `claim-issue.sh` refuses
+          a held Task but claims a Bug.
+      - id: PAD-19-003
+        priority: MUST
+        kind: process
+        statement: >-
+          An explicit request to build a held Task or Feature MUST stop and ask
+          the user, unless the caller names that Epic as its epic run
+          (`--epic-run <Epic>`). The epic run MUST name its Epic this way for
+          every build it starts.
+        rationale: >-
+          Every agent runs as the same GitHub user, so the Epic's assignee
+          cannot tell the run from a stray session. Only the run knows it is
+          the run.
+        verification: >-
+          `test/metadata/test_claim_scripts.py`: `claim-issue.sh` exits 3 for a
+          held Task, and claims it when `--epic-run` names its Epic but not
+          another one; `bundle-fit --epic-run` is covered in
+          `test/metadata/test_bundle_fit.py::TestCLI`.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-19-002
+      - id: PAD-19-004
+        priority: MUST
+        kind: process
+        statement: >-
+          An epic run MUST release its Epic at every stop, finished or not, by
+          removing the assignee and posting a comment with the run's summary.
+        rationale: >-
+          A claim that outlives its run holds the Epic's Tasks from everyone.
+          Running the skill again claims the Epic again and resumes from its
+          status file, so releasing loses nothing.
+        verification: >-
+          `test/metadata/test_claim_scripts.py::TestEpicClaim`:
+          `release-epic.sh` removes the assignee and posts the summary, and
+          still posts it when the Epic was already unassigned.
+      - id: PAD-19-005
+        priority: MUST
+        kind: process
+        statement: >-
+          The stale-claim sweeper (PAD-10) MUST flag an assigned Epic with
+          `stale-claim`, and comment on it, when the claim is older than 3 days
+          and none of its children has an open Pull Request or claim-branch
+          activity within 3 days.
+        rationale: >-
+          A run that crashes before its release step leaves the Epic assigned.
+          The children's activity, not the Epic's, shows whether the run is
+          still working.
+        verification: >-
+          `test/ci/test_stale_claim_sweeper.py` pins the Epic staleness
+          decision in `.github/scripts/stale_claim_sweeper.py`.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-10-001
+      - id: PAD-19-006
+        priority: MUST
+        kind: process
+        statement: >-
+          An epic run MUST NOT hold the Bugs it plans. A planned Bug that another
+          agent claimed first MUST be dropped when its wave starts and reported
+          as taken elsewhere.
+        rationale: >-
+          Holding Bugs would stop other agents fixing them for the whole run.
+          Dropping one that was taken is cheaper than coordinating over it.
+        verification: >-
+          Inspection: `work-epic-tasks` step 4 checks each Bug before spawning
+          `bugfix`, and its report has a "taken elsewhere" section.

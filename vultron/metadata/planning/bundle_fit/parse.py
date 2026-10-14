@@ -13,6 +13,13 @@ from vultron.metadata.planning.bundle_fit.model import (
 )
 
 
+def _logins(node: dict) -> list[str]:
+    """The ``assignees`` logins of one issue node."""
+    return [
+        a["login"] for a in (node.get("assignees") or {}).get("nodes") or []
+    ]
+
+
 def _schedule_of(node: dict, project_number: int) -> str | None:
     """Read the Schedule single-select value from one project item set."""
     for item in (node.get("projectItems") or {}).get("nodes") or []:
@@ -40,6 +47,14 @@ def graphql_errors(payload: dict) -> list[str]:
     ]
 
 
+def epic_assignees(payload: dict) -> list[str]:
+    """Who has claimed the Epic for an epic run (PAD-19-001); empty if no one."""
+    issue = ((payload.get("data") or {}).get("repository") or {}).get(
+        "issue"
+    ) or {}
+    return _logins(issue)
+
+
 def parse_graphql(
     payload: dict, project_number: int = PLANNING_PROJECT_NUMBER
 ) -> tuple[int | None, str | None, list[Candidate]]:
@@ -62,10 +77,7 @@ def parse_graphql(
                     label["name"]
                     for label in (node.get("labels") or {}).get("nodes") or []
                 ],
-                assignees=[
-                    a["login"]
-                    for a in (node.get("assignees") or {}).get("nodes") or []
-                ],
+                assignees=_logins(node),
                 # Fail closed: eligibility requires every blocker CLOSED, so a
                 # blocker whose state is absent or null counts as blocking. The
                 # inverse test (== "OPEN") would make a malformed payload look

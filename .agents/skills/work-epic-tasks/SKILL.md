@@ -14,6 +14,10 @@ description: >
 You are the **orchestrator**. You plan and coordinate; sub-agents implement
 and review. Never close the Epic. Details: [REFERENCE.md](REFERENCE.md).
 
+While you run, you hold an **Epic claim**: the Epic is assigned to you, and its
+open Tasks and Features are held for this run, so no other `build` takes one,
+even from a later wave (PAD-19). Bugs, Ideas, and Concerns stay open to others.
+
 ## Quick Start
 
 ```bash
@@ -30,6 +34,9 @@ Load the Epic's open children
 
 - Not an Epic, or an Idea/Concern that could change what the Tasks build:
   **refuse**, saying why.
+- The Epic is already assigned: another epic run holds it, or one stopped
+  without releasing it. **Refuse** and tell the user. A human releases an
+  abandoned claim with `release-epic.sh` (the sweeper flags it `stale-claim`).
 - More than 10 Tasks: ask permission before continuing.
 - Bug: look quickly. Easy and self-contained → plan it with `bugfix`. Depends
   on a large decision → ask the user how to proceed.
@@ -62,12 +69,25 @@ expected open worktrees). **Always wait for approval.** Start nothing before
 it. A reworded criterion goes in the builder's prompt and in a comment on the
 issue; never edit the issue text, and say in the PR body how it was met.
 
+After approval and before any build starts, claim the Epic:
+
+```bash
+bash .agents/skills/shared/claim-epic.sh <EPIC>
+```
+
+If it fails, start nothing and report why. From here on, every exit path runs
+step 6's release.
+
 ### 4. Execute
 
 Write the status file, then run up to the agent cap at once. Per task:
 
 1. Create `/tmp/wt-<issue>` from `origin/main` (never `git worktree prune`).
-2. Spawn the build agent (`build`, or `bugfix`) in that worktree.
+2. Spawn the build agent in that worktree. A Task gets
+   `build <N> --epic-run <EPIC>`, which clears the hold for this run only.
+   A Bug is not held, so check it first: if it is now assigned or has a claim
+   branch, another agent took it. Drop it, keep going, and report it as
+   "taken elsewhere". Otherwise spawn `bugfix <N>`.
 3. On PR open, spawn a **fresh** agent in the same worktree to run `pr-ship`.
 4. Merge only on `READY-TO-MERGE`, as soon as it arrives. If another PR merged
    after that verify ran, run the checks below on this PR first and re-run
@@ -109,7 +129,16 @@ that does not depend on them; stop only when every path needs the user.
 
 ### 6. Report
 
-List completed (PR, merge), parked, excluded, plan changes, and new issues
+Release the Epic first, on **every** stop: finished, parked on the user,
+refused mid-run, or failed. Pass the report's summary:
+
+```bash
+bash .agents/skills/shared/release-epic.sh <EPIC> "<summary>"
+```
+
+Running the skill again claims the Epic again and resumes from the status file.
+
+List completed (PR, merge), parked, excluded, taken elsewhere, plan changes, and new issues
 (type, producing task, blocking or not). Add the run's net issues per
 `completeness-doctrine.md` § "Net Issues: Close More Than You Open": closed,
 opened by reason (`excursion` excluded), dedup/`wontfix` closures on their own

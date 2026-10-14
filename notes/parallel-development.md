@@ -4,8 +4,8 @@ status: active
 kind: guidance
 description: >
   How multiple AI agents and human developers coordinate through GitHub Issues:
-  the issue hierarchy, label taxonomy, bundle selection, task claiming,
-  stale-claim and merge-conflict recovery, the shared-`.git` pruning danger, and
+  the issue hierarchy, label taxonomy, bundle selection, task claiming, the
+  Epic claim an epic run holds, stale-claim and merge-conflict recovery, the shared-`.git` pruning danger, and
   the two paths through GitHub Project #24 (Schedule on Epics; Status and PR
   ship stage mirrored from facts).
 related_specs:
@@ -33,8 +33,9 @@ external agentic tools is `specs/agentic-readiness.yaml`, a different topic.
 |---|---|---|
 | What is the authoritative priority ordering? | Project #24 `Schedule`, **on Epics only** | Priority is decided per body of work; a child's own value could only restate its Epic's or silently differ (PAD-02-001) |
 | What gives a non-Epic issue its priority? | Its nearest Epic ancestor's tier | An issue with no Epic ancestor *is* untriaged; small unrelated work goes under long-lived catch-all Epics (PAD-01-007) |
-| How are tasks claimed? | A branch `<prefix>/<N>-slug` that GitHub creates, linked to the issue | Creating it on GitHub fails if it exists, so the lock holds across machines (PAD-04-001) |
-| Is there a `claimed` label? | No; board `Status` is a **mirror** of facts | A hand-kept copy drifts; no agent decides claimability from `Status` (PAD-16-002/003) |
+| How are tasks claimed? | A branch `<prefix>/<N>-slug` that GitHub creates with `createLinkedBranch`, linked to the issue | A null `linkedBranch` means the name exists, so the lock holds across machines. `gh issue develop` exits 0 there and is no lock (PAD-04-001) |
+| Is there a `claimed` label? | No; claims are facts GitHub keeps (claim branch, assignee), and board `Status` **mirrors** them | A hand-kept copy drifts; no agent decides claimability from `Status` (PAD-16-002/003) |
+| How does an epic run claim its Epic? | It assigns the Epic and comments; its Tasks and Features are held until it releases | Tasks in a later wave otherwise look free; Bugs, Ideas and Concerns stay open on purpose (PAD-19) |
 | Does an Epic's tier affect a child's `Status`? | No; the tier orders selection among `Ready` issues only | "Could this start?" and "should it start now?" are different questions (PAD-16-006) |
 | Where does ship-pipeline progress live? | On the PR, as the `Ship stage` field | One bundle PR closes several issues (PAD-17) |
 | When does an Epic close? | Automatically, when its last sub-issue closes | Later work belongs to a new Epic (PAD-01-008) |
@@ -96,11 +97,13 @@ mechanics are `uv run bundle-fit`, so no skill re-derives them in prose (PAD-15)
 ```text
 1. Query Project #24 → first Epic in the Focus tier, else the Now tier
 2. Query its open leaf sub-issues: unassigned, no stale-claim, no needs-info,
-   no ready-for-human
+   no ready-for-human; a Task or Feature under an assigned Epic is held by an
+   epic run (PAD-19-002)
 3. Apply fit (type / Epic's Schedule tier / size budget) → member or bundle
-4. Create <prefix>/<issue-number>-<slug> → if it already exists: abort (taken)
-5. gh issue edit <N> --add-assignee @me; set Status = In Progress
-6. gh issue comment <N> --body "Claimed on branch <branch>"
+4. createLinkedBranch <prefix>/<issue-number>-<slug> from main
+   → null linkedBranch: it already exists, abort (taken)
+5. Assign @me; set Status = In Progress
+6. Comment "Claimed on branch <branch>"
 7. Implement, validate, pre-PR code review; push the branch at each
    checkpoint (PAD-04-004)
 8. create-pr: cherry-pick onto a fresh origin/main (freshen-branch.sh), push
@@ -109,18 +112,29 @@ mechanics are `uv run bundle-fit`, so no skill re-derives them in prose (PAD-15)
    → the pr-size-label workflow measures the diff and labels the PR
 ```
 
-`claim-issue.sh` performs steps 4–6. Pre-PR review findings are FAIL, IMPROVE or
-DEFER (`.agents/skills/shared/completeness-doctrine.md`): FAIL and IMPROVE are
-fixed before the PR opens; there is no advisory category to log and forget.
+`claim-issue.sh` performs steps 4–6, with `announce-claim.sh` doing 5–6, and
+refuses a held Task or Feature (exit 3) unless `--epic-run` names its Epic.
+Because every agent is the same GitHub user, only that flag tells the run from a
+stray session (PAD-19-003). An Epic claimed to plan it is commented on, never
+assigned: an Epic's assignee means an epic run (PAD-04-002).
+
+Pre-PR review findings are FAIL, IMPROVE or DEFER
+(`.agents/skills/shared/completeness-doctrine.md`): FAIL and IMPROVE are fixed
+before the PR opens; there is no advisory category to log and forget.
 
 ## Stale Claim Recovery
 
 ```text
 Sweeper (stale_claim_sweeper.yml, weekly or on demand):
-  For each Issue that is assigned, has a claim branch on GitHub,
-  no open PR for that branch, and a last branch commit > 3 days ago:
+  For each Issue that is assigned, has a claim branch on GitHub (any prefix),
+  no open PR for that branch, and neither a branch commit nor its claim
+  in the last 3 days:
   → add stale-claim label
   → comment: "Orphaned claim on branch <branch>. Human review needed."
+  For each Epic that is assigned (an epic run), was claimed > 3 days ago, and
+  none of whose children has an open PR or claim-branch activity in 3 days:
+  → add stale-claim label, comment
+  (logic and tests: .github/scripts/stale_claim_sweeper.py)
 
 Human remediation: review or delete the branch, unassign the Issue, remove
 stale-claim → the Issue is claimable again
@@ -128,8 +142,9 @@ stale-claim → the Issue is claimable again
 
 A stale claim stays `In Progress` with the `stale-claim` marker. The human
 decides whether to resume it (an agent checks out the existing branch) or release
-it. The sweeper sees only pushed branches, which is why PAD-04-004 asks for a push
-at each checkpoint.
+it. The claim time counts as activity because GitHub creates the branch at the
+`main` tip, whose commit can already be days old. After that, the sweeper sees
+only pushed commits, which is why PAD-04-004 asks for a push at each checkpoint.
 
 ## Merge Conflict Recovery
 
@@ -246,6 +261,11 @@ progress sits in gitignored `.claude/pr-*.json` files no other session can see.
 An Epic has a Schedule tier and no Status. Its progress is GitHub's sub-issue
 progress, and `needs-decomposition` marks one that still needs planning. It
 closes when its last sub-issue closes (PAD-01-008).
+
+An assigned Epic is claimed by an epic run (`work-epic-tasks`, PAD-19):
+`claim-epic.sh` after plan approval, `release-epic.sh` with the summary at every
+stop. The run's plan stays in its gitignored status file; the assignee is the
+only part other sessions need to see.
 
 ### Triage
 

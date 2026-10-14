@@ -19,7 +19,10 @@ bundle member.
 
 **Stage 1 — eligibility.** Can the issue be worked at all? `state == OPEN`, no
 assignees, no `stale-claim` label, every `blockedBy` entry `CLOSED`, and
-`subIssues.totalCount == 0` (a leaf, not a nested Epic).
+`subIssues.totalCount == 0` (a leaf, not a nested Epic). A Task or Feature
+whose Epic is assigned is also not workable: the Epic is claimed by an epic
+run, which owns that lane (PAD-19-002). The run itself passes
+`bundle-fit --epic-run <Epic>`. Bugs, Ideas, and Concerns under it stay open.
 
 **Stage 2 — fit.** Should the issue be in *this* bundle? Run the tool; do not
 re-derive its rules by hand:
@@ -42,7 +45,7 @@ never the priority signal.
 
 The tool reports every candidate it held back and separates *held back by fit*
 (workable, wrong bundle) from *not workable yet* (blocked, assigned,
-stale-claim, non-leaf). Both belong in what you show the user.
+stale-claim, non-leaf, held by an epic run). Both belong in what you show the user.
 
 **Grain is yours, not the tool's.** `bundle-fit` emits coherence *hints*
 (shared spec IDs, shared file paths, shared topic labels) and stops there,
@@ -65,8 +68,12 @@ discarded — do not ask the user whether to take only the first.
    member; the rest are claimed onto that same branch:
 
    ```bash
-   bash .agents/skills/shared/claim-issue.sh <PRIMARY> <prefix> <slug> <OTHERS...>
+   bash .agents/skills/shared/claim-issue.sh [--epic-run <Epic>] <PRIMARY> <prefix> <slug> <OTHERS...>
    ```
+
+   GitHub creates the one linked branch, which is the lock (PAD-04-001). A
+   Task or Feature under an Epic claimed by an epic run is refused (exit 3)
+   unless `--epic-run` names that Epic (PAD-19-003).
 
 3. **Deepen context once** for the shared design idea, then implement each
    member to the same standard it would get alone — its own tests, its own

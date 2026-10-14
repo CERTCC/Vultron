@@ -2,7 +2,8 @@
 
 Requirements: PAD-15-001 (two stages), PAD-15-002 (homogeneous by workflow),
 PAD-15-003/004 (Schedule tier ordering and exclusion), PAD-15-005 (size budget),
-PAD-15-006 (per-candidate rejection reasons), PAD-15-007 (hints, not verdicts).
+PAD-15-006 (per-candidate rejection reasons), PAD-15-007 (hints, not verdicts),
+PAD-19-002/003 (an epic run's claim holds the Epic's Tasks and Features).
 
 Selection used to be one stage: filter an Epic's sub-issues for *eligibility*
 (open, unassigned, unblocked, leaf) and take the first five in GitHub order.
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Sequence
 
 from vultron.metadata.planning.bundle_fit.model import (
     DEFAULT_BUDGET,
@@ -37,11 +39,42 @@ _SPEC_ID_RE = SPEC_ID_CITATION_RE
 # A repo-relative path with an extension (vultron/core/x.py, specs/outbox.yaml).
 _PATH_RE = re.compile(r"\b(?:[\w.-]+/)+[\w.-]+\.\w{2,5}\b")
 
+# The lane an epic run owns. Bugs, Ideas, and Concerns under a claimed Epic stay
+# open to other agents on purpose (PAD-19-002).
+HELD_WORKFLOW = "build"
+
+
+def epic_hold_reason(
+    epic: int | None,
+    epic_assignees: Sequence[str],
+    epic_run: int | None = None,
+) -> str | None:
+    """Why the Epic's Tasks and Features are held, or ``None`` if they are not.
+
+    An assigned Epic is claimed by an epic run (PAD-19-001). Every agent runs as
+    the same GitHub user, so the assignee cannot tell that run from a stray
+    session; only the run itself, naming the Epic in ``epic_run``, is let
+    through (PAD-19-003).
+    """
+    if not epic_assignees or (epic is not None and epic_run == epic):
+        return None
+    where = f"#{epic}" if epic is not None else "the Epic"
+    return (
+        f"held by an epic run — {where} is claimed "
+        f"(assigned to {', '.join(epic_assignees)})"
+    )
+
 
 def eligibility(
     candidates: list[Candidate],
+    *,
+    epic_hold: str | None = None,
 ) -> tuple[list[Candidate], list[Rejection]]:
-    """Stage 1 — can this issue be worked at all? (unchanged behaviour)."""
+    """Stage 1 — can this issue be worked at all?
+
+    ``epic_hold`` is ``epic_hold_reason``'s verdict for the Epic these
+    candidates sit under; when set, it holds back the build lane only.
+    """
     kept: list[Candidate] = []
     rejected: list[Rejection] = []
     for c in candidates:
@@ -61,6 +94,8 @@ def eligibility(
             rejected.append(
                 Rejection(c.number, "eligibility", "has stale-claim label")
             )
+        elif epic_hold is not None and c.workflow == HELD_WORKFLOW:
+            rejected.append(Rejection(c.number, "eligibility", epic_hold))
         elif c.open_blockers:
             blockers = ", ".join(f"#{n}" for n in c.open_blockers)
             rejected.append(
@@ -163,6 +198,8 @@ def select_bundle(
     *,
     epic: int | None = None,
     epic_schedule: str | None = None,
+    epic_assignees: Sequence[str] = (),
+    epic_run: int | None = None,
     workflow: str | None = None,
     budget: int = DEFAULT_BUDGET,
     max_members: int = DEFAULT_MAX_MEMBERS,
@@ -173,7 +210,10 @@ def select_bundle(
     a stage and a reason — a candidate is never dropped silently.
     """
     bundle = Bundle(epic=epic, epic_schedule=epic_schedule, budget=budget)
-    eligible, bundle.rejected = eligibility(candidates)
+    eligible, bundle.rejected = eligibility(
+        candidates,
+        epic_hold=epic_hold_reason(epic, epic_assignees, epic_run),
+    )
 
     # Fit, part 1: reject what no skill can execute, then what a human has
     # already deprioritised. Both are disqualifying regardless of the bundle's
