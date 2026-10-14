@@ -95,6 +95,7 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
     case = as_VulnerabilityCase(
         id_=_CASE_ID,
         name="CBT-05-007 inline participant test",
+        vulnerability_reports=[_REPORT_ID],
         case_participants=[vendor_participant, finder_participant],
     )
     case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
@@ -149,6 +150,7 @@ def test_bootstrap_bare_uri_participant_is_refused(make_payload):
     case = as_VulnerabilityCase(
         id_=_CASE_ID,
         name="CBT-05-008 bare URI test",
+        vulnerability_reports=[_REPORT_ID],
         case_participants=[
             case_actor_participant,
             _FINDER_PARTICIPANT_ID,  # bare string — protocol violation
@@ -202,6 +204,7 @@ def test_bootstrap_from_an_actor_no_anchor_names_is_refused(make_payload):
     case = as_VulnerabilityCase(
         id_=_CASE_ID,
         name="CBT-01-011 unanchored sender",
+        vulnerability_reports=[_REPORT_ID],
         case_participants=[impostor, finder],
     )
     case.actor_participant_index[_IMPOSTOR_ID] = impostor.id_

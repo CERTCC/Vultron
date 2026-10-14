@@ -54,9 +54,9 @@ Record precedence matches it: the stored record first, an inline copy only as
 the fallback.
 
 The report tree's own ``Create(Case)`` (``case_creation.CreateCaseActivity``)
-does not come here: ``case_creation._collect_create_case_addressees`` builds its addressees from
-the actor, the report and the offer rather than the roster, and every one of
-them is seated at case initialization.
+does not come here: ``case_creation._collect_create_case_addressees``
+builds its addressees from the actor, the report and the offer rather than
+the roster, and every one of them is seated at case initialization.
 
 This module is the one place in ``vultron/core/`` that lists roster actor
 IDs for addressing; ``test/architecture/test_active_participant_recipient_selection.py``

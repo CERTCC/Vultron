@@ -141,6 +141,19 @@ def _register_peer(client, host_slug: str, peer_id: str, name: str) -> None:
     ), f"Peer registration failed ({resp.status_code}): {resp.text}"
 
 
+def _create_vendor_and_reporter(vendor_tc, reporter_tc) -> tuple[str, str]:
+    """Create both actors, each in the other's address book (ADR-0081)."""
+    vendor_actor_id = _create_actor(
+        vendor_tc, f"{_VENDOR_BASE}/api/v2", _VENDOR_SLUG, "Vendor CP"
+    )
+    reporter_actor_id = _create_actor(
+        reporter_tc, f"{_REPORTER_BASE}/api/v2", _REPORTER_SLUG, "Reporter CP"
+    )
+    _register_peer(vendor_tc, _VENDOR_SLUG, reporter_actor_id, "Reporter CP")
+    _register_peer(reporter_tc, _REPORTER_SLUG, vendor_actor_id, "Vendor CP")
+    return vendor_actor_id, reporter_actor_id
+
+
 def _post_to_inbox(client, actor_slug: str, activity) -> None:
     """POST *activity* JSON to ``/api/v2/actors/{actor_slug}/inbox/``."""
     resp = client.post(
@@ -300,18 +313,9 @@ class TestCaseProposalRoundTrip:
     def _submit_report(self, two_app_setup, caplog, label):
         """Run the report-to-case round trip; return the isolates and actor ids."""
         vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
-
         vendor_base_api = f"{_VENDOR_BASE}/api/v2"
-        reporter_base_api = f"{_REPORTER_BASE}/api/v2"
-
-        vendor_actor_id = _create_actor(
-            vendor_tc, vendor_base_api, _VENDOR_SLUG, "Vendor CP"
-        )
-        reporter_actor_id = _create_actor(
-            reporter_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
-        )
-        _register_peer(
-            vendor_tc, _VENDOR_SLUG, reporter_actor_id, "Reporter CP"
+        vendor_actor_id, reporter_actor_id = _create_vendor_and_reporter(
+            vendor_tc, reporter_tc
         )
 
         report = as_VulnerabilityReport(
@@ -428,20 +432,8 @@ class TestCaseProposalRoundTrip:
         the reporter nothing to check the introduction against.
         """
         vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
-        vendor_actor_id = _create_actor(
-            vendor_tc, f"{_VENDOR_BASE}/api/v2", _VENDOR_SLUG, "Vendor CP"
-        )
-        reporter_actor_id = _create_actor(
-            reporter_tc,
-            f"{_REPORTER_BASE}/api/v2",
-            _REPORTER_SLUG,
-            "Reporter CP",
-        )
-        _register_peer(
-            vendor_tc, _VENDOR_SLUG, reporter_actor_id, "Reporter CP"
-        )
-        _register_peer(
-            reporter_tc, _REPORTER_SLUG, vendor_actor_id, "Vendor CP"
+        vendor_actor_id, reporter_actor_id = _create_vendor_and_reporter(
+            vendor_tc, reporter_tc
         )
         # One CaseActor per container (#1872), so it is provisioned before
         # the report id exists.
@@ -535,8 +527,11 @@ class TestCaseProposalRoundTrip:
         ) = self._submit_report_through_the_reporter(
             two_app_setup, "CBT-05-001 announce after introduction"
         )
-        [link] = reporter_iso.dl.list_objects("ReportCaseLink")
-        assert isinstance(link, VultronReportCaseLink)
+        [link] = [
+            link
+            for link in reporter_iso.dl.list_objects("ReportCaseLink")
+            if isinstance(link, VultronReportCaseLink)
+        ]
         assert link.case_id is not None
         replica = reporter_iso.dl.read(link.case_id)
         assert isinstance(replica, VulnerabilityCase)

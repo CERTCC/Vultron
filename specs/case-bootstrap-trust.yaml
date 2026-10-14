@@ -260,9 +260,7 @@ groups:
       `test/core/use_cases/received/case/test_helpers.py` sends
       `Create(VulnerabilityCase)` from an actor no local anchor names, with a
       snapshot naming that sender as CASE_MANAGER, and asserts a refusal and an
-      empty case store. The test's receiver holds an anchor naming another
-      sender; a receiver holding no anchor at all still reaches the `direct`
-      route until #4472 deletes it.
+      empty case store.
     adr:
     - ADR-0132
     relationships:
@@ -416,9 +414,11 @@ groups:
     kind: protocol
     statement: Tests MUST verify that a bootstrap `Create(VulnerabilityCase)` is rejected when the sender does not match the
       actor that received the report or when the case does not reference the known submitted report.
-    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that a
-      `Create(VulnerabilityCase)` is rejected when its sender mismatches the actor that received the report or when it
-      does not reference the known submitted report.
+    verification: '`test/core/use_cases/received/case/test_create.py` confirms that a `Create(VulnerabilityCase)` from a
+      sender other than the actor that received the report is rejected, and
+      `test_bootstrap_not_naming_the_submitted_report_is_refused` in
+      `test/core/behaviors/case/test_create_case_received_tree.py` confirms that one not referencing the known submitted
+      report is rejected.'
     stories:
     - story_2022_089
     - story_2022_090

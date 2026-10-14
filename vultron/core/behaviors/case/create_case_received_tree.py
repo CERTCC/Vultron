@@ -24,6 +24,7 @@ Structure (after intake, which the shared factory supplies first)::
        ├─ TrustedBootstrap (Sequence)       # CBT-01-005 / CBT-01-006
        │  ├─ BootstrapRouteIs_trusted
        │  ├─ CheckTrustedCreatorNode
+       │  ├─ CheckReportReferenceNode       # CBT-01-005
        │  ├─ CheckInlineParticipantsNode
        │  ├─ HoldCarriedEmbargoNode
        │  ├─ SeedCaseReplicaNode
@@ -73,6 +74,7 @@ from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     BootstrapRouteIsNode,
     BootstrapRouteName,
     CheckInlineParticipantsNode,
+    CheckReportReferenceNode,
     CheckSenderIsSnapshotManagerNode,
     CheckTrustedCreatorNode,
     ClassifyBootstrapRouteNode,
@@ -86,6 +88,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.replica_emit_exemptions import (
     REPORTER_INTRODUCTION,
 )
+from vultron.core.models._helpers import _as_id
 
 
 def create_create_case_received_tree(
@@ -103,12 +106,18 @@ def create_create_case_received_tree(
         :class:`~vultron.core.behaviors.case.nodes.replica_bootstrap.ClassifyBootstrapRouteNode`.
     """
     route = BootstrapRoute()
+    report_ids = [
+        report_id
+        for ref in getattr(case_obj, "vulnerability_reports", None) or []
+        if (report_id := _as_id(ref))
+    ]
     trusted = py_trees.composites.Sequence(
         name="TrustedBootstrap",
         memory=False,
         children=[
             BootstrapRouteIsNode(route, "trusted"),
             CheckTrustedCreatorNode(route, sender_id, case_id),
+            CheckReportReferenceNode(route, report_ids, case_id),
             CheckInlineParticipantsNode(case_obj, case_id),
             HoldCarriedEmbargoNode(case_obj, case_id),
             SeedCaseReplicaNode(route, case_obj, case_id),
@@ -156,7 +165,7 @@ def create_create_case_received_tree(
         case_id=None,
         precondition_guards=[],
         replica_effects=[
-            ClassifyBootstrapRouteNode(route, sender_id, case_id),
+            ClassifyBootstrapRouteNode(route, sender_id, case_id, report_ids),
             choose,
         ],
         replica_emit_exemption=REPORTER_INTRODUCTION,
