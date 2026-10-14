@@ -312,7 +312,10 @@ def wait_for_replica_ledger_coverage(
     ``Announce`` per prior entry — and gets ``LATE_JOINER_COVERAGE_TIMEOUT``.
     Neither is below any budget a scenario carried before the loop was shared;
     a scenario that needs a different budget passes another named constant,
-    never a literal.
+    never a literal.  Each budget is how long a replica may go without
+    receiving another entry, not a total: a replica still draining a long
+    backfill keeps being waited for, up to ``BACKFILL_PROGRESS_CEILING``
+    (#4424).
 
     Args:
         auth_client: Client for the container whose ledger is authoritative
