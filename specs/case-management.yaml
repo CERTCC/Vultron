@@ -1606,16 +1606,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A duplicate embargo `Accept` or `Reject` from a participant whose consent to that
-      embargo is already recorded as agreed (for an Accept) or declined (for a Reject) MUST
-      have no further effect: the receiver MUST NOT change any state for it and MUST NOT
-      emit any activity in response.
+      An embargo answer is idempotent per participant and invitation: a repeated `Accept`
+      or `Reject` by the same participant of the same embargo invitation, whatever its
+      activity id, MUST have no further effect. The receiver MUST NOT change any state for
+      it, MUST NOT add a ledger entry for it and MUST NOT send any message because of it.
+      Answers from different participants are separate consents.
     verification: >-
       `test_a_redelivered_embargo_answer_has_no_effect` in
       `test/core/use_cases/received/test_embargo_propose_accept_reject.py` delivers an
-      answered `Accept` or `Reject` of an embargo Invite to the CASE_MANAGER a second time
-      and confirms the redelivery leaves the case, the sender's participant record, the
-      ledger and the outbox unchanged.
+      answered `Accept` or `Reject` of an embargo Invite to the CASE_MANAGER a second time,
+      with the same activity id, and confirms the redelivery leaves the case, the sender's
+      participant record, the ledger and the outbox unchanged. A repeat answer with a new
+      activity id is not verified: the CASE_MANAGER currently commits a second ledger entry
+      for it and announces that entry, which is open under #4597.
     lint_suppress:
     - missing_story_reference
   - id: CM-13-009
